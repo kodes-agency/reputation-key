@@ -8,6 +8,7 @@ import { ok, err } from '#/shared/domain'
 import type { Result } from '#/shared/domain'
 import type { IdentityError } from './errors'
 import { identityError } from './errors'
+import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 
 /** Validate an organization slug format. */
 export function validateSlug(slug: string): Result<string, IdentityError> {
@@ -52,32 +53,24 @@ export function validateOrganizationName(name: string): Result<string, IdentityE
   return ok(trimmed)
 }
 
-/** Validate that a user can invite another user with the given role.
- * Business rule: PropertyManager can only invite Staff.
- * AccountAdmin can invite any role.
- */
+/** Validate closed-beta manager invitation authority. */
 export function canInviteWithRole(
   inviterRole: Role,
   targetRole: Role,
 ): Result<true, IdentityError> {
   // Defense-in-depth: use case already gates with can(role, 'invitation.create').
   // This ensures the domain rule is independently enforceable even if called outside a use case.
-  // Must be at least PropertyManager to invite
-  if (!hasRole(inviterRole, 'PropertyManager')) {
-    return err(identityError('forbidden', 'Insufficient role to invite members'))
+  if (inviterRole !== 'AccountAdmin') {
+    return err(
+      identityError('forbidden', 'Only Account Admins can invite beta manager accounts'),
+    )
   }
 
-  // AccountAdmin can invite any role
-  if (inviterRole === 'AccountAdmin') {
-    return ok(true)
-  }
-
-  // PropertyManager can only invite Staff
-  if (targetRole !== 'Staff') {
+  if (!isBetaInteractiveRole(targetRole)) {
     return err(
       identityError(
         'forbidden',
-        `Cannot invite with role '${targetRole}' — only AccountAdmin can invite managers or admins`,
+        `Cannot invite with role '${targetRole}' — Staff login is not active in beta`,
       ),
     )
   }

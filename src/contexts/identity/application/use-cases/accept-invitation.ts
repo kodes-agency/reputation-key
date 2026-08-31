@@ -41,8 +41,8 @@ export type AcceptInvitation = (
  * 2. Persist + emit — command store: lock the invitation, re-validate it,
  *    create the membership, mark accepted, and record the fact atomically
  *    (identity.invitation.accepted) so downstream handlers (e.g.
- *    staff-assignment creation) react
- * 3. Post-commit — auto-create staff assignments for the invited properties
+ *    property-access provisioning) react
+ * 3. Post-commit — provision explicit access grants for invited Properties
  */
 export const acceptInvitation =
   (deps: AcceptInvitationDeps): AcceptInvitation =>
@@ -68,12 +68,19 @@ export const acceptInvitation =
         }),
     })
 
-    // Post-commit side effect — auto-create staff assignments for the invited
-    // properties (the BA afterAcceptInvitation hook replacement).
+    // The binding is now durable and the membership exists. Align this
+    // session to that exact Organization; login recovery repeats the same
+    // binding-derived operation if the response is interrupted here.
+    await deps.identity.setActiveOrganization(
+      input.headers,
+      result.organizationId as string,
+    )
+
+    // Post-commit side effect — provision only the explicitly invited Property
+    // access grants. Staff participation remains a separate manager command.
     await deps.identity.runOnAcceptInvitation({
       userId: input.userId as string,
       organizationId: result.organizationId as string,
-      displayName: session.name,
       propertyIds: result.propertyIds,
     })
 

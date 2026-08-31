@@ -31,23 +31,28 @@ function fakeRepository(): StaffParticipationRepository & {
         (row) =>
           row.organizationId === orgId &&
           row.propertyId === propertyId &&
-          row.userId === userId &&
+          row.linkedUserId === userId &&
           row.status === 'active',
       ) ?? null,
     list: async (orgId) => participations.filter((row) => row.organizationId === orgId),
-    create: async (row) => {
-      participations.push(row)
-      return row
+    createParticipantWithParticipation: async ({ participation }) => {
+      participations.push(participation)
+      return participation
     },
-    archive: async (orgId, id, at) => {
+    archive: async (orgId, id, at, reason, expectedRevision) => {
       const index = participations.findIndex(
         (row) => row.organizationId === orgId && row.id === id,
       )
       if (index < 0) return null
+      if (participations[index].revision !== expectedRevision) {
+        throw { _tag: 'StaffError', code: 'revision_conflict' }
+      }
       const archived = {
         ...participations[index],
         status: 'archived' as const,
         endedAt: participations[index].endedAt ?? at,
+        archiveReason: reason,
+        revision: expectedRevision + 1,
         updatedAt: at,
       }
       participations[index] = archived
@@ -73,6 +78,12 @@ function fakeRepository(): StaffParticipationRepository & {
           row.effectiveTo === null,
       ),
     replaceResponsibilities: async (input) => {
+      const participation = participations.find(
+        (row) => row.id === input.staffParticipationId,
+      )
+      if (!participation || participation.revision !== input.expectedRevision) {
+        throw { _tag: 'StaffError', code: 'revision_conflict' }
+      }
       for (let i = 0; i < responsibilities.length; i += 1) {
         const row = responsibilities[i]
         if (
@@ -100,7 +111,10 @@ function fakeRepository(): StaffParticipationRepository & {
         endReason: null,
       }))
       responsibilities.push(...active)
-      return active
+      const nextRevision = input.expectedRevision + 1
+      const index = participations.findIndex((row) => row.id === participation.id)
+      participations[index] = { ...participation, revision: nextRevision }
+      return { responsibilities: active, revision: nextRevision }
     },
   }
 }
@@ -108,7 +122,6 @@ function fakeRepository(): StaffParticipationRepository & {
 function deps(repo: StaffParticipationRepository) {
   return {
     repo,
-    identityMembership: { isMember: async () => true },
     accessibleProperties: async () => [PROPERTY_ID],
     clock: () => NOW,
     idGen: () => PARTICIPATION_ID,
@@ -116,16 +129,123 @@ function deps(repo: StaffParticipationRepository) {
 }
 
 describe('StaffParticipation lifecycle', () => {
-  it('creates idempotently without changing property access', async () => {
+  it('does not let a raw AccountAdmin label widen assigned-only staff authority', async () => {
+    const repo = fakeRepository()
+    const create = createStaffParticipation({
+      ...deps(repo),
+      accessibleProperties: async () => [],
+    })
+    const ctx = buildTestAuthContext({
+      role: 'AccountAdmin',
+      effectivePermissions: new Set(['staff.manage']),
+      scopeByPermission: new Map([['staff.manage', 'assigned-properties']]),
+    })
+
+    await expect(
+      create({ propertyId: PROPERTY_ID, displayName: 'Sam' }, ctx),
+    ).rejects.toMatchObject({ _tag: 'StaffError', code: 'forbidden' })
+    expect(repo.participations).toHaveLength(0)
+  })
+
+  it('honours organization-wide staff authority independently of the raw role label', async () => {
+    const repo = fakeRepository()
+    const create = createStaffParticipation({
+      ...deps(repo),
+      accessibleProperties: async () => [],
+    })
+    const ctx = buildTestAuthContext({
+      role: 'PropertyManager',
+      effectivePermissions: new Set(['staff.manage']),
+      scopeByPermission: new Map([['staff.manage', 'organization']]),
+    })
+
+    await expect(
+      create({ propertyId: PROPERTY_ID, displayName: 'Sam' }, ctx),
+    ).resolves.toMatchObject({ propertyId: PROPERTY_ID })
+  })
+
+  it('reconciles manager responsibility when a linked participation is archived', async () => {
+    const repo = fakeRepository()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    repo.participations.push({
+      id: PARTICIPATION_ID,
+      organizationId: ctx.organizationId,
+      propertyId: PROPERTY_ID,
+      staffParticipantId: 'b0000000-0000-4000-8000-000000000002',
+      linkedUserId: 'linked-manager',
+      displayName: 'Linked manager',
+      status: 'active',
+      startedAt: NOW,
+      endedAt: null,
+      archiveReason: null,
+      revision: 1,
+      createdBy: ctx.userId,
+      updatedAt: NOW,
+    })
+    const calls: string[][] = []
+
+    await archiveStaffParticipation({
+      ...deps(repo),
+      reconcileResponsibleManagerEligibility: async (...input) => {
+        calls.push(input)
+      },
+    })(
+      {
+        staffParticipationId: PARTICIPATION_ID,
+        reason: 'left property',
+        expectedRevision: 1,
+      },
+      ctx,
+    )
+
+    expect(calls).toEqual([[ctx.organizationId, 'linked-manager', ctx.userId]])
+  })
+
+  it('retries eligibility reconciliation after the archive already committed', async () => {
+    const repo = fakeRepository()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    repo.participations.push({
+      id: PARTICIPATION_ID,
+      organizationId: ctx.organizationId,
+      propertyId: PROPERTY_ID,
+      staffParticipantId: 'b0000000-0000-4000-8000-000000000002',
+      linkedUserId: 'linked-manager',
+      displayName: 'Linked manager',
+      status: 'active',
+      startedAt: NOW,
+      endedAt: null,
+      archiveReason: null,
+      revision: 1,
+      createdBy: ctx.userId,
+      updatedAt: NOW,
+    })
+    let attempts = 0
+    const archive = archiveStaffParticipation({
+      ...deps(repo),
+      reconcileResponsibleManagerEligibility: async () => {
+        attempts += 1
+        if (attempts === 1) throw new Error('temporary reconciliation failure')
+      },
+    })
+    const input = {
+      staffParticipationId: PARTICIPATION_ID,
+      reason: 'left property',
+      expectedRevision: 1,
+    }
+
+    await expect(archive(input, ctx)).rejects.toThrow('temporary reconciliation failure')
+    await expect(archive(input, ctx)).resolves.toMatchObject({ status: 'archived' })
+    expect(attempts).toBe(2)
+  })
+
+  it('creates a participant without requiring a login identity', async () => {
     const repo = fakeRepository()
     const create = createStaffParticipation(deps(repo))
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const input = { propertyId: PROPERTY_ID, userId: 'user-1', displayName: 'Sam' }
+    const first = await create({ propertyId: PROPERTY_ID, displayName: 'Sam' }, ctx)
 
-    const first = await create(input, ctx)
-    const second = await create(input, ctx)
-
-    expect(second.id).toBe(first.id)
+    expect(first.linkedUserId).toBeNull()
+    expect(first.staffParticipantId).toBe(PARTICIPATION_ID)
     expect(repo.participations).toHaveLength(1)
   })
 
@@ -134,7 +254,7 @@ describe('StaffParticipation lifecycle', () => {
     const create = createStaffParticipation(deps(repo))
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const participation = await create(
-      { propertyId: PROPERTY_ID, userId: 'user-1', displayName: 'Sam' },
+      { propertyId: PROPERTY_ID, displayName: 'Sam' },
       ctx,
     )
     await updatePortalResponsibilities(deps(repo))(
@@ -142,12 +262,17 @@ describe('StaffParticipation lifecycle', () => {
         staffParticipationId: participation.id,
         primaryPortalId: 'portal-1',
         supportingPortalIds: ['portal-2'],
+        expectedRevision: participation.revision,
       },
       ctx,
     )
 
     const archived = await archiveStaffParticipation(deps(repo))(
-      { staffParticipationId: participation.id, reason: 'left_property' },
+      {
+        staffParticipationId: participation.id,
+        reason: 'left_property',
+        expectedRevision: participation.revision + 1,
+      },
       ctx,
     )
 
@@ -161,7 +286,7 @@ describe('StaffParticipation lifecycle', () => {
     const repo = fakeRepository()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const participation = await createStaffParticipation(deps(repo))(
-      { propertyId: PROPERTY_ID, userId: 'user-1', displayName: 'Sam' },
+      { propertyId: PROPERTY_ID, displayName: 'Sam' },
       ctx,
     )
     await updatePortalResponsibilities(deps(repo))(
@@ -169,6 +294,7 @@ describe('StaffParticipation lifecycle', () => {
         staffParticipationId: participation.id,
         primaryPortalId: 'portal-1',
         supportingPortalIds: ['portal-2', 'portal-3'],
+        expectedRevision: participation.revision,
       },
       ctx,
     )
@@ -178,12 +304,13 @@ describe('StaffParticipation lifecycle', () => {
       ctx,
     )
 
-    expect(result.participations).toEqual([participation])
+    expect(result.participations).toEqual([{ ...participation, revision: 2 }])
     expect(result.responsibilities).toEqual([
       {
         staffParticipationId: participation.id,
         primaryPortalId: 'portal-1',
         supportingPortalIds: ['portal-2', 'portal-3'],
+        revision: participation.revision + 1,
       },
     ])
   })
@@ -194,11 +321,14 @@ describe('StaffParticipation lifecycle', () => {
       id: PARTICIPATION_ID,
       organizationId: 'other-org',
       propertyId: PROPERTY_ID,
-      userId: 'user-1',
+      staffParticipantId: 'b0000000-0000-4000-8000-000000000002',
+      linkedUserId: null,
       displayName: 'Sam',
       status: 'active',
       startedAt: NOW,
       endedAt: null,
+      archiveReason: null,
+      revision: 1,
       createdBy: 'owner',
       updatedAt: NOW,
     })
@@ -209,6 +339,7 @@ describe('StaffParticipation lifecycle', () => {
           staffParticipationId: PARTICIPATION_ID,
           primaryPortalId: 'portal-1',
           supportingPortalIds: [],
+          expectedRevision: 1,
         },
         buildTestAuthContext({ role: 'PropertyManager' }),
       ),

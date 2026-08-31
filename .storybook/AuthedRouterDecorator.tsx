@@ -19,7 +19,7 @@ import {
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router'
-import { useRef, useState, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import type { Role } from '#/shared/domain/roles'
 
 type AuthContext = Readonly<{ role: Role }>
@@ -37,9 +37,9 @@ function makeAuthedRouter(Story: () => ReactNode, role: Role) {
   const indexRoute = createRoute({
     getParentRoute: () => authedRoute,
     path: '/',
-    // Render the live Story fn so args changes re-render without rebuilding
-    // the router (createRouter is expensive and must stay stable per mount).
-    component: () => <>{Story()}</>,
+    // Render Storybook's hookified function as a component. The decorator
+    // rebuilds this memory router only when Storybook changes that component.
+    component: () => <Story />,
   })
   const routeTree = rootRoute.addChildren([authedRoute.addChildren([indexRoute])])
   return createRouter({
@@ -51,12 +51,7 @@ function makeAuthedRouter(Story: () => ReactNode, role: Role) {
 
 /** Default decorator — renders as AccountAdmin (owner: all permissions). */
 export function AuthedRouterDecorator(Story: () => ReactNode) {
-  // Re-read Story on every render; rebuild router only on mount.
-  const storyRef = useRef(Story)
-  storyRef.current = Story
-  const [router] = useState(() =>
-    makeAuthedRouter(() => storyRef.current(), 'AccountAdmin'),
-  )
+  const router = useMemo(() => makeAuthedRouter(Story, 'AccountAdmin'), [Story])
   return <RouterProvider router={router} />
 }
 
@@ -64,9 +59,7 @@ export function AuthedRouterDecorator(Story: () => ReactNode) {
  *  permission-restricted view). Usage: `decorators: [withRole('Staff')]`. */
 export function withRole(role: Role) {
   return function AuthedRouterDecoratorForRole(Story: () => ReactNode) {
-    const storyRef = useRef(Story)
-    storyRef.current = Story
-    const [router] = useState(() => makeAuthedRouter(() => storyRef.current(), role))
+    const router = useMemo(() => makeAuthedRouter(Story, role), [Story])
     return <RouterProvider router={router} />
   }
 }

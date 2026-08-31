@@ -14,7 +14,7 @@ type Signal = Readonly<{
  * The five attention signals behind a fleet row's total, in severity order.
  *
  * `FleetEntry` has always carried `attentionSignals` alongside `totalAttention`,
- * and the row rendered only the sum: "12 needing action", with no way to tell
+ * and the row rendered only the sum: "12 needing attention", with no way to tell
  * twelve escalations from twelve stale goals. The two are not remotely the same
  * decision.
  *
@@ -49,9 +49,9 @@ const signalsOf = (signals: AttentionSignals): readonly Signal[] =>
       urgent: false,
     },
     {
-      key: 'newFeedback',
+      key: 'itemsToTriage',
       icon: Inbox,
-      count: signals.newFeedback,
+      count: signals.itemsToTriage,
       label: 'to triage',
       urgent: false,
     },
@@ -79,7 +79,7 @@ export function FleetAttentionBreakdown({
       className="flex min-w-0 flex-wrap items-center justify-end gap-1.5"
       // The sum stays available to assistive tech and to anyone scanning for
       // the single number the row used to show.
-      aria-label={`${totalAttention} needing action`}
+      aria-label={`${totalAttention} needing attention`}
     >
       {active.map(({ key, icon: Icon, count, label, urgent }) => (
         <Badge

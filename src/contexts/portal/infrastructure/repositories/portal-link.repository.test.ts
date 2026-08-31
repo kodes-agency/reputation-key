@@ -4,7 +4,6 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { createPortalLinkRepository } from './portal-link.repository'
-import { createPortalRepository } from './portal.repository'
 import { getDb } from '#/shared/db'
 import {
   buildTestPortal,
@@ -19,11 +18,13 @@ import {
 } from '#/shared/domain/ids'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { createPostgresPortalFixtureStore } from '../testing/postgres-portal-fixture-store'
 
 const ORG_A = organizationId('org-cccccccccccc')
 const ORG_B = organizationId('org-dddddddddddd')
 const PROPERTY_A = propertyId('ca000000-0000-4000-8000-000000000001')
 const PROPERTY_B = propertyId('cb000000-0000-4000-8000-000000000001')
+const REPOSITORY_NOW = new Date('2026-08-28T00:00:00.000Z')
 
 let pool: Pool
 
@@ -87,7 +88,6 @@ beforeEach(async () => {
 
 describe('portalLinkRepository (integration)', () => {
   async function seedPortal(orgId: typeof ORG_A, slug: string, overrides = {}) {
-    const portalRepo = createPortalRepository(getDb())
     const portal = buildTestPortal({
       id: crypto.randomUUID(),
       organizationId: orgId,
@@ -95,14 +95,14 @@ describe('portalLinkRepository (integration)', () => {
       slug,
       ...overrides,
     })
-    await portalRepo.insert(orgId, portal)
+    await createPostgresPortalFixtureStore(getDb()).insert(orgId, portal)
     return portal
   }
 
   describe('categories', () => {
     it('inserts and lists categories for a portal', async () => {
       const db = getDb()
-      const repo = createPortalLinkRepository(db)
+      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
       const portal = await seedPortal(ORG_A, 'cat-test')
 
       const cat = buildTestPortalLinkCategory({
@@ -117,11 +117,15 @@ describe('portalLinkRepository (integration)', () => {
       const categories = await repo.listCategories(ORG_A, portal.id)
       expect(categories).toHaveLength(1)
       expect(categories[0].title).toBe('Category A')
+      await expect(repo.findCategoryCommandTarget(ORG_A, cat.id)).resolves.toEqual({
+        category: cat,
+        portalUpdatedAt: portal.updatedAt,
+      })
     })
 
     it('tenant-isolates category list', async () => {
       const db = getDb()
-      const repo = createPortalLinkRepository(db)
+      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
       const portalA = await seedPortal(ORG_A, 'cat-tenant-a')
       const portalB = await seedPortal(ORG_B, 'cat-tenant-b')
 
@@ -153,7 +157,7 @@ describe('portalLinkRepository (integration)', () => {
 
     it('updates a category title', async () => {
       const db = getDb()
-      const repo = createPortalLinkRepository(db)
+      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
       const portal = await seedPortal(ORG_A, 'cat-update')
 
       const cat = buildTestPortalLinkCategory({
@@ -172,7 +176,7 @@ describe('portalLinkRepository (integration)', () => {
 
     it('deletes a category', async () => {
       const db = getDb()
-      const repo = createPortalLinkRepository(db)
+      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
       const portal = await seedPortal(ORG_A, 'cat-delete')
 
       const cat = buildTestPortalLinkCategory({
@@ -191,7 +195,7 @@ describe('portalLinkRepository (integration)', () => {
 
     it('reorders categories', async () => {
       const db = getDb()
-      const repo = createPortalLinkRepository(db)
+      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
       const portal = await seedPortal(ORG_A, 'cat-reorder')
 
       const cat1 = buildTestPortalLinkCategory({
@@ -219,6 +223,10 @@ describe('portalLinkRepository (integration)', () => {
       const categories = await repo.listCategories(ORG_A, portal.id)
       expect(categories[0].sortKey).toBe('a0')
       expect(categories[1].sortKey).toBe('b0')
+      expect(categories.map((category) => category.updatedAt)).toEqual([
+        REPOSITORY_NOW,
+        REPOSITORY_NOW,
+      ])
     })
   })
 
@@ -228,7 +236,7 @@ describe('portalLinkRepository (integration)', () => {
       portal: ReturnType<typeof buildTestPortal>,
       title: string,
     ) {
-      const repo = createPortalLinkRepository(getDb())
+      const repo = createPortalLinkRepository(getDb(), () => REPOSITORY_NOW)
       const cat = buildTestPortalLinkCategory({
         id: portalLinkCategoryId(crypto.randomUUID()),
         portalId: portal.id,
@@ -242,7 +250,7 @@ describe('portalLinkRepository (integration)', () => {
 
     it('inserts and lists links for a category', async () => {
       const db = getDb()
-      const repo = createPortalLinkRepository(db)
+      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
       const portal = await seedPortal(ORG_A, 'link-test')
       const cat = await seedCategory(ORG_A, portal, 'Links')
 
@@ -251,6 +259,7 @@ describe('portalLinkRepository (integration)', () => {
         categoryId: cat.id,
         portalId: portal.id,
         organizationId: ORG_A,
+        propertyId: portal.propertyId,
         label: 'Booking',
         url: 'https://book.example.com',
         sortKey: 'a0',
@@ -260,11 +269,15 @@ describe('portalLinkRepository (integration)', () => {
       const links = await repo.listLinks(ORG_A, portal.id, cat.id)
       expect(links).toHaveLength(1)
       expect(links[0].label).toBe('Booking')
+      await expect(repo.findLinkCommandTarget(ORG_A, link.id)).resolves.toEqual({
+        link,
+        portalUpdatedAt: portal.updatedAt,
+      })
     })
 
     it('tenant-isolates link list', async () => {
       const db = getDb()
-      const repo = createPortalLinkRepository(db)
+      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
       const portalA = await seedPortal(ORG_A, 'link-tenant-a')
       const portalB = await seedPortal(ORG_B, 'link-tenant-b')
       const catA = await seedCategory(ORG_A, portalA, 'Cat A')
@@ -275,6 +288,7 @@ describe('portalLinkRepository (integration)', () => {
         categoryId: catA.id,
         portalId: portalA.id,
         organizationId: ORG_A,
+        propertyId: portalA.propertyId,
         label: 'Link A',
         sortKey: 'a0',
       })
@@ -283,6 +297,7 @@ describe('portalLinkRepository (integration)', () => {
         categoryId: catB.id,
         portalId: portalB.id,
         organizationId: ORG_B,
+        propertyId: portalB.propertyId,
         label: 'Link B',
         sortKey: 'a0',
       })
@@ -296,7 +311,7 @@ describe('portalLinkRepository (integration)', () => {
 
     it('updates a link', async () => {
       const db = getDb()
-      const repo = createPortalLinkRepository(db)
+      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
       const portal = await seedPortal(ORG_A, 'link-update')
       const cat = await seedCategory(ORG_A, portal, 'Links')
 
@@ -305,6 +320,7 @@ describe('portalLinkRepository (integration)', () => {
         categoryId: cat.id,
         portalId: portal.id,
         organizationId: ORG_A,
+        propertyId: portal.propertyId,
         label: 'Old Label',
         url: 'https://old.example.com',
         sortKey: 'a0',
@@ -322,7 +338,7 @@ describe('portalLinkRepository (integration)', () => {
 
     it('deletes a link', async () => {
       const db = getDb()
-      const repo = createPortalLinkRepository(db)
+      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
       const portal = await seedPortal(ORG_A, 'link-delete')
       const cat = await seedCategory(ORG_A, portal, 'Links')
 
@@ -331,6 +347,7 @@ describe('portalLinkRepository (integration)', () => {
         categoryId: cat.id,
         portalId: portal.id,
         organizationId: ORG_A,
+        propertyId: portal.propertyId,
         label: 'To Delete',
         sortKey: 'a0',
       })
@@ -343,7 +360,7 @@ describe('portalLinkRepository (integration)', () => {
 
     it('reorders links', async () => {
       const db = getDb()
-      const repo = createPortalLinkRepository(db)
+      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
       const portal = await seedPortal(ORG_A, 'link-reorder')
       const cat = await seedCategory(ORG_A, portal, 'Links')
 
@@ -352,6 +369,7 @@ describe('portalLinkRepository (integration)', () => {
         categoryId: cat.id,
         portalId: portal.id,
         organizationId: ORG_A,
+        propertyId: portal.propertyId,
         label: 'Link 1',
         sortKey: 'a0',
       })
@@ -360,6 +378,7 @@ describe('portalLinkRepository (integration)', () => {
         categoryId: cat.id,
         portalId: portal.id,
         organizationId: ORG_A,
+        propertyId: portal.propertyId,
         label: 'Link 2',
         sortKey: 'a1',
       })
@@ -374,11 +393,15 @@ describe('portalLinkRepository (integration)', () => {
       const links = await repo.listLinks(ORG_A, portal.id, cat.id)
       expect(links[0].sortKey).toBe('a0')
       expect(links[1].sortKey).toBe('b0')
+      expect(links.map((link) => link.updatedAt)).toEqual([
+        REPOSITORY_NOW,
+        REPOSITORY_NOW,
+      ])
     })
 
     it('lists all links for a portal', async () => {
       const db = getDb()
-      const repo = createPortalLinkRepository(db)
+      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
       const portal = await seedPortal(ORG_A, 'link-all')
       const cat = await seedCategory(ORG_A, portal, 'Links')
 
@@ -387,6 +410,7 @@ describe('portalLinkRepository (integration)', () => {
         categoryId: cat.id,
         portalId: portal.id,
         organizationId: ORG_A,
+        propertyId: portal.propertyId,
         label: 'All Links Test',
         sortKey: 'a0',
       })

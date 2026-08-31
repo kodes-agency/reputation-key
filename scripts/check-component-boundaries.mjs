@@ -13,7 +13,7 @@
 // Run as: node scripts/check-component-boundaries.mjs
 
 import { readdirSync, readFileSync } from 'node:fs'
-import { join, basename } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))

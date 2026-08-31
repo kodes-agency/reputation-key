@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import { addPortalToGroup } from './add-portal-to-group'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import {
@@ -30,7 +31,6 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
   // null simulates AccountAdmin org-wide bypass; an array simulates PM/Staff scoping.
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
@@ -116,7 +116,13 @@ const seedPortal = (): Portal => ({
   description: null,
   heroImageUrl: null,
   theme: { primaryColor: '#000000' },
+  privateFeedbackThreshold: 3,
   publicationState: 'published',
+  createdBy: null,
+  responsibleManagerRevision: 1,
+  responsibilityNeededSince: FIXED_TIME,
+  primaryGuestLocale: 'en',
+  additionalGuestLocales: [],
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,
@@ -125,11 +131,16 @@ const seedPortal = (): Portal => ({
 const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
   const events = createCapturingEventBus()
+  const portalRepo = createPortalRepoMock(seedPortal())
   const deps = {
     portalGroupRepo,
-    portalRepo: createPortalRepoMock(seedPortal()),
+    portalRepo,
     staffPublicApi: staffApiMock(accessible),
-    events,
+    commandStore: createInMemoryPortalCommandStore({
+      portalRepo,
+      portalGroupRepo,
+      events,
+    }),
     clock: () => FIXED_TIME,
   }
   const useCase = addPortalToGroup(deps)

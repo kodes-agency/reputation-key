@@ -4,6 +4,7 @@
 
 import { z } from 'zod/v4'
 import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
+import { dataCellIdForCountry } from '#/shared/domain/data-cell-catalogue'
 
 const canonicalReplyLanguageSchema = z
   .string()
@@ -19,8 +20,13 @@ export const createPropertyInputSchema = z
     slug: z.string().min(2).max(64).optional(),
     timezone: z.string().min(1, 'Timezone is required'),
     defaultReplyLanguage: canonicalReplyLanguageSchema.optional(),
-    /** ISO 3166-1 alpha-2; when set, processing region is resolved (BQR-3.5). */
-    countryCode: z.string().length(2).optional(),
+    /** Every active Property is assigned to exactly one Data Cell at creation. */
+    countryCode: z
+      .string()
+      .length(2, 'Country is required')
+      .refine((value) => dataCellIdForCountry(value) !== 'unresolved', {
+        message: 'Choose a supported country',
+      }),
   })
   .strict()
 

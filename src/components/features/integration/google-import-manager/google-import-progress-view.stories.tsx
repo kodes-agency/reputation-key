@@ -33,7 +33,7 @@ const items: readonly ImportProgressItemDto[] = [
 ]
 
 const processing: ImportProgressDto = {
-  contractVersion: 2,
+  contractVersion: 3,
   importJobId: '10000000-0000-4000-8000-000000000001',
   requestId: '10000000-0000-4000-8000-000000000002',
   status: 'processing',
@@ -64,9 +64,11 @@ function ProgressHarness({ snapshot = processing }: { snapshot?: ImportProgressD
         progress={snapshot}
         isPollingError={false}
         isRefreshing={false}
+        isCancelling={false}
         retryingItemId={null}
         onRefresh={() => {}}
         onRetry={() => setRetried(true)}
+        onCancel={() => {}}
       />
       {retried ? <p role="status">Retry requested</p> : null}
     </>
@@ -157,9 +159,11 @@ export const LiveUpdatesPaused: Story = {
     progress: processing,
     isPollingError: true,
     isRefreshing: false,
+    isCancelling: false,
     retryingItemId: null,
     onRefresh: () => {},
     onRetry: () => {},
+    onCancel: () => {},
   },
 }
 
@@ -168,9 +172,11 @@ export const RetryInFlight: Story = {
     progress: processing,
     isPollingError: false,
     isRefreshing: false,
+    isCancelling: false,
     retryingItemId: items[1]!.itemId,
     onRefresh: () => {},
     onRetry: () => {},
+    onCancel: () => {},
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -185,9 +191,11 @@ export const RefreshInFlight: Story = {
     progress: processing,
     isPollingError: false,
     isRefreshing: true,
+    isCancelling: false,
     retryingItemId: null,
     onRefresh: () => {},
     onRetry: () => {},
+    onCancel: () => {},
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

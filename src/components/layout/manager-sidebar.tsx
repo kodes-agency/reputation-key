@@ -29,7 +29,6 @@ function useActiveSection(): string {
       if (s.location.pathname.startsWith('/settings')) return 'settings'
       if (s.location.pathname === '/inbox' || s.location.pathname.startsWith('/inbox'))
         return 'inbox'
-      if (s.location.pathname.startsWith('/leaderboard')) return 'leaderboard'
       if (
         s.location.pathname === '/properties' ||
         s.location.pathname.startsWith('/properties/import-google')
@@ -42,6 +41,7 @@ function useActiveSection(): string {
       if (m[1] === 'reviews') return 'reviews'
       if (m[1] === 'people') return 'people'
       if (m[1] === 'goals') return 'goals'
+      if (m[1] === 'settings') return 'property-settings'
       return 'dashboard'
     },
   })

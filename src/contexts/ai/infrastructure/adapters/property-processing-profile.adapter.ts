@@ -29,10 +29,11 @@ function compareExpected(
   return result
 }
 
-export function createPropertyProcessingProfileAdapter(
+export const createPropertyProcessingProfileAdapter = (
   db: Database,
   runtimeCatalogue: AiRuntimeCataloguePort,
-): PropertyProcessingProfilePort {
+  clock: () => Date,
+): PropertyProcessingProfilePort => {
   const readForAi: PropertyProcessingProfilePort['readForAi'] = async (input) => {
     if (!(await runtimeCatalogue.assertComplete()))
       return { status: 'policy_unavailable' }
@@ -43,7 +44,6 @@ export function createPropertyProcessingProfileAdapter(
         propertyCountryCode: properties.countryCode,
         propertyTimezone: properties.timezone,
         propertySourceEpoch: properties.sourceEpoch,
-        propertyRoutingPolicyVersion: properties.routingPolicyVersion,
         propertyLifecycleState: properties.lifecycleState,
         profileOrganizationId: aiPropertyProcessingProfiles.organizationId,
         profileCountryCode: aiPropertyProcessingProfiles.countryCode,
@@ -89,7 +89,7 @@ export function createPropertyProcessingProfileAdapter(
     const drifted =
       row.profileVersion === null ||
       row.profileSourceEpoch !== row.propertySourceEpoch ||
-      row.profileRoutingPolicyVersion !== row.propertyRoutingPolicyVersion ||
+      row.profileRoutingPolicyVersion !== cell.routingPolicyVersion ||
       row.profileOrganizationId !== row.propertyOrganizationId ||
       row.profileCountryCode !== row.propertyCountryCode ||
       row.profileTimezone !== row.propertyTimezone ||
@@ -115,7 +115,11 @@ export function createPropertyProcessingProfileAdapter(
     if (row.profileSourceEpoch !== row.propertySourceEpoch) {
       return { status: 'source_epoch_changed' }
     }
-    if (row.profileRoutingPolicyVersion !== row.propertyRoutingPolicyVersion) {
+    // Against the AI ROUTING policy the cell resolver applied, not against the
+    // Property's data-cell CATALOGUE version. They are independent sequences —
+    // the catalogue is at 3, the AI routing policy at 1 — and this column is a
+    // foreign key into ai_routing_policies.
+    if (row.profileRoutingPolicyVersion !== cell.routingPolicyVersion) {
       return { status: 'routing_policy_changed' }
     }
     if (
@@ -199,7 +203,7 @@ export function createPropertyProcessingProfileAdapter(
         existing.countryCode === property.countryCode &&
         existing.timezone === property.timezone &&
         existing.processingRegion === cell.processingRegion &&
-        existing.routingPolicyVersion === property.routingPolicyVersion &&
+        existing.routingPolicyVersion === cell.routingPolicyVersion &&
         existing.providerDeploymentProfileVersion ===
           cell.providerDeploymentProfileVersion &&
         existing.sourceEpoch === property.sourceEpoch &&
@@ -207,7 +211,7 @@ export function createPropertyProcessingProfileAdapter(
       const profileVersion = unchanged
         ? existing.profileVersion
         : (existing?.profileVersion ?? 0) + 1
-      const updatedAt = new Date()
+      const updatedAt = clock()
 
       if (!unchanged) {
         await tx
@@ -218,7 +222,7 @@ export function createPropertyProcessingProfileAdapter(
             countryCode: property.countryCode,
             timezone: property.timezone,
             processingRegion: cell.processingRegion,
-            routingPolicyVersion: property.routingPolicyVersion,
+            routingPolicyVersion: cell.routingPolicyVersion,
             providerDeploymentProfileVersion: cell.providerDeploymentProfileVersion,
             sourceEpoch: property.sourceEpoch,
             profileVersion,
@@ -232,7 +236,7 @@ export function createPropertyProcessingProfileAdapter(
               countryCode: property.countryCode,
               timezone: property.timezone,
               processingRegion: cell.processingRegion,
-              routingPolicyVersion: property.routingPolicyVersion,
+              routingPolicyVersion: cell.routingPolicyVersion,
               providerDeploymentProfileVersion: cell.providerDeploymentProfileVersion,
               sourceEpoch: property.sourceEpoch,
               profileVersion,
@@ -250,7 +254,7 @@ export function createPropertyProcessingProfileAdapter(
           countryCode: property.countryCode,
           timezone: property.timezone,
           processingRegion: 'global',
-          routingPolicyVersion: property.routingPolicyVersion,
+          routingPolicyVersion: cell.routingPolicyVersion,
           sourceEpoch: property.sourceEpoch,
           profileVersion,
           lifecycleState: 'active',

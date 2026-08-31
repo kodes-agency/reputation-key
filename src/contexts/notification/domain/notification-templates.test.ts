@@ -13,6 +13,7 @@
 
 import { describe, it, expect } from 'vitest'
 import type { NotificationPayload } from './notification-payload'
+import { parseNotificationPayload } from './notification-payload'
 import {
   formatWaitingAge,
   notificationLink,
@@ -24,8 +25,8 @@ const UUID = '61ed98fc-9cf8-44e9-b49d-cd25e744fd6c'
 
 const FULL: NotificationPayload = {
   propertyName: 'Riverside Hotel',
-  rating: 2,
-  platform: 'google',
+  guestRating: 2,
+  platform: 'portal',
   waitingHours: 27,
   actorRole: 'property_manager',
   moderationReason: 'Tone is too defensive.',
@@ -62,10 +63,19 @@ describe('renderNotification — invariants across every type', () => {
   it.each(NOTIFICATION_TYPES)('%s renders completely with a full payload', (type) => {
     const r = renderNotification(type, FULL)
 
-    // Where the property name lands is per-type: review/reply copy leads with
-    // the property, while goal/badge copy leads with the goal or badge name and
-    // carries the property in the body. Assert it surfaces SOMEWHERE.
-    expect([r.title, r.body, r.summary].join(' ')).toContain('Riverside Hotel')
+    const visibleCopy = [r.title, r.body, r.summary].join(' ')
+    // Recovery alerts are deliberately content-free: even if an unexpected
+    // producer supplies render metadata, this template must ignore it. Other
+    // types use the property name to sharpen their operational context.
+    if (
+      type.startsWith('account.organization_') ||
+      type === 'portal.responsibility_needed' ||
+      type === 'property.responsibility_needed'
+    ) {
+      expect(visibleCopy).not.toContain('Riverside Hotel')
+    } else {
+      expect(visibleCopy).toContain('Riverside Hotel')
+    }
     for (const field of [r.title, r.body, r.actionLabel, r.summary]) {
       expect(field).not.toMatch(/undefined|null|NaN/)
       expect(field).not.toMatch(/\s{2,}/)
@@ -96,17 +106,57 @@ describe('renderNotification — the copy that was broken', () => {
   it('inbox.escalated names the property and the wait instead of the item id', () => {
     const r = renderNotification('inbox.escalated', {
       propertyName: 'Riverside Hotel',
-      rating: 2,
+      guestRating: 2,
+      platform: 'portal',
       waitingHours: 27,
     })
 
-    expect(r.title).toBe('Escalated: 2-star review at Riverside Hotel')
+    expect(r.title).toBe('Escalated: 2-star feedback at Riverside Hotel')
     expect(r.body).toContain('Waiting 1d')
     expect(r.actionLabel).toBe('Respond now')
     expect(r.title).not.toContain('Inbox item')
   })
 
-  it('badge.awarded names the badge instead of its definition id', () => {
+  it('describes an escalation resolution without alarming or blaming managers', () => {
+    expect(
+      renderNotification('inbox.escalation_resolved', {
+        propertyName: 'Riverside Hotel',
+      }),
+    ).toEqual({
+      title: 'Follow-up updated at Riverside Hotel',
+      body: 'This item is no longer marked for extra attention. You can open it to review the latest status.',
+      actionLabel: 'View item',
+      summary: 'Riverside Hotel · follow-up updated',
+    })
+  })
+
+  it('describes a material Review revision as a calm follow-up', () => {
+    expect(
+      renderNotification('review.updated', { propertyName: 'Riverside Hotel' }),
+    ).toEqual({
+      title: 'Review updated at Riverside Hotel',
+      body: 'The guest changed their review. Open it to check the latest details.',
+      actionLabel: 'Review update',
+      summary: 'Riverside Hotel · updated review',
+    })
+  })
+
+  it('describes reopened private feedback without blame or alarm language', () => {
+    expect(
+      renderNotification('inbox.reopened', {
+        propertyName: 'Riverside Hotel',
+        platform: 'portal',
+        guestRating: 2,
+      }),
+    ).toEqual({
+      title: 'Follow-up reopened at Riverside Hotel',
+      body: 'This 2-star feedback needs another look. Open it to review the latest status.',
+      actionLabel: 'View item',
+      summary: 'Riverside Hotel · 2-star feedback · follow-up reopened',
+    })
+  })
+
+  it('renders a retained badge row as neutral notification history', () => {
     const r = renderNotification('badge.awarded', {
       badgeName: 'Fast Responder',
       recipientName: 'Front Desk',
@@ -114,38 +164,39 @@ describe('renderNotification — the copy that was broken', () => {
       propertyName: 'Riverside Hotel',
     })
 
-    expect(r.title).toBe('Front Desk earned Fast Responder')
-    expect(r.body).toContain('Riverside Hotel')
+    expect(r.title).toBe('Earlier award: Fast Responder')
+    expect(r.body).toBe(
+      'Front Desk received this award at Riverside Hotel. This earlier update remains in your notification history.',
+    )
+    expect(r.actionLabel).toBe('View property')
     expect(r.summary).toContain('Fast Responder')
+    expect([r.title, r.body, r.actionLabel].join(' ')).not.toMatch(/recognition/i)
   })
 
   it('reply.pending_approval leads with the decision and says who and how long', () => {
     const r = renderNotification('reply.pending_approval', {
       propertyName: 'Riverside Hotel',
-      rating: 2,
       waitingHours: 5,
       actorRole: 'staff',
     })
 
     expect(r.title).toBe('Approve a reply at Riverside Hotel')
-    expect(r.body).toContain('A team member drafted a reply to a 2-star review')
+    expect(r.body).toContain('A team member drafted a reply to a review')
     expect(r.body).toContain('Waiting 5h')
     expect(r.actionLabel).toBe('Review reply')
   })
 
-  it('review.created escalates its own guidance for a low rating', () => {
-    const bad = renderNotification('review.created', {
+  it('review.created remains useful after provider ratings are rejected', () => {
+    const payload = parseNotificationPayload({
       propertyName: 'Riverside',
       rating: 1,
+      platform: 'google',
     })
-    const good = renderNotification('review.created', {
-      propertyName: 'Riverside',
-      rating: 5,
-    })
+    const rendered = renderNotification('review.created', payload)
 
-    expect(bad.title).toBe('New 1-star review at Riverside')
-    expect(bad.body).toContain('low rating')
-    expect(good.body).not.toContain('low rating')
+    expect(rendered.title).toBe('New review at Riverside')
+    expect(rendered.body).toBe('Open it to read the review and reply.')
+    expect(JSON.stringify(payload)).not.toContain('rating')
   })
 
   it('reply.rejected surfaces the moderation reason', () => {
@@ -160,14 +211,28 @@ describe('renderNotification — the copy that was broken', () => {
     expect(without.body).toContain('without a reason')
   })
 
-  it('omits the rating clause entirely when no rating is known', () => {
+  it('renders a provider review without any source rating clause', () => {
     const r = renderNotification('review.created', { propertyName: 'Riverside' })
     expect(r.title).toBe('New review at Riverside')
   })
 
+  it('renders a grouped assignment from a content-free count', () => {
+    const rendered = renderNotification('inbox.bulk_assigned', {
+      propertyName: 'Riverside Hotel',
+      actorRole: 'account_admin',
+      itemCount: 7,
+    })
+
+    expect(rendered.title).toBe('7 inbox items assigned to you at Riverside Hotel')
+    expect(rendered.body).toBe(
+      'An account admin assigned 7 items to you. Open the Inbox to review your work.',
+    )
+    expect(rendered.actionLabel).toBe('Open Inbox')
+  })
+
   it('omits the property clause entirely when no name is known', () => {
-    const r = renderNotification('review.created', { rating: 4 })
-    expect(r.title).toBe('New 4-star review')
+    const r = renderNotification('review.created', {})
+    expect(r.title).toBe('New review')
   })
 })
 
@@ -196,6 +261,34 @@ describe('formatWaitingAge', () => {
 })
 
 describe('notificationLink', () => {
+  it('uses a neutral account page for Organization-scoped notices', () => {
+    expect(notificationLink('organization', 'org-1', null)).toEqual({
+      path: '/settings/profile',
+      search: {},
+    })
+  })
+
+  it('renders calm, actionable account-access copy', () => {
+    expect(renderNotification('account.organization_access_granted', {})).toEqual({
+      title: 'Organization access added',
+      body: 'Your account can now access this organization.',
+      actionLabel: 'Review account',
+      summary: 'organization access added',
+    })
+    expect(renderNotification('account.organization_role_changed', {})).toEqual({
+      title: 'Organization role updated',
+      body: 'Your account permissions for this organization were updated.',
+      actionLabel: 'Review account',
+      summary: 'organization role updated',
+    })
+    expect(renderNotification('account.organization_access_removed', {})).toEqual({
+      title: 'Organization access removed',
+      body: 'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
+      actionLabel: 'Review account',
+      summary: 'organization access removed',
+    })
+  })
+
   it('deep-links an inbox item through typed search params', () => {
     expect(notificationLink('inbox_item', UUID, 'prop-1')).toEqual({
       path: '/inbox',
@@ -219,10 +312,49 @@ describe('notificationLink', () => {
     })
   })
 
-  it('sends badges to recognition', () => {
+  it('lands a retained badge row on its property, not the unavailable program', () => {
     expect(notificationLink('badge', 'badge-1', 'prop-1')).toEqual({
-      path: '/settings/recognition',
+      path: '/properties/prop-1',
       search: {},
+    })
+  })
+
+  it('renders a gentle portal responsibility recovery prompt without content', () => {
+    expect(renderNotification('portal.responsibility_needed', {})).toEqual({
+      title: 'Portal needs a responsible manager',
+      body: 'Choose an eligible manager so portal updates reach the right people.',
+      actionLabel: 'Choose manager',
+      summary: 'responsible manager needed',
+    })
+    expect(notificationLink('portal', 'portal-1', 'prop-1')).toEqual({
+      path: '/properties/prop-1/portals/portal-1',
+      search: { tab: 'settings' },
+    })
+  })
+
+  it('renders a gentle Property responsibility recovery prompt without content', () => {
+    expect(renderNotification('property.responsibility_needed', {})).toEqual({
+      title: 'Property needs a responsible manager',
+      body: 'Choose an eligible manager so property-wide updates reach the right people.',
+      actionLabel: 'Choose manager',
+      summary: 'Property responsible manager needed',
+    })
+    expect(notificationLink('property', 'prop-1', 'prop-1')).toEqual({
+      path: '/properties/prop-1/settings',
+      search: {},
+    })
+  })
+
+  it('describes a revised Goal result without claiming it was achieved', () => {
+    expect(
+      renderNotification('goal.result_revised', {
+        goalName: 'Monthly guest engagement',
+      }),
+    ).toEqual({
+      title: 'Goal result updated: Monthly guest engagement',
+      body: 'A monthly result changed. Open the property to see the current metrics.',
+      actionLabel: 'View result',
+      summary: 'Monthly guest engagement',
     })
   })
 
@@ -232,6 +364,8 @@ describe('notificationLink', () => {
       'reply',
       'goal',
       'badge',
+      'portal',
+      'property',
     ]
     for (const t of types) {
       expect(notificationLink(t, 'r', 'p').path).toMatch(/^\//)

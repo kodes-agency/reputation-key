@@ -1,119 +1,146 @@
-import type { FormEventHandler } from 'react'
+import type { ReactNode } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import { GuestResponseFields } from './guest-response-fields'
+import { GuestPrivateFeedbackForm } from './guest-private-feedback-form'
+import { GuestPrivateFeedbackReceipt } from './guest-private-feedback-receipt'
+import { GuestRatingForm } from './guest-rating-form'
+import { GuestResponseWithdrawal } from './guest-response-withdrawal'
+import { GuestResponseSessionReset } from './guest-response-session-reset'
+import { GuestRatingCorrection } from './guest-rating-correction'
+import type { GuestPortalCopy } from './guest-language-pack'
+import {
+  GoogleReviewAction,
+  GuestGatewayLoading,
+  GuestGatewayUnavailable,
+  GuestWithdrawnReceipt,
+} from './guest-response-state-panels'
 
-const correctionDeadlineFormatter = new Intl.DateTimeFormat('en-US', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'UTC',
-})
+type MutationState = Readonly<{ isPending?: boolean; error?: unknown }>
+type RatingValue = Readonly<{ rating: number; honeypot: string }>
+type FeedbackValue = Readonly<{ text: string; honeypot: string }>
 
-function formatCorrectionDeadline(value: Date | string): string {
-  return `${correctionDeadlineFormatter.format(new Date(value))} UTC`
-}
-
-export type GuestResponseFormViewProps = Readonly<{
+type GuestResponseFormViewProps = Readonly<{
   availability: 'available' | 'loading' | 'permission_denied' | 'error'
-  mediaEnabled: boolean
+  copy: GuestPortalCopy
   response: GuestResponseView | null
-  rating: number | null
-  text: string
-  responseConsent: boolean
-  textConsent: boolean
-  mediaConsent: boolean
+  googleReviewAvailable: boolean
+  correcting: boolean
   pending: boolean
   message: string
-  honeypot: string
-  isCorrecting: boolean
-  isTerminal: boolean
-  onSubmit: FormEventHandler<HTMLFormElement>
+  submitRatingMutation: MutationState
+  submitFeedbackMutation: MutationState
+  secondaryLinks?: ReactNode
+  onSubmitRating: (value: RatingValue) => Promise<void>
+  onSubmitFeedback: (value: FeedbackValue) => Promise<boolean>
+  onGoogleReview: () => void
+  onStartCorrection: () => void
+  onStartNewResponse: () => void
+  onWithdrawFeedback: () => void
   onWithdraw: () => void
-  onRatingChange: (rating: number) => void
-  onTextChange: (text: string) => void
-  onResponseConsentChange: (consented: boolean) => void
-  onTextConsentChange: (consented: boolean) => void
-  onMediaConsentChange: (consented: boolean) => void
-  onHoneypotChange: (value: string) => void
-  onFileChange: (file: File | null) => void
 }>
 
 export function GuestResponseFormView(props: GuestResponseFormViewProps) {
-  if (props.availability === 'loading') {
-    return (
-      <section
-        aria-busy="true"
-        aria-label="Loading optional feedback"
-        className="rounded-lg border p-4"
-      >
-        <div className="h-5 w-40 animate-pulse rounded bg-gray-200" />
-        <div className="mt-4 h-20 animate-pulse rounded bg-gray-100" />
-      </section>
-    )
+  if (props.availability === 'loading') return <GuestGatewayLoading />
+  if (props.availability !== 'available') {
+    return <GuestGatewayUnavailable copy={props.copy} />
   }
-
-  if (props.availability === 'permission_denied' || props.availability === 'error') {
-    return (
-      <section aria-labelledby="guest-response-heading" className="rounded-lg border p-4">
-        <h2 id="guest-response-heading" className="font-semibold">
-          Optional feedback
-        </h2>
-        <p
-          className="mt-2 text-sm"
-          role={props.availability === 'error' ? 'alert' : undefined}
-        >
-          {props.availability === 'permission_denied'
-            ? 'Optional feedback is not available for this portal.'
-            : props.message || 'Optional feedback is temporarily unavailable.'}
-        </p>
-      </section>
-    )
-  }
-
   if (props.response?.status === 'deleted') {
-    return (
-      <section aria-labelledby="guest-response-heading" className="rounded-lg border p-4">
-        <h2 id="guest-response-heading" className="font-semibold">
-          Optional feedback
-        </h2>
-        <p className="mt-2 text-sm">Your response has been withdrawn.</p>
-        <p className="sr-only" aria-live="polite">
-          {props.message}
-        </p>
-      </section>
-    )
+    return <GuestWithdrawnReceipt copy={props.copy} />
   }
+  if (!props.response) return <InitialRatingForm {...props} />
+  return <RatedResponseView {...props} response={props.response} />
+}
 
+function InitialRatingForm(props: GuestResponseFormViewProps) {
   return (
-    <section aria-labelledby="guest-response-heading" className="rounded-lg border p-4">
-      <h2 id="guest-response-heading" className="font-semibold">
-        Optional feedback
+    <section aria-labelledby="private-rating-heading" className="rounded-lg border p-5">
+      <h2 id="private-rating-heading" className="text-lg font-semibold">
+        {props.copy.previewRatingTitle}
       </h2>
-      <p className="mt-1 text-sm">
-        Destinations above remain available whether you respond or decline.
-      </p>
-      <GuestResponseFields {...props} />
-
-      {props.response && (
-        <div className="mt-4 border-t pt-4">
-          {props.response.correctionDeadline && props.response.status === 'submitted' && (
-            <p className="text-sm">
-              One correction is available until{' '}
-              {formatCorrectionDeadline(props.response.correctionDeadline)}.
-            </p>
-          )}
-          <button
-            type="button"
-            disabled={props.pending}
-            onClick={props.onWithdraw}
-            className="mt-2 rounded border border-current px-3 py-2 text-sm font-medium disabled:opacity-50"
-          >
-            Withdraw response
-          </button>
-        </div>
-      )}
+      <p className="mt-1 text-sm">{props.copy.previewRatingBody}</p>
+      <GuestRatingForm
+        idPrefix="guest-rating"
+        initialRating={null}
+        mutation={{
+          isPending: props.submitRatingMutation.isPending === true,
+          error: props.submitRatingMutation.error,
+        }}
+        copy={props.copy}
+        submitLabel={props.copy.submitPrivateRating}
+        className="mt-5 space-y-4"
+        buttonClassName="w-full bg-[color:var(--portal-primary)] text-[color:var(--portal-on-primary)] hover:bg-[color:var(--portal-primary)] hover:opacity-90 focus-visible:ring-[color:var(--portal-primary)]"
+        onSubmit={props.onSubmitRating}
+      />
       <p className="mt-3 text-sm" aria-live="polite">
         {props.message}
       </p>
+    </section>
+  )
+}
+
+function RatedResponseView(
+  props: GuestResponseFormViewProps & { response: GuestResponseView },
+) {
+  const { response } = props
+  if (response.rating === null) return <GuestWithdrawnReceipt copy={props.copy} />
+  return (
+    <section aria-labelledby="rating-receipt-heading" className="space-y-5">
+      <div className="rounded-lg border p-5 text-center">
+        <h2 id="rating-receipt-heading" className="font-semibold">
+          {props.copy.privateRatingThanks}
+        </h2>
+        <p className="mt-1 text-sm">{props.copy.ratedExperience(response.rating)}</p>
+      </div>
+      <GoogleReviewAction
+        available={props.googleReviewAvailable}
+        pending={props.pending}
+        onSelect={props.onGoogleReview}
+        copy={props.copy}
+      />
+      {response.privateFeedbackEligible && !response.hasPrivateFeedback && (
+        <GuestPrivateFeedbackForm
+          mutation={{
+            isPending: props.submitFeedbackMutation.isPending === true,
+            error: props.submitFeedbackMutation.error,
+          }}
+          onSubmit={props.onSubmitFeedback}
+          copy={props.copy}
+        />
+      )}
+      <GuestPrivateFeedbackReceipt
+        response={response}
+        pending={props.pending}
+        onWithdraw={props.onWithdrawFeedback}
+        copy={props.copy}
+      />
+      {response.correctionAvailable && (
+        <GuestRatingCorrection
+          rating={response.rating}
+          correcting={props.correcting}
+          mutation={{
+            isPending: props.submitRatingMutation.isPending === true,
+            error: props.submitRatingMutation.error,
+          }}
+          correctionDeadline={response.correctionDeadline}
+          onSubmit={props.onSubmitRating}
+          onStart={props.onStartCorrection}
+          copy={props.copy}
+        />
+      )}
+      <GuestResponseWithdrawal
+        response={response}
+        pending={props.pending}
+        onWithdraw={props.onWithdraw}
+        copy={props.copy}
+      />
+      <GuestResponseSessionReset
+        pending={props.pending}
+        onStart={props.onStartNewResponse}
+        copy={props.copy}
+      />
+      <p className="text-sm" aria-live="polite">
+        {props.message}
+      </p>
+      {props.secondaryLinks}
     </section>
   )
 }

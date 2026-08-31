@@ -23,7 +23,9 @@ export function InboxFilterSelect({ label, value, options, onChange }: Props) {
         <SelectTrigger className="w-full" aria-label={label}>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent position="popper">
+        {/* The listbox needs its OWN name: Radix does not copy the trigger's,
+            and axe fails an unnamed `role="listbox"` (aria-input-field-name). */}
+        <SelectContent position="popper" aria-label={label}>
           <SelectGroup>
             {options.map((option) => (
               <SelectItem key={option.value} value={option.value}>

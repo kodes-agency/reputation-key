@@ -1,14 +1,20 @@
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 
-export type IssuedPortalLink = Readonly<{ publicUrl: string }>
+export type IssuedPortalLink = Readonly<{
+  publicUrl: string
+  publicUrls?: Readonly<{ qr: string; nfc: string }>
+}>
+
+export type RotatePortalLinkInput = Readonly<{
+  portalId: string
+  replacementKind?: 'planned' | 'security'
+  gracePeriodDays?: number
+}>
 
 export type PortalShareMutations = Readonly<{
-  issueMutation: Action<
-    { data: { portalId: string; printBatch?: string } },
-    IssuedPortalLink
-  >
-  rotateMutation: Action<{ data: { portalId: string } }, IssuedPortalLink>
+  issueMutation: Action<{ data: { portalId: string } }, IssuedPortalLink>
+  rotateMutation: Action<{ data: RotatePortalLinkInput }, IssuedPortalLink>
   revokeMutation: Action<{ data: { portalId: string; reason: string } }, unknown>
 }>
 

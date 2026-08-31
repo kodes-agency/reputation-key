@@ -20,6 +20,7 @@ import type { PortalTokenStatus } from '#/contexts/portal/application/public-api
 
 const NO_TOKEN: PortalTokenStatus = {
   hasActiveToken: false,
+  qualifiedScanReady: false,
   version: null,
   issuedAt: null,
   graceExpiresAt: null,
@@ -27,6 +28,7 @@ const NO_TOKEN: PortalTokenStatus = {
 
 const LIVE_TOKEN: PortalTokenStatus = {
   hasActiveToken: true,
+  qualifiedScanReady: true,
   version: 3,
   issuedAt: '2026-01-04T12:00:00Z',
   graceExpiresAt: null,

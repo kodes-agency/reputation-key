@@ -8,7 +8,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { GoalProgress, RecurrenceFrequency } from '../../domain/types'
 import { buildGoal } from '../../domain/constructors'
 import { goalId, goalProgressId } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 
 // Retained only for migration diagnostics; the governed Goal runtime does not register it.
@@ -23,6 +23,7 @@ export type SpawnRecurringInstancesDeps = Readonly<{
   clock: () => Date
   idGen: () => string
   authorizeScope: ScheduledScopeAuthorizer
+  logger: Pick<LoggerPort, 'error' | 'info' | 'warn'>
 }>
 
 // ── Constants ─────────────────────────────────────────────────────────────
@@ -35,7 +36,6 @@ export const createSpawnRecurringInstancesHandler =
   (deps: SpawnRecurringInstancesDeps) =>
   async (_job: Job): Promise<SpawnSummary> => {
     return trace('job.spawnRecurringInstances', async () => {
-      const logger = getLogger()
       const now = deps.clock()
 
       // ⚠️ CROSS-TENANT by design — background job processes all orgs
@@ -128,7 +128,7 @@ export const createSpawnRecurringInstancesHandler =
           })
 
           if (instanceResult.isErr()) {
-            logger.warn(
+            deps.logger.warn(
               { templateId: template.id as string, error: instanceResult.error },
               'Failed to build recurring instance — skipping',
             )
@@ -148,7 +148,7 @@ export const createSpawnRecurringInstancesHandler =
               Math.abs(inst.periodStart.getTime() - nextStart.getTime()) < 1000,
           )
           if (duplicate) {
-            logger.info(
+            deps.logger.info(
               { templateId: template.id },
               'Instance already exists for this period — skipping',
             )
@@ -170,7 +170,7 @@ export const createSpawnRecurringInstancesHandler =
           await deps.goalRepo.createGoalAndProgress(instance, progress)
           spawned++
         } catch (err) {
-          logger.error(
+          deps.logger.error(
             { err, templateId: template.id },
             'goal: error spawning recurring instance — skipping',
           )
@@ -185,7 +185,7 @@ export const createSpawnRecurringInstancesHandler =
         failed,
       }
 
-      logger.info(summary, 'Spawned recurring instances')
+      deps.logger.info(summary, 'Spawned recurring instances')
       return summary
     })
   }

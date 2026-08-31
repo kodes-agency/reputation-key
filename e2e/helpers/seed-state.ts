@@ -46,11 +46,9 @@ export type E2eSeedState = Readonly<{
   portalGroupId: string
   emailQueueFixtureIds: readonly string[]
   portalLinkId: string
-  teamId: string
   managerParticipationId: string
   staffParticipationId: string
   goalId: string
-  badgeDefinitionId: string
   reviewCount: 100
 }>
 
@@ -97,11 +95,9 @@ export function readE2eSeedState(): E2eSeedState | null {
       'p3PortalToken',
       'portalGroupId',
       'portalLinkId',
-      'teamId',
       'managerParticipationId',
       'staffParticipationId',
       'goalId',
-      'badgeDefinitionId',
     ] as const
     if (
       raw.version !== 'beta-local-1' ||

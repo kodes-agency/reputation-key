@@ -12,6 +12,18 @@ export type ResolvablePortalTokenSummary = Readonly<{
   version: number
   issuedAt: Date
   gracePeriodEnds: Date | null
+  /** Exact current address has a published QR/NFC marker eligible for scan goals. */
+  hasPublishedAccessArtifact: boolean
+}>
+
+export type PortalAccessArtifactReadinessGap = Readonly<{
+  organizationId: string
+  propertyId: string
+  portalId: string
+  tokenVersion: number
+  tokenStatus: 'active' | 'rotating'
+  issuedAt: Date
+  gracePeriodEnds: Date | null
 }>
 
 export type PortalTokenRepository = Readonly<{
@@ -38,6 +50,11 @@ export type PortalTokenRepository = Readonly<{
     }>,
     asOf: Date,
   ) => Promise<PortalToken | null>
+  /** Content-free inventory of currently reachable legacy addresses. */
+  listAccessArtifactReadinessGaps: (
+    asOf: Date,
+    organizationIds?: readonly string[],
+  ) => Promise<readonly PortalAccessArtifactReadinessGap[]>
   insert: (token: PortalToken) => Promise<void>
   saveRotation: (
     input: Readonly<{

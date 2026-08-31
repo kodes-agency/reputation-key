@@ -1,82 +1,158 @@
-import type { GuestInteractionRepository } from '../ports/guest-interaction.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { GuestObservationStore } from '../ports/guest-observation-store.port'
 import type {
   OrganizationId,
   PortalId,
   PropertyId,
   ScanEventId,
+  PortalAccessArtifactId,
+  QualifiedScanId,
 } from '#/shared/domain/ids'
-import type { ScanSource } from '../../domain/types'
-import type { LoggerPort } from '#/shared/domain/logger.port'
-import { guestScanRecorded } from '../../domain/events'
+import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
+import { guestQualifiedScanRecorded, guestScanRecorded } from '../../domain/events'
 import { buildScanEvent } from '../../domain/constructors'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import { classifyQualifiedScanRequest } from '../../domain/qualified-scan'
+import type { PrimaryStaffAttributionResolver } from '../ports/primary-staff-attribution.port'
+import type { GuestObservationLossReporter } from '../ports/guest-observation-loss-monitor.port'
 
 export type RecordScanDeps = Readonly<{
-  guestRepo: GuestInteractionRepository
-  events: EventBus
+  observationStore: GuestObservationStore
+  accessArtifacts: Pick<PortalPublicApi, 'resolvePublishedAccessArtifact'>
   idGen: () => ScanEventId
+  qualifiedScanIdGen: () => QualifiedScanId
   clock: () => Date
-  logger: LoggerPort
-  outboxRepo?: OutboxRepository
+  resolvePrimaryStaffAttribution: PrimaryStaffAttributionResolver
+  reportObservationLoss: GuestObservationLossReporter
 }>
 
 export type RecordScanInput = Readonly<{
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
-  source: ScanSource
+  accessArtifactId: PortalAccessArtifactId | null
+  publicationSnapshotId: string
+  rawToken: string
   sessionId: string
-  ipHash: string
+  userAgent: string | null
+  purpose: string | null
+  secPurpose: string | null
 }>
+
+export type RecordScanOutcome =
+  'qualified' | 'duplicate' | 'diagnostic' | 'retryable' | 'failed'
 
 export const recordScan =
   (deps: RecordScanDeps) =>
-  async (input: RecordScanInput): Promise<void> => {
-    try {
-      // Idempotent per signed guest session: the public portal records a scan
-      // once per session, but a refresh repeats the call and `scanEvents` has
-      // no per-session uniqueness — a second insert would inflate the
-      // portal.scan metric. The session is portal-scoped (guestSessions.verify
-      // binds it to org/property/portal), so the latest scan for this session
-      // is this portal's scan whenever one exists.
-      const previous = await deps.guestRepo.getLatestScanBySession(
-        input.organizationId,
-        input.sessionId,
-      )
-      if (previous?.portalId === input.portalId) return
-
-      const scanId = deps.idGen()
-      // Validate via domain constructor
-      const scanResult = buildScanEvent({
-        id: scanId,
-        ...input,
-        now: deps.clock(),
-      })
-      if (scanResult.isErr()) {
-        deps.logger.warn(
-          { err: scanResult.error },
-          'Scan event construction failed — suppressed per I10',
-        )
-        return
+  async (input: RecordScanInput): Promise<RecordScanOutcome> => {
+    let observationLossReported = false
+    const reportObservationLoss = async () => {
+      if (observationLossReported) return
+      observationLossReported = true
+      // A broken monitor must never turn best-effort analytics into a public
+      // journey failure. The production reporter already resolves degraded;
+      // this second boundary protects injected/alternate implementations.
+      try {
+        await deps.reportObservationLoss('scan')
+      } catch {
+        // Intentionally suppressed at the fail-open public boundary.
       }
-      const scan = scanResult.value
-      await deps.guestRepo.recordScan(scan)
-      await emitAndRecord(
-        deps.events,
-        deps.outboxRepo,
-        guestScanRecorded({
-          scanId,
+    }
+    try {
+      const occurredAt = deps.clock()
+      const decision = classifyQualifiedScanRequest(input)
+      let artifact: Awaited<
+        ReturnType<PortalPublicApi['resolvePublishedAccessArtifact']>
+      > = null
+      let artifactVerificationUnavailable = false
+      if (decision.eligible && input.accessArtifactId) {
+        try {
+          artifact = await deps.accessArtifacts.resolvePublishedAccessArtifact({
+            accessArtifactId: input.accessArtifactId,
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            portalId: input.portalId,
+            publicationSnapshotId: input.publicationSnapshotId,
+            rawToken: input.rawToken,
+            asOf: occurredAt,
+          })
+        } catch {
+          artifactVerificationUnavailable = true
+          await reportObservationLoss()
+        }
+      }
+      let qualifiedOutcome: RecordScanOutcome | null = null
+      if (artifact) {
+        const staffAttribution = await deps.resolvePrimaryStaffAttribution({
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          portalId: input.portalId,
+          observedAt: occurredAt,
+        })
+        const qualifiedScanId = deps.qualifiedScanIdGen()
+        const fact = guestQualifiedScanRecorded({
+          qualifiedScanId,
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          portalId: input.portalId,
+          portalGroupId: artifact.portalGroupId,
+          accessArtifactId: artifact.accessArtifactId,
+          occurredAt,
+          staffAttribution,
+        })
+        const outcome = await deps.observationStore.commitQualifiedScan(
+          {
+            id: qualifiedScanId,
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            portalId: input.portalId,
+            portalGroupId: artifact.portalGroupId,
+            accessArtifactId: artifact.accessArtifactId,
+            sourceEventId: fact.eventId,
+            occurredAt,
+            staffAttribution,
+          },
+          input.sessionId,
+          fact,
+        )
+        qualifiedOutcome = outcome === 'applied' ? 'qualified' : 'duplicate'
+      }
+
+      try {
+        const scanId = deps.idGen()
+        const scanResult = buildScanEvent({
+          id: scanId,
           organizationId: input.organizationId,
           portalId: input.portalId,
           propertyId: input.propertyId,
-          source: input.source,
-          occurredAt: scan.createdAt,
-        }),
-      )
-    } catch (e) {
-      // Silent failure per I10 — scan is analytics, not critical path
-      deps.logger.warn({ err: e }, 'Scan recording failed — suppressed per I10')
+          source: artifact?.channel ?? 'direct',
+          sessionId: input.sessionId,
+          ipHash: null,
+          now: occurredAt,
+        })
+        if (scanResult.isErr()) throw scanResult.error
+        const scan = scanResult.value
+        await deps.observationStore.commitScan(
+          scan,
+          guestScanRecorded({
+            scanId,
+            organizationId: input.organizationId,
+            portalId: input.portalId,
+            propertyId: input.propertyId,
+            scanSource: scan.source,
+            occurredAt: scan.createdAt,
+          }),
+        )
+      } catch {
+        await reportObservationLoss()
+        if (!qualifiedOutcome) return 'failed'
+      }
+
+      if (qualifiedOutcome) return qualifiedOutcome
+      return artifactVerificationUnavailable ? 'retryable' : 'diagnostic'
+    } catch {
+      // Scan analytics is not the render critical path, but its loss is
+      // durable and visible through the content-free monitor.
+      await reportObservationLoss()
+      return 'failed'
     }
   }
 

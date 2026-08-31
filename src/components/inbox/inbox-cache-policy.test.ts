@@ -10,7 +10,10 @@ import {
   REPLY_POLL_INTERVAL_MS,
 } from './inbox-cache-policy'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type {
+  InboxItem,
+  InboxItemDetailResult,
+} from '#/contexts/inbox/application/public-api'
 
 // ── Fake QueryClient ────────────────────────────────────────────
 
@@ -55,13 +58,20 @@ describe('inbox key topology (pinned)', () => {
 
 // ── onStatusChanged ─────────────────────────────────────────────
 
-describe('inboxCachePolicy.onStatusChanged', () => {
-  it('invalidates the detail prefix plus list/count caches immediately', () => {
-    const { qc, invalidated } = makeFakeQc()
+describe('inboxCachePolicy.onItemStatusChanged', () => {
+  const updated = { id: ID, status: 'closed' } as unknown as InboxItem
 
-    inboxCachePolicy.onStatusChanged(qc, ID)
+  it('patches the selected detail and invalidates only folder data immediately', () => {
+    const { qc, invalidated, setDataCalls } = makeFakeQc()
 
-    expect(invalidated).toContainEqual(inboxKeys.detail(ID))
+    inboxCachePolicy.onItemStatusChanged(qc, updated)
+
+    expect(setDataCalls).toHaveLength(1)
+    expect(setDataCalls[0].key).toEqual(inboxKeys.detail(ID))
+    const old = { item: { id: ID, status: 'open' }, reply: null }
+    expect(setDataCalls[0].updater(old)).toEqual({ ...old, item: updated })
+    expect(invalidated).not.toContainEqual(inboxKeys.detail(ID))
+    expect(invalidated).not.toContainEqual(inboxKeys.notes(ID))
     expect(invalidated).toContainEqual(inboxKeys.lists())
     expect(invalidated).toContainEqual(inboxKeys.counts())
     expect(invalidated).toContainEqual(inboxKeys.lastVisitCount())
@@ -70,7 +80,7 @@ describe('inboxCachePolicy.onStatusChanged', () => {
   it('re-invalidates activity only after the BullMQ lag', () => {
     const { qc, invalidated } = makeFakeQc()
 
-    inboxCachePolicy.onStatusChanged(qc, ID)
+    inboxCachePolicy.onItemStatusChanged(qc, updated)
     // Not yet — the activity row is inserted ~2s after the status change.
     expect(invalidated).not.toContainEqual(inboxKeys.activity(ID))
 
@@ -79,54 +89,111 @@ describe('inboxCachePolicy.onStatusChanged', () => {
   })
 })
 
-// ── onReplyMutated ──────────────────────────────────────────────
+describe('inboxCachePolicy.onFeedbackHandlingChanged', () => {
+  it('patches item and outcome history, moving folders only when status changed', () => {
+    const { qc, invalidated, setDataCalls } = makeFakeQc()
+    const result = {
+      item: { id: ID, status: 'closed', commandRevision: 2 },
+      feedbackHandling: {
+        cycleNumber: 1,
+        sourceRevision: 1,
+        stateRevision: 2,
+        status: 'closed',
+        currentOutcome: { id: 'outcome-1', outcomeRevision: 1 },
+        history: [{ id: 'outcome-1', outcomeRevision: 1 }],
+      },
+    } as unknown as Parameters<typeof inboxCachePolicy.onFeedbackHandlingChanged>[1]
 
-describe('inboxCachePolicy.onReplyMutated', () => {
-  it('writes the reply into the detail cache (preserving the rest)', () => {
-    const { qc, setDataCalls } = makeFakeQc()
-    const reply = {
-      id: 'reply-1',
-      status: 'approved',
-    } as unknown as InboxItemDetailResult['reply']
-
-    inboxCachePolicy.onReplyMutated(qc, ID, reply)
+    inboxCachePolicy.onFeedbackHandlingChanged(qc, result, true)
 
     expect(setDataCalls).toHaveLength(1)
-    expect(setDataCalls[0].key).toEqual(inboxKeys.detail(ID))
-    const old = { item: { id: ID }, reply: null, notes: [] }
-    expect(setDataCalls[0].updater(old)).toEqual({ ...old, reply })
-    // Missing cache entry stays missing — no fabricating a detail result.
-    expect(setDataCalls[0].updater(undefined)).toBeUndefined()
-  })
-
-  it('invalidates detail + list/count caches, with no delayed activity invalidate', () => {
-    const { qc, invalidated } = makeFakeQc()
-    const reply = {
-      id: 'reply-1',
-      status: 'approved',
-    } as unknown as InboxItemDetailResult['reply']
-
-    inboxCachePolicy.onReplyMutated(qc, ID, reply)
-    vi.advanceTimersByTime(BULLMQ_ACTIVITY_LAG_MS + 1000)
-
-    expect(invalidated).toContainEqual(inboxKeys.detail(ID))
+    const old = { item: { id: ID, status: 'open' }, feedbackHandling: null }
+    expect(setDataCalls[0]!.updater(old)).toEqual({
+      ...old,
+      item: result.item,
+      feedbackHandling: result.feedbackHandling,
+    })
     expect(invalidated).toContainEqual(inboxKeys.lists())
     expect(invalidated).toContainEqual(inboxKeys.counts())
     expect(invalidated).toContainEqual(inboxKeys.lastVisitCount())
-    expect(invalidated).not.toContainEqual(inboxKeys.activity(ID))
+  })
+
+  it('keeps folder caches stable for a history-only correction', () => {
+    const { qc, invalidated } = makeFakeQc()
+    const result = {
+      item: { id: ID, status: 'closed', commandRevision: 3 },
+      feedbackHandling: { history: [{ id: 'outcome-2', outcomeRevision: 2 }] },
+    } as unknown as Parameters<typeof inboxCachePolicy.onFeedbackHandlingChanged>[1]
+
+    inboxCachePolicy.onFeedbackHandlingChanged(qc, result, false)
+
+    expect(invalidated).not.toContainEqual(inboxKeys.lists())
+    expect(invalidated).not.toContainEqual(inboxKeys.counts())
+    expect(invalidated).not.toContainEqual(inboxKeys.lastVisitCount())
+  })
+})
+
+// ── onReplyMutated ──────────────────────────────────────────────
+
+describe('inboxCachePolicy reply changes', () => {
+  it.each(['draft_saved', 'state_changed'] as const)(
+    '%s writes only the reply into the selected detail cache',
+    (kind) => {
+      const { qc, invalidated, setDataCalls } = makeFakeQc()
+      const reply = {
+        id: 'reply-1',
+        status: kind === 'draft_saved' ? 'draft' : 'pending_approval',
+      } as unknown as InboxItemDetailResult['reply']
+
+      inboxCachePolicy.onReplyChanged(qc, ID, { kind, reply })
+
+      expect(setDataCalls).toHaveLength(1)
+      expect(setDataCalls[0].key).toEqual(inboxKeys.detail(ID))
+      const old = { item: { id: ID }, reply: null, notes: [] }
+      expect(setDataCalls[0].updater(old)).toEqual({ ...old, reply })
+      expect(setDataCalls[0].updater(undefined)).toBeUndefined()
+      expect(invalidated).toEqual([])
+    },
+  )
+
+  it('does not make folder data stale when an autosave returns a draft', () => {
+    const { qc, invalidated } = makeFakeQc()
+    const reply = {
+      id: 'reply-1',
+      status: 'draft',
+    } as unknown as InboxItemDetailResult['reply']
+
+    inboxCachePolicy.onReplyChanged(qc, ID, { kind: 'draft_saved', reply })
+    vi.advanceTimersByTime(BULLMQ_ACTIVITY_LAG_MS + 1000)
+
+    expect(invalidated).toEqual([])
   })
 })
 
 // ── onNoteAdded ─────────────────────────────────────────────────
 
 describe('inboxCachePolicy.onNoteAdded', () => {
-  it('invalidates notes immediately and activity after the BullMQ lag — never detail', () => {
-    const { qc, invalidated } = makeFakeQc()
+  it('advances the cached command fence, invalidates notes, and retains a newer fence', () => {
+    const { qc, invalidated, setDataCalls } = makeFakeQc()
 
-    inboxCachePolicy.onNoteAdded(qc, ID)
+    inboxCachePolicy.onNoteAdded(qc, ID, 5)
 
     expect(invalidated).toContainEqual(inboxKeys.notes(ID))
     expect(invalidated).not.toContainEqual(inboxKeys.detail(ID))
+    expect(setDataCalls).toHaveLength(1)
+    const old = {
+      item: { id: ID, commandRevision: 4 },
+      reply: null,
+    } as unknown as InboxItemDetailResult
+    const advanced = setDataCalls[0]!.updater(old) as InboxItemDetailResult
+    expect(advanced.item.commandRevision).toBe(5)
+
+    const newer = {
+      ...old,
+      item: { ...old.item, commandRevision: 7 },
+    }
+    const retained = setDataCalls[0]!.updater(newer) as InboxItemDetailResult
+    expect(retained.item.commandRevision).toBe(7)
 
     vi.advanceTimersByTime(BULLMQ_ACTIVITY_LAG_MS)
     expect(invalidated).toContainEqual(inboxKeys.activity(ID))
@@ -146,6 +213,20 @@ describe('inboxCachePolicy.onItemFolderChanged', () => {
     expect(invalidated).toContainEqual(inboxKeys.lists())
     expect(invalidated).toContainEqual(inboxKeys.counts())
     expect(invalidated).toContainEqual(inboxKeys.lastVisitCount())
+  })
+})
+
+describe('inboxCachePolicy.onBulkReopened', () => {
+  it('refreshes every folder projection after complete or partial results', () => {
+    const { qc, invalidated } = makeFakeQc()
+
+    inboxCachePolicy.onBulkReopened(qc)
+
+    expect(invalidated).toEqual([
+      inboxKeys.lists(),
+      inboxKeys.counts(),
+      inboxKeys.lastVisitCount(),
+    ])
   })
 })
 

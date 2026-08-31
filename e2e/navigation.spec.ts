@@ -1,5 +1,5 @@
 // E2E: Navigation between authenticated manager surfaces.
-// The beta-local seed exposes the promoted People, Portal, Team, and Goal
+// The beta-local seed exposes the promoted People, Portal, and Goal
 // surfaces only for P1 while preserving ordinary property navigation.
 //
 // The three-route hop this file used to open with was deleted: each of its
@@ -8,7 +8,7 @@
 // 'inbox triage surface loads for manager', 'settings members page loads').
 // It cost a fourth sign-in to re-assert three locators the critical project
 // already gates. What remains is the part nothing else covers: the promoted P1
-// People surface rendering all three management tabs together.
+// People surface rendering its current management tabs together.
 
 import { test, expect } from './helpers/error-detection'
 import { signIn } from './helpers/auth'
@@ -31,9 +31,8 @@ test.describe('Navigation', () => {
 
     await page.goto(`/properties/${seed.propertyId}/people`)
     await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/people`))
-    // The promoted P1 People surface renders every management tab.
+    // Team is quarantined; the People surface exposes Staff and Directory only.
     await expect(page.getByRole('tab', { name: /staff/i })).toBeVisible()
-    await expect(page.getByRole('tab', { name: /teams/i })).toBeVisible()
     await expect(page.getByRole('tab', { name: /directory/i })).toBeVisible()
   })
 })

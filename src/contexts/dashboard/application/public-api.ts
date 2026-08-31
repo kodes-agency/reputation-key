@@ -5,12 +5,21 @@
  */
 export type {
   KPIValue,
+  MetricKPIDataState,
+  MetricKPIPeriodEvidence,
+  MetricKPIValue,
   KPIs,
   RecentReview,
   DashboardReplyStatus,
   DashboardData,
   PortalKPIs,
+  PortalCountKPIValue,
+  PortalMetricDataState,
+  PortalMetricEvidence,
+  PortalRatingKPIValue,
   PortalAnalyticsData,
+  PortalLifetimeReconciliationState,
+  PortalResponseIntegritySummary,
   StaffDashboardData,
   PortalRatingTrendPoint,
   // The two series `DashboardData` already carries. Absent from this list until
@@ -25,6 +34,16 @@ export type {
   FleetMetricEvidence,
   FleetTotals,
 } from '../domain/types'
+export type { PropertyOverviewData } from './use-cases/get-property-overview'
+export type {
+  GetSetupChecklist,
+  SetupChecklist,
+  SetupChecklistAction,
+  SetupChecklistActionKind,
+  SetupChecklistStep,
+  SetupChecklistStepStatus,
+} from './use-cases/get-setup-checklist'
+export type { SetupChecklistStepKey } from './ports/setup-checklist.repository'
 
 // ── Error type re-exports (server functions must import from public-api, not domain/errors) ──
 export type { DashboardErrorCode, DashboardError } from '../domain/errors'

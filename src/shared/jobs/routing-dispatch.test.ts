@@ -31,6 +31,7 @@ import {
   resetDelayedExecutionPolicy,
   type DelayedDecision,
 } from '#/shared/auth/system-execution-policy'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 const loggerMocks = vi.hoisted(() => ({
   warn: vi.fn(),
@@ -65,7 +66,7 @@ const US_TARGET: RoutingDecision = {
   region: 'us',
   queue: 'default',
   provider: 'gbp-default',
-  routingPolicyVersion: 2,
+  routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
 }
 
 function fakeJob(over: Record<string, unknown> = {}): Job {
@@ -82,9 +83,10 @@ function fakeJob(over: Record<string, unknown> = {}): Job {
 function stampedEnvelope(over: Partial<RoutingEnvelope> = {}): RoutingEnvelope {
   return {
     subject: { kind: 'property', propertyId: 'prop-1' },
+    cell: 'us',
     region: 'us',
     workloadClass: 'review.sync',
-    routingPolicyVersion: 2,
+    routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
     ...over,
   }
 }
@@ -97,6 +99,7 @@ function setup(decision: DelayedDecision = ALLOW) {
   registry.register('sync-property-reviews', handler)
   registry.register('publish-reply', handler)
   registry.register('import-gbp-property-item-v2', handler)
+  registry.register('process-image', handler)
   registry.register('health-check', handler)
   const resolveMock = vi.fn(async (): Promise<RoutingDecision> => US_TARGET)
   const router: ProcessingRouter = { resolve: resolveMock }
@@ -144,6 +147,29 @@ describe('dispatch routing gate (BQC-4.2)', () => {
     expect(resolveMock).toHaveBeenCalledWith(
       { kind: 'import_item', organizationId: 'org-1', itemId: 'item-1' },
       'property.import',
+    )
+    expect(handler).toHaveBeenCalledWith(job)
+    expect(quarantine).not.toHaveBeenCalled()
+  })
+
+  it('routes portal object-storage work through its owning Property cell', async () => {
+    const { registry, handler, resolveMock, quarantine, routing } = setup()
+    const dispatch = createGatedJobHandler('default', registry, undefined, routing)
+    const job = fakeJob({
+      name: 'process-image',
+      data: {
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        portalId: 'portal-1',
+        key: 'portals/org-1/portal-1/hero/object-1',
+      },
+    })
+
+    await dispatch(job)
+
+    expect(resolveMock).toHaveBeenCalledWith(
+      { kind: 'property', propertyId: 'prop-1' },
+      'portal.media',
     )
     expect(handler).toHaveBeenCalledWith(job)
     expect(quarantine).not.toHaveBeenCalled()
@@ -222,7 +248,10 @@ describe('dispatch routing gate (BQC-4.2)', () => {
       data: {
         propertyId: 'prop-1',
         organizationId: 'org-1',
-        routing: stampedEnvelope({ region: 'europe', routingPolicyVersion: 2 }),
+        routing: stampedEnvelope({
+          region: 'europe',
+          routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+        }),
       },
     })
     await dispatch(job)
@@ -243,7 +272,9 @@ describe('dispatch routing gate (BQC-4.2)', () => {
       data: {
         propertyId: 'prop-1',
         organizationId: 'org-1',
-        routing: stampedEnvelope({ routingPolicyVersion: 1 }), // fresh: 2
+        routing: stampedEnvelope({
+          routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION - 1,
+        }),
       },
     })
     await dispatch(job)
@@ -251,7 +282,10 @@ describe('dispatch routing gate (BQC-4.2)', () => {
     expect(handler).toHaveBeenCalledWith(job)
     expect(quarantine).not.toHaveBeenCalled()
     expect(loggerMocks.info).toHaveBeenCalledWith(
-      expect.objectContaining({ stampedVersion: 1, resolvedVersion: 2 }),
+      expect.objectContaining({
+        stampedVersion: DATA_CELL_CATALOGUE_POLICY_VERSION - 1,
+        resolvedVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+      }),
       'stale routing envelope — re-resolved at dispatch',
     )
   })

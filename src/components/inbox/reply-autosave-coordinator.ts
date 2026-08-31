@@ -31,6 +31,7 @@ export function createReplyAutosaveCoordinator(
   let draining: Promise<void> | null = null
   let accepting: Promise<void> | null = null
   let disposed = false
+  let save = input.save
   const emit = (status: ReplyAutosaveStatus, error: string | null = null) => {
     if (!disposed) input.onState({ status, error })
   }
@@ -49,7 +50,7 @@ export function createReplyAutosaveCoordinator(
         active = snapshot
         emit('saving')
         try {
-          await input.save(snapshot)
+          await save(snapshot)
           lastSaved = snapshot
           failed = null
           emit(pending ? 'pending' : 'saved')
@@ -79,6 +80,9 @@ export function createReplyAutosaveCoordinator(
   }
 
   return {
+    setSave(nextSave: SaveDraft) {
+      save = nextSave
+    },
     schedule(snapshot: ReplyDraftSnapshot, eligible = true) {
       cancelTimer()
       pending = null
@@ -103,7 +107,7 @@ export function createReplyAutosaveCoordinator(
       const work = (async () => {
         emit('saving')
         try {
-          await input.save(snapshot, provenanceToken)
+          await save(snapshot, provenanceToken)
           lastSaved = snapshot
           failed = null
           emit('saved')

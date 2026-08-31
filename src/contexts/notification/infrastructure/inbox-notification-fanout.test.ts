@@ -33,7 +33,7 @@ describe('fanoutInboxItemNotifications', () => {
   })
 
   it('reports how many recipients it enqueued for', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([
+    deps.responsibleManagers.findForProperty.mockResolvedValue([
       NOTIF_TEST_IDS.manager1,
       NOTIF_TEST_IDS.manager2,
     ])
@@ -45,7 +45,7 @@ describe('fanoutInboxItemNotifications', () => {
   })
 
   it('distinguishes the three reasons nothing was enqueued', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
 
     await expect(
       fanoutInboxItemNotifications(deps, input({ sourceType: 'goal' })),
@@ -55,7 +55,7 @@ describe('fanoutInboxItemNotifications', () => {
       fanoutInboxItemNotifications(deps, input({ propertyId: null })),
     ).resolves.toEqual({ kind: 'skipped', reason: 'no_property' })
 
-    deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
     deps.userLookup.findByRole.mockResolvedValue([])
     await expect(fanoutInboxItemNotifications(deps, input())).resolves.toEqual({
       kind: 'skipped',
@@ -66,7 +66,7 @@ describe('fanoutInboxItemNotifications', () => {
   })
 
   it('stamps a deterministic job id per recipient when a scope is given, so a redelivery converges', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([
+    deps.responsibleManagers.findForProperty.mockResolvedValue([
       NOTIF_TEST_IDS.manager1,
       NOTIF_TEST_IDS.manager2,
     ])
@@ -84,7 +84,7 @@ describe('fanoutInboxItemNotifications', () => {
   })
 
   it('omits the options argument entirely without a scope, so the queue policy wrapper decides', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
 
     await fanoutInboxItemNotifications(deps, input())
 
@@ -95,7 +95,7 @@ describe('fanoutInboxItemNotifications', () => {
   })
 
   it('carries the caller-supplied eventId onto the job, so a backfilled row is identifiable', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
 
     await fanoutInboxItemNotifications(deps, input({ eventId: 'reconcile:item-1' }))
 

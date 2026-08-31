@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeTelemetryPath, sanitizeTelemetryValue } from './logger'
+import {
+  isPrettyTransportAvailable,
+  normalizeTelemetryPath,
+  sanitizeTelemetryValue,
+} from './logger'
+
+describe('development log transport', () => {
+  it('resolves pino-pretty from an ESM module', () => {
+    expect(isPrettyTransportAvailable()).toBe(true)
+  })
+
+  it('degrades to structured output when the optional transport is absent', () => {
+    expect(
+      isPrettyTransportAvailable(() => {
+        throw new Error('module unavailable')
+      }),
+    ).toBe(false)
+  })
+})
 
 describe('Google credential telemetry safety', () => {
   it('redacts sensitive fields recursively without removing safe codes', () => {
@@ -31,6 +49,24 @@ describe('Google credential telemetry safety', () => {
       correlationId: 'correlation-1',
       outcomeCode: 'deadline_exceeded',
     })
+  })
+
+  it('redacts common credential and personal-data spellings from structured logs', () => {
+    const marker = 'marker-private-value'
+    const result = sanitizeTelemetryValue({
+      password: marker,
+      password_hash: marker,
+      clientSecret: marker,
+      OPENAI_API_KEY: marker,
+      contactEmail: marker,
+      reviewerName: marker,
+      reviewText: marker,
+      DATABASE_URL: `postgresql://user:${marker}@database/repkey`,
+      outcomeCode: 'provider_rejected',
+    })
+
+    expect(JSON.stringify(result)).not.toContain(marker)
+    expect(result).toMatchObject({ outcomeCode: 'provider_rejected' })
   })
 
   it('serializes errors without retaining message, stack, or secret fields', () => {

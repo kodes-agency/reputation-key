@@ -25,22 +25,16 @@ function makeDeps() {
 }
 
 describe('Review provider lifecycle sweep jobs', () => {
-  it('passes the inclusive expiry boundary and checkpoints a bounded continuation', async () => {
+  it('drains a valid legacy expiry job without deleting stable Review or Reply history', async () => {
     const deps = makeDeps()
     const handler = createExpireReviewProviderSourceHandler(deps as never)
-    await handler({
-      data: { beforeOrAtEpochMillis: cutoff, afterReviewId: null, limit: 100 },
-    } as never)
-    expect(deps.repository.expireRawSourceBatch).toHaveBeenCalledWith({
-      beforeOrAt: new Date(cutoff),
-      afterReviewId: null,
-      limit: 100,
-    })
-    expect(deps.enqueueExpiryContinuation).toHaveBeenCalledWith({
-      beforeOrAtEpochMillis: cutoff,
-      afterReviewId: '00000000-0000-4000-8000-000000000010',
-      limit: 100,
-    })
+    await expect(
+      handler({
+        data: { beforeOrAtEpochMillis: cutoff, afterReviewId: null, limit: 100 },
+      } as never),
+    ).resolves.toEqual({ status: 'quarantined', transitioned: 0, nextReviewId: null })
+    expect(deps.repository.expireRawSourceBatch).not.toHaveBeenCalled()
+    expect(deps.enqueueExpiryContinuation).not.toHaveBeenCalled()
   })
 
   it('sweeps tombstones at equality without inventing a continuation', async () => {

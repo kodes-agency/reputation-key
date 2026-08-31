@@ -28,6 +28,9 @@ export type Permission =
   | 'property.create'
   | 'property.update'
   | 'property.delete'
+  | 'property.archive'
+  | 'property.restore'
+  | 'property.disconnect'
   | 'property.read'
   | 'property.admin'
   | 'property.import_gbp_v2'
@@ -45,6 +48,7 @@ export type Permission =
   | 'ac.update'
   | 'ac.delete'
   | 'portal.create'
+  | 'portal.admin'
   | 'portal.update'
   | 'portal.delete'
   | 'portal.read'
@@ -56,6 +60,7 @@ export type Permission =
   | 'notification.read'
   | 'notification.update'
   | 'feedback.read'
+  | 'feedback.handle'
   | 'feedback.respond'
   | 'feedback.contact_read'
   | 'integration.manage'
@@ -130,7 +135,15 @@ const BUILT_IN_SCOPE_FOR_ROLE: Readonly<Record<Role, DataScope>> = {
  * back to the static role table. Use this instead of can(ctx.role, p) so custom/multi
  * roles resolve correctly once the dynamic resolver is wired.
  */
-export function canForContext(ctx: AuthContext, permission: Permission): boolean {
+export type PermissionAuthorityContext = Pick<
+  AuthContext,
+  'role' | 'effectivePermissions' | 'scopeByPermission'
+>
+
+export function canForContext(
+  ctx: PermissionAuthorityContext,
+  permission: Permission,
+): boolean {
   if (ctx.effectivePermissions) return ctx.effectivePermissions.has(permission)
   return can(ctx.role, permission)
 }
@@ -140,7 +153,10 @@ export function canForContext(ctx: AuthContext, permission: Permission): boolean
  * falls back to the built-in role's fixed scope. A permission absent from the map →
  * 'none'. Each permission's scope governs ONLY that permission's records (no widening).
  */
-export function scopeForPermission(ctx: AuthContext, permission: Permission): DataScope {
+export function scopeForPermission(
+  ctx: PermissionAuthorityContext,
+  permission: Permission,
+): DataScope {
   if (ctx.scopeByPermission) {
     return ctx.scopeByPermission.get(permission) ?? 'none'
   }

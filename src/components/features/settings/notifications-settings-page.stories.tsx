@@ -113,6 +113,7 @@ export const EmailAllowed: Story = {
       selector: '#workflow_collaboration-email',
     })
     expect(emailSwitch).toBeEnabled()
+    expect(canvas.queryByRole('heading', { name: 'Recognition' })).toBeNull()
   },
 }
 
@@ -149,8 +150,8 @@ export const EmailUnavailableForProperty: Story = {
       canvas.getByLabelText('Email', { selector: '#workflow_collaboration-email' }),
     ).toBeDisabled()
     expect(
-      canvas.getByLabelText('Email', { selector: '#recognition-email' }),
-    ).toBeDisabled()
+      canvas.queryByLabelText('Email', { selector: '#recognition-email' }),
+    ).toBeNull()
     // In-app is a separate capability and stays operable.
     expect(
       canvas.getByLabelText('In-app', { selector: '#workflow_collaboration-in_app' }),
@@ -158,16 +159,28 @@ export const EmailUnavailableForProperty: Story = {
   },
 }
 
-export const MandatoryCategoryIsLocked: Story = {
+export const MandatoryCategoryIsOrganizationPolicy: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // Account and safety notices are not opt-out on either channel.
+    // Mandatory account notices are Organization policy, not a Property
+    // preference with disabled controls that imply it could later be changed.
+    expect(canvas.queryByRole('heading', { name: 'Account and safety' })).toBeNull()
     expect(
-      canvas.getByLabelText('In-app', { selector: '#mandatory-in_app' }),
+      canvas.queryByLabelText('In-app', { selector: '#mandatory-in_app' }),
+    ).toBeNull()
+    expect(canvas.queryByLabelText('Email', { selector: '#mandatory-email' })).toBeNull()
+  },
+}
+
+export const ActionNeededKeepsInAppOn: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByLabelText('In-app', { selector: '#urgent_operational-in_app' }),
     ).toBeDisabled()
     expect(
-      canvas.getByLabelText('Email', { selector: '#mandatory-email' }),
-    ).toBeDisabled()
+      canvas.getByLabelText('Email', { selector: '#urgent_operational-email' }),
+    ).toBeEnabled()
   },
 }
 
@@ -193,5 +206,59 @@ export const SeedsFormattingFromTheServer: Story = {
     // Render source is the query result, not a stale local mirror.
     expect(canvas.getByLabelText('Locale')).toHaveValue('bg')
     expect(canvas.getByLabelText('IANA timezone')).toHaveValue('Europe/Sofia')
+  },
+}
+
+export const FormattingRejectsAnUnknownTimezone: Story = {
+  play: async ({ canvasElement }) => {
+    updateUserSettingsMock.mockClear()
+    const canvas = within(canvasElement)
+    const timezone = canvas.getByLabelText('IANA timezone')
+    await userEvent.clear(timezone)
+    await userEvent.type(timezone, 'Sofia{Enter}')
+    await expect(canvas.findByText('Enter a valid IANA timezone')).resolves.toBeVisible()
+    expect(updateUserSettingsMock).not.toHaveBeenCalled()
+  },
+}
+
+export const QuietHoursCanBeCleared: Story = {
+  args: {
+    preferences: [
+      ...preferences.filter(
+        (item) =>
+          !(item.category === 'workflow_collaboration' && item.channel === 'email'),
+      ),
+      preference({
+        category: 'workflow_collaboration',
+        channel: 'email',
+        enabled: true,
+        quietHoursStart: '09:00',
+        quietHoursEnd: '17:00',
+      }),
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const canvas = within(canvasElement)
+    const heading = canvas.getByRole('heading', {
+      name: 'Workflow and collaboration',
+    })
+    const fieldset = heading.closest('fieldset')
+    if (!fieldset) throw new Error('workflow notification fieldset is missing')
+    const row = within(fieldset)
+    await userEvent.clear(row.getByLabelText(/quiet from/i))
+    await userEvent.clear(row.getByLabelText(/^until/i))
+    await userEvent.click(row.getByRole('button', { name: /save quiet hours/i }))
+
+    await waitFor(() =>
+      expect(updatePreferenceMock).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          category: 'workflow_collaboration',
+          channel: 'email',
+          quietHoursStart: null,
+          quietHoursEnd: null,
+        }),
+      }),
+    )
   },
 }

@@ -242,6 +242,46 @@ describe('Google import v2 lifecycle', () => {
     expect(fixture.store.listLifecycleScopeParents).not.toHaveBeenCalled()
   })
 
+  it('cancels an explicit request with a truthful user outcome and is replay-safe', async () => {
+    const fixture = setup()
+    fixture.store.listLifecycleScopeParents
+      .mockResolvedValueOnce([{ organizationId: ORG_ID, importJobId: IMPORT_JOB_ID }])
+      .mockResolvedValueOnce([])
+    fixture.store.listLifecycleScopeItems
+      .mockResolvedValueOnce([
+        {
+          organizationId: ORG_ID,
+          importJobId: IMPORT_JOB_ID,
+          itemId: EXPIRED_ITEM_ID,
+          retryRevision: 3,
+          active: true,
+        },
+      ])
+      .mockResolvedValueOnce([])
+
+    await expect(fixture.lifecycle.cancelRequest(ORG_ID, IMPORT_JOB_ID)).resolves.toEqual(
+      expect.objectContaining({ parentsFenced: 1, itemsCancelled: 1 }),
+    )
+    expect(fixture.store.terminalizeItem).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      itemId: EXPIRED_ITEM_ID,
+      retryRevision: 3,
+      outcomeCode: 'user_cancelled',
+      retainProtectedRouting: false,
+      now: NOW,
+    })
+
+    await expect(fixture.lifecycle.cancelRequest(ORG_ID, IMPORT_JOB_ID)).resolves.toEqual(
+      {
+        parentsFenced: 0,
+        itemsVisited: 0,
+        receiptsReconciled: 0,
+        itemsCancelled: 0,
+        itemIds: [],
+      },
+    )
+  })
+
   it('inspects bounded global and tenant lifecycle backlog without mutation', async () => {
     const fixture = setup({ unreleasedExpired: 3 })
     fixture.store.countLifecycleScopeItems.mockResolvedValueOnce(7)

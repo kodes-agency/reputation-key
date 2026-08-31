@@ -80,7 +80,13 @@ const seedMemberBoth = (
   })
 }
 
-const setup = () => {
+const setup = (
+  reconcileResponsibleManagerEligibility?: (
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>,
+) => {
   const identity = createInMemoryIdentityPort()
   const events = createCapturingEventBus()
   const commandStore = createSequentialIdentityCommandStore({ events })
@@ -88,11 +94,44 @@ const setup = () => {
     identity,
     commandStore,
     clock: () => FIXED_TIME,
+    reconcileResponsibleManagerEligibility,
   })
   return { useCase, identity, events, commandStore }
 }
 
 describe('updateMemberRole', () => {
+  it('reconciles manager responsibilities after a role change', async () => {
+    const calls: string[][] = []
+    const { useCase, identity, commandStore } = setup(async (...input) => {
+      calls.push(input)
+    })
+    seedMemberBoth(identity, commandStore, PM_MEMBER)
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await useCase({ memberId: PM_MEMBER.id, role: 'AccountAdmin' }, ctx)
+
+    expect(calls).toEqual([[ctx.organizationId, PM_MEMBER.userId, ctx.userId]])
+    expect(commandStore.memberById(PM_MEMBER.id)?.role).toBe('owner')
+  })
+
+  it('retries eligibility reconciliation after the role write already committed', async () => {
+    let attempts = 0
+    const { useCase, identity, commandStore } = setup(async () => {
+      attempts += 1
+      if (attempts === 1) throw new Error('temporary reconciliation failure')
+    })
+    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      useCase({ memberId: STAFF_MEMBER.id, role: 'PropertyManager' }, ctx),
+    ).rejects.toThrow('temporary reconciliation failure')
+    await expect(
+      useCase({ memberId: STAFF_MEMBER.id, role: 'PropertyManager' }, ctx),
+    ).resolves.toEqual({ success: true })
+    expect(attempts).toBe(2)
+  })
+
   it('allows AccountAdmin to promote Staff to PropertyManager', async () => {
     const { useCase, identity, events, commandStore } = setup()
     seedMemberBoth(identity, commandStore, STAFF_MEMBER)
@@ -121,7 +160,7 @@ describe('updateMemberRole', () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
-      useCase({ memberId: 'member-staff', role: 'Staff' }, ctx),
+      useCase({ memberId: 'member-staff', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
@@ -141,7 +180,7 @@ describe('updateMemberRole', () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
-      useCase({ memberId: 'member-pm', role: 'Staff' }, ctx),
+      useCase({ memberId: 'member-pm', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 
@@ -160,7 +199,7 @@ describe('updateMemberRole', () => {
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(
-      useCase({ memberId: 'nonexistent', role: 'Staff' }, ctx),
+      useCase({ memberId: 'nonexistent', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'member_not_found')
   })
 
@@ -186,7 +225,7 @@ describe('updateMemberRole', () => {
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(
-      useCase({ memberId: 'member-admin', role: 'Staff' }, ctx),
+      useCase({ memberId: 'member-admin', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
 
     // The admin was not demoted (neither read-side nor write-side).
@@ -207,7 +246,7 @@ describe('updateMemberRole', () => {
     // hierarchy already blocks; its reject branch is exercised by the
     // "forbids demoting the last AccountAdmin" test above.
     await expect(
-      useCase({ memberId: 'member-admin', role: 'Staff' }, ctx),
+      useCase({ memberId: 'member-admin', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
 
     const still = await identity.getMember(ctx, 'member-admin')
@@ -235,7 +274,7 @@ describe('updateMemberRole', () => {
     // Demoting the sole multi-role owner must be blocked — the guard fires via
     // isOwnerToken(rawRole) even though the built-in role is null.
     await expect(
-      useCase({ memberId: 'multi-owner', role: 'Staff' }, ctx),
+      useCase({ memberId: 'multi-owner', role: 'PropertyManager' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'forbidden')
   })
 })

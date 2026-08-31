@@ -22,14 +22,17 @@ describe('portal token codec', () => {
   })
 
   it('rejects malformed public tokens before repository lookup', () => {
-    const codec = createPortalTokenCodec({ secret: 's'.repeat(32) })
+    const codec = createPortalTokenCodec({
+      secret: 's'.repeat(32),
+      randomBytes: Buffer.alloc,
+    })
     expect(codec.digest('portal-1')).toBeNull()
     expect(codec.digest('pt_short_secret')).toBeNull()
   })
 
   it('rejects weak hashing secrets', () => {
-    expect(() => createPortalTokenCodec({ secret: 'weak' })).toThrow(
-      'PORTAL_TOKEN_HASH_SECRET must contain at least 32 bytes',
-    )
+    expect(() =>
+      createPortalTokenCodec({ secret: 'weak', randomBytes: Buffer.alloc }),
+    ).toThrow('PORTAL_TOKEN_HASH_SECRET must contain at least 32 bytes')
   })
 })

@@ -13,12 +13,17 @@ import type {
   getInboxItemsFn,
   getInboxItemDetailFn,
   getInboxNotesFn,
+  getInboxItemHistoryFn,
   getInboxFolderCountsFn,
+  stampLastInboxViewFn,
   updateInboxStatusFn,
   escalateInboxItemFn,
   resolveEscalationFn,
   addInboxNoteFn,
   bulkUpdateInboxStatusFn,
+  bulkAssignInboxItemsFn,
+  markFeedbackHandledFn,
+  correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
@@ -27,13 +32,18 @@ export type InboxServerFns = Readonly<{
   getInboxItems: typeof getInboxItemsFn
   getInboxItemDetail: typeof getInboxItemDetailFn
   getInboxNotes: typeof getInboxNotesFn
+  getInboxItemHistory: typeof getInboxItemHistoryFn
   getActivityTimeline: typeof getActivityTimelineFn
   getInboxFolderCounts: typeof getInboxFolderCountsFn
+  stampLastInboxView: typeof stampLastInboxViewFn
   updateInboxStatus: typeof updateInboxStatusFn
   escalateInboxItem: typeof escalateInboxItemFn
   resolveEscalation: typeof resolveEscalationFn
   addInboxNote: typeof addInboxNoteFn
   bulkUpdateInboxStatus: typeof bulkUpdateInboxStatusFn
+  bulkAssignInboxItems: typeof bulkAssignInboxItemsFn
+  markFeedbackHandled: typeof markFeedbackHandledFn
+  correctFeedbackHandlingOutcome: typeof correctFeedbackHandlingOutcomeFn
   generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 

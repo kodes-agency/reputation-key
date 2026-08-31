@@ -3,7 +3,7 @@ import type { OAuthStateHandleService } from './oauth-state-handle'
 
 export type RedeemedOAuthState = Extract<
   Awaited<ReturnType<OAuthStateHandleService['redeem']>>,
-  { ok: true }
+  { ok: true; kind: 'exchange' }
 >
 
 /**
@@ -15,6 +15,7 @@ export function buildOpaqueOAuthConnectInput(
   redeemed: RedeemedOAuthState,
 ): Extract<ConnectGoogleInput, { verifierMaterial: unknown }> {
   return {
+    exchangeAttemptId: redeemed.exchangeAttemptId,
     code,
     visibility: redeemed.visibility,
     purpose: redeemed.purpose,

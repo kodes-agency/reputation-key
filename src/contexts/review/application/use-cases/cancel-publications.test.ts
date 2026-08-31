@@ -26,9 +26,14 @@ import {
 
 const ORG_ID = organizationId('org-1')
 const CONN_ID = googleConnectionId('conn-1')
-const PROP_ID = propertyId('prop-1')
+const PROP_ID = propertyId('42000000-0000-4000-8000-000000000001')
 const USER_ID = userId('user-1')
 const NOW = new Date('2026-07-17T00:00:00Z')
+const REVIEW_1 = '42000000-0000-4000-8000-000000000010'
+const REVIEW_2 = '42000000-0000-4000-8000-000000000011'
+const REVIEW_3 = '42000000-0000-4000-8000-000000000012'
+const REPLY_1 = '42000000-0000-4000-8000-000000000020'
+const REPLY_2 = '42000000-0000-4000-8000-000000000021'
 
 function makeReview(id: string): Review {
   return {
@@ -88,6 +93,7 @@ function makeReply(
     approvedAt: NOW,
     publishedAt: null,
     publicationState,
+    publicationCycle: 1,
     publicationAttempts: 1,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
@@ -116,10 +122,10 @@ function makeDeps(opts: {
 
 describe('cancelPublicationsForConnection', () => {
   it('cancels every publication-active reply of the connection with one fact per reply', async () => {
-    const reviews = [makeReview('rev-1'), makeReview('rev-2')]
+    const reviews = [makeReview(REVIEW_1), makeReview(REVIEW_2)]
     const active = [
-      makeReply('reply-1', 'rev-1', 'authorized'),
-      makeReply('reply-2', 'rev-2', 'sending'),
+      makeReply(REPLY_1, REVIEW_1, 'authorized'),
+      makeReply(REPLY_2, REVIEW_2, 'sending'),
     ]
     const deps = makeDeps({
       reviewsByCall: [reviews],
@@ -141,7 +147,7 @@ describe('cancelPublicationsForConnection', () => {
       500,
     )
     expect(deps.replyRepo.findPublicationActiveByReviewIds).toHaveBeenCalledWith(
-      [reviewId('rev-1'), reviewId('rev-2')],
+      [reviewId(REVIEW_1), reviewId(REVIEW_2)],
       ORG_ID,
     )
 
@@ -177,7 +183,7 @@ describe('cancelPublicationsForConnection', () => {
 
   it('reviews without active publications issue an empty cancel batch', async () => {
     const deps = makeDeps({
-      reviewsByCall: [[makeReview('rev-1')]],
+      reviewsByCall: [[makeReview(REVIEW_1)]],
       activeReplies: [],
       cancelResult: 0,
     })
@@ -193,8 +199,8 @@ describe('cancelPublicationsForConnection', () => {
   })
 
   it('paginates reviews by keyset cursor until the connection is exhausted', async () => {
-    const first = [makeReview('rev-1'), makeReview('rev-2')]
-    const second = [makeReview('rev-3')]
+    const first = [makeReview(REVIEW_1), makeReview(REVIEW_2)]
+    const second = [makeReview(REVIEW_3)]
     const deps = makeDeps({
       reviewsByCall: [first, second],
       activeReplies: [],
@@ -214,7 +220,7 @@ describe('cancelPublicationsForConnection', () => {
     expect(result.reviewsScanned).toBe(3)
     const calls = vi.mocked(deps.reviewRepo.findByConnection).mock.calls
     expect(calls[0]).toEqual([ORG_ID, CONN_ID, null, 2])
-    expect(calls[1]).toEqual([ORG_ID, CONN_ID, { id: 'rev-2' }, 2])
+    expect(calls[1]).toEqual([ORG_ID, CONN_ID, { id: REVIEW_2 }, 2])
     // The cause flows into every emitted fact.
     const commands = vi.mocked(deps.commandStore.cancelPublications).mock.calls[0]![0]
     expect(commands).toHaveLength(0)
@@ -223,9 +229,9 @@ describe('cancelPublicationsForConnection', () => {
   it('stops at the batch budget (maxBatches) even when rows remain', async () => {
     const deps = makeDeps({
       reviewsByCall: [
-        [makeReview('rev-1')],
-        [makeReview('rev-2')],
-        [makeReview('rev-3')],
+        [makeReview(REVIEW_1)],
+        [makeReview(REVIEW_2)],
+        [makeReview(REVIEW_3)],
       ],
       activeReplies: [],
       cancelResult: 0,

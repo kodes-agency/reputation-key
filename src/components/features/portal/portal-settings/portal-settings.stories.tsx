@@ -37,14 +37,22 @@ const portal: PortalData = {
   description: 'Main guest-facing portal.',
   heroImageUrl: null,
   theme: { primaryColor: '#6366f1' },
+  privateFeedbackThreshold: 3,
   publicationState: 'published',
 }
 
 const requestUploadUrl = async (_input: {
   data: { portalId: string; contentType: string; fileSize: number }
-}) => ({ uploadUrl: 'https://upload.example.com/presigned', key: 'hero-key' })
-const finalizeUpload = async (_input: { data: { portalId: string; key: string } }) => ({
+}) => ({
+  uploadUrl: 'https://upload.example.com/presigned',
+  uploadId: 'upload-id',
+  requiredHeaders: { 'If-None-Match': '*' },
+})
+const finalizeUpload = async (_input: {
+  data: { portalId: string; uploadId: string }
+}) => ({
   heroImageUrl: 'https://cdn.example.com/hero.png',
+  processing: false,
 })
 
 const idleMutation = Object.assign(
@@ -59,6 +67,23 @@ const idleReviewMutation = Object.assign(
 
 const baseArgs = {
   portal,
+  googleReviewDestination: {
+    state: 'verified' as const,
+    retrievedAt: '2026-08-20T10:00:00.000Z',
+  },
+  publicationHistory: {
+    current: {
+      activationSequence: 1,
+      version: 1,
+      kind: 'publish' as const,
+      activatedAt: '2026-08-20T10:00:00.000Z',
+      deactivatedAt: null,
+      deactivationReason: null,
+    },
+    priorActivations: [],
+    hasPendingChanges: false,
+    nextCursor: null,
+  },
   mutation: idleMutation,
   completeReviewMutation: idleReviewMutation,
   theme: portal.theme,
@@ -74,6 +99,11 @@ export const Published: Story = {
     await expect(
       canvas.getByRole('button', { name: /disable public page/i }),
     ).toBeInTheDocument()
+    const reviewPurpose = canvas.getByText(/review the saved gateway details/i)
+    await expect(reviewPurpose).toHaveTextContent(
+      /save pending edits before recording the review/i,
+    )
+    await expect(canvas.queryByText(/badges|leaderboards/i)).toBeNull()
   },
 }
 

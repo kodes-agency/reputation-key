@@ -11,9 +11,12 @@ import { permissionVersion } from './schema/dac.schema'
 import { mapRoleDefinitions } from '#/shared/auth/role-definitions'
 import type { CustomRoleDef, RolePolicy } from '#/shared/auth/resolve-permissions'
 
+/** Drizzle database or transaction snapshot capable of role-definition reads. */
+export type RoleDefinitionDatabase = Pick<Database, 'select'>
+
 /** Fetch + map the custom-role definitions and policies for an organization. */
 export async function fetchRoleDefinitions(
-  db: Database,
+  db: RoleDefinitionDatabase,
   orgId: string,
 ): Promise<{ customRoles: readonly CustomRoleDef[]; policies: readonly RolePolicy[] }> {
   const [roleDefRows, policyRows] = await Promise.all([
@@ -37,7 +40,7 @@ export async function fetchRoleDefinitions(
  * Returns 0 if no row exists yet (no mutations have occurred for this org).
  */
 export async function fetchPermissionVersion(
-  db: Database,
+  db: RoleDefinitionDatabase,
   orgId: string,
 ): Promise<number> {
   const rows = await db

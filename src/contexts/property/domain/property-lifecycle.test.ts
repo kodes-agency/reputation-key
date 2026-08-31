@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
+  PROPERTY_ARCHIVE_RECOVERY_WINDOW_MS,
+  archiveRecoveryDeadline,
   isValidTransition,
   assertValidTransition,
   assertCanPerformExternalEffect,
@@ -12,6 +14,10 @@ import {
 
 describe('property-lifecycle (B1.5)', () => {
   describe('isValidTransition', () => {
+    it('allows active → archived for ordinary recoverable removal', () => {
+      expect(isValidTransition('active', 'archived')).toBe(true)
+    })
+
     it('allows active → suspended', () => {
       expect(isValidTransition('active', 'suspended')).toBe(true)
     })
@@ -48,10 +54,6 @@ describe('property-lifecycle (B1.5)', () => {
       expect(isValidTransition('purging', 'purged')).toBe(true)
     })
 
-    it('rejects active → archived (must suspend first)', () => {
-      expect(isValidTransition('active', 'archived')).toBe(false)
-    })
-
     it('rejects active → purged (cannot skip states)', () => {
       expect(isValidTransition('active', 'purged')).toBe(false)
     })
@@ -67,6 +69,17 @@ describe('property-lifecycle (B1.5)', () => {
     it('rejects same-state transitions', () => {
       expect(isValidTransition('active', 'active')).toBe(false)
       expect(isValidTransition('archived', 'archived')).toBe(false)
+    })
+  })
+
+  describe('archiveRecoveryDeadline', () => {
+    it('opens the documented 30-day self-service recovery window', () => {
+      const archivedAt = new Date('2026-08-28T12:00:00.000Z')
+
+      expect(archiveRecoveryDeadline(archivedAt)).toEqual(
+        new Date(archivedAt.getTime() + PROPERTY_ARCHIVE_RECOVERY_WINDOW_MS),
+      )
+      expect(PROPERTY_ARCHIVE_RECOVERY_WINDOW_MS).toBe(30 * 24 * 60 * 60 * 1_000)
     })
   })
 

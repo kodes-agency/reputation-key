@@ -7,7 +7,7 @@ import { dashboardError } from '../../domain/errors'
 import type { DashboardRepository } from '../ports/dashboard.repository'
 import type { StaffPortalResolverPort } from '../ports/staff-portal-resolver.port'
 import type { OrganizationId, PropertyId, PortalId, UserId } from '#/shared/domain/ids'
-import type { StaffDashboardData } from '../../domain/types'
+import type { KPIs, StaffDashboardData } from '../../domain/types'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { priorPeriodDates } from '../utils'
@@ -20,6 +20,7 @@ export type GetStaffDashboardDataInput = Readonly<{
   startDate: Date
   endDate: Date
   timeRange: TimeRangePreset
+  propertyTimezone: string
 }>
 
 export type GetStaffDashboardDataDeps = Readonly<{
@@ -29,12 +30,27 @@ export type GetStaffDashboardDataDeps = Readonly<{
 }>
 export type GetStaffDashboardData = ReturnType<typeof getStaffDashboardData>
 
-const emptyKPIs = {
+const unavailableMetricKpi = {
+  value: null,
+  priorValue: null,
+  trend: null,
+  evidence: {
+    current: {
+      state: 'unavailable',
+      definitionVersionId: null,
+      sampleCount: 0,
+      minimumSample: null,
+    },
+    prior: null,
+  },
+} as const
+
+const emptyKPIs: KPIs = {
   reviews: { value: 0, priorValue: 0, trend: null },
   avgRating: { value: 0, priorValue: 0, trend: null },
-  scans: { value: 0, priorValue: 0, trend: null },
-  feedback: { value: 0, priorValue: 0, trend: null },
-} as const
+  scans: unavailableMetricKpi,
+  feedback: unavailableMetricKpi,
+}
 
 export const getStaffDashboardData =
   (deps: GetStaffDashboardDataDeps) =>
@@ -54,6 +70,7 @@ export const getStaffDashboardData =
       startDate,
       endDate,
       timeRange,
+      propertyTimezone,
     } = input
 
     // Resolve assigned portals via the port (cross-context call to staff)
@@ -69,15 +86,12 @@ export const getStaffDashboardData =
       return { kpis: { ...emptyKPIs }, hasAssignments: assignedPortals.length > 0 }
     }
 
-    // priorPeriodDates returns null for 'all' (no prior window). getKPIsForPortals
-    // requires concrete bounds, so this path keeps the historical
-    // self-comparison until PortalKPIQuery admits an absent prior period —
-    // same defect class as the portal-analytics fix.
-    const { priorStartDate, priorEndDate } = priorPeriodDates(
+    const comparisonPeriod = priorPeriodDates(
       timeRange,
       startDate,
       endDate,
-    ) ?? { priorStartDate: startDate, priorEndDate: endDate }
+      propertyTimezone,
+    )
 
     const kpis = await deps.repo.getKPIsForPortals({
       organizationId,
@@ -85,8 +99,7 @@ export const getStaffDashboardData =
       portalIds,
       startDate,
       endDate,
-      priorStartDate,
-      priorEndDate,
+      comparisonPeriod,
     })
 
     return { kpis, hasAssignments: true }

@@ -3,7 +3,39 @@ import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import { nitro } from 'nitro/vite'
-import { loadEnv, defineConfig } from 'vite'
+import { loadEnv, defineConfig, type Plugin } from 'vite'
+
+/**
+ * Zod v4 decides whether to use its JIT-compiled validator path by PROBING for
+ * eval: `allowsEval` calls `new Function('')` once and falls back when it
+ * throws. Our Content-Security-Policy deliberately omits `unsafe-eval`
+ * (shared/security/security-headers.ts), so the probe was blocked on every
+ * page load and the browser reported a policy violation. Nothing broke — Zod
+ * took the interpreted path, which is the path this CSP wants — but a public
+ * guest surface reported a CSP violation on every visit, which trains
+ * operators to ignore CSP reports and is exactly the noise a real injection
+ * would hide in.
+ *
+ * Zod reads `globalConfig.jitless` BEFORE touching `allowsEval`, and its own
+ * source says so ("Skip the probe under `jitless`: strict CSPs report the
+ * caught `new Function` as a `securitypolicyviolation`"). Setting it from
+ * application code loses a race it cannot win: `globalConfig.jitless` is read
+ * when a schema is CONSTRUCTED, and module-scope schemas in imported chunks
+ * evaluate before any entry-point statement. Appending it to the module that
+ * CREATES `globalConfig` is ordered by construction rather than by import
+ * graph, so it holds for every schema in every chunk.
+ */
+function zodJitlessPlugin(): Plugin {
+  return {
+    name: 'repkey-zod-jitless',
+    enforce: 'pre',
+    transform(code: string, id: string) {
+      if (!id.includes('zod/v4/core/core.js')) return null
+      if (!code.includes('globalConfig')) return null
+      return { code: `${code}\nglobalConfig.jitless = true;\n`, map: null }
+    },
+  }
+}
 
 const config = defineConfig(({ mode }) => {
   // Load .env into process.env before any server module runs.
@@ -64,6 +96,7 @@ const config = defineConfig(({ mode }) => {
     },
     resolve: { tsconfigPaths: true },
     plugins: [
+      zodJitlessPlugin(),
       ...(isStorybook ? [] : [devtools({ consolePiping: { enabled: !isE2E } })]),
       ...(isBuild && !isStorybook
         ? [
@@ -81,12 +114,17 @@ const config = defineConfig(({ mode }) => {
               // path. Wired plugins (init order):
               //   - production-secret-guard (BQC-7.6): refuse boot when a
               //     known placeholder/test secret leaks into production.
+              //   - error-monitoring (OBS-01): capture unexpected Nitro errors;
+              //     Node --import preloads the SDK before any plugin starts.
               //   - release-identity-guard: refuse a declared candidate that
               //     differs from the revision baked into the image.
               //   - restore-mode-guard (BQC-7.8): restore-isolated boot
               //     assertion + the loud RESTORE MODE ISOLATED log line; the
               //     capability fail-closed enforcement itself lives at the
               //     beta-capabilities evaluation seam (per-request).
+              //   - redis-runtime-guard (DATA-18): require physically separate
+              //     cache/queue Redis and prove the queue runtime contract
+              //     before the web producer accepts traffic.
               //   - graceful-shutdown (BQC-7.1): close pg/Redis/BullMQ on
               //     SIGTERM so the process exits inside the drain window.
               //   - security-headers (BQC-7.6, STD-P1-07): the B0.7 header set
@@ -97,8 +135,10 @@ const config = defineConfig(({ mode }) => {
               //     routing) + x-request-id on every response.
               plugins: [
                 'server/plugins/production-secret-guard.ts',
+                'server/plugins/error-monitoring.ts',
                 'server/plugins/release-identity-guard.ts',
                 'server/plugins/restore-mode-guard.ts',
+                'server/plugins/redis-runtime-guard.ts',
                 'server/plugins/graceful-shutdown.ts',
                 'server/plugins/security-headers.ts',
                 'server/plugins/request-guard.ts',

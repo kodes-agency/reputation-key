@@ -20,8 +20,11 @@ import type {
   NotificationCadence,
 } from '../../domain/types'
 import { classifyNotification } from '../../domain/notification-delivery-policy'
-import { applyCoalescence, getDefaultEnabled } from '../../domain/notification-policy'
-import { isUrgent } from '../../domain/types'
+import {
+  applyCoalescence,
+  getDefaultCadence,
+  getDefaultEnabled,
+} from '../../domain/notification-policy'
 
 // ── Input ───────────────────────────────────────────────────────────
 
@@ -46,7 +49,7 @@ export type InsertNotificationDeps = Readonly<{
   enqueueImmediateEmail?: (data: {
     notificationEmailId: string
     organizationId: string
-    propertyId: string
+    propertyId?: string
   }) => Promise<void>
 }>
 
@@ -61,6 +64,19 @@ const resolveChannelPreferences = async (
   input: InsertNotificationInput,
 ): Promise<ChannelPreferences> => {
   const category = classifyNotification(input.type)
+  // Organization mandatory notices are policy, not preference. Never consult
+  // a property-scoped preference row for them: both channels are always on
+  // and email is always immediate.
+  if (category === 'mandatory') {
+    return {
+      inAppEnabled: true,
+      emailEnabled: true,
+      emailCadence: 'immediate',
+    }
+  }
+  if (input.propertyId === null) {
+    throw new TypeError('Property-scoped notification requires propertyId')
+  }
   const inApp = await deps.preferenceRepo.findForDelivery(
     input.userId,
     input.organizationId,
@@ -78,7 +94,7 @@ const resolveChannelPreferences = async (
   return {
     inAppEnabled: inApp?.enabled ?? getDefaultEnabled(category, 'in_app'),
     emailEnabled: email?.enabled ?? getDefaultEnabled(category, 'email'),
-    emailCadence: email?.cadence ?? (isUrgent(input.type) ? 'immediate' : 'daily'),
+    emailCadence: email?.cadence ?? getDefaultCadence(category),
   }
 }
 
@@ -94,7 +110,9 @@ const enqueueImmediateEmailBestEffort = async (
     await deps.enqueueImmediateEmail({
       notificationEmailId: unbrand(emailId),
       organizationId: unbrand(notification.organizationId),
-      propertyId: unbrand(notification.propertyId),
+      ...(notification.propertyId === null
+        ? {}
+        : { propertyId: unbrand(notification.propertyId) }),
     })
   } catch (enqueueErr) {
     // `correlationId` is the same opaque string the urgent-email job envelope

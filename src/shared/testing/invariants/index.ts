@@ -1,7 +1,7 @@
 // Invariant runner — aggregates all checkers into a single report.
 // Used post-simulation to surface cross-context consistency violations.
 
-import type { Container } from '#/composition'
+import type { SimulationContainer } from '#/composition'
 import type { InvariantChecker, InvariantContext, InvariantReport } from './types'
 import type { InMemoryQueue } from '../in-memory-queue'
 import { reviewInboxConsistency } from './checkers/review-inbox-consistency'
@@ -21,23 +21,23 @@ export type {
  * Returns the full set of checkers for a simulation.
  */
 export function createInvariantCheckers(
-  container: Container,
+  container: SimulationContainer,
   queue?: InMemoryQueue,
 ): ReadonlyArray<InvariantChecker> {
   return [
     reviewInboxConsistency({
-      reviewRepo: container.reviewRepo,
-      inboxRepo: container.inboxRepo,
+      reviewRepo: container.simulationRuntime.review,
+      inboxRepo: container.simulationRuntime.inbox,
     }),
     slaConsistency({
-      reviewRepo: container.reviewRepo,
-      replyRepo: container.replyRepo,
+      reviewRepo: container.simulationRuntime.review,
+      replyRepo: container.simulationRuntime.reply,
       clock: container.clock,
     }),
     inboxStatusLegal({
-      reviewRepo: container.reviewRepo,
-      replyRepo: container.replyRepo,
-      inboxRepo: container.inboxRepo,
+      reviewRepo: container.simulationRuntime.review,
+      replyRepo: container.simulationRuntime.reply,
+      inboxRepo: container.simulationRuntime.inbox,
     }),
     noOrphanedJobs({ queue, registry: container.jobRegistry }),
   ]

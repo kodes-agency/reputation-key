@@ -1,5 +1,5 @@
 // Delete all properties and inbox items (plus reviews/replies as cascading deps)
-// Run: npx tsx scripts/cleanup-all.ts
+// Run: pnpm exec tsx scripts/cleanup-all.ts
 
 import 'dotenv/config'
 import { getDb } from '../src/shared/db/index.js'

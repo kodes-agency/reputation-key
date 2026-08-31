@@ -12,6 +12,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -129,7 +130,7 @@ afterAll(async () => {
   await truncateAll(pool)
   await pool.query('DELETE FROM portals WHERE id IN ($1, $2)', [PORTAL_A, PORTAL_B])
   await pool.query('DELETE FROM properties WHERE id = $1', [PROP_ID])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG_ID])
+  await deleteTestOrganizations(pool, [ORG_ID])
   await pool.end()
 })
 

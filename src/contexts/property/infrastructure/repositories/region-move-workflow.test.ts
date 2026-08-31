@@ -1,7 +1,7 @@
 // BQC-4.5 — region move rehearsal (real PostgreSQL + real Redis).
 //
 // The synthetic proof that the move machine works end to end while beta has
-// ONE approved cell ('us' — ADR 0048):
+// one accepting cell (`us`) while Europe remains a simulated target:
 //   (a) full lifecycle against a STUBBED approved target ('europe' injected
 //       into the use-case dep): requested → … → completed; the property's
 //       region swaps exactly once; ONE region_moves row carries the history.
@@ -17,6 +17,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { sql } from 'drizzle-orm'
 import type { Queue } from 'bullmq'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createJobQueue } from '#/shared/jobs/queue'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -25,6 +26,7 @@ import { organizationId, userId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { createRegionMoveRepository } from './region-move.repository'
+import { createRegionMoveRequestCommandStore } from '../adapters/region-move-request-command-store.adapter'
 import { requestRegionMove } from '../../application/use-cases/request-region-move'
 import { advanceRegionMove } from '../../application/use-cases/advance-region-move'
 import { updateProperty } from '../../application/use-cases/update-property'
@@ -65,7 +67,6 @@ const silentEvents: EventBus = {
 const stubStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 let defaultQueue: Queue
@@ -82,7 +83,7 @@ let moveSeq = 0
 function makeUseCases(approvedCells: ReadonlySet<string>) {
   const request = requestRegionMove({
     propertyRepo: createPropertyRepository(db),
-    moveStore: store,
+    requestCommandStore: createRegionMoveRequestCommandStore(db),
     approvedCells,
     writeOperatorAudit: async (entry) => {
       audits.push(entry)
@@ -104,6 +105,7 @@ function makeUseCases(approvedCells: ReadonlySet<string>) {
       { name: 'background', queue: backgroundQueue },
     ],
     clock: () => now,
+    logger: { info: () => {} },
   })
   const update = updateProperty({
     propertyRepo: createPropertyRepository(db),
@@ -124,23 +126,27 @@ async function seedProperty(id: string): Promise<void> {
   await db.execute(sql`
     INSERT INTO properties
       (id, organization_id, name, slug, timezone, country_code, country_source,
-       processing_region, processing_region_source, routing_policy_version,
+       processing_region, data_cell_id, processing_region_source, routing_policy_version,
        processing_region_resolved_at)
     VALUES (${id}, ${ORG}, ${'move-prop-' + id.slice(-2)}, ${'move-prop-' + id.slice(-2)},
-            'UTC', 'US', 'manual', 'us', 'country_default', 1, now())
+            'UTC', 'US', 'manual', 'us', 'us', 'country_default', 2, now())
   `)
 }
 
-async function propertyRegion(
-  id: string,
-): Promise<{ region: string | null; version: number; source: string | null }> {
+async function propertyRegion(id: string): Promise<{
+  region: string | null
+  dataCellId: string | null
+  version: number
+  source: string | null
+}> {
   const rows = await db.execute(
-    sql`SELECT processing_region, routing_policy_version, processing_region_source
+    sql`SELECT processing_region, data_cell_id, routing_policy_version, processing_region_source
         FROM properties WHERE id = ${id}`,
   )
   const row = rows.rows[0] as Record<string, unknown> | undefined
   return {
     region: (row?.processing_region as string | null) ?? null,
+    dataCellId: (row?.data_cell_id as string | null) ?? null,
     version: row?.routing_policy_version as number,
     source: (row?.processing_region_source as string | null) ?? null,
   }
@@ -163,8 +169,8 @@ async function clearOrgFixtures() {
     sql`DELETE FROM properties WHERE organization_id = ${ORG}`,
     sql`DELETE FROM member WHERE "organizationId" = ${ORG}`,
     sql`DELETE FROM "user" WHERE id = ${OPERATOR}`,
-    sql`DELETE FROM organization WHERE id = ${ORG}`,
   ])
+  await deleteTestOrganizations(db, [ORG])
 }
 
 beforeAll(async () => {
@@ -172,7 +178,7 @@ beforeAll(async () => {
   registerAllEventSchemas()
   const dq = createJobQueue('default')
   const bq = createJobQueue('background')
-  if (!dq || !bq) throw new Error('REDIS_URL required for the move rehearsal')
+  if (!dq || !bq) throw new Error('queue Redis required for the move rehearsal')
   defaultQueue = dq
   backgroundQueue = bq
   // Scratch queues: guarantee an empty drain baseline (test-local Redis).
@@ -265,20 +271,21 @@ describe('region move rehearsal (BQC-4.5, real PostgreSQL + Redis)', () => {
 
     // The region swapped exactly once, at target_activated.
     expect(observed.map((o) => `${o.state}:${o.region}@v${o.version}`)).toEqual([
-      'requested:us@v1',
-      'writes_paused:us@v1',
-      'queues_drained:us@v1',
-      'data_copied:us@v1',
-      'verified:us@v1',
-      'target_activated:europe@v2',
-      'source_erased:europe@v2',
-      'completed:europe@v2',
+      'requested:us@v2',
+      'writes_paused:us@v2',
+      'queues_drained:us@v2',
+      'data_copied:us@v2',
+      'verified:us@v2',
+      'target_activated:europe@v3',
+      'source_erased:europe@v3',
+      'completed:europe@v3',
     ])
 
     // ONE row carries the full history; state_changed_at advanced every step.
     const rows = await moveRowsFor(PROP_LIFECYCLE)
     expect(rows).toHaveLength(1)
     expect(rows[0].state).toBe('completed')
+    expect(rows[0].state_revision).toBe(8)
     const asTime = (v: unknown) => new Date(v as string).getTime()
     expect(asTime(rows[0].requested_at)).toBe(T0.getTime())
     expect(asTime(rows[0].state_changed_at)).toBe(stateChangedTicks.at(-1)?.getTime())
@@ -293,6 +300,7 @@ describe('region move rehearsal (BQC-4.5, real PostgreSQL + Redis)', () => {
     // Final authority: the target cell, and the machine agrees with the row.
     const final = await propertyRegion(PROP_LIFECYCLE)
     expect(final.source).toBe('organization_override')
+    expect(final.dataCellId).toBe('europe')
     expect(authoritativeCellFor('completed', 'us', 'europe')).toBe(final.region)
   }, 30_000)
 
@@ -386,7 +394,7 @@ describe('region move rehearsal (BQC-4.5, real PostgreSQL + Redis)', () => {
     expect(authorities).toEqual(['us', 'us', 'us'])
     const { region, version } = await propertyRegion(PROP_ROLLBACK)
     expect(region).toBe('us')
-    expect(version).toBe(1)
+    expect(version).toBe(2)
 
     const rows = await moveRowsFor(PROP_ROLLBACK)
     expect(rows).toHaveLength(1)
@@ -418,13 +426,14 @@ describe('region move rehearsal (BQC-4.5, real PostgreSQL + Redis)', () => {
     expect(rows.rows[0]).toMatchObject({ country_code: 'US', processing_region: 'us' })
   })
 
-  it('(d2) without an active move a cross-region country edit throws region_locked and writes NO region_moves row', async () => {
+  it('(d2) without an active move a country correction preserves placement and creates no move', async () => {
     const { update } = stubbed()
 
-    await expect(
-      update({ propertyId: PROP_NO_MOVE, countryCode: 'DE' }, ctx),
-    ).rejects.toSatisfy((e) => isPropertyError(e) && e.code === 'region_locked')
+    const updated = await update({ propertyId: PROP_NO_MOVE, countryCode: 'DE' }, ctx)
 
+    expect(updated.countryCode).toBe('DE')
+    expect(updated.dataCellId).toBe('us')
+    expect(updated.processingRegion).toBe('us')
     expect(await moveRowsFor(PROP_NO_MOVE)).toHaveLength(0)
   })
 

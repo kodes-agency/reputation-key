@@ -192,6 +192,32 @@ describe('provider authorization leases', () => {
       code: 'expired',
     })
   })
+
+  it('allows a durable 24-hour import checkpoint without widening performance content', async () => {
+    const first = setup()
+    await expect(
+      first.service.issue({
+        audience: 'import',
+        capability: 'property.import_gbp_v2',
+        organizationId: ORG_ID,
+        initiatorUserId: USER_ID,
+        propertyId: null,
+        connectionId: CONNECTION_ID,
+        approvalBindingId: APPROVAL_ID,
+        principalHmacKeyVersion: 'v1',
+        principalHmac: PRINCIPAL,
+        authorizationFenceSha256: FENCE,
+        absoluteDeadlineMs: NOW + 24 * 60 * 60_000,
+        nowMs: NOW,
+      }),
+    ).resolves.toMatchObject({ ok: true })
+
+    const second = setup()
+    await expect(second.issue(NOW + 24 * 60 * 60_000)).resolves.toEqual({
+      ok: false,
+      code: 'malformed',
+    })
+  })
   it('removes a lease when its exact approval binding changes', async () => {
     const { issue, renew } = setup()
     const issued = await issue()

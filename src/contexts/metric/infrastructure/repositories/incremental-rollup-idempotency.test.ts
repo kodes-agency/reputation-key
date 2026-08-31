@@ -14,6 +14,7 @@ import { sql } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import { refreshDailyMetricsIncrementally } from '../incremental-rollup'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const ORG = 'org-rollup-idem-0000-0001'
 const PROP = '4f000000-0000-0000-0000-000000000001'
@@ -119,7 +120,10 @@ async function snapshotRows(db: Database): Promise<RollupRow[]> {
 }
 
 async function runOnce(db: Database): Promise<Run> {
-  const { partitionsRecomputed } = await refreshDailyMetricsIncrementally(db)
+  const { partitionsRecomputed } = await refreshDailyMetricsIncrementally(
+    db,
+    createMockLogger(),
+  )
   return {
     recomputed: partitionsRecomputed,
     rows: await snapshotRows(db),

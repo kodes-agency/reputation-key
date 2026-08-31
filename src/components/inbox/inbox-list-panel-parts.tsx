@@ -10,6 +10,8 @@ import { InboxListV2 } from '#/components/inbox/inbox-list-v2'
 import { InboxBulkActions } from '#/components/inbox/inbox-bulk-actions'
 import { Button } from '#/components/ui/button'
 import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type { bulkAssignInboxItemsFn } from '#/contexts/inbox/server/inbox'
+import type { InboxAssignmentOption } from './inbox-bulk-assignment-dialog'
 import { Loader2 } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import type { InboxListFilterValues } from './inbox-filters'
@@ -42,6 +44,8 @@ export interface InboxListPanelProps {
   onLoadMore: (cursor?: Cursor) => Promise<void>
   onBulkDone: () => void
   bulkUpdateFn: typeof bulkUpdateInboxStatusFn
+  bulkAssignFn: typeof bulkAssignInboxItemsFn
+  assignmentOptions: ReadonlyArray<InboxAssignmentOption>
 }
 
 /** Picks the scroll-area content (skeleton / error / empty / list). Kept as a
@@ -97,6 +101,8 @@ export function BulkActionBar({
   items,
   onBulkDone,
   bulkUpdateFn,
+  bulkAssignFn,
+  assignmentOptions,
   onSelectAll,
   onDeselectAll,
 }: Pick<
@@ -105,6 +111,8 @@ export function BulkActionBar({
   | 'items'
   | 'onBulkDone'
   | 'bulkUpdateFn'
+  | 'bulkAssignFn'
+  | 'assignmentOptions'
   | 'onSelectAll'
   | 'onDeselectAll'
 >) {
@@ -117,6 +125,8 @@ export function BulkActionBar({
       onSelectAll={onSelectAll}
       onClearSelection={onDeselectAll}
       bulkUpdateFn={bulkUpdateFn}
+      bulkAssignFn={bulkAssignFn}
+      assignmentOptions={assignmentOptions}
     />
   )
 }

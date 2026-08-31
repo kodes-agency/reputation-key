@@ -12,11 +12,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    useCases: {
-      createStaffParticipation: mocks.create,
-      listStaffParticipations: mocks.list,
-      archiveStaffParticipation: mocks.archive,
-      updatePortalResponsibilities: mocks.responsibilities,
+    staffPublicApi: {
+      management: {
+        createStaffParticipation: mocks.create,
+        listStaffParticipations: mocks.list,
+        archiveStaffParticipation: mocks.archive,
+        updatePortalResponsibilities: mocks.responsibilities,
+      },
     },
   }),
 }))
@@ -66,7 +68,6 @@ describe('staff participation server functions', () => {
     mocks.create.mockResolvedValue(participation)
     const data = {
       propertyId: PROPERTY_ID,
-      userId: 'staff-user-1',
       displayName: 'Front Desk',
     }
 
@@ -106,6 +107,7 @@ describe('staff participation server functions', () => {
             staffParticipationId: PARTICIPATION_ID,
             primaryPortalId: PROPERTY_ID,
             supportingPortalIds: [],
+            expectedRevision: 1,
           },
         }),
       ),

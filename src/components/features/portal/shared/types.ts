@@ -33,7 +33,10 @@ export type PortalData = Readonly<{
   description: string | null
   heroImageUrl: string | null
   theme: PortalThemeDraft
+  privateFeedbackThreshold: number
   publicationState: PortalPublicationState
+  primaryGuestLocale?: 'en' | 'bg'
+  additionalGuestLocales?: readonly ('en' | 'bg')[]
 }>
 
 export type UpdatePortalVariables = {
@@ -42,9 +45,12 @@ export type UpdatePortalVariables = {
     name?: string
     slug?: string
     description?: string | null
-    heroImageUrl?: string | null
+    heroImageUrl?: null
     theme?: PortalThemeDraft
+    privateFeedbackThreshold?: number
     publicationState?: PortalPublicationState
+    primaryGuestLocale?: 'en' | 'bg'
+    additionalGuestLocales?: ('en' | 'bg')[]
   }
 }
 

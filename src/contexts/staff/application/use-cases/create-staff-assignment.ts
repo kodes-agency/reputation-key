@@ -8,8 +8,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreateStaffAssignmentInput } from '../dto/staff-assignment.dto'
 export type { CreateStaffAssignmentInput } from '../dto/staff-assignment.dto'
 import type { StaffPublicApi } from '../public-api'
-import { canForContext } from '#/shared/domain/permissions'
-import { hasRole } from '#/shared/domain/roles'
+import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import { buildStaffAssignment } from '../../domain/constructors'
 import { staffError } from '../../domain/errors'
 import { staffAssigned } from '../../domain/events'
@@ -64,8 +63,8 @@ type PersistStaffAssignmentInput = {
   teamId: TeamId | null
   portalId: PortalId | null
   /** Self-assignment-guard input for the domain constructor. `undefined`
-   *  means "no human actor" (an AccountAdmin self-assignment or a
-   *  system-initiated write) and skips the guard. */
+   *  means "no human actor" (an organization-wide staff manager
+   *  self-assignment or a system-initiated write) and skips the guard. */
   actingUserId: UserId | undefined
 }
 
@@ -166,8 +165,8 @@ export const createStaffAssignment =
     }
 
     // 3. Property-access scoping (D6-001):
-    // AccountAdmin bypasses (getAccessiblePropertyIds returns null = all-accessible);
-    // PropertyManager/Staff must be assigned to the target property.
+    // Organization-wide staff managers bypass the property-grant check;
+    // assigned-scope managers must be granted the target property.
     const accessible = await isPropertyAccessibleForPermission(
       (orgId, uId, orgWide) =>
         deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
@@ -179,9 +178,12 @@ export const createStaffAssignment =
       throw staffError('forbidden', 'no access to this property')
     }
 
-    // 4. Self-assignment guard delegated to constructor (STAFF-01):
-    // Only AccountAdmin may self-assign; PropertyManager/Staff cannot.
-    const actingUserId = hasRole(ctx.role, 'AccountAdmin') ? undefined : ctx.userId
+    // 4. Self-assignment guard delegated to constructor (STAFF-01).
+    // Organization-wide staff management may self-assign; assigned-only
+    // authority may not. Current permission scope, not the legacy role label,
+    // is the authorization source.
+    const actingUserId =
+      scopeForPermission(ctx, 'staff.manage') === 'organization' ? undefined : ctx.userId
 
     // 5. Persist (uniqueness + build + insert + event, atomic via the store)
     return persistStaffAssignment(deps)({

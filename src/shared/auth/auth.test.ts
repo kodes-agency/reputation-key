@@ -11,6 +11,7 @@ describe('Auth configuration', () => {
     process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
     process.env.BETTER_AUTH_SECRET = 'test-test-test-test-test-test-test-test'
     process.env.BETTER_AUTH_URL = 'http://localhost:3000'
+    process.env.PROCESSING_CELL = 'us'
     process.env.RESEND_API_KEY = 're_test_key'
     process.env.LOG_LEVEL = 'error'
   })
@@ -41,6 +42,7 @@ describe('Auth configuration', () => {
     const options = auth.options
     expect(options.emailAndPassword?.enabled).toBe(true)
     expect(options.emailAndPassword?.requireEmailVerification).toBe(false)
+    expect(options.emailAndPassword?.revokeSessionsOnPasswordReset).toBe(true)
   })
 
   it('session configuration has correct expiry', async () => {
@@ -52,6 +54,7 @@ describe('Auth configuration', () => {
 
     expect(auth.options.session?.expiresIn).toBe(60 * 60 * 24 * 30)
     expect(auth.options.session?.updateAge).toBe(60 * 60 * 24)
+    expect(auth.options.session?.cookieCache?.enabled).toBe(false)
   })
 
   it('trusts only the configured app origin (BQC-7.6)', async () => {
@@ -66,9 +69,25 @@ describe('Auth configuration', () => {
     expect(auth.options.trustedOrigins).toEqual(['http://localhost:3000'])
   })
 
-  it('persists session cookies for the loopback HTTP production stack', async () => {
+  it('refuses an HTTP auth origin in production', async () => {
     // This suite resets the module graph so the cached environment is rebuilt
     // after each case's process.env setup.
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+    process.env.NODE_ENV = 'production'
+    // A ROUTABLE http origin. Loopback is covered separately below, and a
+    // hostname that merely ends in something loopback-shaped is not loopback.
+    process.env.BETTER_AUTH_URL = 'http://app.reputationkey.app'
+
+    const { createAuth } = await import('#/shared/auth/auth')
+    expect(() => createAuth()).toThrow(/BETTER_AUTH_URL.*HTTPS|HTTPS.*BETTER_AUTH_URL/i)
+  })
+
+  it('allows a loopback HTTP origin in production, without the Secure attribute', async () => {
+    // The local Compose stack runs the production images against
+    // http://127.0.0.1:3000; traffic that never leaves the machine has no
+    // plaintext transport to protect. The cookie must still tell the truth
+    // about that: `Secure` stays off, because the origin is not https.
     const { resetEnv } = await import('#/shared/config/env')
     resetEnv()
     process.env.NODE_ENV = 'production'
@@ -78,6 +97,74 @@ describe('Auth configuration', () => {
     const auth = createAuth()
 
     expect(auth.options.advanced?.defaultCookieAttributes?.secure).toBe(false)
+  })
+
+  it('marks auth cookies Secure for a production HTTPS origin', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+    process.env.NODE_ENV = 'production'
+    process.env.BETTER_AUTH_URL = 'https://repkey.example'
+
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+
+    expect(auth.options.advanced?.defaultCookieAttributes?.secure).toBe(true)
+  })
+
+  it('uses the parsed verification policy for invitation acceptance', async () => {
+    process.env.EMAIL_VERIFICATION_REQUIRED = 'true'
+    const { getEnv, resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+    expect(getEnv().EMAIL_VERIFICATION_REQUIRED).toBe(true)
+
+    // Reproduce a raw-env/config split after the policy has been parsed and
+    // cached. Every Better Auth surface must use the same parsed value.
+    delete process.env.EMAIL_VERIFICATION_REQUIRED
+
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+    const organizationPlugin = auth.options.plugins?.find(
+      (plugin) => plugin.id === 'organization',
+    ) as
+      | Readonly<{
+          options?: Readonly<{ requireEmailVerificationOnInvitation?: boolean }>
+        }>
+      | undefined
+
+    expect(auth.options.emailAndPassword?.requireEmailVerification).toBe(true)
+    expect(organizationPlugin?.options?.requireEmailVerificationOnInvitation).toBe(true)
+  })
+
+  it('fails closed before raw Better Auth membership and invitation lifecycle writes', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+    const organizationPlugin = auth.options.plugins?.find(
+      (plugin) => plugin.id === 'organization',
+    ) as
+      | Readonly<{
+          options?: Readonly<{
+            organizationHooks?: Readonly<{
+              beforeAcceptInvitation?: (input: unknown) => Promise<void>
+              beforeRemoveMember?: (input: unknown) => Promise<void>
+              beforeUpdateMemberRole?: (input: unknown) => Promise<void>
+              beforeDeleteOrganization?: (input: unknown) => Promise<void>
+            }>
+          }>
+        }>
+      | undefined
+    const hooks = organizationPlugin?.options?.organizationHooks
+
+    for (const hook of [
+      hooks?.beforeAcceptInvitation,
+      hooks?.beforeRemoveMember,
+      hooks?.beforeUpdateMemberRole,
+      hooks?.beforeDeleteOrganization,
+    ]) {
+      expect(hook).toEqual(expect.any(Function))
+      await expect(hook?.({})).rejects.toThrow(/app-owned Identity command/i)
+    }
   })
 })
 

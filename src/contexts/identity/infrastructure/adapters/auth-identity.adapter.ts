@@ -6,15 +6,16 @@
 // BQC-3.5: the invitation/member/org write paths moved to the atomic
 // identity command store (app-owned direct transactions, the precedent the
 // old acceptInvitation set here). What remains are reads, session/org
-// management, custom roles, and the post-acceptance hook bridge.
+// management, custom roles, and an explicitly injected post-acceptance
+// provisioner scoped to this adapter/container.
 
 import type { Database } from '#/shared/db'
 import { and, eq } from 'drizzle-orm'
 import { organizationRole, user as userTable } from '#/shared/db/schema/auth'
-import { getLogger } from '#/shared/observability/logger'
 import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
 import { buildPermissionStatement } from '#/shared/auth/permission-catalogue'
-import { randomUUID } from 'crypto'
+import type { Clock } from '#/shared/domain/clock'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Permission } from '#/shared/domain/permissions'
 import type { DataScope } from '#/shared/domain/data-scope'
 import type {
@@ -24,7 +25,7 @@ import type {
   OrganizationRecord,
 } from '../../application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { getAuth, getOnAcceptInvitation } from '#/shared/auth/auth'
+import { getAuth } from '#/shared/auth/auth'
 import { toDomainRole } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { organizationId } from '#/shared/domain/ids'
@@ -38,28 +39,9 @@ import {
   betterAuthOrganizationSchema,
 } from './better-auth-schemas'
 import { extractResponseSlaHours } from '#/shared/domain/response-sla'
-
-/** Build request headers that carry the better-auth session cookie.
- * Uses dynamic import to avoid @tanstack/react-start/server being part of
- * the static module graph, which triggers client-side import protection. */
-async function headersFromRequest(): Promise<Headers> {
-  const headers = new Headers()
-  try {
-    const { getRequest } = await import('@tanstack/react-start/server')
-    const req = getRequest()
-    if (req) {
-      req.headers.forEach((value: string, key: string) => {
-        headers.set(key, value)
-      })
-    }
-  } catch (e) {
-    getLogger().debug(
-      { err: e },
-      'headersFromRequest: no server context available, returning empty headers',
-    )
-  }
-  return headers
-}
+import { runWithRegistrationAuthIds } from '#/shared/auth/registration-user-id'
+import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
+import type { RequestContextPort } from '../../application/ports/request-context.port'
 
 /** Map a raw better-auth member object to our MemberRecord. */
 function toMemberRecord(m: {
@@ -100,11 +82,6 @@ function toOrganizationRecord(org: {
   logo?: string | null | undefined
   createdAt: Date
   contactEmail?: string | null | undefined
-  billingCompanyName?: string | null | undefined
-  billingAddress?: string | null | undefined
-  billingCity?: string | null | undefined
-  billingPostalCode?: string | null | undefined
-  billingCountry?: string | null | undefined
   responseSlaHours?: number | null | undefined
 }): OrganizationRecord {
   return {
@@ -114,22 +91,34 @@ function toOrganizationRecord(org: {
     logo: org.logo ?? null,
     createdAt: org.createdAt,
     contactEmail: org.contactEmail ?? null,
-    billingCompanyName: org.billingCompanyName ?? null,
-    billingAddress: org.billingAddress ?? null,
-    billingCity: org.billingCity ?? null,
-    billingPostalCode: org.billingPostalCode ?? null,
-    billingCountry: org.billingCountry ?? null,
     responseSlaHours: extractResponseSlaHours(org),
   }
 }
 
-export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
+type BetterAuthIdentityAdapterDeps = Readonly<{
+  clock: Clock
+  idGen: () => string
+  logger: Pick<LoggerPort, 'debug' | 'warn'>
+  /** ARC-03-T13: the ambient request context, injected. Infrastructure no
+   * longer reaches the web framework itself. */
+  requestContext: RequestContextPort
+  onAcceptInvitation: (ctx: {
+    userId: string
+    organizationId: string
+    propertyIds: ReadonlyArray<string>
+  }) => Promise<void>
+}>
+
+export const createBetterAuthIdentityAdapter = (
+  db: Database,
+  deps: BetterAuthIdentityAdapterDeps,
+): IdentityPort => {
   const auth = getAuth()
   // Local member lookup — used by getMember.
   // Calling a closure-captured function (not `this.getMember`) keeps these methods
   // safe to destructure / pass as callbacks, per the functional-style rule.
   const getMemberImpl = async (memberId: string): Promise<MemberRecord | null> => {
-    const headers = await headersFromRequest()
+    const headers = await deps.requestContext.currentRequestHeaders()
     const result = await auth.api.listMembers({ headers })
     const data = parseBetterAuthResponse(
       listMembersResponseSchema,
@@ -141,10 +130,19 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
     return member ? toMemberRecord(member) : null
   }
   return {
-    async signUp(name: string, email: string, password: string): Promise<string> {
-      const result = await auth.api.signUpEmail({
-        body: { name, email, password },
-      })
+    async signUp(
+      name: string,
+      email: string,
+      password: string,
+      expectedAuthIds?: RegistrationAuthIds,
+    ): Promise<string> {
+      const invokeProvider = () =>
+        auth.api.signUpEmail({
+          body: { name, email, password },
+        })
+      const result = expectedAuthIds
+        ? await runWithRegistrationAuthIds(expectedAuthIds, invokeProvider)
+        : await invokeProvider()
       const data = parseBetterAuthResponse(
         signUpResponseSchema,
         result,
@@ -154,6 +152,12 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       if (!data.user.id) {
         throw identityError('registration_failed', 'Sign-up failed: no user ID returned')
       }
+      if (expectedAuthIds && data.user.id !== expectedAuthIds.userId) {
+        throw identityError(
+          'registration_failed',
+          'Sign-up failed: provider returned an unexpected user ID',
+        )
+      }
       return data.user.id
     },
 
@@ -161,7 +165,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
     // to the session cookie. Members returned are scoped to that organization.
     // If better-auth adds orgId to member records, verify it matches ctx.organizationId.
     async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
-      const headers = await headersFromRequest()
+      const headers = await deps.requestContext.currentRequestHeaders()
       const result = await auth.api.listMembers({ headers })
 
       const data = parseBetterAuthResponse(
@@ -181,7 +185,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
     },
 
     async listInvitations(_ctx: AuthContext): Promise<ReadonlyArray<InvitationRecord>> {
-      const headers = await headersFromRequest()
+      const headers = await deps.requestContext.currentRequestHeaders()
       const result = await auth.api.listInvitations({ headers })
 
       const invitations = parseBetterAuthResponse(
@@ -287,20 +291,15 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       userId: string
       organizationId: string
       propertyIds: ReadonlyArray<string>
-      displayName?: string
     }): Promise<void> {
-      // Post-commit side effect — auto-create staff assignments for the invited
-      // properties (replaces BA's afterAcceptInvitation hook, which the
-      // app-owned accept path bypasses).
-      const handler = getOnAcceptInvitation()
-      if (!handler || ctx.propertyIds.length === 0) return
+      // Post-commit side effect — provision explicit invited-Property access
+      // grants through the provisioner owned by this adapter/container. Staff
+      // participation is deliberately untouched.
+      if (ctx.propertyIds.length === 0) return
       try {
-        await handler(ctx)
+        await deps.onAcceptInvitation(ctx)
       } catch (e) {
-        getLogger().warn(
-          { err: e },
-          'Failed to auto-assign property on invitation acceptance',
-        )
+        deps.logger.warn({ err: e }, 'Failed to provision invited property access')
       }
     },
 
@@ -320,7 +319,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
       try {
         await db.transaction(async (tx) => {
           await tx.insert(organizationRole).values({
-            id: randomUUID(),
+            id: deps.idGen(),
             organizationId: ctx.organizationId as string,
             role,
             permission: JSON.stringify(buildPermissionStatement(input.permissions)),
@@ -349,10 +348,11 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
     ): Promise<void> {
       const r = role.trim().toLowerCase()
       const permission = JSON.stringify(buildPermissionStatement(input.permissions))
+      const updatedAt = deps.clock()
       await db.transaction(async (tx) => {
         await tx
           .update(organizationRole)
-          .set({ permission, updatedAt: new Date() })
+          .set({ permission, updatedAt })
           .where(
             and(
               eq(organizationRole.organizationId, ctx.organizationId as string),
@@ -361,7 +361,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
           )
         await tx
           .update(organizationRolePolicy)
-          .set({ dataScope: input.dataScope, updatedAt: new Date() })
+          .set({ dataScope: input.dataScope, updatedAt })
           .where(
             and(
               eq(organizationRolePolicy.organizationId, ctx.organizationId as string),

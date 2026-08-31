@@ -7,7 +7,7 @@
 //   import { tracedHandler } from '#/shared/observability/traced-server-fn'
 //
 //   export const getPortal = createServerFn({ method: 'GET' })
-//     .inputValidator(schema)
+//     .validator(schema)
 //     .handler(tracedHandler(async ({ data }) => { ... }))
 //
 // Existing try/catch blocks inside handlers stay — they handle domain-specific error mapping.

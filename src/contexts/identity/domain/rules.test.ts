@@ -113,16 +113,17 @@ describe('validateOrganizationName', () => {
 // ── canInviteWithRole ────────────────────────────────────────────────
 
 describe('canInviteWithRole', () => {
-  it('allows AccountAdmin to invite with any role', () => {
-    expect(canInviteWithRole('AccountAdmin', 'Staff')._unsafeUnwrap()).toBe(true)
+  it('allows AccountAdmin to invite either beta manager role', () => {
     expect(canInviteWithRole('AccountAdmin', 'PropertyManager')._unsafeUnwrap()).toBe(
       true,
     )
     expect(canInviteWithRole('AccountAdmin', 'AccountAdmin')._unsafeUnwrap()).toBe(true)
   })
 
-  it('allows PropertyManager to invite Staff only', () => {
-    expect(canInviteWithRole('PropertyManager', 'Staff')._unsafeUnwrap()).toBe(true)
+  it('prevents Staff-user invitations during beta', () => {
+    const result = canInviteWithRole('AccountAdmin', 'Staff')
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) expect(result.error.code).toBe('forbidden')
   })
 
   it('prevents PropertyManager from inviting PropertyManager', () => {

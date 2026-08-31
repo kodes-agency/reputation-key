@@ -3,6 +3,7 @@ import { AI_REPLY_TEMPLATE_CATALOGUE_DIGEST } from '#/shared/ai-reply-template-c
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   aiExecutionControlHeads,
   aiExecutionControlTransitions,
@@ -22,7 +23,13 @@ import {
   digestRenderedReply,
   signAiReplyProvenance,
   type AiReplyProvenancePayloadV1,
+  type AiReplyProvenancePayloadV2,
+  type AiReplyProvenancePayloadV3,
 } from '#/shared/ai-reply-provenance'
+import {
+  AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+} from '#/shared/ai-personalized-reply-contract'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -32,6 +39,7 @@ import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/infrastruc
 import { createReviewRepository } from './repositories/review.repository'
 import { createAiSuggestedDraftStore } from './ai-suggested-draft-store'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
 
 const NOW = new Date()
 const ORGANIZATION_ID = organizationId('ai-suggested-draft-test-org')
@@ -40,9 +48,15 @@ const REVIEW_ID = reviewId('74000000-0000-4000-8000-000000000002')
 const ACTOR_USER_ID = userId('ai-suggested-draft-user')
 const LINEAGE_ID = '74000000-0000-4000-8000-000000000003'
 const SOURCE_EPOCH = 2
-const SOURCE_REVISION = 3
+// Material Review Revisions are repository-owned and start at one. Fixtures
+// must bind AI provenance to that canonical revision instead of attempting to
+// inject an arbitrary provider counter through the upsert input.
+const SOURCE_REVISION = 1
 const SUGGESTION = 'Thank you for sharing your experience.'
 const REQUEST_BINDING_HMAC = 'A'.repeat(43)
+const BRAND_DISPLAY_NAME_DIGEST = digestAiReplyBrandDisplayName('Example Hotel')
+const LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST =
+  '86bb98cb3b0b1c8561141e2ec30e019725d5f0ba5dd57be4745c7db5bc851769'
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519')
 
@@ -82,9 +96,92 @@ function provenanceToken(overrides: Partial<AiReplyProvenancePayloadV1> = {}): s
   )
 }
 
+function personalizedProvenanceToken(
+  overrides: Partial<AiReplyProvenancePayloadV2> = {},
+): string {
+  return signAiReplyProvenance(
+    {
+      version: 'ai-reply-provenance-v2',
+      kid: 'provenance-v1',
+      operationId: '74000000-0000-4000-8000-000000000005',
+      actorId: ACTOR_USER_ID,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
+      requestBindingHmac: 'A'.repeat(43),
+      sourceEpoch: SOURCE_EPOCH,
+      sourceRevision: SOURCE_REVISION,
+      baseReplyStateRevision: 1,
+      replyDraftingEpoch: 1,
+      propertyProfileVersion: 1,
+      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      operationProfileVersion: 'reply-suggestion-v1',
+      replyProfileVersion: 'reply-draft-v1',
+      replyProfileDigest: LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST,
+      modelSnapshot: 'gpt-5.4-mini-2026-03-17',
+      promptVersion: 'reply-suggestion-prompt-v1',
+      outputLeakageProfileVersion: 'ai-output-leakage-v1',
+      outputLeakageProfileDigest: 'a'.repeat(64),
+      concreteLanguageTag: 'en-Latn-US',
+      templateGroup: 'en-Latn',
+      renderedSuggestionDigest: digestRenderedReply(SUGGESTION),
+      tokenExpiresAtEpochMillis: NOW.getTime() + 5 * 60_000,
+      draftExpiresAtEpochMillis: NOW.getTime() + 30 * 60_000,
+      ...overrides,
+    },
+    privateKey,
+  )
+}
+
+function groundedProvenanceToken(
+  overrides: Partial<AiReplyProvenancePayloadV3> = {},
+): string {
+  return signAiReplyProvenance(
+    {
+      version: 'ai-reply-provenance-v3',
+      kid: 'provenance-v1',
+      operationId: '74000000-0000-4000-8000-000000000007',
+      actorId: ACTOR_USER_ID,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
+      requestBindingHmac: REQUEST_BINDING_HMAC,
+      sourceEpoch: SOURCE_EPOCH,
+      sourceRevision: SOURCE_REVISION,
+      baseReplyStateRevision: 2,
+      replyDraftingEpoch: 1,
+      propertyProfileVersion: 1,
+      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      operationProfileVersion: 'reply-suggestion-v1',
+      replyProfileVersion: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+      replyProfileDigest: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+      replyBrandProfileVersion: 7,
+      replyBrandDisplayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
+      modelSnapshot: 'gpt-5.4-mini-2026-03-17',
+      promptVersion: 'reply-suggestion-prompt-v1',
+      outputLeakageProfileVersion: 'ai-output-leakage-v1',
+      outputLeakageProfileDigest: 'a'.repeat(64),
+      concreteLanguageTag: 'en-Latn-US',
+      templateGroup: 'en-Latn',
+      renderedSuggestionDigest: digestRenderedReply(SUGGESTION),
+      tokenExpiresAtEpochMillis: NOW.getTime() + 5 * 60_000,
+      draftExpiresAtEpochMillis: NOW.getTime() + 30 * 60_000,
+      ...overrides,
+    },
+    privateKey,
+  )
+}
+
 describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
   const db = getDb()
-  const store = createAiSuggestedDraftStore(db, new Map([['provenance-v1', publicKey]]))
+  let brandProfileCurrent = true
+  const brandAuthorityCalls: Array<Readonly<Record<string, unknown>>> = []
+  const store = createAiSuggestedDraftStore(db, new Map([['provenance-v1', publicKey]]), {
+    isCurrentAiReplyBrandProfile: async (_tx, input) => {
+      brandAuthorityCalls.push(input)
+      return brandProfileCurrent
+    },
+  })
 
   let initialReplyControl:
     | Readonly<{
@@ -149,6 +246,8 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     permitId: string
     sourceRevision: number
     baseReplyStateRevision: number
+    replyBrandProfileVersion?: number
+    replyBrandDisplayNameDigest?: string
   }) => {
     const [globalControl] = await db
       .select()
@@ -193,6 +292,8 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       noticeVersion: MERCHANT_AI_NOTICE_VERSION,
       noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
       propertyProfileVersion: 1,
+      replyBrandProfileVersion: input.replyBrandProfileVersion ?? null,
+      replyBrandDisplayNameDigest: input.replyBrandDisplayNameDigest ?? null,
       routingPolicyVersion: 1,
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       redactionProfileVersion: 'gbp-review-global-v1',
@@ -276,8 +377,11 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     })
   }
   const clear = async () => {
+    // Replies deliberately restrict Review deletion; remove test-owned child
+    // rows before the Property cascade reaches the stable Review.
+    await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORGANIZATION_ID}`)
     await db.delete(properties).where(eq(properties.id, PROPERTY_ID))
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORGANIZATION_ID}`)
+    await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
 
   beforeAll(async () => {
@@ -331,6 +435,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     const profiles = createPropertyProcessingProfileAdapter(
       db,
       createAiRuntimeCatalogueAdapter(db),
+      () => NOW,
     )
     await expect(
       profiles.refreshForAi({
@@ -396,7 +501,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       })
     })
 
-    await createReviewRepository(db).upsert({
+    await createReviewRepository(db, () => new Date()).upsert({
       id: REVIEW_ID,
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
@@ -444,6 +549,22 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       permitId: '74000000-0000-4000-8000-000000000106',
       sourceRevision: SOURCE_REVISION + 1,
       baseReplyStateRevision: 1,
+    })
+    await seedSucceededReplyOperation({
+      operationId: '74000000-0000-4000-8000-000000000007',
+      permitId: '74000000-0000-4000-8000-000000000107',
+      sourceRevision: SOURCE_REVISION,
+      baseReplyStateRevision: 2,
+      replyBrandProfileVersion: 7,
+      replyBrandDisplayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
+    })
+    await seedSucceededReplyOperation({
+      operationId: '74000000-0000-4000-8000-000000000008',
+      permitId: '74000000-0000-4000-8000-000000000108',
+      sourceRevision: SOURCE_REVISION,
+      baseReplyStateRevision: 2,
+      replyBrandProfileVersion: 7,
+      replyBrandDisplayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
     })
   })
 
@@ -583,17 +704,14 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     ).resolves.toEqual({ status: 'rejected', reason: 'stale' })
   })
 
-  it('updates with a fresh base revision and increments the durable fence', async () => {
+  it('adopts a personalized draft without inventing stock-template provenance', async () => {
     const accepted = await store.accept({
       organizationId: ORGANIZATION_ID,
       propertyId: PROPERTY_ID,
       reviewId: REVIEW_ID,
       actorUserId: ACTOR_USER_ID,
       text: SUGGESTION,
-      provenanceToken: provenanceToken({
-        operationId: '74000000-0000-4000-8000-000000000005',
-        baseReplyStateRevision: 1,
-      }),
+      provenanceToken: personalizedProvenanceToken(),
       now: new Date(NOW.getTime() + 1),
     })
 
@@ -604,6 +722,25 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     if (accepted.status !== 'accepted') {
       throw new Error('Expected the fresh AI suggestion to be accepted')
     }
+    await expect(
+      db
+        .select({
+          profileVersion: replies.originAiProfileVersion,
+          templateId: replies.originReplyTemplateId,
+          catalogueVersion: replies.originReplyTemplateCatalogueVersion,
+          catalogueDigest: replies.originReplyTemplateCatalogueDigest,
+        })
+        .from(replies)
+        .where(eq(replies.id, accepted.reply.id))
+        .limit(1),
+    ).resolves.toEqual([
+      {
+        profileVersion: 'reply-draft-v1',
+        templateId: null,
+        catalogueVersion: null,
+        catalogueDigest: null,
+      },
+    ])
     await expect(
       store.assertCurrentBinding({
         organizationId: ORGANIZATION_ID,
@@ -643,6 +780,111 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     ])
   })
 
+  it('atomically invalidates a grounded suggestion when Portal says its Brand Profile changed', async () => {
+    brandProfileCurrent = false
+    const token = groundedProvenanceToken()
+
+    await expect(
+      store.accept({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_ID,
+        actorUserId: ACTOR_USER_ID,
+        text: SUGGESTION,
+        provenanceToken: token,
+        now: new Date(NOW.getTime() + 2),
+      }),
+    ).resolves.toEqual({ status: 'rejected', reason: 'invalidated' })
+    expect(brandAuthorityCalls.at(-1)).toEqual({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      version: 7,
+      displayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
+    })
+    await expect(
+      db
+        .select({
+          disposition: aiOperations.replyAdoptionDisposition,
+          adoptedReplyRevision: aiOperations.adoptedReplyRevision,
+          adoptedReviewReplyStateRevision: aiOperations.adoptedReviewReplyStateRevision,
+        })
+        .from(aiOperations)
+        .where(eq(aiOperations.id, '74000000-0000-4000-8000-000000000007'))
+        .limit(1),
+    ).resolves.toEqual([
+      {
+        disposition: 'invalidated',
+        adoptedReplyRevision: null,
+        adoptedReviewReplyStateRevision: null,
+      },
+    ])
+
+    brandProfileCurrent = true
+    await expect(
+      store.accept({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_ID,
+        actorUserId: ACTOR_USER_ID,
+        text: SUGGESTION,
+        provenanceToken: token,
+        now: new Date(NOW.getTime() + 3),
+      }),
+    ).resolves.toEqual({ status: 'rejected', reason: 'invalidated' })
+  })
+
+  it('keeps an adopted Review-owned draft usable after a later Brand Profile change', async () => {
+    brandProfileCurrent = true
+    const token = groundedProvenanceToken({
+      operationId: '74000000-0000-4000-8000-000000000008',
+    })
+    const accepted = await store.accept({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      reviewId: REVIEW_ID,
+      actorUserId: ACTOR_USER_ID,
+      text: SUGGESTION,
+      provenanceToken: token,
+      now: new Date(NOW.getTime() + 4),
+    })
+    expect(accepted).toMatchObject({
+      status: 'accepted',
+      reply: { stateRevision: 3 },
+    })
+    if (accepted.status !== 'accepted') {
+      throw new Error('Expected the grounded suggestion to be adopted')
+    }
+
+    const authorityCallCount = brandAuthorityCalls.length
+    brandProfileCurrent = false
+    await expect(
+      store.accept({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        reviewId: REVIEW_ID,
+        actorUserId: ACTOR_USER_ID,
+        text: SUGGESTION,
+        provenanceToken: token,
+        now: new Date(NOW.getTime() + 5),
+      }),
+    ).resolves.toMatchObject({ status: 'accepted', reply: { stateRevision: 3 } })
+    expect(brandAuthorityCalls).toHaveLength(authorityCallCount)
+    await expect(
+      store.assertCurrentBinding({
+        organizationId: ORGANIZATION_ID,
+        replyId: accepted.reply.id,
+      }),
+    ).resolves.toBe('current')
+    await expect(
+      db
+        .select({ disposition: aiOperations.replyAdoptionDisposition })
+        .from(aiOperations)
+        .where(eq(aiOperations.id, '74000000-0000-4000-8000-000000000008'))
+        .limit(1),
+    ).resolves.toEqual([{ disposition: 'adopted' }])
+    brandProfileCurrent = true
+  })
+
   it('purges an AI draft on source change and advances human-draft heads only for material changes', async () => {
     await db
       .update(reviews)
@@ -654,7 +896,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .from(reviews)
         .where(eq(reviews.id, REVIEW_ID))
         .limit(1),
-    ).resolves.toEqual([{ replyStateRevision: 3 }])
+    ).resolves.toEqual([{ replyStateRevision: 4 }])
     await expect(
       db
         .select({
@@ -706,7 +948,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .innerJoin(reviews, eq(reviews.id, replies.reviewId))
         .where(eq(replies.id, created!.id))
         .limit(1),
-    ).resolves.toEqual([{ stateRevision: 1, replyStateRevision: 4 }])
+    ).resolves.toEqual([{ stateRevision: 1, replyStateRevision: 5 }])
 
     await db
       .update(replies)
@@ -727,7 +969,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       {
         text: 'A revised manual draft',
         stateRevision: 2,
-        replyStateRevision: 5,
+        replyStateRevision: 6,
       },
     ])
   })

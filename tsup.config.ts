@@ -10,13 +10,15 @@ export default defineConfig({
     // image runs it with plain `node dist-worker/migrate-deploy.js` — no tsx
     // or TypeScript toolchain in the runtime container.
     'migrate-deploy': 'scripts/migrate-deploy.ts',
-    // Local Docker stack one-shot seed. Bundled into the production image so
-    // the host controller never runs a database command against the stack.
-    'seed-e2e-user': 'scripts/seed-e2e-user.ts',
-    'provision-ai-admission-role': 'scripts/local-stack/provision-ai-admission-role.ts',
     // Immutable-release proof: exercises only final schema reads on expand
     // and contract schemas from the exact web/worker image bits.
     'google-import-final-schema-probe': 'scripts/google-import-final-schema-probe.ts',
+    // Error monitoring must initialize before the worker imports queue/runtime
+    // modules. Docker and start:worker load this through Node's supported ESM
+    // --import preload path. The web counterpart has its own config so
+    // `pnpm build` alone remains a complete web artifact.
+    'worker-observability-preload':
+      'src/shared/observability/worker-observability-preload.ts',
   },
   outDir: 'dist-worker',
   format: ['esm'],
@@ -24,16 +26,25 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  // Allows importing from shared code that uses `#/` path alias
-  alias: {
-    '#': './src',
+  // Allows importing from shared code that uses `#/` path alias. tsup 8
+  // exposes esbuild's alias map through this supported configuration hook.
+  esbuildOptions(options) {
+    options.alias = { '#': './src' }
   },
   // Don't bundle node_modules — the worker runs on Node.js
   // (bare names also match their subpath imports, e.g. 'better-auth' covers
   // 'better-auth/db/migration' and 'drizzle-orm' covers
   // 'drizzle-orm/node-postgres/migrator' — verified in the built bundle).
   noExternal: [/^#/],
-  external: ['pg', 'ioredis', 'bullmq', 'pino', 'better-auth', 'drizzle-orm'],
+  external: [
+    '@sentry/node',
+    'pg',
+    'ioredis',
+    'bullmq',
+    'pino',
+    'better-auth',
+    'drizzle-orm',
+  ],
   env: {
     NODE_ENV: process.env.NODE_ENV ?? 'production',
   },

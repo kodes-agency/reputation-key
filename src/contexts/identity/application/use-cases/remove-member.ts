@@ -26,6 +26,18 @@ export type RemoveMemberDeps = Readonly<{
     organizationId: OrganizationId,
     userId: string,
   ) => Promise<void>
+  /** Fence any current OAuth grant authorized by the departing member. */
+  prepareGoogleConnectorDeparture?: (
+    organizationId: OrganizationId,
+    userId: string,
+    cause: 'member_removed',
+  ) => Promise<void>
+  /** Release Inbox/manager/access authorities without requiring replacements. */
+  releaseMemberAuthorities?: (
+    organizationId: OrganizationId,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>
 }>
 export type RemoveMember = ReturnType<typeof removeMember>
 
@@ -66,7 +78,25 @@ export const removeMember =
       }
     }
 
+    // LIF-01-T21 ordering, and it is deliberate. These two fences belong to
+    // Integration and cannot join the Identity transaction, so they run FIRST:
+    // a fenced connector with a surviving membership is a repairable state
+    // (`repairPartialOffboarding` converges it), while a deleted membership
+    // with a live provider grant is not. `property_access_grant` revocation
+    // moved OUT of `releaseMemberAuthorities` and INTO the command-store
+    // transaction for the same reason — Identity owns that table, so there is
+    // no excuse for revoking it in a separate commit.
+    await deps.prepareGoogleConnectorDeparture?.(
+      ctx.organizationId,
+      targetMember.userId,
+      'member_removed',
+    )
     await deps.cancelGoogleImportsForUser?.(ctx.organizationId, targetMember.userId)
+    await deps.releaseMemberAuthorities?.(
+      ctx.organizationId,
+      targetMember.userId,
+      ctx.userId,
+    )
 
     // 3. Persist + fact — atomic via the command store
     await deps.commandStore.removeMember({

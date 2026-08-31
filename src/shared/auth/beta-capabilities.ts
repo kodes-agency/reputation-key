@@ -27,15 +27,17 @@ import { isRestoreIsolated } from '#/shared/config/restore-mode'
  * Capability-policy version. Bump when capability vocabulary or posture changes.
  * Recorded in the boot and release manifests.
  */
-export const CAPABILITY_POLICY_VERSION = 'beta-local-2'
+export const CAPABILITY_POLICY_VERSION = 'beta-local-10'
 
 // ── Capability definitions ──────────────────────────────────────────
 
 export type Capability =
   | 'identity.invite'
+  | 'identity.custom_roles'
   | 'identity.register'
   | 'organization.create'
   | 'property.create'
+  | 'property.erase'
   | 'property.connect_gbp'
   | 'property.import_gbp_v2'
   | 'property.read_gbp_performance'
@@ -96,11 +98,50 @@ const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
  * Capabilities that are always off and can never be allowlisted.
  *
  * Google policy permanently prohibits automated reply publishing,
- * cross-property AI summaries, and review-solicitation gamification. Portal,
- * guest, and product-email capabilities are non-core controlled-beta features:
- * they remain off by default and require persisted org/property policy.
+ * cross-property AI summaries, and review-solicitation gamification.
+ *
+ * `portal.upload` is a temporary SEC-01 safety containment. Remove it from
+ * this set only after upload finalization accepts a durable, tenant-bound
+ * issuance ID instead of an object key, storage revalidates the uploaded
+ * object, derivative keys cannot alias the source, stale workers fail closed,
+ * and the cross-tenant/replay/expiry/oversize adversarial suite passes.
+ *
+ * `portal.guest_media` is deliberately blocked for the first beta cohort.
+ * Its historical records and internal lifecycle remain available for audit;
+ * public issuance/confirmation entry points were removed until a separately
+ * approved moderation, abuse, access, consent, and retention gate exists.
+ *
+ * `portal.guest_contact` has a dark backend foundation but no activation
+ * authority. It remains blocked until the guest notice, retention wording,
+ * manager handling, and channel readiness have named approval evidence.
+ *
+ * Other Portal, guest, and product-email capabilities are non-core
+ * controlled-beta features: they remain off by default and require persisted
+ * organization/property policy.
+ *
+ * `badge.use` and `leaderboard.use` describe retained legacy recognition and
+ * ranking implementations. The beta explicitly rejects competitive ranking;
+ * neither capability may be reopened by an Organization allowlist or test
+ * override. A future Healthy Guest Gateway design requires a new, separately
+ * reviewed capability rather than reusing these legacy authorities.
  */
 const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
+  // Runtime role definitions and assignment are excluded from beta. The
+  // definitions remain only for reconciliation/migration of historical rows;
+  // neither tenant policy nor the E2E override may reopen their write surface.
+  'identity.custom_roles',
+  'identity.register',
+  'organization.create',
+  // LIF-01: ordinary lifecycle changes must become recoverable Archive /
+  // Disconnect. Permanent erasure needs a separate support-mediated workflow;
+  // the legacy destructive product path cannot be promoted in the meantime.
+  'property.erase',
+  'team.use',
+  'badge.use',
+  'leaderboard.use',
+  'portal.upload',
+  'portal.guest_contact',
+  'portal.guest_media',
   'gbp.reply.auto_publish',
   'gbp.ai.cross_property_summary',
   'gbp.review_solicitation_gamification',
@@ -388,7 +429,15 @@ const RESTORE_ISOLATED_STORE: CapabilityPolicyStore = {
   isPropertySuspended: () => false,
 }
 
-/** Initialize the capability policy store. Call once at startup. */
+/**
+ * Initialize the capability policy store. Call once at startup.
+ *
+ * ARC-03-T8: application processes install through the single owner
+ * (shared/auth/process-policy-binding.bindProcessPolicies), which binds this
+ * store together with the two policies that read it — a half-swapped trio is
+ * how a decision ends up consulting one container's tenant state and another
+ * container's audit sink. The boot guard and tests still install directly.
+ */
 export function initCapabilityPolicyStore(store: CapabilityPolicyStore): void {
   _store = store
 }
@@ -545,6 +594,7 @@ export function listBlockedCapabilities(): ReadonlyArray<Capability> {
 /** Complete capability vocabulary used by policy administration and guards. */
 export function listAllCapabilities(): ReadonlyArray<Capability> {
   const nonCore: ReadonlyArray<Capability> = [
+    'identity.custom_roles',
     'identity.register',
     'organization.create',
     'property.import_gbp_v2',
@@ -566,7 +616,7 @@ export function listAllCapabilities(): ReadonlyArray<Capability> {
     'ai.generate_reply',
     'ai.detect_trends',
   ]
-  return [...CORE_CAPABILITIES, ...BLOCKED_CAPABILITIES, ...nonCore].sort()
+  return [...new Set([...CORE_CAPABILITIES, ...BLOCKED_CAPABILITIES, ...nonCore])].sort()
 }
 
 /**
@@ -593,7 +643,6 @@ export const DARK_CONTEXT_CAPABILITIES = {
   team: 'team.use',
   portal: 'portal.read',
   guest: 'portal.read',
-  goal: 'goal.use',
   badge: 'badge.use',
   leaderboard: 'leaderboard.use',
 } as const satisfies Readonly<Record<string, Capability>>

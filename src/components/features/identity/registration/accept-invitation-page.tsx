@@ -6,7 +6,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAction } from '#/components/hooks/use-action'
 import { Skeleton } from '#/components/ui/skeleton'
-import { AuthCard, AuthFooterLink, ErrorBanner } from '#/components/layout/auth-layout'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
 import { Link } from '@tanstack/react-router'
 import { InvitationListView } from './invitation-list-view'
 import type { PendingInvitation } from './shared-types'
@@ -34,10 +35,10 @@ function SuccessView() {
 function AutoAcceptView({
   error,
   loading,
-}: Readonly<{ error: string | null; loading: boolean }>) {
+}: Readonly<{ error: unknown; loading: boolean }>) {
   return (
     <AuthCard title="Accepting invitation…" description="">
-      {error && <ErrorBanner message={error} />}
+      <FormErrorBanner error={error} />
       {loading && (
         <div className="flex justify-center py-4">
           <Skeleton className="h-4 w-48" />
@@ -61,8 +62,6 @@ export function AcceptInvitationPage({
   acceptInvitation,
 }: Props) {
   const [accepted, setAccepted] = useState(false)
-  const [accepting, setAccepting] = useState(false)
-  const [autoAcceptError, setAutoAcceptError] = useState<string | null>(null)
   // Dedupes React StrictMode's double-invocation of the auto-accept effect in
   // dev — without it, acceptInvitation fires twice concurrently and creates a
   // duplicate membership (and races the active-org activation).
@@ -72,17 +71,12 @@ export function AcceptInvitationPage({
 
   const handleAccept = useCallback(
     async (invId: string) => {
-      setAccepting(true)
-      setAutoAcceptError(null)
       try {
         await accept({ data: { invitationId: invId } })
         setAccepted(true)
-      } catch (err) {
-        setAutoAcceptError(
-          err instanceof Error ? err.message : 'An unexpected error occurred',
-        )
-      } finally {
-        setAccepting(false)
+      } catch {
+        // useAction retains the rejection for the shared error banner. Catching
+        // here prevents click/effect callers from leaking an unhandled promise.
       }
     },
     [accept],
@@ -93,21 +87,22 @@ export function AcceptInvitationPage({
   useEffect(() => {
     if (invitationId && !accepted && !acceptingRef.current) {
       acceptingRef.current = true
-      handleAccept(invitationId)
+      void handleAccept(invitationId)
     }
   }, [invitationId, accepted, handleAccept])
 
   if (accepted) return <SuccessView />
-  if (invitationId) return <AutoAcceptView error={autoAcceptError} loading={accepting} />
+  if (invitationId) {
+    return <AutoAcceptView error={accept.error} loading={accept.isPending} />
+  }
 
   return (
     <>
       <InvitationListView
         invitations={invitations}
-        loading={false}
-        error={accept.error ? 'Failed to accept invitation' : null}
+        error={accept.error}
         onAccept={handleAccept}
-        accepting={accepting}
+        accepting={accept.isPending}
       />
       <AuthFooterLink message="" linkText="Back to dashboard" to="/dashboard" />
     </>

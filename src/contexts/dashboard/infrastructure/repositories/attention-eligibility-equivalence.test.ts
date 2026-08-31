@@ -109,7 +109,7 @@ describe('attention-signals eligibility ⇔ review governed rule (BQC-5.5)', () 
 
     // Review-owned governed rule (the authority).
     const reviewRule = createEligibleReads({
-      reviewRepo: createReviewRepository(db),
+      reviewRepo: createReviewRepository(db, () => new Date()),
       clock: () => now,
     })
     const reviewIds = await reviewRule.findEligibleReviewIds(ORG, {})

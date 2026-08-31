@@ -10,6 +10,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const mockGetSession = vi.fn()
 const mockGetActiveMember = vi.fn()
 const mockDbSelect = vi.fn()
+const { mockAuthorizeBinding } = vi.hoisted(() => ({
+  mockAuthorizeBinding: vi.fn(),
+}))
 
 vi.mock('./auth', () => ({
   getAuth: () => ({
@@ -22,6 +25,10 @@ vi.mock('./auth', () => ({
 
 vi.mock('#/shared/db', () => ({
   getDb: () => ({ select: mockDbSelect }),
+}))
+
+vi.mock('./user-organization-binding-authority', () => ({
+  checkUserOrganizationBinding: mockAuthorizeBinding,
 }))
 
 import {
@@ -61,6 +68,13 @@ beforeEach(() => {
   mockGetSession.mockReset()
   mockGetActiveMember.mockReset()
   mockDbSelect.mockReset()
+  mockAuthorizeBinding.mockReset()
+  mockAuthorizeBinding.mockImplementation(
+    async (_db: unknown, _userId: string, _activeOrganizationId: string) => ({
+      kind: 'allow' as const,
+      version: 1,
+    }),
+  )
   resetTenantResolutionCache()
 })
 
@@ -74,7 +88,7 @@ afterEach(() => {
 //   cached?  TTL-fresh?  versioned?  → action
 //   no       —           —           → resolve-fresh
 //   yes      no          —           → resolve-fresh
-//   yes      yes         no          → serve
+//   yes      yes         no          → resolve-fresh
 //   yes      yes         yes         → check-version
 
 describe('decideTenantCacheAction', () => {
@@ -89,9 +103,9 @@ describe('decideTenantCacheAction', () => {
     expect(decideTenantCacheAction(entry, now)).toBe('resolve-fresh')
   })
 
-  it('serves a TTL-fresh unversioned entry (Stage 1: built-in roles, no version table)', () => {
+  it('resolves a TTL-fresh unversioned entry so built-in role changes apply immediately', () => {
     const entry = makeEntry({ ts: now - TENANT_CACHE_TTL_MS + 1, version: null })
-    expect(decideTenantCacheAction(entry, now)).toBe('serve')
+    expect(decideTenantCacheAction(entry, now)).toBe('resolve-fresh')
   })
 
   it('checks the permission_version for a TTL-fresh versioned entry (Stage 2 DAC)', () => {
@@ -163,7 +177,7 @@ describe('resolveTenant', () => {
     expect(ctx.role).toBe('PropertyManager')
   })
 
-  it('maps member role to Staff', async () => {
+  it('rejects a Staff login because Staff users are inactive in beta', async () => {
     // Arrange
     mockGetSession.mockResolvedValue({
       session: { id: 'sess-1', activeOrganizationId: 'org-1' },
@@ -171,11 +185,13 @@ describe('resolveTenant', () => {
     })
     mockGetActiveMember.mockResolvedValue({ role: 'member' })
 
-    // Act
-    const ctx = await resolveTenant(makeHeaders())
-
-    // Assert
-    expect(ctx.role).toBe('Staff')
+    await expect(resolveTenant(makeHeaders())).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.name === 'AuthError' &&
+        (e as unknown as Record<string, unknown>).code === 'beta_role_inactive' &&
+        (e as unknown as Record<string, unknown>).status === 403,
+    )
   })
 
   it('throws AuthError unauthorized when no session', async () => {
@@ -227,6 +243,27 @@ describe('resolveTenant', () => {
     )
   })
 
+  it('rejects a session whose active Organization differs from its beta binding', async () => {
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-1', activeOrganizationId: 'org-2' },
+      user: { id: 'u1' },
+    })
+    mockAuthorizeBinding.mockResolvedValue({
+      kind: 'deny',
+      reason: 'organization_binding_mismatch',
+    })
+
+    await expect(resolveTenant(makeHeaders())).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.name === 'AuthError' &&
+        (e as unknown as Record<string, unknown>).code ===
+          'organization_binding_conflict' &&
+        (e as unknown as Record<string, unknown>).status === 409,
+    )
+    expect(mockGetActiveMember).not.toHaveBeenCalled()
+  })
+
   it('throws AuthError forbidden when member has a custom (non-built-in) role', async () => {
     // Arrange
     mockGetSession.mockResolvedValue({
@@ -240,7 +277,7 @@ describe('resolveTenant', () => {
       (e: unknown) =>
         e instanceof Error &&
         e.name === 'AuthError' &&
-        (e as unknown as Record<string, unknown>).code === 'forbidden' &&
+        (e as unknown as Record<string, unknown>).code === 'beta_role_inactive' &&
         (e as unknown as Record<string, unknown>).status === 403,
     )
   })
@@ -258,7 +295,7 @@ describe('resolveTenant', () => {
       (e: unknown) =>
         e instanceof Error &&
         e.name === 'AuthError' &&
-        (e as unknown as Record<string, unknown>).code === 'forbidden' &&
+        (e as unknown as Record<string, unknown>).code === 'beta_role_inactive' &&
         (e as unknown as Record<string, unknown>).status === 403,
     )
   })
@@ -270,43 +307,21 @@ describe('resolveTenant role strategy (ENABLE_CUSTOM_ROLES on)', () => {
     resetEnv()
   })
 
-  it('resolves a custom role via the dynamic resolver', async () => {
+  it('rejects a custom login role even when dynamic roles are configured', async () => {
     mockGetSession.mockResolvedValue({
       session: { id: 'sess-1', activeOrganizationId: 'org-1' },
       user: { id: 'u1' },
     })
     mockGetActiveMember.mockResolvedValue({ role: 'content-manager' })
 
-    // fetchPermissionVersion + fetchRoleDefinitions run selects distinguished by the
-    // selected columns: {version} → permission_version, {permission} → organizationRole,
-    // {dataScope} → organization_role_policy. The where() result is a thenable that also
-    // supports .limit() (drizzle chains synchronously before await).
-    mockDbSelect.mockImplementation((cols: Record<string, unknown>) => {
-      const rows =
-        'version' in cols
-          ? [{ version: 1 }]
-          : 'permission' in cols
-            ? [
-                {
-                  role: 'content-manager',
-                  permission: JSON.stringify({ portal: ['read', 'update'] }),
-                },
-              ]
-            : [{ role: 'content-manager', dataScope: 'assigned-properties' }]
-      const chainable = {
-        limit: () => chainable,
-        then: (resolve: (v: unknown) => void) => Promise.resolve(rows).then(resolve),
-      }
-      return { from: () => ({ where: () => chainable }) }
-    })
-
-    const ctx = await resolveTenant(makeHeaders())
-
-    // Custom-only member → Staff placeholder; the scope map is authoritative.
-    expect(ctx.role).toBe('Staff')
-    expect(ctx.effectivePermissions?.has('portal.read')).toBe(true)
-    expect(ctx.effectivePermissions?.has('portal.update')).toBe(true)
-    expect(ctx.scopeByPermission?.get('portal.read')).toBe('assigned-properties')
+    await expect(resolveTenant(makeHeaders())).rejects.toSatisfy(
+      (e: unknown) =>
+        e instanceof Error &&
+        e.name === 'AuthError' &&
+        (e as unknown as Record<string, unknown>).code === 'beta_role_inactive' &&
+        (e as unknown as Record<string, unknown>).status === 403,
+    )
+    expect(mockDbSelect).not.toHaveBeenCalled()
   })
 
   it('fails closed with 503 when the dynamic resolver throws', async () => {
@@ -314,7 +329,7 @@ describe('resolveTenant role strategy (ENABLE_CUSTOM_ROLES on)', () => {
       session: { id: 'sess-1', activeOrganizationId: 'org-1' },
       user: { id: 'u1' },
     })
-    mockGetActiveMember.mockResolvedValue({ role: 'content-manager' })
+    mockGetActiveMember.mockResolvedValue({ role: 'owner' })
     mockDbSelect.mockImplementation(() => {
       // where().limit() must be chainable; route the rejection through then() so the
       // promise is awaited (not left as a floating unhandled rejection).
@@ -346,7 +361,7 @@ describe('resolveTenant cache', () => {
     resetEnv()
   })
 
-  it('returns cached result on second call with same cookies', async () => {
+  it('re-resolves an unversioned built-in role on the next request', async () => {
     // Arrange
     const headers = makeHeaders({ cookie: 'better-auth.session_token=abc123' })
     mockGetSession.mockResolvedValue({
@@ -361,10 +376,46 @@ describe('resolveTenant cache', () => {
     const headers2 = makeHeaders({ cookie: 'better-auth.session_token=abc123' })
     const ctx2 = await resolveTenant(headers2)
 
-    // Assert — both return same result
+    // Assert — the role is re-read; a downgrade/removal cannot live for the TTL.
     expect(ctx1).toEqual(ctx2)
-    // getActiveMember only called once — second call used cache
-    expect(mockGetActiveMember).toHaveBeenCalledTimes(1)
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
+  })
+
+  it('re-resolves authority for the Secure cookie name used in production', async () => {
+    const headers = makeHeaders({
+      cookie: '__Secure-better-auth.session_token=secure-abc123; theme=dark',
+    })
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-secure', activeOrganizationId: 'org-secure' },
+      user: { id: 'user-secure' },
+    })
+    mockGetActiveMember.mockResolvedValue({ role: 'admin' })
+
+    await resolveTenant(headers)
+    await resolveTenant(headers)
+
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
+  })
+
+  it('keys on the Secure cookie when both secure and legacy names are present', async () => {
+    const first = makeHeaders({
+      cookie:
+        'better-auth.session_token=legacy-shared; __Secure-better-auth.session_token=secure-a',
+    })
+    const second = makeHeaders({
+      cookie:
+        'better-auth.session_token=legacy-shared; __Secure-better-auth.session_token=secure-b',
+    })
+    mockGetSession.mockResolvedValue({
+      session: { id: 'sess-secure', activeOrganizationId: 'org-secure' },
+      user: { id: 'user-secure' },
+    })
+    mockGetActiveMember.mockResolvedValue({ role: 'admin' })
+
+    await resolveTenant(first)
+    await resolveTenant(second)
+
+    expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
   })
 
   it('bypasses cache after TTL expires', async () => {
@@ -421,12 +472,12 @@ describe('resolveTenant cache', () => {
     })
     mockGetActiveMember.mockResolvedValueOnce({ role: 'owner' })
 
-    // Second resolution: same cookie, active org switched to org-B (member).
+    // Second resolution: same cookie, active org switched to org-B (manager).
     mockGetSession.mockResolvedValueOnce({
       session: { id: 'sess-1', activeOrganizationId: 'org-B' },
       user: { id: 'u1' },
     })
-    mockGetActiveMember.mockResolvedValueOnce({ role: 'member' })
+    mockGetActiveMember.mockResolvedValueOnce({ role: 'admin' })
 
     // Act
     const ctxA = await resolveTenant(headers)
@@ -436,7 +487,7 @@ describe('resolveTenant cache', () => {
     expect(ctxA.organizationId).toBe('org-A')
     expect(ctxB.organizationId).toBe('org-B')
     expect(ctxA.role).toBe('AccountAdmin')
-    expect(ctxB.role).toBe('Staff')
+    expect(ctxB.role).toBe('PropertyManager')
     // A fresh getActiveMember ran for the switched org (cache key differs by orgId).
     expect(mockGetActiveMember).toHaveBeenCalledTimes(2)
   })

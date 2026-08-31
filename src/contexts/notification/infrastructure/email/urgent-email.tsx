@@ -19,7 +19,7 @@ import { FactsStrip } from './notification-facts'
 export type UrgentNotificationEmailProps = Readonly<{
   rendered: RenderedNotification
   actionUrl: string
-  preferencesUrl: string
+  preferencesUrl?: string
   priority: 'urgent' | 'normal'
 }>
 
@@ -39,9 +39,11 @@ const UrgentNotificationEmail = ({
     preheader={rendered.summary === '' ? rendered.title : rendered.summary}
     documentTitle={rendered.title}
     whyReceived={
-      priority === 'urgent'
-        ? 'You received this because immediate email alerts are on for urgent notifications on your account.'
-        : 'You received this because email alerts are on for this notification type.'
+      preferencesUrl === undefined
+        ? 'You received this required account access notice because it applies to your account.'
+        : priority === 'urgent'
+          ? 'You received this because immediate email alerts are on for urgent notifications on your account.'
+          : 'You received this because email alerts are on for this notification type.'
     }
     preferencesUrl={preferencesUrl}
   >

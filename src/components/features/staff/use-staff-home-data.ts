@@ -1,6 +1,6 @@
 // useStaffHomeData — deep hook behind the staff home page.
 //
-// The page no longer knows: the five suspense queries (keys, staleTime, payload
+// The page no longer knows: the three suspense queries (keys, staleTime, payload
 // shapes), the per-query result shaping (?? defaults), or the empty-state
 // decision (decideStaffHomeEmptyState). It receives one data bundle and renders.
 //
@@ -9,30 +9,18 @@
 // in-memory ones.
 
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
-import type { listStaffGoals } from '#/contexts/goal/server/staff-goals'
-import type { getStaffVisibleBadges } from '#/contexts/badge/server/badges'
 import type { getStaffDashboardDataFn } from '#/contexts/dashboard/server/staff-dashboard'
 import type { listStaffPortals } from '#/contexts/staff/server/staff-portals'
 import type { getStaffRecentActivity } from '#/contexts/review/server/staff-recent-activity'
-import {
-  badgeKeys,
-  dashboardKeys,
-  goalKeys,
-  reviewKeys,
-  staffKeys,
-} from '#/shared/queries/query-keys'
+import { dashboardKeys, reviewKeys, staffKeys } from '#/shared/queries/query-keys'
 import type { KPIs } from '#/contexts/dashboard/application/public-api'
-import type { StaffGoalEntry } from '#/contexts/goal/application/public-api'
 import type { StaffPortalEntry } from '#/contexts/staff/application/public-api'
-import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-api'
 import type { StaffRecentReview } from '#/contexts/review/application/public-api'
 
 export type StaffHomeFns = Readonly<{
-  listStaffGoals: typeof listStaffGoals
   getStaffDashboardData: typeof getStaffDashboardDataFn
   listStaffPortals: typeof listStaffPortals
   getStaffRecentActivity: typeof getStaffRecentActivity
-  getStaffVisibleBadges: typeof getStaffVisibleBadges
 }>
 
 export type StaffHomeEmptyState = 'no-property' | 'no-assignments' | null
@@ -40,8 +28,6 @@ export type StaffHomeEmptyState = 'no-property' | 'no-assignments' | null
 export type StaffHomeData = Readonly<{
   kpis: KPIs | null
   portals: ReadonlyArray<StaffPortalEntry>
-  goals: ReadonlyArray<StaffGoalEntry>
-  badges: ReadonlyArray<BadgeAwardWithTarget>
   recentReviews: ReadonlyArray<StaffRecentReview>
   hasAssignments: boolean
   emptyState: StaffHomeEmptyState
@@ -67,18 +53,13 @@ export function decideStaffHomeEmptyState(
 
 // ── Query wiring ────────────────────────────────────────────────
 
-/** The five staff-home suspense queries (shared by the route loader + the hook). */
+/** The four staff-home suspense queries (shared by the route loader + the hook). */
 export function staffHomeQueries(
   fns: StaffHomeFns,
   propertyId: string,
   portalId: string | undefined,
 ) {
   return {
-    goals: queryOptions({
-      queryKey: goalKeys.staff(propertyId),
-      queryFn: () => fns.listStaffGoals({ data: { propertyId } }),
-      staleTime: 60 * 1000,
-    }),
     dashboard: queryOptions({
       queryKey: dashboardKeys.staff({ propertyId, portalId }),
       queryFn: () =>
@@ -95,11 +76,6 @@ export function staffHomeQueries(
       queryFn: () => fns.getStaffRecentActivity({ data: { propertyId } }),
       staleTime: 60 * 1000,
     }),
-    badges: queryOptions({
-      queryKey: badgeKeys.staffVisible(propertyId),
-      queryFn: () => fns.getStaffVisibleBadges({ data: { propertyId, limit: 6 } }),
-      staleTime: 60 * 1000,
-    }),
   } as const
 }
 
@@ -111,18 +87,14 @@ export function useStaffHomeData(
   fns: StaffHomeFns,
 ): StaffHomeData {
   const queries = staffHomeQueries(fns, propertyId ?? '', portalId)
-  const { data: goalsData } = useSuspenseQuery(queries.goals)
   const { data: dashboardData } = useSuspenseQuery(queries.dashboard)
   const { data: portalsData } = useSuspenseQuery(queries.portals)
   const { data: activityData } = useSuspenseQuery(queries.activity)
-  const { data: badgesData } = useSuspenseQuery(queries.badges)
 
   const hasAssignments = dashboardData?.hasAssignments ?? false
   return {
     kpis: dashboardData?.kpis ?? null,
     portals: portalsData?.portals ?? [],
-    goals: goalsData?.goals ?? [],
-    badges: (badgesData ?? []) as BadgeAwardWithTarget[],
     recentReviews: activityData?.reviews ?? [],
     hasAssignments,
     emptyState: decideStaffHomeEmptyState(propertyId, hasAssignments),

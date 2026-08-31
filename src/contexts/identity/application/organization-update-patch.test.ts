@@ -1,5 +1,5 @@
 // Identity context — OrganizationUpdatePatch builder tests
-// Table-driven coverage of the field-inclusion table: the 9 optional update
+// Table-driven coverage of the beta field-inclusion table: the supported update
 // fields → Better Auth payload semantics (moved from update-organization.test.ts).
 
 import { describe, it, expect } from 'vitest'
@@ -12,11 +12,6 @@ import { buildOrganizationUpdatePatch } from './organization-update-patch'
 //   slug               truthy         as-is
 //   logo               always         null → undefined
 //   contactEmail       defined        null → undefined
-//   billingCompanyName defined        null → undefined
-//   billingAddress     defined        null → undefined
-//   billingCity        defined        null → undefined
-//   billingPostalCode  defined        null → undefined
-//   billingCountry     defined        null → undefined
 //   responseSlaHours   defined        as-is
 
 describe('buildOrganizationUpdatePatch', () => {
@@ -52,30 +47,22 @@ describe('buildOrganizationUpdatePatch', () => {
     )
   })
 
-  it('maps null billing/contact fields to undefined while keeping the keys', () => {
+  it('maps a null contact field to undefined while keeping the key', () => {
     const patch = buildOrganizationUpdatePatch({
       contactEmail: null,
-      billingCompanyName: null,
-      billingAddress: null,
-      billingCity: null,
-      billingPostalCode: null,
-      billingCountry: null,
     })
 
-    for (const field of [
-      'contactEmail',
-      'billingCompanyName',
-      'billingAddress',
-      'billingCity',
-      'billingPostalCode',
-      'billingCountry',
-    ]) {
-      expect(patch).toHaveProperty(field)
-      expect(patch[field]).toBeUndefined()
-    }
+    expect(patch).toHaveProperty('contactEmail')
+    expect(patch.contactEmail).toBeUndefined()
   })
 
-  it('passes billing/contact strings through unchanged', () => {
+  it('passes the supported contact string through unchanged', () => {
+    const patch = buildOrganizationUpdatePatch({ contactEmail: 'billing@test.com' })
+
+    expect(patch.contactEmail).toBe('billing@test.com')
+  })
+
+  it('does not forward dormant billing keys from an untyped caller', () => {
     const patch = buildOrganizationUpdatePatch({
       contactEmail: 'billing@test.com',
       billingCompanyName: 'Test Corp',
@@ -83,17 +70,17 @@ describe('buildOrganizationUpdatePatch', () => {
       billingCity: 'Hong Kong',
       billingPostalCode: '00000',
       billingCountry: 'HK',
-    })
+    } as Parameters<typeof buildOrganizationUpdatePatch>[0])
 
     expect(patch.contactEmail).toBe('billing@test.com')
-    expect(patch.billingCompanyName).toBe('Test Corp')
-    expect(patch.billingAddress).toBe('123 Billing St')
-    expect(patch.billingCity).toBe('Hong Kong')
-    expect(patch.billingPostalCode).toBe('00000')
-    expect(patch.billingCountry).toBe('HK')
+    expect(patch).not.toHaveProperty('billingCompanyName')
+    expect(patch).not.toHaveProperty('billingAddress')
+    expect(patch).not.toHaveProperty('billingCity')
+    expect(patch).not.toHaveProperty('billingPostalCode')
+    expect(patch).not.toHaveProperty('billingCountry')
   })
 
-  it('omits billing/contact fields that were never provided', () => {
+  it('omits contact and billing fields when they were never provided', () => {
     const patch = buildOrganizationUpdatePatch({ name: 'Org' })
 
     expect(patch).not.toHaveProperty('contactEmail')

@@ -28,8 +28,8 @@ describe('Google Content capability foundation', () => {
     )
   })
 
-  it('bumps both policy versions to beta-local-2', () => {
-    expect(CAPABILITY_POLICY_VERSION).toBe('beta-local-2')
+  it('versions capability posture independently from execution semantics', () => {
+    expect(CAPABILITY_POLICY_VERSION).toBe('beta-local-10')
     expect(EXECUTION_POLICY_VERSION).toBe('beta-local-2')
   })
 

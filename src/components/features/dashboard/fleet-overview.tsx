@@ -17,7 +17,6 @@ import { LoadingState, ErrorState } from '#/components/layout/page-states'
 import {
   Stars,
   TrendIndicator,
-  formatTrend,
 } from '#/components/features/property/property-dashboard-helpers'
 import type {
   FleetEntry,
@@ -37,6 +36,8 @@ function Shell({ children }: Readonly<{ children: ReactNode }>) {
 }
 
 const formatRating = (r: number): string => (r > 0 ? r.toFixed(1) : '—')
+const formatRatingComparison = (comparison: number | null): string =>
+  comparison === null ? '—' : `${comparison > 0 ? '+' : ''}${comparison.toFixed(1)} stars`
 
 export function FleetOverviewLoading() {
   return (
@@ -58,10 +59,11 @@ export function FleetOverviewError({ message }: Readonly<{ message?: string }>) 
   )
 }
 
-export function FleetOverviewEmpty() {
+export function FleetOverviewEmpty({ setup }: Readonly<{ setup?: ReactNode }>) {
   const { can } = usePermissions()
   return (
     <Shell>
+      {setup}
       <div className="flex flex-col items-center justify-center gap-4 py-24">
         <h2 className="text-lg font-medium">No properties yet</h2>
         <p className="max-w-sm text-center text-sm text-muted-foreground">
@@ -79,6 +81,7 @@ export function FleetOverviewEmpty() {
 
 export interface FleetOverviewProps {
   readonly data: FleetOverviewData
+  readonly setup?: ReactNode
   /**
    * Absent in the story/fixture cases that render a single settled page. The
    * control only appears when the projection actually handed back a cursor.
@@ -89,12 +92,14 @@ export interface FleetOverviewProps {
 
 export function FleetOverview({
   data,
+  setup,
   isFetchingNextPage = false,
   onLoadMore,
 }: FleetOverviewProps) {
   const { entries, totals } = data
   return (
     <Shell>
+      {setup}
       {/*
         BQC-6.8 reflow: single-column on narrow/zoomed viewports (the 3-up
         strip could not shrink below its min-content at 400% zoom / 320 CSS px
@@ -108,7 +113,7 @@ export function FleetOverview({
         />
         <StripStat
           icon={AlertCircle}
-          label="Needs action"
+          label="Needs attention"
           value={String(totals.totalAttention)}
           destructive={totals.totalAttention > 0}
         />
@@ -116,6 +121,7 @@ export function FleetOverview({
           icon={Star}
           label="Avg rating"
           value={formatRating(totals.overallAvgRating)}
+          hint={`${totals.ratingSampleCount} eligible reviews`}
         />
       </div>
 
@@ -143,6 +149,7 @@ function metricEvidenceTitle(evidence: FleetMetricEvidence): string {
     `Definition ${evidence.definitionVersionId}`,
     `Completeness ${completeness}%`,
     `Watermark ${watermark}`,
+    `Timezone ${evidence.timezone}`,
     `Corrections ${evidence.correctionCount}`,
     `Sources ${sources}`,
   ].join(' · ')
@@ -184,8 +191,8 @@ function FleetRow({ entry }: Readonly<{ entry: FleetEntry }>) {
             {entry.reviewCount} reviews
           </span>
           <span className="flex items-center gap-0.5 text-xs tabular-nums text-muted-foreground">
-            <TrendIndicator trend={entry.avgRatingTrend} />
-            {formatTrend(entry.avgRatingTrend)}
+            <TrendIndicator trend={entry.avgRatingComparison} />
+            {formatRatingComparison(entry.avgRatingComparison)}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">

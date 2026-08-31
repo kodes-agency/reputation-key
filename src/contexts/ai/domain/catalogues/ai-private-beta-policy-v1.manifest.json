@@ -1,25 +1,25 @@
 {
   "version": "ai-governance-artifacts-v1",
   "source": "src/contexts/ai/domain/catalogues/ai-private-beta-policy-v1.json",
-  "sourceCanonicalSha256": "e1180ea3d05c9032e4cce3c6fe43ae6ea9286a4a57fcaf1dd162ff41008dd84b",
-  "policyDigest": "7031c514c9296bf1895ae185e2a0df485df48807bb409acc275386ac199e2569",
+  "sourceCanonicalSha256": "3785ec171e7510267d48c4e09b43f3a90db3fb219e115cbf13759a1f75a4f4e0",
+  "policyDigest": "76e6fa4509fb01dab244a688305eefd788b19302b7978dd7546917909f7eecd4",
   "members": [
     {
       "name": "migration",
       "path": "drizzle/generated/ai-private-beta-policy-v1.sql",
-      "sha256": "fe9fed90b533399f30db8c5ce8f87b8e29c7e3312e4d85f564480b600cba6916",
+      "sha256": "17e17584d8c469b159021932fb1f5b11ef280f9840813902f13e177c06dfe808",
       "bytes": 3263
     },
     {
       "name": "documentation",
       "path": "docs/product-readiness-program-2026-07/ai-governance/ai-private-beta-policy-v1.md",
-      "sha256": "6e604b2d3747403e41d5a35f015a0b74cca246df85168fe907b2033f5ceee605",
+      "sha256": "79e72d8bf1adcbc55458d25d9388da254974bc044ba6c4cd30491f95b903de7e",
       "bytes": 2624
     },
     {
       "name": "evidence",
       "path": "docs/product-readiness-program-2026-07/ai-governance/ai-private-beta-policy-evidence-index.json",
-      "sha256": "065c10ffff58f667eb83e56942f8c37a54ab1bbfd4a2f66cfa4ac91a0e113ff5",
+      "sha256": "432d6f94b322fb01a7f932c74561e39ada825b79f9e264a2ec59e79763ffca97",
       "bytes": 1429
     }
   ]

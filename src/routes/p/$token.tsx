@@ -1,17 +1,20 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { z } from 'zod/v4'
 import {
-  confirmGuestMediaFn,
   correctGuestResponseFn,
-  issueGuestMediaFn,
+  selectSecondaryLinkFn,
+  selectGoogleReviewFn,
+  startNewGuestResponseFn,
+  submitPrivateFeedbackFn,
   submitGuestResponseFn,
+  withdrawPrivateFeedbackFn,
   withdrawGuestResponseFn,
 } from '#/contexts/guest/server/public'
 import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-scans'
 import {
-  CookieConsentBanner,
+  GuestAnalyticsNotice,
   PortalUnavailable,
   PublicPortalContent,
 } from '#/components/features/guest'
@@ -20,11 +23,11 @@ import { guestKeys } from '#/shared/queries/query-keys'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 
-// `source` is an untrusted campaign hint, never authorization. An unrecognised or
-// missing value falls back to `direct` so a mangled QR query string still renders
-// the portal instead of throwing on search validation.
+// The public UUID is only a channel marker. The server binds it to the stable
+// address and exact live publication before it can qualify an observation.
 const portalSearchSchema = z.object({
-  source: z.enum(['qr', 'nfc', 'direct']).catch('direct'),
+  accessArtifact: z.uuid().optional().catch(undefined),
+  locale: z.enum(['en', 'bg']).optional().catch(undefined),
 })
 
 /**
@@ -53,12 +56,12 @@ function isUnavailablePosture(error: unknown): boolean {
   return typeof status === 'number' && unavailablePostureStatus[status] === true
 }
 
-const publicPortalQuery = (token: string) =>
+const publicPortalQuery = (token: string, locale?: 'en' | 'bg') =>
   queryOptions({
-    queryKey: guestKeys.publicPortal({ token }),
+    queryKey: guestKeys.publicPortal({ token, locale: locale ?? 'auto' }),
     queryFn: async () => {
       try {
-        return await getPublicPortal({ data: { token } })
+        return await getPublicPortal({ data: { token, locale } })
       } catch (error) {
         if (isUnavailablePosture(error)) return null
         throw error
@@ -68,8 +71,8 @@ const publicPortalQuery = (token: string) =>
   })
 
 /**
- * C1: the server resolves the `portal.guest_response` / `portal.guest_media`
- * capability decisions. The form view has no separate 'unavailable' branch — a
+ * C1: the server resolves the `portal.guest_response` capability decision. The
+ * form view has no separate 'unavailable' branch — a
  * tenant-disabled response surface and a transient failure read the same to a
  * guest, so both land on its 'error' copy.
  */
@@ -86,9 +89,12 @@ const formAvailability: Readonly<
 
 export const Route = createFileRoute('/p/$token')({
   validateSearch: portalSearchSchema,
+  loaderDeps: ({ search }) => ({ locale: search.locale }),
   staleTime: 5 * 60 * 1000,
-  loader: async ({ context, params }): Promise<PublicPortalLoaderData | null> => {
-    return context.queryClient.ensureQueryData(publicPortalQuery(params.token))
+  loader: async ({ context, params, deps }): Promise<PublicPortalLoaderData | null> => {
+    return context.queryClient.ensureQueryData(
+      publicPortalQuery(params.token, deps.locale),
+    )
   },
   head: ({ loaderData }) => {
     // The opaque token is the entire access control for a guest portal, so the page
@@ -134,52 +140,90 @@ export const Route = createFileRoute('/p/$token')({
  */
 function PublicPortalPage() {
   const { token } = Route.useParams()
-  const { data } = useSuspenseQuery(publicPortalQuery(token))
+  const { locale } = Route.useSearch()
+  const { data } = useSuspenseQuery(publicPortalQuery(token, locale))
   if (!data) return <PortalUnavailable />
-  return <PublicPortalView token={token} data={data} />
+  // The file-route match is reused when only the token parameter changes.
+  // Remount the complete guest journey so a prior Portal's response receipt,
+  // CSRF nonce, rating draft, and analytics state cannot cross that boundary.
+  return <PublicPortalView key={token} token={token} data={data} />
 }
 
 function PublicPortalView({
   token,
   data,
 }: Readonly<{ token: string; data: PublicPortalLoaderData }>) {
-  const { source } = Route.useSearch()
+  const { accessArtifact, locale } = Route.useSearch()
+  const queryClient = useQueryClient()
   const submitResponse = useAction(useServerFn(submitGuestResponseFn))
   const correctResponse = useAction(useServerFn(correctGuestResponseFn))
+  const startNewResponseAction = useAction(useServerFn(startNewGuestResponseFn))
   const withdrawResponse = useAction(useServerFn(withdrawGuestResponseFn))
-  const issueMedia = useAction(useServerFn(issueGuestMediaFn))
-  const confirmMedia = useAction(useServerFn(confirmGuestMediaFn))
+  const withdrawPrivateFeedback = useAction(useServerFn(withdrawPrivateFeedbackFn))
+  const submitPrivateFeedback = useAction(useServerFn(submitPrivateFeedbackFn))
+  const selectGoogleReview = useAction(useServerFn(selectGoogleReviewFn))
+  const selectSecondaryLink = useAction(useServerFn(selectSecondaryLinkFn))
   const recordScan = useServerFn(recordScanFn)
   const { csrfNonce } = data.guestSession
 
-  // C6: `portal.scan` requires `analyticsConsent: z.literal(true)`, so the scan is
-  // recorded from the consent banner's grant path — never on bare mount — and the
-  // banner holds it to once per browser session so refreshes and prefetches do not
-  // inflate the metric.
-  const recordConsentedScan = useCallback(() => {
-    void recordScan({
-      data: { token, csrfNonce, source, analyticsConsent: true },
-    }).catch(() => undefined)
-  }, [recordScan, token, csrfNonce, source])
+  const startNewResponse = useCallback(
+    async (input: Parameters<typeof startNewResponseAction>[0]) => {
+      const nextSession = await startNewResponseAction(input)
+      queryClient.setQueryData<PublicPortalLoaderData | null>(
+        guestKeys.publicPortal({ token, locale: locale ?? 'auto' }),
+        (cached) =>
+          cached
+            ? {
+                ...cached,
+                guestSession: { csrfNonce: nextSession.csrfNonce },
+                response: null,
+              }
+            : cached,
+      )
+      return nextSession
+    },
+    [queryClient, startNewResponseAction, token, locale],
+  )
+
+  // Visit analytics is a core portal function. The disclosure invokes this once
+  // per portal/browser session; the server owns authoritative session dedupe and
+  // layered abuse controls.
+  const recordPortalVisit = useCallback(async () => {
+    const result = await recordScan({
+      data: { token, csrfNonce, accessArtifactId: accessArtifact ?? null },
+    })
+    if (result.success) return 'recorded' as const
+    return result.retryable ? ('retryable' as const) : ('settled' as const)
+  }, [recordScan, token, csrfNonce, accessArtifact])
 
   return (
     <>
-      <CookieConsentBanner scopeKey={token} onAnalyticsConsent={recordConsentedScan} />
+      <GuestAnalyticsNotice
+        scopeKey={token}
+        locale={data.localization.selectedLocale}
+        languagePackVersion={data.localization.languagePackVersion}
+        onPortalVisit={recordPortalVisit}
+      />
       <PublicPortalContent
         token={token}
+        accessArtifactId={accessArtifact}
         portal={data.portal}
         categories={data.categories}
         links={data.links}
+        reviewGateway={data.reviewGateway}
+        localization={data.localization}
+        selectSecondaryLink={selectSecondaryLink}
         responseForm={{
           csrfNonce,
           initialResponse: data.response,
           availability: formAvailability[data.responseForm.availability],
-          mediaEnabled: data.responseForm.mediaEnabled,
           submitResponse,
           correctResponse,
+          startNewResponse,
+          submitPrivateFeedback,
+          selectGoogleReview,
           withdrawResponse,
-          issueMedia,
-          confirmMedia,
+          withdrawPrivateFeedback,
         }}
       />
     </>

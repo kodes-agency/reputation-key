@@ -67,6 +67,13 @@ export type AlertAuxReads = Readonly<{
   policyDenialsByReason: Readonly<Record<string, number>>
   /** Quarantined envelopes carrying a region-attempt policyReason, by reason. */
   routingBlockedByReason: Readonly<Record<string, number>>
+  /** Content-free age/count of delivered native feedback awaiting resolution. */
+  betaFeedbackTriage: Readonly<{
+    /** false means the PostgreSQL observation failed and must alert fail-visible. */
+    monitorAvailable: boolean
+    deliveredUnresolvedCount: number
+    oldestDeliveredUnresolvedAgeMs: number | null
+  }>
 }>
 
 export type AlertDefinition = Readonly<{
@@ -144,6 +151,19 @@ export const SYNC_SWEEP_LAG_ALERT_MS = 4 * DISCOVERY_SWEEP_INTERVAL_MS
 export const NOTIFICATION_EMAIL_STALLED_ALERT_MS = 2 * 60 * 60 * 1000
 
 /**
+ * Approved in-app target measured from the durable source fact. This alert is
+ * an oldest-outstanding breach signal, not a claim that one snapshot proves a
+ * latency percentile; deployed p99 evidence remains a separate release gate.
+ */
+export const NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS = 60 * 1000
+
+/**
+ * Approved provider-acceptance target for immediate operational email,
+ * measured from the durable source fact rather than queue insertion time.
+ */
+export const NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS = 5 * 60 * 1000
+
+/**
  * Source freshness approaching the policy deadline: fire when the nearest
  * hard expiry among refresh-due rows is under 2 days away — the operator
  * still has room to act before content hard-expires (BQC-1.5 signal).
@@ -162,6 +182,17 @@ export const REPLY_AMBIGUOUS_ALERT_MS = 15 * 60 * 1000
  */
 export const POLICY_DENIAL_DRIFT_THRESHOLD = 50
 export const POLICY_DENIAL_DRIFT_WINDOW_MS = 60 * 60 * 1000
+
+/**
+ * A delivered native-feedback report unresolved for three days is an
+ * operational backlog. The support target remains a next-business-day
+ * expectation rather than an SLA; 72h avoids a permanent weekend page while
+ * still making an abandoned queue visible.
+ */
+export const BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS = 72 * 60 * 60 * 1000
+
+/** Redis monitor retention/read window for suppressed Guest observations. */
+const GUEST_OBSERVATION_LOSS_ALERT_WINDOW_MS = 24 * 60 * 60 * 1000
 
 /** The health-check evaluation cadence (the job's 5-min schedule). */
 const EVAL_CADENCE_MS = 5 * 60 * 1000
@@ -265,6 +296,40 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       }
     },
   }),
+  // The heartbeat proves that a process is alive; this separately proves
+  // that every governed family is registered, scheduled, fresh, unpoisoned,
+  // and assigned to an executable repair path in the observed cell.
+  define({
+    name: 'worker.job-runtime-unready',
+    severity: 'P1',
+    runbook: 'runbooks.md §17',
+    windowMs: EVAL_CADENCE_MS,
+    threshold: 0,
+    read: (snapshot) => {
+      const jobs = snapshot.jobs
+      if (!jobs) {
+        return {
+          value: 1,
+          detail:
+            'governed job runtime report unavailable — registration, freshness, dark-work, and repair state are unknown',
+        }
+      }
+      if (jobs.ready) return null
+      return {
+        value: Math.max(1, jobs.failing),
+        detail:
+          `${jobs.failing} of ${jobs.total} governed job families unready; ` +
+          `missingObservations=${jobs.missingObservations}, ` +
+          `handlerMissing=${jobs.handlerMissing}, ` +
+          `schedulerMissing=${jobs.schedulerMissing}, ` +
+          `forbiddenDarkWork=${jobs.forbiddenDarkWork}, ` +
+          `quarantinedSchedulers=${jobs.quarantinedSchedulers}, ` +
+          `missedObjectives=${jobs.missedObjectives}, ` +
+          `queueAgeMissed=${jobs.queueAgeMissed}, stalled=${jobs.stalled}, ` +
+          `repairRequired=${jobs.repairRequired}, deadLetters=${jobs.deadLetters}`,
+      }
+    },
+  }),
   // NOT self-reportable: a process reporting its own availability is
   // circular. The external synthetic probe (uptime monitor hitting the
   // deployed web service — it also measures the ADR 0038 p95 ≤ 750ms
@@ -276,6 +341,36 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     runbook: 'runbooks.md §12',
     windowMs: EVAL_CADENCE_MS,
     threshold: 0,
+  }),
+  // A private rating is deliberately not part of this signal: its canonical
+  // response fact and outbox row commit atomically, and ordinary retryable
+  // command failures are not analytics loss. This alert covers only the two
+  // public actions whose approved journey intentionally survives a lost
+  // best-effort observation.
+  define({
+    name: 'guest.observation-loss',
+    severity: 'P1',
+    runbook: 'runbooks.md §18',
+    windowMs: GUEST_OBSERVATION_LOSS_ALERT_WINDOW_MS,
+    threshold: 0,
+    read: (snapshot) => {
+      const loss = snapshot.guestObservationLoss
+      if (!loss || !loss.monitorAvailable) {
+        return {
+          value: 1,
+          detail:
+            'Guest observation-loss monitor unavailable or warming after reset — scan and review-link measurement completeness is unknown; ratings=not_applicable_durable',
+        }
+      }
+      if (loss.totalLossCount <= 0) return null
+      return {
+        value: loss.totalLossCount,
+        detail:
+          `${loss.totalLossCount} Guest best-effort observation(s) lost in the trailing window; ` +
+          `scans=${loss.scanLossCount}, reviewLinks=${loss.reviewLinkLossCount}, ` +
+          'ratings=not_applicable_durable',
+      }
+    },
   }),
 
   // ── queue oldest age and stalled/quarantine growth ──
@@ -401,10 +496,9 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
   }),
 
   // ── the user was never told ──
-  // A review landed, the inbox has it, and no notification exists for it.
-  // This is the exact silent failure the whole notification pipeline exists
-  // to prevent, so a single occurrence pages: there is no benign cause and
-  // no self-healing path (nothing re-derives a missed notification).
+  // A review landed, the inbox has it, and no notification exists after the
+  // grace edge. The bounded reconciliation sweep is the repair authority, so
+  // presence means either delivery is late or that repair is not keeping up.
   define({
     name: 'notification.missing-for-inbox-item',
     severity: 'P1',
@@ -416,7 +510,99 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       if (count <= 0) return null
       return {
         value: count,
-        detail: `${count} inbox item(s) with no notification — the user was never told a review arrived; nothing re-derives a missed notification`,
+        detail: `${count} inbox item(s) still have no notification past the grace edge — delivery or bounded reconciliation is not keeping up`,
+      }
+    },
+  }),
+  define({
+    name: 'notification.in-app-delivery-lag',
+    severity: 'P1',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
+    threshold: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
+    read: (snapshot) => {
+      const lag = snapshot.notifications.deliveryLag
+      const pending = lag.sourceReceiptPending + lag.materializationPending
+      if (pending <= 0) return null
+      const relevantAges = [
+        lag.sourceReceiptPending > 0 ? lag.oldestSourceAgeMs : null,
+        lag.materializationPending > 0 ? lag.oldestMaterializationSourceAgeMs : null,
+      ].filter((age): age is number => age !== null)
+      const oldestSourceAgeMs =
+        relevantAges.length === 0 ? null : Math.max(...relevantAges)
+      const sourceCount = `${lag.sourceReceiptPending}${lag.sourceSaturated ? '+' : ''}`
+      const materializationCount = `${lag.materializationPending}${lag.materializationSaturated ? '+' : ''}`
+      if (oldestSourceAgeMs === null) {
+        return {
+          value: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
+          detail: `notification delivery pending without a valid durable-source clock (source receipts=${sourceCount}, materializations=${materializationCount})`,
+        }
+      }
+      if (oldestSourceAgeMs <= NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS) {
+        return null
+      }
+      return {
+        value: oldestSourceAgeMs,
+        detail: `notification delivery from durable source is ${oldestSourceAgeMs}ms old (> ${NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS}ms; source receipts=${sourceCount}, materializations=${materializationCount})`,
+      }
+    },
+  }),
+  define({
+    name: 'notification.immediate-email-acceptance-lag',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    windowMs: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
+    threshold: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
+    read: (snapshot) => {
+      const email = snapshot.notifications.deliveryLag.immediateEmailAcceptance
+      if (email.sourceUnlinked > 0) {
+        return {
+          value: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
+          detail: `${email.sourceUnlinked} immediate notification email row(s) have no active durable source clock; the five-minute acceptance target cannot be evaluated`,
+        }
+      }
+      const activeEvidence =
+        snapshot.notifications.emailDeliveryEnabled ||
+        email.acceptedSampleCount > 0 ||
+        email.attemptedAwaitingProviderAcceptance > 0
+      if (!activeEvidence) return null
+
+      if (email.saturated) {
+        return {
+          value: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
+          detail: `immediate notification email acceptance evidence saturated its bounded scan (accepted samples observed=${email.acceptedSampleCount}); the full-window p99 is unavailable`,
+        }
+      }
+      if (email.acceptedSampleCount > 0 && email.acceptedLatencyP99Ms === null) {
+        return {
+          value: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
+          detail: `immediate notification email has ${email.acceptedSampleCount} accepted row(s) but no valid durable-source p99 clock`,
+        }
+      }
+      if (
+        email.awaitingProviderAcceptance > 0 &&
+        email.oldestAwaitingSourceAgeMs === null
+      ) {
+        return {
+          value: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
+          detail: `${email.awaitingProviderAcceptance} immediate notification email row(s) await provider acceptance without a valid durable source clock`,
+        }
+      }
+
+      const measured = [
+        email.acceptedSampleCount > 0 ? email.acceptedLatencyP99Ms : null,
+        email.awaitingProviderAcceptance > 0 ? email.oldestAwaitingSourceAgeMs : null,
+      ].filter((value): value is number => value !== null)
+      const worstMs = measured.length === 0 ? null : Math.max(...measured)
+      if (
+        worstMs === null ||
+        worstMs <= NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS
+      ) {
+        return null
+      }
+      return {
+        value: worstMs,
+        detail: `immediate notification email provider acceptance is ${worstMs}ms from durable source (> ${NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS}ms; p99 sample=${email.acceptedSampleCount}, awaiting=${email.awaitingProviderAcceptance})`,
       }
     },
   }),
@@ -473,6 +659,39 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       return {
         value: failed.length,
         detail: `latest retention run failed for: ${failed.join(', ')}`,
+      }
+    },
+  }),
+
+  // ── native beta-feedback triage backlog ──
+  // Only the content-free local receipt is observed here. Report text and
+  // attachment bytes remain outside PostgreSQL and cannot enter the event.
+  define({
+    name: 'beta-feedback.triage-backlog',
+    severity: 'P2',
+    runbook: 'runbooks.md §16',
+    windowMs: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
+    threshold: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
+    read: (_snapshot, aux) => {
+      const triage = aux.betaFeedbackTriage
+      if (!triage.monitorAvailable) {
+        return {
+          value: -1,
+          detail: 'beta-feedback triage backlog monitor unavailable',
+        }
+      }
+      if (triage.deliveredUnresolvedCount <= 0) return null
+      const ageMs = triage.oldestDeliveredUnresolvedAgeMs
+      if (ageMs == null) {
+        return {
+          value: -1,
+          detail: 'beta-feedback triage backlog monitor returned an incomplete reading',
+        }
+      }
+      if (ageMs <= BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS) return null
+      return {
+        value: ageMs,
+        detail: `${triage.deliveredUnresolvedCount} delivered unresolved beta-feedback report(s); oldest age ${ageMs}ms`,
       }
     },
   }),

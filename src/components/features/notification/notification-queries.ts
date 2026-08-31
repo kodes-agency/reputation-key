@@ -1,9 +1,12 @@
 // Notification READS — TanStack Query. Mutations live in notification-mutations.ts.
 //
-// Both the badge count and the list poll. Previously only the count did, so an
-// OPEN panel sat on a frozen list while the badge beside it kept climbing. The
-// list polls only while its surface is actually visible (`poll`), so a closed
-// bell costs one request per mount, not one every 30s.
+// The badge count and list head are one snapshot and one polling query.
+// Previously the infinite list itself carried the interval, so TanStack Query
+// correctly re-requested every
+// loaded page to keep an infinite query consistent. That made a long-lived
+// notification page progressively more expensive. Page zero now has its own
+// ordinary query; loaded history is a disabled infinite query advanced only by
+// the user's "Load more" action. The two caches are merged by stable row id.
 //
 // Polling is VISIBILITY-AWARE, using the query library's own primitives rather
 // than a hand-rolled `visibilitychange` listener (@tanstack/react-query 5.101):
@@ -29,68 +32,62 @@ import {
   DEFAULT_NOTIFICATION_FORMAT,
   type NotificationFormat,
 } from './notification-utils'
+import {
+  mergeNotificationHeadWithHistory,
+  notificationHeadQueryOptions,
+  notificationHistoryQueryOptions,
+} from './notification-feed-pagination'
 import type {
-  getUnreadNotificationCountFn,
+  getNotificationFeedHeadFn,
   getNotificationsFn,
   getNotificationUserSettingsFn,
 } from '#/contexts/notification/server/notifications'
-
-export const NOTIFICATION_POLL_INTERVAL = 30_000
-
-/**
- * The polling posture shared by both notification reads.
- *
- * Exported as one object so the two call sites cannot drift, and so the
- * behaviour is assertable against a real `QueryObserver` in
- * notification-queries.test.ts without rendering a component.
- */
-export const NOTIFICATION_POLL_OPTIONS = {
-  refetchInterval: NOTIFICATION_POLL_INTERVAL,
-  refetchIntervalInBackground: false,
-  refetchOnWindowFocus: true,
-  staleTime: 0,
-} as const
-
-export function useUnreadNotificationCount(
-  getUnreadCount: typeof getUnreadNotificationCountFn,
-  organizationId: string,
-) {
-  const query = useQuery({
-    queryKey: notificationKeys.count(organizationId),
-    queryFn: () => getUnreadCount({ data: undefined }),
-    ...NOTIFICATION_POLL_OPTIONS,
-  })
-  return { count: query.data?.count ?? 0, isLoading: query.isLoading }
-}
+import type { NotificationListFilter } from '#/contexts/notification/application/public-api'
 
 export function useNotifications(
+  getFeedHead: typeof getNotificationFeedHeadFn,
   getList: typeof getNotificationsFn,
   organizationId: string,
   limit = 20,
+  filter: NotificationListFilter = 'all',
   poll = false,
 ) {
-  const query = useInfiniteQuery({
-    queryKey: notificationKeys.list(organizationId, limit),
-    queryFn: ({ pageParam }) => getList({ data: { limit, offset: pageParam } }),
-    initialPageParam: 0,
-    // If a full page came back, another page may exist → advance the offset.
-    getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-      lastPage.length === limit ? lastPageParam + limit : undefined,
-    ...NOTIFICATION_POLL_OPTIONS,
-    refetchInterval: poll ? NOTIFICATION_POLL_INTERVAL : false,
-  })
+  const fetchPage = (offset: number) => getList({ data: { limit, offset, filter } })
+  const fetchHead = () => getFeedHead({ data: { limit, filter } })
+  const head = useQuery(
+    notificationHeadQueryOptions(
+      notificationKeys.head(organizationId, limit, filter),
+      fetchHead,
+      poll,
+    ),
+  )
+  const history = useInfiniteQuery(
+    notificationHistoryQueryOptions(
+      notificationKeys.list(organizationId, limit, filter),
+      fetchPage,
+      limit,
+    ),
+  )
+  const historyPages = history.data?.pages ?? []
+  const hasLoadedHistory = historyPages.length > 0
+  const hasMore = hasLoadedHistory
+    ? history.hasNextPage
+    : (head.data?.page.hasMore ?? false)
 
   return {
-    notifications: query.data?.pages.flat() ?? [],
-    isLoading: query.isPending,
-    isLoadingMore: query.isFetchingNextPage,
-    error: query.error,
-    hasMore: query.hasNextPage,
+    notifications: mergeNotificationHeadWithHistory(head.data?.page, historyPages),
+    unreadCount: head.data?.unreadCount ?? 0,
+    watermark: head.data?.watermark ?? null,
+    isLoading: head.isPending,
+    isLoadingMore: history.isFetchingNextPage,
+    error: head.error ?? history.error,
+    hasMore,
     refetch: () => {
-      void query.refetch()
+      void head.refetch()
+      if (history.isFetchNextPageError) void history.fetchNextPage()
     },
     loadMore: () => {
-      void query.fetchNextPage()
+      if (hasMore && !history.isFetchingNextPage) void history.fetchNextPage()
     },
   }
 }

@@ -12,20 +12,25 @@ import { createAiReviewEventStoreAdapter } from './adapters/ai-review-event-stor
 import { createAiRuntimeCatalogueAdapter } from './adapters/ai-runtime-catalogue.adapter'
 import { createPropertyProcessingProfileAdapter } from './adapters/property-processing-profile.adapter'
 
-export function createAiDataLifecycle(db: Database, redis: Redis) {
+export const createAiDataLifecycle = (
+  db: Database,
+  redis: Redis,
+  idGen: () => string,
+  clock: () => Date,
+) => {
   const runtimeCatalogue = createAiRuntimeCatalogueAdapter(db)
   const calendar = createAiPropertyCalendarAdapter(db)
   return Object.freeze({
     authorization: createAiAuthorizationAdapter(db),
     canaryAuthorization: createAiCanaryAuthorizationAdapter(db),
     control: createAiControlAdapter(db),
-    operations: createAiOperationStoreAdapter(db),
+    operations: createAiOperationStoreAdapter(db, idGen),
     outputs: createAiOutputStoreAdapter(db),
     aggregates: createAiPropertyAggregateStoreAdapter(db),
-    quota: createRedisAiQuotaAdapter(redis),
+    quota: createRedisAiQuotaAdapter(redis, idGen),
     reviewEvents: createAiReviewEventStoreAdapter(db),
     calendar,
     runtimeCatalogue,
-    propertyProfiles: createPropertyProcessingProfileAdapter(db, runtimeCatalogue),
+    propertyProfiles: createPropertyProcessingProfileAdapter(db, runtimeCatalogue, clock),
   })
 }

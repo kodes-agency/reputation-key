@@ -12,7 +12,7 @@ function safeSequence(value: unknown): number | null {
     : null
 }
 
-export function createAiReviewEventStoreAdapter(db: Database): AiReviewEventStorePort {
+export const createAiReviewEventStoreAdapter = (db: Database): AiReviewEventStorePort => {
   return {
     async consumeNext(input): Promise<AiReviewEventConsumeResult> {
       const result = await db.execute(sql`

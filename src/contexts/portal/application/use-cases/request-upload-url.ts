@@ -1,12 +1,17 @@
 // Portal context — request upload URL use case
 
 import type { PortalRepository } from '../ports/portal.repository'
-import type { StoragePort } from '../ports/storage.port'
+import type { IssuedPortalUploadStoragePort } from '../ports/storage.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { loadPortalOrThrow } from '../load-accessible-portal'
+import type { PortalUploadIssuanceStore } from '../ports/portal-upload-issuance-store.port'
+import {
+  createPortalHeroUploadIssuance,
+  PORTAL_HERO_UPLOAD_MAX_BYTES,
+} from '../../domain/upload-issuance'
 
 export type RequestUploadUrlInput = Readonly<{
   portalId: string
@@ -16,44 +21,87 @@ export type RequestUploadUrlInput = Readonly<{
 
 export type RequestUploadUrlDeps = Readonly<{
   portalRepo: PortalRepository
-  storage: StoragePort
+  uploadStore: PortalUploadIssuanceStore
+  storage: Pick<IssuedPortalUploadStoragePort, 'createIssuedPortalUpload'>
   staffPublicApi: StaffPublicApi
   idGen: () => string
+  clock: () => Date
 }>
 
-const ALLOWED_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+export type IssuedPortalUploadView = Readonly<{
+  uploadUrl: string
+  uploadId: string
+  expiresAt: string
+  contentType: string
+  maxSizeBytes: number
+  requiredHeaders: Readonly<{ 'If-None-Match': '*' }>
+}>
 
 export const requestUploadUrl =
   (deps: RequestUploadUrlDeps) =>
   async (
     input: RequestUploadUrlInput,
     ctx: AuthContext,
-  ): Promise<{ uploadUrl: string; key: string }> => {
+  ): Promise<IssuedPortalUploadView> => {
     const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
       permission: 'portal.update',
       forbiddenMessage: 'Insufficient permissions to upload portal images',
     })
 
-    if (!ALLOWED_CONTENT_TYPES.includes(input.contentType)) {
+    const now = deps.clock()
+    const issuance = createPortalHeroUploadIssuance({
+      id: deps.idGen(),
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      contentType: input.contentType,
+      declaredSizeBytes: input.fileSize,
+      now,
+    })
+    if (!issuance) {
       throw portalError(
         'upload_failed',
-        `content type ${input.contentType} is not allowed`,
+        `Upload must be a JPEG, PNG, or WebP image no larger than ${PORTAL_HERO_UPLOAD_MAX_BYTES} bytes`,
       )
     }
 
-    if (input.fileSize > MAX_FILE_SIZE) {
-      throw portalError('upload_failed', 'file size exceeds 10 MB limit')
+    try {
+      await deps.uploadStore.create(issuance)
+    } catch {
+      // Creation may have failed because this opaque ID already belongs to an
+      // existing issuance. Never transition a row we did not create.
+      throw portalError('upload_failed', 'Unable to issue a secure upload')
     }
 
-    const key = `portals/${portal.organizationId}/${portal.id}/hero/${deps.idGen()}`
-    const { uploadUrl } = await deps.storage.createPresignedUploadUrl(
-      key,
-      input.contentType,
-      MAX_FILE_SIZE,
-    )
-
-    return { uploadUrl, key }
+    try {
+      const { uploadUrl, requiredHeaders } =
+        await deps.storage.createIssuedPortalUpload(issuance)
+      return {
+        uploadUrl,
+        uploadId: issuance.id,
+        expiresAt: issuance.expiresAt.toISOString(),
+        contentType: issuance.contentType,
+        maxSizeBytes: issuance.maxSizeBytes,
+        requiredHeaders,
+      }
+    } catch {
+      try {
+        await deps.uploadStore.rejectIssued(
+          {
+            organizationId: issuance.organizationId,
+            propertyId: issuance.propertyId,
+            portalId: issuance.portalId,
+            issuanceId: issuance.id,
+          },
+          'rejected',
+          deps.clock(),
+        )
+      } catch {
+        // The issuance expires closed; a later orphan sweep can repair a
+        // failed best-effort terminal transition without exposing the key.
+      }
+      throw portalError('upload_failed', 'Unable to issue a secure upload')
+    }
   }
 
 export type RequestUploadUrl = ReturnType<typeof requestUploadUrl>

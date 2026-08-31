@@ -17,6 +17,7 @@ export type SourcePolicyClass =
   | 'google_property_derivative'
   | 'review_solicitation_analytics_only'
   | 'first_party_guest_private'
+  | 'first_party_guest_gateway_metric'
   | 'first_party_workflow'
   | 'manager_confirmed_recognition'
 export type MetricScope = 'property' | 'portal_group' | 'portal'
@@ -187,10 +188,13 @@ export const METRIC_VERSION_IDS = {
   portalFeedbackAnalytics: '11111111-1111-4111-8111-111111111203',
   portalDestinationClickAnalytics: '11111111-1111-4111-8111-111111111204',
   propertyReviewDashboard: '11111111-1111-4111-8111-111111111205',
+  qualifiedScanGoal: '11111111-1111-4111-8111-111111111301',
+  portalRatingCountGoal: '11111111-1111-4111-8111-111111111302',
+  portalRatingAverageGoal: '11111111-1111-4111-8111-111111111303',
 } as const
 
 export const BETA_SAFE_METRIC_VERSION_IDS = [
-  METRIC_VERSION_IDS.contentReviewCompleted,
-  METRIC_VERSION_IDS.configurationCompleteness,
-  METRIC_VERSION_IDS.approvedDestinationRatio,
+  METRIC_VERSION_IDS.qualifiedScanGoal,
+  METRIC_VERSION_IDS.portalRatingCountGoal,
+  METRIC_VERSION_IDS.portalRatingAverageGoal,
 ] as const

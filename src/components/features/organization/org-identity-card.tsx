@@ -9,11 +9,6 @@ type OrgIdentityFormValues = {
   name: string
   slug: string
   contactEmail: string
-  billingCompanyName: string
-  billingAddress: string
-  billingCity: string
-  billingPostalCode: string
-  billingCountry: string
 }
 
 type Props = Readonly<{

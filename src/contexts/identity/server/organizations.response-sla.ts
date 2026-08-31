@@ -56,7 +56,7 @@ const updateResponseSlaInputSchema = z
   .strict()
 
 export const updateOrgResponseSlaFn = createServerFn({ method: 'POST' })
-  .inputValidator(updateResponseSlaInputSchema)
+  .validator(updateResponseSlaInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

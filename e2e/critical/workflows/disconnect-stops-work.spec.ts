@@ -25,7 +25,7 @@ import {
   seedGoogleConnection,
   seedProperty,
   seedReview,
-  seedInboxItemForReview,
+  seedReviewInboxItemWithCycle,
   seedApprovedReply,
   getUserByEmail,
   getConnectionById,
@@ -101,7 +101,13 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
       googleConnectionId: connectionId,
       externalLocationId: LOCATION,
     })
-    await seedInboxItemForReview({
+    // IBX-01-T9: this item is never read through the Inbox UI here — it is the
+    // projection the disconnect cascade runs against. It still takes the
+    // Handling Cycle variant: a review observed in production ALWAYS carries
+    // its cycle rows, and the cascade's source-content lifecycle touches the
+    // review revision those rows are anchored to. A headless projection would
+    // let the cascade pass against a shape production never produces.
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId,
       reviewId,
@@ -156,12 +162,16 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     // currently holds via the BQC-1.7 bounded purge instead: the reply row
     // is gone, so the delayed job dies at the claim guard.
 
-    // Bounded purge removed the source content (review + reply copies).
-    await waitFor(async () => ((await getReviewById(reviewId)) === null ? true : null), {
-      timeoutMs: 20_000,
-      description: 'review row purged after disconnect',
-    })
-    expect(await getReplyById(replyId)).toBeNull()
+    // The rows SURVIVE, and the safety property is asserted directly instead.
+    // "fix(review): quarantine destructive lifecycle paths" made the purge
+    // report-only and the schema now restricts deletion of an observed Review,
+    // so the bounded purge this step relied on no longer removes anything. What
+    // item 7 actually demands is that queued protected work STOPS, which the
+    // zero-provider-upsert assertion below is the real guard for: the
+    // connection_disconnected gate in the token provider is what enforces it
+    // now that the reply row outlives the disconnect.
+    expect(await getReviewById(reviewId)).not.toBeNull()
+    expect(await getReplyById(replyId)).not.toBeNull()
 
     // Drain window: the delayed job fires now — the claim guard must kill it
     // (reply purged / publication cancelled) with ZERO provider upserts.

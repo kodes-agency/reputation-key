@@ -1,11 +1,8 @@
-// E2E: Authentication flows — register and login (full suite).
+// E2E: invitation-bound beta manager registration and login.
 //
-// BQC-6.7 posture: the register test is a full POSITIVE flow under the CI e2e
-// capability override (BETA_E2E_GLOBAL_CAPABILITIES carries identity.register +
-// organization.create on :3000) — gate ON here proves the capability mechanism
-// works end-to-end; gate OFF (denied) is proven by the locked-posture critical
-// spec (e2e/critical/workflows/auth-invite-only.spec.ts on :3001). The two
-// pair to pin both sides of the capability.
+// Public registration and Organization creation cannot be reopened by an E2E
+// override. The positive account journey therefore uses the same exact,
+// email-bound manager invitation as beta.
 //
 // Identity mail is asserted against the fake outbox: exactly one verification
 // send to the registrant. The real Resend API is unreachable in e2e
@@ -14,22 +11,66 @@
 // classification, and the required verification transition end to end.
 
 import { test, expect } from './helpers/error-detection'
-import { signIn, registerAccount } from './helpers/auth'
+import { signIn, registerInvitedAccount } from './helpers/auth'
 import { mailStubControl } from './fixtures/mail-stub'
+import { cleanupE2eData, dbQuery, e2eRunId } from './helpers/fixtures'
+import { requireE2eSeedState } from './helpers/seed-state'
+
+const PREFIX = `e2e-register-${e2eRunId}`
 
 test.describe('Authentication', () => {
   test.beforeEach(async () => {
     await mailStubControl.reset()
+    const seed = requireE2eSeedState()
+    await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 
-  test('register a new account and sign in', async ({ page }) => {
-    const uniqueEmail = `e2e-register-${crypto.randomUUID().slice(0, 8)}@example.com`
-    // registerAccount's default password differs from signIn's — pass one
-    // explicitly so the post-registration sign-in uses the same credential.
-    const password = 'Password123!'
+  test.afterEach(async () => {
+    const seed = requireE2eSeedState()
+    await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
+  })
 
-    await registerAccount(page, uniqueEmail, password)
+  test('create an invited manager account and sign in', async ({ page }) => {
+    const seed = requireE2eSeedState()
+    const suffix = crypto.randomUUID().slice(0, 8)
+    const uniqueEmail = `${PREFIX}-${suffix}@example.com`
+    const invitationId = `${PREFIX}-inv-${suffix}`
+    const password = 'Password123!'
+    await dbQuery(
+      `INSERT INTO invitation
+         (id, "organizationId", email, role, status, "expiresAt", "inviterId", "createdAt")
+       VALUES ($1, $2, $3, 'admin', 'pending', NOW() + INTERVAL '1 day', $4, NOW())`,
+      [invitationId, seed.organizationId, uniqueEmail, seed.managerUserId],
+    )
+
+    await registerInvitedAccount(page, invitationId, uniqueEmail, password)
     await expect(page.getByText(/account created/i)).toBeVisible()
+
+    const authority = await dbQuery<{
+      invitation_status: string
+      member_role: string
+      binding_organization_id: string
+      binding_state: string
+    }>(
+      `SELECT i.status AS invitation_status,
+              m.role AS member_role,
+              b.organization_id AS binding_organization_id,
+              b.state AS binding_state
+         FROM invitation i
+         JOIN "user" u ON LOWER(u.email) = LOWER(i.email)
+         JOIN member m ON m."userId" = u.id AND m."organizationId" = i."organizationId"
+         JOIN user_organization_bindings b ON b.user_id = u.id
+        WHERE i.id = $1`,
+      [invitationId],
+    )
+    expect(authority).toEqual([
+      {
+        invitation_status: 'accepted',
+        member_role: 'admin',
+        binding_organization_id: seed.organizationId,
+        binding_state: 'active',
+      },
+    ])
 
     // Fake outbox: exactly one send, verification classification (subject),
     // correct recipient. Poll — the send is awaited inside better-auth's

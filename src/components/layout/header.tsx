@@ -59,9 +59,6 @@ function AuthActions({
       <Button variant="outline" size="sm" asChild>
         <Link to="/login">Sign in</Link>
       </Button>
-      <Button size="sm" asChild>
-        <Link to="/register">Get started</Link>
-      </Button>
     </div>
   )
 }

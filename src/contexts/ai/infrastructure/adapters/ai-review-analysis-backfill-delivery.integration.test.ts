@@ -30,8 +30,10 @@
 // is left `executing`.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { randomUUID } from 'node:crypto'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import {
   aiExecutionControlHeads,
@@ -41,6 +43,7 @@ import {
   aiReviewAnalyses,
   aiReviewAnalysisOutcomes,
   merchantAiConsentEvidence,
+  materialReviewRevisions,
   merchantAiEnablement,
   outboxEvents,
   properties,
@@ -63,7 +66,7 @@ import {
 } from '#/contexts/review/application/ai-review-source'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
-import type { ConsumerEvent } from '#/shared/outbox/dispatcher'
+import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import type { AnalysisResult } from '#/shared/ai-gateway-transport-contract'
 import type { AiInferencePort } from '../../application/ports/ai-inference.port'
 import type { AiQuotaPort } from '../../application/ports/ai-quota.port'
@@ -84,7 +87,8 @@ import { createPropertyProcessingProfileAdapter } from './property-processing-pr
 import { handleAiReviewEvent } from '../outbox-consumers'
 import { createBackfillReviewAnalysis } from '../../application/use-cases/backfill-review-analysis'
 import { createReviewAnalysisBackfillAdapter } from './ai-review-analysis-backfill.adapter'
-import { createPropertyGrantHolderLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
+import { createMemberPropertyAuthorityLookup } from '#/contexts/identity/infrastructure/repositories/member-property-authority'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 const ORGANIZATION_ID = organizationId('ai-reanalyze-delivery-test-org')
 const PROPERTY_ID = propertyId('7c000000-0000-4000-8000-000000000001')
@@ -138,8 +142,12 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
   const now = () => Date.now()
 
   const backfill = createBackfillReviewAnalysis({
-    backfillStore: createReviewAnalysisBackfillAdapter(db),
-    propertyAccessHolders: createPropertyGrantHolderLookup(db),
+    backfillStore: createReviewAnalysisBackfillAdapter(db, randomUUID),
+    propertyAuthority: createMemberPropertyAuthorityLookup(
+      db,
+      'ai.manage',
+      () => new Date(),
+    ),
   })
 
   /**
@@ -331,8 +339,8 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
       sql`DELETE FROM google_connections WHERE organization_id = ${ORGANIZATION_ID}`,
       sql`DELETE FROM member WHERE "organizationId" = ${ORGANIZATION_ID}`,
       sql`DELETE FROM "user" WHERE id = ${ACTOR_USER_ID}`,
-      sql`DELETE FROM organization WHERE id = ${ORGANIZATION_ID}`,
     ])
+    await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
 
   const seed = async () => {
@@ -412,6 +420,19 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
         analysisSequence: 0,
         aiSourceByteLength: provenance.byteLength,
         aiSourceDigest: provenance.digest,
+      })
+      await db.insert(materialReviewRevisions).values({
+        reviewId: id,
+        revision: index + 1,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        normalizationVersion: 'legacy-unverified-v0',
+        sourceDigest: null,
+        normalizedDigest: null,
+        rating: 5,
+        normalizedText: reviewText(index),
+        contentState: 'active',
       })
     }
     await db.insert(aiPropertyProcessingProfiles).values({
@@ -521,6 +542,7 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
   }
 
   beforeAll(async () => {
+    registerAllEventSchemas()
     stubProcessVersions({
       node: AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
       icu: AI_REVIEW_LANGUAGE_ICU_VERSION,
@@ -542,24 +564,27 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
   })
 
   const createAnalysis = () => {
-    const reviewRepository = createReviewRepository(db)
+    const reviewRepository = createReviewRepository(db, () => new Date())
     return createAnalyzeReviewEvent({
       authorization: createAiAuthorizationAdapter(db),
       control: createAiControlAdapter(db),
       inference,
-      operations: createAiOperationStoreAdapter(db),
+      operations: createAiOperationStoreAdapter(db, randomUUID),
       outputs: createAiOutputStoreAdapter(db),
       aggregates: createAiPropertyAggregateStoreAdapter(db),
       quota,
       reviewEvents: createAiReviewEventStoreAdapter(db),
       reviewSources: createAiReviewSource({
+        findById: reviewRepository.findById,
         readForAi: reviewRepository.readForAi,
+        readTrendPopulation: reviewRepository.readTrendPopulation,
         assertCurrentForAi: reviewRepository.assertCurrentForAi,
         readReplyStateRevision: reviewRepository.readReplyStateRevision,
       }),
       processingProfiles: createPropertyProcessingProfileAdapter(
         db,
         createAiRuntimeCatalogueAdapter(db),
+        () => new Date(now()),
       ),
       subjectHmac,
       nowEpochMillis: now,
@@ -572,12 +597,13 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
    */
   const createAdvance = (clock: () => number = now) =>
     createAdvanceReviewAnalysisBackfill({
-      backfillStore: createReviewAnalysisBackfillAdapter(db),
+      backfillStore: createReviewAnalysisBackfillAdapter(db, randomUUID),
       reviewEvents: createAiReviewEventStoreAdapter(db),
       aggregates: createAiPropertyAggregateStoreAdapter(db),
       processingProfiles: createPropertyProcessingProfileAdapter(
         db,
         createAiRuntimeCatalogueAdapter(db),
+        () => new Date(now()),
       ),
       nowEpochMillis: clock,
     })

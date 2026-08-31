@@ -52,7 +52,9 @@ describe('onInboxItemAssigned (notification)', () => {
         resourceId: INBOX_ITEM_ID,
         eventId: 'test-event-id',
         payload: { ...EXPECTED_INBOX_PAYLOAD, actorRole: 'property_manager' },
+        audience: { kind: 'inbox_assignee', inboxItemId: INBOX_ITEM_ID },
       },
+      opts: { jobId: 'test-event-id-user-1' },
     })
   })
 
@@ -85,5 +87,15 @@ describe('onInboxItemAssigned (notification)', () => {
     await expect(onInboxItemAssigned(deps)(mockEvent)).rejects.toThrow(
       'Queue unavailable',
     )
+  })
+
+  it('leaves bulk-linked per-item facts to the grouped completion consumer', async () => {
+    await onInboxItemAssigned(deps)({
+      ...mockEvent,
+      bulkId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    })
+
+    expect(deps.queue.add).not.toHaveBeenCalled()
+    expect(deps.inboxItemLookup.findInboxItemFacts).not.toHaveBeenCalled()
   })
 })

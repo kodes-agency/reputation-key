@@ -1,5 +1,5 @@
 import { sign, verify, type KeyObject } from 'node:crypto'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import type { VersionedHmacKeyring } from './security/versioned-hmac-keyring'
 
@@ -586,6 +586,10 @@ export const aiExecutionBindingSchema = z
     sourceRevision: z.union([nonnegative, z.null()]),
     reviewedAtEpochMillis: z.union([nonnegative, z.null()]),
     propertyProfileVersion: positive,
+    // Optional only for decoding pre-grounding operation bindings. New Reply
+    // Drafting admission requires both fields in the route refinement.
+    replyBrandProfileVersion: z.union([positive, z.null()]).optional(),
+    replyBrandDisplayNameDigest: nullableDigest.optional(),
     routingPolicyVersion: positive,
     sourcePolicyId: safeId,
     sourceCanonicalizerDigest: digest,
@@ -770,6 +774,10 @@ export const aiAdmissionDescriptorSchema = z
     if (value.route === 'reply-suggestion') {
       if (
         value.binding.concreteReplyLanguage === null ||
+        value.binding.replyBrandProfileVersion === null ||
+        value.binding.replyBrandProfileVersion === undefined ||
+        value.binding.replyBrandDisplayNameDigest === null ||
+        value.binding.replyBrandDisplayNameDigest === undefined ||
         value.outputLeakageProfileVersion === null ||
         value.outputLeakageProfileDigest === null ||
         value.replyTemplateCatalogueVersion === null ||
@@ -779,6 +787,8 @@ export const aiAdmissionDescriptorSchema = z
       }
     } else if (
       value.binding.concreteReplyLanguage !== null ||
+      value.binding.replyBrandProfileVersion != null ||
+      value.binding.replyBrandDisplayNameDigest != null ||
       value.outputLeakageProfileVersion !== null ||
       value.outputLeakageProfileDigest !== null ||
       value.replyTemplateCatalogueVersion !== null ||

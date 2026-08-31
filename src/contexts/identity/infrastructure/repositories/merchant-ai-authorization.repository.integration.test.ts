@@ -13,8 +13,10 @@
 // property read, `apply_merchant_ai_transition_v1`, the enablement row and its
 // consent evidence — at source epoch 0.
 
+import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { getDb } from '#/shared/db'
 import { properties } from '#/shared/db/schema'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
@@ -26,19 +28,30 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createMerchantAiAuthorizationStore } from './merchant-ai-authorization.repository'
 
 const ORGANIZATION_ID = 'merchant-ai-epoch-zero-org'
-const PROPERTY_ID = '73000000-0000-4000-8000-000000000001'
-const CONNECTION_ID = '73000000-0000-4000-8000-000000000002'
+// Keep these fixtures distinct from the AI foundation adapter suite. Vitest
+// integration files share one PostgreSQL database and may run concurrently;
+// reusing its Property ID allowed one suite's Portal-group FK to make this
+// suite's teardown fail nondeterministically.
+const PROPERTY_ID = '73a00000-0000-4000-8000-000000000001'
+const CONNECTION_ID = '73a00000-0000-4000-8000-000000000002'
 const ACTOR_USER_ID = 'merchant-ai-epoch-zero-user'
 const NOW = new Date('2026-08-19T12:00:00.000Z')
 
 describe('merchant AI authorization store (real PostgreSQL)', () => {
   const db = getDb()
   const emitted: unknown[] = []
-  const store = createMerchantAiAuthorizationStore(db, {
-    emit: (event: unknown) => {
-      emitted.push(event)
+  const store = createMerchantAiAuthorizationStore(
+    db,
+    {
+      emit: (event: unknown) => {
+        emitted.push(event)
+      },
+    } as unknown as Parameters<typeof createMerchantAiAuthorizationStore>[1],
+    randomUUID,
+    {
+      warn: () => {},
     },
-  } as unknown as Parameters<typeof createMerchantAiAuthorizationStore>[1])
+  )
 
   const clear = async () => {
     // Consent evidence is append-only and the enablement row is transition
@@ -68,7 +81,7 @@ describe('merchant AI authorization store (real PostgreSQL)', () => {
       sql`DELETE FROM member WHERE "organizationId" = ${ORGANIZATION_ID}`,
     ])
     await db.execute(sql`DELETE FROM "user" WHERE id = ${ACTOR_USER_ID}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORGANIZATION_ID}`)
+    await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
 
   beforeAll(async () => {

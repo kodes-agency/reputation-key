@@ -2,15 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
   type ConsumerEvent,
-} from '#/shared/outbox/dispatcher'
+} from '#/shared/outbox/consumer-registry'
 import type { PropertyGoogleBindingStore } from '../application/ports/property-google-binding.port'
 import {
   handlePropertyRetentionReleased,
   registerPropertyRetentionConsumer,
 } from './outbox-consumers'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const EVENT_ID = '30000000-0000-4000-8000-000000000001'
 const ORG_ID = '00000000-0000-4000-8000-000000000001'
@@ -38,19 +41,19 @@ function store() {
 
 describe('Property import retention-release consumer', () => {
   beforeEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
     registerAllEventSchemas()
   })
 
   afterEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
   })
 
   it('registers the durable consumer identity declared in governance', () => {
-    registerPropertyRetentionConsumer(store())
-    expect(listRegisteredConsumers()).toContainEqual({
+    registerPropertyRetentionConsumer(consumerRegistry, store())
+    expect(consumerRegistry.list()).toContainEqual({
       eventType: 'integration.property_import.retention_released',
       consumerName: 'property.import-retention-release',
     })

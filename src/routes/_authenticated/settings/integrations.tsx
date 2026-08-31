@@ -28,8 +28,7 @@ export const Route = createFileRoute('/_authenticated/settings/integrations')({
     }
   },
   loader: async ({ context }) => {
-    const { connections } = await context.queryClient.ensureQueryData(connectionsQuery)
-    return { connections }
+    await context.queryClient.ensureQueryData(connectionsQuery)
   },
   staleTime: 60_000,
   component: IntegrationsSettings,

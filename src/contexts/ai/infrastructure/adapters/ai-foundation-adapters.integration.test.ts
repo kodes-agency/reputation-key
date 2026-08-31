@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   aiOperationProfiles,
   aiProviderDeploymentProfiles,
@@ -35,12 +36,12 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
   const db = getDb()
   const authorization = createAiAuthorizationAdapter(db)
   const runtimeCatalogue = createAiRuntimeCatalogueAdapter(db)
-  const profiles = createPropertyProcessingProfileAdapter(db, runtimeCatalogue)
+  const profiles = createPropertyProcessingProfileAdapter(db, runtimeCatalogue, () => NOW)
   const calendar = createAiPropertyCalendarAdapter(db)
 
   const clear = async () => {
     await db.delete(properties).where(eq(properties.id, PROPERTY_ID))
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORGANIZATION_ID}`)
+    await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
 
   beforeAll(async () => {

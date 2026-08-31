@@ -1,19 +1,24 @@
 import { z } from 'zod/v4'
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type ConsumerResult,
-} from '#/shared/outbox/dispatcher'
-import type { OutboxRepository } from '#/shared/outbox'
+import type {
+  ConsumerEvent,
+  ConsumerRegistry,
+  ConsumerResult,
+  OutboxRepository,
+} from '#/shared/outbox'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type {
   AnalyzeReviewEventInput,
   AnalyzeReviewEventResult,
 } from '../application/use-cases/analyze-review-event'
+import type {
+  AiAuthorizationLifecycleApplyResult,
+  AiAuthorizationLifecycleTrigger,
+} from '../application/ports/ai-review-analysis-enrollment.port'
 
 export const AI_REVIEW_ANALYSIS_CONSUMER = 'ai.analyze-review-event'
 export const AI_PROPERTY_TREND_GENERATION_CONSUMER = 'ai.generate-property-trend'
+export const AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER = 'ai.enroll-review-analysis'
 /** The operator replay (`ops:ai-reanalyze`); the only chained event type. */
 export const AI_REVIEW_ANALYSIS_BACKFILL_EVENT = 'ai.review_analysis.backfill_requested'
 
@@ -39,6 +44,20 @@ const propertyTrendEventPayloadSchema = z.object({
   organizationId: z.string().min(1),
   propertyId: z.uuid(),
 })
+const merchantAiChangedPayloadSchema = z.object({
+  organizationId: z.string().min(1),
+  propertyId: z.uuid(),
+  authorizationLineageId: z.uuid(),
+  state: z.enum(['disabled', 'enabled', 'revoked']),
+  reviewAnalysisEpoch: z.number().int().positive(),
+  replyDraftingEpoch: z.number().int().positive(),
+  propertyTrendsEpoch: z.number().int().positive(),
+  authorizedSourceEpoch: z.number().int().nonnegative(),
+  analysisStartSequence: z.number().int().nonnegative(),
+  stateVersion: z.number().int().positive(),
+  occurredAt: z.string().min(1),
+  correlationId: z.string().nullable().optional(),
+})
 
 export type RegisterAiConsumersInput = Readonly<{
   analyzeReviewEvent: (
@@ -56,6 +75,14 @@ export type RegisterAiConsumersInput = Readonly<{
   advanceReviewAnalysisBackfill: (
     input: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
   ) => Promise<unknown>
+  /**
+   * Apply the Identity authorization trigger through the AI command store.
+   * That store commits the enrollment intent (or exact obsolete/no-op
+   * decision) and this consumer's receipt atomically.
+   */
+  applyAiAuthorizationLifecycle?: (
+    input: AiAuthorizationLifecycleTrigger,
+  ) => Promise<AiAuthorizationLifecycleApplyResult>
 }>
 
 function dispositionFor(
@@ -158,7 +185,64 @@ export async function handleAiPropertyTrendGenerationRequested(
   return { status: 'applied' }
 }
 
-export function registerAiConsumers(dependencies: RegisterAiConsumersInput): void {
+export async function handleAiAuthorizationLifecycleChanged(
+  dependencies: RegisterAiConsumersInput,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const payload = merchantAiChangedPayloadSchema.parse(event.payload)
+  if (
+    event.organizationId !== payload.organizationId ||
+    event.propertyId !== payload.propertyId
+  ) {
+    throw new Error('AI authorization lifecycle trigger routing mismatch')
+  }
+  const occurredAt = new Date(payload.occurredAt)
+  if (!Number.isFinite(occurredAt.getTime())) {
+    throw new Error('AI authorization lifecycle trigger timestamp is invalid')
+  }
+  if (!dependencies.applyAiAuthorizationLifecycle) {
+    throw new Error('AI authorization lifecycle command store is unavailable')
+  }
+  const result = await dependencies.applyAiAuthorizationLifecycle({
+    eventEnvelopeId: event.eventId,
+    organizationId: organizationId(payload.organizationId),
+    propertyId: propertyId(payload.propertyId),
+    authorizationState: payload.state,
+    fence: {
+      authorizationLineageId: payload.authorizationLineageId,
+      authorizationStateVersion: payload.stateVersion,
+      sourceEpoch: payload.authorizedSourceEpoch,
+      reviewAnalysisEpoch: payload.reviewAnalysisEpoch,
+      replyDraftingEpoch: payload.replyDraftingEpoch,
+      propertyTrendsEpoch: payload.propertyTrendsEpoch,
+      analysisStartSequence: payload.analysisStartSequence,
+    },
+    correlationId: payload.correlationId ?? event.correlationId ?? null,
+    occurredAt,
+  })
+  return {
+    status:
+      result.status === 'obsolete'
+        ? 'obsolete'
+        : result.status === 'duplicate'
+          ? 'duplicate'
+          : 'applied',
+  }
+}
+
+export function registerAiConsumers(
+  registry: ConsumerRegistry,
+  dependencies: RegisterAiConsumersInput,
+): void {
+  const { registerConsumer } = registry
+  if (dependencies.applyAiAuthorizationLifecycle) {
+    registerConsumer({
+      eventType: 'identity.merchant_ai.changed',
+      consumerName: 'ai.enroll-review-analysis',
+      module: 'ai.outbox-consumers',
+      handler: (event) => handleAiAuthorizationLifecycleChanged(dependencies, event),
+    })
+  }
   registerConsumer({
     eventType: 'review.created',
     consumerName: 'ai.analyze-review-event',

@@ -26,6 +26,7 @@ export type GoogleImportV2ItemRoutingEnvelope = Readonly<{
     organizationId: string
     itemId: string
   }>
+  cell: 'us' | 'europe' | 'global'
   region: string
   workloadClass: 'property.import'
   routingPolicyVersion: number

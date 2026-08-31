@@ -1,9 +1,10 @@
 // BQC-2.6 / ADR 0049 — controlled-feature containment matrix.
 //
 // Team, Portal, Guest, Goal, Badge, Leaderboard, email, and AI stay off by
-// default but are promotable through scoped persisted policy. This file keeps
-// the negative default-posture contract; positive P1/P2 scope tests live with
-// ExecutionPolicy and the product journeys.
+// default. Most are promotable through scoped persisted policy; portal.upload
+// is temporarily safety-blocked. This file keeps the negative default-posture
+// contract; positive P1/P2 scope tests live with ExecutionPolicy and the
+// product journeys.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
@@ -25,17 +26,17 @@ import {
 } from './beta-capabilities'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 
-/** Promotable capabilities and their default-posture deny reasons. */
+/** Controlled capabilities and their effective default-posture deny reasons. */
 const DARK: ReadonlyArray<
   Readonly<{ capability: Capability; reason: string; label: string }>
 > = [
   { capability: 'portal.write', reason: 'org_not_allowlisted', label: 'Portals' },
-  { capability: 'portal.upload', reason: 'org_not_allowlisted', label: 'Portals' },
+  { capability: 'portal.upload', reason: 'capability_blocked', label: 'Portals' },
   { capability: 'portal.read', reason: 'org_not_allowlisted', label: 'Portals' },
-  { capability: 'team.use', reason: 'org_not_allowlisted', label: 'Teams' },
+  { capability: 'team.use', reason: 'capability_blocked', label: 'Teams' },
   { capability: 'goal.use', reason: 'org_not_allowlisted', label: 'Goals' },
-  { capability: 'badge.use', reason: 'org_not_allowlisted', label: 'Recognition' },
-  { capability: 'leaderboard.use', reason: 'org_not_allowlisted', label: 'Leaderboard' },
+  { capability: 'badge.use', reason: 'capability_blocked', label: 'Recognition' },
+  { capability: 'leaderboard.use', reason: 'capability_blocked', label: 'Leaderboard' },
   { capability: 'ai.analyze', reason: 'org_not_allowlisted', label: 'AI' },
 ]
 
@@ -150,10 +151,10 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
   })
 
   describe('delayed contract: dark job/schedule actions deny (BQC-2.5 contract)', () => {
-    it('promoted leaderboard reconcile + email digest deny with stable reasons', async () => {
+    it('retired leaderboard work is unknown while promotable email remains gated', async () => {
       const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
       const cases: ReadonlyArray<readonly [string, string]> = [
-        ['system:leaderboard.reconcile', 'org_not_allowlisted'],
+        ['system:leaderboard.reconcile', 'unknown_action'],
         ['system:notification.email_digest', 'org_not_allowlisted'],
       ]
       for (const [action, reason] of cases) {

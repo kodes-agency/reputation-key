@@ -8,16 +8,22 @@
 // capability gate, schedule).
 //
 // Row vocabulary:
-//   disposition   — enabled | orphan | denied_dark (event families)
-//   registration  — enabled | denied_dark | blocked_capability (job families)
+//   disposition   — enabled | recorded_only | orphan | quarantined | denied_dark
+//                   (event families)
+//   registration  — enabled | denied_dark | blocked_capability | quarantined
+//                   (job families)
 //   capability    — the beta capability gate (ADR 0032); 'none' when ungated
 //   action        — SystemAction of the producing path; 'none' for
 //                   user-permission producers
 //   ordering      — per-aggregate policy; the model is DEFINED below (BQC-3.7)
-//   region        — 'unscoped' today; BQC-4 owns re-scoping
-//   repairCommand — 'none' where no repair exists; BQC-3.3/3.4 introduced
-//   reconcileReplyPublication (review family) and rebuildInboxProjection
-//   (inbox family)
+//   region        — every event is owned by its source Data Cell: Property-
+//                   scoped outbox facts are freshly resolved before relay,
+//                   while Property-less facts and in-process delivery remain
+//                   inside the database/process cell that produced them.
+//                   Every job is cell_local and resolves its exact serving
+//                   Data Cell again at dispatch.
+//   repairCommand — event-projection repair ownership only. Job runtime repair
+//                   belongs exclusively to jobs/operational-catalogue.ts.
 //
 // ORDERING MODEL (BQC-3.7 — the definition; do not promise more than this):
 //   - Per-aggregate chronological enqueue: the relay claims outbox rows in
@@ -29,8 +35,9 @@
 //     Correctness rests on state-idempotent consumers (projections converge
 //     to the same state) + receipt fencing (eventId+consumerName), not on
 //     order.
-//   - Aggregate-version fencing is NOT implemented: no event family versions
-//     its aggregate today (envelope.sourceAggregateVersion is always null).
+//   - Aggregate-version fencing is implemented only by families that stamp
+//     sourceAggregateVersion (Portal lifecycle facts use the committed
+//     updatedAt instant). Every other family remains unfenced today.
 //     When a family needs strict per-aggregate sequencing, add version
 //     fencing at the consumer; do NOT rely on enqueue order.
 //
@@ -42,12 +49,16 @@
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { SystemAction } from './entry-point-catalogue'
 
+export const RECORDED_EVENT_RETENTION = 'outbox:30d,receipts:30d' as const
+
 // ── Types ───────────────────────────────────────────────────────────
 
 /** Lifecycle disposition of an event family. */
 export type EventDisposition =
   | 'enabled' // produced and consumed today
+  | 'recorded_only' // active canonical fact retained without a projection consumer
   | 'orphan' // produced but never consumed — owned by a later BQC slice
+  | 'quarantined' // retained schema/producer code, but no active runtime producer or consumer
   | 'denied_dark' // belongs to a dark beta context (capability-gated off)
 
 /** How a consumer is wired to the event. */
@@ -69,7 +80,7 @@ export type EventConsumerRef = Readonly<{
 export type EventFamilyRow = Readonly<{
   /** The event type (`_tag` literal). */
   eventType: string
-  /** Schema version; 1 for every family today. */
+  /** Latest schema version emitted for new facts; older registered versions remain replayable. */
   version: number
   /** Repo-relative file containing the emission. */
   producer: string
@@ -100,15 +111,30 @@ export type EventFamilyRow = Readonly<{
   capability: Capability | 'none'
   /** System action of the producing path, or 'none' for user-permission producers. */
   action: SystemAction | 'none'
-  /** Data region. BQC-4 owns re-scoping; everything is 'unscoped' today. */
-  region: 'unscoped'
-  /** Retention class: 'outbox:7d,receipts:90d' when recorded, else 'none'. */
-  retention: 'outbox:7d,receipts:90d' | 'none'
+  /**
+   * Event delivery never floats across an unspecified region. Property facts
+   * are stamped from the current routing authority immediately before relay;
+   * Organization/global facts and bus-only events inherit the source
+   * database/process cell. Consumers may re-resolve more narrowly, but may
+   * never reinterpret the fact as belonging to another source cell.
+   */
+  region: 'source_cell'
+  /** Retention class mirrors the executable static retention registry. */
+  retention: typeof RECORDED_EVENT_RETENTION | 'none'
   /** Operator repair command. BQC-3.3/3.4 introduced reconcileReplyPublication/rebuildInboxProjection; 'none' elsewhere. */
   repairCommand: 'none' | 'rebuildInboxProjection' | 'reconcileReplyPublication'
   disposition: EventDisposition
-  /** Owning slice — required when disposition is 'orphan'. */
-  ownerSlice?: 'BQC-3.3' | 'BQC-3.4' | 'BQC-3.5' | 'BQC-3.9' | 'F7' | 'PR3'
+  /** Owning slice — required when disposition is 'orphan' or 'quarantined'. */
+  ownerSlice?:
+    | 'BQC-3.3'
+    | 'BQC-3.4'
+    | 'BQC-3.5'
+    | 'BQC-3.9'
+    | 'F7'
+    | 'GOA-01'
+    | 'IBX-01'
+    | 'PPL-01'
+    | 'PR3'
   notes?: string
 }>
 
@@ -117,6 +143,7 @@ export type JobRegistration =
   | 'enabled' // real handler registered and schedulable
   | 'denied_dark' // capability dark — no-op handler registered (BQR-0 containment)
   | 'blocked_capability' // capability hard-blocked — no-op handler registered
+  | 'quarantined' // safety no-op registered; scheduling/cutover explicitly denied
 
 export type JobFamilyRow = Readonly<{
   /** BullMQ job name. */
@@ -131,7 +158,7 @@ export type JobFamilyRow = Readonly<{
   /**
    * BQC-3.6: per-job execution timeout (BullMQ JobsOptions.timeout). Honest
    * values from the workload: quick heartbeats 30s, GBP sync/sweeps/rollups
-   * 300s, bulk import 600s, the 9-rule retention sweep 900s, everything else
+   * 300s, bulk import 600s, the bounded retention sweep 900s, everything else
    * the 120s default. jobEnqueueOptions (shared/jobs/job-policy.ts) derives
    * the BullMQ opts from these fields.
    */
@@ -142,19 +169,17 @@ export type JobFamilyRow = Readonly<{
   capability: Capability | 'none'
   /** System action, matching the entry-point catalogue row. */
   action: SystemAction | 'none'
-  /** Data region. BQC-4 owns re-scoping. */
-  region: 'unscoped'
+  /** Execution is admitted only inside the freshly resolved serving Data Cell. */
+  region: 'cell_local'
   /** BullMQ retention (removeOnComplete/removeOnFail counts). */
   retention: 'completed:100,failed:50'
-  /** Operator repair command. BQC-3.4/3.6 introduce repair commands; 'none' today. */
-  repairCommand: 'none'
   registration: JobRegistration
   notes?: string
 }>
 
 // ── Row factories (records of functions — no classes) ───────────────
 
-const DARK_CONTEXT_MODULE_RE = /\/contexts\/(team|portal|guest|goal|badge|leaderboard)\//
+const DARK_CONTEXT_MODULE_RE = /\/contexts\/(team|portal|guest|badge|leaderboard)\//
 
 /** Consumer ref; dark posture derived from the module path. */
 function ref(name: string, module: string, kind: EventConsumerKind): EventConsumerRef {
@@ -186,7 +211,12 @@ type EventBase = Readonly<{
 type EventOpts = Partial<
   Pick<
     EventFamilyRow,
-    'alsoProducers' | 'projectionOwner' | 'ownerSlice' | 'notes' | 'repairCommand'
+    | 'alsoProducers'
+    | 'projectionOwner'
+    | 'ownerSlice'
+    | 'notes'
+    | 'repairCommand'
+    | 'version'
   >
 >
 
@@ -200,7 +230,7 @@ function ev(
   const durableConsumed = base.consumers.some((c) => c.kind === 'durable')
   return {
     eventType,
-    version: 1,
+    version: opts.version ?? 1,
     producer,
     stateOwner: base.stateOwner,
     schemaRegistered: base.schemaRegistered,
@@ -215,8 +245,8 @@ function ev(
         : 'none',
     capability: base.capability,
     action: base.action,
-    region: 'unscoped',
-    retention: base.recordedInOutbox ? 'outbox:7d,receipts:90d' : 'none',
+    region: 'source_cell',
+    retention: base.recordedInOutbox ? RECORDED_EVENT_RETENTION : 'none',
     repairCommand: 'none',
     disposition: base.disposition,
     ...opts,
@@ -252,9 +282,8 @@ function job(
     schedule: base.schedule,
     capability: base.capability,
     action: base.action,
-    region: 'unscoped',
+    region: 'cell_local',
     retention: 'completed:100,failed:50',
-    repairCommand: 'none',
     registration: base.registration,
     ...opts,
   }
@@ -263,25 +292,60 @@ function job(
 // ── Consumer modules ────────────────────────────────────────────────
 
 const ACTIVITY_HANDLERS = 'src/contexts/activity/infrastructure/event-handlers/index.ts'
+const ACTIVITY_OUTBOX = 'src/contexts/activity/infrastructure/outbox-consumers.ts'
 const NOTIFICATION_HANDLERS =
   'src/contexts/notification/infrastructure/event-handlers/index.ts'
+const NOTIFICATION_PORTAL_HANDLERS =
+  'src/contexts/notification/infrastructure/event-handlers/portal-event-handlers.ts'
+const NOTIFICATION_PROPERTY_HANDLERS =
+  'src/contexts/notification/infrastructure/event-handlers/property-event-handlers.ts'
 const INBOX_HANDLERS = 'src/contexts/inbox/infrastructure/event-handlers/index.ts'
 const METRIC_HANDLERS = 'src/contexts/metric/infrastructure/event-handlers/index.ts'
 const METRIC_OUTBOX = 'src/contexts/metric/infrastructure/outbox-consumers.ts'
+const METRIC_GUEST_OUTBOX = 'src/contexts/metric/infrastructure/guest-outbox-consumers.ts'
 const METRIC_CORRECTION_OUTBOX =
   'src/contexts/metric/infrastructure/correction-outbox-consumers.ts'
-const GOAL_HANDLERS = 'src/contexts/goal/infrastructure/event-handlers/index.ts'
-const BADGE_HANDLERS = 'src/contexts/badge/infrastructure/event-handlers/index.ts'
-const LEADERBOARD_HANDLERS =
-  'src/contexts/leaderboard/infrastructure/event-handlers/index.ts'
+const GOAL_METRIC_CORRECTION_OUTBOX =
+  'src/contexts/goal/infrastructure/metric-correction-outbox-consumers.ts'
 const REVIEW_HANDLERS = 'src/contexts/review/infrastructure/event-handlers/index.ts'
+const REVIEW_OUTBOX = 'src/contexts/review/infrastructure/outbox-consumers.ts'
 const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
+const INBOX_GUEST_FEEDBACK_OUTBOX =
+  'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts'
 const AI_OUTBOX = 'src/contexts/ai/infrastructure/outbox-consumers.ts'
 const PROPERTY_RETENTION_OUTBOX =
   'src/contexts/property/infrastructure/outbox-consumers.ts'
 const INTEGRATION_IMPORT_OUTBOX =
   'src/contexts/integration/infrastructure/outbox-consumers.ts'
+const INTEGRATION_GBP_PUSH_OUTBOX =
+  'src/contexts/integration/infrastructure/google-review-push-outbox-consumers.ts'
 const NOTIFICATION_OUTBOX = 'src/contexts/notification/infrastructure/outbox-consumers.ts'
+const NOTIFICATION_WORKFLOW_OUTBOX =
+  'src/contexts/notification/infrastructure/workflow-outbox-consumers.ts'
+const NOTIFICATION_PORTAL_OUTBOX =
+  'src/contexts/notification/infrastructure/portal-outbox-consumers.ts'
+const NOTIFICATION_PORTAL_HEALTH_OUTBOX =
+  'src/contexts/notification/infrastructure/portal-health-outbox-consumers.ts'
+const NOTIFICATION_PROPERTY_OUTBOX =
+  'src/contexts/notification/infrastructure/property-outbox-consumers.ts'
+const NOTIFICATION_INTEGRATION_OUTBOX =
+  'src/contexts/notification/infrastructure/integration-outbox-consumers.ts'
+const NOTIFICATION_BULK_ASSIGNMENT_OUTBOX =
+  'src/contexts/notification/infrastructure/bulk-assignment-outbox-consumers.ts'
+const NOTIFICATION_ESCALATION_RESOLUTION_OUTBOX =
+  'src/contexts/notification/infrastructure/escalation-resolution-outbox-consumers.ts'
+const NOTIFICATION_HANDLING_CYCLE_OUTBOX =
+  'src/contexts/notification/infrastructure/handling-cycle-outbox-consumers.ts'
+const NOTIFICATION_RESPONSE_TARGET_OUTBOX =
+  'src/contexts/notification/infrastructure/response-target-outbox-consumers.ts'
+const NOTIFICATION_GOAL_OUTBOX =
+  'src/contexts/notification/infrastructure/goal-outbox-consumers.ts'
+const NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX =
+  'src/contexts/notification/infrastructure/identity-account-outbox-consumers.ts'
+const METRIC_PUBLIC_REPUTATION_OUTBOX =
+  'src/contexts/metric/infrastructure/public-reputation-outbox-consumers.ts'
+const METRIC_CURRENT_GOOGLE_REPUTATION_OUTBOX =
+  'src/contexts/metric/infrastructure/current-google-reputation-outbox-consumers.ts'
 
 // ── Event families ──────────────────────────────────────────────────
 
@@ -292,11 +356,15 @@ const PROPERTY_EVENTS = 'src/contexts/property/domain/events.ts'
 const TEAM_EVENTS = 'src/contexts/team/domain/events.ts'
 const STAFF_EVENTS = 'src/contexts/staff/domain/events.ts'
 const PORTAL_EVENTS = 'src/contexts/portal/domain/events.ts'
+const PORTAL_OUTBOX = 'src/contexts/portal/infrastructure/outbox-consumers.ts'
+const PORTAL_HEALTH_OUTBOX =
+  'src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts'
 const GUEST_EVENTS = 'src/contexts/guest/domain/events.ts'
 const INTEGRATION_EVENTS = 'src/contexts/integration/domain/events.ts'
 const METRIC_EVENTS = 'src/contexts/metric/domain/events.ts'
 const GOAL_EVENTS = 'src/contexts/goal/domain/events.ts'
 const BADGE_EVENTS = 'src/contexts/badge/domain/events.ts'
+const AI_EVENTS = 'src/contexts/ai/domain/events.ts'
 
 const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev(
@@ -313,6 +381,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
         bus('metric.event-handlers', METRIC_HANDLERS),
         durable('inbox.on-review-created', INBOX_OUTBOX),
         durable('ai.analyze-review-event', AI_OUTBOX),
+        durable('metric.public-reputation', METRIC_PUBLIC_REPUTATION_OUTBOX),
       ],
       disposition: 'enabled',
     },
@@ -354,17 +423,44 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:review.sync',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [durable('ai.analyze-review-event', AI_OUTBOX)],
+      consumers: [
+        durable('inbox.on-review-source-transitioned', INBOX_OUTBOX),
+        durable('ai.analyze-review-event', AI_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
+      projectionOwner: 'inbox',
       notes:
-        'identifier-only source_expired/provider_deleted transition consumed by the ordered AI review-analysis cursor',
+        'identifier-only source_expired/provider_deleted transition; Inbox atomically scrubs legacy provider copies, closes unservable work, and receipts delivery while AI advances its ordered analysis cursor',
+    },
+  ),
+  ev(
+    'review.google_reputation_snapshot.verified',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.connect_gbp',
+      action: 'system:review.sync',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable(
+          'metric.current-google-reputation',
+          METRIC_CURRENT_GOOGLE_REPUTATION_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'metric',
+      notes:
+        'content-minimal total/average fact emitted only when Review atomically completes a double-scan-verified provider snapshot; Metric owns the distinct Current on Google projection and fences source epoch, evaluated time, and run id without writing bounded metric readings',
     },
   ),
   ev(
     'ai.property_trend.generation_requested',
-    'src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts',
+    AI_EVENTS,
     {
       stateOwner: 'ai',
       capability: 'ai.detect_trends',
@@ -382,7 +478,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ),
   ev(
     'ai.review_analysis.backfill_requested',
-    'src/contexts/ai/infrastructure/adapters/ai-review-analysis-backfill.adapter.ts',
+    AI_EVENTS,
     {
       stateOwner: 'ai',
       capability: 'ai.analyze',
@@ -416,7 +512,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       projectionOwner: 'inbox',
       repairCommand: 'reconcileReplyPublication',
       notes:
-        'atomic review delete + outbox write via ReplyCommandStore.purgeExpiredReview (BQC-3.3); durable dispatch disabled (BQR-0 containment)',
+        'legacy registered fact with no active producer; ReplyCommandStore.purgeExpiredReview denies before SQL/outbox. Governed source expiry preserves Review/Reply identity and emits review.source_transitioned only through externally approved Review lifecycle apply; recurring apply remains quarantined pending zero-difference shadow evidence, restore proof, and explicit cutover approval',
     },
   ),
   ev(
@@ -430,7 +526,9 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       recordedInOutbox: true,
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable('notification.on-review-reply-submitted', NOTIFICATION_WORKFLOW_OUTBOX),
         bus('inbox.event-handlers', INBOX_HANDLERS),
       ],
       disposition: 'enabled',
@@ -452,14 +550,35 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       recordedInOutbox: true,
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable('notification.on-review-reply-approved', NOTIFICATION_WORKFLOW_OUTBOX),
       ],
       disposition: 'enabled',
     },
     {
       repairCommand: 'reconcileReplyPublication',
       notes:
-        'atomic command-store outbox write (BQC-3.3); the committed approved fact is the publish recovery record until BQC-3.8',
+        'atomic command-store outbox write (BQC-3.3); the lifecycle fact is paired with an explicit cycle-fenced publication intent in the same transaction',
+    },
+  ),
+  ev(
+    'review.reply.publication_requested',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.publish_reply',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('review.on-reply-publication-requested', REVIEW_OUTBOX)],
+      disposition: 'enabled',
+    },
+    {
+      version: 2,
+      repairCommand: 'reconcileReplyPublication',
+      notes:
+        'identifier-only recovery intent committed with the authorized reply cycle; the worker reloads current state and only admits that exact cycle under a deterministic reply+cycle job id',
     },
   ),
   ev(
@@ -473,7 +592,9 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       recordedInOutbox: true,
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable('notification.on-review-reply-rejected', NOTIFICATION_WORKFLOW_OUTBOX),
       ],
       disposition: 'enabled',
     },
@@ -493,8 +614,10 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       recordedInOutbox: true,
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('activity.operational-action-history', ACTIVITY_OUTBOX),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
-        bus('inbox.event-handlers', INBOX_HANDLERS),
+        durable('notification.on-review-reply-published', NOTIFICATION_WORKFLOW_OUTBOX),
         durable('inbox.on-reply-published', INBOX_OUTBOX),
       ],
       disposition: 'enabled',
@@ -503,7 +626,26 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       projectionOwner: 'inbox',
       repairCommand: 'reconcileReplyPublication',
       notes:
-        'atomic command-store outbox write (BQC-3.3 ReplyCommandStore); BQC-3.4 durable milestone/auto-close consumer co-commits state + receipt',
+        'provider-confirmed publication lifecycle fact retained for Recent Activity/Notification compatibility and restricted Operational Action History; its Inbox consumer records a receipt only and cannot close work because exact review.reply.observed remains Inbox authority',
+    },
+  ),
+  ev(
+    'review.reply.observed',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.connect_gbp',
+      action: 'system:review.sync',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('inbox.on-reply-observed', INBOX_OUTBOX)],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'inbox',
+      repairCommand: 'reconcileReplyPublication',
+      notes:
+        'identifier-only current Google reply observation; the Inbox command store re-reads the exact Review-owned observation head and alone authorizes close/reopen',
     },
   ),
   ev(
@@ -515,7 +657,13 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:reply.publish',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('notification.event-handlers', NOTIFICATION_HANDLERS)],
+      consumers: [
+        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable(
+          'notification.on-review-reply-publish_failed',
+          NOTIFICATION_WORKFLOW_OUTBOX,
+        ),
+      ],
       disposition: 'enabled',
     },
     {
@@ -533,7 +681,10 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
@@ -551,13 +702,16 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
       repairCommand: 'reconcileReplyPublication',
       notes:
-        "edit-and-republish: a published reply's text was edited and re-entered the durable publication machine (published → approved, fresh cycle); atomic write + fact via ReplyCommandStore.editPublishedReply; the provider upsert (GBP) makes republish non-duplicating",
+        "edit-and-republish: a published reply's text was edited and re-entered the durable publication machine (published → approved, fresh cycle); atomic write + lifecycle fact + explicit cycle-fenced publication intent via ReplyCommandStore.editPublishedReply; the provider upsert (GBP) makes republish non-duplicating",
     },
   ),
 ]
@@ -574,6 +728,7 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       recordedInOutbox: true,
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable('notification.on-inbox-item-created', NOTIFICATION_OUTBOX),
       ],
@@ -594,7 +749,10 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:inbox.update',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
@@ -613,7 +771,12 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       recordedInOutbox: true,
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable(
+          'notification.on-inbox-inbox_item-assigned',
+          NOTIFICATION_WORKFLOW_OUTBOX,
+        ),
       ],
       disposition: 'enabled',
     },
@@ -632,7 +795,10 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:inbox.update',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
@@ -652,7 +818,12 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       recordedInOutbox: true,
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable(
+          'notification.on-inbox-inbox_item-escalated',
+          NOTIFICATION_WORKFLOW_OUTBOX,
+        ),
       ],
       disposition: 'enabled',
     },
@@ -671,7 +842,14 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:inbox.update',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable(
+          'notification.on-inbox-escalation-resolved',
+          NOTIFICATION_ESCALATION_RESOLUTION_OUTBOX,
+        ),
+      ],
       disposition: 'enabled',
     },
     {
@@ -691,7 +869,9 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       recordedInOutbox: true,
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable('notification.on-inbox-inbox_note-added', NOTIFICATION_WORKFLOW_OUTBOX),
       ],
       disposition: 'enabled',
     },
@@ -710,13 +890,150 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:inbox.update',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
       repairCommand: 'rebuildInboxProjection',
       notes:
         'atomic command-store outbox write (BQC-3.4); per-item shape linked by bulkId; schema corrected in place at v1 (never recorded — zero historical rows)',
+    },
+  ),
+  ev(
+    'inbox.inbox_items.bulk_assignment_completed',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable(
+          'notification.on-inbox-bulk-assignment-completed',
+          NOTIFICATION_BULK_ASSIGNMENT_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      ownerSlice: 'IBX-01',
+      notes:
+        'v1 content-free atomic batch close fact; Notification partitions grouped delivery by exact next-assignee + Property so preferences and current eligibility never cross scope',
+    },
+  ),
+  ev(
+    'inbox.handling_cycle.opened',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable(
+          'notification.on-inbox-handling-cycle-opened',
+          NOTIFICATION_HANDLING_CYCLE_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'inbox',
+      repairCommand: 'rebuildInboxProjection',
+      notes:
+        'canonical identifier-only opening fact; initial review/feedback arrivals are receipt-only because inbox.inbox_item.created owns them, while an exact current material Review revision notifies current Property responsibility with delivery-time cycle and recipient fencing',
+    },
+  ),
+  ev(
+    'inbox.handling_cycle.closed',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'orphan',
+    },
+    {
+      projectionOwner: 'inbox',
+      repairCommand: 'rebuildInboxProjection',
+      ownerSlice: 'IBX-01',
+      notes:
+        'canonical identifier-only closure evidence; no notification is inferred from closure itself',
+    },
+  ),
+  ev(
+    'inbox.handling_cycle.reopened',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable(
+          'notification.on-inbox-handling-cycle-reopened',
+          NOTIFICATION_HANDLING_CYCLE_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'inbox',
+      repairCommand: 'rebuildInboxProjection',
+      notes:
+        'canonical identifier-only reopened-cycle fact for governed manual reopen and provider-reply loss/divergence; current Property/Portal responsibility, actor suppression, and the exact cycle/head are revalidated again at delivery',
+    },
+  ),
+  ev(
+    'inbox.response_target.reminder_due',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable(
+          'notification.on-inbox-response-target-reminder-due',
+          NOTIFICATION_RESPONSE_TARGET_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'inbox',
+      repairCommand: 'rebuildInboxProjection',
+      notes:
+        'content-free, single-shot halfway/target-passed fact; the exact active target/cycle and current source-specific Responsible Recipients are re-authorized before fan-out and again at notification materialization',
+    },
+  ),
+  ev(
+    'inbox.response_target.policy_changed',
+    INBOX_EVENTS,
+    {
+      stateOwner: 'inbox',
+      capability: 'inbox.use',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'recorded_only',
+    },
+    {
+      projectionOwner: 'inbox',
+      repairCommand: 'rebuildInboxProjection',
+      notes:
+        'content-free Organization/Property policy revision fact; each future Handling Cycle snapshots the resolved value and prior cycles are immutable',
     },
   ),
 ]
@@ -731,7 +1048,10 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:identity.create_organization',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
@@ -748,7 +1068,10 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     { notes: 'atomic command-store outbox write (BQC-3.5)' },
@@ -762,7 +1085,14 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:identity.accept_invitation',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable(
+          'notification.on-identity-invitation-accepted',
+          NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
+        ),
+      ],
       disposition: 'enabled',
     },
     { notes: 'atomic command-store outbox write (BQC-3.5)' },
@@ -776,7 +1106,10 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     { notes: 'atomic command-store outbox write (BQC-3.5)' },
@@ -790,7 +1123,14 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable(
+          'notification.on-identity-member-removed',
+          NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
+        ),
+      ],
       disposition: 'enabled',
     },
     { notes: 'atomic command-store outbox write (BQC-3.5)' },
@@ -804,7 +1144,15 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+        durable(
+          'notification.on-identity-member-role-changed',
+          NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
+        ),
+      ],
       disposition: 'enabled',
     },
     {
@@ -821,13 +1169,38 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [],
-      disposition: 'orphan',
+      consumers: [
+        durable('ai.enroll-review-analysis', AI_OUTBOX),
+        durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+      ],
+      disposition: 'enabled',
     },
     {
-      ownerSlice: 'PR3',
+      projectionOwner: 'ai',
       notes:
-        'identifier-only Merchant AI authorization lineage/epoch transition; PR3 consumes it into the AI control plane',
+        'identifier-only Merchant AI authorization lineage/epoch transition; AI atomically captures or supersedes first-enablement enrollment with the durable consumer receipt',
+    },
+  ),
+  ev(
+    'identity.organization_lifecycle.changed',
+    IDENTITY_EVENTS,
+    {
+      stateOwner: 'identity',
+      capability: 'none',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable(
+          'notification.on-identity-organization-purge-pending',
+          NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'content-minimal Organization closure/cancellation/reactivation revision fact; lifecycle state, global suspension, policy generation, retry receipt, and outbox row co-commit; the ONE durable consumer is the LIF-01 bullet-5 mandatory final notice, which records an obsolete receipt for every state except purge_pending; no cleanup, provider reactivation, or irreversible apply consumer is active in LIF-01',
     },
   ),
 ]
@@ -842,7 +1215,10 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
@@ -859,7 +1235,11 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
@@ -876,12 +1256,61 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+        durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
       notes:
         'atomic command-store outbox write (BQC-3.5); BQC-3.9 consumed the BQC-3.1 orphan — activity audit consumer',
+    },
+  ),
+  ev(
+    'property.archived',
+    PROPERTY_EVENTS,
+    {
+      stateOwner: 'property',
+      capability: 'property.create',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'portal',
+      notes:
+        'actor-attributed content-free recoverable archive fact; co-committed with the in-place Property lifecycle/source-epoch fence and 30-day recovery deadline; Portal Health re-reads current Property state',
+    },
+  ),
+  ev(
+    'property.restored',
+    PROPERTY_EVENTS,
+    {
+      stateOwner: 'property',
+      capability: 'property.create',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'portal',
+      notes:
+        'actor-attributed content-free explicit restore fact; carries the current source epoch and ready-or-reconnect-required Google posture while Portal Health re-reads current Property state',
     },
   ),
   ev(
@@ -893,13 +1322,42 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:property.import_v2',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [],
-      disposition: 'orphan',
+      consumers: [
+        durable(
+          'integration.provider-authorization-invalidation',
+          INTEGRATION_IMPORT_OUTBOX,
+        ),
+        durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
+      ],
+      disposition: 'enabled',
     },
     {
-      ownerSlice: 'F7',
+      projectionOwner: 'integration',
       notes:
-        'identifier-only Property binding lifecycle fact; authorization consumers are added before protected import dispatch is enabled',
+        'identifier-only Property binding lifecycle fact; durable fan-out invalidates provider authorization heads before protected import dispatch can reuse stale authority',
+    },
+  ),
+  ev(
+    'property.responsibility_became_needed',
+    PROPERTY_EVENTS,
+    {
+      stateOwner: 'property',
+      capability: 'property.create',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('notification.property-event-handlers', NOTIFICATION_PROPERTY_HANDLERS),
+        durable(
+          'notification.on-property-responsibility-needed',
+          NOTIFICATION_PROPERTY_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'identifier-only transition fact; one content-free recovery alert per current AccountAdmin, with deterministic queue deduplication',
     },
   ),
 ]
@@ -913,30 +1371,49 @@ const TEAM_ROWS: ReadonlyArray<EventFamilyRow> = [
       capability: 'team.use',
       action: 'none',
       schemaRegistered: true,
-      recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      recordedInOutbox: false,
+      consumers: [],
       disposition: 'denied_dark',
     },
-    { notes: 'dark context (team.use); activity audit consumer stays enabled' },
+    {
+      notes:
+        'historical schema and constructor retained for reconciliation/restore interpretation; no production producer or consumer',
+    },
   ),
-  ev('team.updated', TEAM_EVENTS, {
-    stateOwner: 'team',
-    capability: 'team.use',
-    action: 'none',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'denied_dark',
-  }),
-  ev('team.deleted', TEAM_EVENTS, {
-    stateOwner: 'team',
-    capability: 'team.use',
-    action: 'none',
-    schemaRegistered: true,
-    recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-    disposition: 'denied_dark',
-  }),
+  ev(
+    'team.updated',
+    TEAM_EVENTS,
+    {
+      stateOwner: 'team',
+      capability: 'team.use',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: false,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'historical schema and constructor retained for reconciliation/restore interpretation; no production producer or consumer',
+    },
+  ),
+  ev(
+    'team.deleted',
+    TEAM_EVENTS,
+    {
+      stateOwner: 'team',
+      capability: 'team.use',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: false,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'historical schema and constructor retained for reconciliation/restore interpretation; no production producer or consumer',
+    },
+  ),
 ]
 
 const STAFF_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -949,12 +1426,13 @@ const STAFF_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-      disposition: 'enabled',
+      consumers: [],
+      disposition: 'quarantined',
     },
     {
+      ownerSlice: 'PPL-01',
       notes:
-        'atomic command-store outbox write (BQC-3.5); schema corrected in place at v1 (assignmentId/userId/propertyId shape — never recorded, zero historical rows)',
+        'quarantined legacy StaffAssignment producer retained for reconciliation; no runtime endpoint or consumer',
     },
   ),
   ev(
@@ -966,39 +1444,273 @@ const STAFF_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
-      disposition: 'enabled',
+      consumers: [],
+      disposition: 'quarantined',
     },
     {
+      ownerSlice: 'PPL-01',
       notes:
-        'atomic command-store outbox write (BQC-3.5); schema corrected in place at v1 (never recorded, zero historical rows)',
+        'quarantined legacy StaffAssignment producer retained for reconciliation; no runtime endpoint or consumer',
     },
   ),
 ]
 
 const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev('portal.created', PORTAL_EVENTS, {
+  ev(
+    'portal.created',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.read',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only Portal lifecycle fact; state, initial responsibility, and required fact set commit atomically',
+    },
+  ),
+  ev(
+    'portal.updated',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.read',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only version-fenced compatibility/audit fact; dedicated publication, rollback, archive, and restore facts are the semantic authority for those transitions',
+    },
+  ),
+  ev(
+    'portal.publication.published',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+      ],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'content-minimal immutable-snapshot publication fact co-committed with Portal state, snapshot, activation, and the compatibility update fact; the Activity projection retains only lifecycle codes',
+    },
+  ),
+  ev(
+    'portal.publication.rolled_back',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'content-minimal target-snapshot rollback fact co-committed with append-only activation history and the Portal revision fence; the Activity projection retains only lifecycle codes',
+    },
+  ),
+  ev(
+    'portal.archived',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+      ],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'actor-attributed, content-free recoverable archive fact committed with Portal state and active-publication closure and projected into Recent Activity',
+    },
+  ),
+  ev(
+    'portal.restored',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'actor-attributed, content-free Archived-to-Disabled restoration fact projected into Recent Activity; restoration never republishes',
+    },
+  ),
+  ev(
+    'portal.hero_image.processing_requested',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.upload',
+      action: 'system:image.process',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('portal.process-issued-hero-image', PORTAL_OUTBOX)],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'atomic issuance-consumption hand-off; content-free payload binds image reads to the exact verified source ETag',
+    },
+  ),
+  ev(
+    'portal.hero_image.published',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.upload',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('activity.operational-action-history', ACTIVITY_OUTBOX)],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only completion fact committed with the hero URL and issuance finalization; replay uses the issuance id as the event id',
+    },
+  ),
+  ev(
+    'portal.responsibility_became_needed',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'none',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('notification.portal-event-handlers', NOTIFICATION_PORTAL_HANDLERS),
+        durable(
+          'notification.on-portal-responsibility-needed',
+          NOTIFICATION_PORTAL_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'identifier-only transition fact; one content-free recovery alert per AccountAdmin, with deterministic queue deduplication',
+    },
+  ),
+  ev(
+    'portal.responsible_managers.updated',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX)],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only assignment-count fact committed with manager intervals and the Portal revision; manager ids remain private state',
+    },
+  ),
+  ev(
+    'portal.health.changed',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'none',
+      action: 'system:portal.health_reconcile',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable(
+          'notification.on-portal-health-changed',
+          NOTIFICATION_PORTAL_HEALTH_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'notification',
+      notes:
+        'identifier-only status/reason pair transition committed atomically with the effective-dated Portal Health interval and projected into Recent Activity',
+    },
+  ),
+  ev('portal.property_brand_profile.updated', PORTAL_EVENTS, {
     stateOwner: 'portal',
-    capability: 'portal.read',
+    capability: 'portal.write',
     action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
+    schemaRegistered: true,
+    recordedInOutbox: true,
     consumers: [],
     disposition: 'denied_dark',
   }),
-  ev('portal.updated', PORTAL_EVENTS, {
+  ev('portal.property_brand_content.updated', PORTAL_EVENTS, {
     stateOwner: 'portal',
-    capability: 'portal.read',
+    capability: 'portal.write',
     action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
+    schemaRegistered: true,
+    recordedInOutbox: true,
     consumers: [],
+    disposition: 'denied_dark',
+  }),
+  ev('portal.localized_override.updated', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'none',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [],
+    disposition: 'denied_dark',
+  }),
+  ev('portal.locale_set.updated', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'none',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [],
+    disposition: 'denied_dark',
+  }),
+  ev('portal.approved_destination.updated', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'none',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [durable('activity.operational-action-history', ACTIVITY_OUTBOX)],
     disposition: 'denied_dark',
   }),
   ev('portal.content_review.completed', PORTAL_EVENTS, {
     stateOwner: 'portal',
     capability: 'portal.write',
-    action: 'system:metric.record',
+    action: 'system:metric.record_portal_workflow',
     schemaRegistered: true,
     recordedInOutbox: true,
     consumers: [
@@ -1010,7 +1722,7 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('portal.configuration_completeness.recorded', PORTAL_EVENTS, {
     stateOwner: 'portal',
     capability: 'portal.write',
-    action: 'system:metric.record',
+    action: 'system:metric.record_portal_workflow',
     schemaRegistered: true,
     recordedInOutbox: true,
     consumers: [
@@ -1022,7 +1734,7 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('portal.approved_destination_ratio.recorded', PORTAL_EVENTS, {
     stateOwner: 'portal',
     capability: 'portal.write',
-    action: 'system:metric.record',
+    action: 'system:metric.record_portal_workflow',
     schemaRegistered: true,
     recordedInOutbox: true,
     consumers: [
@@ -1040,10 +1752,13 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('goal.event-handlers', GOAL_HANDLERS)],
+      consumers: [],
       disposition: 'denied_dark',
     },
-    { notes: 'goal cleanup consumer is itself dark' },
+    {
+      notes:
+        'Portal soft-delete, live-token revocation, and their identifier-only facts commit atomically; retained legacy Goal rows are migration evidence and have no beta consumer',
+    },
   ),
   ev(
     'portal.token.issued',
@@ -1090,57 +1805,110 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
         'identifier-only lifecycle fact; operator-entered reason remains in Portal storage',
     },
   ),
+  ev(
+    'portal.access_artifact.published',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only QR/NFC publication fact; Access Artifact state and fact commit atomically with token issue or rotation',
+    },
+  ),
   ev('portal_link_category.created', PORTAL_EVENTS, {
     stateOwner: 'portal',
-    capability: 'portal.read',
+    capability: 'portal.write',
     action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
+    schemaRegistered: true,
+    recordedInOutbox: true,
     consumers: [],
     disposition: 'denied_dark',
   }),
   ev('portal_link_category.reordered', PORTAL_EVENTS, {
     stateOwner: 'portal',
-    capability: 'portal.read',
+    capability: 'portal.write',
     action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [],
+    disposition: 'denied_dark',
+  }),
+  ev('portal_link_category.updated', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'none',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [],
+    disposition: 'denied_dark',
+  }),
+  ev('portal_link_category.deleted', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'none',
+    schemaRegistered: true,
+    recordedInOutbox: true,
     consumers: [],
     disposition: 'denied_dark',
   }),
   ev('portal_link.created', PORTAL_EVENTS, {
     stateOwner: 'portal',
-    capability: 'portal.read',
+    capability: 'portal.write',
     action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
+    schemaRegistered: true,
+    recordedInOutbox: true,
     consumers: [],
     disposition: 'denied_dark',
   }),
   ev('portal_link.reordered', PORTAL_EVENTS, {
     stateOwner: 'portal',
-    capability: 'portal.read',
+    capability: 'portal.write',
     action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [],
+    disposition: 'denied_dark',
+  }),
+  ev('portal_link.updated', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'none',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [],
+    disposition: 'denied_dark',
+  }),
+  ev('portal_link.deleted', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'none',
+    schemaRegistered: true,
+    recordedInOutbox: true,
     consumers: [],
     disposition: 'denied_dark',
   }),
   ev('portal_group.created', PORTAL_EVENTS, {
     stateOwner: 'portal',
-    capability: 'portal.read',
+    capability: 'portal.write',
     action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
+    schemaRegistered: true,
+    recordedInOutbox: true,
     consumers: [],
     disposition: 'denied_dark',
   }),
   ev('portal_group.updated', PORTAL_EVENTS, {
     stateOwner: 'portal',
-    capability: 'portal.read',
+    capability: 'portal.write',
     action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
+    schemaRegistered: true,
+    recordedInOutbox: true,
     consumers: [],
     disposition: 'denied_dark',
   }),
@@ -1153,26 +1921,28 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('goal.event-handlers', GOAL_HANDLERS)],
+      consumers: [],
       disposition: 'denied_dark',
     },
-    { notes: 'goal cleanup consumer is itself dark' },
+    {
+      notes: 'retained legacy Goal rows are migration evidence and have no beta consumer',
+    },
   ),
   ev('portal_group.portal_added', PORTAL_EVENTS, {
     stateOwner: 'portal',
-    capability: 'portal.read',
+    capability: 'portal.write',
     action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
+    schemaRegistered: true,
+    recordedInOutbox: true,
     consumers: [],
     disposition: 'denied_dark',
   }),
   ev('portal_group.portal_removed', PORTAL_EVENTS, {
     stateOwner: 'portal',
-    capability: 'portal.read',
+    capability: 'portal.write',
     action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
+    schemaRegistered: true,
+    recordedInOutbox: true,
     consumers: [],
     disposition: 'denied_dark',
   }),
@@ -1186,15 +1956,60 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'guest',
       capability: 'portal.read',
       action: 'system:guest.scan',
-      schemaRegistered: false,
-      recordedInOutbox: false,
-      consumers: [bus('metric.event-handlers', METRIC_HANDLERS)],
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
       disposition: 'denied_dark',
     },
     {
       projectionOwner: 'metric',
       notes:
-        "schema-registrations.ts registers 'guest.scanned' instead — the emitted tag is unregistered and never recorded",
+        'identifier-only v1 schema; session-deduplicated scan row and fact commit atomically through GuestObservationStore; durable metric consumer is recovery authority',
+    },
+  ),
+  ev(
+    'guest.qualified_scan.recorded',
+    GUEST_EVENTS,
+    {
+      stateOwner: 'guest',
+      capability: 'portal.read',
+      action: 'system:guest.scan',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
+      disposition: 'denied_dark',
+    },
+    {
+      projectionOwner: 'metric',
+      notes:
+        'identifier-only Access Artifact provenance with event-time Portal Group attribution; durable Metric consumer is replay authority',
+    },
+  ),
+  ev(
+    'guest.qualified_scan.retracted',
+    GUEST_EVENTS,
+    {
+      stateOwner: 'guest',
+      capability: 'portal.read',
+      action: 'system:guest.scan',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
+      disposition: 'denied_dark',
+    },
+    {
+      projectionOwner: 'metric',
+      notes:
+        'identifier-only append-only correction targeting the original Qualified Scan source fact',
     },
   ),
   ev(
@@ -1204,15 +2019,39 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'guest',
       capability: 'portal.read',
       action: 'system:guest.rating',
-      schemaRegistered: false,
-      recordedInOutbox: false,
-      consumers: [bus('metric.event-handlers', METRIC_HANDLERS)],
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
       disposition: 'denied_dark',
     },
     {
       projectionOwner: 'metric',
       notes:
-        "schema-registrations.ts registers 'guest.rated' instead — the emitted tag is unregistered and never recorded",
+        'identifier/numeric-only v1 schema; canonical Guest response and fact commit atomically through GuestResponseCommandStore; durable metric consumer is recovery authority',
+    },
+  ),
+  ev(
+    'guest.rating.retracted',
+    GUEST_EVENTS,
+    {
+      stateOwner: 'guest',
+      capability: 'portal.read',
+      action: 'system:guest.rating',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
+      disposition: 'denied_dark',
+    },
+    {
+      projectionOwner: 'metric',
+      notes:
+        'identifier-only retraction committed atomically with correction/withdrawal; Metric appends correction facts and never converts retraction to zero',
     },
   ),
   ev(
@@ -1222,18 +2061,43 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'guest',
       capability: 'portal.read',
       action: 'system:guest.feedback',
-      schemaRegistered: false,
-      recordedInOutbox: false,
+      schemaRegistered: true,
+      recordedInOutbox: true,
       consumers: [
         bus('inbox.event-handlers', INBOX_HANDLERS),
         bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('inbox.on-guest-feedback-submitted', INBOX_GUEST_FEEDBACK_OUTBOX),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
       ],
       disposition: 'denied_dark',
     },
     {
       projectionOwner: 'inbox',
       notes:
-        "schema-registrations.ts registers 'guest.feedback_submitted' instead — the emitted tag is unregistered and never recorded",
+        'content-free v1 payload committed atomically with the canonical Guest response; durable Inbox and metric projections recover independently',
+    },
+  ),
+  ev(
+    'guest.feedback.retracted',
+    GUEST_EVENTS,
+    {
+      stateOwner: 'guest',
+      capability: 'portal.read',
+      action: 'system:guest.feedback',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('inbox.event-handlers', INBOX_HANDLERS),
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('inbox.on-guest-feedback-retracted', INBOX_GUEST_FEEDBACK_OUTBOX),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
+      disposition: 'denied_dark',
+    },
+    {
+      projectionOwner: 'inbox',
+      notes:
+        'identifier-only private-feedback retraction; Inbox closes the work item and Metric corrects the count without receiving text/contact',
     },
   ),
   ev(
@@ -1243,14 +2107,18 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       stateOwner: 'guest',
       capability: 'portal.read',
       action: 'system:guest.click_track',
-      schemaRegistered: false,
-      recordedInOutbox: false,
-      consumers: [bus('metric.event-handlers', METRIC_HANDLERS)],
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('metric.event-handlers', METRIC_HANDLERS),
+        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+      ],
       disposition: 'denied_dark',
     },
     {
       projectionOwner: 'metric',
-      notes: 'no schema registered under any name',
+      notes:
+        'identifier-only v1 schema with Google-versus-secondary destination kind; legacy missing kinds decode as secondary; the outbox row is canonical and commits before best-effort bus acceleration',
     },
   ),
 ]
@@ -1265,7 +2133,11 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:integration.google_callback',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
@@ -1284,6 +2156,8 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       recordedInOutbox: true,
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('activity.operational-action-history', ACTIVITY_OUTBOX),
         bus('review.event-handlers', REVIEW_HANDLERS),
       ],
       disposition: 'enabled',
@@ -1291,6 +2165,30 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       notes:
         'atomic command-store outbox write (BQC-3.5); registered with identifier-only allowlist — was unregistered/bus-only; BQC-3.8: review consumer cancels in-flight reply publications for the connection',
+    },
+  ),
+  ev(
+    'integration.google_account.reauthorization_required',
+    INTEGRATION_EVENTS,
+    {
+      stateOwner: 'integration',
+      capability: 'integration.use',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable(
+          'notification.on-google-reauthorization-required',
+          NOTIFICATION_INTEGRATION_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'notification',
+      notes:
+        'identifier-only connector-departure recovery fact; durable Notification fan-out resolves current AccountAdmins and uses deterministic per-recipient delivery identities',
     },
   ),
   ev(
@@ -1310,6 +2208,26 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       notes:
         'identifier-only transactional intent; durable consumer add-bulks deterministic revision-scoped item jobs',
+    },
+  ),
+  ev(
+    'integration.google_review_push.accepted',
+    INTEGRATION_EVENTS,
+    {
+      stateOwner: 'integration',
+      capability: 'property.connect_gbp',
+      action: 'system:integration.gbp_webhook',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable('integration.google-review-push-dispatch', INTEGRATION_GBP_PUSH_OUTBOX),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'review',
+      notes:
+        'authenticated Pub/Sub ingress receipt and identifier-only handoff co-commit; durable consumer enqueues a deterministic credential-home-fenced targeted Review fetch with full snapshot fallback',
     },
   ),
   ev(
@@ -1341,7 +2259,10 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [
+        bus('activity.event-handlers', ACTIVITY_HANDLERS),
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+      ],
       disposition: 'enabled',
     },
     {
@@ -1361,16 +2282,12 @@ const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:metric.record',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('goal.event-handlers', GOAL_HANDLERS),
-        bus('badge.event-handlers', BADGE_HANDLERS),
-        bus('leaderboard.event-handlers', LEADERBOARD_HANDLERS),
-      ],
-      disposition: 'enabled',
+      consumers: [],
+      disposition: 'recorded_only',
     },
     {
       notes:
-        "records via the atomic metric command store (BQC-3.5); schema corrected in place at v1 — the registered recordedAt never matched the domain event's occurredAt and the build never wired outboxRepo (zero historical rows); consumers belong to the dark goal/badge/leaderboard contexts; the family itself is enabled",
+        "canonical recorded fact from the atomic Metric command store (BQC-3.5); schema corrected in place at v1 — the registered recordedAt never matched the domain event's occurredAt and the build never wired outboxRepo (zero historical rows); REC-01 removed the unreachable Badge/Leaderboard subscribers; canonical Goal Programs read governed Metric sources and do not subscribe to this event",
     },
   ),
   ev(
@@ -1382,14 +2299,78 @@ const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:metric.record',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [durable('metric.correction-reconciliation', METRIC_CORRECTION_OUTBOX)],
+      consumers: [
+        durable('metric.correction-reconciliation', METRIC_CORRECTION_OUTBOX),
+        durable('goal.metric-correction-reconciliation', GOAL_METRIC_CORRECTION_OUTBOX),
+      ],
       disposition: 'enabled',
     },
-    { notes: 'append-only correction lineage advances the reconciliation watermark' },
+    {
+      notes:
+        'append-only correction lineage advances Metric completeness and durably revises every affected closed canonical Goal result',
+    },
   ),
 ]
 
 const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
+  ev(
+    'goal.monthly_result.closed',
+    GOAL_EVENTS,
+    {
+      stateOwner: 'goal',
+      capability: 'goal.use',
+      action: 'system:goal.maintain',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('notification.on-goal-monthly-result-closed', NOTIFICATION_GOAL_OUTBOX),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'canonical Goal Program result CAS commits the identifier-only closed fact in the same PostgreSQL transaction; it feeds content-free Recent Activity and achieved results become Notification input in NTF-01',
+    },
+  ),
+  ev(
+    'goal.monthly_result.reconciled',
+    GOAL_EVENTS,
+    {
+      stateOwner: 'goal',
+      capability: 'goal.use',
+      action: 'system:goal.maintain',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'canonical identifier-only reconciliation fact is durable evidence and feeds content-free Recent Activity; it intentionally does not trigger a user notification',
+      projectionOwner: 'activity',
+    },
+  ),
+  ev(
+    'goal.monthly_result.revised',
+    GOAL_EVENTS,
+    {
+      stateOwner: 'goal',
+      capability: 'goal.use',
+      action: 'system:goal.maintain',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        durable('activity.recent-activity', ACTIVITY_OUTBOX),
+        durable('notification.on-goal-monthly-result-revised', NOTIFICATION_GOAL_OUTBOX),
+      ],
+      disposition: 'enabled',
+    },
+    {
+      notes:
+        'append-only closed-result correction fact; Activity retains only lifecycle codes, while Notification resolves the exact current revision fence and notifies only when outcome or availability changed',
+    },
+  ),
   ev(
     'goal.completed',
     GOAL_EVENTS,
@@ -1399,12 +2380,13 @@ const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:goal.progress',
       schemaRegistered: true,
       recordedInOutbox: false,
-      consumers: [bus('notification.event-handlers', NOTIFICATION_HANDLERS)],
-      disposition: 'denied_dark',
+      consumers: [],
+      disposition: 'quarantined',
     },
     {
       notes:
-        'schema registered but the producer only eventBus.emit — never recorded in the outbox; dark context',
+        'compatibility-only dark producer; it is not durable and has no runtime Notification consumer',
+      ownerSlice: 'GOA-01',
     },
   ),
 ]
@@ -1419,10 +2401,13 @@ const BADGE_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:badge.evaluate',
       schemaRegistered: false,
       recordedInOutbox: false,
-      consumers: [bus('notification.event-handlers', NOTIFICATION_HANDLERS)],
+      consumers: [],
       disposition: 'denied_dark',
     },
-    { notes: 'no schema registered; dark context' },
+    {
+      notes:
+        'no schema, producer, subscription, or materialization handler is active; Notification retains only neutral rendering for already-persisted historical rows',
+    },
   ),
 ]
 
@@ -1452,11 +2437,11 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'portal.upload',
       action: 'system:image.process',
       schedule: 'none',
-      registration: 'enabled',
+      registration: 'blocked_capability',
     },
     {
       notes:
-        'R2/S3 fetch+upload; always registered and capability-scoped at dispatch/execution',
+        'Issuance-only private read and derived writes; stale-fenced; always registered and capability-scoped at dispatch/execution',
     },
   ),
   job(
@@ -1533,12 +2518,12 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'none',
       action: 'system:review.purge',
       schedule: 'none',
-      registration: 'enabled',
+      registration: 'quarantined',
     },
     {
       timeoutMs: 300_000,
       notes:
-        'bounded 100-row raw-source expiry continuation; initial activation is owned by the later lifecycle release automation',
+        'SAFE-03 validates and drains legacy raw-source expiry continuations without repository mutation; REV-01 owns activation',
     },
   ),
   job(
@@ -1574,8 +2559,8 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
   ),
   job(
-    'insert-activity-log',
-    'src/contexts/activity/infrastructure/jobs/insert-activity-log.job.ts',
+    'project-recent-activity',
+    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
     {
       queue: 'default',
       capability: 'none',
@@ -1584,6 +2569,21 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       registration: 'enabled',
     },
     { notes: 'enqueued by 29 activity event handlers' },
+  ),
+  job(
+    'insert-activity-log',
+    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
+    {
+      queue: 'default',
+      capability: 'none',
+      action: 'system:activity.record',
+      schedule: 'none',
+      registration: 'enabled',
+    },
+    {
+      notes:
+        'rolling-deployment drain only for jobs queued before migration 0160; never a current enqueue authority',
+    },
   ),
   job(
     'insert-notification',
@@ -1615,6 +2615,38 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
 ]
 
 const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
+  job(
+    'portal-approved-destination-revalidation',
+    'src/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job.ts',
+    {
+      queue: 'background',
+      capability: 'portal.write',
+      action: 'system:portal.destination_revalidate',
+      schedule: 'every:900000',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'bounded 100-row sweep of destinations last validated at least fifteen minutes ago; every Property is independently authorized, every DNS answer and redirect hop is rechecked, and later-unsafe destinations are quarantined without disabling the review gateway',
+    },
+  ),
+  job(
+    'portal-upload-source-cleanup',
+    'src/contexts/portal/infrastructure/jobs/cleanup-upload-sources.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:image.cleanup',
+      schedule: 'every:3600000',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'bounded 100-row cleanup of issuance-derived private upload sources; terminal state and idempotent object deletion make retries convergent, and the ungated schedule prevents capability shutdown from stranding private objects',
+    },
+  ),
   job(
     'health-check',
     'src/shared/jobs/health-check.job.ts',
@@ -1664,6 +2696,22 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
   ),
   job(
+    'release-response-target-reminders',
+    'src/contexts/inbox/infrastructure/jobs/release-response-target-reminders.job.ts',
+    {
+      queue: 'background',
+      capability: 'inbox.use',
+      action: 'system:inbox.update',
+      schedule: 'every:300000',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 60_000,
+      notes:
+        'bounded 100-slot Response Target reminder release; target-first row locks, one-shot reminder transitions, and atomic outbox facts make overlapping ticks convergent without recurring escalation',
+    },
+  ),
+  job(
     'discover-new-reviews',
     'src/contexts/review/infrastructure/jobs/discover-new-reviews.job.ts',
     {
@@ -1686,13 +2734,13 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       queue: 'background',
       capability: 'none',
       action: 'system:review.purge',
-      schedule: 'every:86400000,offset:7200000',
-      registration: 'enabled',
+      schedule: 'none',
+      registration: 'quarantined',
     },
     {
       timeoutMs: 300_000,
       notes:
-        'atomic delete + review.expired outbox write per review (BQC-3.3); retention evidence rows; 5m bounds the daily batch',
+        'SAFE-03/REV-01 content-free report/shadow handler; deterministic BullMQ continuations resume a created-at+Review-ID checkpoint inside one frozen evaluated-at window, apply is structurally disabled, and the recurring scheduler stays reconciled away pending external parity/cutover approval',
     },
   ),
   job(
@@ -1702,14 +2750,14 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       queue: 'background',
       capability: 'none',
       action: 'system:review.reconcile',
-      schedule: 'every:1800000',
+      schedule: 'every:300000',
       registration: 'enabled',
     },
     {
       retryBackoff: 'exponential:300000',
       timeoutMs: 300_000,
       notes:
-        'BQC-3.8 ambiguous-outcome sweep (500×10, keyset on reconcile_due_at); per-row provider re-read via reconcileReplyPublication — never a send; throws on any row failure; 5m bounds a stalled batch',
+        'BQC-3.8 provider-pending and ambiguous sweep (500×10, keyset on reconcile_due_at); PostgreSQL session advisory lease makes the run globally single-flight across replicas; per-row provider re-read via reconcileReplyPublication — never a send; exact observations heal, while non-confirming reads and isolated failures are guardedly rescheduled; 240s monotonic start deadline leaves 60s inside the 300s worker timeout for an already-started bounded provider read, checkpoint, reporting, and lease release; an unstarted suffix remains due',
     },
   ),
   job(
@@ -1749,6 +2797,22 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { timeoutMs: 300_000, notes: 'incremental rollup; 5m bounds a stalled refresh' },
   ),
   job(
+    'goal-program.maintain',
+    'src/contexts/goal/infrastructure/jobs/goal-program-maintenance.job.ts',
+    {
+      queue: 'background',
+      capability: 'goal.use',
+      action: 'system:goal.maintain',
+      schedule: 'every:3600000',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'canonical monthly Goal Program lifecycle; property-local boundaries and DB idempotency fence the hourly tenant-cross sweep, while each discovered property is freshly authorized',
+    },
+  ),
+  job(
     'retention-sweep',
     'src/shared/jobs/retention-sweep.job.ts',
     {
@@ -1761,7 +2825,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     {
       timeoutMs: 900_000,
       notes:
-        'BQC-1.6 + 7.8: 11 rules (incl. 365d audit evidence); evidence in retention_runs; throws on any rule failure; 15m bounds the full daily sweep',
+        'Guest-owned Contact Request encrypted-material expiry, registered static rules, and Google import lifecycle (incl. per-entry cache expiry, 24h/7d guest pseudonym redaction, settled invitation-registration fences, and 365d audit evidence); separate deletion/redaction counts in retention_runs; throws on any subject failure; 15m bounds the full daily sweep',
     },
   ),
   job(
@@ -1781,6 +2845,24 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
   ),
   job(
+    'ai-authorization-derivative-erasure',
+    'src/shared/jobs/ai-authorization-erasure.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:ai.authorization_erasure',
+      schedule: 'every:300000',
+      registration: 'enabled',
+    },
+    {
+      retryAttempts: 8,
+      retryBackoff: 'exponential:30000',
+      timeoutMs: 300_000,
+      notes:
+        'Unconditional exact retired-generation local AI derivative erasure; PostgreSQL lease/current-Identity fence, persisted eight-attempt recovery, class-separated lifecycle counts + retention.failure signal; no provider effect.',
+    },
+  ),
+  job(
     'ai-review-analysis-backfill-advance',
     'src/shared/jobs/ai-review-analysis-backfill-advance.job.ts',
     {
@@ -1794,6 +2876,22 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       timeoutMs: 300_000,
       notes:
         'Safety net for the one-review-at-a-time backfill chain: re-drives a run whose hand-off was lost, terminal-settles an item whose redelivery has stopped, and closes a run whose epoch/watermark fence moved. Registered unconditionally — a dark AI runtime is when a run is most likely to be left open with a moved watermark.',
+    },
+  ),
+  job(
+    'ai-review-analysis-enrollment-sweep',
+    'src/shared/jobs/ai-review-analysis-enrollment-sweep.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:ai.review_analysis_enrollment_sweep',
+      schedule: 'every:300000',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'Unconditional recovery for durable first-enablement enrollment intents. Each five-minute tick visits at most 50 heads; a full batch waits for the next recurrence rather than recursively enqueueing. The owning AI use case rechecks exact authorization lineage/source/capability epochs and current global/provider/capability controls before opening any replay.',
     },
   ),
   job(
@@ -1829,6 +2927,71 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
   ),
   job(
+    'advance-organization-lifecycle',
+    'src/contexts/identity/infrastructure/jobs/advance-organization-lifecycle.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:identity.organization_lifecycle',
+      schedule: 'every:300000',
+      registration: 'quarantined',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'bounded at 50 Organizations per pass; the safety handler is boot-registered but scheduler reconciliation removes the five-minute cadence until all 17 context-owned lifecycle contributors and independent support authorization are composed',
+    },
+  ),
+  job(
+    'generate-organization-export',
+    'src/contexts/identity/infrastructure/jobs/generate-organization-export.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:identity.organization_export',
+      schedule: 'every:60000',
+      registration: 'quarantined',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'claims at most one renewable export-generation lease; the safety handler is boot-registered but scheduler reconciliation removes the one-minute cadence until all 17 reviewed export contributors and encrypted private storage are composed',
+    },
+  ),
+  job(
+    'purge-expired-organization-exports',
+    'src/contexts/identity/infrastructure/jobs/purge-expired-organization-exports.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:identity.organization_export',
+      schedule: 'every:3600000',
+      registration: 'quarantined',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'claims at most one expired private export and requires verified object absence before content-free deletion evidence; the safety handler remains unscheduled until encrypted storage is composed and live deletion is verified',
+    },
+  ),
+  job(
+    'recover-invited-registrations',
+    'src/contexts/identity/infrastructure/jobs/recover-invited-registrations.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:identity.accept_invitation',
+      schedule: 'every:60000',
+      registration: 'enabled',
+    },
+    {
+      retryBackoff: 'fixed:5000',
+      timeoutMs: 60_000,
+      notes:
+        'content-free invitation-registration saga recovery: atomically claims at most 100 due fences, resumes only exact preallocated Better Auth identities, and otherwise compensates or stops for manual review',
+    },
+  ),
+  job(
     'google-import-claim-reaper',
     'src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts',
     {
@@ -1858,21 +3021,6 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     {
       notes:
         'Hourly tick sends at org 8am local (ADR 0011); every delivery rechecks notification.send_email',
-    },
-  ),
-  job(
-    'leaderboard.reconcile',
-    'src/bootstrap.ts',
-    {
-      queue: 'background',
-      capability: 'leaderboard.use',
-      action: 'system:leaderboard.reconcile',
-      schedule: 'cron:30 * * * *',
-      registration: 'enabled',
-    },
-    {
-      notes:
-        'inline literal (no *.job.ts); every discovered property is capability-scoped',
     },
   ),
 ]

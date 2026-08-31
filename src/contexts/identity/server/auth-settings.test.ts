@@ -5,20 +5,10 @@
 
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod/v4'
+import { changePasswordCommandSchema as changePasswordSchema } from '../application/dto/change-password.dto'
+import { updateProfileInputSchema as updateProfileSchema } from '../application/dto/profile-settings.dto'
 
 // ── Schemas (mirrored from auth-settings.ts) ──────────────────────
-
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1),
-  newPassword: z.string().min(8),
-})
-
-const updateProfileSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Name is required')
-    .max(100, 'Name must be 100 characters or less'),
-})
 
 const createOrganizationSchema = z.object({
   name: z.string().min(1, 'Organization name is required'),

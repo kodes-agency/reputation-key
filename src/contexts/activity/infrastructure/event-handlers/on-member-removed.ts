@@ -1,5 +1,5 @@
 import type { IdentityMemberRemoved } from '#/contexts/identity/application/public-api'
-import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
+import type { ProjectRecentActivityInput } from '../../application/use-cases/project-recent-activity'
 import type { Queue } from 'bullmq'
 
 type Deps = { queue: Queue }
@@ -7,7 +7,7 @@ type Deps = { queue: Queue }
 export const onMemberRemoved =
   (deps: Deps) =>
   async (event: IdentityMemberRemoved): Promise<void> => {
-    const payload: InsertActivityLogInput = {
+    const payload: ProjectRecentActivityInput = {
       action: 'deleted' as const,
       resourceType: 'member' as const,
       resourceId: event.userId,
@@ -23,5 +23,5 @@ export const onMemberRemoved =
         detail: null,
       },
     }
-    await deps.queue.add('insert-activity-log', payload)
+    await deps.queue.add('project-recent-activity', payload)
   }

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   aiPropertyAggregateContributions,
@@ -12,9 +12,11 @@ import {
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
 import type {
+  AiPropertyAnalyzedReview,
   AiPropertyAggregateStorePort,
   AiPropertyDailyAggregate,
 } from '../../application/ports/ai-property-aggregate-store.port'
+import { reviewId } from '#/shared/domain/ids'
 
 type DailyRow = typeof aiPropertyDailyAggregates.$inferSelect
 
@@ -173,9 +175,69 @@ function mapDaily(row: DailyRow): AiPropertyDailyAggregate {
   }
 }
 
-export function createAiPropertyAggregateStoreAdapter(
+const SENTIMENT_VALUES = new Set(['positive', 'neutral', 'negative', 'mixed'])
+const CATEGORY_VALUES = new Set([
+  'service',
+  'staff',
+  'quality',
+  'value',
+  'cleanliness',
+  'wait_time',
+  'atmosphere',
+  'location',
+  'accessibility',
+  'other',
+])
+const ATTENTION_VALUES = new Set(['urgent', 'high', 'medium', 'low'])
+
+function mapAnalyzedReview(
+  row: Readonly<{
+    reviewId: string
+    sourceRevision: number | string
+    analysisSequence: number | string
+    localDate: string
+    sentiment: string
+    primaryCategory: string
+    attention: string
+    analysisProfileVersion: string
+    providerDeploymentProfileVersion: string
+    modelSnapshot: string
+  }>,
+): AiPropertyAnalyzedReview {
+  const sourceRevision = safeSequence(row.sourceRevision)
+  const analysisSequence = safeSequence(row.analysisSequence)
+  if (
+    sourceRevision === null ||
+    sourceRevision < 1 ||
+    analysisSequence === null ||
+    analysisSequence < 1 ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(row.localDate) ||
+    !SENTIMENT_VALUES.has(row.sentiment) ||
+    !CATEGORY_VALUES.has(row.primaryCategory) ||
+    !ATTENTION_VALUES.has(row.attention) ||
+    row.analysisProfileVersion.length === 0 ||
+    row.providerDeploymentProfileVersion.length === 0 ||
+    row.modelSnapshot.length === 0
+  ) {
+    throw new Error('Property analyzed Review evidence is invalid')
+  }
+  return Object.freeze({
+    reviewId: reviewId(row.reviewId),
+    sourceRevision,
+    analysisSequence,
+    localDate: row.localDate,
+    sentiment: row.sentiment as AiPropertyAnalyzedReview['sentiment'],
+    primaryCategory: row.primaryCategory as AiPropertyAnalyzedReview['primaryCategory'],
+    attention: row.attention as AiPropertyAnalyzedReview['attention'],
+    analysisProfileVersion: row.analysisProfileVersion,
+    providerDeploymentProfileVersion: row.providerDeploymentProfileVersion,
+    modelSnapshot: row.modelSnapshot,
+  })
+}
+
+export const createAiPropertyAggregateStoreAdapter = (
   db: Database,
-): AiPropertyAggregateStorePort {
+): AiPropertyAggregateStorePort => {
   return {
     async applyReviewAnalysis(input) {
       return db.transaction(async (tx) => {
@@ -236,7 +298,7 @@ export function createAiPropertyAggregateStoreAdapter(
             sentiment: aiReviewAnalyses.sentiment,
             primaryCategory: aiReviewAnalyses.primaryCategory,
             attention: aiReviewAnalyses.attention,
-            rating: reviews.rating,
+            rating: sql<number>`${reviews.rating}`,
             localDate: sql<string | null>`resolve_ai_property_local_date_v1(
               ${reviews.reviewedAt},
               ${aiPropertyProcessingProfiles.timezone},
@@ -253,6 +315,9 @@ export function createAiPropertyAggregateStoreAdapter(
               eq(reviews.sourceEpoch, input.sourceEpoch),
               eq(reviews.sourceRevision, input.sourceRevision),
               eq(reviews.analysisSequence, input.analysisSequence),
+              eq(reviews.sourceContentState, 'active'),
+              isNotNull(reviews.rating),
+              isNotNull(reviews.reviewedAt),
             ),
           )
           .innerJoin(
@@ -790,6 +855,60 @@ export function createAiPropertyAggregateStoreAdapter(
             ),
           )
           .orderBy(aiPropertyDailyAggregates.localDate)
+        const analyzed = await tx.execute<{
+          reviewId: string
+          sourceRevision: number | string
+          analysisSequence: number | string
+          localDate: string
+          sentiment: string
+          primaryCategory: string
+          attention: string
+          analysisProfileVersion: string
+          providerDeploymentProfileVersion: string
+          modelSnapshot: string
+        }>(sql`
+          WITH latest AS (
+            SELECT DISTINCT ON (contribution."review_id")
+              contribution.*
+            FROM "ai_property_aggregate_contributions" AS contribution
+            WHERE contribution."organization_id" = ${input.organizationId}
+              AND contribution."property_id" = ${input.propertyId}::uuid
+              AND contribution."source_epoch" = ${input.sourceEpoch}
+              AND contribution."review_analysis_epoch" = ${input.reviewAnalysisEpoch}
+              AND contribution."property_profile_version" = ${input.propertyProfileVersion}
+            ORDER BY contribution."review_id", contribution."analysis_sequence" DESC
+          )
+          SELECT
+            latest."review_id"::text AS "reviewId",
+            latest."source_revision"::float8 AS "sourceRevision",
+            latest."analysis_sequence"::float8 AS "analysisSequence",
+            latest."local_date"::text AS "localDate",
+            latest."sentiment" AS "sentiment",
+            latest."primary_category" AS "primaryCategory",
+            latest."attention" AS "attention",
+            analysis."analysis_profile_version" AS "analysisProfileVersion",
+            operation."provider_deployment_profile_version" AS "providerDeploymentProfileVersion",
+            attempt."model_snapshot" AS "modelSnapshot"
+          FROM latest
+          INNER JOIN "ai_review_analyses" AS analysis
+            ON analysis."organization_id" = latest."organization_id"
+           AND analysis."property_id" = latest."property_id"
+           AND analysis."review_id" = latest."review_id"
+           AND analysis."source_epoch" = latest."source_epoch"
+           AND analysis."source_revision" = latest."source_revision"
+           AND analysis."analysis_sequence" = latest."analysis_sequence"
+          INNER JOIN "ai_operations" AS operation
+            ON operation."id" = analysis."operation_id"
+          INNER JOIN "ai_operation_attempts" AS attempt
+            ON attempt."operation_id" = operation."id"
+           AND attempt."attempt" = operation."execution_attempt"
+           AND attempt."state" = 'completed'
+          WHERE latest."status" = 'ready'
+            AND latest."local_date" BETWEEN ${input.startLocalDate}::date AND ${input.endLocalDate}::date
+            AND analysis."status" = 'ready'
+            AND attempt."model_snapshot" IS NOT NULL
+          ORDER BY latest."local_date", latest."review_id"
+        `)
         return {
           head: {
             organizationId: input.organizationId,
@@ -801,6 +920,7 @@ export function createAiPropertyAggregateStoreAdapter(
             terminalAnalysisSequence: head.terminalAnalysisSequence,
           },
           days: days.map(mapDaily),
+          analyzedReviews: Object.freeze(analyzed.rows.map(mapAnalyzedReview)),
         }
       })
     },

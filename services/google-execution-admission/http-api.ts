@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import {
   GOOGLE_ENDPOINT_CLASSES,
   GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,

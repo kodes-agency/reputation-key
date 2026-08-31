@@ -10,8 +10,9 @@ ARG SOURCE_REVISION=unknown
 # node:22-slim, corepack-pinned pnpm, --frozen-lockfile everywhere, non-root
 # `node` user, no runtime disk writes → read-only root + tmpfs /tmp posture).
 #
-# Deploy contract (railway.worker.json):
-#   - startCommand: image CMD (node dist-worker/index.js)
+# Deploy contract (.railway/railway.ts):
+#   - startCommand: image CMD (Node preloads error monitoring, then runs
+#     dist-worker/index.js)
 #   - NO healthcheckPath: the worker serves no HTTP (liveness is the process
 #     itself + restartPolicy; queue depth/heartbeat are observable via
 #     /api/health/metrics on the web service)
@@ -20,7 +21,8 @@ ARG SOURCE_REVISION=unknown
 #     >1 replica would double-process schedules)
 #   - restart ON_FAILURE×10, drainingSeconds 30 — the outer bound for the
 #     DRAIN_BUDGET_MS (default 25s) graceful drain in src/worker/index.ts
-#   - region: platform/dashboard setting (ADR 0048 single 'us' cell)
+#   - region: Railway US West/California `us-west2` in the single `cell-us`
+#     beta deployment (ADR 0057)
 #
 # Graceful shutdown: SIGTERM/SIGINT → stop the outbox relay, close BullMQ
 # workers (stops fetching, drains in-flight), close queues — raced against
@@ -57,7 +59,8 @@ RUN NODE_ENV=production \
     ENCRYPTION_KEY=aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd \
     OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
     pnpm build:worker \
- && node scripts/check-google-import-artifacts.mjs final dist-worker
+ && node scripts/check-google-import-artifacts.mjs final dist-worker \
+ && node scripts/check-production-artifacts.mjs dist-worker
 
 FROM base AS prod-deps
 COPY package.json pnpm-lock.yaml ./
@@ -75,10 +78,10 @@ LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
 # the base image (its bundled deps carry known CVEs: grype container gate).
 # node itself is untouched; corepack/pnpm shims stay for operator tooling.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
-# The tsup bundle keeps only pg, ioredis, bullmq, pino, better-auth and
-# drizzle-orm external — all present in the prod install.
+# The tsup bundle keeps @sentry/node, pg, ioredis, bullmq, pino, better-auth
+# and drizzle-orm external — all present in the production install.
 COPY --from=build /app/dist-worker ./dist-worker
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY package.runtime.json ./package.json
 USER node
-CMD ["node", "dist-worker/index.js"]
+CMD ["node", "--import", "./dist-worker/worker-observability-preload.js", "dist-worker/index.js"]

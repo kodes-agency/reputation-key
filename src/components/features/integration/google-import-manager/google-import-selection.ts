@@ -1,11 +1,8 @@
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
 
-export const GOOGLE_IMPORT_SELECTION_LIMIT = 100
-
 type SelectionResult = Readonly<{
   selectedIds: readonly string[]
   changed: boolean
-  limitReached: boolean
 }>
 
 export function isSelectableImportCandidate(candidate: ImportCandidateDto): boolean {
@@ -13,6 +10,28 @@ export function isSelectableImportCandidate(candidate: ImportCandidateDto): bool
     candidate.candidateRef !== null &&
     (candidate.eligibility.kind === 'create' || candidate.eligibility.kind === 'relink')
   )
+}
+
+type CandidatePageSnapshot = Readonly<{
+  candidates: readonly ImportCandidateDto[]
+  hasNextPage: boolean
+}>
+
+/**
+ * Fetches through the provider cursor before changing selection. Each fetched
+ * snapshot contains all pages loaded so far, matching TanStack Query's
+ * infinite-query result. A failed fetch rejects without publishing a partial
+ * "select all" result.
+ */
+export async function selectAllEligibleCandidates(
+  initial: CandidatePageSnapshot,
+  fetchNextPage: () => Promise<CandidatePageSnapshot>,
+): Promise<readonly string[]> {
+  let snapshot = initial
+  while (snapshot.hasNextPage) snapshot = await fetchNextPage()
+  return snapshot.candidates
+    .filter(isSelectableImportCandidate)
+    .map((candidate) => candidate.candidateId)
 }
 
 export function toggleSelectedCandidate(
@@ -23,16 +42,13 @@ export function toggleSelectedCandidate(
   const next = new Set(current)
   if (!checked) {
     const changed = next.delete(candidate.candidateId)
-    return { selectedIds: [...next], changed, limitReached: false }
+    return { selectedIds: [...next], changed }
   }
   if (!isSelectableImportCandidate(candidate) || next.has(candidate.candidateId)) {
-    return { selectedIds: [...next], changed: false, limitReached: false }
-  }
-  if (next.size >= GOOGLE_IMPORT_SELECTION_LIMIT) {
-    return { selectedIds: [...next], changed: false, limitReached: true }
+    return { selectedIds: [...next], changed: false }
   }
   next.add(candidate.candidateId)
-  return { selectedIds: [...next], changed: true, limitReached: false }
+  return { selectedIds: [...next], changed: true }
 }
 
 export function toggleLoadedCandidates(
@@ -45,24 +61,18 @@ export function toggleLoadedCandidates(
     .map((candidate) => candidate.candidateId)
   const next = new Set(current)
   let changed = false
-  let limitReached = false
 
   if (!checked) {
     for (const id of selectableIds) changed = next.delete(id) || changed
-    return { selectedIds: [...next], changed, limitReached }
+    return { selectedIds: [...next], changed }
   }
 
   for (const id of selectableIds) {
     if (next.has(id)) continue
-    if (next.size >= GOOGLE_IMPORT_SELECTION_LIMIT) {
-      limitReached = true
-      break
-    }
     next.add(id)
     changed = true
   }
-  if (selectableIds.some((id) => !next.has(id))) limitReached = true
-  return { selectedIds: [...next], changed, limitReached }
+  return { selectedIds: [...next], changed }
 }
 
 export function selectionCheckState(

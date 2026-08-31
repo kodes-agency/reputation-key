@@ -140,6 +140,45 @@ describe('propertyRepository (integration)', () => {
     })
   })
 
+  describe('Data Cell isolation', () => {
+    it('hides wrong-cell rows and rejects wrong-cell inserts at the repository boundary', async () => {
+      const db = getDb()
+      const unscoped = createPropertyRepository(db)
+      const us = createPropertyRepository(db, { localCell: 'us' })
+      const europeProperty = buildTestProperty({
+        id: 'prop-europe-only',
+        organizationId: ORG_A,
+        slug: 'europe-only',
+        processingRegion: 'europe',
+        dataCellId: 'europe',
+      })
+
+      await unscoped.insert(ORG_A, europeProperty)
+
+      await expect(us.findById(ORG_A, europeProperty.id)).resolves.toBeNull()
+      await expect(us.list(ORG_A)).resolves.toEqual([])
+      await expect(us.slugExists(ORG_A, 'europe-only')).resolves.toBe(false)
+      await expect(
+        us.insert(
+          ORG_A,
+          buildTestProperty({
+            id: 'prop-europe-rejected',
+            organizationId: ORG_A,
+            slug: 'europe-rejected',
+            processingRegion: 'europe',
+            dataCellId: 'europe',
+          }),
+        ),
+      ).rejects.toSatisfy(
+        (error: unknown) =>
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'forbidden',
+      )
+    })
+  })
+
   describe('hardDelete', () => {
     it('removes property row entirely', async () => {
       const db = getDb()

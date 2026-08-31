@@ -7,6 +7,7 @@ import type { Tx } from '#/shared/outbox/commit'
 import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
 import {
   reviewProviderDeletionCandidates,
+  reviewGoogleReputationSnapshotFacts,
   reviewProviderSnapshotMembers,
   reviewProviderSnapshotRuns,
   reviewProviderSubjectHmacKeyVersions,
@@ -20,7 +21,18 @@ import type {
   ReviewProviderSnapshotRepository,
   ReviewProviderSnapshotRun,
 } from '../../application/ports/review-provider-snapshot.repository'
-import { reviewSourceTransitioned } from '../../domain/events'
+import {
+  reviewGoogleReputationSnapshotVerified,
+  reviewSourceTransitioned,
+} from '../../domain/events'
+import { domainError } from '#/shared/domain/errors'
+import { eraseReviewSourceContent } from '../review-source-content-store'
+import { lockReviewSourceMutationScope } from '../review-source-mutation-serialization'
+import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
+import {
+  REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
+  createRunReviewSourceContentLifecycle,
+} from '../../application/use-cases/run-source-content-lifecycle'
 
 const ACTIVE_STATES = ['scanning', 'confirming', 'deleting'] as const
 const TERMINAL_RECORD_RETENTION = sql`interval '30 days'`
@@ -34,10 +46,13 @@ function fromRunRow(row: RunRow): ReviewProviderSnapshotRun {
     organizationId: organizationId(row.organizationId),
     propertyId: propertyId(row.propertyId),
     sourceEpoch: row.sourceEpoch,
+    observationOrigin:
+      row.observationOrigin as ReviewProviderSnapshotRun['observationOrigin'],
     state: row.state as ReviewProviderSnapshotRun['state'],
     phase: row.phase as ReviewProviderSnapshotRun['phase'],
     startedAt: row.startedAt,
     expectedProviderTotal: row.expectedTotal,
+    expectedProviderAverageRating: row.expectedAverageRating,
     mainPageIndex: row.mainPageCount,
     mainCursorRef: row.mainCursorRef,
     mainUniqueCount: row.mainUniqueCount,
@@ -74,6 +89,19 @@ class SnapshotConflict extends Error {
   }
 }
 
+const providerAggregateIsValid = (
+  total: number | null,
+  averageRating: number | null,
+): boolean =>
+  (total === 0 && averageRating === null) ||
+  (total !== null &&
+    total > 0 &&
+    total <= 10_000 &&
+    averageRating !== null &&
+    Number.isFinite(averageRating) &&
+    averageRating >= 0 &&
+    averageRating <= 5)
+
 async function failLockedRun(
   tx: Tx,
   row: RunRow,
@@ -94,8 +122,347 @@ async function failLockedRun(
     })
     .where(eq(reviewProviderSnapshotRuns.id, row.id))
     .returning()
-  if (!terminal[0]) throw new Error('Snapshot run disappeared while failing')
+  if (!terminal[0])
+    throw domainError(
+      'snapshot_run_missing_on_fail',
+      'Snapshot run disappeared while failing',
+    )
   return terminal[0]
+}
+
+type PageCommitInput = Parameters<ReviewProviderSnapshotRepository['commitPage']>[0]
+type DeletionCandidateRow = typeof reviewProviderDeletionCandidates.$inferSelect
+
+function selectLockedDeletionReviews(tx: Tx, reviewIds: ReadonlyArray<string>) {
+  return tx
+    .select({
+      id: reviews.id,
+      organizationId: reviews.organizationId,
+      propertyId: reviews.propertyId,
+      sourceEpoch: reviews.sourceEpoch,
+      sourceRevision: reviews.sourceRevision,
+    })
+    .from(reviews)
+    .where(inArray(reviews.id, [...reviewIds]))
+    .orderBy(asc(reviews.id))
+    .for('update')
+}
+
+type LockedDeletionReview = Awaited<
+  ReturnType<typeof selectLockedDeletionReviews>
+>[number]
+
+/** The candidate is no longer provably deletable: keep it as observed evidence
+ * and leave the Review untouched. */
+async function markDeletionCandidateObserved(
+  tx: Tx,
+  runId: string,
+  reviewId: string,
+): Promise<void> {
+  await tx
+    .update(reviewProviderDeletionCandidates)
+    .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
+    .where(
+      and(
+        eq(reviewProviderDeletionCandidates.runId, runId),
+        eq(reviewProviderDeletionCandidates.reviewId, reviewId),
+      ),
+    )
+}
+
+type DeletionCandidateOutcome =
+  Readonly<{ kind: 'observed' }> | Readonly<{ kind: 'applied'; event: DomainEvent }>
+
+const DELETION_OBSERVED: DeletionCandidateOutcome = { kind: 'observed' }
+
+/**
+ * Redact one confirmed-missing Review. The locked Review row, the provider
+ * subject mapping, and the erasure itself must all still match the evidence the
+ * candidate was recorded with; any mismatch downgrades the candidate to
+ * observed rather than deleting content on stale grounds.
+ */
+async function applyDeletionCandidate(
+  tx: Tx,
+  run: RunRow,
+  candidate: DeletionCandidateRow,
+  lockedReview: LockedDeletionReview | undefined,
+): Promise<DeletionCandidateOutcome> {
+  if (
+    lockedReview == null ||
+    lockedReview.organizationId !== run.organizationId ||
+    lockedReview.propertyId !== run.propertyId ||
+    lockedReview.sourceEpoch !== run.sourceEpoch ||
+    lockedReview.sourceRevision !== candidate.expectedSourceRevision
+  ) {
+    await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
+    return DELETION_OBSERVED
+  }
+  const mappings = await tx
+    .select()
+    .from(reviewProviderSubjects)
+    .where(
+      and(
+        eq(reviewProviderSubjects.organizationId, run.organizationId),
+        eq(reviewProviderSubjects.propertyId, run.propertyId),
+        eq(reviewProviderSubjects.sourceEpoch, run.sourceEpoch),
+        eq(reviewProviderSubjects.reviewId, candidate.reviewId),
+      ),
+    )
+    .for('update')
+  const mapping = mappings[0]
+  if (
+    mapping == null ||
+    mapping.state !== candidate.expectedMappingState ||
+    mapping.lastSourceRevision !== candidate.expectedSourceRevision ||
+    mapping.firstMissingSnapshotRunId == null ||
+    mapping.lastSeenSnapshotRunId === run.id
+  ) {
+    await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
+    return DELETION_OBSERVED
+  }
+  const erased = await eraseReviewSourceContent(tx, {
+    reviewId: reviewId(candidate.reviewId),
+    organizationId: organizationId(run.organizationId),
+    propertyId: propertyId(run.propertyId),
+    sourceEpoch: run.sourceEpoch,
+    expectedSourceRevision: candidate.expectedSourceRevision,
+    state: 'provider_deleted',
+  })
+  if (!erased) {
+    await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
+    return DELETION_OBSERVED
+  }
+  const event = await recordSourceTransition(tx, mapping, 'provider_deleted')
+  await tx
+    .update(reviewProviderSubjects)
+    .set({
+      state: 'provider_deleted',
+      unlinkedAt: mapping.unlinkedAt ?? sql`transaction_timestamp()`,
+      unlinkExpiresAt:
+        mapping.unlinkExpiresAt ?? sql`transaction_timestamp() + interval '24 months'`,
+      updatedAt: sql`transaction_timestamp()`,
+    })
+    .where(
+      and(
+        eq(reviewProviderSubjects.organizationId, mapping.organizationId),
+        eq(reviewProviderSubjects.propertyId, mapping.propertyId),
+        eq(reviewProviderSubjects.sourceEpoch, mapping.sourceEpoch),
+        eq(reviewProviderSubjects.keyVersion, mapping.keyVersion),
+        eq(reviewProviderSubjects.locatorHmac, mapping.locatorHmac),
+      ),
+    )
+  return { kind: 'applied', event }
+}
+
+/** The completed run publishes the verified provider aggregate exactly once,
+ * durably, at the database's own transaction instant. */
+async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<DomainEvent> {
+  if (
+    run.expectedTotal == null ||
+    !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating)
+  ) {
+    throw domainError(
+      'provider_aggregate_unavailable',
+      'Verified provider aggregate is unavailable at completion',
+    )
+  }
+  const evaluatedRows = await tx.execute(
+    sql`SELECT transaction_timestamp() AS evaluated_at`,
+  )
+  const evaluatedValue = (evaluatedRows.rows[0] as { evaluated_at: Date | string })
+    .evaluated_at
+  const evaluatedAt =
+    evaluatedValue instanceof Date ? evaluatedValue : new Date(evaluatedValue)
+  const verified = reviewGoogleReputationSnapshotVerified({
+    organizationId: organizationId(run.organizationId),
+    propertyId: propertyId(run.propertyId),
+    sourceEpoch: run.sourceEpoch,
+    runId: run.id,
+    reviewCount: run.expectedTotal,
+    averageRating: run.expectedAverageRating,
+    evaluatedAt,
+    occurredAt: evaluatedAt,
+  })
+  await tx.insert(reviewGoogleReputationSnapshotFacts).values({
+    runId: run.id,
+    eventId: verified.eventId,
+    organizationId: run.organizationId,
+    propertyId: run.propertyId,
+    sourceEpoch: run.sourceEpoch,
+    reviewCount: run.expectedTotal,
+    averageRating: run.expectedAverageRating,
+    evaluatedAt,
+  })
+  await insertOutboxRow(tx, verified, { recordedAt: evaluatedAt })
+  return verified
+}
+
+/**
+ * The first conflict this page trips, in the order the failure taxonomy ranks
+ * them: a changed provider aggregate outranks a malformed one, which outranks a
+ * blown review cap, which outranks a blown page cap. Null means the page is
+ * acceptable.
+ */
+function pageCommitConflictCode(
+  run: RunRow,
+  input: PageCommitInput,
+): ReviewProviderSnapshotFailureCode | null {
+  if (run.expectedTotal != null && run.expectedTotal !== input.totalReviewCount) {
+    return 'total_changed'
+  }
+  if (run.expectedTotal != null && run.expectedAverageRating !== input.averageRating) {
+    return 'average_changed'
+  }
+  if (!providerAggregateIsValid(input.totalReviewCount, input.averageRating)) {
+    return 'malformed_page'
+  }
+  if (input.totalReviewCount > 10_000) return 'review_cap_exceeded'
+  if (
+    input.expectedPageIndex >= 200 ||
+    input.observations.length > 50 ||
+    input.totalReviewCount < 0
+  ) {
+    return 'page_cap_exceeded'
+  }
+  return null
+}
+
+/** A confirmation page is only valid inside the run's frozen deadline. */
+async function isWithinConfirmationDeadline(tx: Tx, run: RunRow): Promise<boolean> {
+  const deadline = await tx.execute(sql`
+    SELECT transaction_timestamp() < ${run.confirmationDeadline} AS within_deadline
+  `)
+  return (
+    run.confirmationDeadline != null &&
+    (deadline.rows[0] as { within_deadline: boolean } | undefined)?.within_deadline ===
+      true
+  )
+}
+
+function selectPageMember(tx: Tx, run: RunRow, reviewId: string) {
+  return tx
+    .select()
+    .from(reviewProviderSnapshotMembers)
+    .where(
+      and(
+        eq(reviewProviderSnapshotMembers.runId, run.id),
+        eq(reviewProviderSnapshotMembers.reviewId, reviewId),
+      ),
+    )
+    .for('update')
+}
+
+type SnapshotMemberRow = Awaited<ReturnType<typeof selectPageMember>>[number]
+
+/** Main-scan sighting: each provider resource may be seen exactly once. */
+async function markMainScanSeen(
+  tx: Tx,
+  run: RunRow,
+  reviewId: string,
+  member: SnapshotMemberRow | undefined,
+): Promise<void> {
+  if (member?.mainSeen) throw new SnapshotConflict('duplicate_resource')
+  if (member == null) {
+    await tx
+      .insert(reviewProviderSnapshotMembers)
+      .values({ runId: run.id, reviewId, mainSeen: true })
+    return
+  }
+  await tx
+    .update(reviewProviderSnapshotMembers)
+    .set({ mainSeen: true })
+    .where(
+      and(
+        eq(reviewProviderSnapshotMembers.runId, run.id),
+        eq(reviewProviderSnapshotMembers.reviewId, reviewId),
+      ),
+    )
+}
+
+/** Confirmation sighting: the resource must already be a main-scan member that
+ * has not been confirmed and has not become a deletion candidate. */
+async function markConfirmationSeen(
+  tx: Tx,
+  run: RunRow,
+  reviewId: string,
+  member: SnapshotMemberRow | undefined,
+): Promise<void> {
+  if (member == null || !member.mainSeen || member.confirmationSeen) {
+    throw new SnapshotConflict('confirmation_set_changed')
+  }
+  const candidate = await tx
+    .select({ state: reviewProviderDeletionCandidates.state })
+    .from(reviewProviderDeletionCandidates)
+    .where(
+      and(
+        eq(reviewProviderDeletionCandidates.runId, run.id),
+        eq(reviewProviderDeletionCandidates.reviewId, reviewId),
+      ),
+    )
+    .limit(1)
+  if (candidate.length > 0) {
+    throw new SnapshotConflict('confirmation_set_changed')
+  }
+  await tx
+    .update(reviewProviderSnapshotMembers)
+    .set({ confirmationSeen: true })
+    .where(
+      and(
+        eq(reviewProviderSnapshotMembers.runId, run.id),
+        eq(reviewProviderSnapshotMembers.reviewId, reviewId),
+      ),
+    )
+}
+
+/** Record every resource on this page against the run's membership set. */
+async function recordPageMembership(
+  tx: Tx,
+  run: RunRow,
+  input: PageCommitInput,
+): Promise<void> {
+  const pageIds = new Set<string>()
+  for (const observation of input.observations) {
+    if (pageIds.has(observation.reviewId)) {
+      throw new SnapshotConflict('duplicate_resource')
+    }
+    pageIds.add(observation.reviewId)
+    await recordObservationMapping(tx, run, observation)
+
+    const members = await selectPageMember(tx, run, observation.reviewId)
+    const member = members[0]
+    if (input.phase === 'main') {
+      await markMainScanSeen(tx, run, observation.reviewId, member)
+    } else {
+      await markConfirmationSeen(tx, run, observation.reviewId, member)
+    }
+  }
+}
+
+/** Cursor and counter advance for the phase this page belongs to. The main scan
+ * additionally freezes the provider aggregate on its first page. */
+function pageCommitUpdate(
+  run: RunRow,
+  input: PageCommitInput,
+  nextCount: number,
+  nextUnique: number,
+) {
+  if (input.phase === 'main') {
+    return {
+      expectedTotal: run.expectedTotal ?? input.totalReviewCount,
+      expectedAverageRating:
+        run.expectedTotal == null ? input.averageRating : run.expectedAverageRating,
+      mainPageCount: nextCount,
+      mainUniqueCount: nextUnique,
+      mainCursorRef: input.nextCursorRef,
+      updatedAt: sql`transaction_timestamp()`,
+    }
+  }
+  return {
+    confirmationPageCount: nextCount,
+    confirmationUniqueCount: nextUnique,
+    confirmationCursorRef: input.nextCursorRef,
+    updatedAt: sql`transaction_timestamp()`,
+  }
 }
 
 async function findSubjectMatches(
@@ -266,15 +633,48 @@ async function recordSourceTransition(
     !('analysis_sequence' in value) ||
     !('occurred_at' in value)
   ) {
-    throw new Error('Review analysis head transition returned no value')
+    throw domainError(
+      'analysis_head_no_value',
+      'Review analysis head transition returned no value',
+    )
   }
   const analysisSequence = Number(value.analysis_sequence)
+  const occurredAt =
+    value.occurred_at instanceof Date
+      ? value.occurred_at
+      : new Date(String(value.occurred_at))
   if (
     !Number.isSafeInteger(analysisSequence) ||
     analysisSequence < 0 ||
-    !(value.occurred_at instanceof Date)
+    Number.isNaN(occurredAt.getTime())
   ) {
-    throw new Error('Review analysis head transition returned invalid controls')
+    throw domainError(
+      'analysis_head_invalid_controls',
+      'Review analysis head transition returned invalid controls',
+    )
+  }
+  const stamped = await tx
+    .update(reviews)
+    .set({
+      analysisSequence,
+      updatedAt: sql`transaction_timestamp()`,
+    })
+    .where(
+      and(
+        eq(reviews.id, mapping.reviewId),
+        eq(reviews.organizationId, mapping.organizationId),
+        eq(reviews.propertyId, mapping.propertyId),
+        eq(reviews.sourceEpoch, mapping.sourceEpoch),
+        eq(reviews.sourceRevision, mapping.lastSourceRevision),
+        eq(reviews.sourceContentState, change),
+      ),
+    )
+    .returning({ id: reviews.id })
+  if (!stamped[0]) {
+    throw domainError(
+      'source_transition_head_changed',
+      'Review source transition head changed before it was stamped',
+    )
   }
   const event = reviewSourceTransitioned({
     reviewId: reviewId(mapping.reviewId),
@@ -284,7 +684,7 @@ async function recordSourceTransition(
     sourceRevision: mapping.lastSourceRevision,
     analysisSequence,
     change,
-    occurredAt: value.occurred_at,
+    occurredAt,
   })
   await insertOutboxRow(tx, event)
   return event
@@ -293,6 +693,7 @@ async function recordSourceTransition(
 export const createReviewProviderSnapshotRepository = (
   db: Database,
   events: EventBus,
+  idGen: () => string,
 ): ReviewProviderSnapshotRepository => ({
   startOrResume: async (input) =>
     db.transaction(async (tx) => {
@@ -312,17 +713,22 @@ export const createReviewProviderSnapshotRepository = (
       const rows = await tx
         .insert(reviewProviderSnapshotRuns)
         .values({
-          id: crypto.randomUUID(),
+          id: idGen(),
           organizationId: input.organizationId,
           propertyId: input.propertyId,
           sourceEpoch: input.sourceEpoch,
+          observationOrigin: input.observationOrigin,
           state: 'scanning',
           phase: 'main',
           startedAt: sql`transaction_timestamp()`,
           expiresAt: sql`transaction_timestamp() + interval '12 hours'`,
         })
         .returning()
-      if (!rows[0]) throw new Error('Snapshot run insert returned no row')
+      if (!rows[0])
+        throw domainError(
+          'snapshot_run_insert_empty',
+          'Snapshot run insert returned no row',
+        )
       return fromRunRow(rows[0])
     }),
 
@@ -376,7 +782,7 @@ export const createReviewProviderSnapshotRepository = (
         .where(eq(reviewProviderSnapshotRuns.id, input.runId))
         .for('update')
       const run = locked[0]
-      if (!run) throw new Error('Snapshot run not found')
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       const expectedState = input.phase === 'main' ? 'scanning' : 'confirming'
       const pageCount =
         input.phase === 'main' ? run.mainPageCount : run.confirmationPageCount
@@ -390,105 +796,21 @@ export const createReviewProviderSnapshotRepository = (
       ) {
         return { status: 'stale_page' as const, run: fromRunRow(run) }
       }
-      if (input.phase === 'confirmation') {
-        const deadline = await tx.execute(sql`
-          SELECT transaction_timestamp() < ${run.confirmationDeadline} AS within_deadline
-        `)
-        if (
-          run.confirmationDeadline == null ||
-          (deadline.rows[0] as { within_deadline: boolean } | undefined)
-            ?.within_deadline !== true
-        ) {
-          const failed = await failLockedRun(tx, run, 'confirmation_deadline_elapsed')
-          return {
-            status: 'failed' as const,
-            run: fromRunRow(failed),
-            code: 'confirmation_deadline_elapsed' as const,
-          }
+      if (
+        input.phase === 'confirmation' &&
+        !(await isWithinConfirmationDeadline(tx, run))
+      ) {
+        const failed = await failLockedRun(tx, run, 'confirmation_deadline_elapsed')
+        return {
+          status: 'failed' as const,
+          run: fromRunRow(failed),
+          code: 'confirmation_deadline_elapsed' as const,
         }
       }
       try {
-        if (
-          input.expectedPageIndex >= 200 ||
-          input.observations.length > 50 ||
-          input.totalReviewCount < 0 ||
-          input.totalReviewCount > 10_000 ||
-          (run.expectedTotal != null && run.expectedTotal !== input.totalReviewCount)
-        ) {
-          throw new SnapshotConflict(
-            run.expectedTotal != null && run.expectedTotal !== input.totalReviewCount
-              ? 'total_changed'
-              : input.totalReviewCount > 10_000
-                ? 'review_cap_exceeded'
-                : 'page_cap_exceeded',
-          )
-        }
-        const pageIds = new Set<string>()
-        for (const observation of input.observations) {
-          if (pageIds.has(observation.reviewId)) {
-            throw new SnapshotConflict('duplicate_resource')
-          }
-          pageIds.add(observation.reviewId)
-          await recordObservationMapping(tx, run, observation)
-
-          const members = await tx
-            .select()
-            .from(reviewProviderSnapshotMembers)
-            .where(
-              and(
-                eq(reviewProviderSnapshotMembers.runId, run.id),
-                eq(reviewProviderSnapshotMembers.reviewId, observation.reviewId),
-              ),
-            )
-            .for('update')
-          const member = members[0]
-          if (input.phase === 'main') {
-            if (member?.mainSeen) throw new SnapshotConflict('duplicate_resource')
-            if (member == null) {
-              await tx.insert(reviewProviderSnapshotMembers).values({
-                runId: run.id,
-                reviewId: observation.reviewId,
-                mainSeen: true,
-              })
-            } else {
-              await tx
-                .update(reviewProviderSnapshotMembers)
-                .set({ mainSeen: true })
-                .where(
-                  and(
-                    eq(reviewProviderSnapshotMembers.runId, run.id),
-                    eq(reviewProviderSnapshotMembers.reviewId, observation.reviewId),
-                  ),
-                )
-            }
-          } else {
-            if (member == null || !member.mainSeen || member.confirmationSeen) {
-              throw new SnapshotConflict('confirmation_set_changed')
-            }
-            const candidate = await tx
-              .select({ state: reviewProviderDeletionCandidates.state })
-              .from(reviewProviderDeletionCandidates)
-              .where(
-                and(
-                  eq(reviewProviderDeletionCandidates.runId, run.id),
-                  eq(reviewProviderDeletionCandidates.reviewId, observation.reviewId),
-                ),
-              )
-              .limit(1)
-            if (candidate.length > 0) {
-              throw new SnapshotConflict('confirmation_set_changed')
-            }
-            await tx
-              .update(reviewProviderSnapshotMembers)
-              .set({ confirmationSeen: true })
-              .where(
-                and(
-                  eq(reviewProviderSnapshotMembers.runId, run.id),
-                  eq(reviewProviderSnapshotMembers.reviewId, observation.reviewId),
-                ),
-              )
-          }
-        }
+        const conflict = pageCommitConflictCode(run, input)
+        if (conflict) throw new SnapshotConflict(conflict)
+        await recordPageMembership(tx, run, input)
 
         const nextCount = pageCount + 1
         const nextUnique =
@@ -501,25 +823,14 @@ export const createReviewProviderSnapshotRepository = (
         }
         const rows = await tx
           .update(reviewProviderSnapshotRuns)
-          .set(
-            input.phase === 'main'
-              ? {
-                  expectedTotal: run.expectedTotal ?? input.totalReviewCount,
-                  mainPageCount: nextCount,
-                  mainUniqueCount: nextUnique,
-                  mainCursorRef: input.nextCursorRef,
-                  updatedAt: sql`transaction_timestamp()`,
-                }
-              : {
-                  confirmationPageCount: nextCount,
-                  confirmationUniqueCount: nextUnique,
-                  confirmationCursorRef: input.nextCursorRef,
-                  updatedAt: sql`transaction_timestamp()`,
-                },
-          )
+          .set(pageCommitUpdate(run, input, nextCount, nextUnique))
           .where(eq(reviewProviderSnapshotRuns.id, run.id))
           .returning()
-        if (!rows[0]) throw new Error('Snapshot page update returned no row')
+        if (!rows[0])
+          throw domainError(
+            'snapshot_page_update_empty',
+            'Snapshot page update returned no row',
+          )
         return {
           status: 'committed' as const,
           run: fromRunRow(rows[0]),
@@ -540,7 +851,7 @@ export const createReviewProviderSnapshotRepository = (
         .where(eq(reviewProviderSnapshotRuns.id, runId))
         .for('update')
       const run = rows[0]
-      if (!run) throw new Error('Snapshot run not found')
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       if (run.state !== 'scanning' || run.phase !== 'main') {
         if (run.state === 'confirming') {
           return { status: 'confirming' as const, run: fromRunRow(run) }
@@ -551,7 +862,7 @@ export const createReviewProviderSnapshotRepository = (
       if (
         run.mainCursorRef != null ||
         run.mainPageCount < 1 ||
-        run.expectedTotal == null ||
+        !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating) ||
         run.mainUniqueCount !== run.expectedTotal
       ) {
         const failed = await failLockedRun(tx, run, 'set_mismatch')
@@ -611,7 +922,11 @@ export const createReviewProviderSnapshotRepository = (
         })
         .where(eq(reviewProviderSnapshotRuns.id, run.id))
         .returning()
-      if (!updated[0]) throw new Error('Snapshot confirmation transition failed')
+      if (!updated[0])
+        throw domainError(
+          'snapshot_confirmation_transition_failed',
+          'Snapshot confirmation transition failed',
+        )
       return { status: 'confirming' as const, run: fromRunRow(updated[0]) }
     }),
 
@@ -714,9 +1029,9 @@ export const createReviewProviderSnapshotRepository = (
         .where(eq(reviewProviderSnapshotRuns.id, runId))
         .for('update')
       const run = rows[0]
-      if (!run) throw new Error('Snapshot run not found')
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       if (run.state !== 'confirming' || run.phase !== 'confirmation') {
-        throw new Error('Snapshot run is not confirming')
+        throw domainError('snapshot_run_not_confirming', 'Snapshot run is not confirming')
       }
       const pending = await tx
         .select({ reviewId: reviewProviderDeletionCandidates.reviewId })
@@ -729,7 +1044,11 @@ export const createReviewProviderSnapshotRepository = (
           ),
         )
         .limit(1)
-      if (pending.length > 0) throw new Error('Targeted confirmations remain')
+      if (pending.length > 0)
+        throw domainError(
+          'targeted_confirmations_remain',
+          'Targeted confirmations remain',
+        )
       return fromRunRow(run)
     }),
 
@@ -741,7 +1060,7 @@ export const createReviewProviderSnapshotRepository = (
         .where(eq(reviewProviderSnapshotRuns.id, runId))
         .for('update')
       const run = rows[0]
-      if (!run) throw new Error('Snapshot run not found')
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       if (run.state === 'deleting') {
         return { status: 'deleting' as const, run: fromRunRow(run) }
       }
@@ -757,7 +1076,7 @@ export const createReviewProviderSnapshotRepository = (
         run.state !== 'confirming' ||
         run.phase !== 'confirmation' ||
         run.confirmationCursorRef != null ||
-        run.expectedTotal == null ||
+        !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating) ||
         run.confirmationUniqueCount !== run.mainUniqueCount ||
         run.mainUniqueCount !== run.expectedTotal ||
         memberMismatch.rowCount !== 0 ||
@@ -809,7 +1128,11 @@ export const createReviewProviderSnapshotRepository = (
         })
         .where(eq(reviewProviderSnapshotRuns.id, run.id))
         .returning()
-      if (!updated[0]) throw new Error('Snapshot deleting transition failed')
+      if (!updated[0])
+        throw domainError(
+          'snapshot_deleting_transition_failed',
+          'Snapshot deleting transition failed',
+        )
       return { status: 'deleting' as const, run: fromRunRow(updated[0]) }
     }),
 
@@ -820,7 +1143,7 @@ export const createReviewProviderSnapshotRepository = (
         .from(reviewProviderSnapshotRuns)
         .where(eq(reviewProviderSnapshotRuns.id, runId))
         .for('update')
-      if (!rows[0]) throw new Error('Snapshot run not found')
+      if (!rows[0]) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       return fromRunRow(await failLockedRun(tx, rows[0], code))
     }),
 
@@ -835,11 +1158,12 @@ export const createReviewProviderSnapshotRepository = (
         .where(eq(reviewProviderSnapshotRuns.id, runId))
         .for('update')
       const run = runRows[0]
-      if (!run) throw new Error('Snapshot run not found')
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       if (run.state === 'completed') {
         return { run: fromRunRow(run), applied: 0, observed: 0, done: true }
       }
-      if (run.state !== 'deleting') throw new Error('Snapshot run is not deleting')
+      if (run.state !== 'deleting')
+        throw domainError('snapshot_run_not_deleting', 'Snapshot run is not deleting')
       const candidates = await tx
         .select()
         .from(reviewProviderDeletionCandidates)
@@ -855,89 +1179,48 @@ export const createReviewProviderSnapshotRepository = (
         .orderBy(asc(reviewProviderDeletionCandidates.reviewId))
         .limit(limit)
         .for('update')
+
+      // The provider-deletion path shares the lifecycle mutation order. Lock
+      // every Reply scope before any Review row; mapping locks come last.
+      // This prevents Property -> Reply -> Review -> mapping from being
+      // inverted by a concurrent expiry or re-observation transaction.
+      for (const candidate of candidates) {
+        const current = await lockReviewSourceMutationScope(tx, {
+          organizationId: organizationId(run.organizationId),
+          propertyId: propertyId(run.propertyId),
+          reviewId: reviewId(candidate.reviewId),
+          sourceEpoch: run.sourceEpoch,
+        })
+        if (!current) {
+          throw domainError(
+            'snapshot_source_epoch_changed',
+            'Provider snapshot source epoch changed before deletion',
+          )
+        }
+      }
+      const lockedReviews: LockedDeletionReview[] =
+        candidates.length === 0
+          ? []
+          : await selectLockedDeletionReviews(
+              tx,
+              candidates.map((candidate) => candidate.reviewId),
+            )
+      const lockedReviewsById = new Map(lockedReviews.map((row) => [row.id, row]))
       let applied = 0
       let observed = 0
       for (const candidate of candidates) {
-        const mappings = await tx
-          .select()
-          .from(reviewProviderSubjects)
-          .where(
-            and(
-              eq(reviewProviderSubjects.organizationId, run.organizationId),
-              eq(reviewProviderSubjects.propertyId, run.propertyId),
-              eq(reviewProviderSubjects.sourceEpoch, run.sourceEpoch),
-              eq(reviewProviderSubjects.reviewId, candidate.reviewId),
-            ),
-          )
-          .for('update')
-        const mapping = mappings[0]
-        if (
-          mapping == null ||
-          mapping.state !== candidate.expectedMappingState ||
-          mapping.lastSourceRevision !== candidate.expectedSourceRevision ||
-          mapping.firstMissingSnapshotRunId == null ||
-          mapping.lastSeenSnapshotRunId === run.id
-        ) {
-          await tx
-            .update(reviewProviderDeletionCandidates)
-            .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
-            .where(
-              and(
-                eq(reviewProviderDeletionCandidates.runId, run.id),
-                eq(reviewProviderDeletionCandidates.reviewId, candidate.reviewId),
-              ),
-            )
+        const outcome = await applyDeletionCandidate(
+          tx,
+          run,
+          candidate,
+          lockedReviewsById.get(candidate.reviewId),
+        )
+        if (outcome.kind === 'applied') {
+          emitted.push(outcome.event)
+          applied += 1
+        } else {
           observed += 1
-          continue
         }
-        if (mapping.state === 'linked') {
-          const deleted = await tx
-            .delete(reviews)
-            .where(
-              and(
-                eq(reviews.id, candidate.reviewId),
-                eq(reviews.organizationId, run.organizationId),
-                eq(reviews.propertyId, run.propertyId),
-                eq(reviews.sourceEpoch, run.sourceEpoch),
-                eq(reviews.sourceRevision, candidate.expectedSourceRevision),
-              ),
-            )
-            .returning({ id: reviews.id })
-          if (!deleted[0]) {
-            await tx
-              .update(reviewProviderDeletionCandidates)
-              .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
-              .where(
-                and(
-                  eq(reviewProviderDeletionCandidates.runId, run.id),
-                  eq(reviewProviderDeletionCandidates.reviewId, candidate.reviewId),
-                ),
-              )
-            observed += 1
-            continue
-          }
-        }
-        emitted.push(await recordSourceTransition(tx, mapping, 'provider_deleted'))
-        await tx
-          .update(reviewProviderSubjects)
-          .set({
-            state: 'provider_deleted',
-            unlinkedAt: mapping.unlinkedAt ?? sql`transaction_timestamp()`,
-            unlinkExpiresAt:
-              mapping.unlinkExpiresAt ??
-              sql`transaction_timestamp() + interval '24 months'`,
-            updatedAt: sql`transaction_timestamp()`,
-          })
-          .where(
-            and(
-              eq(reviewProviderSubjects.organizationId, mapping.organizationId),
-              eq(reviewProviderSubjects.propertyId, mapping.propertyId),
-              eq(reviewProviderSubjects.sourceEpoch, mapping.sourceEpoch),
-              eq(reviewProviderSubjects.keyVersion, mapping.keyVersion),
-              eq(reviewProviderSubjects.locatorHmac, mapping.locatorHmac),
-            ),
-          )
-        applied += 1
       }
       const last = candidates.at(-1)?.reviewId ?? run.applyCursorReviewId
       const more =
@@ -957,6 +1240,9 @@ export const createReviewProviderSnapshotRepository = (
               .limit(1)
           : []
       const done = more.length === 0
+      if (done) {
+        emitted.push(await recordVerifiedSnapshotFact(tx, run))
+      }
       const updated = await tx
         .update(reviewProviderSnapshotRuns)
         .set(
@@ -976,7 +1262,11 @@ export const createReviewProviderSnapshotRepository = (
         )
         .where(eq(reviewProviderSnapshotRuns.id, run.id))
         .returning()
-      if (!updated[0]) throw new Error('Snapshot apply checkpoint failed')
+      if (!updated[0])
+        throw domainError(
+          'snapshot_apply_checkpoint_failed',
+          'Snapshot apply checkpoint failed',
+        )
       return { run: fromRunRow(updated[0]), applied, observed, done }
     })
     for (const event of emitted) await emitAfterCommit(events, event)
@@ -985,75 +1275,51 @@ export const createReviewProviderSnapshotRepository = (
 
   expireRawSourceBatch: async ({ beforeOrAt, afterReviewId, limit }) => {
     if (limit < 1 || limit > 100) throw new TypeError('Raw expiry batch is out of bounds')
-    const emitted: DomainEvent[] = []
-    const result = await db.transaction(async (tx) => {
-      const rows = await tx
-        .select({ id: reviews.id })
+
+    // Compatibility report only. Translate the legacy Review-id cursor into
+    // the canonical frozen checkpoint, then delegate to the sole lifecycle
+    // application authority. No authorizer or apply confirmation is present.
+    let checkpoint = undefined
+    if (afterReviewId != null) {
+      const checkpointRows = await db
+        .select({ createdAt: reviews.createdAt })
         .from(reviews)
-        .where(
-          and(
-            lte(
-              reviews.contentExpiresAt,
-              sql`LEAST(${beforeOrAt}, transaction_timestamp())`,
-            ),
-            afterReviewId == null ? undefined : gt(reviews.id, afterReviewId),
-          ),
+        .where(eq(reviews.id, afterReviewId))
+        .limit(1)
+      if (checkpointRows[0] == null) {
+        throw domainError(
+          'raw_expiry_checkpoint_missing',
+          'Raw expiry checkpoint Review no longer exists',
         )
-        .orderBy(asc(reviews.id))
-        .limit(limit)
-        .for('update', { skipLocked: true })
-      let transitioned = 0
-      for (const row of rows) {
-        const mappings = await tx
-          .select()
-          .from(reviewProviderSubjects)
-          .where(
-            and(
-              eq(reviewProviderSubjects.reviewId, row.id),
-              eq(reviewProviderSubjects.state, 'linked'),
-            ),
-          )
-          .for('update')
-        const mapping = mappings[0]
-        if (!mapping) continue
-        emitted.push(await recordSourceTransition(tx, mapping, 'source_expired'))
-        await tx
-          .update(reviewProviderSubjects)
-          .set({
-            state: 'source_expired',
-            unlinkedAt: sql`transaction_timestamp()`,
-            unlinkExpiresAt: sql`transaction_timestamp() + interval '24 months'`,
-            updatedAt: sql`transaction_timestamp()`,
-          })
-          .where(
-            and(
-              eq(reviewProviderSubjects.organizationId, mapping.organizationId),
-              eq(reviewProviderSubjects.propertyId, mapping.propertyId),
-              eq(reviewProviderSubjects.sourceEpoch, mapping.sourceEpoch),
-              eq(reviewProviderSubjects.keyVersion, mapping.keyVersion),
-              eq(reviewProviderSubjects.locatorHmac, mapping.locatorHmac),
-            ),
-          )
-        const deleted = await tx
-          .delete(reviews)
-          .where(
-            and(
-              eq(reviews.id, row.id),
-              eq(reviews.sourceEpoch, mapping.sourceEpoch),
-              eq(reviews.sourceRevision, mapping.lastSourceRevision),
-            ),
-          )
-          .returning({ id: reviews.id })
-        if (!deleted[0]) throw new Error('Expired Review changed before deletion')
-        transitioned += 1
       }
-      return {
-        transitioned,
-        nextReviewId: rows.length === limit ? reviewId(rows.at(-1)!.id) : null,
+      checkpoint = {
+        contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
+        mode: 'report' as const,
+        scope: { kind: 'expired' as const },
+        evaluatedAt: beforeOrAt.toISOString(),
+        after: {
+          createdAt: checkpointRows[0].createdAt.toISOString(),
+          reviewId: afterReviewId,
+        },
       }
+    }
+
+    const report = await createRunReviewSourceContentLifecycle({
+      store: createReviewSourceContentLifecycleStore(db),
+      clock: () => beforeOrAt,
+    })({
+      mode: 'report',
+      scope: { kind: 'expired' },
+      batchSize: limit,
+      ...(checkpoint == null ? {} : { checkpoint }),
     })
-    for (const event of emitted) await emitAfterCommit(events, event)
-    return result
+    return {
+      transitioned: 0,
+      nextReviewId:
+        report.nextCheckpoint == null
+          ? null
+          : reviewId(report.nextCheckpoint.after.reviewId),
+    }
   },
 
   sweepExpiredTombstones: async ({ beforeOrAt, afterReviewId, limit }) => {

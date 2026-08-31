@@ -8,7 +8,7 @@ import {
   validatePortalName,
   validateDescription,
   validatePortalTheme,
-  validateSmartRoutingThreshold,
+  validatePrivateFeedbackThreshold,
   validateUrl,
   isValidExternalUrl,
   validateLinkLabel,
@@ -209,19 +209,19 @@ describe('validatePortalTheme', () => {
   })
 })
 
-// ── validateSmartRoutingThreshold ──────────────────────────────────
+// ── validatePrivateFeedbackThreshold ───────────────────────────────
 
-describe('validateSmartRoutingThreshold', () => {
+describe('validatePrivateFeedbackThreshold', () => {
   it('accepts 1 through 5', () => {
-    expect(validateSmartRoutingThreshold(1).isOk()).toBe(true)
-    expect(validateSmartRoutingThreshold(2).isOk()).toBe(true)
-    expect(validateSmartRoutingThreshold(3).isOk()).toBe(true)
-    expect(validateSmartRoutingThreshold(4).isOk()).toBe(true)
-    expect(validateSmartRoutingThreshold(5).isOk()).toBe(true)
+    expect(validatePrivateFeedbackThreshold(1).isOk()).toBe(true)
+    expect(validatePrivateFeedbackThreshold(2).isOk()).toBe(true)
+    expect(validatePrivateFeedbackThreshold(3).isOk()).toBe(true)
+    expect(validatePrivateFeedbackThreshold(4).isOk()).toBe(true)
+    expect(validatePrivateFeedbackThreshold(5).isOk()).toBe(true)
   })
 
   it('rejects 0', () => {
-    const result = validateSmartRoutingThreshold(0)
+    const result = validatePrivateFeedbackThreshold(0)
     expect(result.isErr()).toBe(true)
     if (result.isErr()) {
       expect(result.error.code).toBe('invalid_threshold')
@@ -229,7 +229,7 @@ describe('validateSmartRoutingThreshold', () => {
   })
 
   it('rejects 6', () => {
-    const result = validateSmartRoutingThreshold(6)
+    const result = validatePrivateFeedbackThreshold(6)
     expect(result.isErr()).toBe(true)
     if (result.isErr()) {
       expect(result.error.code).toBe('invalid_threshold')
@@ -237,7 +237,7 @@ describe('validateSmartRoutingThreshold', () => {
   })
 
   it('rejects non-integer', () => {
-    const result = validateSmartRoutingThreshold(2.5)
+    const result = validatePrivateFeedbackThreshold(2.5)
     expect(result.isErr()).toBe(true)
     if (result.isErr()) {
       expect(result.error.code).toBe('invalid_threshold')
@@ -344,6 +344,19 @@ describe('isValidExternalUrl', () => {
   it('accepts valid https URLs', () => {
     expect(isValidExternalUrl('https://example.com')).toBe(true)
     expect(isValidExternalUrl('https://example.com/path?q=1#hash')).toBe(true)
+  })
+
+  it('rejects credentials and private or local destinations', () => {
+    for (const url of [
+      'https://user:pass@example.com/path',
+      'https://127.0.0.1/admin',
+      'https://0x7f000001/admin',
+      'https://[::1]/admin',
+      'https://service.internal/admin',
+      'https://portal.localhost/admin',
+    ]) {
+      expect(isValidExternalUrl(url), url).toBe(false)
+    }
   })
 
   it('rejects http URLs', () => {

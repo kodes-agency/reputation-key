@@ -2,7 +2,6 @@ import { createServerFn } from '@tanstack/react-start'
 import { setResponseHeader } from '@tanstack/react-start/server'
 import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
-import { getEnv } from '#/shared/config/env'
 import { headersFromContext } from '#/shared/auth/headers'
 import {
   decidePublicExecution,
@@ -20,47 +19,33 @@ import type { GuestResponseScope } from '../application/ports/guest-response.rep
 import {
   CORRECTION_WINDOW_MS,
   GuestResponseLifecycleError,
+  RESPONSE_WITHDRAWAL_WINDOW_MS,
   type GuestResponseInput,
   type GuestResponseView,
 } from '../application/use-cases/guest-response-lifecycle'
 import type { PublicPortalData } from '../application/dto/public-portal.dto'
-import { MAX_TEXT_LENGTH } from '../domain/guest-response'
+import {
+  guestPrivateFeedbackMutationDto,
+  guestRatingMutationDto,
+  guestResponseMutationDto,
+  guestSecondaryLinkMutationDto,
+} from '../application/dto/guest-response-form.dto'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { guestRateLimitKey } from './guest-session'
-import { hashIp } from './hash-ip.server'
+import {
+  applyGuestPublicResponsePrivacy,
+  guestPublicResponseValidator,
+} from './public-response-privacy.server'
+import { organizationId, portalId, portalLinkId, propertyId } from '#/shared/domain/ids'
+import type { RateLimitResult } from '#/shared/rate-limit/middleware'
 export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
 
-const baseMutationSchema = z.object({
-  token: z.string().min(1).max(256),
-  csrfNonce: z.string().uuid(),
-})
-
-const responseMutationSchema = baseMutationSchema.extend({
-  rating: z.number().int().min(1).max(5).nullable().optional(),
-  category: z.string().uuid().nullable().optional(),
-  text: z.string().max(MAX_TEXT_LENGTH).nullable().optional(),
-  responseConsent: z.boolean().optional(),
-  textConsent: z.boolean().optional(),
-  mediaConsent: z.boolean().optional(),
-  // Bot trap: a real guest never fills this (the form renders it off-screen and
-  // aria-hidden), so any value means an automated submit. The rate limiter was
-  // the only bot defence on this path.
-  honeypot: z.string().max(256).optional(),
-})
-
-const issueMediaSchema = baseMutationSchema.extend({
-  contentType: z.enum(['image/jpeg', 'image/png', 'image/webp']),
-  sizeBytes: z
-    .number()
-    .int()
-    .min(1)
-    .max(10 * 1024 * 1024),
-})
-
-const confirmMediaSchema = baseMutationSchema.extend({
-  mediaId: z.string().uuid(),
-  objectKey: z.string().min(1).max(700),
-})
+const HONEYPOT_INTEGRITY_ASSESSMENT = {
+  outcome: 'filtered_automatically',
+  reasonCode: 'honeypot_signal',
+  source: 'automatic',
+  actorId: 'guest-integrity-honeypot-v1',
+} as const
 
 const denyWithoutEnumeration = (): never =>
   throwContextError(
@@ -79,7 +64,9 @@ async function resolveBoundSession(
     requiredConsents: ReadonlyArray<PublicConsent>
   }>,
 ) {
-  const { useCases } = getContainer()
+  const container = getContainer()
+  const useCases = container.guestPublicApi.requests
+  const { clock } = container
   let portal: PublicPortalData
   try {
     portal = await useCases.getPublicPortal({ token: input.token })
@@ -93,7 +80,7 @@ async function resolveBoundSession(
   }
   const requestHeaders = (await headersFromContext()) ?? new Headers()
   const origin = requestHeaders.get('origin')
-  if (origin !== new URL(getEnv().BETTER_AUTH_URL).origin) {
+  if (origin !== useCases.guestPublicRuntime.expectedOrigin) {
     return denyWithoutEnumeration()
   }
   const session = useCases.guestSessions.verify(requestHeaders.get('cookie') ?? '', scope)
@@ -106,10 +93,10 @@ async function resolveBoundSession(
     ...scope,
     consentAssertions: input.assertions,
     requiredPublicConsents: input.requiredConsents,
-    now: new Date(),
+    now: clock(),
   })
   if (!decision.allowed) return denyWithoutEnumeration()
-  return { useCases, scope, session, headers: requestHeaders }
+  return { useCases, scope, session, headers: requestHeaders, portal }
 }
 
 function lifecycleFailure(error: unknown): never {
@@ -117,6 +104,10 @@ function lifecycleFailure(error: unknown): never {
   const conflict: Record<string, true> = {
     already_submitted: true,
     correction_window_expired: true,
+    feedback_withdrawal_expired: true,
+    feedback_not_found: true,
+    response_not_submitted: true,
+    response_withdrawal_expired: true,
     already_deleted: true,
   }
   const hidden: Record<string, true> = {
@@ -132,50 +123,151 @@ function lifecycleFailure(error: unknown): never {
   )
 }
 
+type GuestRateLimitAction =
+  | 'submit'
+  | 'correct'
+  | 'feedback'
+  | 'feedback_withdraw'
+  | 'response_withdraw'
+  | 'new_response'
+  | 'google'
+  | 'secondary'
+
+type GuestRateLimitWindow = Readonly<{ maxRequests: number; windowSeconds: number }>
+
+type GuestRateLimitBudget = Readonly<{
+  session: GuestRateLimitWindow
+  networkPortal: GuestRateLimitWindow
+}>
+
+function rateLimitBudgetFor(action: GuestRateLimitAction): GuestRateLimitBudget {
+  switch (action) {
+    case 'submit':
+      return {
+        session: { maxRequests: 2, windowSeconds: 60 * 60 },
+        networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
+      }
+    case 'new_response':
+      // A shared device may legitimately serve another visitor, but
+      // rotation must not become an unbounded response-farming primitive.
+      // The network+Portal layer survives the new session identity.
+      return {
+        session: { maxRequests: 2, windowSeconds: 24 * 60 * 60 },
+        networkPortal: { maxRequests: 5, windowSeconds: 24 * 60 * 60 },
+      }
+    case 'correct':
+    case 'feedback':
+    case 'feedback_withdraw':
+    case 'response_withdraw':
+      // The aggregate enforces one successful correction/feedback. A
+      // small attempt budget still permits retry after a transient fault
+      // or compare-and-set race instead of making the UI's retry copy false.
+      return {
+        session: { maxRequests: 3, windowSeconds: 60 * 60 },
+        networkPortal: { maxRequests: 10, windowSeconds: 60 * 60 },
+      }
+    case 'google':
+    case 'secondary':
+      // PostgreSQL owns exact once-per-session/destination semantics.
+      // This small abuse budget allows a retry after transient
+      // observation loss while the navigation itself remains fail-open.
+      return {
+        session: { maxRequests: 3, windowSeconds: 24 * 60 * 60 },
+        networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
+      }
+    default:
+      return {
+        session: { maxRequests: 10, windowSeconds: 60 * 60 },
+        networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
+      }
+  }
+}
+
 async function rateLimit(
-  action: 'submit' | 'correct' | 'media',
+  action: GuestRateLimitAction,
   sessionId: string,
-  portalId: string,
+  scope: GuestResponseScope,
   headers: Headers,
-): Promise<void> {
-  const { rateLimiter } = getContainer()
-  const limits =
-    action === 'submit'
-      ? {
-          session: { maxRequests: 2, windowSeconds: 60 * 60 },
-          networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
-        }
-      : action === 'correct'
-        ? {
-            session: { maxRequests: 1, windowSeconds: 60 * 60 },
-            networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
-          }
-        : {
-            session: { maxRequests: 3, windowSeconds: 60 * 60 },
-            networkPortal: { maxRequests: 20, windowSeconds: 60 * 60 },
-          }
-  const keyKind = action === 'media' ? 'media' : 'response'
-  const ipHash = hashIp(clientIpFromHeaders(headers))
-  let result = await rateLimiter.check(
-    `${guestRateLimitKey(keyKind, sessionId, ipHash)}:${action}`,
-    limits.session,
+  destinationKey?: string,
+  failOpenNavigation = false,
+): Promise<boolean> {
+  const container = getContainer()
+  const useCases = container.guestPublicApi.requests
+  const { rateLimiter, clock } = container
+  // Kept beside the limiter it feeds: the guest-request → durable
+  // network-pressure authority map, null for requests that have none.
+  const pressureActionByRequest = {
+    submit: 'rating',
+    correct: 'rating',
+    feedback: 'private_feedback',
+    google: 'destination_action',
+    secondary: 'destination_action',
+  } as const
+  const pressureAction =
+    action in pressureActionByRequest
+      ? pressureActionByRequest[action as keyof typeof pressureActionByRequest]
+      : null
+  const pseudonymAction =
+    pressureAction ?? (action === 'feedback_withdraw' ? 'private_feedback' : 'rating')
+  const limits = rateLimitBudgetFor(action)
+  const keyKind = action === 'google' || action === 'secondary' ? 'click' : 'response'
+  const portalId = scope.portalId
+  const observedAt = clock()
+  const pseudonym = useCases.guestPublicRuntime.hashNetworkPseudonym(
+    clientIpFromHeaders(headers),
+    scope,
+    pseudonymAction,
+    observedAt,
   )
-  if (result.allowed) {
-    result = await rateLimiter.check(
-      `${keyKind}:network:${ipHash}:portal:${portalId}`,
-      limits.networkPortal,
+  const denyRateLimited = (resetAt: Date): false => {
+    if (failOpenNavigation) return false
+    setResponseHeader(
+      'Retry-After',
+      String(Math.max(1, Math.ceil((resetAt.getTime() - observedAt.getTime()) / 1000))),
+    )
+    throwContextError(
+      'GuestResponseError',
+      { code: 'rate_limited', message: 'Too many requests' },
+      429,
     )
   }
-  if (result.allowed) return
-  setResponseHeader(
-    'Retry-After',
-    String(Math.max(1, Math.ceil((result.resetAt.getTime() - Date.now()) / 1000))),
+  const denyLimiterResult = async (result: RateLimitResult): Promise<false> => {
+    if (failOpenNavigation && result.backendStatus === 'unavailable') {
+      await useCases.reportObservationLoss('review_link')
+    }
+    return denyRateLimited(result.resetAt)
+  }
+
+  const sessionResult = await rateLimiter.check(
+    `${guestRateLimitKey(keyKind, sessionId, pseudonym)}:${action}${destinationKey ? `:${destinationKey}` : ''}`,
+    limits.session,
   )
-  throwContextError(
-    'GuestResponseError',
-    { code: 'rate_limited', message: 'Too many requests' },
-    429,
+  if (!sessionResult.allowed) return denyLimiterResult(sessionResult)
+
+  const networkResult = await rateLimiter.check(
+    `${keyKind}:network:${pseudonym}:portal:${portalId}:${action}`,
+    limits.networkPortal,
   )
+  if (!networkResult.allowed) return denyLimiterResult(networkResult)
+
+  if (pressureAction) {
+    try {
+      const pressureResult = await useCases.consumeGuestNetworkPressure({
+        ...scope,
+        pseudonym,
+        action: pressureAction,
+        ...limits.networkPortal,
+      })
+      if (!pressureResult.allowed) return denyRateLimited(pressureResult.resetAt)
+    } catch (error) {
+      if (failOpenNavigation) {
+        await useCases.reportObservationLoss('review_link')
+        return false
+      }
+      throw error
+    }
+  }
+  return true
 }
 
 function assertions(input: GuestResponseInput): PublicConsentAssertions {
@@ -190,65 +282,91 @@ function assertions(input: GuestResponseInput): PublicConsentAssertions {
 
 /**
  * Honeypot response: a filled trap field is answered with the view a real
- * submit would have produced, and nothing is written. Silent by design — a
- * visible error (or a distinguishable success shape) tells the bot the trap
- * exists, which is the whole value of the trap.
+ * submit would have produced. Silent by design — a visible error (or a
+ * distinguishable success shape) tells the bot the trap exists. Valid,
+ * rate-limited rating submissions are retained under the automatic integrity
+ * outcome; this view remains the fail-closed fallback when binding/persistence
+ * cannot safely happen.
  */
 function decoyView(
   input: Readonly<{ rating?: number | null; text?: string | null }>,
+  now: Date,
 ): GuestResponseView {
-  const now = new Date()
   return {
-    id: crypto.randomUUID(),
     status: 'submitted',
-    responseConsent: true,
-    textConsent: true,
     rating: input.rating ?? null,
-    category: null,
-    text: input.text?.trim() || null,
-    mediaConsent: false,
+    hasPrivateFeedback: Boolean(input.text?.trim()),
+    privateFeedbackEligible: false,
     submittedAt: now.toISOString(),
     correctedAt: null,
     correctionDeadline: new Date(now.getTime() + CORRECTION_WINDOW_MS).toISOString(),
+    correctionAvailable: true,
+    responseWithdrawalDeadline: new Date(
+      now.getTime() + RESPONSE_WITHDRAWAL_WINDOW_MS,
+    ).toISOString(),
+    responseWithdrawalAvailable: true,
+    feedbackSubmittedAt: null,
+    feedbackWithdrawalDeadline: null,
+    feedbackWithdrawalAvailable: false,
+    feedbackWithdrawnAt: null,
     deletedAt: null,
   }
 }
 
 export const submitGuestResponseFn = createServerFn({ method: 'POST' })
-  .inputValidator(responseMutationSchema)
+  .validator(guestPublicResponseValidator(guestRatingMutationDto))
   .handler(
     tracedHandler(
       async ({ data }) => {
-        if (data.honeypot) return decoyView(data)
-        const bound = await resolveBoundSession({
-          ...data,
-          action: 'public:portal.response.submit',
-          capability: 'portal.guest_response',
-          assertions: assertions(data),
-          requiredConsents: ['response'],
-        })
-        if (data.text?.trim()) {
-          await resolveBoundSession({
-            ...data,
-            action: 'public:portal.response.text.submit',
-            capability: 'portal.guest_text',
-            assertions: assertions(data),
-            requiredConsents: ['response', 'freeText'],
-          })
-        }
-        await rateLimit(
-          'submit',
-          bound.session.sessionId,
-          bound.scope.portalId,
-          bound.headers,
-        )
+        applyGuestPublicResponsePrivacy()
+        const trapped = Boolean(data.honeypot)
+        let bound: Awaited<ReturnType<typeof resolveBoundSession>>
         try {
-          return await bound.useCases.responseLifecycle.submit(
+          bound = await resolveBoundSession({
+            ...data,
+            action: 'public:portal.response.submit',
+            capability: 'portal.guest_response',
+            assertions: assertions(data),
+            requiredConsents: ['response'],
+          })
+          await rateLimit('submit', bound.session.sessionId, bound.scope, bound.headers)
+        } catch (error) {
+          if (trapped) return decoyView(data, getContainer().clock())
+          throw error
+        }
+        try {
+          const response = await bound.useCases.responseLifecycle.submit(
             bound.scope,
             bound.session.sessionId,
             data,
+            {
+              portalPublicationState: bound.portal.responseConfiguration.publicationState,
+              portalPublicationSnapshotId:
+                bound.portal.responseConfiguration.publicationSnapshotId,
+              portalPublicationVersion:
+                bound.portal.responseConfiguration.publicationVersion,
+              portalPublicationDigest:
+                bound.portal.responseConfiguration.publicationDigest,
+              portalConfigurationDigest:
+                bound.portal.responseConfiguration.configurationDigest,
+              guestLocale: bound.portal.responseConfiguration.guestLocale,
+              languagePackVersion: bound.portal.responseConfiguration.languagePackVersion,
+              privateFeedbackThreshold:
+                bound.portal.responseConfiguration.privateFeedbackThreshold,
+            },
+            undefined,
+            trapped ? HONEYPOT_INTEGRITY_ASSESSMENT : undefined,
           )
+          if (response.responseWithdrawalDeadline) {
+            const renewed = bound.useCases.guestSessions.renewUntil(
+              bound.session,
+              new Date(response.responseWithdrawalDeadline),
+            )
+            if (renewed) setResponseHeader('Set-Cookie', [...renewed.cookies])
+          }
+          return response
         } catch (error) {
+          if (trapped) return decoyView(data, getContainer().clock())
           return lifecycleFailure(error)
         }
       },
@@ -258,12 +376,13 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
   )
 
 export const correctGuestResponseFn = createServerFn({ method: 'POST' })
-  .inputValidator(responseMutationSchema)
+  .validator(guestPublicResponseValidator(guestRatingMutationDto))
   .handler(
     tracedHandler(
       async ({ data }) => {
+        applyGuestPublicResponsePrivacy()
         // Same trap on the correction path — the form posts the field to both.
-        if (data.honeypot) return decoyView(data)
+        if (data.honeypot) return decoyView(data, getContainer().clock())
         const bound = await resolveBoundSession({
           ...data,
           action: 'public:portal.response.correct',
@@ -271,21 +390,7 @@ export const correctGuestResponseFn = createServerFn({ method: 'POST' })
           assertions: assertions(data),
           requiredConsents: ['response'],
         })
-        if (data.text?.trim()) {
-          await resolveBoundSession({
-            ...data,
-            action: 'public:portal.response.text.correct',
-            capability: 'portal.guest_text',
-            assertions: assertions(data),
-            requiredConsents: ['response', 'freeText'],
-          })
-        }
-        await rateLimit(
-          'correct',
-          bound.session.sessionId,
-          bound.scope.portalId,
-          bound.headers,
-        )
+        await rateLimit('correct', bound.session.sessionId, bound.scope, bound.headers)
         try {
           return await bound.useCases.responseLifecycle.correct(
             bound.scope,
@@ -301,11 +406,261 @@ export const correctGuestResponseFn = createServerFn({ method: 'POST' })
     ),
   )
 
-export const withdrawGuestResponseFn = createServerFn({ method: 'POST' })
-  .inputValidator(baseMutationSchema)
+/**
+ * End recovery on this shared browser and issue a fresh response identity.
+ * The earlier response is deliberately untouched: this is neither withdrawal
+ * nor correction, and its independent binding simply expires on schedule.
+ */
+export const startNewGuestResponseFn = createServerFn({ method: 'POST' })
+  .validator(guestPublicResponseValidator(guestResponseMutationDto))
   .handler(
     tracedHandler(
       async ({ data }) => {
+        applyGuestPublicResponsePrivacy()
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.response.start_new',
+          capability: 'portal.guest_response',
+          assertions: {
+            analytics: false,
+            response: false,
+            freeText: false,
+            contact: false,
+            media: false,
+          },
+          requiredConsents: [],
+        })
+        await rateLimit(
+          'new_response',
+          bound.session.sessionId,
+          bound.scope,
+          bound.headers,
+        )
+        const response = await bound.useCases.responseLifecycle.getState(
+          bound.scope,
+          bound.session.sessionId,
+        )
+        if (!response?.rating || response.status === 'deleted') {
+          return denyWithoutEnumeration()
+        }
+        const issued = bound.useCases.guestSessions.issue(bound.scope)
+        setResponseHeader('Set-Cookie', [...issued.cookies])
+        return { csrfNonce: issued.session.csrfNonce }
+      },
+      'POST',
+      'guest.response.start_new',
+    ),
+  )
+
+export const submitPrivateFeedbackFn = createServerFn({ method: 'POST' })
+  .validator(guestPublicResponseValidator(guestPrivateFeedbackMutationDto))
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        applyGuestPublicResponsePrivacy()
+        if (data.honeypot) {
+          return decoyView({ text: data.text }, getContainer().clock())
+        }
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.response.text.submit',
+          capability: 'portal.guest_text',
+          assertions: {
+            analytics: false,
+            response: true,
+            freeText: true,
+            contact: false,
+            media: false,
+          },
+          requiredConsents: ['response', 'freeText'],
+        })
+        await rateLimit('feedback', bound.session.sessionId, bound.scope, bound.headers)
+        try {
+          const response = await bound.useCases.responseLifecycle.addPrivateFeedback(
+            bound.scope,
+            bound.session.sessionId,
+            data,
+          )
+          if (response.feedbackWithdrawalDeadline) {
+            const renewed = bound.useCases.guestSessions.renewUntil(
+              bound.session,
+              new Date(response.feedbackWithdrawalDeadline),
+            )
+            if (renewed) setResponseHeader('Set-Cookie', [...renewed.cookies])
+          }
+          return response
+        } catch (error) {
+          return lifecycleFailure(error)
+        }
+      },
+      'POST',
+      'guest.response.private_feedback.submit',
+    ),
+  )
+
+export const withdrawPrivateFeedbackFn = createServerFn({ method: 'POST' })
+  .validator(guestPublicResponseValidator(guestResponseMutationDto))
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        applyGuestPublicResponsePrivacy()
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.response.text.withdraw',
+          capability: 'portal.guest_text',
+          assertions: {
+            analytics: false,
+            response: true,
+            freeText: true,
+            contact: false,
+            media: false,
+          },
+          requiredConsents: ['response', 'freeText'],
+        })
+        await rateLimit(
+          'feedback_withdraw',
+          bound.session.sessionId,
+          bound.scope,
+          bound.headers,
+        )
+        try {
+          return await bound.useCases.responseLifecycle.withdrawPrivateFeedback(
+            bound.scope,
+            bound.session.sessionId,
+          )
+        } catch (error) {
+          return lifecycleFailure(error)
+        }
+      },
+      'POST',
+      'guest.response.private_feedback.withdraw',
+    ),
+  )
+
+/**
+ * Qualified Google Review Selection. The response must already contain the
+ * session's durable private rating; observation failure never blocks navigation.
+ */
+export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
+  .validator(guestPublicResponseValidator(guestResponseMutationDto))
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        applyGuestPublicResponsePrivacy()
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.google_review.select',
+          capability: 'portal.public_read',
+          assertions: {
+            analytics: true,
+            response: true,
+            freeText: false,
+            contact: false,
+            media: false,
+          },
+          requiredConsents: [],
+        })
+        const response = await bound.useCases.responseLifecycle.getState(
+          bound.scope,
+          bound.session.sessionId,
+        )
+        if (!response?.rating || response.status === 'deleted') {
+          return denyWithoutEnumeration()
+        }
+        const googleReview = bound.portal.reviewGateway.googleReview
+        if (googleReview.status !== 'available') return denyWithoutEnumeration()
+        const qualified = await rateLimit(
+          'google',
+          bound.session.sessionId,
+          bound.scope,
+          bound.headers,
+          undefined,
+          true,
+        )
+        if (qualified) {
+          await bound.useCases.trackReviewLinkClick({
+            linkId: portalLinkId(`google-review:${bound.scope.portalId}`),
+            destinationKind: 'google_review',
+            sessionId: bound.session.sessionId,
+            sessionExpiresAt: bound.session.expiresAt,
+            organizationId: organizationId(bound.scope.organizationId),
+            portalId: portalId(bound.scope.portalId),
+            propertyId: propertyId(bound.scope.propertyId),
+          })
+        }
+        return { url: googleReview.uri }
+      },
+      'POST',
+      'guest.google_review.select',
+    ),
+  )
+
+/**
+ * Qualified secondary-link action. The GET redirect remains a navigation-only
+ * fallback; only this origin/CSRF/session-bound mutation may create analytics.
+ */
+export const selectSecondaryLinkFn = createServerFn({ method: 'POST' })
+  .validator(guestPublicResponseValidator(guestSecondaryLinkMutationDto))
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        applyGuestPublicResponsePrivacy()
+        const bound = await resolveBoundSession({
+          ...data,
+          action: 'public:portal.secondary_link.select',
+          capability: 'portal.public_read',
+          assertions: {
+            analytics: true,
+            response: true,
+            freeText: false,
+            contact: false,
+            media: false,
+          },
+          requiredConsents: [],
+        })
+        const response = await bound.useCases.responseLifecycle.getState(
+          bound.scope,
+          bound.session.sessionId,
+        )
+        if (!response?.rating || response.status === 'deleted') {
+          return denyWithoutEnumeration()
+        }
+        const qualified = await rateLimit(
+          'secondary',
+          bound.session.sessionId,
+          bound.scope,
+          bound.headers,
+          data.linkId,
+          true,
+        )
+        const result = await bound.useCases.resolveLinkAndTrack({
+          token: data.token,
+          linkId: portalLinkId(data.linkId),
+          qualifyObservation: async (scope) =>
+            qualified &&
+            scope.organizationId === bound.scope.organizationId &&
+            scope.propertyId === bound.scope.propertyId &&
+            scope.portalId === bound.scope.portalId
+              ? {
+                  sessionId: bound.session.sessionId,
+                  sessionExpiresAt: bound.session.expiresAt,
+                }
+              : null,
+        })
+        if (!result) return denyWithoutEnumeration()
+        return result
+      },
+      'POST',
+      'guest.secondary_link.select',
+    ),
+  )
+
+export const withdrawGuestResponseFn = createServerFn({ method: 'POST' })
+  .validator(guestPublicResponseValidator(guestResponseMutationDto))
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        applyGuestPublicResponsePrivacy()
         const bound = await resolveBoundSession({
           ...data,
           action: 'public:portal.response.withdraw',
@@ -319,6 +674,12 @@ export const withdrawGuestResponseFn = createServerFn({ method: 'POST' })
           },
           requiredConsents: ['response'],
         })
+        await rateLimit(
+          'response_withdraw',
+          bound.session.sessionId,
+          bound.scope,
+          bound.headers,
+        )
         try {
           return await bound.useCases.responseLifecycle.withdraw(
             bound.scope,
@@ -333,82 +694,10 @@ export const withdrawGuestResponseFn = createServerFn({ method: 'POST' })
     ),
   )
 
-export const issueGuestMediaFn = createServerFn({ method: 'POST' })
-  .inputValidator(issueMediaSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const bound = await resolveBoundSession({
-          ...data,
-          action: 'public:portal.media.issue',
-          capability: 'portal.guest_media',
-          assertions: {
-            analytics: false,
-            response: true,
-            freeText: false,
-            contact: false,
-            media: true,
-          },
-          requiredConsents: ['response', 'media'],
-        })
-        await rateLimit(
-          'media',
-          bound.session.sessionId,
-          bound.scope.portalId,
-          bound.headers,
-        )
-        try {
-          return await bound.useCases.responseLifecycle.issueMedia(
-            bound.scope,
-            bound.session.sessionId,
-            data,
-          )
-        } catch (error) {
-          return lifecycleFailure(error)
-        }
-      },
-      'POST',
-      'guest.media.issue',
-    ),
-  )
-
-export const confirmGuestMediaFn = createServerFn({ method: 'POST' })
-  .inputValidator(confirmMediaSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const bound = await resolveBoundSession({
-          ...data,
-          action: 'public:portal.media.confirm',
-          capability: 'portal.guest_media',
-          assertions: {
-            analytics: false,
-            response: true,
-            freeText: false,
-            contact: false,
-            media: true,
-          },
-          requiredConsents: ['response', 'media'],
-        })
-        try {
-          return await bound.useCases.responseLifecycle.confirmMedia(
-            bound.scope,
-            bound.session.sessionId,
-            data,
-          )
-        } catch (error) {
-          return lifecycleFailure(error)
-        }
-      },
-      'POST',
-      'guest.media.confirm',
-    ),
-  )
-
 const moderationSchema = z.object({
-  propertyId: z.string().uuid(),
-  portalId: z.string().uuid(),
-  responseId: z.string().uuid(),
+  propertyId: z.uuid(),
+  portalId: z.uuid(),
+  responseId: z.uuid(),
   action: z.enum(['quarantine', 'delete']),
 })
 
@@ -417,10 +706,11 @@ const moderationSchema = z.object({
 // collecting guest responses also lost the ability to moderate the ones it had
 // already collected. portal.guest_response stays on the public-facing paths.
 export const moderateGuestResponseFn = createServerFn({ method: 'POST' })
-  .inputValidator(moderationSchema)
+  .validator(guestPublicResponseValidator(moderationSchema))
   .handler(
     tracedHandler(
       async ({ data }) => {
+        applyGuestPublicResponsePrivacy()
         const headers = await headersFromContext()
         const actor = await resolveTenantContext(headers)
         await requireExecutionAllowed({
@@ -429,7 +719,7 @@ export const moderateGuestResponseFn = createServerFn({ method: 'POST' })
           capability: 'portal.write',
           propertyId: data.propertyId,
         })
-        const { useCases } = getContainer()
+        const useCases = getContainer().guestPublicApi.requests
         try {
           return await useCases.responseLifecycle.moderate(
             {

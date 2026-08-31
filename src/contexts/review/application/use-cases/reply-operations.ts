@@ -6,22 +6,26 @@ import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
+import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
 import type { AiSuggestedDraftStore } from '../ports/ai-suggested-draft-store.port'
-import type { ReplyId, ReviewId, OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { ReplyId, ReviewId, PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Reply, Review } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { transitionReply, MAX_REPLY_LENGTH } from '../../domain/rules'
-import { buildIdempotencyKey } from '../../domain/reply-publication-workflow'
+import {
+  buildIdempotencyKey,
+  nextPublicationCycle,
+} from '../../domain/reply-publication-workflow'
 import { reviewError } from '../../domain/errors'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { reconcileReplyPublication } from './reconcile-reply-publication'
 import { commitTransition } from '../reply-commit'
 import {
-  reviewReplyPublished,
   reviewReplySubmitted,
   reviewReplyApproved,
+  reviewReplyPublicationRequested,
   reviewReplyRejected,
   reviewReplyUpdated,
 } from '../../domain/events'
@@ -51,6 +55,7 @@ export type ReplyDeps = Readonly<{
    * send — reconcileReplyPublication never calls the publish endpoint).
    */
   googleReviewApi: GoogleReviewApiPort
+  googleReplyObservationStore: GoogleReplyObservationStore
   clock: () => Date
   idGen: () => ReplyId
   staffPublicApi: StaffPublicApi
@@ -107,6 +112,38 @@ async function requireAccessibleReply(
   }
   const review = await requireAccessibleReview(deps, ctx, reviewId)
   return { reply, review }
+}
+
+async function resolvePublicationAuthorizationFence(
+  deps: ReplyDeps,
+  review: Review,
+): Promise<
+  Readonly<{
+    sourceEpoch: number
+    materialReviewRevision: number
+    baseObservationRevision: number
+  }>
+> {
+  const head = await deps.googleReplyObservationStore.findCurrentHead({
+    organizationId: review.organizationId,
+    propertyId: review.propertyId,
+    reviewId: review.id,
+  })
+  if (
+    head !== null &&
+    (head.sourceEpoch !== review.sourceEpoch ||
+      head.materialReviewRevision !== review.sourceRevision)
+  ) {
+    throw reviewError(
+      'invalid_transition',
+      'Google reply truth must be refreshed before this reply can be authorized',
+    )
+  }
+  return {
+    sourceEpoch: review.sourceEpoch,
+    materialReviewRevision: review.sourceRevision,
+    baseObservationRevision: head?.observationRevision ?? 0,
+  }
 }
 async function assertCurrentAiDraftBinding(
   deps: ReplyDeps,
@@ -242,6 +279,7 @@ export const draftReply =
         publishedAt: null,
         // BQC-3.8: a fresh draft has no publication workflow.
         publicationState: null,
+        publicationCycle: 0,
         publicationAttempts: 0,
         publicationLastErrorClass: null,
         reconcileDueAt: null,
@@ -305,6 +343,18 @@ export const approveReply =
     await assertCurrentAiDraftBinding(deps, ctx, reply)
 
     const now = deps.clock()
+    const publicationCycle = nextPublicationCycle(reply.publicationCycle)
+    const authorizationFence = await resolvePublicationAuthorizationFence(deps, review)
+    const publicationIntent = reviewReplyPublicationRequested({
+      replyId: reply.id,
+      reviewId: reply.reviewId,
+      propertyId: review.propertyId,
+      organizationId: reply.organizationId,
+      userId: ctx.userId,
+      publicationCycle,
+      ...authorizationFence,
+      occurredAt: now,
+    })
     // BQC-3.3: guarded status update + approved fact commit in one tx. The
     // durable review.reply.approved outbox row is the recovery record if the
     // process crashes before the enqueue below.
@@ -314,15 +364,18 @@ export const approveReply =
       deps.commandStore.markPublicationAuthorized(
         reply,
         { status: 'approved', approvedBy: ctx.userId, approvedAt: now },
-        reviewReplyApproved({
-          replyId: reply.id,
-          reviewId: reply.reviewId,
-          propertyId: review.propertyId,
-          organizationId: reply.organizationId,
-          userId: ctx.userId,
-          authorId: reply.createdBy,
-          occurredAt: now,
-        }),
+        {
+          lifecycleEvent: reviewReplyApproved({
+            replyId: reply.id,
+            reviewId: reply.reviewId,
+            propertyId: review.propertyId,
+            organizationId: reply.organizationId,
+            userId: ctx.userId,
+            authorId: reply.createdBy,
+            occurredAt: now,
+          }),
+          publicationIntent,
+        },
         now,
       ),
     )
@@ -338,10 +391,17 @@ export const approveReply =
       {
         replyId: approved.id,
         organizationId: approved.organizationId,
+        publicationCycle: approved.publicationCycle,
+        propertyId: publicationIntent.propertyId,
+        sourceEpoch: publicationIntent.sourceEpoch,
+        materialReviewRevision: publicationIntent.materialReviewRevision,
+        baseObservationRevision: publicationIntent.baseObservationRevision,
         // Named attribution for operator/user-triggered delayed work.
         initiator: { kind: 'user', id: ctx.userId },
       },
-      { idempotencyKey: buildIdempotencyKey(approved.id, approved.updatedAt.getTime()) },
+      {
+        idempotencyKey: buildIdempotencyKey(approved.id, approved.publicationCycle),
+      },
     )
 
     return approved
@@ -403,6 +463,18 @@ export const editPublishedReply =
     }
 
     const now = deps.clock()
+    const publicationCycle = nextPublicationCycle(reply.publicationCycle)
+    const authorizationFence = await resolvePublicationAuthorizationFence(deps, review)
+    const publicationIntent = reviewReplyPublicationRequested({
+      replyId: reply.id,
+      reviewId: reply.reviewId,
+      propertyId: review.propertyId,
+      organizationId: reply.organizationId,
+      userId: ctx.userId,
+      publicationCycle,
+      ...authorizationFence,
+      occurredAt: now,
+    })
 
     // Guarded edit: text + status → approved + a fresh publication cycle +
     // the review.reply.updated fact — one transaction. The committed updated
@@ -410,7 +482,7 @@ export const editPublishedReply =
     const updatedResult = await commitTransition(reply, 'approved', now, () =>
       deps.commandStore.editPublishedReply(reply, {
         text,
-        event: reviewReplyUpdated({
+        lifecycleEvent: reviewReplyUpdated({
           replyId: reply.id,
           reviewId: reply.reviewId,
           propertyId: review.propertyId,
@@ -418,6 +490,7 @@ export const editPublishedReply =
           userId: ctx.userId,
           occurredAt: now,
         }),
+        publicationIntent,
         now,
       }),
     )
@@ -428,9 +501,16 @@ export const editPublishedReply =
       {
         replyId: updated.id,
         organizationId: updated.organizationId,
+        publicationCycle: updated.publicationCycle,
+        propertyId: publicationIntent.propertyId,
+        sourceEpoch: publicationIntent.sourceEpoch,
+        materialReviewRevision: publicationIntent.materialReviewRevision,
+        baseObservationRevision: publicationIntent.baseObservationRevision,
         initiator: { kind: 'user', id: ctx.userId },
       },
-      { idempotencyKey: buildIdempotencyKey(updated.id, updated.updatedAt.getTime()) },
+      {
+        idempotencyKey: buildIdempotencyKey(updated.id, updated.publicationCycle),
+      },
     )
 
     return updated
@@ -512,51 +592,6 @@ export const getReply =
     return deps.replyRepo.findInternalByReviewId(input.reviewId, ctx.organizationId)
   }
 
-// ── Mark published (called by publish job on success) ─────────────────
-
-export type MarkPublishedInput = Readonly<{
-  replyId: ReplyId
-  organizationId: OrganizationId
-}>
-
-export const markReplyPublished =
-  (deps: ReplyDeps) =>
-  async (input: MarkPublishedInput): Promise<Reply> => {
-    const reply = await deps.replyRepo.findById(input.replyId, input.organizationId)
-    if (!reply) {
-      throw reviewError('reply_not_found', 'Reply not found')
-    }
-
-    const now = deps.clock()
-
-    // BQC-3.3: guarded status update + published fact commit in one tx.
-    // The publish runs from the publish-reply BullMQ job (no user actor); the
-    // fact carries userId: null (system) with authorId as the original author.
-    const published = await commitTransition(reply, 'published', now, async () => {
-      const review = await deps.reviewRepo.findById(reply.reviewId, input.organizationId)
-      if (!review) {
-        throw reviewError('review_not_found', 'Review not found for published reply')
-      }
-      return deps.commandStore.markPublished(
-        reply,
-        { status: 'published', publishedAt: now },
-        reviewReplyPublished({
-          replyId: reply.id,
-          reviewId: reply.reviewId,
-          propertyId: review.propertyId,
-          organizationId: reply.organizationId,
-          userId: null,
-          authorId: reply.createdBy,
-          occurredAt: now,
-        }),
-        now,
-      )
-    })
-    if (published.isErr()) throw published.error
-
-    return published.value
-  }
-
 // ── Retry publish ─────────────────────────────────────────────────────
 
 export type RetryPublishInput = Readonly<{
@@ -567,7 +602,7 @@ export const retryPublish =
   (deps: ReplyDeps) =>
   async (input: RetryPublishInput, ctx: AuthContext): Promise<Reply> => {
     // D6-001: scope reply mutations to the caller's assigned properties.
-    const { reply } = await requireAccessibleReply(deps, ctx, input.reviewId)
+    const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
 
     // BQC-3.8: reconcile-before-retry for an AMBIGUOUS publication. The
     // previous send may have landed on Google — re-read provider state first:
@@ -580,18 +615,36 @@ export const retryPublish =
         replyRepo: deps.replyRepo,
         reviewRepo: deps.reviewRepo,
         googleReviewApi: deps.googleReviewApi,
-        commandStore: deps.commandStore,
+        observationStore: deps.googleReplyObservationStore,
         clock: deps.clock,
       })({ replyId: reply.id, organizationId: ctx.organizationId })
       if (reconciled.isErr()) throw reconciled.error
-      if (reconciled.value.outcome === 'published') {
+      if (reconciled.value.outcome === 'confirmed_on_google') {
         const healed = await deps.replyRepo.findById(reply.id, ctx.organizationId)
         if (!healed) throw reviewError('reply_not_found', 'Reply not found')
         return healed
       }
+      if (reconciled.value.outcome !== 'absent') {
+        throw reviewError(
+          'invalid_transition',
+          'The current Google reply must be reviewed before another publication attempt',
+        )
+      }
     }
 
     const now = deps.clock()
+    const publicationCycle = nextPublicationCycle(reply.publicationCycle)
+    const authorizationFence = await resolvePublicationAuthorizationFence(deps, review)
+    const publicationIntent = reviewReplyPublicationRequested({
+      replyId: reply.id,
+      reviewId: reply.reviewId,
+      propertyId: review.propertyId,
+      organizationId: reply.organizationId,
+      userId: ctx.userId,
+      publicationCycle,
+      ...authorizationFence,
+      occurredAt: now,
+    })
     // BQC-3.8: re-authorization starts a NEW publication cycle
     // (publication_state='authorized', attempts/error/reconcile-due reset).
     // No new fact — re-approval reuses the approved state, exactly as before.
@@ -599,7 +652,7 @@ export const retryPublish =
       deps.commandStore.markPublicationAuthorized(
         reply,
         { status: 'approved' },
-        null,
+        { lifecycleEvent: null, publicationIntent },
         now,
       ),
     )
@@ -613,13 +666,18 @@ export const retryPublish =
       {
         replyId: backToApproved.id,
         organizationId: backToApproved.organizationId,
+        publicationCycle: backToApproved.publicationCycle,
+        propertyId: publicationIntent.propertyId,
+        sourceEpoch: publicationIntent.sourceEpoch,
+        materialReviewRevision: publicationIntent.materialReviewRevision,
+        baseObservationRevision: publicationIntent.baseObservationRevision,
         // Named attribution for operator/user-triggered delayed work.
         initiator: { kind: 'user', id: ctx.userId },
       },
       {
         idempotencyKey: buildIdempotencyKey(
           backToApproved.id,
-          backToApproved.updatedAt.getTime(),
+          backToApproved.publicationCycle,
         ),
       },
     )

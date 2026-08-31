@@ -16,8 +16,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UserId, PropertyId, PortalId } from '#/shared/domain/ids'
 import type { StaffAssignment } from '../../domain/types'
 import type { StaffPublicApi } from '../public-api'
-import { canForContext } from '#/shared/domain/permissions'
-import { hasRole } from '#/shared/domain/roles'
+import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import { staffError } from '../../domain/errors'
 import { staffAssigned, staffUnassigned } from '../../domain/events'
 import { buildStaffAssignment } from '../../domain/constructors'
@@ -55,7 +54,8 @@ function buildCreateCommand(
     propertyId: input.propertyId,
     teamId,
     portalId: pId,
-    actingUserId: hasRole(ctx.role, 'AccountAdmin') ? undefined : ctx.userId,
+    actingUserId:
+      scopeForPermission(ctx, 'staff.manage') === 'organization' ? undefined : ctx.userId,
     now: deps.clock(),
   })
 
@@ -66,18 +66,16 @@ function buildCreateCommand(
   const assignment = buildResult.value
   return {
     assignment,
-    event: {
-      ...staffAssigned({
-        assignmentId: assignment.id,
-        organizationId: assignment.organizationId,
-        userId: assignment.userId,
-        propertyId: assignment.propertyId,
-        teamId: assignment.teamId,
-        portalId: assignment.portalId,
-        occurredAt: assignment.createdAt,
-      }),
+    event: staffAssigned({
+      assignmentId: assignment.id,
+      organizationId: assignment.organizationId,
+      userId: assignment.userId,
+      propertyId: assignment.propertyId,
+      teamId: assignment.teamId,
+      portalId: assignment.portalId,
+      occurredAt: assignment.createdAt,
       correlationId,
-    },
+    }),
   }
 }
 
@@ -118,17 +116,15 @@ function buildPortalDiff(
       removals.push({
         assignmentId: assignment.id,
         organizationId: ctx.organizationId,
-        event: {
-          ...staffUnassigned({
-            assignmentId: assignment.id,
-            organizationId: assignment.organizationId,
-            userId: assignment.userId,
-            propertyId: assignment.propertyId,
-            portalId: assignment.portalId,
-            occurredAt: deps.clock(),
-          }),
+        event: staffUnassigned({
+          assignmentId: assignment.id,
+          organizationId: assignment.organizationId,
+          userId: assignment.userId,
+          propertyId: assignment.propertyId,
+          portalId: assignment.portalId,
+          occurredAt: deps.clock(),
           correlationId,
-        },
+        }),
       })
     }
   }
@@ -143,12 +139,13 @@ export const updateStaffPortals =
     ctx: AuthContext,
   ): Promise<{ added: number; removed: number }> => {
     // 1. Authorize — update is create + delete combined
-    if (!canForContext(ctx, 'staff.manage') || !canForContext(ctx, 'staff.manage')) {
+    if (!canForContext(ctx, 'staff.manage')) {
       throw staffError('forbidden', 'this role cannot manage staff assignments')
     }
 
     // 1b. Property-access scoping (D6-001):
-    // AccountAdmin bypasses; PropertyManager/Staff must be assigned to the target property.
+    // Organization-wide staff managers bypass the property-grant check;
+    // assigned-scope managers must be granted the target property.
     const accessible = await isPropertyAccessibleForPermission(
       (orgId, userId, orgWide) =>
         deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),

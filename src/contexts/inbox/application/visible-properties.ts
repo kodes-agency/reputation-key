@@ -7,9 +7,9 @@
 // scoped (CONTEXT.md L72).
 //
 // Anti-leak rule: a scoped user with NO property assignments sees ZERO
-// inbox items — never the org-wide set. The repo treats propertyIds=[] as
-// "no filter" (org-wide), so the empty set must short-circuit BEFORE any
-// repo call; the 'none' marker makes that explicit at every call site.
+// inbox items — never the org-wide set. The 'none' marker makes that explicit
+// at every call site, and repositories independently fail closed on [] so a
+// future caller cannot accidentally widen an empty scope.
 
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'

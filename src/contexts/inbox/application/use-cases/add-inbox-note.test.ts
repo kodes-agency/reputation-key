@@ -9,6 +9,7 @@ import {
   organizationId,
   propertyId,
   reviewId,
+  feedbackId,
   userId,
 } from '#/shared/domain/ids'
 import { isInboxError } from '../../domain/errors'
@@ -18,6 +19,8 @@ import type { InboxNoteRepository } from '../ports/inbox-note.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 function createInMemoryNoteRepo(): InboxNoteRepository & { notes: InboxNote[] } {
   const notes: InboxNote[] = []
@@ -41,7 +44,17 @@ const USER_ID = userId('user-1')
 const ctxFor = (role: Role): AuthContext =>
   ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
 
-const seedItem = (): InboxItem => ({
+const ctxWith = (...permissions: Permission[]): AuthContext => ({
+  organizationId: ORG_ID,
+  userId: USER_ID,
+  role: 'Staff',
+  effectivePermissions: new Set(permissions),
+  scopeByPermission: new Map(
+    permissions.map((permission) => [permission, 'organization' as const]),
+  ),
+})
+
+const seedItem = (overrides: Partial<InboxItem> = {}): InboxItem => ({
   id: ITEM_ID,
   organizationId: ORG_ID,
   propertyId: propertyId('prop-1'),
@@ -63,14 +76,15 @@ const seedItem = (): InboxItem => ({
   closedAt: null,
   firstReplySubmittedAt: null,
   firstReplyPublishedAt: null,
+  commandRevision: 1,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
+  ...overrides,
 })
 
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -85,7 +99,23 @@ const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
   }
-  const useCase = addInboxNote(deps)
+  const execute = addInboxNote(deps)
+  type CommandInput = Parameters<typeof execute>[0]
+  const useCase = (
+    input: Omit<CommandInput, 'expectedCommandRevision'> &
+      Partial<Pick<CommandInput, 'expectedCommandRevision'>>,
+    ctx: AuthContext,
+  ) =>
+    execute(
+      {
+        ...input,
+        expectedCommandRevision:
+          input.expectedCommandRevision ??
+          repo.items.find((item) => item.id === input.inboxItemId)?.commandRevision ??
+          1,
+      },
+      ctx,
+    )
   return { useCase, repo, noteRepo, events }
 }
 
@@ -103,6 +133,7 @@ describe('addInboxNote', () => {
     expect(note.text).toBe('This is a note') // trimmed
     expect(note.userId).toBe(USER_ID)
     expect(noteRepo.notes).toHaveLength(1)
+    expect(repo.items[0]!.commandRevision).toBe(2)
   })
 
   it('throws error for empty text', async () => {
@@ -127,7 +158,6 @@ describe('addInboxNote', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -145,7 +175,6 @@ describe('addInboxNote', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -159,7 +188,6 @@ describe('addInboxNote', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo, noteRepo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -181,5 +209,64 @@ describe('addInboxNote', () => {
 
     expect(events.capturedEvents[0]._tag).toBe('inbox.inbox_note.added')
     expect(events.capturedEvents[0]).not.toHaveProperty('text')
+  })
+
+  it('requires feedback.handle, not only feedback.read, to add a private-feedback note', async () => {
+    const { useCase, repo, noteRepo } = setup()
+    repo.items.push(
+      seedItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID, text: 'Manager note' },
+        ctxWith('inbox.write', 'feedback.read'),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+    expect(noteRepo.notes).toHaveLength(0)
+  })
+
+  it('allows a private-feedback note with inbox.write and feedback.handle', async () => {
+    const { useCase, repo, noteRepo } = setup()
+    repo.items.push(
+      seedItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+
+    await useCase(
+      { inboxItemId: ITEM_ID, text: 'Manager note' },
+      ctxWith('inbox.write', 'feedback.handle'),
+    )
+
+    expect(noteRepo.notes).toHaveLength(1)
+  })
+
+  it('intersects feedback.handle property scope before adding a note', async () => {
+    const staffApi: StaffPublicApi = {
+      ...defaultStaffApi,
+      getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+    }
+    const { useCase, repo, noteRepo } = setup(staffApi)
+    repo.items.push(
+      seedItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID, text: 'Manager note' },
+        createScopedAuthContext({
+          organizationId: ORG_ID,
+          userId: USER_ID,
+          permissions: [
+            ['inbox.write', 'organization'],
+            ['feedback.handle', 'assigned-properties'],
+          ],
+        }),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+    expect(noteRepo.notes).toHaveLength(0)
   })
 })

@@ -1,9 +1,10 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   portalResponsibilities,
+  staffParticipants,
   staffParticipations,
-  teamMemberships,
+  staffUserLinks,
 } from '#/shared/db/schema/people-access.schema'
 import { portals } from '#/shared/db/schema/portal.schema'
 import { staffError } from '../../domain/errors'
@@ -11,22 +12,91 @@ import type { StaffParticipation } from '../../domain/staff-participation'
 import type { PortalResponsibility } from '../../domain/portal-responsibility'
 import type { StaffParticipationRepository } from '../../application/ports/staff-participation.repository'
 
-function participationFromRow(
-  row: typeof staffParticipations.$inferSelect,
-): StaffParticipation {
+const participationSelection = {
+  id: staffParticipations.id,
+  organizationId: staffParticipations.organizationId,
+  propertyId: staffParticipations.propertyId,
+  staffParticipantId: staffParticipations.staffParticipantId,
+  linkedUserId: staffUserLinks.userId,
+  displayName: staffParticipants.displayName,
+  status: staffParticipations.status,
+  startedAt: staffParticipations.startedAt,
+  endedAt: staffParticipations.endedAt,
+  archiveReason: staffParticipations.archiveReason,
+  revision: staffParticipations.revision,
+  createdBy: staffParticipations.createdBy,
+  updatedAt: staffParticipations.updatedAt,
+} as const
+
+type ParticipationRow = Readonly<{
+  id: string
+  organizationId: string
+  propertyId: string
+  staffParticipantId: string | null
+  linkedUserId: string | null
+  displayName: string
+  status: StaffParticipation['status']
+  startedAt: Date
+  endedAt: Date | null
+  archiveReason: string | null
+  revision: number
+  createdBy: string
+  updatedAt: Date
+}>
+
+function participationFromRow(row: ParticipationRow): StaffParticipation {
+  if (!row.staffParticipantId) {
+    throw new Error(`staff participation ${row.id} has no canonical participant`)
+  }
   return {
     id: row.id,
     organizationId: row.organizationId,
     propertyId: row.propertyId,
-    userId: row.userId,
+    staffParticipantId: row.staffParticipantId,
+    linkedUserId: row.linkedUserId,
     displayName: row.displayName,
     status: row.status,
     startedAt: row.startedAt,
     endedAt: row.endedAt,
+    archiveReason: row.archiveReason,
+    revision: row.revision,
     createdBy: row.createdBy,
     updatedAt: row.updatedAt,
   }
 }
+
+const selectParticipation = <T extends Database>(query: T) =>
+  query
+    .select(participationSelection)
+    .from(staffParticipations)
+    .innerJoin(
+      staffParticipants,
+      and(
+        eq(staffParticipants.organizationId, staffParticipations.organizationId),
+        eq(staffParticipants.id, staffParticipations.staffParticipantId),
+      ),
+    )
+    .leftJoin(
+      staffUserLinks,
+      and(
+        eq(staffUserLinks.organizationId, staffParticipants.organizationId),
+        eq(staffUserLinks.staffParticipantId, staffParticipants.id),
+        sql`${staffUserLinks.effectiveFrom} <= CURRENT_TIMESTAMP`,
+        sql`(${staffUserLinks.effectiveTo} IS NULL OR ${staffUserLinks.effectiveTo} > CURRENT_TIMESTAMP)`,
+        sql`NOT EXISTS (
+          SELECT 1
+          FROM staff_user_links AS other_link
+          WHERE other_link.organization_id = ${staffUserLinks.organizationId}
+            AND other_link.id <> ${staffUserLinks.id}
+            AND other_link.effective_from <= CURRENT_TIMESTAMP
+            AND (other_link.effective_to IS NULL OR other_link.effective_to > CURRENT_TIMESTAMP)
+            AND (
+              other_link.staff_participant_id = ${staffUserLinks.staffParticipantId}
+              OR other_link.user_id = ${staffUserLinks.userId}
+            )
+        )`,
+      ),
+    )
 
 function responsibilityFromRow(
   row: typeof portalResponsibilities.$inferSelect,
@@ -49,9 +119,7 @@ export const createStaffParticipationRepository = (
   db: Database,
 ): StaffParticipationRepository => ({
   findById: async (organizationId, staffParticipationId) => {
-    const [row] = await db
-      .select()
-      .from(staffParticipations)
+    const [row] = await selectParticipation(db)
       .where(
         and(
           eq(staffParticipations.organizationId, organizationId),
@@ -63,15 +131,16 @@ export const createStaffParticipationRepository = (
   },
 
   findActiveByUser: async (organizationId, propertyId, userId) => {
-    const [row] = await db
-      .select()
-      .from(staffParticipations)
+    const [row] = await selectParticipation(db)
       .where(
         and(
           eq(staffParticipations.organizationId, organizationId),
           eq(staffParticipations.propertyId, propertyId),
-          eq(staffParticipations.userId, userId),
+          eq(staffUserLinks.userId, userId),
+          eq(staffParticipants.status, 'active'),
           eq(staffParticipations.status, 'active'),
+          sql`${staffParticipations.startedAt} <= CURRENT_TIMESTAMP`,
+          sql`(${staffParticipations.endedAt} IS NULL OR ${staffParticipations.endedAt} > CURRENT_TIMESTAMP)`,
         ),
       )
       .limit(1)
@@ -83,51 +152,54 @@ export const createStaffParticipationRepository = (
     if (filters.propertyId) {
       conditions.push(eq(staffParticipations.propertyId, filters.propertyId))
     }
-    if (filters.userId) conditions.push(eq(staffParticipations.userId, filters.userId))
-    if (filters.activeOnly) conditions.push(eq(staffParticipations.status, 'active'))
-    const rows = await db
-      .select()
-      .from(staffParticipations)
+    if (filters.userId) conditions.push(eq(staffUserLinks.userId, filters.userId))
+    if (filters.activeOnly) {
+      conditions.push(
+        eq(staffParticipants.status, 'active'),
+        eq(staffParticipations.status, 'active'),
+        sql`${staffParticipations.startedAt} <= CURRENT_TIMESTAMP`,
+        sql`(${staffParticipations.endedAt} IS NULL OR ${staffParticipations.endedAt} > CURRENT_TIMESTAMP)`,
+      )
+    }
+    const rows = await selectParticipation(db)
       .where(and(...conditions))
-      .orderBy(asc(staffParticipations.displayName), asc(staffParticipations.id))
+      .orderBy(asc(staffParticipants.displayName), asc(staffParticipations.id))
     return rows.map(participationFromRow)
   },
 
-  create: async (participation) => {
-    const [row] = await db
-      .insert(staffParticipations)
-      .values({
+  createParticipantWithParticipation: async ({ participant, participation }) =>
+    db.transaction(async (tx) => {
+      await tx.insert(staffParticipants).values({
+        id: participant.id,
+        organizationId: participant.organizationId,
+        displayName: participant.displayName,
+        status: participant.status,
+        archivedAt: participant.archivedAt,
+        archiveReason: participant.archiveReason,
+        revision: participant.revision,
+        createdBy: participant.createdBy,
+        createdAt: participant.createdAt,
+        updatedAt: participant.updatedAt,
+      })
+      await tx.insert(staffParticipations).values({
         id: participation.id,
         organizationId: participation.organizationId,
         propertyId: participation.propertyId,
-        userId: participation.userId,
-        displayName: participation.displayName,
+        staffParticipantId: participation.staffParticipantId,
+        userId: null,
+        displayName: participant.displayName,
         status: participation.status,
         startedAt: participation.startedAt,
         endedAt: participation.endedAt,
+        archiveReason: participation.archiveReason,
+        revision: participation.revision,
         createdBy: participation.createdBy,
         updatedAt: participation.updatedAt,
       })
-      .onConflictDoNothing()
-      .returning()
-    if (row) return participationFromRow(row)
-    const [existing] = await db
-      .select()
-      .from(staffParticipations)
-      .where(
-        and(
-          eq(staffParticipations.organizationId, participation.organizationId),
-          eq(staffParticipations.propertyId, participation.propertyId),
-          eq(staffParticipations.userId, participation.userId),
-          eq(staffParticipations.status, 'active'),
-        ),
-      )
-      .limit(1)
-    if (!existing) throw staffError('responsibility_conflict', 'participation conflict')
-    return participationFromRow(existing)
-  },
+      return participation
+    }),
 
-  archive: async (organizationId, staffParticipationId, at, reason) =>
+  archive: async (organizationId, staffParticipationId, at, reason, expectedRevision) =>
     db.transaction(async (tx) => {
       await tx.execute(sql`
         SELECT id FROM staff_participations
@@ -146,7 +218,58 @@ export const createStaffParticipationRepository = (
         )
         .limit(1)
       if (!current) return null
-      if (current.status === 'archived') return participationFromRow(current)
+      const [participant] = current.staffParticipantId
+        ? await tx
+            .select({
+              displayName: staffParticipants.displayName,
+              linkedUserId: staffUserLinks.userId,
+            })
+            .from(staffParticipants)
+            .leftJoin(
+              staffUserLinks,
+              and(
+                eq(staffUserLinks.organizationId, staffParticipants.organizationId),
+                eq(staffUserLinks.staffParticipantId, staffParticipants.id),
+                lte(staffUserLinks.effectiveFrom, at),
+                or(
+                  isNull(staffUserLinks.effectiveTo),
+                  gt(staffUserLinks.effectiveTo, at),
+                ),
+                sql`NOT EXISTS (
+                  SELECT 1
+                  FROM staff_user_links AS other_link
+                  WHERE other_link.organization_id = ${staffUserLinks.organizationId}
+                    AND other_link.id <> ${staffUserLinks.id}
+                    AND other_link.effective_from <= ${at}
+                    AND (other_link.effective_to IS NULL OR other_link.effective_to > ${at})
+                    AND (
+                      other_link.staff_participant_id = ${staffUserLinks.staffParticipantId}
+                      OR other_link.user_id = ${staffUserLinks.userId}
+                    )
+                )`,
+              ),
+            )
+            .where(
+              and(
+                eq(staffParticipants.organizationId, organizationId),
+                eq(staffParticipants.id, current.staffParticipantId),
+              ),
+            )
+            .limit(1)
+        : []
+      if (!participant || !current.staffParticipantId) {
+        throw new Error(`staff participation ${current.id} has no canonical participant`)
+      }
+      const currentView = participationFromRow({
+        ...current,
+        staffParticipantId: current.staffParticipantId,
+        linkedUserId: participant.linkedUserId,
+        displayName: participant.displayName,
+      })
+      if (current.status === 'archived') return currentView
+      if (current.revision !== expectedRevision) {
+        throw staffError('revision_conflict', 'staff participation changed; reload it')
+      }
 
       await tx
         .update(portalResponsibilities)
@@ -158,19 +281,15 @@ export const createStaffParticipationRepository = (
             isNull(portalResponsibilities.effectiveTo),
           ),
         )
-      await tx
-        .update(teamMemberships)
-        .set({ effectiveTo: at, endReason: 'participation_archived' })
-        .where(
-          and(
-            eq(teamMemberships.organizationId, organizationId),
-            eq(teamMemberships.staffParticipationId, staffParticipationId),
-            isNull(teamMemberships.effectiveTo),
-          ),
-        )
       const [archived] = await tx
         .update(staffParticipations)
-        .set({ status: 'archived', endedAt: current.endedAt ?? at, updatedAt: at })
+        .set({
+          status: 'archived',
+          endedAt: current.endedAt ?? at,
+          archiveReason: reason,
+          revision: current.revision + 1,
+          updatedAt: at,
+        })
         .where(
           and(
             eq(staffParticipations.organizationId, organizationId),
@@ -178,8 +297,14 @@ export const createStaffParticipationRepository = (
           ),
         )
         .returning()
-      void reason
-      return archived ? participationFromRow(archived) : null
+      return archived
+        ? participationFromRow({
+            ...archived,
+            staffParticipantId: current.staffParticipantId,
+            linkedUserId: participant.linkedUserId,
+            displayName: participant.displayName,
+          })
+        : null
     }),
 
   listActiveResponsibilities: async (organizationId, staffParticipationId) => {
@@ -208,7 +333,10 @@ export const createStaffParticipationRepository = (
         FOR UPDATE
       `)
       const [participation] = await tx
-        .select({ id: staffParticipations.id })
+        .select({
+          id: staffParticipations.id,
+          revision: staffParticipations.revision,
+        })
         .from(staffParticipations)
         .where(
           and(
@@ -221,6 +349,9 @@ export const createStaffParticipationRepository = (
         .limit(1)
       if (!participation) {
         throw staffError('participation_not_found', 'active participation not found')
+      }
+      if (participation.revision !== input.expectedRevision) {
+        throw staffError('revision_conflict', 'staff participation changed; reload it')
       }
 
       const portalIds = input.selections.map((selection) => selection.portalId)
@@ -254,34 +385,44 @@ export const createStaffParticipationRepository = (
             isNull(portalResponsibilities.effectiveTo),
           ),
         )
-        .orderBy(asc(portalResponsibilities.portalId), asc(portalResponsibilities.kind))
-      const currentKey = currentRows.map((row) => `${row.portalId}:${row.kind}`).sort()
-      const desiredKey = input.selections
-        .map((selection) => `${selection.portalId}:${selection.kind}`)
-        .sort()
-      if (
-        currentKey.length === desiredKey.length &&
-        currentKey.every((value, index) => value === desiredKey[index])
-      ) {
-        return currentRows.map(responsibilityFromRow)
+        .orderBy(asc(portalResponsibilities.kind), asc(portalResponsibilities.portalId))
+      const keyFor = (value: { portalId: string; kind: string }) =>
+        `${value.portalId}:${value.kind}`
+      const currentByKey = new Map(currentRows.map((row) => [keyFor(row), row]))
+      const desiredByKey = new Map(
+        input.selections.map((selection) => [keyFor(selection), selection]),
+      )
+      const idsToEnd = currentRows
+        .filter((row) => !desiredByKey.has(keyFor(row)))
+        .map((row) => row.id)
+      const selectionsToInsert = [...desiredByKey.entries()]
+        .filter(([key]) => !currentByKey.has(key))
+        .map(([, selection]) => selection)
+
+      if (idsToEnd.length === 0 && selectionsToInsert.length === 0) {
+        return {
+          responsibilities: currentRows.map(responsibilityFromRow),
+          revision: participation.revision,
+        }
       }
 
-      await tx
-        .update(portalResponsibilities)
-        .set({ effectiveTo: input.at, endReason: 'responsibility_reassigned' })
-        .where(
-          and(
-            eq(portalResponsibilities.organizationId, input.organizationId),
-            eq(portalResponsibilities.staffParticipationId, input.staffParticipationId),
-            isNull(portalResponsibilities.effectiveTo),
-          ),
-        )
-      if (input.selections.length === 0) return []
+      if (idsToEnd.length > 0) {
+        await tx
+          .update(portalResponsibilities)
+          .set({ effectiveTo: input.at, endReason: 'responsibility_reassigned' })
+          .where(
+            and(
+              eq(portalResponsibilities.organizationId, input.organizationId),
+              eq(portalResponsibilities.staffParticipationId, input.staffParticipationId),
+              inArray(portalResponsibilities.id, idsToEnd),
+              isNull(portalResponsibilities.effectiveTo),
+            ),
+          )
+      }
 
-      const inserted = await tx
-        .insert(portalResponsibilities)
-        .values(
-          input.selections.map((selection) => ({
+      if (selectionsToInsert.length > 0) {
+        await tx.insert(portalResponsibilities).values(
+          selectionsToInsert.map((selection) => ({
             organizationId: input.organizationId,
             propertyId: input.propertyId,
             portalId: selection.portalId,
@@ -291,7 +432,38 @@ export const createStaffParticipationRepository = (
             createdBy: input.actorId,
           })),
         )
-        .returning()
-      return inserted.map(responsibilityFromRow)
+      }
+
+      const nextRevision = participation.revision + 1
+      const [revised] = await tx
+        .update(staffParticipations)
+        .set({ revision: nextRevision, updatedAt: input.at })
+        .where(
+          and(
+            eq(staffParticipations.organizationId, input.organizationId),
+            eq(staffParticipations.id, input.staffParticipationId),
+            eq(staffParticipations.revision, input.expectedRevision),
+          ),
+        )
+        .returning({ revision: staffParticipations.revision })
+      if (!revised) {
+        throw staffError('revision_conflict', 'staff participation changed; reload it')
+      }
+
+      const activeRows = await tx
+        .select()
+        .from(portalResponsibilities)
+        .where(
+          and(
+            eq(portalResponsibilities.organizationId, input.organizationId),
+            eq(portalResponsibilities.staffParticipationId, input.staffParticipationId),
+            isNull(portalResponsibilities.effectiveTo),
+          ),
+        )
+        .orderBy(asc(portalResponsibilities.kind), asc(portalResponsibilities.portalId))
+      return {
+        responsibilities: activeRows.map(responsibilityFromRow),
+        revision: revised.revision,
+      }
     }),
 })

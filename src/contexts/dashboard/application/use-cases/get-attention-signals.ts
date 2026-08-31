@@ -1,13 +1,14 @@
 // Dashboard context — getAttentionSignals use case.
-// Aggregates the five attention-band signals for a property into one response.
+// Aggregates the five attention-band reasons plus their distinct work total.
 // Authorization is enforced at the router/loader level (property ownership).
 
 import type { AttentionSignalsPort } from '../ports/attention-signals.port'
-import type { DashboardRepository } from '../ports/dashboard.repository'
 import type { AttentionSignals } from '../../domain/types'
+import type { AttentionCounts } from '../ports/attention-signals.port'
+import type { ReviewStatsPort } from '../ports/review-stats.port'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
-import { isRatingDrop, priorPeriodDates } from '../utils'
+import { priorPeriodDates, ratingComparison, RATING_DROP_THRESHOLD } from '../utils'
 
 export type GetAttentionSignalsInput = Readonly<{
   organizationId: OrganizationId
@@ -17,12 +18,12 @@ export type GetAttentionSignalsInput = Readonly<{
   startDate: Date
   endDate: Date
   timeRange: TimeRangePreset
+  propertyTimezone: string
 }>
 
 export type GetAttentionSignalsDeps = Readonly<{
   signals: AttentionSignalsPort
-  repo: DashboardRepository
-  clock: () => Date
+  reviewStats: Pick<ReviewStatsPort, 'getPeriodStats'>
 }>
 
 /** Concrete handler type — the curried use case after dependency injection. */
@@ -30,40 +31,72 @@ export type GetAttentionSignals = (
   input: GetAttentionSignalsInput,
 ) => Promise<AttentionSignals>
 
+export function attentionSignalsFrom(
+  counts: AttentionCounts,
+  rating: Readonly<{
+    currentAverage: number
+    currentCount: number
+    priorAverage: number
+    priorCount: number
+  }>,
+): AttentionSignals {
+  const comparison = ratingComparison(
+    rating.currentAverage,
+    rating.currentCount,
+    rating.priorAverage,
+    rating.priorCount,
+  )
+  const ratingDrop = comparison !== null && comparison <= -RATING_DROP_THRESHOLD
+
+  return {
+    unanswered: counts.unanswered,
+    itemsToTriage: counts.itemsToTriage,
+    goalsBehindPace: counts.goalsBehindPace,
+    ratingDrop,
+    escalated: counts.escalated,
+    needsAttention: counts.attentionWork + (ratingDrop ? 1 : 0),
+  }
+}
+
 export const getAttentionSignals =
   (deps: GetAttentionSignalsDeps): GetAttentionSignals =>
   async (input) => {
-    const { organizationId, propertyId, slaHours, startDate, endDate, timeRange } = input
+    const {
+      organizationId,
+      propertyId,
+      slaHours,
+      startDate,
+      endDate,
+      timeRange,
+      propertyTimezone,
+    } = input
 
-    // Prior period mirrors getDashboardData so the rating-drop flag is consistent
-    // with the KPI strip shown alongside the band. priorPeriodDates returns null
-    // for 'all'; repo.getKPIs requires concrete bounds, so this path keeps the
-    // historical self-comparison (isRatingDrop is inert on it: priorAvg equals
-    // currentAvg, so the ≥0.3 drop never trips).
-    const { priorStartDate, priorEndDate } = priorPeriodDates(
+    // Keep the attention band aligned with the KPI strip. An all-time window
+    // has no meaningful predecessor, so the repository receives no comparison.
+    const comparisonPeriod = priorPeriodDates(
       timeRange,
       startDate,
       endDate,
-    ) ?? { priorStartDate: startDate, priorEndDate: endDate }
-
-    const [unanswered, newFeedback, escalated, goalsBehindPace, kpis] = await Promise.all(
-      [
-        deps.signals.getUnansweredReviewCount(organizationId, propertyId, slaHours),
-        deps.signals.getNewInboxItemCount(organizationId, propertyId),
-        deps.signals.getEscalatedInboxItemCount(organizationId, propertyId),
-        deps.signals.getGoalsBehindPaceCount(organizationId, propertyId),
-        deps.repo.getKPIs({
-          organizationId,
-          propertyId,
-          startDate,
-          endDate,
-          priorStartDate,
-          priorEndDate,
-        }),
-      ],
+      propertyTimezone,
     )
 
-    const ratingDrop = isRatingDrop(kpis.avgRating.value, kpis.avgRating.priorValue)
+    const [counts, current, prior] = await Promise.all([
+      deps.signals.getAttentionCounts(organizationId, propertyId, slaHours),
+      deps.reviewStats.getPeriodStats(organizationId, propertyId, startDate, endDate),
+      comparisonPeriod
+        ? deps.reviewStats.getPeriodStats(
+            organizationId,
+            propertyId,
+            comparisonPeriod.priorStartDate,
+            comparisonPeriod.priorEndDate,
+          )
+        : Promise.resolve(null),
+    ])
 
-    return { unanswered, newFeedback, goalsBehindPace, ratingDrop, escalated }
+    return attentionSignalsFrom(counts, {
+      currentAverage: current.avgRating,
+      currentCount: current.count,
+      priorAverage: prior?.avgRating ?? 0,
+      priorCount: prior?.count ?? 0,
+    })
   }

@@ -37,6 +37,7 @@ const T0 = 1_752_435_200_000
 const PORTS = { web: 3100, gbpStub: 4150, mailStub: 4151 }
 const DB_URL = buildCellDatabaseUrl('repkey_bqc8_cell', 'bozhidardenev')
 const REDIS_URL = buildCellRedisUrl('redis://localhost:6379', CELL_DEFAULTS.redisDb)
+const CACHE_REDIS_URL = buildCellRedisUrl('redis://localhost:6380', CELL_DEFAULTS.redisDb)
 
 // ── pure: database name guard ────────────────────────────────────────
 
@@ -76,6 +77,7 @@ describe('assertCellDatabaseName', () => {
 describe('buildCellEnv', () => {
   const env = buildCellEnv({
     databaseUrl: DB_URL,
+    cacheRedisUrl: CACHE_REDIS_URL,
     redisUrl: REDIS_URL,
     ports: PORTS,
     probeOrgId: 'perf-org-abcd1234-0',
@@ -86,12 +88,17 @@ describe('buildCellEnv', () => {
     expect(env.NODE_ENV).toBe('production')
     expect(env.DATABASE_URL).toBe(DB_URL)
     expect(env.DATABASE_URL_POOLER).toBe(DB_URL)
-    expect(env.REDIS_URL).toBe('redis://localhost:6379/9')
+    expect(env.REDIS_URL).toBe('redis://localhost:6380/9')
+    expect(env.QUEUE_REDIS_URL).toBe('redis://localhost:6379/9')
     expect(env.PORT).toBe('3100')
     expect(env.RELEASE_SHA).toBe('deadbeef'.repeat(8))
   })
 
   it('pins every Google/Resend endpoint at the cell stubs (no real provider)', () => {
+    // Without the explicit profile the composition root refuses these
+    // overrides outright — the cell is NODE_ENV=production by design.
+    expect(env.GOOGLE_PROVIDER_ENDPOINT_PROFILE).toBe('local-sandbox')
+    expect(env).not.toHaveProperty('RELEASE_MANIFEST_SHA256')
     expect(env.GBP_API_BASE_URL).toBe('http://localhost:4150')
     expect(env.GBP_REVIEWS_API_BASE_URL).toBe('http://localhost:4150')
     expect(env.GBP_NOTIFICATIONS_API_BASE_URL).toBe('http://localhost:4150')
@@ -116,6 +123,7 @@ describe('buildCellEnv', () => {
   it('derives secrets deterministically (restart-stable for a kept DB)', () => {
     const again = buildCellEnv({
       databaseUrl: DB_URL,
+      cacheRedisUrl: CACHE_REDIS_URL,
       redisUrl: REDIS_URL,
       ports: PORTS,
       probeOrgId: 'perf-org-abcd1234-0',
@@ -130,6 +138,7 @@ describe('buildCellEnv', () => {
   it('omits the allowlist when no probe org is given', () => {
     const noProbe = buildCellEnv({
       databaseUrl: DB_URL,
+      cacheRedisUrl: CACHE_REDIS_URL,
       redisUrl: REDIS_URL,
       ports: PORTS,
       releaseSha: 'deadbeef'.repeat(8),
@@ -167,6 +176,7 @@ function sampleState(): CellState {
     version: CELL_STATE_VERSION,
     dbName: 'repkey_bqc8_cell',
     databaseUrl: DB_URL,
+    cacheRedisUrl: CACHE_REDIS_URL,
     redisUrl: REDIS_URL,
     ports: PORTS,
     pids: { web: 111, worker: 222, gbpStub: 333, mailStub: 444 },
@@ -182,7 +192,9 @@ describe('cell state store', () => {
 
   it('fails closed on version/shape drift', () => {
     expect(() => parseCellState('{"version":99}')).toThrow(/version/)
-    expect(() => parseCellState('{"version":1}')).toThrow(/shape/)
+    expect(() => parseCellState(JSON.stringify({ version: CELL_STATE_VERSION }))).toThrow(
+      /shape/,
+    )
     expect(() => parseCellState('not json')).toThrow(SyntaxError)
   })
 })

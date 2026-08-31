@@ -3,7 +3,12 @@
 // the tagged DomainError shape, discriminated via isDomainError.
 
 import { describe, it, expect } from 'vitest'
-import { domainError, isDomainError, createErrorFactory } from './errors'
+import {
+  createErrorFactory,
+  createTaggedError,
+  domainError,
+  isDomainError,
+} from './errors'
 
 describe('domainError', () => {
   it('returns a real Error so `instanceof Error` holds', () => {
@@ -62,7 +67,6 @@ describe('isDomainError', () => {
   })
 
   it('returns false for a tagged error with a different _tag', () => {
-    // createErrorFactory builds the plain-object TaggedError shape (no Error base).
     const otherTagged = createErrorFactory('OtherError')('x', 'msg')
     expect(isDomainError(otherTagged)).toBe(false)
   })
@@ -76,5 +80,37 @@ describe('isDomainError', () => {
 
   it('returns false for an object missing _tag', () => {
     expect(isDomainError({ code: 'x', message: 'y' })).toBe(false)
+  })
+})
+
+describe('createErrorFactory', () => {
+  it('builds real errors with enumerable tagged identity', () => {
+    const makeError = createErrorFactory<'ExampleError', 'invalid'>('ExampleError')
+    const error = makeError('invalid', 'Invalid example', { field: 'name' })
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error.name).toBe('ExampleError')
+    expect(error.stack).toContain('errors.test.ts')
+    expect(Object.keys(error)).toEqual(['name', '_tag', 'code', 'context'])
+    expect(error).toMatchObject({
+      _tag: 'ExampleError',
+      code: 'invalid',
+      message: 'Invalid example',
+      context: { field: 'name' },
+    })
+  })
+
+  it('omits absent context instead of serializing an undefined field', () => {
+    const error = createErrorFactory('ExampleError')('invalid', 'Invalid example')
+
+    expect('context' in error).toBe(false)
+  })
+
+  it('rejects extras that could replace the error identity', () => {
+    expect(() =>
+      createTaggedError('ExampleError', 'invalid', 'Invalid example', undefined, {
+        code: 'overridden',
+      }),
+    ).toThrowError('Tagged error extra cannot override reserved field: code')
   })
 })

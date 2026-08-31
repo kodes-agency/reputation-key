@@ -10,9 +10,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    useCases: {
-      getPropertyGooglePerformance: mocks.getPerformance,
-      renewGooglePerformanceLease: mocks.renewLease,
+    integrationPublicApi: {
+      performance: {
+        get: mocks.getPerformance,
+        renewLease: mocks.renewLease,
+      },
     },
   }),
 }))

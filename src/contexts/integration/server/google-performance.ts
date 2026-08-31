@@ -18,14 +18,14 @@ function disableProviderContentCaching(): void {
 }
 
 export const getPropertyGooglePerformance = createServerFn({ method: 'GET' })
-  .inputValidator(getPropertyGooglePerformanceInputSchema)
+  .validator(getPropertyGooglePerformanceInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         disableProviderContentCaching()
         const headers = await headersFromContext()
         const actor = await resolveTenantContext(headers)
-        const getPerformance = getContainer().useCases.getPropertyGooglePerformance
+        const getPerformance = getContainer().integrationPublicApi.performance.get
         if (!getPerformance) {
           return {
             status: 'unavailable',
@@ -52,14 +52,14 @@ export const getPropertyGooglePerformance = createServerFn({ method: 'GET' })
 export const renewPropertyGooglePerformanceLease = createServerFn({
   method: 'POST',
 })
-  .inputValidator(renewPropertyGooglePerformanceLeaseInputSchema)
+  .validator(renewPropertyGooglePerformanceLeaseInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         disableProviderContentCaching()
         const headers = await headersFromContext()
         const actor = await resolveTenantContext(headers)
-        const renewLease = getContainer().useCases.renewGooglePerformanceLease
+        const renewLease = getContainer().integrationPublicApi.performance.renewLease
         if (!renewLease) return { ok: false } as const
 
         try {

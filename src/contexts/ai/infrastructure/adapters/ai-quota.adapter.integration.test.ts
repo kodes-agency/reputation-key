@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { randomUUID } from 'node:crypto'
 import Redis from 'ioredis'
 import { propertyId } from '#/shared/domain/ids'
 import { createRedisAiQuotaAdapter } from './ai-quota.adapter'
@@ -9,7 +10,7 @@ const PREFIX = 'ai-quota:{private-beta-global-v1:review_analysis}'
 
 describe('AI quota adapter (real Redis)', () => {
   const redis = new Redis(REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1 })
-  const quota = createRedisAiQuotaAdapter(redis)
+  const quota = createRedisAiQuotaAdapter(redis, randomUUID)
 
   beforeAll(async () => {
     await redis.connect()

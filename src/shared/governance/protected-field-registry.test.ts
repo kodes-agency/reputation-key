@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { isTable, getTableColumns, getTableName } from 'drizzle-orm'
+import ts from 'typescript'
 import * as schema from '#/shared/db/schema'
 import * as outboxSchema from '#/shared/db/schema/outbox.schema'
 import {
@@ -38,6 +39,7 @@ const PROTECTED_COLUMN_PATTERNS: ReadonlyArray<RegExp> = [
   /^body$/,
   /^comment$/,
   /ip_hash/,
+  /^pseudonym$/,
   /source_name/,
   /message_id/,
 ]
@@ -47,12 +49,15 @@ const PROTECTED_COLUMN_PATTERNS: ReadonlyArray<RegExp> = [
 // the stale-entry test pins this list to reality.)
 const GOVERNED_TABLES: ReadonlyArray<string> = [
   'reviews',
+  'review_source_contents',
   'replies',
   'google_connections',
   'properties',
   'inbox_items',
   'inbox_notes',
-  'activity_log',
+  'recent_activity_entries',
+  'recent_activity_actor_label_redactions',
+  'recent_activity_replay_facts',
   'notifications',
   'outbox_events',
   'event_consumer_receipts',
@@ -61,6 +66,7 @@ const GOVERNED_TABLES: ReadonlyArray<string> = [
   'feedback',
   'ratings',
   'scan_events',
+  'guest_network_pressure_records',
 ]
 
 // Event payload fields that must be classified (residual identifiers/raw
@@ -70,7 +76,7 @@ const REQUIRED_EVENT_FIELDS: ReadonlyArray<
 > = [
   { relation: 'event:review.created', field: 'externalId' },
   { relation: 'event:review.updated', field: 'externalId' },
-  { relation: 'event:identity.member.invited', field: 'email' },
+  { relation: 'event:guest.rating.submitted', field: 'value' },
 ]
 
 function allSchemaTables(): ReadonlyArray<{ name: string; columns: string[] }> {
@@ -88,6 +94,81 @@ function allSchemaTables(): ReadonlyArray<{ name: string; columns: string[] }> {
 
 function registryKey(entry: ProtectedFieldRule): string {
   return `${entry.relation}:${entry.field}`
+}
+
+const RAW_JOB_PAYLOAD_FIELDS = new Set([
+  'reviewText',
+  'reviewerName',
+  'reviewerProfilePhotoUrl',
+  'replyText',
+  'rejectionReason',
+  'snippet',
+])
+
+function declaredName(node: ts.NamedDeclaration): string | null {
+  const name = node.name
+  if (name == null) return null
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name)) return name.text
+  return null
+}
+
+/** Inspect payload declarations and direct job.data reads, without confusing
+ * provider responses or other handler-local values with queued content. */
+function rawJobPayloadViolations(path: string, source: string): readonly string[] {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
+  const violations = new Set<string>()
+
+  const inspectPayloadDeclaration = (owner: string, root: ts.Node): void => {
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isPropertySignature(node) ||
+        ts.isPropertyDeclaration(node) ||
+        ts.isPropertyAssignment(node) ||
+        ts.isShorthandPropertyAssignment(node)
+      ) {
+        const field = declaredName(node)
+        if (field != null && RAW_JOB_PAYLOAD_FIELDS.has(field)) {
+          violations.add(`${path}:${owner}.${field}`)
+        }
+      }
+      ts.forEachChild(node, visit)
+    }
+    visit(root)
+  }
+
+  const visit = (node: ts.Node): void => {
+    if (
+      (ts.isTypeAliasDeclaration(node) || ts.isInterfaceDeclaration(node)) &&
+      /JobData$/iu.test(node.name.text)
+    ) {
+      inspectPayloadDeclaration(node.name.text, node)
+    } else if (ts.isVariableDeclaration(node)) {
+      const name = declaredName(node)
+      if (name != null && /JobData$/iu.test(name)) {
+        inspectPayloadDeclaration(name, node)
+      }
+    }
+
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      RAW_JOB_PAYLOAD_FIELDS.has(node.name.text) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'data' &&
+      node.expression.expression.getText(sourceFile) === 'job'
+    ) {
+      violations.add(`${path}:job.data.${node.name.text}`)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+
+  return [...violations].sort()
 }
 
 describe('BQC-1.1 protected-field registry', () => {
@@ -149,7 +230,7 @@ describe('BQC-1.1 protected-field registry', () => {
   it('registers every event payload field that holds protected data', () => {
     // Outbox event payloads are identifier-only by zod allowlist (BQR-2.5),
     // but allowlisted fields themselves need classification (e.g. externalId,
-    // rating on review.created; email on identity.member.invited).
+    // rating on review.created).
     const registered = new Set(PROTECTED_FIELD_REGISTRY.map(registryKey))
     const missing = REQUIRED_EVENT_FIELDS.filter(
       ({ relation, field }) => !registered.has(`${relation}:${field}`),
@@ -176,11 +257,8 @@ describe('BQC-1.1 protected-field registry', () => {
   })
 
   it('keeps raw content fields out of job payload types', () => {
-    // Scan queue port / job data type files for raw-content field names.
-    // Registered exceptions (e.g. replyId references) are fine — raw text,
-    // reviewer identity, and reply bodies are not.
-    const FORBIDDEN =
-      /\b(reviewText|reviewerName|reviewerProfilePhotoUrl|replyText|rejectionReason|snippet)\b/
+    // Scan payload declarations and direct job.data reads. A job may read a
+    // provider response's replyText locally; that does not put text in BullMQ.
     const offenders: string[] = []
     const scan = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -192,14 +270,36 @@ describe('BQC-1.1 protected-field registry', () => {
           !entry.name.endsWith('.test.ts')
         ) {
           const content = readFileSync(path, 'utf8')
-          if (FORBIDDEN.test(content)) offenders.push(path)
+          offenders.push(...rawJobPayloadViolations(path, content))
         }
       }
     }
     scan(join(process.cwd(), 'src/contexts'))
     expect(
       offenders,
-      `job payload types referencing raw content fields:\n  ${offenders.join('\n  ')}`,
+      `job payloads referencing raw content fields:\n  ${offenders.join('\n  ')}`,
     ).toEqual([])
+  })
+
+  it('distinguishes provider response content from an actual publish-job payload leak', () => {
+    const path = 'src/contexts/review/infrastructure/jobs/publish-reply.job.ts'
+    expect(
+      rawJobPayloadViolations(
+        path,
+        `
+          type PublishReplyJobData = { replyId: string }
+          const observed = result.review.replyText
+        `,
+      ),
+    ).toEqual([])
+    expect(
+      rawJobPayloadViolations(
+        path,
+        `
+          type PublishReplyJobData = { replyId: string; replyText: string }
+          const leaked = job.data.replyText
+        `,
+      ),
+    ).toEqual([`${path}:PublishReplyJobData.replyText`, `${path}:job.data.replyText`])
   })
 })

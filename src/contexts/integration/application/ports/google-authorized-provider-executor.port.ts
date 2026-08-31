@@ -52,6 +52,10 @@ export type GoogleProviderAuthorityAdmissionCode =
 export type GoogleProviderAdmissionCode =
   | GoogleProviderGatewayAdmissionCode
   | GoogleProviderAuthorityAdmissionCode
+  | 'wrong_cell'
+  | 'cell_unavailable'
+  | 'credential_home_unavailable'
+  | 'credential_home_mismatch'
   | 'runtime_unavailable'
 
 export type GoogleProviderExecutionResult =
@@ -62,6 +66,8 @@ export type GoogleProviderExecutionResult =
         contentType: string | null
         cacheControl: string | null
         retryAfter: string | null
+        /** Provider request identifier when the gateway exposes one. */
+        providerCorrelationId?: string | null
       }>
       body: Uint8Array
     }>

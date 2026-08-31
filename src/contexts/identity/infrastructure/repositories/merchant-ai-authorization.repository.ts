@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import {
   AI_RUNTIME_CAPABILITIES_V1,
@@ -14,10 +14,9 @@ import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
 import type { Database } from '#/shared/db'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import { getLogger } from '#/shared/observability/logger'
 import { organizationId } from '#/shared/domain/ids'
-import { isOwnerToken } from '#/shared/domain/roles'
 import { identityMerchantAiChanged } from '../../domain/events'
+import { decideMemberPropertyAuthority } from './member-property-authority'
 import type {
   MerchantAiCapabilityEpochs,
   MerchantAiSnapshot,
@@ -277,11 +276,19 @@ function nextCapabilityEpochs(
   })
 }
 
-async function emitAfterCommit(events: EventEmitter, event: DomainEvent): Promise<void> {
+export type MerchantAiAuthorizationStoreLogger = Readonly<{
+  warn(fields: Readonly<Record<string, unknown>>, message: string): void
+}>
+
+async function emitAfterCommit(
+  events: EventEmitter,
+  event: DomainEvent,
+  logger: MerchantAiAuthorizationStoreLogger,
+): Promise<void> {
   try {
     await events.emit(event)
   } catch (error) {
-    getLogger().warn(
+    logger.warn(
       { error, eventType: event._tag, correlationId: event.correlationId ?? undefined },
       'Merchant AI event emit failed after durable commit',
     )
@@ -348,10 +355,12 @@ export async function hasActiveMerchantAiConsent(
   return result.rows.length === 1
 }
 
-export function createMerchantAiAuthorizationStore(
+export const createMerchantAiAuthorizationStore = (
   db: Database,
   events: EventEmitter,
-): MerchantAiAuthorizationStore {
+  idGen: () => string,
+  logger: MerchantAiAuthorizationStoreLogger,
+): MerchantAiAuthorizationStore => {
   return {
     getSnapshot: (input) => getMerchantAiAuthorizationSnapshot(db, input),
 
@@ -469,32 +478,21 @@ export function createMerchantAiAuthorizationStore(
             'Current organization membership is required',
           )
         }
-        if (!isOwnerToken(String(membership.role))) {
-          const isAdmin = String(membership.role)
-            .split(',')
-            .some((token) => token.trim().toLowerCase() === 'admin')
-          if (!isAdmin) {
-            throw new MerchantAiAuthorizationStoreError(
-              'membership_denied',
-              'Current organization admin role is required',
-            )
-          }
-          const grantResult = await tx.execute(sql`
-            SELECT id
-            FROM property_access_grant
-            WHERE organization_id = ${input.organizationId}
-              AND property_id = ${input.propertyId}::uuid
-              AND user_id = ${input.actorUserId}
-              AND revoked_at IS NULL
-              AND (expires_at IS NULL OR expires_at > ${input.now})
-            FOR SHARE
-          `)
-          if (grantResult.rows.length === 0) {
-            throw new MerchantAiAuthorizationStoreError(
-              'assignment_denied',
-              'Current property assignment is required',
-            )
-          }
+        const authority = await decideMemberPropertyAuthority(tx, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          userId: input.actorUserId,
+          memberRole: String(membership.role),
+          permission: 'ai.manage',
+          at: input.now,
+        })
+        if (!authority.allowed) {
+          throw new MerchantAiAuthorizationStoreError(
+            authority.reason,
+            authority.reason === 'assignment_denied'
+              ? 'Current Property authority is required'
+              : 'Current AI management authority is required',
+          )
         }
 
         const currentResult = await tx.execute(sql`
@@ -593,6 +591,30 @@ export function createMerchantAiAuthorizationStore(
 
         let currentAnalysisHeadSequence: number | null = null
         if (input.operation !== 'revoke') {
+          // A Property with no Reviews has no allocator row yet: Review creates
+          // it lazily when the first material revision receives a sequence.
+          // Merchant authorization still needs an exact frontier, so create the
+          // explicit zero head while the Property row is locked, but only when
+          // the source epoch truly has no Review identity. A missing head next
+          // to an existing Review is corruption and must remain unavailable.
+          // The Review allocator takes that same lock before incrementing,
+          // making 0 an honest "no material revisions allocated" authority
+          // rather than synthetic analyzed work or an inferred default.
+          await tx.execute(sql`
+            INSERT INTO review_ai_analysis_heads (
+              organization_id, property_id, source_epoch, head_sequence
+            )
+            SELECT ${input.organizationId}, ${input.propertyId}::uuid,
+                   ${authorizedSourceEpoch}, 0
+            WHERE NOT EXISTS (
+              SELECT 1
+              FROM reviews
+              WHERE organization_id = ${input.organizationId}
+                AND property_id = ${input.propertyId}::uuid
+                AND source_epoch = ${authorizedSourceEpoch}
+            )
+            ON CONFLICT (organization_id, property_id, source_epoch) DO NOTHING
+          `)
           const analysisHeadResult = await tx.execute(sql`
             SELECT head_sequence
             FROM review_ai_analysis_heads
@@ -611,7 +633,7 @@ export function createMerchantAiAuthorizationStore(
           currentAnalysisHeadSequence = readSafeBigint(analysisHead, 'head_sequence', 0)
         }
 
-        const authorizationLineageId = current?.authorizationLineageId ?? randomUUID()
+        const authorizationLineageId = current?.authorizationLineageId ?? idGen()
         const stateVersion = (current?.stateVersion ?? 0) + 1
         const capabilityEpochs = nextCapabilityEpochs(
           current,
@@ -692,7 +714,7 @@ export function createMerchantAiAuthorizationStore(
         return snapshot
       })
 
-      if (committedEvent) await emitAfterCommit(events, committedEvent)
+      if (committedEvent) await emitAfterCommit(events, committedEvent, logger)
       return result
     },
 
@@ -782,7 +804,7 @@ export function createMerchantAiAuthorizationStore(
 
         const runtimeProfiles = Object.freeze({})
 
-        const authorizationLineageId = randomUUID()
+        const authorizationLineageId = idGen()
         const capabilityEpochs = Object.freeze({
           review_analysis: 1,
           reply_drafting: 1,
@@ -843,7 +865,7 @@ export function createMerchantAiAuthorizationStore(
         return snapshot
       })
 
-      if (committedEvent) await emitAfterCommit(events, committedEvent)
+      if (committedEvent) await emitAfterCommit(events, committedEvent, logger)
       return result
     },
   }

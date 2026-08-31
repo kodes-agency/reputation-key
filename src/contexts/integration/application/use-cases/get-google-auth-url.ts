@@ -54,7 +54,9 @@ export const getGoogleAuthUrl =
       organizationId: input.organizationId,
       userId: input.userId,
       sessionId: input.sessionId,
-      visibility: input.visibility,
+      // Keep accepting the legacy decoder shape while every newly issued
+      // OAuth ceremony records the sole Organization-owned value.
+      visibility: 'organization',
       purpose: input.purpose ?? 'reviews',
       connectionMode: input.connectionMode ?? 'new',
       targetConnectionId: input.targetConnectionId ?? null,

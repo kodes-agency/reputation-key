@@ -25,6 +25,23 @@ export type SyncPropertyReviewsJobData = JobEnqueueAttribution &
     routing?: RoutingEnvelope
   }>
 
+/** Identifier-only GBP push work; raw provider resources stay in Redis. */
+export type TargetedGoogleReviewFetchJobData = JobEnqueueAttribution &
+  Readonly<{
+    mode: 'targeted'
+    propertyId: string
+    organizationId: string
+    connectionId: string
+    sourceEpoch: number
+    referenceRef: string | null
+    /** Identifier of the durable push-accepted outbox fact. */
+    deliveryId: string
+    routing?: RoutingEnvelope
+  }>
+
+export type ReviewProviderJobData =
+  SyncPropertyReviewsJobData | TargetedGoogleReviewFetchJobData
+
 export type AddSyncJobOptions = Readonly<{
   jobId?: string
   /**
@@ -43,6 +60,9 @@ export type AddSyncJobOptions = Readonly<{
  */
 export const GBP_PUSH_SYNC_INITIATOR_ID = 'webhook:gbp'
 
+/** Initial Google property import; reviews first seen by this run are history. */
+export const GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID = 'google-property-import'
+
 /** Attribution stamped by the discover-new-reviews sweep. */
 export const DISCOVERY_SWEEP_SYNC_INITIATOR_ID = 'sweep:review-discovery'
 
@@ -51,4 +71,11 @@ export type ReviewQueuePort = Readonly<{
     data: SyncPropertyReviewsJobData,
     options?: AddSyncJobOptions,
   ) => Promise<void>
+}>
+
+export type TargetedGoogleReviewQueuePort = Readonly<{
+  addTargetedFetchJob(
+    data: TargetedGoogleReviewFetchJobData,
+    options: Readonly<{ jobId: string }>,
+  ): Promise<void>
 }>

@@ -8,6 +8,13 @@
 import type { Notification, NotificationEmail } from '../../domain/types'
 import type { RenderedNotification } from '../../domain/notification-templates'
 import { notificationLink, renderNotification } from '../../domain/notification-templates'
+import {
+  digestBatchIdempotencyKey,
+  digestMemberSet,
+  digestProviderRequest,
+} from '../digest-batch-identity'
+
+export { digestBatchIdempotencyKey, digestMemberSet, digestProviderRequest }
 
 /** One deliverable digest line: the queue row plus its in-app notification. */
 export type DigestItem = Readonly<{
@@ -20,32 +27,6 @@ export type DigestGroup = Readonly<{
   propertyName: string
   items: ReadonlyArray<Readonly<{ rendered: RenderedNotification; actionUrl: string }>>
 }>
-
-/**
- * ADR 0046 r.5 — the application idempotency key must outlive the provider's
- * 24-hour dedupe window.
- *
- * Two properties matter and both are structural, not incidental:
- *   1. It contains NO timestamp, only the recipient's LOCAL DATE. A retry an
- *      hour later, a day later, or after a worker restart recomputes the exact
- *      same key, so the provider collapses the duplicate even if our own state
- *      write was the thing that failed.
- *   2. It is keyed on (organization, user, local date) and NOT on property.
- *      ADR 0046 r.4 is one digest per user; keying on property is precisely the
- *      bug that produced one digest per property.
- *
- * Beyond 24h the provider forgets, which is why the durable guard is the queue
- * row status: an accepted row is no longer "due", so a later sweep finds
- * nothing to send. The key handles the fast retry, the status handles the slow
- * one.
- */
-export function digestIdempotencyKey(
-  organizationId: string,
-  userId: string,
-  localDate: string,
-): string {
-  return `digest:${organizationId}:${userId}:${localDate}`
-}
 
 /**
  * Group one user's digest lines by property, preserving queue order within a

@@ -7,22 +7,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import type { Role } from '#/shared/domain/roles'
+import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { roleLabel } from '#/components/features/identity/shared/role-utils'
 
 type Props = Readonly<{
   field: {
     state: {
-      value: Role
+      value: BetaInteractiveRole
       meta: {
         isTouched: boolean
         isValid: boolean
         errors: unknown
       }
     }
-    handleChange: (value: Role) => void
+    handleChange: (value: BetaInteractiveRole) => void
   }
-  allowedRoles: ReadonlyArray<Role>
+  allowedRoles: ReadonlyArray<BetaInteractiveRole>
 }>
 
 export function RoleSelector({ field, allowedRoles }: Props) {
@@ -33,7 +33,7 @@ export function RoleSelector({ field, allowedRoles }: Props) {
       <FieldLabel>Role</FieldLabel>
       <Select
         value={field.state.value}
-        onValueChange={(value) => field.handleChange(value as Role)}
+        onValueChange={(value) => field.handleChange(value as BetaInteractiveRole)}
       >
         <SelectTrigger aria-invalid={isInvalid} aria-label="Role">
           <SelectValue placeholder="Select a role" />

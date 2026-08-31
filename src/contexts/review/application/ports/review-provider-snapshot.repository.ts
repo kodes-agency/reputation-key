@@ -6,6 +6,7 @@ import type {
 } from '#/shared/domain/ids'
 import type { GoogleReview } from '../../domain/types'
 import type { ReviewProviderSubject } from '#/shared/review-provider-subject-contract'
+import type { ReviewProviderObservationOrigin } from './response-target-authority.port'
 
 export const REVIEW_PROVIDER_SNAPSHOT_MAX_PAGES = 200
 export const REVIEW_PROVIDER_SNAPSHOT_MAX_REVIEWS = 10_000
@@ -25,6 +26,7 @@ export type ReviewProviderSnapshotFailureCode =
   | 'cursor_failure'
   | 'malformed_page'
   | 'total_changed'
+  | 'average_changed'
   | 'duplicate_resource'
   | 'resource_collision'
   | 'review_mutation'
@@ -40,10 +42,12 @@ export type ReviewProviderSnapshotRun = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   sourceEpoch: number
+  observationOrigin: ReviewProviderObservationOrigin
   state: ReviewProviderSnapshotState
   phase: ReviewProviderSnapshotPhase
   startedAt: Date
   expectedProviderTotal: number | null
+  expectedProviderAverageRating: number | null
   mainPageIndex: number
   mainCursorRef: string | null
   mainUniqueCount: number
@@ -86,6 +90,7 @@ export type ReviewProviderSnapshotPageCommit = Readonly<{
   expectedPageIndex: number
   expectedCursorRef: string | null
   totalReviewCount: number
+  averageRating: number | null
   nextCursorRef: string | null
   observations: readonly ReviewProviderPersistedObservation[]
 }>
@@ -120,6 +125,7 @@ export type ReviewProviderSnapshotRepository = Readonly<{
       organizationId: OrganizationId
       propertyId: PropertyId
       sourceEpoch: number
+      observationOrigin: ReviewProviderObservationOrigin
     }>,
   ): Promise<ReviewProviderSnapshotRun>
 
@@ -204,6 +210,11 @@ export type ReviewProviderSnapshotRepository = Readonly<{
     }>,
   ): Promise<ReviewProviderSnapshotRun>
 
+  /**
+   * Apply confirmed provider-missing transitions in a bounded batch. The
+   * persisted `deleting` state is legacy vocabulary; SAFE-03 makes source
+   * content ineligible while preserving stable Review/Reply identity.
+   */
   applyDeletionBatch(
     input: Readonly<{
       runId: string
@@ -218,6 +229,11 @@ export type ReviewProviderSnapshotRepository = Readonly<{
     }>
   >
 
+  /**
+   * Legacy raw-expiry compatibility report. It delegates to the checkpointed
+   * Review lifecycle authority and returns zero transitions while apply is
+   * quarantined. Retained only for stale payload/type compatibility.
+   */
   expireRawSourceBatch(
     input: Readonly<{
       beforeOrAt: Date
@@ -237,13 +253,21 @@ export type ReviewProviderSnapshotRepository = Readonly<{
 
 /** Request-scoped source writer supplied by the normal Review sync path. */
 export type ReviewProviderObservationWriter = Readonly<{
+  /** Allocate after provider response acquisition; gaps are expected when
+   * later validation or persistence fails. */
+  allocateReplyReadGeneration(): Promise<number>
   persist(
     input: Readonly<{
       organizationId: OrganizationId
       propertyId: PropertyId
       connectionId: GoogleConnectionId
       sourceEpoch: number
+      observationOrigin: ReviewProviderObservationOrigin
+      /** Content-free idempotency digest for one logical provider observation. */
+      observationKey: string
+      replyReadGeneration: number
       review: GoogleReview
+      subjects: ReviewProviderSubjectCandidates
     }>,
   ): Promise<Readonly<{ reviewId: ReviewId; sourceRevision: number; isNew: boolean }>>
 }>

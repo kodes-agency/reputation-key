@@ -15,13 +15,16 @@
 // Cost: every backfilled review is a real provider call. Dry-run is the
 // default and prints the exact review count and the sequence range that would
 // be emitted; `--apply` additionally requires `--ticket` and the typed
-// confirmation `--yes ops:ai-reanalyze`. `--batch-size` caps a pilot run.
+// confirmation `--yes ops:ai-reanalyze`. `--batch-size` caps an operator pilot
+// or repair run only. This command is NOT first-enablement enrollment: product
+// activation still owes an independently triggered exhaustive eligible-source
+// enrollment and a caught-up proof before the capability can be called ready.
 
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { getDb } from '../../src/shared/db'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { createReviewAnalysisBackfillAdapter } from '../../src/contexts/ai/infrastructure/adapters/ai-review-analysis-backfill.adapter'
-import { createPropertyGrantHolderLookup } from '../../src/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
+import { createMemberPropertyAuthorityLookup } from '../../src/contexts/identity/infrastructure/repositories/member-property-authority'
 import { createBackfillReviewAnalysis } from '../../src/contexts/ai/application/use-cases/backfill-review-analysis'
 import { runOperatorCommand } from './operator-command'
 
@@ -71,11 +74,12 @@ async function main(): Promise<void> {
       const idempotencyKey = `ops-ai-reanalyze:${requestHash.slice(0, 48)}`
 
       const db = getDb()
+      const clock = () => new Date()
       const backfill = createBackfillReviewAnalysis({
-        backfillStore: createReviewAnalysisBackfillAdapter(db),
-        // Identity owns `property_access_grant`, so an admin consent actor's
-        // authority is resolved through identity's adapter rather than read here.
-        propertyAccessHolders: createPropertyGrantHolderLookup(db),
+        backfillStore: createReviewAnalysisBackfillAdapter(db, randomUUID),
+        // Identity owns effective permissions and property grants; the AI
+        // context consumes only its current authority verdict.
+        propertyAuthority: createMemberPropertyAuthorityLookup(db, 'ai.manage', clock),
       })
       const outcome = await backfill({
         organizationId: organizationId(ctx.organizationId as string),
@@ -86,7 +90,7 @@ async function main(): Promise<void> {
         idempotencyKey,
         requestHash,
         correlationId: ctx.correlationId,
-        occurredAt: new Date(),
+        occurredAt: clock(),
       })
 
       if (outcome.status === 'refused') {

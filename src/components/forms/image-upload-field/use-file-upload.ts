@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 type UseFileUploadOptions = Readonly<{
   acceptedTypes: ReadonlyArray<string>
   maxFileSize: number
-  onUpload: (file: File, onProgress: (percent: number) => void) => Promise<string>
+  onUpload: (file: File, onProgress: (percent: number) => void) => Promise<string | null>
   onImageUrlChange: (url: string | null) => void
 }>
 
@@ -25,17 +25,20 @@ export function useFileUpload({
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
 
-  const validateFile = (file: File): boolean => {
-    if (!acceptedTypes.includes(file.type)) {
-      toast.error(`Please select a valid image file (${acceptedTypes.join(', ')})`)
-      return false
-    }
-    if (file.size > maxFileSize) {
-      toast.error(`File size must be less than ${maxFileSize / 1024 / 1024} MB`)
-      return false
-    }
-    return true
-  }
+  const validateFile = useCallback(
+    (file: File): boolean => {
+      if (!acceptedTypes.includes(file.type)) {
+        toast.error(`Please select a valid image file (${acceptedTypes.join(', ')})`)
+        return false
+      }
+      if (file.size > maxFileSize) {
+        toast.error(`File size must be less than ${maxFileSize / 1024 / 1024} MB`)
+        return false
+      }
+      return true
+    },
+    [acceptedTypes, maxFileSize],
+  )
 
   const handleFileSelect = useCallback(
     async (file: File) => {
@@ -45,7 +48,9 @@ export function useFileUpload({
       setUploadProgress(0)
       try {
         const url = await onUpload(file, (p) => setUploadProgress(p))
-        onImageUrlChange(url)
+        // Issuance-bound Portal uploads keep the previous image visible while
+        // the private source is decoded and a public derivative is prepared.
+        if (url !== null) onImageUrlChange(url)
       } catch (err: unknown) {
         const message =
           (err instanceof Error ? err.message : '') ||
@@ -59,7 +64,7 @@ export function useFileUpload({
         setUploadProgress(0)
       }
     },
-    [acceptedTypes, maxFileSize, onUpload, onImageUrlChange],
+    [onUpload, onImageUrlChange, validateFile],
   )
 
   return {

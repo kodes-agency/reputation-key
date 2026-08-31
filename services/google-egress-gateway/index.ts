@@ -6,8 +6,29 @@ import { handleGoogleEgressGatewayRequest } from './http-api'
 import {
   createInternalMtlsJsonTransport,
   createInternalMtlsWebServer,
-  loadInternalMtlsMaterial,
+  loadInternalMtlsMaterialFromOneSource,
 } from '../internal-mtls'
+import {
+  assertGoogleEgressGatewayIdentity,
+  createGoogleEgressPeerIdentityResolver,
+  parseGoogleEgressCallerIdentities,
+} from '../google-peer-identities'
+import {
+  assertGoogleGatewayRequiredLocalEnvironment,
+  assertGoogleGatewayRequiredProductionEnvironment,
+} from './environment'
+import { createSidecarPlatformHealthServer } from '../platform-health'
+import { registerSidecarOperationalLifecycle } from '../sidecar-operational-runtime'
+import { monitoredSidecarObservability } from '../sidecar-monitored-observability'
+import { resolveSidecarRuntimePorts } from '../sidecar-runtime-ports'
+
+declare const __REPKEY_GOOGLE_LOCAL_SANDBOX__: boolean
+
+if (__REPKEY_GOOGLE_LOCAL_SANDBOX__) {
+  assertGoogleGatewayRequiredLocalEnvironment(process.env)
+} else {
+  assertGoogleGatewayRequiredProductionEnvironment(process.env)
+}
 
 function requiredEnv(name: string): string {
   const value = process.env[name]
@@ -15,34 +36,16 @@ function requiredEnv(name: string): string {
   return value
 }
 
-function portFromEnv(): number {
-  const raw = process.env.PORT ?? '8443'
-  if (!/^[0-9]+$/.test(raw)) throw new Error('egress-gateway port is invalid')
-  const port = Number(raw)
-  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
-    throw new Error('egress-gateway port is invalid')
-  }
-  return port
-}
-
 function allowedCallerIdentities(): ReadonlySet<string> {
-  const values = requiredEnv('GOOGLE_EGRESS_ALLOWED_CALLER_IDENTITIES')
-    .split(',')
-    .map((value) => value.trim())
-  if (
-    values.length === 0 ||
-    values.some((value) => !/^[A-Za-z0-9._:@/-]{1,255}$/.test(value)) ||
-    new Set(values).size !== values.length
-  ) {
-    throw new Error('egress-gateway caller identities are invalid')
-  }
-  return new Set(values)
+  return parseGoogleEgressCallerIdentities(
+    requiredEnv('GOOGLE_EGRESS_ALLOWED_CALLER_IDENTITIES'),
+  )
 }
 
 function routeTargetFromEnv() {
   const profile = requiredEnv('GOOGLE_PROVIDER_ROUTE_PROFILE')
   if (profile === 'production') return Object.freeze({ kind: 'production' as const })
-  if (profile === 'local_sandbox') {
+  if (profile === 'local_sandbox' && __REPKEY_GOOGLE_LOCAL_SANDBOX__) {
     return Object.freeze({
       kind: 'local_sandbox' as const,
       simulatorOrigin: requiredEnv('GOOGLE_PROVIDER_SIMULATOR_ORIGIN'),
@@ -51,10 +54,19 @@ function routeTargetFromEnv() {
   throw new Error('egress-gateway route profile is invalid')
 }
 
-const tls = loadInternalMtlsMaterial({
-  caPath: requiredEnv('GOOGLE_INTERNAL_MTLS_CA_PATH'),
-  certPath: requiredEnv('GOOGLE_INTERNAL_MTLS_CERT_PATH'),
-  keyPath: requiredEnv('GOOGLE_INTERNAL_MTLS_KEY_PATH'),
+const base64Tls = [
+  process.env.GOOGLE_INTERNAL_MTLS_CA_B64,
+  process.env.GOOGLE_INTERNAL_MTLS_CERT_B64,
+  process.env.GOOGLE_INTERNAL_MTLS_KEY_B64,
+] as const
+const pathTls = [
+  process.env.GOOGLE_INTERNAL_MTLS_CA_PATH,
+  process.env.GOOGLE_INTERNAL_MTLS_CERT_PATH,
+  process.env.GOOGLE_INTERNAL_MTLS_KEY_PATH,
+] as const
+const tls = loadInternalMtlsMaterialFromOneSource({
+  base64: { ca: base64Tls[0], cert: base64Tls[1], key: base64Tls[2] },
+  path: { ca: pathTls[0], cert: pathTls[1], key: pathTls[2] },
 })
 const admissionTransport = createInternalMtlsJsonTransport({
   origin: requiredEnv('GOOGLE_EXECUTION_ADMISSION_ORIGIN'),
@@ -73,7 +85,9 @@ const grantKeyring = createVersionedHmacKeyring(
 const credentialKeyring = createVersionedHmacKeyring(
   requiredEnv('GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS'),
 )
-const gatewayIdentity = requiredEnv('GOOGLE_EGRESS_GATEWAY_IDENTITY')
+const gatewayIdentity = assertGoogleEgressGatewayIdentity(
+  requiredEnv('GOOGLE_EGRESS_GATEWAY_IDENTITY'),
+)
 const callerIdentities = allowedCallerIdentities()
 const routeTarget = routeTargetFromEnv()
 const gateway = createGoogleEgressGateway({
@@ -86,45 +100,94 @@ const gateway = createGoogleEgressGateway({
   fetch,
 })
 
+const readiness = async (signal: AbortSignal): Promise<boolean> => {
+  if (signal.aborted) return false
+  try {
+    const raw = await admissionTransport.get('/health/ready', { signal })
+    return (
+      !signal.aborted &&
+      typeof raw === 'object' &&
+      raw !== null &&
+      (raw as Record<string, unknown>).ok === true
+    )
+  } catch {
+    return false
+  }
+}
+
+const host = process.env.HOST ?? '0.0.0.0'
+const { healthPort, protectedMtlsPort } = resolveSidecarRuntimePorts(process.env)
 const server = createInternalMtlsWebServer({
-  host: process.env.HOST ?? '0.0.0.0',
-  port: portFromEnv(),
+  host,
+  port: protectedMtlsPort,
   tls,
   maxRequestBytes: 256 * 1024,
+  resolvePeerIdentity: createGoogleEgressPeerIdentityResolver(),
   handle: (request, peerIdentity) =>
     handleGoogleEgressGatewayRequest({
       request,
       callerIdentity: peerIdentity,
       allowedCallerIdentities: callerIdentities,
       gateway,
-      readiness: async () => {
-        try {
-          const raw = await admissionTransport.get('/health/ready')
-          return (
-            typeof raw === 'object' &&
-            raw !== null &&
-            (raw as Record<string, unknown>).ok === true
-          )
-        } catch {
-          return false
-        }
-      },
+      readiness: () => readiness(AbortSignal.timeout(2_000)),
     }),
 })
-server.listen(portFromEnv(), process.env.HOST ?? '0.0.0.0')
+const platformHealth = createSidecarPlatformHealthServer({
+  host,
+  healthPort,
+  protectedMtlsPort,
+  readiness,
+})
 
 let shuttingDown = false
 async function shutdown(): Promise<void> {
   if (shuttingDown) return
   shuttingDown = true
-  const closed = Promise.withResolvers<void>()
-  server.close(() => closed.resolve())
-  await closed.promise
+  let failure: unknown
+  try {
+    await server.stopAndDrain()
+  } catch (error) {
+    failure = error
+  }
+  try {
+    admissionTransport.close()
+  } catch (error) {
+    failure ??= error
+  }
+  try {
+    if (failure !== undefined) throw failure
+  } finally {
+    grantKeyring.dispose()
+    credentialKeyring.dispose()
+    tls.ca.fill(0)
+    tls.cert.fill(0)
+    tls.key.fill(0)
+  }
 }
 
-process.once('SIGTERM', () => {
-  void shutdown().finally(() => process.exit(0))
-})
-process.once('SIGINT', () => {
-  void shutdown().finally(() => process.exit(0))
+try {
+  if (!(await readiness(AbortSignal.timeout(5_000)))) {
+    throw new Error('Google egress-gateway dependencies are not ready')
+  }
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(protectedMtlsPort, host, () => {
+      server.removeListener('error', reject)
+      resolve()
+    })
+  })
+  await platformHealth.listen()
+} catch (error) {
+  platformHealth.beginDrain()
+  await Promise.allSettled([shutdown(), platformHealth.stop()])
+  throw error
+}
+
+registerSidecarOperationalLifecycle({
+  service: 'google-egress-gateway',
+  health: platformHealth,
+  shutdown,
+  shutdownTimeoutMs: 25_000,
+  capture: monitoredSidecarObservability.capture,
+  flush: monitoredSidecarObservability.flush,
 })

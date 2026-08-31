@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { GoogleImportDiscoveryErrorCode } from '#/contexts/integration/application/google-import-discovery'
-import { discoveryErrorMessage, startErrorMessage } from './google-import-error-messages'
+import {
+  connectionCallbackErrorMessage,
+  discoveryErrorMessage,
+  startErrorMessage,
+} from './google-import-error-messages'
 
 /**
  * Only the code survives the server-fn boundary, so the client sees a plain coded
@@ -65,5 +69,16 @@ describe('startErrorMessage', () => {
   it('keeps its own recovery-oriented copy for start failures', () => {
     expect(startErrorMessage(coded('request_conflict'))).toMatch(/already used/i)
     expect(startErrorMessage(coded('reauthentication_required'))).toMatch(/recover it/i)
+  })
+})
+
+describe('connectionCallbackErrorMessage', () => {
+  it('keeps callback outcomes distinct and has no message without an error', () => {
+    expect(connectionCallbackErrorMessage('account_already_connected')).toMatch(
+      /already connected/i,
+    )
+    expect(connectionCallbackErrorMessage('denied')).toMatch(/cancelled/i)
+    expect(connectionCallbackErrorMessage('connection_failed')).toMatch(/failed/i)
+    expect(connectionCallbackErrorMessage(undefined)).toBeNull()
   })
 })

@@ -4,9 +4,9 @@
 // provider tooling); this command verifies the prerequisites an operator must
 // confirm before starting it:
 //
-//   1. The target database is NOT production-shaped — DATABASE_URL must point
-//      at an isolated/local instance (localhost). A restore never runs
-//      against a live/shared target; the command refuses otherwise.
+//   1. The target database is NOT the source database — DATABASE_URL must use
+//      exact loopback for a local drill or the exact private hostname of the
+//      named Railway PITR sibling in its matching Data Cell environment.
 //   2. The migration journal (drizzle.__drizzle_migrations) is readable on
 //      the target — the restored instance's schema state is inspectable.
 //   3. The backup/PITR window is noted — confirm the restore point is inside
@@ -17,7 +17,7 @@
 //
 // Requires DATABASE_URL (pointed at the ISOLATED restore target). Read-only;
 // policy-evaluated + audited like every operator command. Runbook §8:
-// restore → PITR to isolated project, boot isolated (RESTORE_MODE=isolated),
+// restore → PITR sibling, boot verifier isolated (RESTORE_MODE=isolated),
 // verify with ops:restore-verify, cutover — the only rollback path, reserved
 // for data loss. Full procedure: docs/operations/backup-and-lifecycle.md.
 
@@ -42,15 +42,16 @@ async function main(): Promise<void> {
         '\nrestore preflight (runbook §8) — PITR is platform-owned; this verifies prerequisites\n',
       )
 
-      // 1. Isolated target.
-      if (!isIsolatedRestoreTarget(env.DATABASE_URL)) {
+      // 1. Attested restore target.
+      if (!isIsolatedRestoreTarget(env.DATABASE_URL, env)) {
         io.err(
-          'REFUSED: DATABASE_URL is not an isolated/local target — never restore into a live or shared database. ' +
-            'Point DATABASE_URL at the isolated restore instance (PITR target) and re-run.',
+          'REFUSED: DATABASE_URL is not an admitted restore target — use exact loopback for a local drill or the named Railway PITR sibling private hostname in its matching Data Cell environment.',
         )
         return 1
       }
-      io.out('✓ target is isolated (localhost) — not production-shaped')
+      io.out(
+        '✓ restore target admitted — confirm the recorded tunnel/service is the PITR sibling',
+      )
 
       // 2. Journal readable.
       const journal = await getDb().execute(
@@ -67,18 +68,23 @@ async function main(): Promise<void> {
       )
       io.out('\nnext steps (runbook §8, docs/operations/backup-and-lifecycle.md):')
       io.out(
-        '  1. PITR to an isolated project (Railway console / provider tooling — platform-owned)',
+        '  1. PITR creates a new sibling Postgres service in this cell environment (Railway console — platform-owned)',
       )
       io.out('  2. Point DATABASE_URL at the restored instance; re-run this preflight')
       io.out(
         '  3. Boot ISOLATED: RESTORE_MODE=isolated (worker refuses to boot; web capabilities deny fail-closed)',
       )
       io.out(
-        '  4. Run pnpm ops:restore-verify --operator <id> --reason <text> --apply --yes ops:restore-verify',
+        '  4. Run pnpm ops:restore-verify --operator <id>; independently review/sign its exact Review report request',
       )
-      io.out('     — runs the source-policy purge and proves zero expired rows remain')
       io.out(
-        '  5. Cut over only after verification (UNSET RESTORE_MODE + redeploy) — restore is the ONLY rollback path, reserved for data loss',
+        '  5. Configure the one-shot approval only on the isolated verifier, then run the typed --apply command',
+      )
+      io.out(
+        '     — enforces retention, invalidates restored authority, fences unpublished effects, and proves zero backlog',
+      )
+      io.out(
+        '  6. Cut over only after verification (pin recovery run/generation, remove approval values, UNSET RESTORE_MODE, redeploy) — restore is the ONLY rollback path, reserved for data loss',
       )
       io.out('')
     },

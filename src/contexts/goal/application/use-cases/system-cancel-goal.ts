@@ -14,7 +14,7 @@ import type { GoalRepository } from '../ports/goal.repository'
 import type { Goal } from '../../domain/types'
 import type { GoalId, OrganizationId } from '#/shared/domain/ids'
 import { ok, err, type Result } from '#/shared/domain'
-import type { getLogger as getLoggerType } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 // ── Input type ────────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ export type SystemCancelGoalError =
 export type SystemCancelGoalDeps = Readonly<{
   goalRepo: GoalRepository
   clock: () => Date
-  getLogger: typeof getLoggerType
+  logger: Pick<LoggerPort, 'info'>
 }>
 
 /**
@@ -70,7 +70,7 @@ export const systemCancelGoal =
 
     // Audit marker — system cancellation has no human initiator, so the
     // typed `reason` tag is the record of origin.
-    deps.getLogger().info(
+    deps.logger.info(
       {
         reason: input.reason,
         goalType: goal.goalType,

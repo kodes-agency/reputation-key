@@ -2,15 +2,10 @@
 // Other contexts consume authoritative StaffParticipation and
 // PortalResponsibility lookups through this boundary.
 
-import type {
-  OrganizationId,
-  PortalId,
-  PropertyId,
-  TeamId,
-  UserId,
-} from '#/shared/domain/ids'
+import type { OrganizationId, PortalId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffParticipation } from '../domain/staff-participation'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 
 export type StaffPublicApi = Readonly<{
   /**
@@ -26,7 +21,6 @@ export type StaffPublicApi = Readonly<{
     input: { userId: UserId; propertyId: PropertyId },
     ctx: AuthContext,
   ) => Promise<ReadonlyArray<PortalId>>
-  countAssignmentsByTeam: (orgId: OrganizationId, teamId: TeamId) => Promise<number>
   findParticipationById?: (
     organizationId: OrganizationId,
     staffParticipationId: string,
@@ -40,6 +34,25 @@ export type StaffPublicApi = Readonly<{
     organizationId: OrganizationId,
     propertyId: PropertyId,
   ) => Promise<readonly StaffParticipation[]>
+}>
+
+/**
+ * Identifier-only event-time credit captured by Guest-owned facts. Names and
+ * mutable profile data deliberately stay out of the snapshot.
+ */
+export type PrimaryStaffAttribution = PrimaryStaffAttributionSnapshot
+
+export type ResolvePrimaryStaffAttributionInput = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  observedAt: Date
+}>
+
+export type PrimaryStaffAttributionPublicApi = Readonly<{
+  resolvePrimaryStaffAttribution: (
+    input: ResolvePrimaryStaffAttributionInput,
+  ) => Promise<PrimaryStaffAttribution | null>
 }>
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events

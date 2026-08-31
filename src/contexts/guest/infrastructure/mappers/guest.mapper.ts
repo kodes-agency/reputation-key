@@ -57,7 +57,9 @@ export const scanEventToRow = (scan: ScanEvent) => ({
   propertyId: unbrand(scan.propertyId),
   source: scan.source,
   sessionId: scan.sessionId,
-  ipHash: scan.ipHash,
+  // Network pressure has a separate seven-day authority. This nullable
+  // compatibility slot must never become a second active writer again.
+  ipHash: null,
   createdAt: scan.createdAt,
 })
 
@@ -69,7 +71,7 @@ export const ratingToRow = (rating: Rating) => ({
   sessionId: rating.sessionId,
   value: rating.value,
   source: rating.source,
-  ipHash: rating.ipHash,
+  ipHash: null,
   createdAt: rating.createdAt,
 })
 
@@ -82,6 +84,6 @@ export const feedbackToRow = (fb: Feedback) => ({
   ratingId: fb.ratingId != null ? unbrand(fb.ratingId) : null,
   comment: fb.comment,
   source: fb.source,
-  ipHash: fb.ipHash,
+  ipHash: null,
   createdAt: fb.createdAt,
 })

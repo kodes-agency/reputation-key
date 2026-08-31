@@ -1,11 +1,9 @@
 // Property list page — extracted from route for testability and separation of concerns
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { Plus, ChevronRight } from 'lucide-react'
-import { DeletePropertyDialog } from './delete-property-dialog'
-import type { Action } from '#/components/hooks/use-action'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 
@@ -18,15 +16,10 @@ interface Property {
 
 export interface PropertyListPageProps {
   properties: ReadonlyArray<Property>
-  deleteAction: Action<
-    { data: { propertyId: string } },
-    { deleted: boolean; propertyId: string }
-  >
 }
 
-export function PropertyListPage({ properties, deleteAction }: PropertyListPageProps) {
+export function PropertyListPage({ properties }: PropertyListPageProps) {
   const { can } = usePermissions()
-  const navigate = useNavigate()
 
   return (
     <PageShell>
@@ -58,32 +51,24 @@ export function PropertyListPage({ properties, deleteAction }: PropertyListPageP
           {properties.map((p) => (
             <div
               key={p.id}
-              className="flex items-center justify-between rounded-lg border p-4 transition-colors hover:bg-accent cursor-pointer"
-              onClick={() =>
-                navigate({
-                  to: '/properties/$propertyId',
-                  params: { propertyId: p.id },
-                })
-              }
+              className="flex items-stretch overflow-hidden rounded-lg border"
             >
-              <div className="flex flex-col gap-1">
-                <p className="font-semibold">{p.name}</p>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">{p.slug}</Badge>
-                  <span className="text-sm text-muted-foreground">{p.timezone}</span>
-                </div>
-              </div>
-              <div
-                className="flex items-center gap-1"
-                onClick={(e) => e.stopPropagation()}
+              <Link
+                to="/properties/$propertyId"
+                params={{ propertyId: p.id }}
+                className="flex min-w-0 flex-1 items-center justify-between p-4 outline-none transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
-                <DeletePropertyDialog
-                  propertyId={p.id}
-                  propertyName={p.name}
-                  deleteAction={deleteAction}
-                />
-                <ChevronRight className="size-4 text-muted-foreground" />
-              </div>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <p className="truncate font-semibold">{p.name}</p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Badge variant="secondary">{p.slug}</Badge>
+                    <span className="truncate text-sm text-muted-foreground">
+                      {p.timezone}
+                    </span>
+                  </div>
+                </div>
+                <ChevronRight className="ml-3 size-4 shrink-0 text-muted-foreground" />
+              </Link>
             </div>
           ))}
         </div>

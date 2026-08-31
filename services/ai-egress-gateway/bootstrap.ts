@@ -36,6 +36,13 @@ import { consumeAiGatewayRuntimeSecrets } from './runtime-secrets'
 import type { OpenAiConnector } from './contracts'
 import type { VersionedHmacKeyring } from '../../src/shared/security/versioned-hmac-keyring'
 import type { KeyObject } from 'node:crypto'
+import {
+  createSidecarPlatformHealthServer,
+  type SidecarPlatformHealthServer,
+} from '../platform-health'
+import { registerSidecarOperationalLifecycle } from '../sidecar-operational-runtime'
+import { unmonitoredSidecarObservability } from '../sidecar-unmonitored-observability'
+import { resolveSidecarRuntimePorts } from '../sidecar-runtime-ports'
 
 export type AiGatewayConnectorFactory = (
   input: Readonly<{
@@ -51,16 +58,6 @@ function requiredEnv(name: string): string {
   return value
 }
 
-function portFromEnv(): number {
-  const raw = process.env.PORT ?? '8443'
-  if (!/^[0-9]+$/.test(raw)) throw new Error('AI gateway port is invalid')
-  const port = Number(raw)
-  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
-    throw new Error('AI gateway port is invalid')
-  }
-  return port
-}
-
 export async function startAiEgressGateway(
   createConnector: AiGatewayConnectorFactory,
 ): Promise<void> {
@@ -70,6 +67,7 @@ export async function startAiEgressGateway(
   let connector: OpenAiConnector | undefined
   let admissionTransport: ReturnType<typeof createInternalMtlsJsonTransport> | undefined
   let server: ReturnType<typeof createInternalMtlsWebServer> | undefined
+  let platformHealth: SidecarPlatformHealthServer | undefined
   const shutdown = createAiGatewayStagedCleanup({
     server: () => server,
     asyncDisposables: () => {
@@ -179,10 +177,11 @@ export async function startAiEgressGateway(
       admissionPublicKeys: derived.admissionPublicKeys,
     })
     const host = process.env.HOST ?? '::'
-    const port = portFromEnv()
+    const { healthPort, protectedMtlsPort } = resolveSidecarRuntimePorts(process.env)
+    const readiness = (signal: AbortSignal) => service.readiness(signal)
     server = createInternalMtlsWebServer({
       host,
-      port,
+      port: protectedMtlsPort,
       tls,
       maxRequestBytes: AI_TREND_ROUTE_MAX_BYTES,
       resolvePeerIdentity,
@@ -192,10 +191,23 @@ export async function startAiEgressGateway(
       handle: (request, peerIdentity) =>
         handleAiEgressGatewayRequest({ request, peerIdentity, service }),
     })
-    if (!(await service.readiness(AbortSignal.timeout(5_000)))) {
+    platformHealth = createSidecarPlatformHealthServer({
+      host,
+      healthPort,
+      protectedMtlsPort,
+      readiness,
+    })
+    if (!(await readiness(AbortSignal.timeout(5_000)))) {
       throw new Error('AI gateway startup readiness failed')
     }
-    server.listen(port, host)
+    await new Promise<void>((resolve, reject) => {
+      server?.once('error', reject)
+      server?.listen(protectedMtlsPort, host, () => {
+        server?.removeListener('error', reject)
+        resolve()
+      })
+    })
+    await platformHealth.listen()
     // This service emitted nothing at all — not one line — which meant a silent
     // no_dispatch on the critical route was indistinguishable from a service that
     // was never reached. One bounded line per boot: what is serving, and the
@@ -204,7 +216,8 @@ export async function startAiEgressGateway(
     process.stderr.write(
       `${JSON.stringify({
         event: 'gateway_listening',
-        port,
+        protectedMtlsPort,
+        healthPort,
         releaseSha: process.env.RELEASE_SHA ?? null,
         runtimeCapabilityCatalogueDigest:
           process.env.AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST ?? null,
@@ -212,15 +225,18 @@ export async function startAiEgressGateway(
           process.env.AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION ?? null,
       })}\n`,
     )
-    process.once('SIGTERM', () => {
-      void shutdown().finally(() => process.exit(0))
-    })
-    process.once('SIGINT', () => {
-      void shutdown().finally(() => process.exit(0))
+    registerSidecarOperationalLifecycle({
+      service: 'ai-egress-gateway',
+      health: platformHealth,
+      shutdown,
+      shutdownTimeoutMs: 125_000,
+      capture: unmonitoredSidecarObservability.capture,
+      flush: unmonitoredSidecarObservability.flush,
     })
   } catch (error) {
+    platformHealth?.beginDrain()
     try {
-      await shutdown()
+      await Promise.all([shutdown(), platformHealth?.stop()])
     } catch {
       // Preserve the construction/readiness error after best-effort destruction.
     }

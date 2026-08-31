@@ -10,7 +10,10 @@ const HANDLE_AUDIENCE = 'provider-authorization-lease-handle-v1'
 const HANDLE = /^l1\.([A-Za-z0-9_-]{43})\.([a-z][a-z0-9_-]{0,31})\.([A-Za-z0-9_-]{43})$/
 const DIGEST = /^[A-Za-z0-9_-]{43}$/
 const MAX_LEASE_TTL_MS = 30_000
-const MAX_CONTENT_LIFETIME_MS = 15 * 60_000
+const MAX_CONTENT_LIFETIME_MS = Object.freeze({
+  import: 24 * 60 * 60_000,
+  performance: 15 * 60_000,
+})
 
 const leaseRecordSchema = z
   .object({
@@ -108,13 +111,17 @@ function dto(
   })
 }
 
-function validTime(nowMs: number, absoluteDeadlineMs: number): boolean {
+function validTime(
+  audience: ProviderAuthorizationLeaseRecord['audience'],
+  nowMs: number,
+  absoluteDeadlineMs: number,
+): boolean {
   return (
     Number.isSafeInteger(nowMs) &&
     Number.isSafeInteger(absoluteDeadlineMs) &&
     nowMs >= 0 &&
     absoluteDeadlineMs > nowMs &&
-    absoluteDeadlineMs <= nowMs + MAX_CONTENT_LIFETIME_MS
+    absoluteDeadlineMs <= nowMs + MAX_CONTENT_LIFETIME_MS[audience]
   )
 }
 
@@ -146,7 +153,10 @@ export function createProviderAuthorizationLeaseService(
     issue: async (input) => {
       if (!(await ready())) return { ok: false, code: 'runtime_unavailable' }
       const nonce = deps.randomNonce()
-      if (!DIGEST.test(nonce) || !validTime(input.nowMs, input.absoluteDeadlineMs)) {
+      if (
+        !DIGEST.test(nonce) ||
+        !validTime(input.audience, input.nowMs, input.absoluteDeadlineMs)
+      ) {
         return { ok: false, code: 'malformed' }
       }
       const signed = deps.handleKeys.sign(HANDLE_AUDIENCE, nonce)

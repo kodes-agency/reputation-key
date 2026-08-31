@@ -1,5 +1,5 @@
 // Activity context — event handler tests
-// Tests that each handler constructs the correct InsertActivityLogInput.
+// Tests that each handler constructs the correct ProjectRecentActivityInput.
 // Pure unit tests with mock queue — no DB needed.
 
 import { describe, it, expect, vi } from 'vitest'
@@ -55,7 +55,7 @@ describe('activity event handlers', () => {
       })
 
       expect(calls).toHaveLength(1)
-      expect(calls[0]!.name).toBe('insert-activity-log')
+      expect(calls[0]!.name).toBe('project-recent-activity')
       const data = calls[0]!.data as {
         action: string
         resourceType: string
@@ -87,6 +87,31 @@ describe('activity event handlers', () => {
 
       const data = calls[0]!.data as { action: string; resourceType: string }
       expect(data.action).toBe('escalated')
+      expect(data.resourceType).toBe('inbox_item')
+    })
+  })
+
+  describe('onInboxItemEscalationResolved', () => {
+    it('maps to deescalated/inbox_item', async () => {
+      const { onInboxItemEscalationResolved } =
+        await import('./on-inbox-item-escalation-resolved')
+      const { queue, calls } = createMockDeps()
+      const handler = onInboxItemEscalationResolved({ queue })
+
+      await handler({
+        _tag: 'inbox.inbox_item.escalation_resolved',
+        eventId: 'evt-2-resolved',
+        inboxItemId: INBOX_ITEM,
+        organizationId: ORG,
+        propertyId: PROP,
+        userId: USER,
+        source: 'web',
+        occurredAt: new Date(),
+        correlationId: null,
+      })
+
+      const data = calls[0]!.data as { action: string; resourceType: string }
+      expect(data.action).toBe('deescalated')
       expect(data.resourceType).toBe('inbox_item')
     })
   })
@@ -194,7 +219,7 @@ describe('activity event handlers', () => {
   })
 
   describe('onReplyRejected', () => {
-    it('maps to rejected/reply with reason in detail', async () => {
+    it('maps to rejected/reply without retaining the moderation reason', async () => {
       const { onReplyRejected } = await import('./on-reply-rejected')
       const { queue, calls, inboxItemLookup } = createMockDeps()
       const handler = onReplyRejected({ queue, inboxItemLookup })
@@ -214,9 +239,12 @@ describe('activity event handlers', () => {
         correlationId: null,
       })
 
-      const data = calls[0]!.data as { action: string; payload: { detail: string } }
+      const data = calls[0]!.data as {
+        action: string
+        payload: { detail: string | null }
+      }
       expect(data.action).toBe('rejected')
-      expect(data.payload.detail).toBe('Not appropriate')
+      expect(data.payload.detail).toBeNull()
     })
   })
 
@@ -240,7 +268,7 @@ describe('activity event handlers', () => {
       })
 
       expect(calls).toHaveLength(1)
-      expect(calls[0]!.name).toBe('insert-activity-log')
+      expect(calls[0]!.name).toBe('project-recent-activity')
       const data = calls[0]!.data as {
         action: string
         resourceType: string
@@ -296,7 +324,7 @@ describe('activity event handlers', () => {
       })
 
       expect(calls).toHaveLength(1)
-      expect(calls[0]!.name).toBe('insert-activity-log')
+      expect(calls[0]!.name).toBe('project-recent-activity')
       const data = calls[0]!.data as {
         action: string
         resourceType: string

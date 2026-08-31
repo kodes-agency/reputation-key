@@ -14,7 +14,7 @@ export type {
   ScanEventId,
   RatingId,
   FeedbackId,
-  ActivityLogId,
+  RecentActivityEntryId,
 } from './ids'
 
 // ── Core types ────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 // The densest visual surface in the app, and until now it had zero stories.
 //
-// Every fixture comes from the one shared factory (notification-fixtures.ts),
+// Every fixture comes from the one story/test-only factory,
 // which returns a COMPLETE `Notification` — the old per-story helpers cast an
 // incomplete object to `Notification` and would have rendered `undefined` once
 // the row started reading `payload`.
@@ -10,7 +10,7 @@ import {
   longPropertyNameNotification,
   makeNotification,
   notificationFixtures,
-} from './notification-fixtures'
+} from './notification.stories.fixtures'
 import { NotificationRow } from './notification-row'
 import type { NotificationRowActions } from './types'
 
@@ -40,7 +40,14 @@ const meta: Meta<typeof NotificationRow> = {
 export default meta
 type Story = StoryObj<typeof NotificationRow>
 
-const [escalated, pendingApproval, newReview, noMetadata, badge] = notificationFixtures
+const [escalated, pendingApproval, newFeedback, noMetadata, badge] = notificationFixtures
+
+const muteableReview = makeNotification({
+  id: '20000000-0000-4000-8000-000000000002',
+  type: 'review.created',
+  status: 'unread',
+  payload: { propertyName: 'Harbour View Suites', platform: 'google' },
+})
 
 /** Urgent + unread: pill, unread dot, rating glyphs, waiting age, accent CTA. */
 export const UrgentUnread: Story = {
@@ -75,17 +82,33 @@ export const Coalesced: Story = {
   },
 }
 
-export const Read: Story = {
+export const HistoricalBadgeRow: Story = {
   args: { notification: badge },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const ownerDocument = canvasElement.ownerDocument
     expect(canvas.queryByText('Unread.')).not.toBeInTheDocument()
     expect(canvas.getByText(/Response Champ/)).toBeInTheDocument()
+    expect(canvas.getByText(/remains in your notification history/i)).toBeVisible()
+    expect(canvasElement.textContent).not.toMatch(/recognition/i)
+    expect(badge.propertyId).not.toBeNull()
+    expect(canvas.getByRole('link', { name: /view property/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining(badge.propertyId!),
+    )
+
+    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
+    const menu = within(ownerDocument.body)
+    const markAsUnread = await menu.findByRole('menuitem', { name: 'Mark as unread' })
+    await waitFor(() => expect(markAsUnread).toBeVisible())
+    expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
+    await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as unread' }))
+    await waitFor(() => expect(ownerDocument.querySelector('[role="menu"]')).toBeNull())
   },
 }
 
 export const HighRating: Story = {
-  args: { notification: newReview },
+  args: { notification: newFeedback },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('Rated 5 out of 5 stars')).toBeInTheDocument()
@@ -131,7 +154,7 @@ export const DismissIsKeyboardReachable: Story = {
   args: {
     notification: makeNotification({
       id: '20000000-0000-4000-8000-000000000001',
-      payload: { propertyName: 'Riverside Hotel', rating: 4 },
+      payload: { propertyName: 'Riverside Hotel' },
     }),
   },
   play: async ({ canvasElement }) => {
@@ -159,12 +182,16 @@ export const DismissIsKeyboardReachable: Story = {
  * so the wait below is load-bearing, not cosmetic.
  */
 export const OverflowMenu: Story = {
-  args: { notification: newReview },
+  // A routine Review update belongs to the configurable collaboration
+  // category. Private feedback is Action Required and is covered separately
+  // by ActionNeededCannotBeMuted below.
+  args: { notification: muteableReview },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const ownerDocument = canvasElement.ownerDocument
     await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
     // Radix portals the menu outside the story canvas.
-    const menu = within(document.body)
+    const menu = within(ownerDocument.body)
     expect(
       await menu.findByRole('menuitem', { name: 'Mark as read' }),
     ).toBeInTheDocument()
@@ -175,14 +202,29 @@ export const OverflowMenu: Story = {
     expect(menu.queryByRole('menuitem', { name: /approve|publish/i })).toBeNull()
 
     await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as read' }))
-    expect(actions.onMarkRead).toHaveBeenCalledWith(newReview.id)
+    expect(actions.onMarkRead).toHaveBeenCalledWith(muteableReview.id)
 
     await waitFor(() => {
-      expect(document.querySelector('[role="menu"]')).toBeNull()
-      const root = document.getElementById('storybook-root')
-      expect(root).not.toHaveAttribute('aria-hidden')
-      expect(root).not.toHaveAttribute('data-aria-hidden')
-      expect(document.body.style.pointerEvents).toBe('')
+      expect(ownerDocument.querySelector('[role="menu"]')).toBeNull()
+      expect(canvasElement).not.toHaveAttribute('aria-hidden')
+      expect(canvasElement).not.toHaveAttribute('data-aria-hidden')
+      expect(ownerDocument.body.style.pointerEvents).toBe('')
     })
+  },
+}
+
+/** Action-needed rows stay in-app and therefore never offer a mute action. */
+export const ActionNeededCannotBeMuted: Story = {
+  args: { notification: escalated },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const ownerDocument = canvasElement.ownerDocument
+    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
+    const menu = within(ownerDocument.body)
+    const markAsRead = await menu.findByRole('menuitem', { name: 'Mark as read' })
+    await waitFor(() => expect(markAsRead).toBeVisible())
+    expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
+    await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as read' }))
+    await waitFor(() => expect(ownerDocument.querySelector('[role="menu"]')).toBeNull())
   },
 }

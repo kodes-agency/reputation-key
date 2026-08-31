@@ -2,7 +2,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { getPortalAnalytics } from './get-portal-analytics'
 import type { PortalMetricsPort } from '../ports/portal-metrics.port'
-import { createInMemoryDashboardRepository } from '#/shared/testing/in-memory-dashboard-repo'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 import type { PortalAnalyticsData } from '../../domain/types'
 
@@ -28,6 +27,7 @@ function createFakePortalMetrics(overrides?: {
   >
     ? T
     : never
+  evidence?: Awaited<ReturnType<PortalMetricsPort['getPortalMetricEvidence']>>
 }): PortalMetricsPort & { calls: string[] } {
   const calls: string[] = []
   return {
@@ -61,17 +61,90 @@ function createFakePortalMetrics(overrides?: {
         ]
       )
     },
+    async getPortalMetricEvidence() {
+      calls.push('getPortalMetricEvidence')
+      return overrides?.evidence ?? readyEvidence()
+    },
   }
+}
+
+function metricEvidence(definitionVersionId: string) {
+  const computedAt = new Date('2025-06-15T12:00:00.000Z')
+  return {
+    definitionVersionId,
+    state: 'ready' as const,
+    verifiedThrough: computedAt,
+    latestActivity: new Date('2025-06-15T11:00:00.000Z'),
+    computedAt,
+    completeness: 1,
+    availabilityReason: null,
+    correctionHead: null,
+  }
+}
+
+function readyEvidence() {
+  return {
+    scans: metricEvidence('scan-version'),
+    privateRatings: metricEvidence('rating-version'),
+    privateFeedback: metricEvidence('feedback-version'),
+    reviewLinkClicks: metricEvidence('click-version'),
+  }
+}
+
+function createFakeResponseIntegrity() {
+  return {
+    getPortalResponseIntegritySummary: vi.fn(async () => ({
+      accepted: 8,
+      filteredAutomatically: 1,
+      underReview: 1,
+      total: 10,
+    })),
+  }
+}
+
+function createUnusedPortalLifetime() {
+  return { get: vi.fn(async () => null) }
+}
+
+function emptyPortalLifetimeAggregate() {
+  const now = new Date('2025-06-15T12:00:00.000Z')
+  return {
+    organizationId: ORG,
+    propertyId: PROP,
+    portalId: PORT,
+    definitionVersionIds: {
+      qualifiedScans: 'qualified-scan-version',
+      privateRatings: 'private-rating-version',
+      privateFeedback: 'private-feedback-version',
+      destinationSelections: 'destination-selection-version',
+    },
+    values: {
+      qualifiedScanCount: 0,
+      privateRatingCount: 0,
+      privateRatingSum: 0,
+      privateRating1Count: 0,
+      privateRating2Count: 0,
+      privateRating3Count: 0,
+      privateRating4Count: 0,
+      privateRating5Count: 0,
+      privateFeedbackCount: 0,
+      googleReviewSelectionCount: 0,
+      secondaryLinkSelectionCount: 0,
+    },
+    sealedThroughLocalDate: null,
+    projectionRevision: 1,
+    lastRebuiltAt: now,
+    lastSealedAt: null,
+  } as const
 }
 
 describe('getPortalAnalytics (use case)', () => {
   it('composes portal KPI sums into PortalAnalyticsData', async () => {
-    const repo = createInMemoryDashboardRepository()
     const metrics = createFakePortalMetrics()
     const analytics = getPortalAnalytics({
-      repo,
       portalMetrics: metrics,
-      clock: () => new Date(),
+      portalLifetime: createUnusedPortalLifetime(),
+      responseIntegrity: createFakeResponseIntegrity(),
     })
     const now = new Date()
     const start = new Date(now.getTime() - 30 * 86_400_000)
@@ -83,6 +156,7 @@ describe('getPortalAnalytics (use case)', () => {
       startDate: start,
       endDate: now,
       timeRange: '30d',
+      propertyTimezone: 'UTC',
     })
 
     // KPIs have correct values from fake data
@@ -90,19 +164,37 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.scans.priorValue).toBe(100) // Same fake data for prior
     expect(result.kpis.feedback.value).toBe(20)
     expect(result.kpis.avgRating.value).toBe(4.4) // 22/5 = 4.4
+    expect(result.kpis.avgRating.sampleCount).toBe(5)
+    expect(result.kpis.avgRating.comparison).toBeNull()
+    expect(result.kpis.avgRating.evidence).toMatchObject({
+      state: 'ready',
+      sampleCount: 5,
+    })
+    expect(result.period).toEqual({
+      startAt: start,
+      endAt: now,
+      timezone: 'UTC',
+    })
 
-    // Engagement funnel from repo
-    expect(result.engagementFunnel.scans).toBe(100)
-    expect(repo.calls).toContain('getEngagementFunnel')
+    expect(result.engagementFunnel).toEqual({
+      scans: 100,
+      ratings: 5,
+      reviewLinkClicks: 8,
+    })
 
     // Rating data from metrics port
     expect(result.ratingDistribution).toHaveLength(2)
     expect(result.ratingTrend).toHaveLength(2)
     expect(metrics.calls).toContain('getPortalKpiSums')
+    expect(result.responseIntegrity).toEqual({
+      accepted: 8,
+      filteredAutomatically: 1,
+      underReview: 1,
+      total: 10,
+    })
   })
 
   it('handles zero metric values gracefully', async () => {
-    const repo = createInMemoryDashboardRepository()
     const metrics = createFakePortalMetrics({
       kpiSums: [
         { metricKey: 'portal.scan', total: 0, count: 0 },
@@ -112,9 +204,9 @@ describe('getPortalAnalytics (use case)', () => {
       ],
     })
     const analytics = getPortalAnalytics({
-      repo,
       portalMetrics: metrics,
-      clock: () => new Date(),
+      portalLifetime: { get: vi.fn(async () => emptyPortalLifetimeAggregate()) },
+      responseIntegrity: createFakeResponseIntegrity(),
     })
     const now = new Date()
 
@@ -125,15 +217,17 @@ describe('getPortalAnalytics (use case)', () => {
       startDate: new Date(0),
       endDate: now,
       timeRange: 'all',
+      propertyTimezone: 'UTC',
     })
 
     expect(result.kpis.scans.value).toBe(0)
     expect(result.kpis.scans.trend).toBeNull() // prior is 0 → null trend
-    expect(result.kpis.avgRating.value).toBe(0)
+    expect(result.kpis.avgRating.value).toBeNull()
+    expect(result.kpis.avgRating.sampleCount).toBe(0)
+    expect(result.kpis.avgRating.evidence.state).toBe('insufficient_data')
   })
 
   it('computes trends when prior period has different values', async () => {
-    const repo = createInMemoryDashboardRepository()
     let callCount = 0
     const metrics = createFakePortalMetrics()
     // Build dynamic metrics port that returns different values based on call count
@@ -153,16 +247,16 @@ describe('getPortalAnalytics (use case)', () => {
         return [
           { metricKey: 'portal.scan', total: 100, count: 10 },
           { metricKey: 'portal.feedback', total: 20, count: 5 },
-          { metricKey: 'portal.rating', total: 20, count: 5 },
+          { metricKey: 'portal.rating', total: 40, count: 10 },
           { metricKey: 'portal.review_link_click', total: 8, count: 3 },
         ]
       },
     }
 
     const analytics = getPortalAnalytics({
-      repo,
       portalMetrics: dynamicMetrics,
-      clock: () => new Date(),
+      portalLifetime: createUnusedPortalLifetime(),
+      responseIntegrity: createFakeResponseIntegrity(),
     })
     const now = new Date()
     const start = new Date(now.getTime() - 30 * 86_400_000)
@@ -174,6 +268,7 @@ describe('getPortalAnalytics (use case)', () => {
       startDate: start,
       endDate: now,
       timeRange: '30d',
+      propertyTimezone: 'UTC',
     })
 
     // Trend: (200-100)/100 * 100 = 100%
@@ -181,19 +276,79 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.scans.priorValue).toBe(100)
     expect(result.kpis.scans.trend).toBe(100)
 
-    // Trend: (4.5 - 4.0) / 4.0 * 100 = 12.5 → 13
+    // Private-rating comparison is an absolute star delta, never a percentage.
     expect(result.kpis.avgRating.value).toBe(4.5)
     expect(result.kpis.avgRating.priorValue).toBe(4)
-    expect(result.kpis.avgRating.trend).toBe(13)
+    expect(result.kpis.avgRating.sampleCount).toBe(10)
+    expect(result.kpis.avgRating.priorSampleCount).toBe(10)
+    expect(result.kpis.avgRating.comparison).toBe(0.5)
   })
 
-  it('skips the prior-period query for "all" and reports no trend', async () => {
-    const repo = createInMemoryDashboardRepository()
+  it('reads the prior window in the Property-local calendar', async () => {
     const metrics = createFakePortalMetrics()
+    const getPortalKpiSums = vi.fn(metrics.getPortalKpiSums)
     const analytics = getPortalAnalytics({
-      repo,
+      portalMetrics: { ...metrics, getPortalKpiSums },
+      portalLifetime: createUnusedPortalLifetime(),
+      responseIntegrity: createFakeResponseIntegrity(),
+    })
+    const startDate = new Date('2026-02-18T17:00:00.000Z')
+    const endDate = new Date('2026-03-20T16:00:00.000Z')
+
+    await analytics({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      startDate,
+      endDate,
+      timeRange: '30d',
+      propertyTimezone: 'America/New_York',
+    })
+
+    expect(getPortalKpiSums).toHaveBeenNthCalledWith(
+      2,
+      ORG,
+      PROP,
+      PORT,
+      new Date('2026-01-19T17:00:00.000Z'),
+      startDate,
+    )
+  })
+
+  it('serves All Time from the anonymous lifetime aggregate without inventing a trend', async () => {
+    const metrics = createFakePortalMetrics()
+    const lifetimeGet = vi.fn(async () => ({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      definitionVersionIds: {
+        qualifiedScans: 'qualified-scan-version',
+        privateRatings: 'private-rating-version',
+        privateFeedback: 'private-feedback-version',
+        destinationSelections: 'destination-selection-version',
+      },
+      values: {
+        qualifiedScanCount: 42,
+        privateRatingCount: 5,
+        privateRatingSum: 20,
+        privateRating1Count: 0,
+        privateRating2Count: 1,
+        privateRating3Count: 1,
+        privateRating4Count: 0,
+        privateRating5Count: 3,
+        privateFeedbackCount: 7,
+        googleReviewSelectionCount: 9,
+        secondaryLinkSelectionCount: 2,
+      },
+      sealedThroughLocalDate: '2026-07-01',
+      projectionRevision: 12,
+      lastRebuiltAt: new Date('2026-08-14T09:00:00.000Z'),
+      lastSealedAt: new Date('2026-08-01T08:00:00.000Z'),
+    }))
+    const analytics = getPortalAnalytics({
       portalMetrics: metrics,
-      clock: () => new Date(),
+      responseIntegrity: createFakeResponseIntegrity(),
+      portalLifetime: { get: lifetimeGet },
     })
 
     const result = await analytics({
@@ -203,30 +358,84 @@ describe('getPortalAnalytics (use case)', () => {
       startDate: new Date(0),
       endDate: new Date(),
       timeRange: 'all',
+      propertyTimezone: 'UTC',
     })
 
-    // ONE kpi-sums query: 'all' scans from epoch, and the prior call used to
-    // receive byte-identical arguments — a duplicate full scan per page load.
-    expect(metrics.calls.filter((call) => call === 'getPortalKpiSums')).toHaveLength(1)
+    expect(lifetimeGet).toHaveBeenCalledWith({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+    })
+    expect(metrics.calls).toEqual([])
 
-    // Every trend is null (an em dash in the cards), never a fabricated 0%.
+    expect(result.kpis.scans.value).toBe(42)
+    expect(result.kpis.avgRating.value).toBe(4)
+    expect(result.kpis.avgRating.sampleCount).toBe(5)
+    expect(result.kpis.feedback.value).toBe(7)
+    expect(result.kpis.reviewLinkClicks.value).toBe(11)
+    expect(result.ratingDistribution).toEqual([
+      { stars: 1, count: 0 },
+      { stars: 2, count: 1 },
+      { stars: 3, count: 1 },
+      { stars: 4, count: 0 },
+      { stars: 5, count: 3 },
+    ])
+
+    // Lifetime totals are absolute. They contain no date series and can never
+    // be treated as either side of a time-window comparison.
     expect(result.kpis.scans.trend).toBeNull()
-    expect(result.kpis.avgRating.trend).toBeNull()
+    expect(result.kpis.avgRating.comparison).toBeNull()
     expect(result.kpis.feedback.trend).toBeNull()
     expect(result.kpis.reviewLinkClicks.trend).toBeNull()
+    expect(result.ratingTrend).toEqual([])
 
-    // Current-period values are unaffected by the skipped prior query.
-    expect(result.kpis.scans.value).toBe(100)
-    expect(result.kpis.scans.priorValue).toBe(0)
+    expect(result.kpis.scans.priorValue).toBeNull()
+    expect(result.lifetimeReconciliation).toEqual({
+      state: 'reconciled',
+      projectionRevision: 12,
+      sealedThroughLocalDate: '2026-07-01',
+      lastRebuiltAt: new Date('2026-08-14T09:00:00.000Z'),
+      lastSealedAt: new Date('2026-08-01T08:00:00.000Z'),
+    })
   })
 
-  it('includes engagement funnel from repo with default values', async () => {
-    const repo = createInMemoryDashboardRepository()
+  it('exposes an uninitialized lifetime projection without presenting missing totals as zero', async () => {
+    const metrics = createFakePortalMetrics()
+    const lifetimeGet = vi.fn(async () => null)
+    const analytics = getPortalAnalytics({
+      portalMetrics: metrics,
+      portalLifetime: { get: lifetimeGet },
+      responseIntegrity: createFakeResponseIntegrity(),
+    })
+
+    const result = await analytics({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      startDate: new Date(0),
+      endDate: new Date(),
+      timeRange: 'all',
+      propertyTimezone: 'UTC',
+    })
+
+    expect(metrics.calls).toEqual([])
+    expect(result.lifetimeReconciliation).toMatchObject({
+      state: 'not_initialized',
+      projectionRevision: null,
+    })
+    expect(result.kpis.scans.value).toBeNull()
+    expect(result.kpis.feedback.value).toBeNull()
+    expect(result.kpis.reviewLinkClicks.value).toBeNull()
+    expect(result.kpis.avgRating.value).toBeNull()
+    expect(result.ratingTrend).toEqual([])
+  })
+
+  it('derives one correction-aware engagement funnel from governed rows', async () => {
     const metrics = createFakePortalMetrics()
     const analytics = getPortalAnalytics({
-      repo,
       portalMetrics: metrics,
-      clock: () => new Date(),
+      portalLifetime: createUnusedPortalLifetime(),
+      responseIntegrity: createFakeResponseIntegrity(),
     })
     const now = new Date()
 
@@ -234,14 +443,60 @@ describe('getPortalAnalytics (use case)', () => {
       organizationId: ORG,
       propertyId: PROP,
       portalId: PORT,
-      startDate: new Date(0),
+      startDate: new Date(now.getTime() - 30 * 86_400_000),
       endDate: now,
-      timeRange: 'all',
+      timeRange: '30d',
+      propertyTimezone: 'UTC',
     })
 
-    expect(result.engagementFunnel.scans).toBe(100) // default from in-memory repo
-    expect(result.engagementFunnel.ratings).toBe(40)
-    expect(result.engagementFunnel.reviewLinkClicks).toBe(10)
-    expect(repo.calls).toContain('getEngagementFunnel')
+    expect(result.engagementFunnel).toEqual({
+      scans: 100,
+      ratings: 5,
+      reviewLinkClicks: 8,
+    })
+  })
+
+  it('never turns updating or unavailable governed data into zero', async () => {
+    const metrics = createFakePortalMetrics({
+      kpiSums: [],
+      evidence: {
+        ...readyEvidence(),
+        scans: {
+          ...metricEvidence('scan-version'),
+          state: 'updating',
+          verifiedThrough: null,
+          completeness: 0.5,
+          availabilityReason: 'consumer_receipt_pending',
+        },
+        privateRatings: {
+          ...metricEvidence('rating-version'),
+          state: 'unavailable',
+          verifiedThrough: null,
+          completeness: 0,
+          availabilityReason: 'invalid_governed_reading',
+        },
+      },
+    })
+    const analytics = getPortalAnalytics({
+      portalMetrics: metrics,
+      portalLifetime: createUnusedPortalLifetime(),
+      responseIntegrity: createFakeResponseIntegrity(),
+    })
+
+    const result = await analytics({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      startDate: new Date('2025-05-16T12:00:00Z'),
+      endDate: new Date('2025-06-15T12:00:00Z'),
+      timeRange: '30d',
+      propertyTimezone: 'UTC',
+    })
+
+    expect(result.kpis.scans.value).toBeNull()
+    expect(result.kpis.scans.evidence.state).toBe('updating')
+    expect(result.kpis.avgRating.value).toBeNull()
+    expect(result.kpis.avgRating.evidence.state).toBe('temporarily_unavailable')
+    expect(result.engagementFunnel).toBeNull()
   })
 })

@@ -16,10 +16,20 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { isGuestError } from '../domain/errors'
 import type { GuestErrorCode } from '../domain/errors'
-import { organizationId, portalId, portalLinkId, propertyId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalAccessArtifactId,
+  portalId,
+  portalLinkId,
+  propertyId,
+} from '#/shared/domain/ids'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
-import { hashIp } from './hash-ip.server'
-import { guestRateLimitKey } from './guest-session'
+import {
+  applyGuestPublicResponsePrivacy,
+  guestPublicResponseValidator,
+} from './public-response-privacy.server'
+import { checkLayeredGuestRateLimit, guestRateLimitKeys } from './guest-session'
+import { toPublicPortalLoaderData } from '../application/dto/public-portal.dto'
 
 // ── Error → HTTP status mapping (exhaustive) ──────────────────────
 
@@ -47,17 +57,19 @@ export const guestErrorStatus = (code: GuestErrorCode): number =>
 
 const recordScanSchema = z.object({
   token: z.string().min(1).max(256),
-  csrfNonce: z.string().uuid(),
-  source: z.enum(['qr', 'nfc', 'direct']),
-  analyticsConsent: z.literal(true),
+  csrfNonce: z.uuid(),
+  accessArtifactId: z.uuid().nullable(),
 })
 
 export const recordScanFn = createServerFn({ method: 'POST' })
-  .inputValidator(recordScanSchema)
+  .validator(guestPublicResponseValidator(recordScanSchema))
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { useCases, rateLimiter } = getContainer()
+        applyGuestPublicResponsePrivacy()
+        const container = getContainer()
+        const useCases = container.guestPublicApi.requests
+        const { rateLimiter, clock } = container
         const headers = await headersFromContext()
         const portal = await useCases.getPublicPortal({ token: data.token })
         const scope = {
@@ -73,31 +85,80 @@ export const recordScanFn = createServerFn({ method: 'POST' })
             404,
           )
         }
+        const observedAt = clock()
         const decision = await decidePublicExecution({
           action: 'public:portal.analytics.record',
           capability: 'portal.public_read',
           ...scope,
-          consentAssertions: {
-            analytics: true,
-            response: false,
-            freeText: false,
-            contact: false,
-            media: false,
-          },
-          requiredPublicConsents: ['analytics'],
-          now: new Date(),
+          now: observedAt,
         })
-        if (!decision.allowed) return { success: false }
-
-        const ipHash = hashIp(clientIpFromHeaders(headers))
-        const rateResult = await rateLimiter.check(
-          guestRateLimitKey('scan', session.sessionId, ipHash),
+        if (!decision.allowed) {
+          return {
+            success: false,
+            retryable: decision.reason === 'policy_unavailable',
+          }
+        }
+        const pseudonym = useCases.guestPublicRuntime.hashNetworkPseudonym(
+          clientIpFromHeaders(headers),
+          scope,
+          'qualified_scan',
+          observedAt,
         )
+        const networkPortalLimits = {
+          maxRequests: 100,
+          windowSeconds: 60 * 60,
+        } as const
+        const rateResult = await checkLayeredGuestRateLimit({
+          rateLimiter,
+          keys: guestRateLimitKeys(
+            'scan',
+            session.sessionId,
+            pseudonym,
+            portal.portal.id,
+          ),
+          sessionLimits: { maxRequests: 3, windowSeconds: 60 * 60 },
+          networkPortalLimits,
+        })
         if (!rateResult.allowed) {
+          if (rateResult.backendStatus === 'unavailable') {
+            await useCases.reportObservationLoss('scan')
+          }
           setResponseHeader(
             'Retry-After',
             String(
-              Math.max(1, Math.ceil((rateResult.resetAt.getTime() - Date.now()) / 1000)),
+              Math.max(
+                1,
+                Math.ceil((rateResult.resetAt.getTime() - clock().getTime()) / 1000),
+              ),
+            ),
+          )
+          throwContextError(
+            'GuestError',
+            { code: 'rate_limit_exceeded', message: 'Too many requests' },
+            429,
+          )
+        }
+
+        let pressureResult
+        try {
+          pressureResult = await useCases.consumeGuestNetworkPressure({
+            ...scope,
+            pseudonym,
+            action: 'qualified_scan',
+            ...networkPortalLimits,
+          })
+        } catch {
+          await useCases.reportObservationLoss('scan')
+          return { success: false, retryable: true }
+        }
+        if (!pressureResult.allowed) {
+          setResponseHeader(
+            'Retry-After',
+            String(
+              Math.max(
+                1,
+                Math.ceil((pressureResult.resetAt.getTime() - clock().getTime()) / 1000),
+              ),
             ),
           )
           throwContextError(
@@ -108,15 +169,24 @@ export const recordScanFn = createServerFn({ method: 'POST' })
         }
 
         try {
-          await useCases.recordScan({
+          const outcome = await useCases.recordScan({
             organizationId: organizationId(portal.organizationId),
             portalId: portalId(portal.portal.id),
             propertyId: propertyId(portal.propertyId),
-            source: data.source,
+            accessArtifactId: data.accessArtifactId
+              ? portalAccessArtifactId(data.accessArtifactId)
+              : null,
+            publicationSnapshotId: portal.responseConfiguration.publicationSnapshotId,
+            rawToken: data.token,
             sessionId: session.sessionId,
-            ipHash,
+            userAgent: headers?.get('user-agent') ?? null,
+            purpose: headers?.get('purpose') ?? null,
+            secPurpose: headers?.get('sec-purpose') ?? null,
           })
-          return { success: true }
+          return {
+            success: outcome !== 'failed' && outcome !== 'retryable',
+            retryable: outcome === 'failed' || outcome === 'retryable',
+          }
         } catch (e) {
           if (isGuestError(e))
             throwContextError('GuestError', e, guestErrorStatus(e.code))
@@ -132,6 +202,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
 
 const publicPortalSchema = z.object({
   token: z.string().min(1).max(256),
+  locale: z.enum(['en', 'bg']).optional(),
 })
 
 // Transient deny reasons: the capability may return without any tenant
@@ -151,20 +222,28 @@ const formAvailability = (decision: ExecutionDecision): GuestResponseFormAvailab
       : 'permission_denied'
 
 export const getPublicPortal = createServerFn({ method: 'GET' })
-  .inputValidator(publicPortalSchema)
+  .validator(guestPublicResponseValidator(publicPortalSchema))
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { useCases } = getContainer()
+        applyGuestPublicResponsePrivacy()
+        const container = getContainer()
+        const useCases = container.guestPublicApi.requests
+        const { clock } = container
         try {
-          const portal = await useCases.getPublicPortal({ token: data.token })
+          const requestHeaders = await headersFromContext()
+          let portal = await useCases.getPublicPortal({
+            token: data.token,
+            requestedLocale: data.locale,
+            acceptLanguage: requestHeaders?.get('accept-language') ?? null,
+          })
           const scope = {
             organizationId: portal.organizationId,
             propertyId: portal.propertyId,
             portalId: portal.portal.id,
           }
           // One instant for every decision on this read.
-          const now = new Date()
+          const now = clock()
           const decision = await decidePublicExecution({
             action: 'public:portal.read',
             capability: 'portal.public_read',
@@ -178,12 +257,36 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
               404,
             )
           }
-          const headers = await headersFromContext()
-          let session = useCases.guestSessions.verify(headers?.get('cookie') ?? '', scope)
+          let session = useCases.guestSessions.verify(
+            requestHeaders?.get('cookie') ?? '',
+            scope,
+          )
+          if (session?.guestLocale && data.locale === undefined) {
+            // The first token resolution establishes the exact tenant/Property/
+            // Portal scope needed to verify the cookie. Re-resolve only after
+            // that check so a signed preference from another Portal can never
+            // influence this response.
+            portal = await useCases.getPublicPortal({
+              token: data.token,
+              requestedLocale: null,
+              sessionLocale: session.guestLocale,
+              acceptLanguage: requestHeaders?.get('accept-language') ?? null,
+            })
+          }
           if (!session) {
-            const issued = useCases.guestSessions.issue(scope)
+            const issued = useCases.guestSessions.issue(
+              scope,
+              portal.localization.selectedLocale,
+            )
             session = issued.session
             setResponseHeader('Set-Cookie', [...issued.cookies])
+          } else if (session.guestLocale !== portal.localization.selectedLocale) {
+            const selected = useCases.guestSessions.selectLocale(
+              session,
+              portal.localization.selectedLocale,
+            )
+            session = selected.session
+            setResponseHeader('Set-Cookie', [...selected.cookies])
           }
           const response = await useCases.responseLifecycle.getState(
             scope,
@@ -194,30 +297,19 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
           // them. Resolved only AFTER the public_read deny above has thrown, so
           // a denied portal and a missing one remain indistinguishable (both
           // 404 with the same body); no new non-enumeration surface.
-          const [responseDecision, mediaDecision] = await Promise.all([
-            decidePublicExecution({
-              action: 'public:portal.read',
-              capability: 'portal.guest_response',
-              ...scope,
-              now,
-            }),
-            decidePublicExecution({
-              action: 'public:portal.read',
-              capability: 'portal.guest_media',
-              ...scope,
-              now,
-            }),
-          ])
-          setResponseHeader('Referrer-Policy', 'no-referrer')
-          return {
-            ...portal,
+          const responseDecision = await decidePublicExecution({
+            action: 'public:portal.read',
+            capability: 'portal.guest_response',
+            ...scope,
+            now,
+          })
+          return toPublicPortalLoaderData(portal, {
             guestSession: { csrfNonce: session.csrfNonce },
             response,
             responseForm: {
               availability: formAvailability(responseDecision),
-              mediaEnabled: mediaDecision.allowed,
             },
-          }
+          })
         } catch (e) {
           if (isGuestError(e))
             throwContextError('GuestError', e, guestErrorStatus(e.code))
@@ -229,21 +321,22 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
     ),
   )
 
-// ── resolveLinkAndTrack ───────────────────────────────────────────
-// Resolves a portal link to its redirect URL and tracks the click.
-// Used by the public click-tracking API route.
+// ── resolvePublicPortalLink ───────────────────────────────────────
+// Navigation-only fallback for no-JavaScript and failed mutation paths. A GET
+// deliberately never creates the Qualified Link Action product metric.
 
 const resolveLinkSchema = z.object({
   token: z.string().min(1).max(256),
   linkId: z.string().min(1),
 })
 
-export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
-  .inputValidator(resolveLinkSchema)
+export const resolvePublicPortalLink = createServerFn({ method: 'GET' })
+  .validator(guestPublicResponseValidator(resolveLinkSchema, { varyCookie: false }))
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const { useCases } = getContainer()
+        applyGuestPublicResponsePrivacy({ varyCookie: false })
+        const useCases = getContainer().guestPublicApi.requests
         try {
           return await useCases.resolveLinkAndTrack({
             token: data.token,
@@ -256,6 +349,6 @@ export const resolveLinkAndTrack = createServerFn({ method: 'GET' })
         }
       },
       'GET',
-      'guest.resolveLinkAndTrack',
+      'guest.resolvePublicPortalLink',
     ),
   )

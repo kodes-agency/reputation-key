@@ -1,84 +1,144 @@
-// Integration context — My Business Notifications HTTP adapter (step 2/3).
-// Mirrors gbp-api.adapter.ts: providerFetch with Bearer token (transport
-// failures classified there), classify HTTP status into a domain error kind at
-// the boundary (cc-errors §13 — raw status never crosses), zod-validate at the
-// boundary. Implements MyBusinessNotificationsPort.
-//
-// `updateMask` is REQUIRED on this endpoint (accounts.updateNotificationSetting
-// reference, query parameters) — Google rejects the PATCH with 400
-// INVALID_ARGUMENT without it. Subscribe therefore masks the two fields it
-// writes; the documented delete path masks `pubsubTopic` and sends it empty,
-// which clears the subscription.
-
+import { z } from 'zod/v4'
+import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
 import type { MyBusinessNotificationsPort } from '../../application/ports/mybusiness-notifications.port'
-import { createGbpApiError } from '../../domain/gbp-api-error'
-import type { GbpApiErrorKind } from '../../domain/gbp-api-error'
-import { trace } from '#/shared/observability/trace'
-import { providerFetch } from './gbp-provider-fetch'
+import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
+import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
+import { createGbpApiError, isGbpApiError } from '../../domain/gbp-api-error'
+import {
+  executeGoogleProviderJson,
+  executeGoogleProviderRaw,
+} from './google-provider-adapter'
 
-const classifyHttpStatus = (status: number): GbpApiErrorKind => {
-  if (status === 401) return 'auth_failed'
-  if (status === 403) return 'permission_denied'
-  if (status === 429) return 'rate_limited'
-  return 'upstream_error'
+const settingSchema = z
+  .object({
+    name: z.string().min(1).max(520),
+    pubsubTopic: z.string().max(1_024).optional(),
+    notificationTypes: z
+      .array(z.enum(['NEW_REVIEW', 'UPDATED_REVIEW']))
+      .max(2)
+      .optional(),
+  })
+  .passthrough()
+
+type NotificationSetting = z.infer<typeof settingSchema>
+
+function sameTypes(left: readonly string[], right: readonly string[]): boolean {
+  return (
+    left.length === right.length &&
+    [...left].sort().every((value, index) => value === [...right].sort()[index])
+  )
 }
 
-// BQC-4.3: base URL from the composition root's providerConfigFor mapping —
-// no hardcoded or fallback endpoint (ADR 0031/0048).
-export const createMyBusinessNotificationsAdapter = (config: {
-  baseUrl: string
-}): MyBusinessNotificationsPort => {
-  const baseUrl = config.baseUrl
-  const subscribe: MyBusinessNotificationsPort['subscribe'] = async (input) => {
-    // NotificationSetting's only writable fields, and the only two we set.
-    const url = `${baseUrl}/accounts/${input.gbpAccountId}/notificationSetting?updateMask=pubsubTopic,notificationTypes`
-    const response = await trace('mybusinessNotifications.subscribe', () =>
-      providerFetch('subscribe', url, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${input.accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: `accounts/${input.gbpAccountId}/notificationSetting`,
+function writeOutcomeCouldBeAmbiguous(error: unknown): boolean {
+  return isGbpApiError(error) && error.kind === 'upstream_error'
+}
+
+export const createMyBusinessNotificationsAdapter = (
+  deps: Readonly<{
+    executor: GoogleAuthorizedProviderExecutor
+    nowMs?: () => number
+  }>,
+): MyBusinessNotificationsPort => {
+  const nowMs = deps.nowMs ?? Date.now
+
+  const readSetting = async (input: {
+    accessToken: string
+    authorization: GoogleProviderCallAuthorization
+    gbpAccountId: string
+    signal?: AbortSignal
+  }): Promise<NotificationSetting> => {
+    const raw = await executeGoogleProviderJson({
+      operation: 'readNotificationSetting',
+      descriptor: {
+        routeKey: 'notifications.get',
+        accessToken: input.accessToken,
+        accountId: input.gbpAccountId,
+      },
+      authorization: input.authorization,
+      executor: deps.executor,
+      nowMs,
+      signal: input.signal,
+    })
+    const parsed = settingSchema.safeParse(raw)
+    if (
+      !parsed.success ||
+      parsed.data.name !== `accounts/${input.gbpAccountId}/notificationSetting`
+    ) {
+      throw createGbpApiError('readNotificationSetting', 'parse_error')
+    }
+    return parsed.data
+  }
+
+  const writeThenConfirm = async (input: {
+    operation: 'subscribe' | 'unsubscribe'
+    descriptor: GoogleProviderRouteDescriptor
+    accessToken: string
+    authorization: GoogleProviderCallAuthorization
+    gbpAccountId: string
+    desired: (setting: NotificationSetting) => boolean
+    signal?: AbortSignal
+  }): Promise<void> => {
+    let ambiguousWrite: unknown = null
+    try {
+      const write = await executeGoogleProviderRaw({
+        operation: input.operation,
+        descriptor: input.descriptor,
+        authorization: input.authorization,
+        executor: deps.executor,
+        nowMs,
+        signal: input.signal,
+      })
+      write.body.fill(0)
+    } catch (error) {
+      if (!writeOutcomeCouldBeAmbiguous(error)) throw error
+      ambiguousWrite = error
+    }
+
+    let current: NotificationSetting
+    try {
+      current = await readSetting(input)
+    } catch (error) {
+      if (ambiguousWrite) throw ambiguousWrite
+      throw error
+    }
+    if (input.desired(current)) return
+    throw createGbpApiError(input.operation, 'upstream_error')
+  }
+
+  return Object.freeze({
+    subscribe: async (input) => {
+      await writeThenConfirm({
+        operation: 'subscribe',
+        descriptor: {
+          routeKey: 'notifications.subscribe',
+          accessToken: input.accessToken,
+          accountId: input.gbpAccountId,
           pubsubTopic: input.pubsubTopic,
-          notificationTypes: [...input.notificationTypes],
-        }),
-      }),
-    )
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'unable to read response body')
-      throw createGbpApiError('subscribe', classifyHttpStatus(response.status), errorText)
-    }
-    // Drain the body so the connection can be reused; payload is unused.
-    await response.text().catch(() => undefined)
-  }
-
-  const unsubscribe: MyBusinessNotificationsPort['unsubscribe'] = async (input) => {
-    const url = `${baseUrl}/accounts/${input.gbpAccountId}/notificationSetting?updateMask=pubsubTopic`
-    const response = await trace('mybusinessNotifications.unsubscribe', () =>
-      providerFetch('unsubscribe', url, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${input.accessToken}`,
-          'Content-Type': 'application/json',
+          notificationTypes: input.notificationTypes,
         },
-        body: JSON.stringify({
-          name: `accounts/${input.gbpAccountId}/notificationSetting`,
-          pubsubTopic: '',
-        }),
-      }),
-    )
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'unable to read response body')
-      throw createGbpApiError(
-        'unsubscribe',
-        classifyHttpStatus(response.status),
-        errorText,
-      )
-    }
-    await response.text().catch(() => undefined)
-  }
-
-  return { subscribe, unsubscribe }
+        accessToken: input.accessToken,
+        authorization: input.authorization,
+        gbpAccountId: input.gbpAccountId,
+        desired: (setting) =>
+          setting.pubsubTopic === input.pubsubTopic &&
+          sameTypes(setting.notificationTypes ?? [], input.notificationTypes),
+        signal: input.signal,
+      })
+    },
+    unsubscribe: async (input) => {
+      await writeThenConfirm({
+        operation: 'unsubscribe',
+        descriptor: {
+          routeKey: 'notifications.unsubscribe',
+          accessToken: input.accessToken,
+          accountId: input.gbpAccountId,
+        },
+        accessToken: input.accessToken,
+        authorization: input.authorization,
+        gbpAccountId: input.gbpAccountId,
+        desired: (setting) => !setting.pubsubTopic,
+        signal: input.signal,
+      })
+    },
+  })
 }

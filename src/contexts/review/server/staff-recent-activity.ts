@@ -18,7 +18,7 @@ const staffRecentActivitySchema = z.object({
 })
 
 export const getStaffRecentActivity = createServerFn({ method: 'GET' })
-  .inputValidator(staffRecentActivitySchema)
+  .validator(staffRecentActivitySchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -34,7 +34,7 @@ export const getStaffRecentActivity = createServerFn({ method: 'GET' })
           const container = getContainer()
           const propertyId = toPropertyId(data.propertyId)
 
-          const reviews = await container.useCases.getStaffRecentActivity(
+          const reviews = await container.reviewPublicApi.getStaffRecentActivity(
             { propertyId },
             ctx,
           )

@@ -28,6 +28,9 @@ export const statement = {
     'create',
     'update',
     'delete',
+    'archive',
+    'restore',
+    'disconnect',
     'admin',
     'import_gbp_v2',
     'read_gbp_performance',
@@ -35,10 +38,12 @@ export const statement = {
   team: ['read', 'create', 'update', 'delete', 'membership.manage'],
   staff: ['read', 'manage'],
   ac: ['create', 'read', 'update', 'delete'],
-  portal: ['read', 'create', 'update', 'delete'],
+  // `admin` is Property-wide Portal authority (brand and custom destination
+  // approval). It is narrower than ordinary Portal mutation permission.
+  portal: ['read', 'create', 'update', 'delete', 'admin'],
   review: ['read'],
   reply: ['manage'],
-  feedback: ['read', 'respond', 'contact_read'],
+  feedback: ['read', 'handle', 'respond', 'contact_read'],
   goal: ['read', 'create', 'update', 'cancel'],
   badge: ['read', 'manage'],
   leaderboard: ['read'],
@@ -66,33 +71,27 @@ export const ac = createAccessControl(statement)
 // Three roles matching better-auth's organization plugin defaults.
 // owner = AccountAdmin, admin = PropertyManager, member = Staff.
 
-export const owner = ac.newRole(statement)
+// Team actions remain in the statement only so quarantined historical role
+// records and hard-denied server functions can still be parsed. No beta role
+// receives them; `team.use` is also unconditionally blocked at execution.
+export const owner = ac.newRole({ ...statement, team: [] })
 
 export const admin = ac.newRole({
   member: ['create', 'list'],
   dashboard: ['read', 'fleet_read'],
   invitation: ['create', 'list', 'cancel', 'resend'],
-  property: [
-    'read',
-    'create',
-    'update',
-    'admin',
-    'import_gbp_v2',
-    'read_gbp_performance',
-  ],
-  team: ['read', 'create', 'update', 'membership.manage'],
+  property: ['read', 'create', 'update', 'admin', 'read_gbp_performance'],
   staff: ['read', 'manage'],
   portal: ['read', 'create', 'update'],
   review: ['read'],
   reply: ['manage'],
-  feedback: ['read', 'respond', 'contact_read'],
+  feedback: ['read', 'handle', 'respond', 'contact_read'],
   badge: ['read', 'manage'],
   leaderboard: ['read'],
   inbox: ['read', 'write', 'manage'],
   notification: ['read', 'update'],
   organization: ['update'],
   goal: ['read', 'create', 'update', 'cancel'],
-  integration: ['manage'],
   ai: ['reply.generate', 'trends.read', 'manage'],
   identity: [
     'avatar_upload',
@@ -105,14 +104,12 @@ export const admin = ac.newRole({
 })
 
 export const memberRole = ac.newRole({
-  property: ['read', 'read_gbp_performance'],
+  property: ['read'],
   review: ['read'],
   dashboard: ['read'],
-  goal: ['read'],
   badge: ['read'],
   leaderboard: ['read'],
   portal: ['read'],
-  team: ['read', 'membership.manage'],
   staff: ['read'],
   notification: ['read', 'update'],
   inbox: ['read', 'write'],

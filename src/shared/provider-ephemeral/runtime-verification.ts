@@ -22,6 +22,7 @@ export const PROVIDER_REDIS_FORBIDDEN_COMMANDS = [
   ['FLUSHALL'],
   ['FLUSHDB'],
   ['KEYS', '*'],
+  ['CLIENT', 'KILL', 'TYPE', 'NORMAL', 'SKIPME', 'YES'],
 ] as const
 
 export type ProviderRedisReadinessCode =
@@ -48,6 +49,7 @@ export type ProviderRedisReadiness =
 export function validateProviderEphemeralRedisUrls(
   providerUrl: string | undefined,
   generalRedisUrl: string | undefined,
+  queueRedisUrl?: string,
 ): Readonly<{ ok: false; code: ProviderRedisReadinessCode }> | null {
   if (!providerUrl) return { ok: false, code: 'url_missing' }
   let parsed: URL
@@ -60,11 +62,12 @@ export function validateProviderEphemeralRedisUrls(
   if (!parsed.username || !parsed.password) {
     return { ok: false, code: 'url_auth_missing' }
   }
-  if (generalRedisUrl) {
+  for (const candidateUrl of [generalRedisUrl, queueRedisUrl]) {
+    if (!candidateUrl) continue
     try {
-      const general = new URL(generalRedisUrl)
+      const candidate = new URL(candidateUrl)
       const endpoint = (url: URL) => `${url.hostname.toLowerCase()}:${url.port || '6379'}`
-      if (endpoint(parsed) === endpoint(general)) {
+      if (endpoint(parsed) === endpoint(candidate)) {
         return { ok: false, code: 'url_not_dedicated' }
       }
     } catch {

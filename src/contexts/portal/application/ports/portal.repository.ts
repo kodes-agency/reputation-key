@@ -5,7 +5,7 @@
 import type { Portal, PortalId } from '../../domain/types'
 import type { OrganizationId, PropertyId, PortalGroupId } from '#/shared/domain/ids'
 
-export type PublicPortalResult = Readonly<{
+export type PublicPortalRepositoryResult = Readonly<{
   portal: Readonly<{
     id: string
     name: string
@@ -24,6 +24,7 @@ export type PublicPortalResult = Readonly<{
     categoryId: string | null
     sortKey: string
   }>
+  privateFeedbackThreshold: number
   organizationId: string
   propertyId: string
 }>
@@ -47,20 +48,13 @@ export type PortalRepository = Readonly<{
     slug: string,
     excludeId?: PortalId,
   ) => Promise<boolean>
-  insert: (orgId: OrganizationId, portal: Portal) => Promise<void>
-  update: (
-    orgId: OrganizationId,
-    id: PortalId,
-    patch: Readonly<Partial<Portal>>,
-  ) => Promise<void>
-  softDelete: (orgId: OrganizationId, id: PortalId) => Promise<void>
   resolvePortalContext: (
     portalIdParam: PortalId,
   ) => Promise<ResolvePortalContextResult | null>
   findPublicPortalById: (
     orgId: OrganizationId,
     portalId: PortalId,
-  ) => Promise<PublicPortalResult | null>
+  ) => Promise<PublicPortalRepositoryResult | null>
 
   // ── Staff goal resolution ────────────────────────────────────────────
   // Given portal IDs, return the distinct group IDs those portals belong to.

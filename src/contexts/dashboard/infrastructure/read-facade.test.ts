@@ -27,14 +27,15 @@ const PROP = propertyId('a0000000-0000-0000-0000-000000000001')
 const PORTAL_A = portalId('b0000000-0000-0000-0000-000000000001')
 const PORTAL_B = portalId('b0000000-0000-0000-0000-000000000002')
 const START = new Date('2026-06-01T00:00:00Z')
-const END = new Date('2026-06-30T23:59:59.999Z')
+const END = new Date('2026-07-01T00:00:00Z')
 
 describe('metric_readings scope predicates', () => {
   it('bounds the period on event_at, never on the recorded_at ingestion column', () => {
     const compiled = render(metricPeriodWhere(ORG, PROP, START, END))
 
     expect(compiled).toContain('"event_at" >=')
-    expect(compiled).toContain('"event_at" <=')
+    expect(compiled).toContain('"event_at" <')
+    expect(compiled).not.toContain('"event_at" <=')
     expect(compiled).not.toContain('recorded_at')
   })
 

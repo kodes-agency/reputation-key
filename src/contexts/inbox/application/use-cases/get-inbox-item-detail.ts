@@ -13,9 +13,24 @@ import type { InboxItemId, ReviewId } from '#/shared/domain/ids'
 import type { InboxItemDetail } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type {
+  FeedbackHandlingState,
+  FeedbackHandlingStore,
+} from '../ports/feedback-handling.store'
+import type {
+  ResponseTargetStore,
+  ResponseTargetView,
+} from '../ports/response-target.store'
 import { canForContext } from '#/shared/domain/permissions'
 import { inboxError } from '../../domain/errors'
-import { assertPropertyAccessible } from '../inbox-access'
+import {
+  assertInboxSourcePropertyAccessible,
+  canHandleInboxSource,
+  canReadInboxSource,
+  isInboxSourcePropertyWithinScopes,
+  loadInboxItemOrThrow,
+  resolveInboxSourceScopes,
+} from '../inbox-access'
 import {
   mapReplyLanguageMetadata,
   parseCanonicalReplyLanguageTag,
@@ -31,6 +46,9 @@ export type GetInboxItemDetailDeps = Readonly<{
   replyLookup: ReplyLookupPort
   propertyLookup?: PropertyLookupPort
   aiInsights?: AiReviewInsightsPort
+  feedbackHandlingStore?: FeedbackHandlingStore
+  responseTargetStore?: ResponseTargetStore
+  clock?: () => Date
 }>
 
 /** Detail result with the review's reply attached (review items only).
@@ -44,6 +62,10 @@ export type InboxItemDetailResult = Readonly<
     analysis: InboxReviewAnalysis | null
     propertyDefaultReplyLanguage?: string | null
     reviewReplyLanguage?: string | null
+    /** Manager-only private-feedback outcome history, including internal notes. */
+    feedbackHandling: FeedbackHandlingState | null
+    /** Current Handling Cycle target; elapsed/overdue state uses one server instant. */
+    responseTarget: ResponseTargetView | null
   }
 >
 
@@ -56,19 +78,32 @@ export const getInboxItemDetail =
     if (!canForContext(ctx, 'inbox.read')) {
       throw inboxError('forbidden', 'No inbox read permission')
     }
+    // Load projection-owned metadata before any owning-context content lookup.
+    // This lets source permission and Property scope be checked without reading
+    // private feedback text first.
+    const item = await loadInboxItemOrThrow(
+      deps.repo,
+      input.inboxItemId,
+      ctx.organizationId,
+    )
+    if (!canReadInboxSource(ctx, item.sourceType)) {
+      throw inboxError('forbidden', 'No access to this inbox source')
+    }
+
+    await assertInboxSourcePropertyAccessible(
+      deps.staffPublicApi,
+      ctx,
+      'read',
+      item.sourceType,
+      item.propertyId,
+    )
+
     const detail = await deps.repo.findDetailById(input.inboxItemId, ctx.organizationId)
     if (!detail) {
       throw inboxError('not_found', 'Inbox item not found', {
         inboxItemId: input.inboxItemId,
       })
     }
-
-    await assertPropertyAccessible(
-      deps.staffPublicApi,
-      ctx,
-      'inbox.read',
-      detail.item.propertyId,
-    )
 
     // Attach the review's effective reply (internal, else the google_sync
     // mirror — without the mirror fallback, replies published via the GBP UI
@@ -79,6 +114,8 @@ export const getInboxItemDetail =
     // justified by mandatory leak prevention.
     let reply: ReplyView | null = null
     let analysis: InboxReviewAnalysis | null = null
+    let feedbackHandling: FeedbackHandlingState | null = null
+    let responseTarget: ResponseTargetView | null = null
     if (detail.item.sourceType === 'review' && deps.aiInsights) {
       analysis = await deps.aiInsights.readCurrentReviewAnalysis({
         organizationId: ctx.organizationId,
@@ -91,6 +128,36 @@ export const getInboxItemDetail =
       reply = await deps.replyLookup.getEffectiveReplyByReviewId(
         detail.item.sourceId as ReviewId,
         ctx.organizationId,
+      )
+    }
+    if (
+      detail.item.sourceType === 'feedback' &&
+      deps.feedbackHandlingStore &&
+      canHandleInboxSource(ctx, 'feedback')
+    ) {
+      const handlingScopes = await resolveInboxSourceScopes(
+        deps.staffPublicApi,
+        ctx,
+        'handle',
+      )
+      if (
+        isInboxSourcePropertyWithinScopes(
+          handlingScopes,
+          'feedback',
+          detail.item.propertyId,
+        )
+      ) {
+        feedbackHandling = await deps.feedbackHandlingStore.getState(
+          detail.item.id,
+          ctx.organizationId,
+        )
+      }
+    }
+    if (deps.responseTargetStore && deps.clock) {
+      responseTarget = await deps.responseTargetStore.getCycleTarget(
+        detail.item.id,
+        ctx.organizationId,
+        deps.clock(),
       )
     }
 
@@ -118,7 +185,9 @@ export const getInboxItemDetail =
       analysis,
       propertyDefaultReplyLanguage,
       reviewReplyLanguage,
+      feedbackHandling,
+      responseTarget,
     }
   }
 
-export type GetInboxItemDetailUseCase = ReturnType<typeof getInboxItemDetail>
+export type GetInboxItemDetail = ReturnType<typeof getInboxItemDetail>

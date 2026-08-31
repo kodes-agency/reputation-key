@@ -29,7 +29,11 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       findById: vi.fn(async () => null),
       findByIdForProperty: vi.fn(async () => null),
       findUnreadByUser: vi.fn(async () => []),
-      countUnreadByUser: vi.fn(async () => 0),
+      readFeedHead: vi.fn(async () => ({
+        page: { notifications: [], hasMore: false },
+        unreadCount: 0,
+        watermark: '2026-06-10T10:00:00.000Z',
+      })),
       findByUser: vi.fn(async () => []),
       markRead: vi.fn(async () => {}),
       markAllRead: vi.fn(async () => {}),
@@ -54,6 +58,12 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       findDueByUser: vi.fn(async () => []),
       suppressRecipient: vi.fn(async () => 0),
       isRecipientSuppressed: vi.fn(async () => false),
+      findOpenDigestBatch: vi.fn(async () => null),
+      findDigestBatchEntries: vi.fn(async () => []),
+      prepareDigestBatch: vi.fn(async () => {
+        throw new Error('prepareDigestBatch is outside this fixture scope')
+      }),
+      settleDigestBatch: vi.fn(async () => false),
     },
     preferenceRepo: {
       findForDelivery: vi.fn(async () => null),

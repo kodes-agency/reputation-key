@@ -1,27 +1,18 @@
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { GooglePerformanceDailyMetric } from '#/shared/google-provider-control/contracts'
 
-export const GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION = 'google-provider-routes-1' as const
+export {
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION as GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION,
+  GOOGLE_PROVIDER_ROUTE_KEYS,
+} from '#/shared/google-provider-control/contracts'
+export type { GoogleProviderRouteKey } from '#/shared/google-provider-control/contracts'
 export const GOOGLE_BUSINESS_MANAGE_SCOPE =
   'https://www.googleapis.com/auth/business.manage'
 export const GOOGLE_OIDC_ISSUERS = [
   'https://accounts.google.com',
   'accounts.google.com',
 ] as const
-
-export const GOOGLE_PROVIDER_ROUTE_KEYS = {
-  oauthToken: 'google.oauth.token',
-  oauthRevoke: 'google.oauth.revoke',
-  oidcJwks: 'google.oidc.jwks',
-  accountManagementList: 'google.account-management.accounts.list',
-  businessInformationList: 'google.business-information.locations.list',
-  reviewsList: 'google.reviews.v4.list',
-  reviewsReply: 'google.reviews.v4.reply',
-  performanceFetchMultiDailyMetrics:
-    'google.performance.fetch-multi-daily-metrics-time-series',
-} as const
-export type GoogleProviderRouteKey =
-  (typeof GOOGLE_PROVIDER_ROUTE_KEYS)[keyof typeof GOOGLE_PROVIDER_ROUTE_KEYS]
 
 export {
   GOOGLE_PERFORMANCE_CATALOG_VERSION,
@@ -33,16 +24,77 @@ export {
 } from '#/shared/google-provider-control/contracts'
 export type GoogleDailyMetric = GooglePerformanceDailyMetric
 
-export type GoogleProviderCallAuthorization = Readonly<{
-  capability: 'property.import_gbp_v2' | 'property.read_gbp_performance'
+type GoogleProviderCallAuthorizationBase = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId | null
   connectionId: GoogleConnectionId
-  initiatorUserId: string
   approvalBindingId: string
   expectedCredentialGeneration: number
   authorizationVector: Readonly<Record<string, string | number | boolean | null>>
 }>
+
+export type GoogleHumanProviderCallAuthorization = GoogleProviderCallAuthorizationBase &
+  Readonly<{
+    capability: 'property.import_gbp_v2' | 'property.read_gbp_performance'
+    initiatorUserId: string
+    /**
+     * Exact server-generated authority for a disconnect revoke. The marker is
+     * content-free and is consumed only by the authorized executor's durable
+     * cleanup dispatcher before any provider socket can open.
+     */
+    disconnectRevoke?: Readonly<{
+      attemptId: string
+      cleanupDeadlineAtMs: number
+    }>
+  }>
+
+export type GoogleDisconnectRevokeAuthorization = GoogleHumanProviderCallAuthorization &
+  Readonly<{
+    capability: 'property.import_gbp_v2'
+    disconnectRevoke: Readonly<{
+      attemptId: string
+      cleanupDeadlineAtMs: number
+    }>
+  }>
+
+export function isGoogleDisconnectRevokeAuthorization(
+  authorization: GoogleProviderCallAuthorization,
+): authorization is GoogleDisconnectRevokeAuthorization {
+  return (
+    authorization.capability === 'property.import_gbp_v2' &&
+    'disconnectRevoke' in authorization &&
+    authorization.disconnectRevoke !== undefined
+  )
+}
+
+export type GoogleReviewSyncProviderCallAuthorization =
+  GoogleProviderCallAuthorizationBase &
+    Readonly<{
+      capability: 'property.connect_gbp'
+      propertyId: PropertyId
+      initiatorUserId: null
+    }>
+
+export type GoogleReplyPublicationProviderCallAuthorization =
+  GoogleProviderCallAuthorizationBase &
+    Readonly<{
+      capability: 'property.publish_reply'
+      propertyId: PropertyId
+      initiatorUserId: null
+      publication: Readonly<{
+        reviewId: string
+        replyId: string
+        publicationCycle: number
+        attemptNumber: number
+        sourceEpoch: number
+        materialReviewRevision: number
+      }>
+    }>
+
+export type GoogleProviderCallAuthorization =
+  | GoogleHumanProviderCallAuthorization
+  | GoogleReviewSyncProviderCallAuthorization
+  | GoogleReplyPublicationProviderCallAuthorization
 export type ProviderPage<T> = Readonly<{
   items: readonly T[]
   nextPageToken: string | null
@@ -73,6 +125,8 @@ export type GbpLocationCandidate = Readonly<{
   address: string | null
   primaryCategory: string | null
   countryCode: string | null
+  /** Output-only provider destination; absent metadata is represented as null. */
+  googleReviewUri?: string | null
 }>
 
 export type GoogleBusinessInformationPort = Readonly<{

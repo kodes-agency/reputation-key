@@ -25,7 +25,7 @@
 // Distinct from queue-quarantine.ts (BQC-0.4), which PAUSES a live queue as
 // a containment stop-control — different concept, do not confuse.
 
-import type { Job, JobsOptions } from 'bullmq'
+import type { Job, JobProgress, JobsOptions } from 'bullmq'
 import { GateDenyRetryError } from './errors'
 import {
   isCatalogueKnownWork,
@@ -33,6 +33,10 @@ import {
   jobEnqueueOptions,
   jobFamilyRow,
 } from './job-policy'
+import {
+  sanitizeIdentityInvitationQuarantineFields,
+  sanitizeIdentityInvitationRedriveData,
+} from '#/shared/outbox/identity-invitation-fact-contract'
 
 /** The dead-letter queue name. Created in the worker; never processed. */
 export const QUARANTINE_QUEUE_NAME = 'quarantine'
@@ -59,6 +63,11 @@ export type QuarantineEnvelope = Readonly<{
   policyReason?: string
   /** ISO timestamp of quarantine. */
   quarantinedAt: string
+  /**
+   * A pre-failure copy is not redrivable until BullMQ confirms the original
+   * transition. Missing means a legacy, already-confirmed envelope.
+   */
+  publicationState?: 'pending_failure' | 'confirmed_failed'
 }>
 
 export type RedriveMetadata = Readonly<{
@@ -77,8 +86,20 @@ export type QuarantinedJobHandle = Readonly<{
   id?: string
   name: string
   data: unknown
+  progress?: JobProgress
+  updateProgress(progress: JobProgress): Promise<void>
   remove(): Promise<void>
 }>
+
+type QuarantineConfirmationHandle = Readonly<{
+  progress?: JobProgress
+  updateProgress(progress: JobProgress): Promise<void>
+}>
+
+export type QuarantineBarrierPort = QueueAddPort &
+  Readonly<{
+    getJob(id: string): Promise<QuarantineConfirmationHandle | undefined>
+  }>
 
 export type QuarantineReadPort = {
   getJob(id: string): Promise<QuarantinedJobHandle | undefined>
@@ -89,19 +110,28 @@ export type QuarantineReadPort = {
   ): Promise<QuarantinedJobHandle[]>
 }
 
+type OriginalJobStateHandle = Readonly<{
+  getState(): Promise<string>
+}>
+
+export type RedriveTargetQueue = QueueAddPort &
+  Readonly<{
+    getJob(id: string): Promise<OriginalJobStateHandle | undefined>
+  }>
+
 // ── Envelope helpers ────────────────────────────────────────────────
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** Error name + first message line, ≤ 200 chars. No stack, no second line. */
+/** Error name + complete first message line. No stack and no second line. */
 function sanitizeFailedReason(err: unknown): string {
   if (err instanceof Error) {
     const firstLine = (err.message ?? '').split('\n')[0] ?? ''
-    return `${err.name}: ${firstLine}`.slice(0, 200)
+    return `${err.name}: ${firstLine}`
   }
-  return `UnknownError: ${String(err)}`.slice(0, 200)
+  return `UnknownError: ${String(err).split('\n')[0] ?? ''}`
 }
 
 /** True when the job's configured attempt budget is spent. */
@@ -110,6 +140,51 @@ function isAttemptsExhausted(job: Job): boolean {
   const attempts =
     typeof configured === 'number' && configured > 0 ? configured : DEFAULT_ATTEMPTS
   return job.attemptsMade >= attempts
+}
+
+/**
+ * True while the handler is executing the attempt that would spend the
+ * remaining retry budget. Quarantining before that handler rejects keeps the
+ * normally live attempt unsettled until the dead-letter write has completed or
+ * failed. Invitation privacy is independently enforced before the add because
+ * a suspended process can outlive its BullMQ lock.
+ */
+function isFinalAttempt(job: Job): boolean {
+  const configured = job.opts?.attempts
+  const attempts =
+    typeof configured === 'number' && configured > 0 ? configured : DEFAULT_ATTEMPTS
+  return job.attemptsMade + 1 >= attempts
+}
+
+const NON_FAILURE_CONTROL_ERRORS = new Set([
+  'DelayedError',
+  'WaitingError',
+  'WaitingChildrenError',
+])
+
+/** Mirror BullMQ's terminal-vs-control-flow decision before moveToFailed. */
+function isTerminalFailure(job: Job, err: unknown): boolean {
+  if (err instanceof Error) {
+    if (NON_FAILURE_CONTROL_ERRORS.has(err.name)) return false
+    if (err.name === 'RateLimitError' || err.message === 'bullmq:rateLimitExceeded') {
+      return false
+    }
+    if (err.name === 'UnrecoverableError') return true
+  }
+  return isFinalAttempt(job)
+}
+
+/**
+ * BullMQ emits `failed` after both terminal failures and failures that it has
+ * already moved back to a retry state. At that point `attemptsMade` has been
+ * incremented, so confirmation must use this post-transition predicate rather
+ * than the handler-time predicate above.
+ */
+export function isTerminalFailedEvent(job: Job, err: unknown): boolean {
+  return (
+    (err instanceof Error && err.name === 'UnrecoverableError') ||
+    isAttemptsExhausted(job)
+  )
 }
 
 function parseQuarantineEnvelope(data: unknown): QuarantineEnvelope | null {
@@ -121,6 +196,7 @@ function parseQuarantineEnvelope(data: unknown): QuarantineEnvelope | null {
     failedReason,
     attemptsMade,
     quarantinedAt,
+    publicationState,
   } = data
   if (typeof originalQueue !== 'string' || originalQueue.length === 0) return null
   if (typeof originalJobId !== 'string' || originalJobId.length === 0) return null
@@ -128,12 +204,31 @@ function parseQuarantineEnvelope(data: unknown): QuarantineEnvelope | null {
   if (typeof failedReason !== 'string') return null
   if (typeof attemptsMade !== 'number') return null
   if (typeof quarantinedAt !== 'string') return null
+  if (
+    publicationState !== undefined &&
+    publicationState !== 'pending_failure' &&
+    publicationState !== 'confirmed_failed'
+  ) {
+    return null
+  }
   if (!('data' in data)) return null
   return data as unknown as QuarantineEnvelope
 }
 
 function isRedacted(data: unknown): boolean {
   return isRecord(data) && data.redacted === true && Object.keys(data).length === 1
+}
+
+function publicationIsConfirmed(
+  envelope: QuarantineEnvelope,
+  progress: JobProgress | undefined,
+): boolean {
+  if (envelope.publicationState !== 'pending_failure') return true
+  return (
+    isRecord(progress) &&
+    progress.quarantinePublication === 'confirmed_failed' &&
+    progress.version === 1
+  )
 }
 
 // ── Quarantine ──────────────────────────────────────────────────────
@@ -147,17 +242,29 @@ export type QuarantineOutcome = Readonly<{
  * (identifier-only by construction); unknown work is redacted. */
 function buildQuarantineEnvelope(
   job: Job,
-  fields: Readonly<{ failedReason: string; policyReason?: string }>,
+  fields: Readonly<{
+    failedReason: string
+    policyReason?: string
+    attemptsMade?: number
+    publicationState?: QuarantineEnvelope['publicationState']
+  }>,
 ): QuarantineEnvelope {
+  const rawData = isCatalogueKnownWork(job.name) ? job.data : { redacted: true }
+  const safe = sanitizeIdentityInvitationQuarantineFields(
+    job.name,
+    rawData,
+    fields.failedReason,
+  )
   return {
     originalQueue: job.queueName ?? 'unknown',
     originalJobId: job.id ?? 'unknown',
     jobName: job.name,
-    data: isCatalogueKnownWork(job.name) ? job.data : { redacted: true },
-    failedReason: fields.failedReason.slice(0, 200),
-    attemptsMade: job.attemptsMade,
+    data: safe.data,
+    failedReason: safe.failedReason.slice(0, 200),
+    attemptsMade: fields.attemptsMade ?? job.attemptsMade,
     policyReason: fields.policyReason,
     quarantinedAt: new Date().toISOString(),
+    publicationState: fields.publicationState,
   }
 }
 
@@ -167,9 +274,9 @@ function quarantineJobIdFor(envelope: QuarantineEnvelope): string {
 }
 
 /**
- * Move a job to the dead-letter quarantine queue when its attempt budget is
- * spent. Called from the BullMQ worker 'failed' handler (wired in
- * createJobWorker); a no-op while attempts remain.
+ * Move an already-failed job to the dead-letter quarantine queue when its
+ * attempt budget is spent. Retained for explicit repair/test paths; the live
+ * worker uses `quarantineFinalAttemptJob` before leaving the active set.
  */
 export async function quarantineExhaustedJob(
   quarantineQueue: QueueAddPort,
@@ -181,11 +288,57 @@ export async function quarantineExhaustedJob(
   const envelope = buildQuarantineEnvelope(job, {
     failedReason: sanitizeFailedReason(err),
     policyReason: err instanceof GateDenyRetryError ? err.reason : undefined,
+    publicationState: 'confirmed_failed',
   })
 
   const quarantineJobId = quarantineJobIdFor(envelope)
   await quarantineQueue.add(envelope.jobName, envelope, { jobId: quarantineJobId })
   return { quarantined: true, quarantineJobId }
+}
+
+/**
+ * Stage a non-redrivable dead-letter copy before a terminal handler rejection
+ * moves the original job out of BullMQ's active set. The worker confirms the
+ * copy only after BullMQ emits `failed`; the post-failure helper above remains
+ * for repair/tests of already-failed jobs.
+ */
+export async function quarantineFinalAttemptJob(
+  quarantineQueue: QueueAddPort,
+  job: Job,
+  err: unknown,
+): Promise<QuarantineOutcome> {
+  if (!isTerminalFailure(job, err)) return { quarantined: false }
+
+  const envelope = buildQuarantineEnvelope(job, {
+    failedReason: sanitizeFailedReason(err),
+    policyReason: err instanceof GateDenyRetryError ? err.reason : undefined,
+    attemptsMade: job.attemptsMade + 1,
+    publicationState: 'pending_failure',
+  })
+  const quarantineJobId = quarantineJobIdFor(envelope)
+  await quarantineQueue.add(envelope.jobName, envelope, { jobId: quarantineJobId })
+  return { quarantined: true, quarantineJobId }
+}
+
+const CONFIRMED_FAILURE_PROGRESS = Object.freeze({
+  quarantinePublication: 'confirmed_failed',
+  version: 1,
+})
+
+/**
+ * Confirm a provisional copy only after BullMQ emitted `failed`, which means
+ * moveToFailed completed. Confirmation is isolated in the job progress field,
+ * so it can never overwrite payload redaction racing in the operator scrub.
+ */
+export async function confirmQuarantineFailure(
+  quarantineQueue: QuarantineBarrierPort,
+  job: Job,
+): Promise<boolean> {
+  const quarantineJobId = `${QUARANTINE_QUEUE_NAME}:${job.queueName ?? 'unknown'}:${job.id ?? 'unknown'}`
+  const quarantined = await quarantineQueue.getJob(quarantineJobId)
+  if (!quarantined) return false
+  await quarantined.updateProgress(CONFIRMED_FAILURE_PROGRESS)
+  return true
 }
 
 /**
@@ -204,6 +357,7 @@ export async function quarantineJobDirect(
   const envelope = buildQuarantineEnvelope(job, {
     failedReason: `GateRejected: ${policyReason}`,
     policyReason,
+    publicationState: 'confirmed_failed',
   })
 
   const quarantineJobId = quarantineJobIdFor(envelope)
@@ -221,6 +375,7 @@ export type RedriveResult =
         | 'quarantine-job-not-found'
         | 'malformed-quarantine-envelope'
         | 'payload-redacted'
+        | 'failure-not-confirmed'
         | 'target-queue-unavailable'
         | 'domain-redrive-required'
     }>
@@ -232,7 +387,7 @@ export type RedriveResult =
  */
 export function createRedriveJob(
   quarantineQueue: QuarantineReadPort,
-  resolveTargetQueue: (queueName: string) => QueueAddPort | undefined,
+  resolveTargetQueue: (queueName: string) => RedriveTargetQueue | undefined,
 ): (quarantineJobId: string) => Promise<RedriveResult> {
   return async (quarantineJobId) => {
     const quarantined = await quarantineQueue.getJob(quarantineJobId)
@@ -248,12 +403,27 @@ export function createRedriveJob(
     const target = resolveTargetQueue(envelope.originalQueue)
     if (!target) return { redriven: false, reason: 'target-queue-unavailable' }
 
+    if (!publicationIsConfirmed(envelope, quarantined.progress)) {
+      const original = await target.getJob(envelope.originalJobId)
+      if (!original || (await original.getState()) !== 'failed') {
+        return { redriven: false, reason: 'failure-not-confirmed' }
+      }
+      // Proof-based, idempotent repair: only an original BullMQ job that is
+      // still terminally failed can promote the staged copy. A recovered,
+      // waiting, active, completed, or missing original remains inert.
+      await quarantined.updateProgress(CONFIRMED_FAILURE_PROGRESS)
+    }
+
     const redriveMetadata: RedriveMetadata = {
       redrivenAt: new Date().toISOString(),
       redrivenFrom: QUARANTINE_QUEUE_NAME,
       originalQuarantineId: quarantined.id ?? quarantineJobId,
     }
-    const data = { ...(envelope.data as Record<string, unknown>), redriveMetadata }
+    const safeData = sanitizeIdentityInvitationRedriveData(
+      envelope.jobName,
+      envelope.data,
+    )
+    const data = { ...(safeData as Record<string, unknown>), redriveMetadata }
     // Fresh attempt budget from the catalogue policy; unknown jobs fall back
     // to the queue defaults (their handler must exist post-redeploy anyway).
     const opts = jobFamilyRow(envelope.jobName) ? jobEnqueueOptions(envelope.jobName) : {}
@@ -269,6 +439,7 @@ export function createRedriveJob(
 export type QuarantinedEntry = Readonly<{
   quarantineJobId: string
   envelope: QuarantineEnvelope
+  publicationState: 'pending_failure' | 'confirmed_failed'
 }>
 
 /** List quarantined jobs (waiting/delayed — the quarantine queue has no worker). */
@@ -284,7 +455,15 @@ export async function listQuarantinedJobs(
   const out: QuarantinedEntry[] = []
   for (const job of jobs) {
     const envelope = parseQuarantineEnvelope(job.data)
-    if (envelope) out.push({ quarantineJobId: job.id ?? 'unknown', envelope })
+    if (envelope) {
+      out.push({
+        quarantineJobId: job.id ?? 'unknown',
+        envelope,
+        publicationState: publicationIsConfirmed(envelope, job.progress)
+          ? 'confirmed_failed'
+          : 'pending_failure',
+      })
+    }
   }
   return out
 }

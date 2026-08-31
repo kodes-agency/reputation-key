@@ -7,8 +7,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   GOOGLE_EGRESS_CONFIG_FIELDS,
+  GOOGLE_EGRESS_LEGACY_PATH_FIELDS,
   type ProviderConfigError,
   assertDirectProviderEgressAllowed,
+  assertDirectCredentialEgressAllowed,
   assertReviewProviderSubjectKeysConfigured,
   isProviderConfigError,
   missingGoogleEgressConfig,
@@ -102,8 +104,20 @@ describe('missingGoogleEgressConfig', () => {
   })
 
   it('reports only the gaps in a partial configuration', () => {
-    const partial = { ...CONFIGURED_EGRESS, GOOGLE_INTERNAL_MTLS_KEY_PATH: '' }
-    expect(missingGoogleEgressConfig(partial)).toEqual(['GOOGLE_INTERNAL_MTLS_KEY_PATH'])
+    const partial = { ...CONFIGURED_EGRESS, GOOGLE_INTERNAL_MTLS_KEY_B64: '' }
+    expect(missingGoogleEgressConfig(partial)).toEqual(['GOOGLE_INTERNAL_MTLS_KEY_B64'])
+  })
+
+  it('accepts the complete legacy path triplet during the cutover window', () => {
+    const legacy = {
+      GOOGLE_EGRESS_GATEWAY_ORIGIN: 'https://gateway.internal:8443',
+      GOOGLE_EGRESS_GATEWAY_SERVER_NAME: 'gateway.internal',
+      GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: 'v1:key',
+      ...Object.fromEntries(
+        GOOGLE_EGRESS_LEGACY_PATH_FIELDS.map((field) => [field, `/run/${field}`]),
+      ),
+    }
+    expect(missingGoogleEgressConfig(legacy)).toEqual([])
   })
 })
 
@@ -117,16 +131,17 @@ describe('assertDirectProviderEgressAllowed', () => {
     expect(error.missing).toEqual(GOOGLE_EGRESS_CONFIG_FIELDS)
     expect(error.message).toContain('reviews.list')
     expect(error.message).toContain('GOOGLE_EGRESS_GATEWAY_ORIGIN')
-    expect(error.message).toContain('GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS')
+    expect(error.message).toContain('approved gateway transport')
   })
 
-  it('allows the direct path in production when the operator opts out explicitly', () => {
-    expect(() =>
+  it('refuses the direct path even when the legacy operator opt-out is set', () => {
+    const error = refusalFrom(() =>
       assertDirectProviderEgressAllowed(
         { NODE_ENV: 'production', GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS: true },
         'reviews.list',
       ),
-    ).not.toThrow()
+    )
+    expect(error.code).toBe('config_invalid')
   })
 
   it('still refuses in production when the gateway is fully configured — reaching the direct path at all is the bug', () => {
@@ -153,5 +168,31 @@ describe('assertDirectProviderEgressAllowed', () => {
         ),
       ).not.toThrow()
     }
+  })
+})
+
+describe('assertDirectCredentialEgressAllowed', () => {
+  it('has no production escape hatch for OAuth credentials', () => {
+    const error = refusalFrom(() =>
+      assertDirectCredentialEgressAllowed(
+        {
+          NODE_ENV: 'production',
+          GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS: true,
+          ...CONFIGURED_EGRESS,
+        },
+        'oauth.token.refresh',
+      ),
+    )
+
+    expect(error.missing).toEqual([])
+    expect(error.message).toContain('oauth.token.refresh')
+    expect(error.message).toContain('credential gateway')
+    expect(error.message).not.toContain('GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS=true')
+  })
+
+  it('stays quiet outside production for deterministic local adapters', () => {
+    expect(() =>
+      assertDirectCredentialEgressAllowed({ NODE_ENV: 'test' }, 'oauth.token.exchange'),
+    ).not.toThrow()
   })
 })

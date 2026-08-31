@@ -4,18 +4,10 @@
 import { describe, it, expect } from 'vitest'
 import { buildStaffContext } from './build'
 import type { Database } from '#/shared/db'
-import { createInMemoryStaffAssignmentRepo } from '#/shared/testing/in-memory-staff-assignment-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
-import {
-  organizationId,
-  propertyId,
-  userId,
-  staffAssignmentId,
-} from '#/shared/domain/ids'
-import type { StaffAssignment } from './domain/types'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 
-// The atomic command store is constructed at build time but never invoked
-// in these PublicApi tests — a bare stub satisfies the wiring.
+// Canonical repositories are constructed at build time. A bare database stub
+// is sufficient because these PublicApi tests exercise only injected lookups.
 const mockDb = {} as unknown as Database
 
 const mockPortalLookup = {
@@ -23,37 +15,29 @@ const mockPortalLookup = {
   getPortalInfo: async () => null,
 }
 
-const mockIdentityMembership = {
-  isMember: async () => true,
-}
-
-const seedAssignment = (overrides: Partial<StaffAssignment> = {}): StaffAssignment =>
-  ({
-    id: staffAssignmentId('staff-1'),
-    organizationId: organizationId('org-1'),
-    userId: userId('user-1'),
-    propertyId: propertyId('prop-1'),
-    teamId: null,
-    portalId: null,
-    createdAt: new Date('2025-01-01'),
-    updatedAt: new Date('2025-01-01'),
-    deletedAt: null,
-    ...overrides,
-  }) as StaffAssignment
+const idGen = () => '31000000-0000-4000-8000-000000000001'
 
 describe('StaffPublicApi', () => {
+  it('does not expose the quarantined Team assignment counter', () => {
+    const { publicApi } = buildStaffContext({
+      db: mockDb,
+      portalLookup: mockPortalLookup,
+      clock: () => new Date('2025-01-01'),
+      idGen,
+      accessiblePropertyLookup: async () => [],
+    })
+
+    expect(publicApi).not.toHaveProperty('countAssignmentsByTeam')
+  })
+
   it('returns null for AccountAdmin (all properties accessible)', async () => {
-    const repo = createInMemoryStaffAssignmentRepo()
-    const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
-      repo,
       portalLookup: mockPortalLookup,
-      events,
       clock,
-      identityMembership: mockIdentityMembership,
+      idGen,
       accessiblePropertyLookup: async () => [],
     })
 
@@ -66,27 +50,14 @@ describe('StaffPublicApi', () => {
     expect(result).toBeNull()
   })
 
-  it('resolves accessible property IDs from the grant lookup port (BQC-2.3)', async () => {
-    const repo = createInMemoryStaffAssignmentRepo()
-    // Deliberately seed a staff assignment that the grant lookup does NOT
-    // return — participation alone must not produce access.
-    repo.seed([
-      seedAssignment({
-        id: staffAssignmentId('staff-1'),
-        userId: userId('user-1'),
-        propertyId: propertyId('prop-staff-only'),
-      }),
-    ])
-    const events = createCapturingEventBus()
+  it('resolves accessible property IDs only from the grant lookup port (BQC-2.3)', async () => {
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
-      repo,
       portalLookup: mockPortalLookup,
-      events,
       clock,
-      identityMembership: mockIdentityMembership,
+      idGen,
       accessiblePropertyLookup: async () => [propertyId('prop-1'), propertyId('prop-2')],
     })
 
@@ -101,17 +72,13 @@ describe('StaffPublicApi', () => {
   })
 
   it('missing grants return an empty set — never null (deny downstream)', async () => {
-    const repo = createInMemoryStaffAssignmentRepo()
-    const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
-      repo,
       portalLookup: mockPortalLookup,
-      events,
       clock,
-      identityMembership: mockIdentityMembership,
+      idGen,
       accessiblePropertyLookup: async () => [],
     })
 
@@ -125,17 +92,13 @@ describe('StaffPublicApi', () => {
   })
 
   it('lookup failure propagates — fail closed, never silent allow', async () => {
-    const repo = createInMemoryStaffAssignmentRepo()
-    const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
-      repo,
       portalLookup: mockPortalLookup,
-      events,
       clock,
-      identityMembership: mockIdentityMembership,
+      idGen,
       accessiblePropertyLookup: async () => {
         throw new Error('grant store unavailable')
       },

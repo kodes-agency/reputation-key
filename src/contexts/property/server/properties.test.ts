@@ -51,12 +51,18 @@ describe('propertyErrorStatus (imported from server module)', () => {
       'invalid_name',
       'invalid_timezone',
       'invalid_country',
+      'invalid_lifecycle_reason',
       'region_locked',
       'invalid_transition',
       'property_not_active',
       'region_unresolved',
       'region_move_conflict',
       'stale_property',
+      'property_recovery_expired',
+      'property_restore_not_ready',
+      'google_binding_not_disconnectable',
+      'responsible_manager_ineligible',
+      'revision_conflict',
     ]
     for (const code of codes) {
       const status = propertyErrorStatus(code)
@@ -128,6 +134,7 @@ describe('createProperty input validation', () => {
     const result = createPropertyInputSchema.safeParse({
       name: 'Grand Hotel',
       timezone: 'America/New_York',
+      countryCode: 'US',
     })
     expect(result.success).toBe(true)
   })
@@ -161,6 +168,7 @@ describe('createProperty input validation', () => {
   it('rejects create input missing required timezone', () => {
     const result = createPropertyInputSchema.safeParse({
       name: 'Test',
+      countryCode: 'US',
     })
     expect(result.success).toBe(false)
   })
@@ -169,6 +177,7 @@ describe('createProperty input validation', () => {
     const result = createPropertyInputSchema.safeParse({
       name: 'a'.repeat(101),
       timezone: 'UTC',
+      countryCode: 'US',
     })
     expect(result.success).toBe(false)
   })
@@ -178,6 +187,7 @@ describe('createProperty input validation', () => {
       name: 'Test',
       slug: 'a',
       timezone: 'UTC',
+      countryCode: 'US',
     })
     expect(result.success).toBe(false)
   })
@@ -187,8 +197,22 @@ describe('createProperty input validation', () => {
       name: 'Test',
       timezone: 'UTC',
       slug: undefined,
+      countryCode: 'US',
     })
     expect(result.success).toBe(true)
+  })
+
+  it('requires a supported country so creation can assign a Data Cell', () => {
+    expect(
+      createPropertyInputSchema.safeParse({ name: 'Test', timezone: 'UTC' }).success,
+    ).toBe(false)
+    expect(
+      createPropertyInputSchema.safeParse({
+        name: 'Test',
+        timezone: 'UTC',
+        countryCode: 'ZZ',
+      }).success,
+    ).toBe(false)
   })
 })
 

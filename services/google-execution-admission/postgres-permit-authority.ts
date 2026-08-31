@@ -1,5 +1,4 @@
-import { createHash } from 'node:crypto'
-import type { Pool, PoolClient } from 'pg'
+import type { Pool } from 'pg'
 import {
   GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   GOOGLE_PROVIDER_ROUTE_POLICIES,
@@ -15,15 +14,18 @@ import type {
 
 const SHA256 = /^[a-f0-9]{64}$/
 const SAFE_REVISION = /^[A-Za-z0-9._:@/-]{1,255}$/
+const RELEASE_SHA = /^[a-f0-9]{40}$/
 
 type PermitRow = Readonly<{
   id: string
+  capability: string
   route_key: string
   route_catalog_version: string
   quota_policy_id: string
   permit_generation: string | number
   policy_version: string | number
   emergency_kill_version: string | number
+  approval_binding_id: string
   authorization_vector: unknown
   state: string
   start_deadline_at: Date
@@ -31,6 +33,7 @@ type PermitRow = Readonly<{
   property_id: string | null
   connection_id: string | null
   initiator_user_id: string | null
+  authority_revision: string
 }>
 
 type AuthorizationVector = Readonly<{
@@ -40,6 +43,9 @@ type AuthorizationVector = Readonly<{
   requestBodySha256: string | null
   requestBodyBytes: number
 }>
+
+export type PostgresGoogleAdmissionPermitAuthority = GoogleAdmissionPermitAuthority &
+  Readonly<{ readiness(): Promise<boolean> }>
 
 function parseGeneration(value: string | number): number | null {
   const parsed = typeof value === 'number' ? value : Number(value)
@@ -75,34 +81,6 @@ function parseVector(raw: unknown): AuthorizationVector | null {
   }
 }
 
-function revisionFor(row: PermitRow): string | null {
-  const permitGeneration = parseGeneration(row.permit_generation)
-  const policyVersion = parseGeneration(row.policy_version)
-  const emergencyKillVersion = parseGeneration(row.emergency_kill_version)
-  if (
-    permitGeneration === null ||
-    policyVersion === null ||
-    emergencyKillVersion === null
-  ) {
-    return null
-  }
-  return createHash('sha256')
-    .update(
-      JSON.stringify([
-        row.id,
-        permitGeneration,
-        policyVersion,
-        emergencyKillVersion,
-        row.route_key,
-        row.route_catalog_version,
-        row.quota_policy_id,
-        row.authorization_vector,
-        row.start_deadline_at.toISOString(),
-      ]),
-    )
-    .digest('hex')
-}
-
 function snapshotFromRow(
   row: PermitRow,
   gatewayIdentity: string,
@@ -112,7 +90,8 @@ function snapshotFromRow(
     row.route_catalog_version !== GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION ||
     !(row.route_key in GOOGLE_PROVIDER_ROUTE_POLICIES) ||
     !(row.start_deadline_at instanceof Date) ||
-    Number.isNaN(row.start_deadline_at.getTime())
+    Number.isNaN(row.start_deadline_at.getTime()) ||
+    !SHA256.test(row.authority_revision)
   ) {
     return null
   }
@@ -120,13 +99,11 @@ function snapshotFromRow(
   const policy = GOOGLE_PROVIDER_ROUTE_POLICIES[routeKey]
   if (!policy || policy.quotaPolicyId !== row.quota_policy_id) return null
   const vector = parseVector(row.authorization_vector)
-  const authorityRevision = revisionFor(row)
   const permitGeneration = parseGeneration(row.permit_generation)
   const policyVersion = parseGeneration(row.policy_version)
   const emergencyKillVersion = parseGeneration(row.emergency_kill_version)
   if (
     !vector ||
-    !authorityRevision ||
     permitGeneration === null ||
     permitGeneration < 1 ||
     policyVersion === null ||
@@ -173,72 +150,37 @@ function snapshotFromRow(
     permitGeneration,
     policyVersion,
     emergencyKillVersion,
-    authorityRevision,
+    authorityRevision: row.authority_revision,
   })
-}
-
-async function selectPermit(
-  client: Pool | PoolClient,
-  permitId: string,
-  forUpdate = false,
-): Promise<PermitRow | null> {
-  const result = await client.query<PermitRow>(
-    `SELECT id, route_key, route_catalog_version, quota_policy_id,
-            permit_generation, policy_version, emergency_kill_version,
-            authorization_vector, state, start_deadline_at,
-            organization_id, property_id, connection_id, initiator_user_id
-       FROM authorization_execution_permits
-      WHERE id = $1
-      LIMIT 1${forUpdate ? ' FOR UPDATE' : ''}`,
-    [permitId],
-  )
-  return result.rows[0] ?? null
 }
 
 export function createPostgresGoogleAdmissionPermitAuthority(
   deps: Readonly<{
     pool: Pool
-    now: () => Date
     gatewayIdentity: string
-    operationTimeoutMs?: number
+    releaseSha: string
   }>,
-): GoogleAdmissionPermitAuthority {
-  const operationTimeoutMs = deps.operationTimeoutMs ?? 60_000
-  if (
-    !SAFE_REVISION.test(deps.gatewayIdentity) ||
-    !Number.isSafeInteger(operationTimeoutMs) ||
-    operationTimeoutMs < 1_000 ||
-    operationTimeoutMs > 120_000
-  ) {
+): PostgresGoogleAdmissionPermitAuthority {
+  if (!SAFE_REVISION.test(deps.gatewayIdentity) || !RELEASE_SHA.test(deps.releaseSha)) {
     throw new Error('Google admission authority configuration is invalid')
   }
   return Object.freeze({
     load: async (permitId) => {
-      const row = await selectPermit(deps.pool, permitId)
+      const result = await deps.pool.query<PermitRow>(
+        'SELECT * FROM load_google_execution_permit_v1($1::uuid)',
+        [permitId],
+      )
+      const row = result.rows[0]
       return row ? snapshotFromRow(row, deps.gatewayIdentity) : null
     },
     start: async (permit) => {
-      const now = deps.now()
-      const operationDeadlineAt = new Date(now.getTime() + operationTimeoutMs)
-      const result = await deps.pool.query(
-        `UPDATE authorization_execution_permits
-            SET state = 'started',
-                started_at = $2,
-                operation_deadline_at = $3
-          WHERE id = $1
-            AND state = 'admitted'
-            AND start_deadline_at > $2
-            AND permit_generation = $4
-            AND policy_version = $5
-            AND emergency_kill_version = $6
-            AND route_key = $7
-            AND route_catalog_version = $8
-            AND quota_policy_id = $9
-            AND authorization_vector @> $10::jsonb`,
+      const result = await deps.pool.query<{ outcome: string }>(
+        `SELECT outcome FROM start_google_execution_permit_v3(
+          $1::uuid, $2::bigint, $3::bigint, $4::bigint,
+          $5::text, $6::text, $7::text, $8::jsonb, $9::text
+        )`,
         [
           permit.permitId,
-          now,
-          operationDeadlineAt,
           permit.permitGeneration,
           permit.policyVersion,
           permit.emergencyKillVersion,
@@ -252,36 +194,27 @@ export function createPostgresGoogleAdmissionPermitAuthority(
             requestBodySha256: permit.expectedAdmission.requestBodySha256,
             requestBodyBytes: permit.expectedAdmission.requestBodyBytes,
           }),
+          deps.releaseSha,
         ],
       )
-      if ((result.rowCount ?? 0) === 1) return 'started'
-      const current = await selectPermit(deps.pool, permit.permitId)
-      if (!current) return 'changed'
-      if (current.start_deadline_at.getTime() <= now.getTime()) return 'expired'
-      return 'changed'
+      const outcome = result.rows[0]?.outcome
+      return outcome === 'started' || outcome === 'expired' ? outcome : 'changed'
     },
     failStarted: async (permit, code) => {
       await deps.pool.query(
-        `UPDATE authorization_execution_permits
-            SET state = 'fenced', fenced_at = $2, correlation_id = $3
-          WHERE id = $1
-            AND state = 'started'
-            AND permit_generation = $4
-            AND policy_version = $5
-            AND emergency_kill_version = $6
-            AND route_key = $7
-            AND route_catalog_version = $8
-            AND quota_policy_id = $9`,
+        `SELECT fail_google_execution_permit_v1(
+          $1::uuid, $2::bigint, $3::bigint, $4::bigint,
+          $5::text, $6::text, $7::text, $8::text
+        )`,
         [
           permit.permitId,
-          deps.now(),
-          code,
           permit.permitGeneration,
           permit.policyVersion,
           permit.emergencyKillVersion,
           permit.routeKey,
           permit.routeCatalogueVersion,
           permit.expectedAdmission.quotaPolicyId,
+          code,
         ],
       )
     },
@@ -291,34 +224,90 @@ export function createPostgresGoogleAdmissionPermitAuthority(
       outcome: GoogleProviderOutcome,
       retryAfterMs,
     ) => {
-      const client = await deps.pool.connect()
-      try {
-        await client.query('BEGIN')
-        const row = await selectPermit(client, permitId, true)
-        if (!row || revisionFor(row) !== authorityRevision || row.state !== 'started') {
-          throw new Error('Google admission permit changed before completion')
-        }
-        const completedAt = deps.now()
-        const result = await client.query(
-          `UPDATE authorization_execution_permits
-              SET state = 'completed', completed_at = $2, correlation_id = $3
-            WHERE id = $1 AND state = 'started'`,
-          [
-            permitId,
-            completedAt,
-            retryAfterMs === null ? outcome : `${outcome}:retry_after_${retryAfterMs}`,
-          ],
-        )
-        if ((result.rowCount ?? 0) !== 1) {
-          throw new Error('Google admission permit changed before completion')
-        }
-        await client.query('COMMIT')
-      } catch (error) {
-        await client.query('ROLLBACK')
-        throw error
-      } finally {
-        client.release()
+      const result = await deps.pool.query<{ completed: boolean }>(
+        `SELECT complete_google_execution_permit_v1(
+          $1::uuid, $2::text, $3::text, $4::integer
+        ) AS completed`,
+        [permitId, authorityRevision, outcome, retryAfterMs],
+      )
+      if (result.rows[0]?.completed !== true) {
+        throw new Error('Google admission permit changed before completion')
       }
+    },
+    readiness: async () => {
+      const result = await deps.pool.query<{ ready: boolean }>(`
+        SELECT
+          NOT pg_is_in_recovery()
+          AND COALESCE((
+            SELECT connection.ssl
+            FROM pg_catalog.pg_stat_ssl AS connection
+            WHERE connection.pid = pg_catalog.pg_backend_pid()
+          ), false)
+          AND current_setting('lock_timeout') = '1s'
+          AND current_setting('statement_timeout') = '3s'
+          AND current_setting('idle_in_transaction_session_timeout') = '5s'
+          AND has_schema_privilege(current_user, 'public', 'USAGE')
+          AND NOT has_schema_privilege(current_user, 'public', 'CREATE')
+          AND count(*) = 4
+          AND bool_and(
+            procedure.prosecdef
+            AND has_function_privilege(current_user, procedure.oid, 'EXECUTE')
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM pg_class AS direct_table
+            INNER JOIN pg_namespace AS direct_schema
+              ON direct_schema.oid = direct_table.relnamespace
+            WHERE direct_schema.nspname = 'public'
+              AND direct_table.relkind IN ('r', 'p')
+              AND (
+                has_table_privilege(current_user, direct_table.oid, 'SELECT')
+                OR has_table_privilege(current_user, direct_table.oid, 'INSERT')
+                OR has_table_privilege(current_user, direct_table.oid, 'UPDATE')
+                OR has_table_privilege(current_user, direct_table.oid, 'DELETE')
+                OR has_table_privilege(current_user, direct_table.oid, 'TRUNCATE')
+                OR has_table_privilege(current_user, direct_table.oid, 'REFERENCES')
+                OR has_table_privilege(current_user, direct_table.oid, 'TRIGGER')
+              )
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM pg_class AS direct_sequence
+            INNER JOIN pg_namespace AS direct_schema
+              ON direct_schema.oid = direct_sequence.relnamespace
+            WHERE direct_schema.nspname = 'public'
+              AND direct_sequence.relkind = 'S'
+              AND (
+                has_sequence_privilege(current_user, direct_sequence.oid, 'USAGE')
+                OR has_sequence_privilege(current_user, direct_sequence.oid, 'SELECT')
+                OR has_sequence_privilege(current_user, direct_sequence.oid, 'UPDATE')
+              )
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM pg_proc AS other_procedure
+            WHERE other_procedure.pronamespace = 'public'::regnamespace
+              AND other_procedure.oid NOT IN (
+                'public.load_google_execution_permit_v1(uuid)'::regprocedure,
+                'public.start_google_execution_permit_v3(uuid,bigint,bigint,bigint,text,text,text,jsonb,text)'::regprocedure,
+                'public.fail_google_execution_permit_v1(uuid,bigint,bigint,bigint,text,text,text,text)'::regprocedure,
+                'public.complete_google_execution_permit_v1(uuid,text,text,integer)'::regprocedure
+              )
+              AND has_function_privilege(
+                current_user,
+                other_procedure.oid,
+                'EXECUTE'
+              )
+          ) AS ready
+        FROM pg_proc AS procedure
+        WHERE procedure.oid IN (
+          'public.load_google_execution_permit_v1(uuid)'::regprocedure,
+          'public.start_google_execution_permit_v3(uuid,bigint,bigint,bigint,text,text,text,jsonb,text)'::regprocedure,
+          'public.fail_google_execution_permit_v1(uuid,bigint,bigint,bigint,text,text,text,text)'::regprocedure,
+          'public.complete_google_execution_permit_v1(uuid,text,text,integer)'::regprocedure
+          )
+      `)
+      return result.rows[0]?.ready === true
     },
   })
 }

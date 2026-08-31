@@ -28,18 +28,22 @@ const REGISTER: Readonly<Record<string, string>> = {
   // The durable outbox schema already strips it, but activity audit detail
   // (on-reply-rejected) and notification email bodies copy it.
   'ReviewReplyRejected.reason': 'BQC-1 gap: protected content on the bus',
-  // BQC-1 gap (F2): invitee email persisted into activity audit detail
-  // (on-member-invited).
-  'IdentityMemberInvited.email': 'BQC-1 gap: invitee PII on the bus',
   // By-design non-sensitive display names (no PII, no review content).
-  'PortalCreated.name': 'by-design non-sensitive display name',
-  'PortalUpdated.name': 'by-design non-sensitive display name',
   'PortalGroupCreated.name': 'by-design non-sensitive display name',
   'PortalGroupUpdated.name': 'by-design non-sensitive display name',
   'TeamCreated.name': 'by-design non-sensitive display name',
   'TeamUpdated.name': 'by-design non-sensitive display name',
   // 1–5 star rating value — a numeric fact, not content.
   'GuestRatingSubmitted.value': '1-5 numeric fact',
+  // Closed Portal Health vocabulary — enum codes, never operator/guest prose.
+  'PortalHealthChanged.previousReason': 'closed PortalHealthReason enum fact',
+  'PortalHealthChanged.reason': 'closed PortalHealthReason enum fact',
+  // Closed Inbox handling-cycle vocabularies — lifecycle facts, never prose.
+  'InboxHandlingCycleOpened.openReason': 'closed HandlingCycleOpenReason enum fact',
+  'InboxHandlingCycleClosed.closeReason': 'closed HandlingCycleCloseReason enum fact',
+  'InboxHandlingCycleReopened.reopenReason': 'closed ManualReopenReason enum fact',
+  // Monotonic numeric working-copy version, not the localized brand content.
+  'PortalPropertyBrandContentUpdated.contentVersion': 'positive numeric version fact',
 }
 
 const ENVELOPE_FIELDS = new Set(['_tag', 'eventId', 'occurredAt', 'correlationId'])

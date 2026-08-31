@@ -27,10 +27,10 @@ function createMockRedis() {
     }),
     // Mock eval for atomic Lua script (INCR + conditional EXPIRE)
     eval: vi.fn(
-      async (_script: string, _numKeys: number, key: string, seconds: string) => {
+      async (script: string, _numKeys: number, key: string, seconds: string) => {
         const entry = counters.get(key) ?? { count: 0, ttl: 60 }
         entry.count += 1
-        if (entry.count === 1) {
+        if (entry.count === 1 || (entry.ttl < 0 && script.includes('ttl < 0'))) {
           entry.ttl = Number(seconds)
         }
         counters.set(key, entry)
@@ -118,6 +118,16 @@ describe('createRateLimiter', () => {
       const result = await limiter.check('user-1')
       expect(result.resetAt.getTime()).toBeGreaterThan(Date.now() - 1000)
     })
+
+    it('repairs a legacy counter that has lost its expiry', async () => {
+      mockRedis._counters.set('ratelimit:test:user-1', { count: 2, ttl: -1 })
+      const limiter = createRateLimiter(mockRedis as unknown as Redis, defaultOpts)
+
+      const result = await limiter.check('user-1')
+
+      expect(result.backendStatus).toBe('available')
+      expect(mockRedis._counters.get('ratelimit:test:user-1')?.ttl).toBe(60)
+    })
   })
 
   describe('with Redis unavailable', () => {
@@ -137,9 +147,9 @@ describe('createRateLimiter', () => {
   })
 
   describe('with Redis errors', () => {
-    it('fails open on Redis incr error', async () => {
+    it('fails open on Redis script error', async () => {
       const brokenRedis = createMockRedis()
-      brokenRedis.incr.mockRejectedValue(new Error('connection refused'))
+      brokenRedis.eval.mockRejectedValue(new Error('connection refused'))
       const limiter = createRateLimiter(brokenRedis as unknown as Redis, defaultOpts)
       const result = await limiter.check('user-1')
       expect(result.allowed).toBe(true)
@@ -151,6 +161,7 @@ describe('createRateLimiter', () => {
       const limiter = createRateLimiter(undefined, { ...defaultOpts, failClosed: true })
       const result = await limiter.check('user-1')
       expect(result.allowed).toBe(false)
+      expect(result.backendStatus).toBe('unavailable')
       expect(result.remaining).toBe(0)
       expect(result.resetAt.getTime()).toBeGreaterThan(Date.now() - 1000)
     })
@@ -164,6 +175,7 @@ describe('createRateLimiter', () => {
       })
       const result = await limiter.check('user-1')
       expect(result.allowed).toBe(false)
+      expect(result.backendStatus).toBe('unavailable')
       expect(result.remaining).toBe(0)
     })
 
@@ -174,6 +186,7 @@ describe('createRateLimiter', () => {
       })
       const result = await limiter.check('user-1')
       expect(result.allowed).toBe(true)
+      expect(result.backendStatus).toBe('available')
     })
 
     it('defaults to fail-closed when NODE_ENV=production, fail-open otherwise', async () => {

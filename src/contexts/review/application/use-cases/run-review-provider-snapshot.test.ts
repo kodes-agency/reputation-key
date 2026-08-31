@@ -18,6 +18,7 @@ import type {
   ReviewProviderSnapshotRun,
 } from '../ports/review-provider-snapshot.repository'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   runReviewProviderSnapshot,
   type RunReviewProviderSnapshotDeps,
@@ -52,10 +53,12 @@ const run = (
   organizationId,
   propertyId,
   sourceEpoch: 1,
+  observationOrigin: 'ongoing',
   state: 'scanning',
   phase: 'main',
   startedAt: new Date('2026-08-16T00:00:00.000Z'),
   expectedProviderTotal: null,
+  expectedProviderAverageRating: null,
   mainPageIndex: 0,
   mainCursorRef: null,
   mainUniqueCount: 0,
@@ -75,6 +78,7 @@ function makeDeps(
     page?: Readonly<{
       reviews: readonly GoogleReview[]
       totalReviewCount: number
+      averageRating: number | null
       nextCursorRef: string | null
     }>
     /** Drives the observation writer's new-vs-seen answer. */
@@ -122,13 +126,19 @@ function makeDeps(
   const googleReviewApi: GoogleReviewApiPort = {
     listReviewsPage: vi.fn(
       async () =>
-        input.page ?? { reviews: [review], totalReviewCount: 1, nextCursorRef: null },
+        input.page ?? {
+          reviews: [review],
+          totalReviewCount: 1,
+          averageRating: 5,
+          nextCursorRef: null,
+        },
     ),
     getReview: vi.fn(async () => ({ status: 'not_found' as const })),
     discardReviewCursors: vi.fn(async () => undefined),
-    replyToReview: vi.fn(async () => undefined),
+    replyToReview: vi.fn(async () => ({ providerCorrelationId: null })),
   }
   const observationWriter: ReviewProviderObservationWriter = {
+    allocateReplyReadGeneration: vi.fn(async () => 1),
     persist: vi.fn(async () => ({
       reviewId,
       sourceRevision: 1,
@@ -170,7 +180,19 @@ function makeDeps(
       recordPushObserved: vi.fn(async () => undefined),
     },
     clock: () => NOW,
+    logger: testLogger(),
   }
+}
+
+function testLogger(): LoggerPort {
+  const logger: LoggerPort = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    child: () => logger,
+  }
+  return logger
 }
 
 const request = {
@@ -178,6 +200,7 @@ const request = {
   propertyId,
   connectionId,
   sourceEpoch: 1,
+  observationOrigin: 'ongoing' as const,
   locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
 }
 
@@ -193,9 +216,120 @@ describe('runReviewProviderSnapshot', () => {
     expect(deps.googleReviewApi.listReviewsPage).toHaveBeenCalledWith(
       expect.objectContaining({ pageIndex: 0, phase: 'main', cursorRef: null }),
     )
+    expect(
+      vi.mocked(deps.googleReviewApi.listReviewsPage).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(deps.observationWriter.allocateReplyReadGeneration).mock
+        .invocationCallOrder[0]!,
+    )
     expect(deps.observationWriter.persist).toHaveBeenCalledTimes(1)
+    expect(deps.repository.startOrResume).toHaveBeenCalledWith(
+      expect.objectContaining({ observationOrigin: 'ongoing' }),
+    )
+    expect(deps.observationWriter.persist).toHaveBeenCalledWith(
+      expect.objectContaining({ observationOrigin: 'ongoing' }),
+    )
     expect(deps.repository.commitPage).toHaveBeenCalledWith(
       expect.objectContaining({ expectedPageIndex: 0, observations: expect.any(Array) }),
+    )
+  })
+
+  it('keeps the persisted run origin when a continuation carries a newer hint', async () => {
+    const deps = makeDeps({
+      currentRun: run({ observationOrigin: 'historical_onboarding' }),
+    })
+
+    await runReviewProviderSnapshot(deps)(request)
+
+    expect(deps.observationWriter.persist).toHaveBeenCalledWith(
+      expect.objectContaining({ observationOrigin: 'historical_onboarding' }),
+    )
+  })
+
+  it('measures a review published after a historical import began', async () => {
+    const deps = makeDeps({
+      currentRun: run({
+        observationOrigin: 'historical_onboarding',
+        startedAt: new Date('2026-08-16T00:00:00.000Z'),
+      }),
+      page: {
+        reviews: [
+          {
+            ...review,
+            reviewedAt: new Date('2026-08-16T00:01:00.000Z'),
+            sourceCreatedAt: new Date('2026-08-16T00:01:00.000Z'),
+          },
+        ],
+        totalReviewCount: 1,
+        averageRating: 5,
+        nextCursorRef: null,
+      },
+    })
+
+    await runReviewProviderSnapshot(deps)(request)
+
+    expect(deps.observationWriter.persist).toHaveBeenCalledWith(
+      expect.objectContaining({ observationOrigin: 'ongoing' }),
+    )
+  })
+
+  it('classifies every review against the durable import cutoff', async () => {
+    const cutoff = new Date('2026-08-16T00:00:00.000Z')
+    const deps = makeDeps({
+      currentRun: run({
+        observationOrigin: 'historical_onboarding',
+        startedAt: cutoff,
+      }),
+      page: {
+        reviews: [
+          { ...review, sourceCreatedAt: cutoff },
+          {
+            ...review,
+            reviewName: `${GOOGLE_REVIEW_PRIMARY_RESOURCE}-new`,
+            externalId: `${GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId}-new`,
+            reviewedAt: new Date('2026-08-16T00:00:01.000Z'),
+            sourceCreatedAt: new Date('2026-08-16T00:00:01.000Z'),
+          },
+        ],
+        totalReviewCount: 2,
+        averageRating: 5,
+        nextCursorRef: null,
+      },
+    })
+
+    await runReviewProviderSnapshot(deps)(request)
+
+    expect(deps.observationWriter.persist).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ observationOrigin: 'historical_onboarding' }),
+    )
+    expect(deps.observationWriter.persist).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ observationOrigin: 'ongoing' }),
+    )
+  })
+
+  it('excludes an unusable publication clock instead of inventing timing', async () => {
+    const deps = makeDeps({
+      currentRun: run({ observationOrigin: 'historical_onboarding' }),
+      page: {
+        reviews: [
+          {
+            ...review,
+            reviewedAt: new Date(Number.NaN),
+            sourceCreatedAt: new Date(Number.NaN),
+          },
+        ],
+        totalReviewCount: 1,
+        averageRating: 5,
+        nextCursorRef: null,
+      },
+    })
+
+    await runReviewProviderSnapshot(deps)(request)
+
+    expect(deps.observationWriter.persist).toHaveBeenCalledWith(
+      expect.objectContaining({ observationOrigin: 'legacy_unknown' }),
     )
   })
 
@@ -214,6 +348,7 @@ describe('runReviewProviderSnapshot', () => {
           },
         ],
         totalReviewCount: 2,
+        averageRating: 5,
         nextCursorRef: null,
       },
       observationIsNew: true,
@@ -274,7 +409,12 @@ describe('runReviewProviderSnapshot', () => {
 
   it('fails closed before persistence for a duplicate provider resource', async () => {
     const deps = makeDeps({
-      page: { reviews: [review, review], totalReviewCount: 2, nextCursorRef: null },
+      page: {
+        reviews: [review, review],
+        totalReviewCount: 2,
+        averageRating: 5,
+        nextCursorRef: null,
+      },
     })
 
     await expect(runReviewProviderSnapshot(deps)(request)).resolves.toEqual({
@@ -286,6 +426,32 @@ describe('runReviewProviderSnapshot', () => {
     expect(deps.repository.applyDeletionBatch).not.toHaveBeenCalled()
     expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledTimes(1)
   })
+
+  it.each([
+    { totalReviewCount: 1, averageRating: null },
+    { totalReviewCount: 0, averageRating: 4 },
+    { totalReviewCount: 1, averageRating: -0.1 },
+    { totalReviewCount: 1, averageRating: 5.1 },
+  ])(
+    'fails before persistence when provider aggregate semantics drift: %o',
+    async ({ totalReviewCount, averageRating }) => {
+      const deps = makeDeps({
+        page: {
+          reviews: totalReviewCount === 0 ? [] : [review],
+          totalReviewCount,
+          averageRating,
+          nextCursorRef: null,
+        },
+      })
+
+      await expect(runReviewProviderSnapshot(deps)(request)).resolves.toMatchObject({
+        status: 'failed',
+        code: 'malformed_page',
+      })
+      expect(deps.observationWriter.persist).not.toHaveBeenCalled()
+      expect(deps.repository.commitPage).not.toHaveBeenCalled()
+    },
+  )
 
   it('does not call the provider or delete when the source epoch changed', async () => {
     const deps = makeDeps()
@@ -329,9 +495,46 @@ describe('runReviewProviderSnapshot', () => {
     await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
       { status: 'checkpointed', runId, state: 'confirming' },
     )
+    expect(deps.observationWriter.allocateReplyReadGeneration).not.toHaveBeenCalled()
     expect(deps.repository.confirmLinkedCandidateMissing).not.toHaveBeenCalled()
     expect(deps.repository.failRun).not.toHaveBeenCalled()
     expect(deps.repository.applyDeletionBatch).not.toHaveBeenCalled()
+  })
+
+  it('allocates a targeted reply generation only after acquiring the response', async () => {
+    const deps = makeDeps({
+      currentRun: run({
+        state: 'confirming',
+        phase: 'confirmation',
+        confirmationDeadline: new Date('2026-08-16T12:00:00.000Z'),
+      }),
+    })
+    vi.mocked(deps.repository.readNextLinkedCandidate).mockResolvedValue({
+      runId,
+      reviewId,
+      expectedState: 'linked',
+      expectedSourceRevision: 1,
+      status: 'pending',
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    })
+    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
+      status: 'found',
+      review,
+    })
+
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      { status: 'failed', runId, code: 'confirmation_set_changed' },
+    )
+
+    expect(
+      vi.mocked(deps.googleReviewApi.getReview).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(deps.observationWriter.allocateReplyReadGeneration).mock
+        .invocationCallOrder[0]!,
+    )
+    expect(deps.observationWriter.persist).toHaveBeenCalledWith(
+      expect.objectContaining({ replyReadGeneration: 1 }),
+    )
   })
 
   it('checkpoints a rate-limited page scan and preserves the run cursors', async () => {

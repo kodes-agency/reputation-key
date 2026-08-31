@@ -62,7 +62,8 @@ export type AiExecutionStopFence = Readonly<{
   capabilityGeneration: number
 }>
 
-export type EvaluatedReviewLanguage = string
+/** Persisted BCP-47/`und` tag, distinct from the evaluated catalogue object. */
+export type EvaluatedReviewLanguageTag = string
 export type ConcreteReplyLanguage = Readonly<{
   tag: string
   templateGroup: string
@@ -74,7 +75,7 @@ export type AiExecutionBinding = Readonly<{
   noticeDigest: string
   capabilityFence: AiCapabilityFence
   sourceEpoch: number
-  evaluatedLanguage: EvaluatedReviewLanguage | null
+  evaluatedLanguage: EvaluatedReviewLanguageTag | null
   concreteReplyLanguage: ConcreteReplyLanguage | null
   languageCatalogueDigest: string | null
   replyLanguageVerifierDigest: string | null
@@ -83,6 +84,10 @@ export type AiExecutionBinding = Readonly<{
   sourceRevision: number | null
   reviewedAtEpochMillis: number | null
   propertyProfileVersion: number
+  /** Absent only on operations created before grounded Brand Profile binding. */
+  replyBrandProfileVersion?: number | null
+  /** Absent only on operations created before grounded Brand Profile binding. */
+  replyBrandDisplayNameDigest?: string | null
   routingPolicyVersion: number
   sourcePolicyId: string
   sourceCanonicalizerDigest: string

@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { LockKeyhole } from 'lucide-react'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import type { Action } from '#/components/hooks/use-action'
 import { DirectoryTab } from '#/components/features/property/people/directory-tab'
 import { StaffTab } from '#/components/features/property/people/staff-tab'
-import { TeamsTab } from '#/components/features/property/people/teams-tab'
 import { PageHeader } from '#/components/layout/page-header'
 import { ErrorState, LoadingState } from '#/components/layout/page-states'
 import { PageShell } from '#/components/layout/page-shell'
@@ -14,17 +13,13 @@ import type { PortalOption } from '#/components/features/staff/portal-selector'
 import type {
   ArchiveStaffParticipationMutationInput,
   CreateStaffParticipationMutationInput,
-  CreateTeamMutationInput,
-  MemberOption,
   PortalResponsibilitySelection,
   StaffParticipationView,
-  TeamMembershipView,
-  TeamSummary,
   UpdatePortalResponsibilitiesMutationInput,
-} from '#/components/features/team/shared/types'
+} from '#/components/features/staff/types'
 
 export const peopleSearchSchema = z.object({
-  tab: z.enum(['staff', 'teams', 'directory']).optional(),
+  tab: z.enum(['staff', 'directory']).optional(),
 })
 
 type DirectoryMember = Readonly<{
@@ -39,9 +34,7 @@ interface PeoplePageProps {
   propertyName: string
   participations: ReadonlyArray<StaffParticipationView>
   responsibilities: ReadonlyArray<PortalResponsibilitySelection>
-  memberships: ReadonlyArray<TeamMembershipView>
   members: ReadonlyArray<DirectoryMember>
-  teams: ReadonlyArray<TeamSummary>
   portals: ReadonlyArray<PortalOption>
   portalsDenied: boolean
   canManageStaff?: boolean
@@ -56,8 +49,6 @@ interface PeoplePageProps {
   archiveParticipationMutation: Action<{
     data: ArchiveStaffParticipationMutationInput
   }>
-  createTeamMutation: Action<{ data: CreateTeamMutationInput }>
-  archiveTeamMutation: Action<{ data: { teamId: string } }>
   updateResponsibilitiesMutation: Action<{
     data: UpdatePortalResponsibilitiesMutationInput
   }>
@@ -68,9 +59,7 @@ export function PeoplePage({
   propertyName,
   participations,
   responsibilities,
-  memberships,
   members,
-  teams,
   portals,
   portalsDenied,
   canManageStaff = true,
@@ -81,32 +70,15 @@ export function PeoplePage({
   onTabChange,
   createParticipationMutation,
   archiveParticipationMutation,
-  createTeamMutation,
-  archiveTeamMutation,
   updateResponsibilitiesMutation,
 }: PeoplePageProps) {
   const activeTab = tab ?? 'staff'
   const [createParticipationOpen, setCreateParticipationOpen] = useState(false)
-  const [createTeamOpen, setCreateTeamOpen] = useState(false)
-  const memberOptions: MemberOption[] = members.map((member) => ({
-    userId: member.userId,
-    name: member.name,
-    email: member.email,
-  }))
-  const activeUserIds = new Set(
-    participations
-      .filter(
-        (participation) =>
-          participation.status === 'active' && participation.endedAt == null,
-      )
-      .map((participation) => participation.userId),
-  )
-
   return (
     <PageShell>
       <PageHeader
         title="People"
-        description="Manage property participation, team membership, and portal responsibility."
+        description="Manage property participation and Portal responsibility."
         breadcrumbs={[
           { label: 'Properties', to: '/properties' },
           { label: propertyName, to: `/properties/${propertyId}` },
@@ -115,10 +87,10 @@ export function PeoplePage({
       />
 
       {state === 'loading' ? (
-        <LoadingState label="Loading people and teams" />
+        <LoadingState label="Loading people" />
       ) : state === 'error' ? (
         <ErrorState
-          message={errorMessage ?? 'People and teams could not be loaded.'}
+          message={errorMessage ?? 'People could not be loaded.'}
           onRetry={onRetry}
         />
       ) : state === 'forbidden' ? (
@@ -133,7 +105,6 @@ export function PeoplePage({
         <Tabs value={activeTab} onValueChange={onTabChange}>
           <TabsList className="max-w-full overflow-x-auto">
             <TabsTrigger value="staff">Staff</TabsTrigger>
-            <TabsTrigger value="teams">Teams</TabsTrigger>
             <TabsTrigger value="directory">Directory</TabsTrigger>
           </TabsList>
 
@@ -141,25 +112,14 @@ export function PeoplePage({
             propertyId={propertyId}
             participations={participations}
             responsibilities={responsibilities}
-            memberOptions={memberOptions}
             portalOptions={portals}
             portalsDenied={portalsDenied}
             canManageStaff={canManageStaff}
-            activeUserIds={activeUserIds}
             createMutation={createParticipationMutation}
             archiveMutation={archiveParticipationMutation}
             createOpen={createParticipationOpen}
             onCreateOpenChange={setCreateParticipationOpen}
             updateResponsibilitiesMutation={updateResponsibilitiesMutation}
-          />
-          <TeamsTab
-            propertyId={propertyId}
-            teams={teams}
-            memberships={memberships}
-            createTeamMutation={createTeamMutation}
-            archiveTeamMutation={archiveTeamMutation}
-            createTeamOpen={createTeamOpen}
-            onCreateTeamOpenChange={setCreateTeamOpen}
           />
           <DirectoryTab members={members} />
         </Tabs>

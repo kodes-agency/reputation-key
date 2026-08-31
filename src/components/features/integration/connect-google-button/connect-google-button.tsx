@@ -1,43 +1,48 @@
-import { useState } from 'react'
+import { useCallback } from 'react'
+import { useAction } from '#/components/hooks/use-action'
 import { Button } from '#/components/ui/button'
 import { Loader2 } from 'lucide-react'
+import type { GoogleAuthUrlInput } from '#/contexts/integration/application/public-api'
+
+type NewGoogleAuthorization = Extract<GoogleAuthUrlInput, { connectionMode: 'new' }>
 
 type Props = Readonly<{
-  visibility?: 'private' | 'organization'
-  getAuthUrl: (opts: {
-    data: { visibility: 'private' | 'organization' }
-  }) => Promise<{ url: string }>
+  visibility?: 'organization'
+  getAuthUrl: (opts: { data: NewGoogleAuthorization }) => Promise<{ url: string }>
   disabled?: boolean
 }>
 
 export function ConnectGoogleButton({
-  visibility = 'private',
+  visibility = 'organization',
   getAuthUrl,
   disabled = false,
 }: Props) {
-  const [error, setError] = useState<string | null>(null)
-  const [isConnecting, setIsConnecting] = useState(false)
+  const connect = useAction(getAuthUrl)
 
-  const handleClick = async () => {
+  const handleClick = useCallback(async () => {
     try {
-      setError(null)
-      setIsConnecting(true)
-      const result = await getAuthUrl({ data: { visibility } })
+      const result = await connect({
+        data: {
+          visibility,
+          connectionMode: 'new',
+          targetConnectionId: null,
+        },
+      })
       window.location.href = result.url
     } catch {
-      setError('Failed to connect Google account. Please try again.')
-      setIsConnecting(false)
+      // useAction retains the rejection for the alert below. Catching it here
+      // keeps the click handler from producing an unhandled rejection.
     }
-  }
+  }, [connect, visibility])
 
   return (
     <div>
       <Button
-        onClick={handleClick}
-        disabled={disabled || isConnecting}
-        aria-busy={isConnecting}
+        onClick={() => void handleClick()}
+        disabled={disabled || connect.isPending}
+        aria-busy={connect.isPending}
       >
-        {isConnecting && (
+        {connect.isPending && (
           <Loader2
             className="mr-2 size-4 animate-spin motion-reduce:animate-none"
             aria-hidden="true"
@@ -45,11 +50,11 @@ export function ConnectGoogleButton({
         )}
         Connect Google Account
       </Button>
-      {error && (
+      {connect.error ? (
         <p className="mt-2 text-sm text-destructive" role="alert">
-          {error}
+          Failed to connect Google account. Please try again.
         </p>
-      )}
+      ) : null}
     </div>
   )
 }

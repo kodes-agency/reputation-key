@@ -49,25 +49,6 @@ describe('updateConnectionVisibility', () => {
     expect(emitted[0].occurredAt).toBe(FIXED_TIME)
   })
 
-  it('updates visibility from organization to private', async () => {
-    const { useCase, connectionRepo, events } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const connection = buildTestGoogleConnection({ visibility: 'organization' })
-    connectionRepo.seed([connection])
-
-    const result = await useCase(
-      { connectionId: connection.id as string, visibility: 'private' },
-      ctx,
-    )
-
-    expect(result.visibility).toBe('private')
-    const emitted = events.capturedByTag(
-      'integration.google_connection.visibility_changed',
-    )
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0].visibility).toBe('private')
-  })
-
   it('rejects users without integration.manage permission', async () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'Staff' })

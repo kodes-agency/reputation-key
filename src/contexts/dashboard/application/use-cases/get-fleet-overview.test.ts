@@ -9,8 +9,8 @@ import type {
   FleetOverviewProjectionRow,
 } from '../ports/fleet-overview-projection.port'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
+import { RATING_DROP_THRESHOLD } from '../utils'
 
-const MS_PER_DAY = 86_400_000
 const NOW = new Date('2025-06-15T12:00:00Z')
 const ORG = organizationId('org-test')
 type FleetProperty = Pick<
@@ -36,14 +36,13 @@ const PROP_B: FleetProperty = {
 }
 
 const thirtyDayRange = {
-  startDate: new Date(NOW.getTime() - 30 * MS_PER_DAY),
-  endDate: NOW,
   timeRange: '30d' as const,
 }
 const evidence = {
   definitionVersionId: 'a0000000-0000-4000-8000-000000000099',
-  periodStart: thirtyDayRange.startDate,
-  periodEnd: thirtyDayRange.endDate,
+  periodStart: new Date('2025-05-16T12:00:00Z'),
+  periodEnd: NOW,
+  timezone: 'UTC',
   sourcePolicies: ['google_property_derivative'],
   watermark: NOW,
   freshness: 'fresh' as const,
@@ -72,9 +71,10 @@ function row(
     scanCount: 100,
     feedbackCount: 20,
     unanswered: 0,
-    newFeedback: 0,
+    itemsToTriage: 0,
     escalated: 0,
     goalsBehindPace: 0,
+    needsAttention: 0,
     reviewEvidence: evidence,
     scanEvidence: evidence,
     feedbackEvidence: evidence,
@@ -85,28 +85,29 @@ function row(
 function projection(
   rows: readonly FleetOverviewProjectionRow[],
 ): FleetOverviewProjectionPort {
-  const rated = rows.filter((item) => item.avgRating > 0)
+  const ratingSampleCount = rows.reduce((sum, item) => sum + item.reviewCount, 0)
   return {
     read: async () => ({
       rows,
       summary: {
         propertyCount: rows.length,
+        ratingSampleCount,
         totalAttention: rows.reduce(
           (sum, item) =>
             sum +
-            item.unanswered +
-            item.newFeedback +
-            item.escalated +
-            item.goalsBehindPace +
-            (item.priorAvgRating > 0 && item.priorAvgRating - item.avgRating >= 0.3
+            item.needsAttention +
+            (item.reviewCount >= 10 &&
+            item.priorReviewCount >= 10 &&
+            item.priorAvgRating - item.avgRating >= RATING_DROP_THRESHOLD
               ? 1
               : 0),
           0,
         ),
         overallAvgRating:
-          rated.length === 0
+          ratingSampleCount === 0
             ? 0
-            : rated.reduce((sum, item) => sum + item.avgRating, 0) / rated.length,
+            : rows.reduce((sum, item) => sum + item.avgRating * item.reviewCount, 0) /
+              ratingSampleCount,
       },
       nextAnchor: null,
     }),
@@ -118,7 +119,13 @@ describe('getFleetOverview (use case)', () => {
     const getFleet = getFleetOverview({
       projection: projection([
         row(PROP_B),
-        row(PROP_A, { unanswered: 3, newFeedback: 1, goalsBehindPace: 1 }),
+        row(PROP_A, {
+          unanswered: 3,
+          itemsToTriage: 4,
+          escalated: 2,
+          goalsBehindPace: 1,
+          needsAttention: 5,
+        }),
       ]),
       resolveAccessiblePropertyIds,
       clock: () => NOW,
@@ -132,10 +139,18 @@ describe('getFleetOverview (use case)', () => {
       { name: 'Bravo', totalAttention: 0 },
       { name: 'Alpha', totalAttention: 5 },
     ])
+    expect(result.entries[1]?.attentionSignals).toMatchObject({
+      unanswered: 3,
+      itemsToTriage: 4,
+      escalated: 2,
+      goalsBehindPace: 1,
+      needsAttention: 5,
+    })
     expect(result.totals).toEqual({
       propertyCount: 2,
       totalAttention: 5,
       overallAvgRating: 4.5,
+      ratingSampleCount: 20,
     })
     expect(result.nextCursor).toBeNull()
   })
@@ -157,7 +172,7 @@ describe('getFleetOverview (use case)', () => {
     })
   })
 
-  it('counts a rating drop when the current average fell by at least 0.3', async () => {
+  it('reports an absolute rating delta and flags a sufficiently-supported drop', async () => {
     const getFleet = getFleetOverview({
       projection: projection([row(PROP_A, { avgRating: 4, priorAvgRating: 4.4 })]),
       resolveAccessiblePropertyIds,
@@ -167,11 +182,53 @@ describe('getFleetOverview (use case)', () => {
     const result = await getFleet(baseInput)
 
     expect(result.entries[0]).toMatchObject({
-      avgRatingTrend: -9,
+      avgRatingComparison: -0.4,
       attentionSignals: { ratingDrop: true },
       totalAttention: 1,
     })
     expect(result.totals.totalAttention).toBe(1)
+  })
+
+  it('withholds a rating comparison and drop below the ten-rating floor', async () => {
+    const getFleet = getFleetOverview({
+      projection: projection([
+        row(PROP_A, {
+          avgRating: 4,
+          priorAvgRating: 4.4,
+          reviewCount: 9,
+          priorReviewCount: 10,
+        }),
+      ]),
+      resolveAccessiblePropertyIds,
+      clock: () => NOW,
+    })
+
+    const result = await getFleet(baseInput)
+
+    expect(result.entries[0]).toMatchObject({
+      avgRatingComparison: null,
+      attentionSignals: { ratingDrop: false },
+      totalAttention: 0,
+    })
+  })
+
+  it('does not infer an all-time trend or rating-drop attention signal', async () => {
+    const getFleet = getFleetOverview({
+      projection: projection([row(PROP_A, { avgRating: 4, priorAvgRating: 4.4 })]),
+      resolveAccessiblePropertyIds,
+      clock: () => NOW,
+    })
+
+    const result = await getFleet({
+      ...baseInput,
+      timeRange: 'all',
+    })
+
+    expect(result.entries[0]).toMatchObject({
+      avgRatingComparison: null,
+      attentionSignals: { ratingDrop: false },
+      totalAttention: 0,
+    })
   })
 
   it('excludes zero-rated properties from the overall average', async () => {
@@ -186,7 +243,11 @@ describe('getFleetOverview (use case)', () => {
 
     const result = await getFleet(baseInput)
 
-    expect(result.totals).toMatchObject({ propertyCount: 2, overallAvgRating: 0 })
+    expect(result.totals).toMatchObject({
+      propertyCount: 2,
+      overallAvgRating: 0,
+      ratingSampleCount: 0,
+    })
     expect(result.entries.every((entry) => entry.avgRating === 0)).toBe(true)
   })
 })

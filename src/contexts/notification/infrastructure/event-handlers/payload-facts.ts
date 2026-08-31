@@ -8,7 +8,7 @@
 // Two rules hold everywhere below:
 //
 //  1. ALLOWLIST. Only what ADR 0046 r.8 permits crosses this boundary: property
-//     name, star rating, platform enum, waiting age, actor ROLE, the
+//     name, locally collected Portal rating, platform enum, waiting age, actor ROLE, the
 //     staff-authored moderation reason, and registered display names
 //     (goal/badge/portal). The inbox row also holds a snippet, a reviewer name
 //     and media — those are never read here.
@@ -18,17 +18,8 @@
 //     which BullMQ would only retry into the same failure.
 
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type {
-  BadgeId,
-  GoalId,
-  InboxItemId,
-  OrganizationId,
-  PortalGroupId,
-  PortalId,
-  UserId,
-} from '#/shared/domain/ids'
+import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
-import type { RecognitionLookupPort } from '../../application/ports/recognition-lookup.port'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type {
   NotificationPayload,
@@ -52,15 +43,6 @@ export type InboxPayloadDeps = Readonly<{
   clock: () => Date
   logger: LoggerPort
 }>
-
-export type RecognitionPayloadDeps = Readonly<{
-  recognitionLookup: RecognitionLookupPort
-  logger: LoggerPort
-}>
-
-export type BadgeTarget =
-  | Readonly<{ kind: 'portal'; id: PortalId }>
-  | Readonly<{ kind: 'portal_group'; id: PortalGroupId }>
 
 /** Best-effort read: a throw costs the copy some detail, never the notification. */
 const attempt = async <T>(
@@ -87,8 +69,9 @@ export type InboxPayloadInput = Readonly<{
 
 /**
  * Facts for the nine inbox-keyed notification types: where it happened, how bad
- * the rating is, how long it has been waiting, and — where a person's action
- * drove it — the role of whoever acted.
+ * a locally collected Portal rating, how long it has been waiting, and — where
+ * a person's action drove it — the role of whoever acted. Google/provider
+ * ratings never cross into Notification storage.
  */
 export const buildInboxItemPayload = async (
   deps: InboxPayloadDeps,
@@ -109,7 +92,9 @@ export const buildInboxItemPayload = async (
   const payload: Record<string, unknown> = {}
   if (facts) {
     if (facts.propertyName !== null) payload.propertyName = facts.propertyName
-    if (facts.rating !== null) payload.rating = facts.rating
+    if (facts.sourceType === 'feedback' && facts.guestRating !== null) {
+      payload.guestRating = facts.guestRating
+    }
     const platform = PLATFORM_BY_SOURCE[facts.sourceType]
     if (platform !== undefined) payload.platform = platform
     // Floored hours since the item landed. Below one hour the templates render
@@ -121,48 +106,5 @@ export const buildInboxItemPayload = async (
   }
   if (actorRole !== null) payload.actorRole = actorRole
   if (input.moderationReason) payload.moderationReason = input.moderationReason
-  return payload as NotificationPayload
-}
-
-/** Facts for `goal.completed`: which goal, at which property. */
-export const buildGoalPayload = async (
-  deps: RecognitionPayloadDeps,
-  input: Readonly<{ goalId: GoalId; orgId: OrganizationId }>,
-): Promise<NotificationPayload> => {
-  const facts = await attempt(deps.logger, 'goal facts', () =>
-    deps.recognitionLookup.findGoalFacts(input.goalId, input.orgId),
-  )
-  if (!facts) return {}
-  return facts.propertyName === null
-    ? { goalName: facts.goalName }
-    : { goalName: facts.goalName, propertyName: facts.propertyName }
-}
-
-/**
- * Facts for `badge.awarded`: which badge and which portal / portal group earned
- * it. `targetKind` is always known from the event, so even a dead lookup still
- * yields "A team earned a badge" rather than the raw definition UUID the old
- * handler pasted into the body.
- */
-export const buildBadgePayload = async (
-  deps: RecognitionPayloadDeps,
-  input: Readonly<{
-    badgeDefinitionId: BadgeId
-    target: BadgeTarget
-    orgId: OrganizationId
-  }>,
-): Promise<NotificationPayload> => {
-  const facts = await attempt(deps.logger, 'badge facts', () =>
-    deps.recognitionLookup.findBadgeFacts({
-      badgeDefinitionId: input.badgeDefinitionId,
-      target: input.target,
-      orgId: input.orgId,
-    }),
-  )
-  const payload: Record<string, unknown> = { targetKind: input.target.kind }
-  if (facts) {
-    payload.badgeName = facts.badgeName
-    if (facts.recipientName !== null) payload.recipientName = facts.recipientName
-  }
   return payload as NotificationPayload
 }

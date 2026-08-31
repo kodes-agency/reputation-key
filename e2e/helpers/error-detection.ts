@@ -466,8 +466,14 @@ export const test = base.extend({
     // returned 500 in CI once and gated a green suite (#274). Stub the four
     // hosts with an empty stylesheet; glyph rendering is irrelevant to every
     // assertion. Follow-up for the product: self-host the fonts.
+    //
+    // The pattern is anchored at the scheme and terminated at the authority
+    // delimiter so it matches the HOST and nothing else: an unanchored
+    // alternation also matches these names inside a path or query string, and
+    // would silently answer a first-party request such as
+    // `/api/x?next=fonts.googleapis.com` with an empty stylesheet.
     await page.route(
-      /api\.fontshare\.com|cdn\.fontshare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com/,
+      /^https?:\/\/(?:api\.fontshare\.com|cdn\.fontshare\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)(?:[:/?#]|$)/,
       (route) => route.fulfill({ status: 200, contentType: 'text/css', body: '' }),
     )
     const collector = attachErrorDetection(page)

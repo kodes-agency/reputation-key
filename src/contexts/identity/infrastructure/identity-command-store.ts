@@ -19,23 +19,25 @@
 //   transaction and re-check the last-owner invariant under it, preserving
 //   the pre-BQC-3.5 withOrgLock serialization semantics.
 
-import { randomUUID } from 'crypto'
+import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   invitation,
   member,
   organization,
-  organizationRole,
+  session,
   user as userTable,
 } from '#/shared/db/schema/auth'
-import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
+import { userOrganizationBindings } from '#/shared/db/schema/identity-governance.schema'
+import { invitedRegistrationAttempts } from '#/shared/db/schema/invited-registration.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { isOwnerToken } from '#/shared/domain/roles'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
+import { revokeAllPropertyAccessForUser } from './repositories/property-access-grant.repository'
 import type {
   AcceptInvitationCommand,
   CancelInvitationCommand,
@@ -44,6 +46,7 @@ import type {
   InviteMemberCommand,
   RegisterOrganizationCommand,
   RemoveMemberCommand,
+  ValidateInvitationRegistrationCommand,
 } from '../application/ports/identity-command-store.port'
 
 /**
@@ -87,6 +90,63 @@ async function lockOrg(tx: Tx, orgId: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(${hashStringToInteger(orgId)})`)
 }
 
+async function claimUserOrganizationBinding(
+  tx: Tx,
+  input: Readonly<{
+    userId: string
+    organizationId: string
+    source: 'invitation' | 'operator'
+    invitationId: string | null
+    now: Date
+  }>,
+): Promise<Readonly<{ hasCurrentMembership: boolean }>> {
+  // A row cannot be locked before it exists, so the user-scoped advisory lock
+  // serializes the absent-row race as well as changes to an existing binding.
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user-organization-binding:${input.userId}`}, 0))`,
+  )
+  const memberships = await tx
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, input.userId))
+  if (memberships.some((row) => row.organizationId !== input.organizationId)) {
+    throw identityError(
+      'organization_conflict',
+      'This account already belongs to another Organization',
+    )
+  }
+  const hasCurrentMembership = memberships.some(
+    (row) => row.organizationId === input.organizationId,
+  )
+  const rows = await tx
+    .select()
+    .from(userOrganizationBindings)
+    .where(eq(userOrganizationBindings.userId, input.userId))
+    .limit(1)
+    .for('update')
+  const binding = rows[0]
+  if (!binding) {
+    await tx.insert(userOrganizationBindings).values({
+      userId: input.userId,
+      organizationId: input.organizationId,
+      state: 'active',
+      source: input.source,
+      invitationId: input.invitationId,
+      version: 1,
+      createdAt: input.now,
+      updatedAt: input.now,
+    })
+    return { hasCurrentMembership }
+  }
+  if (binding.state === 'active' && binding.organizationId === input.organizationId) {
+    return { hasCurrentMembership }
+  }
+  throw identityError(
+    'organization_conflict',
+    'This account already has an Organization binding that requires support review',
+  )
+}
+
 /** Count owner-token members of the org. Caller holds the advisory lock. */
 async function countOwners(tx: Tx, orgId: string): Promise<number> {
   const rows = await tx
@@ -107,7 +167,7 @@ async function lockMemberForRoleChange(
   orgId: string,
   memberId: string,
   opts: { newRole?: string } = {},
-): Promise<void> {
+): Promise<typeof member.$inferSelect> {
   await lockOrg(tx, orgId)
   const rows = await tx
     .select()
@@ -130,6 +190,7 @@ async function lockMemberForRoleChange(
       )
     }
   }
+  return target
 }
 
 /** Parse the JSON-encoded propertyIds string from an invitation row. */
@@ -145,52 +206,138 @@ function parsePropertyIds(raw: string | null): ReadonlyArray<string> {
   }
 }
 
-export function createAtomicIdentityCommandStore(
+export const createAtomicIdentityCommandStore = (
   db: Database,
   events: EventBus,
-): IdentityCommandStore {
+  idGen: () => string,
+): IdentityCommandStore => {
   return {
+    validateInvitationRegistration: async (
+      command: ValidateInvitationRegistrationCommand,
+    ) => {
+      const rows = await db
+        .select({
+          email: invitation.email,
+          role: invitation.role,
+          status: invitation.status,
+          expiresAt: invitation.expiresAt,
+        })
+        .from(invitation)
+        .where(eq(invitation.id, command.invitationId as string))
+        .limit(1)
+      const inv = rows[0]
+      if (!inv || inv.status !== 'pending' || inv.expiresAt <= command.now) {
+        throw identityError('invitation_not_found', 'Invitation is not available')
+      }
+      if (inv.email.toLowerCase() !== command.email.toLowerCase()) {
+        throw identityError('forbidden', 'Invitation is not addressed to this email')
+      }
+      if (!isBetaInteractiveMemberRoleToken(inv.role ?? 'member')) {
+        throw identityError(
+          'forbidden',
+          'This invitation is not eligible for beta manager access',
+        )
+      }
+    },
+
     inviteMember: async (command: InviteMemberCommand) => {
       return trace('identity.commandStore.inviteMember', async () => {
+        if (!isBetaInteractiveMemberRoleToken(command.role)) {
+          throw identityError(
+            'forbidden',
+            'Only beta manager roles can receive an account invitation',
+          )
+        }
         const email = command.email.toLowerCase()
         await db.transaction(async (tx) => {
-          // Guard 1 — the invitee must not already be a member of the org
-          // (mirrors better-auth's findMemberByEmail check).
+          // Serialize all invitations for an address, including the
+          // absent-row race across two Organizations.
+          await tx.execute(
+            sql`SELECT pg_advisory_xact_lock(hashtextextended(${`beta-invitation-email:${email}`}, 0))`,
+          )
+
+          // Guard 1 — an existing membership must either be the current org
+          // (duplicate) or another org (closed-beta Organization conflict).
           const memberRows = await tx
-            .select({ id: member.id })
+            .select({ organizationId: member.organizationId })
             .from(member)
             .innerJoin(userTable, eq(member.userId, userTable.id))
-            .where(
-              and(
-                eq(userTable.email, email),
-                eq(member.organizationId, command.organizationId as string),
-              ),
+            .where(sql`LOWER(${userTable.email}) = ${email}`)
+          if (
+            memberRows.some(
+              (row) => row.organizationId === (command.organizationId as string),
             )
-            .limit(1)
-          if (memberRows.length > 0) {
+          ) {
             throw identityError(
               'already_exists',
               'User is already a member of this organization',
             )
           }
-          // Guard 2 — no pending invitation for the same email + org
-          // (mirrors better-auth's findPendingInvitation check).
+          if (memberRows.length > 0) {
+            throw identityError(
+              'organization_conflict',
+              'This account already belongs to another Organization',
+            )
+          }
+
+          // Guard 2 — only one Organization may hold a pending beta manager
+          // invitation for an address at a time.
           const pendingRows = await tx
-            .select({ id: invitation.id })
+            .select({ organizationId: invitation.organizationId })
             .from(invitation)
             .where(
               and(
-                eq(invitation.organizationId, command.organizationId as string),
-                eq(invitation.email, email),
+                sql`LOWER(${invitation.email}) = ${email}`,
                 eq(invitation.status, 'pending'),
               ),
             )
-            .limit(1)
-          if (pendingRows.length > 0) {
+          if (
+            pendingRows.some(
+              (row) => row.organizationId === (command.organizationId as string),
+            )
+          ) {
             throw identityError(
               'already_exists',
               'User is already invited to this organization',
             )
+          }
+          if (pendingRows.length > 0) {
+            throw identityError(
+              'organization_conflict',
+              'This email already has a pending invitation from another Organization',
+            )
+          }
+
+          // Guard 3 — legacy or operator-created bindings may exist without a
+          // membership. A same-org active binding is safe to complete; every
+          // other state needs support resolution before another invite.
+          const users = await tx
+            .select({ id: userTable.id })
+            .from(userTable)
+            .where(sql`LOWER(${userTable.email}) = ${email}`)
+            .limit(1)
+          if (users[0]) {
+            const bindings = await tx
+              .select({
+                organizationId: userOrganizationBindings.organizationId,
+                state: userOrganizationBindings.state,
+              })
+              .from(userOrganizationBindings)
+              .where(eq(userOrganizationBindings.userId, users[0].id))
+              .limit(1)
+            const binding = bindings[0]
+            if (
+              binding &&
+              !(
+                binding.state === 'active' &&
+                binding.organizationId === (command.organizationId as string)
+              )
+            ) {
+              throw identityError(
+                'organization_conflict',
+                'This account has an Organization binding that requires support review',
+              )
+            }
           }
           await insertInvitationRow(tx, {
             id: command.invitationId as string,
@@ -212,7 +359,7 @@ export function createAtomicIdentityCommandStore(
     acceptInvitation: async (command: AcceptInvitationCommand) => {
       return trace('identity.commandStore.acceptInvitation', async () => {
         const acceptorEmail = command.acceptorEmail.toLowerCase()
-        const { result, event } = await db.transaction(async (tx) => {
+        const outcome = await db.transaction(async (tx) => {
           // 1. Lock + load the invitation (serializes concurrent accepts).
           //    Explicit column list — the drizzle mirror carries speculative
           //    columns (teamId) that real better-auth tables do not have.
@@ -247,41 +394,65 @@ export function createAtomicIdentityCommandStore(
           if (inv.expiresAt <= command.now) {
             throw identityError('invitation_not_found', 'Invitation has expired')
           }
-          // 4. Re-validate the role at acceptance (custom roles must still
-          //    exist as organizationRole + policy, else mark rejected).
-          const role = (inv.role ?? 'member').trim().toLowerCase()
-          if (!['owner', 'admin', 'member'].includes(role)) {
-            const [roleDefs, policies] = await Promise.all([
-              tx
-                .select({ id: organizationRole.id })
-                .from(organizationRole)
-                .where(
-                  and(
-                    eq(organizationRole.organizationId, inv.organizationId),
-                    eq(organizationRole.role, role),
-                  ),
-                ),
-              tx
-                .select({ id: organizationRolePolicy.id })
-                .from(organizationRolePolicy)
-                .where(
-                  and(
-                    eq(organizationRolePolicy.organizationId, inv.organizationId),
-                    eq(organizationRolePolicy.role, role),
-                  ),
-                ),
-            ])
-            if (roleDefs.length === 0 || policies.length === 0) {
-              await tx
-                .update(invitation)
-                .set({ status: 'rejected' })
-                .where(eq(invitation.id, inv.id))
-              throw identityError('forbidden', 'Invitation role is no longer available')
+          if (command.registrationAttemptId) {
+            const registrationRows = await tx
+              .select({
+                id: invitedRegistrationAttempts.id,
+                invitationId: invitedRegistrationAttempts.invitationId,
+                organizationId: invitedRegistrationAttempts.organizationId,
+                expectedUserId: invitedRegistrationAttempts.expectedUserId,
+                state: invitedRegistrationAttempts.state,
+              })
+              .from(invitedRegistrationAttempts)
+              .where(eq(invitedRegistrationAttempts.id, command.registrationAttemptId))
+              .for('update')
+            const registration = registrationRows[0]
+            if (
+              !registration ||
+              registration.state !== 'prepared' ||
+              registration.invitationId !== inv.id ||
+              registration.organizationId !== inv.organizationId ||
+              registration.expectedUserId !== (command.acceptorUserId as string)
+            ) {
+              throw identityError(
+                'registration_failed',
+                'Registration recovery fence does not match this invitation',
+              )
             }
           }
-          // 5. Create the membership + mark accepted.
+          // 4. Re-validate the role at acceptance. Staff users and custom
+          //    roles are retained as data but cannot become beta logins.
+          const role = (inv.role ?? 'member').trim().toLowerCase()
+          if (!isBetaInteractiveMemberRoleToken(role)) {
+            await tx
+              .update(invitation)
+              .set({ status: 'rejected' })
+              .where(eq(invitation.id, inv.id))
+            return {
+              kind: 'rejected' as const,
+              message: 'This invitation is not eligible for beta manager access',
+            }
+          }
+          // 5. Claim the beta Organization binding while the invitation is
+          //    still locked. An incompatible binding aborts membership,
+          //    invitation consumption, and the fact together.
+          const bindingClaim = await claimUserOrganizationBinding(tx, {
+            userId: command.acceptorUserId as string,
+            organizationId: inv.organizationId,
+            source: 'invitation',
+            invitationId: inv.id,
+            now: command.now,
+          })
+          if (bindingClaim.hasCurrentMembership) {
+            throw identityError(
+              'already_exists',
+              'User is already a member of this Organization',
+            )
+          }
+
+          // 6. Create the membership + mark accepted.
           await tx.insert(member).values({
-            id: randomUUID(),
+            id: idGen(),
             organizationId: inv.organizationId,
             userId: command.acceptorUserId as string,
             role,
@@ -291,17 +462,35 @@ export function createAtomicIdentityCommandStore(
             .update(invitation)
             .set({ status: 'accepted' })
             .where(eq(invitation.id, inv.id))
-          // 6. The fact carries invitation-row data read under the lock.
+          // 7. The fact carries invitation-row data read under the lock.
           const accepted = {
             organizationId: toOrganizationId(inv.organizationId),
             propertyIds: parsePropertyIds(inv.propertyIds),
           }
           const fact = command.buildEvent(accepted)
           await insertOutboxRow(tx, fact)
-          return { result: accepted, event: fact }
+          if (command.registrationAttemptId) {
+            await tx
+              .update(invitedRegistrationAttempts)
+              .set({
+                state: 'accepted',
+                providerObservedAt: command.now,
+                acceptedAt: command.now,
+                nextRecoveryAt: null,
+                leaseOwner: null,
+                leaseExpiresAt: null,
+                lastFailureCode: null,
+                updatedAt: command.now,
+              })
+              .where(eq(invitedRegistrationAttempts.id, command.registrationAttemptId))
+          }
+          return { kind: 'accepted' as const, result: accepted, event: fact }
         })
-        await emitAfterCommit(events, event)
-        return result
+        if (outcome.kind === 'rejected') {
+          throw identityError('forbidden', outcome.message)
+        }
+        await emitAfterCommit(events, outcome.event)
+        return outcome.result
       })
     },
 
@@ -330,11 +519,51 @@ export function createAtomicIdentityCommandStore(
     removeMember: async (command: RemoveMemberCommand) => {
       return trace('identity.commandStore.removeMember', async () => {
         await db.transaction(async (tx) => {
-          await lockMemberForRoleChange(
+          const target = await lockMemberForRoleChange(
             tx,
             command.organizationId as string,
             command.memberId,
           )
+          if (target.userId !== (command.event.userId as string)) {
+            throw identityError(
+              'organization_conflict',
+              'Member removal fact does not match the locked member authority',
+            )
+          }
+          // Membership removal is also login offboarding. Revoke every
+          // current Better Auth session and release the singular beta
+          // Organization binding in the same transaction as the membership
+          // deletion and durable fact. A stale cookie or binding therefore
+          // cannot survive a committed removal.
+          await tx.delete(session).where(eq(session.userId, target.userId))
+          await tx
+            .update(userOrganizationBindings)
+            .set({
+              state: 'released',
+              version: sql`${userOrganizationBindings.version} + 1`,
+              resolutionReason: 'member_removed',
+              releasedAt: command.event.occurredAt,
+              updatedAt: command.event.occurredAt,
+            })
+            .where(
+              and(
+                eq(userOrganizationBindings.userId, target.userId),
+                eq(
+                  userOrganizationBindings.organizationId,
+                  command.organizationId as string,
+                ),
+                eq(userOrganizationBindings.state, 'active'),
+              ),
+            )
+          // LIF-01-T21: Identity owns `property_access_grant`, so revoking it
+          // belongs in this transaction rather than in a preceding one. A
+          // grant that survived a committed membership deletion would be
+          // live access with no membership behind it.
+          await revokeAllPropertyAccessForUser(tx, {
+            organizationId: command.organizationId as string,
+            userId: target.userId,
+            reason: 'member_offboarded',
+          })
           await tx
             .delete(member)
             .where(
@@ -351,6 +580,12 @@ export function createAtomicIdentityCommandStore(
 
     changeMemberRole: async (command: ChangeMemberRoleCommand) => {
       return trace('identity.commandStore.changeMemberRole', async () => {
+        if (!isBetaInteractiveMemberRoleToken(command.newRole)) {
+          throw identityError(
+            'forbidden',
+            'Only beta manager roles can be assigned to login accounts',
+          )
+        }
         await db.transaction(async (tx) => {
           await lockMemberForRoleChange(
             tx,
@@ -397,11 +632,21 @@ export function createAtomicIdentityCommandStore(
             createdAt: command.now,
           })
           await tx.insert(member).values({
-            id: randomUUID(),
+            id: idGen(),
             organizationId: command.organizationId as string,
             userId: command.ownerId as string,
             role: 'owner',
             createdAt: command.now,
+          })
+          // Migration 0159 owns lifecycle provisioning with an AFTER INSERT
+          // trigger on Better Auth's Organization table. Writing a second row
+          // here would race that database authority and fail the whole command.
+          await claimUserOrganizationBinding(tx, {
+            userId: command.ownerId as string,
+            organizationId: command.organizationId as string,
+            source: 'operator',
+            invitationId: null,
+            now: command.now,
           })
           await insertOutboxRow(tx, command.event)
         })

@@ -4,7 +4,7 @@
 // Action objects), so stories inject fn() spies. render-based stories let one
 // file cover all three exported components under a single CSF title.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   ReplyPendingApproval,
   ReplyPublishFailed,
@@ -31,7 +31,7 @@ type Story = StoryObj<typeof ReplyPendingApproval>
 
 // ── pending_approval ─────────────────────────────────────────────────
 
-// Awaiting approval → Approve + Reject actions.
+// Awaiting approval → explicit Confirm & Publish + Reject actions.
 export const PendingApproval: Story = {
   render: () => (
     <ReplyPendingApproval
@@ -43,7 +43,7 @@ export const PendingApproval: Story = {
   ),
 }
 
-// isSaving → Approve + Reject both disabled.
+// isSaving → Confirm & Publish + Reject both disabled.
 export const PendingApprovalSaving: Story = {
   render: () => (
     <ReplyPendingApproval
@@ -55,8 +55,36 @@ export const PendingApprovalSaving: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByRole('button', { name: /approve/i })).toBeDisabled()
+    expect(canvas.getByRole('button', { name: /confirm & publish/i })).toBeDisabled()
     expect(canvas.getByRole('button', { name: /^reject$/i })).toBeDisabled()
+  },
+}
+
+export const ConfirmAndPublish: Story = {
+  render: () => (
+    <ReplyPendingApproval
+      reply={{ text: replyText, publishedAt: null, rejectionReason: null }}
+      isSaving={false}
+      onApprove={onApprove}
+      onReject={onReject}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    onApprove.mockClear()
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /confirm & publish/i }))
+    const dialog = await within(document.body).findByRole('alertdialog')
+    // The confirmation copy is the assertion, and it mounts with the dialog's
+    // entry animation — wait for it rather than sampling the first frame.
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText(/keeps it pending until google confirms/i),
+      ).toBeVisible(),
+    )
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: /confirm & publish/i }),
+    )
+    expect(onApprove).toHaveBeenCalledOnce()
   },
 }
 
@@ -85,7 +113,7 @@ export const RejectWithReason: Story = {
 
 // ── publish_failed ────────────────────────────────────────────────────
 
-// Publish failed → error note + Retry action.
+// An unconfirmed update → calm status note + safe check-and-retry action.
 export const PublishFailed: Story = {
   render: () => (
     <ReplyPublishFailed
@@ -94,6 +122,16 @@ export const PublishFailed: Story = {
       onRetry={onRetry}
     />
   ),
+  play: async ({ canvasElement }) => {
+    onRetry.mockClear()
+    const canvas = within(canvasElement)
+    expect(canvas.getByText(/needs a check/i)).toBeInTheDocument()
+    expect(
+      canvas.getByText(/google has not confirmed this reply yet/i),
+    ).toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: /check and retry/i }))
+    expect(onRetry).toHaveBeenCalledOnce()
+  },
 }
 
 // isSaving → Retry disabled.
@@ -107,7 +145,7 @@ export const PublishFailedSaving: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByRole('button', { name: /retry publish/i })).toBeDisabled()
+    expect(canvas.getByRole('button', { name: /check and retry/i })).toBeDisabled()
   },
 }
 

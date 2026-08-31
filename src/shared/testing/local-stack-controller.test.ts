@@ -29,11 +29,17 @@ describe('local stack controller', () => {
 
     expect(new Set(ports.map(({ postgres }) => postgres))).toHaveLength(3)
     expect(new Set(ports.map(({ redis }) => redis))).toHaveLength(3)
+    expect(new Set(ports.map(({ queueRedis }) => queueRedis))).toHaveLength(3)
     expect(new Set(ports.map(({ googleGateway }) => googleGateway))).toHaveLength(3)
+    // Cache and queue Redis are separate SERVERS, so they need separate host
+    // ports; sharing one would silently point e2e fixtures at the wrong server.
+    expect(
+      new Set(ports.flatMap(({ redis, queueRedis }) => [redis, queueRedis])),
+    ).toHaveLength(6)
     expect(ports).toEqual([
-      { postgres: 55432, redis: 56379, googleGateway: 58443 },
-      { postgres: 55433, redis: 56380, googleGateway: 58444 },
-      { postgres: 55434, redis: 56381, googleGateway: 58445 },
+      { postgres: 55432, redis: 56379, queueRedis: 56389, googleGateway: 58443 },
+      { postgres: 55433, redis: 56380, queueRedis: 56390, googleGateway: 58444 },
+      { postgres: 55434, redis: 56381, queueRedis: 56391, googleGateway: 58445 },
     ])
   })
 
@@ -69,6 +75,8 @@ describe('local stack controller', () => {
     expect(env.GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
     expect(env.GOOGLE_SESSION_BINDING_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
     expect(env.GOOGLE_ADMISSION_GRANT_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
+    expect(env.NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
+    expect(env.GOOGLE_ADMISSION_DATABASE_PASSWORD).toMatch(/^[a-f0-9]{64}$/)
     expect(env.GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
     expect(env.AI_CONTROL_DATABASE_PASSWORD).toMatch(/^[a-f0-9]{64}$/)
     expect(env.AI_SUBJECT_HMAC_KEYS).toMatch(/^subject-v1:[a-f0-9]{64}$/)
@@ -86,7 +94,7 @@ describe('local stack controller', () => {
     expect(env.POSTGRES_PASSWORD).not.toContain('password')
   })
 
-  it('sets only account-bootstrap overrides on the permissive E2E web', () => {
+  it('sets no product capability overrides on the E2E web', () => {
     const env = buildLocalStackEnv({
       mode: 'e2e',
       revision: 'b'.repeat(40),

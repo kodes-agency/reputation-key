@@ -14,8 +14,11 @@ const onSubmit = fn(async () => undefined)
 const onDelete = fn(async () => undefined)
 const SUGGESTED_REPLY =
   'Thank you for the thoughtful review. We are glad you enjoyed your visit.'
+const FALLBACK_REPLY =
+  'Thank you for sharing your feedback. We appreciate the opportunity to listen.'
 const readySuggestion = (): Extract<ReplySuggestionResult, { status: 'ready' }> => ({
   status: 'ready',
+  profileVersion: 'reply-draft-v2',
   replyText: SUGGESTED_REPLY,
   provenanceToken: 'test-provenance-token',
   expiresAtEpochMillis: Date.now() + 60_000,
@@ -23,11 +26,18 @@ const readySuggestion = (): Extract<ReplySuggestionResult, { status: 'ready' }> 
   concreteLanguageTag: 'en-Latn',
 })
 const onGenerateSuggestion = fn(async () => readySuggestion())
+const onGenerateFallback = fn(async (): Promise<ReplySuggestionResult> => ({
+  status: 'fallback',
+  kind: 'local_safe_template',
+  reason: 'provider_or_output_unavailable',
+  replyText: FALLBACK_REPLY,
+  concreteLanguageTag: 'en-Latn',
+}))
 const onGenerateDetectedSuggestion = fn(async () => ({
   ...readySuggestion(),
-  concreteLanguageTag: 'tr-Latn',
+  concreteLanguageTag: 'en-Latn',
 }))
-const onGenerateUnavailable = fn(async () => ({
+const onGenerateUnavailable = fn(async (): Promise<ReplySuggestionResult> => ({
   status: 'unavailable' as const,
   code: 'language_not_supported',
   retryAfterEpochMillis: null,
@@ -56,7 +66,7 @@ const meta: Meta<typeof ReplyCompose> = {
     initialText: '',
     initialLanguageTag: null,
     propertyDefaultReplyLanguage: 'en-Latn',
-    reviewReplyLanguage: 'tr-Latn-TR',
+    reviewReplyLanguage: 'en-Latn-US',
     canDetectReviewLanguage: true,
     isSaving: false,
     onSaveDraft,
@@ -139,6 +149,10 @@ export const AiSuggestionAdoption: Story = {
     onGenerateSuggestion.mockClear()
     onSaveDraft.mockClear()
     await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+    await expect(canvas.findByText(SUGGESTED_REPLY)).resolves.toBeVisible()
+    expect(canvas.getByRole('textbox')).not.toHaveValue(SUGGESTED_REPLY)
+    expect(onSaveDraft).not.toHaveBeenCalled()
+    await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
     await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(SUGGESTED_REPLY))
     await waitFor(() =>
       expect(onSaveDraft).toHaveBeenCalledWith(
@@ -146,6 +160,27 @@ export const AiSuggestionAdoption: Story = {
         'test-provenance-token',
         'en-Latn',
       ),
+    )
+  },
+}
+
+export const LocalFallbackRequiresAdoption: Story = {
+  args: { onGenerateSuggestion: onGenerateFallback },
+  play: async ({ canvas }) => {
+    onGenerateFallback.mockClear()
+    onSaveDraft.mockClear()
+
+    await userEvent.click(canvas.getByRole('button', { name: /draft with ai/i }))
+
+    await expect(canvas.findByText('Local safe starting point')).resolves.toBeVisible()
+    expect(canvas.getByRole('textbox')).not.toHaveValue(FALLBACK_REPLY)
+    expect(onSaveDraft).not.toHaveBeenCalled()
+
+    await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
+
+    await waitFor(() => expect(canvas.getByRole('textbox')).toHaveValue(FALLBACK_REPLY))
+    await waitFor(() =>
+      expect(onSaveDraft).toHaveBeenCalledWith(FALLBACK_REPLY, undefined, 'en-Latn'),
     )
   },
 }
@@ -179,16 +214,18 @@ export const AiDetectsMissingReviewLanguage: Story = {
         kind: 'review_language',
       }),
     )
+    expect(onSaveDraft).not.toHaveBeenCalled()
+    await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
     await waitFor(() =>
       expect(onSaveDraft).toHaveBeenCalledWith(
         SUGGESTED_REPLY,
         'test-provenance-token',
-        'tr-Latn',
+        'en-Latn',
       ),
     )
     await waitFor(() =>
       expect(canvas.getByRole('combobox', { name: 'Reply language' })).toHaveTextContent(
-        /Turkish\s*·\s*Review language/i,
+        /English\s*·\s*Review language/i,
       ),
     )
 
@@ -202,11 +239,11 @@ export const AiDetectsMissingReviewLanguage: Story = {
       expect(onSaveDraft).toHaveBeenLastCalledWith(
         'Thank you for sharing your experience.',
         undefined,
-        'tr-Latn',
+        'en-Latn',
       ),
     )
     expect(canvas.getByRole('combobox', { name: 'Reply language' })).toHaveTextContent(
-      /Turkish\s*·\s*Review language/i,
+      /English\s*·\s*Review language/i,
     )
   },
 }
@@ -243,8 +280,9 @@ export const ChooseReviewLanguageWhenMetadataIsMissing: Story = {
         kind: 'review_language',
       }),
     )
+    await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
     await waitFor(() =>
-      expect(languageSelect).toHaveTextContent(/Turkish\s*·\s*Review language/i),
+      expect(languageSelect).toHaveTextContent(/English\s*·\s*Review language/i),
     )
   },
 }

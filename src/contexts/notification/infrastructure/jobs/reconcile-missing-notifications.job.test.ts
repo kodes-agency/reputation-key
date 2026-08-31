@@ -142,7 +142,7 @@ const makeHarness = (
   recipients: readonly UserId[] = [NOTIF_TEST_IDS.manager1],
 ): Harness => {
   const fakes = createEventHandlerDeps()
-  fakes.userLookup.findAssignedManagers.mockResolvedValue(recipients)
+  fakes.responsibleManagers.findForProperty.mockResolvedValue(recipients)
   const notified = new Set<string>()
   const gapRepo = fakeGapRepo(items, notified)
 
@@ -161,6 +161,7 @@ const makeHarness = (
   const handler = createReconcileMissingNotificationsHandler({
     queue: fakes.queue,
     userLookup: fakes.userLookup,
+    responsibleManagers: fakes.responsibleManagers,
     inboxItemLookup: fakes.inboxItemLookup,
     clock: () => NOW,
     logger: fakes.logger,
@@ -209,8 +210,27 @@ describe('reconcile-missing-notifications sweep', () => {
         type: 'review.created',
         resourceType: 'inbox_item',
         resourceId: 'item-1',
-        eventId: 'reconcile:item-1',
+        // A UUID, not `reconcile:item-1`: this identity reaches
+        // event_consumer_receipts.event_id, which is a uuid column. Derived
+        // from the item, so the sweep stays idempotent.
+        eventId: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+        ),
       }),
+    )
+    expect(fakes.logger.info).toHaveBeenCalledWith(
+      {
+        candidatesSeen: 1,
+        itemsHealed: 1,
+        notificationsEnqueued: 1,
+        itemsSkipped: 0,
+        itemsFailed: 0,
+        batchesProcessed: 1,
+        budgetExhausted: false,
+        lookbackMs: DEFAULT_RECONCILE_LOOKBACK_MS,
+        graceMs: DEFAULT_RECONCILE_GRACE_MS,
+      },
+      'Reconcile missing notifications sweep finished',
     )
   })
 

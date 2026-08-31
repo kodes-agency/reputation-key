@@ -22,8 +22,8 @@ describe('onInboxNoteAdded (notification)', () => {
     deps = createEventHandlerDeps()
   })
 
-  it('enqueues a notification job for each manager excluding the note author', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([
+  it('notifies current Property responsibility for unassigned review work, excluding the author', async () => {
+    deps.responsibleManagers.findForProperty.mockResolvedValue([
       NOTIF_TEST_IDS.authorId,
       NOTIF_TEST_IDS.manager1,
       NOTIF_TEST_IDS.manager2,
@@ -39,6 +39,10 @@ describe('onInboxNoteAdded (notification)', () => {
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         payload: { ...EXPECTED_INBOX_PAYLOAD, actorRole: 'property_manager' },
+        audience: {
+          kind: 'responsible_scope',
+          scope: { kind: 'property', propertyId: NOTIF_TEST_IDS.propId },
+        },
       }),
     )
     expect(deps.jobs[1]).toEqual(
@@ -48,24 +52,28 @@ describe('onInboxNoteAdded (notification)', () => {
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         payload: { ...EXPECTED_INBOX_PAYLOAD, actorRole: 'property_manager' },
+        audience: {
+          kind: 'responsible_scope',
+          scope: { kind: 'property', propertyId: NOTIF_TEST_IDS.propId },
+        },
       }),
     )
   })
 
   it('looks up managers by propertyId', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
 
     await onInboxNoteAdded(deps)(noteAddedEvent)
 
-    expect(deps.userLookup.findAssignedManagers).toHaveBeenCalledWith(
+    expect(deps.responsibleManagers.findForProperty).toHaveBeenCalledWith(
       NOTIF_TEST_IDS.orgId,
       NOTIF_TEST_IDS.propId,
     )
   })
 
   it('does not enqueue any jobs when all managers are filtered out (self-notification)', async () => {
-    // Only the author is a manager — gets filtered out
-    deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.authorId])
+    // Only the author is responsible — gets filtered out.
+    deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.authorId])
 
     await onInboxNoteAdded(deps)(noteAddedEvent)
 
@@ -73,7 +81,7 @@ describe('onInboxNoteAdded (notification)', () => {
   })
 
   it('does not enqueue any jobs when no managers are found', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
 
     await onInboxNoteAdded(deps)(noteAddedEvent)
 
@@ -81,7 +89,7 @@ describe('onInboxNoteAdded (notification)', () => {
   })
 
   it('logs a warning when no recipients after filtering', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.authorId])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.authorId])
 
     await onInboxNoteAdded(deps)(noteAddedEvent)
 
@@ -92,7 +100,7 @@ describe('onInboxNoteAdded (notification)', () => {
   })
 
   it('propagates error from userLookup', async () => {
-    deps.userLookup.findAssignedManagers.mockRejectedValue(new Error('DB down'))
+    deps.responsibleManagers.findForProperty.mockRejectedValue(new Error('DB down'))
 
     await expect(onInboxNoteAdded(deps)(noteAddedEvent)).rejects.toThrow('DB down')
   })
@@ -103,5 +111,26 @@ describe('onInboxNoteAdded (notification)', () => {
     await expect(onInboxNoteAdded(deps)(noteAddedEvent)).rejects.toThrow(
       'Queue unavailable',
     )
+  })
+
+  it('narrows routine collaboration to the explicit assignee after claim', async () => {
+    deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
+      propertyId: NOTIF_TEST_IDS.propId,
+      portalId: null,
+      assignedTo: NOTIF_TEST_IDS.manager1,
+      propertyName: 'Riverside Hotel',
+      guestRating: null,
+      sourceType: 'review',
+      createdAt: new Date('2026-06-01T09:00:00.000Z'),
+    })
+    deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager2])
+
+    await onInboxNoteAdded(deps)(noteAddedEvent)
+
+    expect(deps.jobs).toHaveLength(1)
+    expect(deps.jobs[0]!.data).toEqual(
+      expect.objectContaining({ userId: NOTIF_TEST_IDS.manager1 }),
+    )
+    expect(deps.responsibleManagers.findForProperty).not.toHaveBeenCalled()
   })
 })

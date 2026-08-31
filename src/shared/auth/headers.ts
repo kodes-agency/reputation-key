@@ -1,25 +1,17 @@
-// Shared helper — build request headers from the current TanStack Start server context.
-// Used by server functions and the auth identity adapter to pass session cookies
-// to better-auth server APIs that authenticate via cookies.
+// Shared helper — build request headers from the current TanStack Start server
+// context. Used by server functions that pass session cookies to better-auth
+// server APIs which authenticate via cookies.
 //
-// Uses dynamic import to avoid @tanstack/react-start/server being part of
-// the static module graph, which triggers TanStack's client-side import protection.
-// This allows the module to be safely imported from composition.ts which is
-// reachable from both client and server code.
+// ARC-03-T13: the implementation now lives in the ONE request-context adapter
+// (tanstack-request-context.ts). This stays as the ergonomic call shape for
+// request-scoped server functions, which already run inside a request; anything
+// that is composed into a container takes the RequestContextPort instead.
+
+import { createTanstackRequestContext } from './tanstack-request-context'
+
+const requestContext = createTanstackRequestContext()
 
 /** Build a Headers object carrying the current request's cookies and headers. */
 export async function headersFromContext(): Promise<Headers> {
-  const headers = new Headers()
-  try {
-    const { getRequest } = await import('@tanstack/react-start/server')
-    const req = getRequest()
-    if (req) {
-      req.headers.forEach((value: string, key: string) => {
-        headers.append(key, value)
-      })
-    }
-  } catch {
-    // Outside server context (e.g., worker) — return empty headers
-  }
-  return headers
+  return requestContext.currentRequestHeaders()
 }

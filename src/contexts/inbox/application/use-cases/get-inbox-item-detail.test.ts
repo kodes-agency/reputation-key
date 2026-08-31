@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { getInboxItemDetail } from './get-inbox-item-detail'
 import {
   inboxItemId,
+  feedbackId,
   organizationId,
   propertyId,
   replyId,
@@ -17,10 +18,14 @@ import type {
 import type { ReplyLookupPort, ReplyView } from '../ports/reply-lookup.port'
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { AiReviewInsightsPort } from '../ports/ai-review-insights.port'
+import type { FeedbackHandlingStore } from '../ports/feedback-handling.store'
+import type { ResponseTargetStore } from '../ports/response-target.store'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
 import { isInboxError } from '../../domain/errors'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -32,13 +37,11 @@ const USER_ID = userId('user-1')
 const adminStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids.map(propertyId),
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
@@ -64,6 +67,7 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
     closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
+    commandRevision: 1,
     createdAt: FIXED_TIME,
     updatedAt: FIXED_TIME,
     ...overrides,
@@ -101,6 +105,7 @@ function makeReply(): ReplyView {
     publishedAt: null,
     publicationState: null,
     publicationAttempts: 0,
+    publicationCycle: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
     createdAt: FIXED_TIME,
@@ -114,8 +119,20 @@ const setup = (
 ) => {
   let storedDetail: InboxItemDetail | null = null
   const replyCalls: string[] = []
+  const findDetailById = vi.fn(async (id, orgId) =>
+    storedDetail &&
+    storedDetail.item.id === id &&
+    storedDetail.item.organizationId === orgId
+      ? storedDetail
+      : null,
+  )
   const repo: InboxRepository = {
-    findById: async () => null,
+    findById: async (id, orgId) =>
+      storedDetail &&
+      storedDetail.item.id === id &&
+      storedDetail.item.organizationId === orgId
+        ? storedDetail.item
+        : null,
     findBySource: async () => null,
     findFilteredPaginated: async () => ({
       items: [],
@@ -124,7 +141,8 @@ const setup = (
     }),
     create: async (item) => item,
     updateStatus: async () => storedDetail!.item,
-    bulkUpdateStatus: async () => ({ updated: 0 }),
+    bulkUpdateStatus: async () => ({ updated: 0, results: [] }),
+    stampReplyMilestones: async () => storedDetail!.item,
     updateAssignment: async () => storedDetail!.item,
     countByStatus: async () => 0,
     findByIds: async () => [],
@@ -133,19 +151,11 @@ const setup = (
     countEscalatedActive: vi.fn(async () => 0),
     countOpenSince: vi.fn(async () => 0),
     updateSourceMeta: vi.fn(async () => null),
+    clearReviewSourceContent: vi.fn(async () => null),
     scanReviewItems: vi.fn(async () => []),
-    findDetailById: async (id, orgId) =>
-      storedDetail &&
-      storedDetail.item.id === id &&
-      storedDetail.item.organizationId === orgId
-        ? storedDetail
-        : null,
+    findDetailById,
   }
   const replyLookup: ReplyLookupPort = {
-    getReplyByReviewId: async (id) => {
-      replyCalls.push(id)
-      return reply
-    },
     getEffectiveReplyByReviewId: async (id) => {
       replyCalls.push(id)
       return reply
@@ -157,6 +167,7 @@ const setup = (
     staffApi,
     replyLookup,
     replyCalls,
+    findDetailById,
     setDetail: (d: InboxItemDetail) => {
       storedDetail = d
     },
@@ -165,6 +176,16 @@ const setup = (
 
 const ctxFor = (role: Role): AuthContext =>
   ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
+
+const ctxWith = (...permissions: Permission[]): AuthContext => ({
+  organizationId: ORG_ID,
+  userId: USER_ID,
+  role: 'Staff',
+  effectivePermissions: new Set(permissions),
+  scopeByPermission: new Map(
+    permissions.map((permission) => [permission, 'organization' as const]),
+  ),
+})
 
 describe('getInboxItemDetail', () => {
   it('returns detail for a valid inbox item', async () => {
@@ -354,5 +375,168 @@ describe('getInboxItemDetail', () => {
 
     expect(result.reply).toBeNull()
     expect(replyCalls).toHaveLength(0)
+  })
+
+  it('attaches internal handling history only for a manager who can handle feedback', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+    const getState = vi.fn(async () => ({
+      cycleNumber: 1,
+      sourceRevision: 2,
+      stateRevision: 1,
+      status: 'open' as const,
+      closeReason: null,
+      currentOutcome: null,
+      history: [],
+    }))
+    const feedbackHandlingStore = { getState } as unknown as FeedbackHandlingStore
+
+    const result = await getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      feedbackHandlingStore,
+    })(
+      { inboxItemId: ITEM_ID },
+      ctxWith('inbox.read', 'inbox.write', 'feedback.read', 'feedback.handle'),
+    )
+
+    expect(result.feedbackHandling).toMatchObject({
+      cycleNumber: 1,
+      sourceRevision: 2,
+      status: 'open',
+    })
+    expect(getState).toHaveBeenCalledWith(ITEM_ID, ORG_ID)
+  })
+
+  it('attaches the exact current-cycle response target using one server instant', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+    const target = {
+      inboxItemId: ITEM_ID,
+      cycleNumber: 1,
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      targetKind: 'private_feedback_handling' as const,
+      eligibility: 'measured' as const,
+      durationMinutes: 2_880,
+      policySource: 'builtin_default' as const,
+      policyVersion: 1,
+      startAt: new Date('2026-04-14T12:00:00Z'),
+      dueAt: new Date('2026-04-16T12:00:00Z'),
+      completionAt: null,
+      result: null,
+      stopReason: null,
+      propertyTimezone: 'Europe/Sofia',
+      evaluation: { state: 'active' as const, overdue: false, elapsedMinutes: 1_440 },
+    }
+    const getCycleTarget = vi.fn(async () => target)
+    const responseTargetStore = {
+      getCycleTarget,
+    } as unknown as ResponseTargetStore
+
+    const result = await getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      responseTargetStore,
+      clock: () => FIXED_TIME,
+    })({ inboxItemId: ITEM_ID }, ctxWith('inbox.read', 'feedback.read'))
+
+    expect(result.responseTarget).toEqual(target)
+    expect(getCycleTarget).toHaveBeenCalledWith(ITEM_ID, ORG_ID, FIXED_TIME)
+  })
+
+  it('never loads or returns internal handling notes to a read-only feedback user', async () => {
+    const scopedApi = createScopedStaffApi([PROP_ID])
+    const { repo, staffApi, replyLookup, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+    const getState = vi.fn()
+    const feedbackHandlingStore = { getState } as unknown as FeedbackHandlingStore
+
+    const result = await getInboxItemDetail({
+      repo,
+      staffPublicApi: staffApi,
+      replyLookup,
+      feedbackHandlingStore,
+    })({ inboxItemId: ITEM_ID }, ctxWith('inbox.read', 'feedback.read'))
+
+    expect(result.feedbackHandling).toBeNull()
+    expect(getState).not.toHaveBeenCalled()
+  })
+
+  it('rejects private-feedback detail before loading source content without feedback.read', async () => {
+    const { repo, staffApi, replyLookup, findDetailById, setDetail } = setup()
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+
+    await expect(
+      useCase({ inboxItemId: ITEM_ID }, ctxWith('inbox.read', 'review.read')),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+    expect(findDetailById).not.toHaveBeenCalled()
+  })
+
+  it('intersects feedback.read property scope before loading private content', async () => {
+    const scopedApi = createScopedStaffApi(['other-prop'])
+    const { repo, staffApi, replyLookup, findDetailById, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID },
+        createScopedAuthContext({
+          organizationId: ORG_ID,
+          userId: USER_ID,
+          permissions: [
+            ['inbox.read', 'organization'],
+            ['feedback.read', 'assigned-properties'],
+          ],
+        }),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+    expect(findDetailById).not.toHaveBeenCalled()
   })
 })

@@ -120,22 +120,102 @@ describe('removeMember', () => {
     for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
+    const prepareGoogleConnectorDeparture = vi.fn(async () => undefined)
     const cancelGoogleImportsForUser = vi.fn(async () => undefined)
     const useCase = removeMember({
       identity,
       commandStore,
       clock: () => FIXED_TIME,
+      prepareGoogleConnectorDeparture,
       cancelGoogleImportsForUser,
     })
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase({ memberId: STAFF_MEMBER.id }, ctx)
 
+    expect(prepareGoogleConnectorDeparture).toHaveBeenCalledWith(
+      ctx.organizationId,
+      STAFF_MEMBER.userId,
+      'member_removed',
+    )
     expect(cancelGoogleImportsForUser).toHaveBeenCalledWith(
       ctx.organizationId,
       STAFF_MEMBER.userId,
     )
     expect(commandStore.memberById(STAFF_MEMBER.id)).toBeNull()
+  })
+
+  it('releases the target member authorities before deleting membership', async () => {
+    const identity = createInMemoryIdentityPort()
+    const events = createCapturingEventBus()
+    const commandStore = createSequentialIdentityCommandStore({ events })
+    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+      seedMemberBoth(identity, commandStore, member)
+    }
+    const releaseMemberAuthorities = vi.fn(async () => undefined)
+    const useCase = removeMember({
+      identity,
+      commandStore,
+      clock: () => FIXED_TIME,
+      releaseMemberAuthorities,
+    })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await useCase({ memberId: STAFF_MEMBER.id }, ctx)
+
+    expect(releaseMemberAuthorities).toHaveBeenCalledWith(
+      ctx.organizationId,
+      STAFF_MEMBER.userId,
+      ctx.userId,
+    )
+    expect(commandStore.memberById(STAFF_MEMBER.id)).toBeNull()
+  })
+
+  /**
+   * LIF-01-T21. The cross-context fences must be complete BEFORE the Identity
+   * transaction opens, because only that ordering leaves a repairable state
+   * behind a crash. This pins the order rather than merely the calls.
+   */
+  it('completes every cross-context fence before the membership transaction', async () => {
+    const identity = createInMemoryIdentityPort()
+    const events = createCapturingEventBus()
+    const commandStore = createSequentialIdentityCommandStore({ events })
+    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+      seedMemberBoth(identity, commandStore, member)
+    }
+    const order: string[] = []
+    const useCase = removeMember({
+      identity,
+      commandStore: {
+        ...commandStore,
+        removeMember: async (command) => {
+          order.push('identity-transaction')
+          return commandStore.removeMember(command)
+        },
+      },
+      clock: () => FIXED_TIME,
+      prepareGoogleConnectorDeparture: async () => {
+        order.push('google-connector')
+      },
+      cancelGoogleImportsForUser: async () => {
+        order.push('google-imports')
+      },
+      releaseMemberAuthorities: async () => {
+        order.push('release-authorities')
+      },
+    })
+
+    await useCase(
+      { memberId: STAFF_MEMBER.id },
+      buildTestAuthContext({ role: 'AccountAdmin' }),
+    )
+
+    expect(order).toEqual([
+      'google-connector',
+      'google-imports',
+      'release-authorities',
+      'identity-transaction',
+    ])
   })
 
   it('preserves membership when import fencing fails', async () => {
@@ -159,6 +239,34 @@ describe('removeMember', () => {
       'import lifecycle unavailable',
     )
 
+    expect(commandStore.memberById(STAFF_MEMBER.id)).not.toBeNull()
+    expect(events.capturedByTag('identity.member.removed')).toEqual([])
+  })
+
+  it('preserves membership when connector departure fencing fails', async () => {
+    const identity = createInMemoryIdentityPort()
+    const events = createCapturingEventBus()
+    const commandStore = createSequentialIdentityCommandStore({ events })
+    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+      seedMemberBoth(identity, commandStore, member)
+    }
+    const cancelGoogleImportsForUser = vi.fn(async () => undefined)
+    const useCase = removeMember({
+      identity,
+      commandStore,
+      clock: () => FIXED_TIME,
+      prepareGoogleConnectorDeparture: async () => {
+        throw new Error('connector lifecycle unavailable')
+      },
+      cancelGoogleImportsForUser,
+    })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(useCase({ memberId: STAFF_MEMBER.id }, ctx)).rejects.toThrow(
+      'connector lifecycle unavailable',
+    )
+
+    expect(cancelGoogleImportsForUser).not.toHaveBeenCalled()
     expect(commandStore.memberById(STAFF_MEMBER.id)).not.toBeNull()
     expect(events.capturedByTag('identity.member.removed')).toEqual([])
   })

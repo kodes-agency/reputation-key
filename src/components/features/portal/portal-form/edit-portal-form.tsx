@@ -1,7 +1,3 @@
-// Portal context — edit portal settings form component.
-// Per conventions: receives mutation as prop, uses TanStack Form + Zod schema from DTO.
-// Never imports server functions directly (dependency rules).
-
 import { useForm, useStore } from '@tanstack/react-form'
 import { z } from 'zod/v4'
 import { useEffect } from 'react'
@@ -9,6 +5,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { HeroImageSection } from './hero-image-section'
 import { BasicInfoSection } from './basic-info-section'
+import { PortalFeedbackThresholdField } from './portal-feedback-threshold-field'
 import type { Action } from '#/components/hooks/use-action'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
@@ -19,16 +16,22 @@ import type {
   UpdatePortalVariables,
 } from '../shared/types'
 
-// heroImageUrl is a form value rather than local component state (contract C3):
-// uploading persisted through `finalizeUpload` but REMOVING persisted nowhere,
-// because the key was absent from the submit payload of a `.strict()` schema.
+// This form may display a derivative URL but can submit only explicit removal.
 const editFormSchema = updatePortalInputSchema
-  .pick({ name: true, slug: true, description: true, heroImageUrl: true })
+  .pick({
+    name: true,
+    slug: true,
+    description: true,
+    privateFeedbackThreshold: true,
+  })
   .required()
-  .extend({ description: z.string().max(500) })
-
+  .extend({
+    description: z.string().max(500),
+    // Display state can contain the current server-published derivative even
+    // though updatePortal accepts only `null` removal.
+    heroImageUrl: z.url().nullable(),
+  })
 type FormValues = z.infer<typeof editFormSchema>
-
 type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
@@ -37,12 +40,16 @@ type Props = Readonly<{
   formRef?: React.RefObject<FormLike | null>
   requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
-  }) => Promise<{ uploadUrl: string; key: string }>
-  finalizeUpload: (input: { data: { portalId: string; key: string } }) => Promise<{
-    heroImageUrl: string
+  }) => Promise<{
+    uploadUrl: string
+    uploadId: string
+    requiredHeaders: Readonly<Record<string, string>>
+  }>
+  finalizeUpload: (input: { data: { portalId: string; uploadId: string } }) => Promise<{
+    heroImageUrl: string | null
+    processing: boolean
   }>
 }>
-
 export function EditPortalForm({
   portal,
   mutation,
@@ -61,6 +68,7 @@ export function EditPortalForm({
       slug: portal.slug,
       description: portal.description ?? '',
       heroImageUrl: portal.heroImageUrl,
+      privateFeedbackThreshold: portal.privateFeedbackThreshold,
     } satisfies FormValues,
     validators: {
       onSubmit: editFormSchema,
@@ -71,22 +79,24 @@ export function EditPortalForm({
         name: value.name,
         slug: value.slug,
         description: value.description || null,
-        heroImageUrl: value.heroImageUrl,
+        // A non-null image URL is server-owned derivative state. The form may
+        // request removal, but it may never submit a replacement URL.
+        ...(portal.heroImageUrl !== null && value.heroImageUrl === null
+          ? { heroImageUrl: null }
+          : {}),
         theme,
+        privateFeedbackThreshold: value.privateFeedbackThreshold,
       }
       await mutation({ data })
     },
   })
 
-  // The parent drives submission from a Save button rendered outside this form,
-  // so it needs a handle. Writing the ref during render is a purity violation
-  // React 19 can drop; an effect runs before any click can reach that button.
+  // Publish the external Save handle after render and remove it on unmount.
   useEffect(() => {
     if (!formRef) return
     formRef.current = {
       handleSubmit: () => void form.handleSubmit(),
-      // isDefaultValue, not isDirty: value-based, so undoing every edit clears
-      // the unsaved-changes warning instead of latching on first keystroke.
+      // Value-based so undoing every edit clears the unsaved warning.
       hasUnsavedChanges: () => !form.state.isDefaultValue,
     }
     return () => {
@@ -111,12 +121,12 @@ export function EditPortalForm({
         heroImageUrl={heroImageUrl}
         onImageUrlChange={(url) => form.setFieldValue('heroImageUrl', url)}
         onUpload={async (file, onProgress) => {
-          const { uploadUrl, key } = await requestUploadUrl({
+          const { uploadUrl, uploadId, requiredHeaders } = await requestUploadUrl({
             data: { portalId: portal.id, contentType: file.type, fileSize: file.size },
           })
-          await putFilePresigned(uploadUrl, file, onProgress)
+          await putFilePresigned(uploadUrl, file, onProgress, requiredHeaders)
           const { heroImageUrl: url } = await finalizeUpload({
-            data: { portalId: portal.id, key },
+            data: { portalId: portal.id, uploadId },
           })
           return url
         }}
@@ -124,6 +134,17 @@ export function EditPortalForm({
       />
 
       <BasicInfoSection form={form} persistedSlug={portal.slug} disabled={isDisabled} />
+
+      <form.Field name="privateFeedbackThreshold">
+        {(field) => (
+          <PortalFeedbackThresholdField
+            field={field}
+            id="edit-private-feedback-threshold"
+            disabled={isDisabled}
+            description="Controls when optional private feedback appears after the private rating. It never changes access to the Google review action."
+          />
+        )}
+      </form.Field>
     </form>
   )
 }

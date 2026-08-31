@@ -138,6 +138,7 @@ export const retentionRuns = pgTable(
     batchSize: integer('batch_size').notNull(),
     batches: integer('batches').notNull().default(0),
     rowsDeleted: integer('rows_deleted').notNull().default(0),
+    rowsRedacted: integer('rows_redacted').notNull().default(0),
     /** 'completed' | 'failed' */
     outcome: text('outcome').notNull().default('completed'),
     errorCode: text('error_code'),

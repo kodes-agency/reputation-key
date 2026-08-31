@@ -10,6 +10,7 @@ import type {
   NotificationEmail,
 } from '../../domain/types'
 import type {
+  NotificationDigestBatchId,
   NotificationEmailId,
   OrganizationId,
   PropertyId,
@@ -31,15 +32,61 @@ export type ProviderStateTransition = Readonly<{
   emailId: NotificationEmailId
   userId: UserId
   organizationId: OrganizationId
-  propertyId: PropertyId
+  propertyId: PropertyId | null
 }>
+
+export type NotificationDigestBatchState =
+  'prepared' | 'retryable' | 'accepted' | 'terminal'
+
+export type NotificationDigestBatch = Readonly<{
+  id: NotificationDigestBatchId
+  organizationId: OrganizationId
+  userId: UserId
+  localDate: string
+  sequence: number
+  memberDigest: string
+  contentDigest: string
+  providerIdempotencyKey: string
+  unsubscribeKeyVersion: string
+  state: NotificationDigestBatchState
+  retryCount: number
+  createdAt: Date
+  updatedAt: Date
+}>
+
+export type PreparedNotificationDigestBatch = Readonly<{
+  batch: NotificationDigestBatch
+  created: boolean
+}>
+
+export type DigestBatchSettlement =
+  | Readonly<{
+      kind: 'accepted'
+      providerMessageId: string
+      acceptedAt: Date
+    }>
+  | Readonly<{
+      kind: 'rejected'
+      classification: DeliveryErrorClass
+      nextAttemptAt: Date | null
+      failedAt: Date
+    }>
+  | Readonly<{
+      kind: 'content_mismatch'
+      detectedAt: Date
+    }>
+  | Readonly<{
+      kind: 'invalidated'
+      reason: string
+      invalidatedAt: Date
+    }>
 
 export type NotificationEmailRepositoryPort = Readonly<{
   insert(email: NotificationEmail): Promise<NotificationEmail>
   findById(
     id: NotificationEmailId,
     orgId: OrganizationId,
-    propertyId: PropertyId,
+    propertyId: PropertyId | null,
   ): Promise<NotificationEmail | null>
   findDueByProperty(
     orgId: OrganizationId,
@@ -50,21 +97,21 @@ export type NotificationEmailRepositoryPort = Readonly<{
   markAccepted(
     id: NotificationEmailId,
     orgId: OrganizationId,
-    propertyId: PropertyId,
+    propertyId: PropertyId | null,
     providerMessageId: string,
     acceptedAt: Date,
   ): Promise<void>
   markDelayed(
     id: NotificationEmailId,
     orgId: OrganizationId,
-    propertyId: PropertyId,
+    propertyId: PropertyId | null,
     notBefore: Date,
     updatedAt: Date,
   ): Promise<void>
   markFailed(
     id: NotificationEmailId,
     orgId: OrganizationId,
-    propertyId: PropertyId,
+    propertyId: PropertyId | null,
     classification: DeliveryErrorClass,
     nextAttemptAt: Date | null,
     failedAt: Date,
@@ -72,7 +119,7 @@ export type NotificationEmailRepositoryPort = Readonly<{
   markSuppressed(
     id: NotificationEmailId,
     orgId: OrganizationId,
-    propertyId: PropertyId,
+    propertyId: PropertyId | null,
     reason: string,
     updatedAt: Date,
   ): Promise<void>
@@ -113,4 +160,39 @@ export type NotificationEmailRepositoryPort = Readonly<{
   ): Promise<number>
   /** True once the recipient has any bounced/complained row in this org. */
   isRecipientSuppressed(userId: UserId, orgId: OrganizationId): Promise<boolean>
+  /** Return the sole prepared/retryable recipient batch, if one exists. */
+  findOpenDigestBatch(
+    orgId: OrganizationId,
+    userId: UserId,
+  ): Promise<NotificationDigestBatch | null>
+  /** Load only the queue rows durably bound to this batch, in frozen order. */
+  findDigestBatchEntries(
+    batchId: NotificationDigestBatchId,
+    orgId: OrganizationId,
+    userId: UserId,
+  ): Promise<readonly NotificationEmail[]>
+  /**
+   * Atomically create a batch and exact memberships, or return the open batch
+   * won by another worker. Candidate rows are revalidated under the lock.
+   */
+  prepareDigestBatch(input: {
+    id: NotificationDigestBatchId
+    organizationId: OrganizationId
+    userId: UserId
+    localDate: string
+    memberIds: readonly NotificationEmailId[]
+    memberDigest: string
+    contentDigest: string
+    providerIdempotencyKey: string
+    unsubscribeKeyVersion: string
+    preparedAt: Date
+  }): Promise<PreparedNotificationDigestBatch>
+  /** Update the batch and every exact member in one transaction. */
+  settleDigestBatch(input: {
+    batchId: NotificationDigestBatchId
+    organizationId: OrganizationId
+    userId: UserId
+    expectedContentDigest: string
+    settlement: DigestBatchSettlement
+  }): Promise<boolean>
 }>

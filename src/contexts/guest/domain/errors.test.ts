@@ -14,7 +14,7 @@ describe('guest domain errors', () => {
   })
 
   it('includes optional context', () => {
-    const err = guestError('feedback_too_long', 'Too long', { max: 1000 })
-    expect(err.context).toEqual({ max: 1000 })
+    const err = guestError('feedback_too_long', 'Too long', { max: 2000 })
+    expect(err.context).toEqual({ max: 2000 })
   })
 })

@@ -1,15 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import { getActivityTimeline } from './get-activity-timeline'
-import type { ActivityLog } from '../domain/types'
-import type { ActivityRepository } from '../ports/activity-repository.port'
+import type { RecentActivityEntry, ResourceType } from '../domain/types'
+import type { RecentActivityRepository } from '../ports/recent-activity-repository.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
-import { activityLogId, userId, propertyId, organizationId } from '#/shared/domain/ids'
+import {
+  recentActivityEntryId,
+  userId,
+  propertyId,
+  organizationId,
+} from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
-function makeEntry(overrides: Partial<ActivityLog> = {}): ActivityLog {
+function makeEntry(overrides: Partial<RecentActivityEntry> = {}): RecentActivityEntry {
   return {
-    id: activityLogId('al-1'),
+    id: recentActivityEntryId('al-1'),
     actorId: userId('user-1'),
     actorName: 'Test',
     actorAvatarUrl: null,
@@ -27,7 +32,9 @@ function makeEntry(overrides: Partial<ActivityLog> = {}): ActivityLog {
   }
 }
 
-function createInMemoryActivityRepo(entries: ActivityLog[] = []): ActivityRepository {
+function createInMemoryActivityRepo(
+  entries: RecentActivityEntry[] = [],
+): RecentActivityRepository {
   return {
     insert: async (_entry) => {},
     findDuplicate: async () => false,
@@ -40,7 +47,6 @@ function staffApiAllAccess(): StaffPublicApi {
   return {
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],
-    countAssignmentsByTeam: async () => 0,
   }
 }
 
@@ -48,7 +54,6 @@ function staffApiLimited(ids: string[]): StaffPublicApi {
   return {
     getAccessiblePropertyIds: async () => ids.map(propertyId),
     getAssignedPortals: async () => [],
-    countAssignmentsByTeam: async () => 0,
   }
 }
 
@@ -60,12 +65,12 @@ describe('getActivityTimeline', () => {
   const baseInput = {
     resourceType: 'inbox_item',
     resourceId: 'ii-1',
-  }
+  } satisfies { resourceType: ResourceType; resourceId: string }
 
   it('returns all entries for admin users', async () => {
     const repo = createInMemoryActivityRepo([
       makeEntry(),
-      makeEntry({ id: activityLogId('al-2'), propertyId: propertyId('prop-2') }),
+      makeEntry({ id: recentActivityEntryId('al-2'), propertyId: propertyId('prop-2') }),
     ])
     const deps = { repo, staffPublicApi: staffApiAllAccess() }
     const result = await getActivityTimeline(deps)(baseInput, ctxFor('AccountAdmin'))
@@ -74,19 +79,41 @@ describe('getActivityTimeline', () => {
 
   it('filters entries by accessible properties for non-admin', async () => {
     const repo = createInMemoryActivityRepo([
-      makeEntry({ id: activityLogId('al-1'), propertyId: propertyId('prop-1') }),
-      makeEntry({ id: activityLogId('al-2'), propertyId: propertyId('prop-2') }),
-      makeEntry({ id: activityLogId('al-3'), propertyId: null }),
+      makeEntry({ id: recentActivityEntryId('al-1'), propertyId: propertyId('prop-1') }),
+      makeEntry({ id: recentActivityEntryId('al-2'), propertyId: propertyId('prop-2') }),
+      makeEntry({ id: recentActivityEntryId('al-3'), propertyId: null }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
     const result = await getActivityTimeline(deps)(baseInput, ctxFor('Staff'))
-    expect(result.map((e) => e.id).sort()).toEqual(['al-1', 'al-3'])
+    expect(result.map((e) => e.id)).toEqual(['al-1'])
+  })
+
+  it('does not treat PropertyManager organization.update as feed-wide access', async () => {
+    const repo = createInMemoryActivityRepo([
+      makeEntry({ id: recentActivityEntryId('al-1'), propertyId: propertyId('prop-1') }),
+      makeEntry({ id: recentActivityEntryId('al-2'), propertyId: propertyId('prop-2') }),
+    ])
+    const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
+    const result = await getActivityTimeline(deps)(baseInput, ctxFor('PropertyManager'))
+
+    expect(result.map((e) => e.id)).toEqual(['al-1'])
+  })
+
+  it('fails closed if assigned-scope authority returns an organization sentinel', async () => {
+    const repo = createInMemoryActivityRepo([
+      makeEntry({ id: recentActivityEntryId('al-1'), propertyId: propertyId('prop-1') }),
+    ])
+    const deps = { repo, staffPublicApi: staffApiAllAccess() }
+
+    await expect(
+      getActivityTimeline(deps)(baseInput, ctxFor('PropertyManager')),
+    ).resolves.toEqual([])
   })
 
   it('returns empty when staff has no accessible properties', async () => {
     const repo = createInMemoryActivityRepo([
-      makeEntry({ id: activityLogId('al-1'), propertyId: propertyId('prop-1') }),
-      makeEntry({ id: activityLogId('al-2'), propertyId: propertyId('prop-2') }),
+      makeEntry({ id: recentActivityEntryId('al-1'), propertyId: propertyId('prop-1') }),
+      makeEntry({ id: recentActivityEntryId('al-2'), propertyId: propertyId('prop-2') }),
     ])
     const deps = { repo, staffPublicApi: staffApiLimited([]) }
     const result = await getActivityTimeline(deps)(baseInput, ctxFor('Staff'))
@@ -95,7 +122,7 @@ describe('getActivityTimeline', () => {
 
   it('respects limit parameter', async () => {
     const entries = Array.from({ length: 10 }, (_, i) =>
-      makeEntry({ id: activityLogId(`al-${i}`) }),
+      makeEntry({ id: recentActivityEntryId(`al-${i}`) }),
     )
     const repo = createInMemoryActivityRepo(entries)
     const deps = { repo, staffPublicApi: staffApiAllAccess() }
@@ -108,16 +135,22 @@ describe('getActivityTimeline', () => {
 
   it('strips reply-workflow entries from Staff (lacks reply.manage)', async () => {
     const repo = createInMemoryActivityRepo([
-      makeEntry({ id: activityLogId('al-1'), resourceType: 'inbox_item' }),
       makeEntry({
-        id: activityLogId('al-2'),
-        resourceType: 'reply',
-        action: 'published',
+        id: recentActivityEntryId('al-1'),
+        resourceType: 'inbox_item',
+        propertyId: propertyId('prop-1'),
       }),
       makeEntry({
-        id: activityLogId('al-3'),
+        id: recentActivityEntryId('al-2'),
+        resourceType: 'reply',
+        action: 'published',
+        propertyId: propertyId('prop-1'),
+      }),
+      makeEntry({
+        id: recentActivityEntryId('al-3'),
         resourceType: 'reply',
         action: 'rejected',
+        propertyId: propertyId('prop-1'),
         payload: {
           subject: 'reply',
           from: null,
@@ -126,7 +159,7 @@ describe('getActivityTimeline', () => {
         },
       }),
     ])
-    const deps = { repo, staffPublicApi: staffApiAllAccess() }
+    const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
     const result = await getActivityTimeline(deps)(baseInput, ctxFor('Staff'))
     // Only the inbox_item entry survives; reply rows (incl. rejection reason)
     // are stripped because Staff lack reply.manage.
@@ -135,14 +168,19 @@ describe('getActivityTimeline', () => {
 
   it('keeps reply-workflow entries for PropertyManager (has reply.manage)', async () => {
     const repo = createInMemoryActivityRepo([
-      makeEntry({ id: activityLogId('al-1'), resourceType: 'inbox_item' }),
       makeEntry({
-        id: activityLogId('al-2'),
+        id: recentActivityEntryId('al-1'),
+        resourceType: 'inbox_item',
+        propertyId: propertyId('prop-1'),
+      }),
+      makeEntry({
+        id: recentActivityEntryId('al-2'),
         resourceType: 'reply',
         action: 'published',
+        propertyId: propertyId('prop-1'),
       }),
     ])
-    const deps = { repo, staffPublicApi: staffApiAllAccess() }
+    const deps = { repo, staffPublicApi: staffApiLimited(['prop-1']) }
     const result = await getActivityTimeline(deps)(baseInput, ctxFor('PropertyManager'))
     expect(result.map((e) => e.id).sort()).toEqual(['al-1', 'al-2'])
   })
@@ -151,7 +189,7 @@ describe('getActivityTimeline', () => {
   // ONLY to members of the owning org — the timeline read is always org-scoped.
   it('queries only the caller org (org-scope pin)', async () => {
     const seenOrgs: string[] = []
-    const repo: ActivityRepository = {
+    const repo: RecentActivityRepository = {
       insert: async () => {},
       findDuplicate: async () => false,
       findByResource: async (orgId) => {
@@ -160,11 +198,11 @@ describe('getActivityTimeline', () => {
         // in another org cannot leak into the caller's timeline.
         return [
           makeEntry({
-            id: activityLogId('al-1'),
+            id: recentActivityEntryId('al-1'),
             organizationId: organizationId('org-1'),
           }),
           makeEntry({
-            id: activityLogId('al-2'),
+            id: recentActivityEntryId('al-2'),
             organizationId: organizationId('org-2'),
             payload: {
               subject: 's',

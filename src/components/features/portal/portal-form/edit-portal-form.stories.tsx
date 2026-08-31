@@ -57,14 +57,22 @@ const portal: PortalData = {
   description: 'Main guest-facing portal.',
   heroImageUrl: null,
   theme: { primaryColor: '#6366f1' },
+  privateFeedbackThreshold: 3,
   publicationState: 'published',
 }
 
 const requestUploadUrl = async (_input: {
   data: { portalId: string; contentType: string; fileSize: number }
-}) => ({ uploadUrl: 'https://upload.example.com/presigned', key: 'hero-key' })
-const finalizeUpload = async (_input: { data: { portalId: string; key: string } }) => ({
+}) => ({
+  uploadUrl: 'https://upload.example.com/presigned',
+  uploadId: 'upload-id',
+  requiredHeaders: { 'If-None-Match': '*' },
+})
+const finalizeUpload = async (_input: {
+  data: { portalId: string; uploadId: string }
+}) => ({
   heroImageUrl: 'https://cdn.example.com/hero.png',
+  processing: false,
 })
 
 const idleMutation = Object.assign(

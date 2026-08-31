@@ -5,6 +5,8 @@ import type { portalLinkCategories, portalLinks } from '#/shared/db/schema/porta
 import type { PortalLinkCategory, PortalLink } from '../../domain/types'
 import {
   organizationId,
+  propertyId,
+  portalApprovedDestinationId,
   portalId,
   portalLinkCategoryId,
   portalLinkId,
@@ -41,26 +43,39 @@ export const categoryToRow = (cat: PortalLinkCategory): CategoryInsertRow => ({
 type LinkRow = typeof portalLinks.$inferSelect
 type LinkInsertRow = typeof portalLinks.$inferInsert
 
-export const linkFromRow = (row: LinkRow): PortalLink => ({
-  id: portalLinkId(row.id),
-  categoryId: portalLinkCategoryId(row.categoryId),
-  portalId: portalId(row.portalId),
-  organizationId: organizationId(row.organizationId),
-  label: row.label,
-  url: row.url,
-  iconKey: row.iconKey,
-  sortKey: row.sortKey,
-  createdAt: row.createdAt,
-  updatedAt: row.updatedAt,
-})
+export const linkFromRow = (row: LinkRow, resolvedUrl?: string | null): PortalLink => {
+  const url = resolvedUrl ?? row.url
+  if (!url) throw new Error('Portal link has no governed or legacy destination')
+  return {
+    id: portalLinkId(row.id),
+    categoryId: portalLinkCategoryId(row.categoryId),
+    portalId: portalId(row.portalId),
+    organizationId: organizationId(row.organizationId),
+    propertyId: propertyId(row.propertyId),
+    destinationId: row.destinationId
+      ? portalApprovedDestinationId(row.destinationId)
+      : null,
+    legacyDestinationState:
+      row.legacyDestinationState as PortalLink['legacyDestinationState'],
+    label: row.label,
+    url,
+    iconKey: row.iconKey,
+    sortKey: row.sortKey,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
 
 export const linkToRow = (link: PortalLink): LinkInsertRow => ({
   id: unbrand(link.id),
   categoryId: unbrand(link.categoryId),
   portalId: unbrand(link.portalId),
   organizationId: unbrand(link.organizationId),
+  propertyId: unbrand(link.propertyId),
+  destinationId: link.destinationId ? unbrand(link.destinationId) : null,
+  legacyDestinationState: link.destinationId ? 'migrated' : link.legacyDestinationState,
   label: link.label,
-  url: link.url,
+  url: link.destinationId ? null : link.url,
   iconKey: link.iconKey,
   sortKey: link.sortKey,
   createdAt: link.createdAt,

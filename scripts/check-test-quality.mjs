@@ -4,8 +4,9 @@
 //
 // ── SCOPE (widened 2026-08-21 — three holes that let this gate be evaded) ──
 //
-//   src/**, services/**, e2e/**   *.test.ts(x) / *.spec.ts(x)
-//   src/**/*.stories.tsx          the Storybook estate
+//   src/**, services/**, e2e/**, scripts/**, server/**, .railway/**,
+//   .storybook/**                 *.test.ts(x) / *.spec.ts(x)
+//   src/** and .storybook/**      *.stories.tsx
 //
 // `services/**` is in the unit project's include (vitest.config.ts:91) — it is
 // the AI egress-gateway + execution-admission plane — and `*.stories.tsx` is a
@@ -111,6 +112,22 @@ const RUNTIME_DRIFT = Object.entries(PINNED_RUNTIME)
  */
 const SKIP_REGISTER = [
   {
+    file: 'e2e/critical/workflows/dashboard-governance.spec.ts',
+    owner: 'engineering',
+    reason:
+      'Staff User login is a dark capability in the closed beta: 52635b32 made only owner/admin tokens beta-interactive, so a Staff member cannot resolve tenant context and the sign-in fails before any assertion. The test asserts staff-scoped dashboard governance, which is real coverage — it returns when the capability is activated, not by relaxing the fence',
+    maxHits: 1,
+    skippedTests: 1,
+  },
+  {
+    file: 'e2e/critical/workflows/property-access.spec.ts',
+    owner: 'engineering',
+    reason:
+      'same dark capability as dashboard-governance: the test signs in as a Staff user to prove a property-scoped account cannot see another property. The scoping property is worth keeping and comes back with Staff User login',
+    maxHits: 1,
+    skippedTests: 1,
+  },
+  {
     file: 'src/shared/architecture/domain-error-convention.test.ts',
     owner: 'engineering',
     reason:
@@ -182,6 +199,10 @@ const files = [
   ...walk(join(ROOT, 'src')),
   ...walk(join(ROOT, 'services')),
   ...walk(join(ROOT, 'e2e')),
+  ...walk(join(ROOT, 'scripts')),
+  ...walk(join(ROOT, 'server')),
+  ...walk(join(ROOT, '.railway')),
+  ...walk(join(ROOT, '.storybook')),
 ]
 
 // `.only` in every chained form vitest accepts — `describe.only(`,
@@ -303,7 +324,7 @@ function tally(hits, register) {
 }
 
 console.log(
-  `[test-quality] scanned ${files.length} test/spec/story files across src+services+e2e ` +
+  `[test-quality] scanned ${files.length} test/spec/story files across all executable TypeScript roots ` +
     `(incl. ${storyCount} *.stories.tsx); ` +
     `skip|todo|skipIf|runIf: ${tally(skipHits, skipRegister)} site(s) in ${skipHits.size} file(s) ` +
     `(${SKIP_REGISTER.length} register entries; ${fenced.length} runtime-fenced, ` +

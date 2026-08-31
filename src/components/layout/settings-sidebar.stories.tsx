@@ -1,9 +1,10 @@
 // Storybook stories for SettingsSidebar — the ONLY sidebar that gates its own
 // items off usePermissions(). `organization.update`, `member.list`,
-// `badge.manage`, `ai.manage`, and `integration.manage` each conditionally render a nav
+// `ai.manage` and `integration.manage` each conditionally render a nav
 // entry, so the visible nav changes with the signed-in role:
-//   - AccountAdmin (owner) / PropertyManager (admin): all 9 items render —
-//     both roles hold every gated statement.
+//   - AccountAdmin (owner): all beta items render.
+//   - PropertyManager (admin): manager settings render, but Google connection
+//     administration stays AccountAdmin-only.
 //   - Staff (member): only Profile, Security, Preferences, Notifications — the
 //     four always-on entries.
 // `isManager = hasRole(role, 'PropertyManager')` also flips the "Back to app"
@@ -35,7 +36,7 @@ const meta: Meta<typeof SettingsSidebar> = {
 export default meta
 type Story = StoryObj<typeof SettingsSidebar>
 
-// Owner role → every gated item (Organization, Members, Recognition,
+// Owner role → every gated beta item (Organization, Members,
 // Integrations) renders alongside the four always-on entries.
 export const AsAccountAdmin: Story = {
   decorators: [withRole('AccountAdmin')],
@@ -47,29 +48,29 @@ export const AsAccountAdmin: Story = {
     expect(canvas.getByText(/^notifications$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^organization$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^recognition$/i)).toBeInTheDocument()
+    expect(canvas.queryByText(/^recognition$/i)).toBeNull()
     expect(canvas.getByText(/^ai & replies$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^integrations$/i)).toBeInTheDocument()
   },
 }
 
-// PropertyManager holds the same gated statements as the owner (organization
-// update, member list, badge manage, integration manage), so the nav is
-// identical to AsAccountAdmin. "Back to app" → /properties.
+// PropertyManager can update Organization presentation, list Members, and manage
+// AI settings. Google connection administration remains AccountAdmin-only.
+// "Back to app" → /properties.
 export const AsPropertyManager: Story = {
   decorators: [withRole('PropertyManager')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/^organization$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^recognition$/i)).toBeInTheDocument()
+    expect(canvas.queryByText(/^recognition$/i)).toBeNull()
     expect(canvas.getByText(/^ai & replies$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^integrations$/i)).toBeInTheDocument()
+    expect(canvas.queryByText(/^integrations$/i)).toBeNull()
   },
 }
 
-// Staff lacks organization.update / member.list / badge.manage /
-// integration.manage → the gated entries are absent. Only Profile, Security,
+// Staff lacks organization.update / member.list / ai.manage / integration.manage,
+// so the gated entries are absent. Only Profile, Security,
 // Preferences, Notifications render. "Back to app" → /.
 export const AsStaff: Story = {
   decorators: [withRole('Staff')],

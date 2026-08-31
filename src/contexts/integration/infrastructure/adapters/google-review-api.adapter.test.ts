@@ -8,6 +8,7 @@ import {
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
 } from '../../../../../test-fixtures/generated/google-provider-identifiers-v1'
 import { assertDirectProviderEgressAllowed } from '#/shared/config/provider-config-guards'
+import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import { createGoogleReviewApiAdapter } from './google-review-api.adapter'
 
 const ORG_ID = organizationId('0UM0PoDLJNJ3yGCeBMERaQkQyxer9BuC')
@@ -15,14 +16,38 @@ const PROPERTY_ID = propertyId('00000000-0000-4000-8000-000000000002')
 const CONNECTION_ID = googleConnectionId('00000000-0000-4000-8000-000000000003')
 const RUN_ID = '00000000-0000-4000-8000-000000000004'
 const authorization = Object.freeze({
-  capability: 'property.import_gbp_v2',
+  capability: 'property.connect_gbp',
   organizationId: ORG_ID,
   propertyId: PROPERTY_ID,
   connectionId: CONNECTION_ID,
-  initiatorUserId: '00000000-0000-4000-8000-000000000005',
+  initiatorUserId: null,
   approvalBindingId: 'approval-1',
   expectedCredentialGeneration: 3,
-  authorizationVector: Object.freeze({ generation: 3 }),
+  authorizationVector: Object.freeze({ generation: 3, propertySourceEpoch: 17 }),
+}) satisfies GoogleProviderCallAuthorization
+const publicationAuthorization = Object.freeze({
+  capability: 'property.publish_reply',
+  organizationId: ORG_ID,
+  propertyId: PROPERTY_ID,
+  connectionId: CONNECTION_ID,
+  initiatorUserId: null,
+  approvalBindingId: 'publication-approval-1',
+  expectedCredentialGeneration: 3,
+  authorizationVector: Object.freeze({
+    generation: 3,
+    propertySourceEpoch: 17,
+    publicationCycle: 2,
+    publicationAttemptNumber: 1,
+    expectedReplyDigest: googleReplyTextDigest('thanks'),
+  }),
+  publication: Object.freeze({
+    reviewId: '00000000-0000-4000-8000-000000000005',
+    replyId: '00000000-0000-4000-8000-000000000006',
+    publicationCycle: 2,
+    attemptNumber: 1,
+    sourceEpoch: 17,
+    materialReviewRevision: 4,
+  }),
 }) satisfies GoogleProviderCallAuthorization
 
 const connection = {
@@ -65,6 +90,7 @@ function createAdapter(
     execute: Mock
     cursors?: GoogleReviewCursorStore
     authorizeProviderCall?: Mock
+    authorizeReplyPublicationProviderCall?: Mock
     findById?: Mock
   }>,
 ) {
@@ -75,6 +101,12 @@ function createAdapter(
       authorization,
     })
   const findById = input.findById ?? vi.fn().mockResolvedValue(connection)
+  const authorizeReplyPublicationProviderCall =
+    input.authorizeReplyPublicationProviderCall ??
+    vi.fn().mockResolvedValue({
+      accessToken: 'access-token',
+      authorization: publicationAuthorization,
+    })
   const warn = vi.fn()
   return {
     api: createGoogleReviewApiAdapter({
@@ -85,10 +117,12 @@ function createAdapter(
       baseUrl: 'https://direct-provider.invalid',
       cursorStore: input.cursors ?? cursorStore(),
       executor: { execute: input.execute },
-      authorizeProviderCall,
+      authorizeReviewSyncProviderCall: authorizeProviderCall,
+      authorizeReplyPublicationProviderCall,
       nowMs: () => Date.parse('2026-08-12T12:00:00.000Z'),
     }),
     authorizeProviderCall,
+    authorizeReplyPublicationProviderCall,
     findById,
     warn,
   }
@@ -108,6 +142,22 @@ function listInput(cursorRef: string | null = null, pageIndex = 0) {
   }
 }
 
+function publicationInput() {
+  return {
+    organizationId: ORG_ID,
+    propertyId: PROPERTY_ID,
+    connectionId: CONNECTION_ID,
+    sourceEpoch: 17,
+    reviewId: publicationAuthorization.publication.reviewId,
+    materialReviewRevision: 4,
+    replyId: publicationAuthorization.publication.replyId,
+    publicationCycle: 2,
+    attemptNumber: 1,
+    reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    text: 'thanks',
+  }
+}
+
 describe('GoogleReviewApiAdapter', () => {
   it('lists one fixed bounded page and replaces the provider token with an opaque ref', async () => {
     const execute = vi.fn().mockResolvedValue({
@@ -122,12 +172,13 @@ describe('GoogleReviewApiAdapter', () => {
         JSON.stringify({
           reviews: [providerReview()],
           totalReviewCount: 2,
+          averageRating: 4.5,
           nextPageToken: 'provider-next-page-token',
         }),
       ),
     })
     const cursors = cursorStore()
-    const { api } = createAdapter({ execute, cursors })
+    const { api, authorizeProviderCall } = createAdapter({ execute, cursors })
 
     const page = await api.listReviewsPage(listInput())
 
@@ -139,6 +190,12 @@ describe('GoogleReviewApiAdapter', () => {
       },
       expect.objectContaining({ authorization }),
     )
+    expect(authorizeProviderCall).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      connectionId: CONNECTION_ID,
+      sourceEpoch: 17,
+    })
     expect(cursors.publishNext).toHaveBeenCalledWith(
       expect.objectContaining({
         parentCursorRef: null,
@@ -157,6 +214,7 @@ describe('GoogleReviewApiAdapter', () => {
         }),
       ],
       totalReviewCount: 2,
+      averageRating: 4.5,
       nextCursorRef: `v1.${'a'.repeat(43)}`,
     })
     expect(JSON.stringify(page)).not.toContain('provider-next-page-token')
@@ -195,16 +253,65 @@ describe('GoogleReviewApiAdapter', () => {
     const page = await api.listReviewsPage(listInput())
 
     expect(page.totalReviewCount).toBe(1)
+    expect(page.averageRating).toBe(4.7)
     expect(page.reviews).toEqual([
       expect.objectContaining({
         externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
         rating: 5,
         text: 'Excellent stay',
+        sourceCreatedAt: new Date('2026-08-01T10:00:00.000Z'),
+        sourceUpdatedAt: new Date('2026-08-02T10:00:00.000Z'),
       }),
     ])
     const serialized = JSON.stringify(page)
     expect(serialized).not.toContain('reviewReplyUrl')
     expect(serialized).not.toContain('provider-review-id')
+  })
+
+  it.each([
+    { reviews: [providerReview()], totalReviewCount: 1 },
+    { reviews: [providerReview()], totalReviewCount: 1, averageRating: -0.1 },
+    { reviews: [providerReview()], totalReviewCount: 1, averageRating: 5.1 },
+    { reviews: [], totalReviewCount: 0, averageRating: 4 },
+  ])('rejects malformed provider aggregate metadata: %o', async (payload) => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: null,
+        retryAfter: null,
+      },
+      body: new TextEncoder().encode(JSON.stringify(payload)),
+    })
+    const { api } = createAdapter({ execute })
+
+    await expect(api.listReviewsPage(listInput())).rejects.toMatchObject({
+      _tag: 'GoogleReviewApiError',
+      code: 'malformed_response',
+    })
+  })
+
+  it('maps the provider zero-review aggregate to an explicit null average', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: null,
+        retryAfter: null,
+      },
+      body: new TextEncoder().encode(
+        JSON.stringify({ totalReviewCount: 0, averageRating: 0 }),
+      ),
+    })
+    const { api } = createAdapter({ execute })
+
+    await expect(api.listReviewsPage(listInput())).resolves.toMatchObject({
+      reviews: [],
+      totalReviewCount: 0,
+      averageRating: null,
+    })
   })
 
   it('maps a translated Google comment to the original as text and the translation aside', async () => {
@@ -228,6 +335,7 @@ describe('GoogleReviewApiAdapter', () => {
             },
           ],
           totalReviewCount: 1,
+          averageRating: 5,
         }),
       ),
     })
@@ -255,7 +363,11 @@ describe('GoogleReviewApiAdapter', () => {
         retryAfter: null,
       },
       body: new TextEncoder().encode(
-        JSON.stringify({ reviews: [providerReview()], totalReviewCount: 1 }),
+        JSON.stringify({
+          reviews: [providerReview()],
+          totalReviewCount: 1,
+          averageRating: 5,
+        }),
       ),
     })
     const { api } = createAdapter({ execute })
@@ -277,7 +389,11 @@ describe('GoogleReviewApiAdapter', () => {
         retryAfter: null,
       },
       body: new TextEncoder().encode(
-        JSON.stringify({ reviews: [providerReview()], totalReviewCount: 1 }),
+        JSON.stringify({
+          reviews: [providerReview()],
+          totalReviewCount: 1,
+          averageRating: 5,
+        }),
       ),
     })
     const cursors = cursorStore()
@@ -378,7 +494,11 @@ describe('GoogleReviewApiAdapter', () => {
         retryAfter: null,
       },
       body: new TextEncoder().encode(
-        JSON.stringify({ reviews: [providerReview()], totalReviewCount: 1 }),
+        JSON.stringify({
+          reviews: [providerReview()],
+          totalReviewCount: 1,
+          averageRating: 5,
+        }),
       ),
     })
     const authorizeProviderCall = vi
@@ -448,6 +568,7 @@ describe('GoogleReviewApiAdapter', () => {
         JSON.stringify({
           reviews: [providerReview()],
           totalReviewCount: 51,
+          averageRating: 4.9,
           nextPageToken: 'provider-next-page-token',
         }),
       ),
@@ -583,6 +704,7 @@ describe('GoogleReviewApiAdapter', () => {
         JSON.stringify({
           reviews: [providerReview()],
           totalReviewCount: 1,
+          averageRating: 5,
           nextPageToken: 'provider-next-page-token',
         }),
       ),
@@ -606,6 +728,75 @@ describe('GoogleReviewApiAdapter', () => {
     expect(logged).not.toContain('provider-page-token')
     expect(logged).not.toContain('provider-next-page-token')
     expect(logged).not.toContain('Excellent stay')
+  })
+
+  it('uses only the attempt-bound publication permit for a governed reply write', async () => {
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        contentType: 'application/json',
+        cacheControl: null,
+        retryAfter: null,
+        providerCorrelationId: 'provider-request-1',
+      },
+      body: new TextEncoder().encode('{}'),
+    })
+    const { api, authorizeProviderCall, authorizeReplyPublicationProviderCall } =
+      createAdapter({ execute })
+
+    await expect(api.replyToReview(publicationInput())).resolves.toEqual({
+      providerCorrelationId: 'provider-request-1',
+    })
+    expect(authorizeProviderCall).not.toHaveBeenCalled()
+    expect(authorizeReplyPublicationProviderCall).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      connectionId: CONNECTION_ID,
+      sourceEpoch: 17,
+      reviewId: publicationAuthorization.publication.reviewId,
+      materialReviewRevision: 4,
+      replyId: publicationAuthorization.publication.replyId,
+      publicationCycle: 2,
+      attemptNumber: 1,
+    })
+    expect(execute).toHaveBeenCalledWith(
+      {
+        routeKey: 'reviews.reply',
+        accessToken: 'access-token',
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        comment: 'thanks',
+      },
+      expect.objectContaining({ authorization: publicationAuthorization }),
+    )
+  })
+
+  it('fails closed before credential/provider access when publication authority is absent', async () => {
+    const execute = vi.fn()
+    const api = createGoogleReviewApiAdapter({
+      connectionRepo: { findById: vi.fn() } as never,
+      encryption: {} as never,
+      refreshToken: vi.fn() as never,
+      logger: { warn: vi.fn() } as never,
+      baseUrl: 'https://direct-provider.invalid',
+      cursorStore: cursorStore(),
+      executor: { execute },
+    })
+    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
+      code: 'provider_unavailable',
+      recoverable: false,
+    })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects text that does not match the durable publication digest', async () => {
+    const execute = vi.fn()
+    const { api } = createAdapter({ execute })
+
+    await expect(
+      api.replyToReview({ ...publicationInput(), text: 'different reply' }),
+    ).rejects.toMatchObject({ code: 'authorization_changed', recoverable: false })
+    expect(execute).not.toHaveBeenCalled()
   })
 })
 
@@ -640,9 +831,7 @@ describe('GoogleReviewApiAdapter direct-egress guard', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     const api = ungovernedAdapter({ NODE_ENV: 'production' })
 
-    await expect(
-      api.replyToReview(ORG_ID, CONNECTION_ID, GOOGLE_REVIEW_PRIMARY_RESOURCE, 'thanks'),
-    ).rejects.toMatchObject({
+    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
       _tag: 'ProviderConfigError',
       code: 'config_invalid',
     })
@@ -653,33 +842,28 @@ describe('GoogleReviewApiAdapter direct-egress guard', () => {
   it('names the missing egress configuration in the refusal', async () => {
     const api = ungovernedAdapter({ NODE_ENV: 'production' })
 
-    await expect(
-      api.replyToReview(ORG_ID, CONNECTION_ID, GOOGLE_REVIEW_PRIMARY_RESOURCE, 'thanks'),
-    ).rejects.toThrow(/GOOGLE_EGRESS_GATEWAY_ORIGIN/u)
+    await expect(api.replyToReview(publicationInput())).rejects.toThrow(
+      /GOOGLE_EGRESS_GATEWAY_ORIGIN/u,
+    )
   })
 
   it('allows the direct call in development, unchanged', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(null, { status: 200 }))
-    // Same body as the operator-opt-out test below: build the ungoverned
-    // adapter, call replyToReview, assert it reached the network once. What
-    // differs is the only thing either test exists to pin — the env posture
-    // that makes a direct call legal (development here, production plus
-    // GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS there). Hiding that behind a helper
-    // parameter moves the input away from the assertion it explains.
-    // Revisit if a third posture lands: then it is a table over env inputs.
+    // Local deterministic adapters retain direct transport; production has no
+    // equivalent override because every Review request carries an OAuth token.
     // fallow-ignore-next-line code-duplication
     const api = ungovernedAdapter({ NODE_ENV: 'development' })
 
-    await expect(
-      api.replyToReview(ORG_ID, CONNECTION_ID, GOOGLE_REVIEW_PRIMARY_RESOURCE, 'thanks'),
-    ).resolves.toBeUndefined()
+    await expect(api.replyToReview(publicationInput())).resolves.toEqual({
+      providerCorrelationId: null,
+    })
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     fetchSpy.mockRestore()
   })
 
-  it('allows the direct call in production once the operator opts out', async () => {
+  it('refuses the direct call in production even when the legacy opt-out is set', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(null, { status: 200 }))
@@ -688,10 +872,10 @@ describe('GoogleReviewApiAdapter direct-egress guard', () => {
       GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS: true,
     })
 
-    await expect(
-      api.replyToReview(ORG_ID, CONNECTION_ID, GOOGLE_REVIEW_PRIMARY_RESOURCE, 'thanks'),
-    ).resolves.toBeUndefined()
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
+      code: 'config_invalid',
+    })
+    expect(fetchSpy).not.toHaveBeenCalled()
     fetchSpy.mockRestore()
   })
 })

@@ -1,14 +1,18 @@
 {
-  // `pnpm typecheck` covers src/, services/ and e2e/ only — scripts/ has never
-  // been in any project. That was survivable for seed scripts and fatal for the
-  // release tool: scripts/release/deploy-beta.ts can redeploy every service in
-  // the beta, and nothing checked its types. This project gates the release
-  // surface. scripts/ops/** is deliberately NOT here yet: it carries three
-  // pre-existing errors (scripts/ops/ai-canary-authorization.ts:99 tuple
-  // arity, scripts/ops/google-content-approval.ts:11 unused import,
-  // scripts/ops/quarantine-redrive.ts:40 reads `.attempts` where the type says
-  // `attemptsMade`) — each needs its own fix with its own verification.
+  // Every executable/tooling TypeScript surface outside the application,
+  // service, E2E, and Railway projects lives here. Keep the include broad: a
+  // coverage guard compares all repository TypeScript files with the three
+  // invoked projects so a new script/plugin/config cannot silently escape CI.
   "extends": "./tsconfig.json",
-  "include": ["scripts/release/**/*.ts", "scripts/ops/**/*.ts"],
-  "compilerOptions": { "types": ["node"] }
+  "include": [
+    "scripts/**/*.ts",
+    "server/**/*.ts",
+    ".storybook/**/*.ts",
+    ".storybook/**/*.tsx",
+    "test-fixtures/**/*.ts",
+    "*.config.ts"
+  ],
+  "compilerOptions": {
+    "types": ["node", "react", "react-dom", "vite/client", "vitest/globals"]
+  }
 }

@@ -40,6 +40,10 @@ import {
 } from '#/shared/auth/execution-policy'
 import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import { resetDelayedExecutionPolicy } from '#/shared/auth/system-execution-policy'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '#/shared/auth/process-policy-binding'
 import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
 import {
   createRedriveJob,
@@ -139,7 +143,12 @@ beforeAll(async () => {
   const handle = initPersistedCapabilityPolicyStore({
     db,
     env: { NODE_ENV: 'test', OPS_OPERATOR_IDENTITIES: OPERATOR },
+    clock: () => new Date(),
+    logger: { warn: () => {} },
   })
+  // ARC-03-T8: the real operator boot now binds the handle explicitly —
+  // building it installs nothing.
+  bindProcessPolicies(handle)
   await handle.refresh()
   stopPolicyPolling = handle.stopPolling
   runtime = { decide: (request: DecisionRequest) => getExecutionPolicy().decide(request) }
@@ -157,6 +166,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   stopPolicyPolling?.()
+  releaseProcessPolicies()
   resetExecutionPolicy()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()

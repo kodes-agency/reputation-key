@@ -28,6 +28,8 @@ export type InMemoryIdentityPort = IdentityPort & {
     organizationId: string
     propertyIds: ReadonlyArray<string>
   }>
+  /** Session Organization selections requested through the port. */
+  readonly activeOrganizationCalls: ReadonlyArray<string>
   /** Access all stored members. */
   readonly allMembers: ReadonlyArray<MemberRecord>
   /** Access all stored invitations. */
@@ -50,6 +52,7 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
     organizationId: string
     propertyIds: ReadonlyArray<string>
   }> = []
+  const activeOrganizationCalls: string[] = []
   let sessionUser: Readonly<{ id: string; email: string }> | null = null
 
   return {
@@ -93,9 +96,9 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
 
     async setActiveOrganization(
       _headers: Headers,
-      _organizationId: string,
+      organizationId: string,
     ): Promise<void> {
-      // Test fake — no-op
+      activeOrganizationCalls.push(organizationId)
     },
 
     async getSessionUser(
@@ -167,6 +170,10 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
 
     get acceptInvitationHookCalls() {
       return hookCalls
+    },
+
+    get activeOrganizationCalls() {
+      return activeOrganizationCalls
     },
 
     get allMembers(): ReadonlyArray<MemberRecord> {

@@ -5,7 +5,7 @@
 // left the review committed, the inbox item committed, and no notification —
 // with nothing retrying. The durable consumer in ../outbox-consumers.ts is the
 // structural fix, but it is inert until `OUTBOX_DISPATCHER_ENABLED` is true
-// (with REDIS_URL set) — flipping the dispatcher turns on every context's
+// (with QUEUE_REDIS_URL set) — flipping the dispatcher turns on every context's
 // durable consumers at once, so it is an ops decision with blast radius far
 // beyond notifications. This sweep closes the hole TODAY, under the flags as
 // they actually ship. Note the DURABLE_CUTOVER_INBOX* flags are NOT involved:
@@ -36,7 +36,8 @@
 // logged is a count or an enum (ADR 0030 / BQC-7.3).
 
 import type { Job } from 'bullmq'
-import type { Logger } from 'pino'
+import { createHash } from 'node:crypto'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export const JOB_NAME = 'reconcile-missing-notifications' as const
 
@@ -49,7 +50,6 @@ import {
   fanoutInboxItemNotifications,
   type InboxFanoutDeps,
 } from '../inbox-notification-fanout'
-import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 const DEFAULT_BATCH_SIZE = 100
@@ -98,6 +98,29 @@ type SweepState = {
 }
 
 /**
+ * A stable UUID for a backfilled notification, derived from the Inbox item.
+ *
+ * Same item, same identity: the sweep is idempotent, and a receipt written by
+ * one run is recognised by the next.
+ */
+function backfillEventId(inboxItemId: string): string {
+  const digest = createHash('sha256')
+    .update(`notification-reconcile/${inboxItemId}`)
+    .digest('hex')
+  const version = `5${digest.slice(13, 16)}`
+  const variant = ((Number.parseInt(digest.slice(16, 18), 16) & 0x3f) | 0x80)
+    .toString(16)
+    .padStart(2, '0')
+  return [
+    digest.slice(0, 8),
+    digest.slice(8, 12),
+    version,
+    `${variant}${digest.slice(18, 20)}`,
+    digest.slice(20, 32),
+  ].join('-')
+}
+
+/**
  * Enqueue the notification jobs one candidate is missing. A failure is
  * counted, never rethrown here — see the head-of-line note in the file header.
  */
@@ -105,7 +128,7 @@ async function healCandidate(
   deps: ReconcileMissingNotificationsDeps,
   candidate: MissingNotificationCandidate,
   state: SweepState,
-  logger: Logger,
+  logger: LoggerPort,
 ): Promise<void> {
   try {
     const outcome = await fanoutInboxItemNotifications(deps, {
@@ -113,9 +136,17 @@ async function healCandidate(
       organizationId: candidate.organizationId,
       propertyId: candidate.propertyId,
       sourceType: candidate.sourceType,
-      // Stamped onto notifications.event_id: a backfilled row is
-      // distinguishable from one the happy path produced.
-      eventId: `reconcile:${candidate.inboxItemId}`,
+      // A UUID, because this value does not stop at notifications.event_id
+      // (varchar): it travels on as the outbox event identity, and
+      // event_consumer_receipts.event_id is a uuid column. The literal
+      // `reconcile:<id>` string therefore failed every insert with "invalid
+      // input syntax for type uuid", so the sweep could never record a receipt
+      // and healed nothing.
+      //
+      // Derived rather than random, so re-running the sweep for the same item
+      // produces the same identity. The backfilled provenance the old prefix
+      // carried lives on in correlationId below, which is not a uuid column.
+      eventId: backfillEventId(candidate.inboxItemId),
       correlationId: `notification-reconcile:${candidate.inboxItemId}`,
     })
     if (outcome.kind === 'enqueued') {
@@ -141,7 +172,7 @@ async function processBatch(
     createdAtOrAfter: Date
     createdBefore: Date
     batchSize: number
-    logger: Logger
+    logger: LoggerPort
   }>,
 ): Promise<boolean> {
   const batch = await deps.gapRepo.findItemsMissingNotifications({
@@ -174,7 +205,7 @@ export const createReconcileMissingNotificationsHandler = (
 
   return async (_job: Job) => {
     return trace('job.reconcileMissingNotifications', async () => {
-      const logger = getLogger()
+      const logger = deps.logger
       const now = deps.clock()
       const createdBefore = new Date(now.getTime() - graceMs)
       const createdAtOrAfter = new Date(now.getTime() - lookbackMs)

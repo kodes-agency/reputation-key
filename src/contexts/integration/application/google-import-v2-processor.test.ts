@@ -24,6 +24,8 @@ const PROVIDER_ACCOUNT_ID =
   GOOGLE_PROVIDER_FIXTURES_V1['google-account-primary'].expectedSegments.accountId
 const PROVIDER_LOCATION_ID =
   GOOGLE_PROVIDER_FIXTURES_V1['google-location-primary'].expectedSegments.locationId
+const GOOGLE_REVIEW_URI =
+  'https://search.google.com/local/writereview?placeid=provider-location-1'
 
 const actor = {
   organizationId: ORG_ID,
@@ -66,6 +68,7 @@ function claimedItem(
     destinationPropertyId: PROPERTY_ID,
     providerAccountSuffix: PROVIDER_ACCOUNT_ID,
     providerLocationSuffix: PROVIDER_LOCATION_ID,
+    googleReviewUri: GOOGLE_REVIEW_URI,
     expectedConnectionLifecycleVersion: 4,
     expectedConnectionAccessVersion: 3,
     expectedCredentialGeneration: 2,
@@ -299,6 +302,19 @@ describe('GoogleImportV2Processor', () => {
       requireAccessToken: false,
     })
     expect(harness.createBoundProperty).toHaveBeenCalledOnce()
+    expect(harness.createBoundProperty).toHaveBeenCalledWith(
+      expect.objectContaining({
+        property: expect.objectContaining({
+          googleReviewDestination: {
+            state: 'verified',
+            uri: GOOGLE_REVIEW_URI,
+            retrievedAt: NOW,
+            sourceEpoch: 0,
+            profileVersion: 1,
+          },
+        }),
+      }),
+    )
     expect(harness.reconcileFromReceipt).toHaveBeenCalledWith({
       organizationId: ORG_ID,
       itemId: ITEM_ID,
@@ -717,6 +733,9 @@ describe('GoogleImportV2Processor', () => {
         propertyId: PROPERTY_ID,
         expectedSourceEpoch: 7,
         expectedProfileVersion: 9,
+        profile: expect.objectContaining({
+          googleReviewUri: GOOGLE_REVIEW_URI,
+        }),
       }),
     )
     expect(harness.reconcileFromReceipt).toHaveBeenCalledWith(

@@ -1,10 +1,16 @@
 // BQC-1.2 — bounded null-backfill integration test (real PostgreSQL).
-// Proves: batches are bounded, every copy is nulled, workflow fields are
-// untouched, and re-running is a no-op (idempotent/resumable).
+//
+// The current public inbox_items table has a validated content-free CHECK, so
+// a legacy Review copy cannot be created there. A connection-local temporary
+// table gives the historical backfill its real PostgreSQL seam without ever
+// dropping or weakening the installed production constraint.
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { sql } from 'drizzle-orm'
-import { getDb } from '#/shared/db'
+import type { PoolClient } from 'pg'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { getEnv } from '#/shared/config/env'
+import type { Database } from '#/shared/db'
+import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { nullInboxSourceCopies } from '../migrations/null-inbox-source-copies'
 
 const ORG = 'org-null-backfill-test'
@@ -14,88 +20,126 @@ const IDS = [
   'aa000000-0000-4000-8000-0000000000b3',
   'aa000000-0000-4000-8000-0000000000b4',
   'aa000000-0000-4000-8000-0000000000b5',
+  'aa000000-0000-4000-8000-0000000000b6',
 ]
 
-const db = getDb()
+let lease: TestLease
+let client: PoolClient
+let db: Pick<Database, 'execute'>
 
-async function insertRow(id: string, withContent: boolean): Promise<void> {
-  await db.execute(sql`
-    INSERT INTO inbox_items (
-      id, organization_id, property_id, source_type, source_id, status,
-      is_escalated, source_date, platform, rating, snippet, reviewer_name
-    ) VALUES (
-      ${id}, ${ORG}, 'prop-1', 'review', ${id}, 'open',
-      false, now(), 'google',
-      ${withContent ? 4 : null},
-      ${withContent ? 'Full raw review text copy' : null},
-      ${withContent ? 'Raw Reviewer Name' : null}
-    )
-  `)
+async function insertRow(
+  id: string,
+  sourceType: 'review' | 'feedback',
+  withContent: boolean,
+): Promise<void> {
+  await client.query(
+    `INSERT INTO inbox_items (
+       id, organization_id, source_type, status, rating, snippet, reviewer_name
+     ) VALUES ($1, $2, $3, 'open', $4, $5, $6)`,
+    [
+      id,
+      ORG,
+      sourceType,
+      withContent ? 4 : null,
+      withContent ? 'Source-owned content' : null,
+      withContent ? 'Source-owned name' : null,
+    ],
+  )
 }
 
 async function contentRows(): Promise<
   Array<{
     id: string
+    source_type: string
     rating: number | null
     snippet: string | null
     reviewer_name: string | null
     status: string
   }>
 > {
-  const result = await db.execute(sql`
-    SELECT id, rating, snippet, reviewer_name, status
-    FROM inbox_items WHERE organization_id = ${ORG} ORDER BY id
-  `)
-  return result.rows as Array<{
-    id: string
-    rating: number | null
-    snippet: string | null
-    reviewer_name: string | null
-    status: string
-  }>
+  const result = await client.query(
+    `SELECT id, source_type, rating, snippet, reviewer_name, status
+     FROM inbox_items WHERE organization_id = $1 ORDER BY id`,
+    [ORG],
+  )
+  return result.rows
 }
 
 describe('null-inbox-source-copies backfill (BQC-1.2)', () => {
   beforeAll(async () => {
-    await db.execute(sql`DELETE FROM inbox_items WHERE organization_id = ${ORG}`)
-    for (const [i, id] of IDS.entries()) {
-      await insertRow(id, i < 4) // 4 with content, 1 already clean
+    lease = await acquireTestLease(getEnv().DATABASE_URL)
+    client = await lease.pool.connect()
+    await client.query(`
+      CREATE TEMPORARY TABLE inbox_items (
+        id uuid PRIMARY KEY,
+        organization_id text NOT NULL,
+        source_type text NOT NULL,
+        status text NOT NULL,
+        rating integer,
+        snippet text,
+        reviewer_name text
+      ) ON COMMIT PRESERVE ROWS
+    `)
+    db = drizzle(client)
+  })
+
+  beforeEach(async () => {
+    await client.query('TRUNCATE inbox_items')
+    for (const [index, id] of IDS.entries()) {
+      if (index < 4) await insertRow(id, 'review', true)
+      else if (index === 4) await insertRow(id, 'review', false)
+      else await insertRow(id, 'feedback', true)
     }
   })
 
   afterAll(async () => {
-    await db.execute(sql`DELETE FROM inbox_items WHERE organization_id = ${ORG}`)
+    client?.release()
+    await lease?.release()
   })
 
-  it('nulls every copy in bounded batches and preserves workflow fields', async () => {
+  it('nulls Review copies in bounded batches without changing workflow or Feedback data', async () => {
     const batchLog: Array<[number, number]> = []
     const result = await nullInboxSourceCopies(db, {
       batchSize: 2,
       onBatch: (batch, rows) => batchLog.push([batch, rows]),
     })
 
-    // 4 content rows at batch size 2 → exactly 2 batches of 2
-    expect(result.batches).toBe(2)
-    expect(result.rowsNulled).toBe(4)
+    expect(result).toEqual({ batches: 2, rowsNulled: 4 })
     expect(batchLog).toEqual([
       [1, 2],
       [2, 2],
     ])
 
     const rows = await contentRows()
-    expect(rows).toHaveLength(5)
-    for (const row of rows) {
+    expect(rows).toHaveLength(6)
+    for (const row of rows.filter((candidate) => candidate.source_type === 'review')) {
       expect(row.rating).toBeNull()
       expect(row.snippet).toBeNull()
       expect(row.reviewer_name).toBeNull()
-      // workflow fields untouched
       expect(row.status).toBe('open')
     }
+    expect(rows.find((row) => row.source_type === 'feedback')).toMatchObject({
+      rating: 4,
+      snippet: 'Source-owned content',
+      reviewer_name: 'Source-owned name',
+      status: 'open',
+    })
+
+    const publicConstraint = await client.query<{ convalidated: boolean }>(`
+      SELECT convalidated
+      FROM pg_constraint
+      WHERE conname = 'inbox_items_review_source_content_free'
+        AND conrelid = 'public.inbox_items'::regclass
+    `)
+    expect(publicConstraint.rows).toEqual([{ convalidated: true }])
   })
 
-  it('is a no-op on re-run (idempotent / resumable)', async () => {
-    const result = await nullInboxSourceCopies(db, { batchSize: 2 })
-    expect(result.batches).toBe(0)
-    expect(result.rowsNulled).toBe(0)
+  it('is a no-op on re-run after the Review rows are clean', async () => {
+    await nullInboxSourceCopies(db, { batchSize: 2 })
+
+    await expect(nullInboxSourceCopies(db, { batchSize: 2 })).resolves.toEqual({
+      batches: 0,
+      rowsNulled: 0,
+    })
   })
 })

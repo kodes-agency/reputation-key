@@ -36,8 +36,9 @@ export const isPropertyAccessibleForPermission = async (
   permission: Permission,
   propertyId: PropertyId,
 ): Promise<boolean> => {
-  const orgWide = scopeForPermission(ctx, permission) === 'organization'
-  if (orgWide) return true
+  const scope = scopeForPermission(ctx, permission)
+  if (scope === 'organization') return true
+  if (scope === 'none') return false
   const accessible = await lookup(ctx.organizationId, ctx.userId, false)
   return accessible === null || accessible.includes(propertyId)
 }
@@ -51,8 +52,9 @@ export const getAccessiblePropertyIdsForPermission = async (
   ctx: AuthContext,
   permission: Permission,
 ): Promise<ReadonlyArray<PropertyId> | null> => {
-  const orgWide = scopeForPermission(ctx, permission) === 'organization'
-  if (orgWide) return null
+  const scope = scopeForPermission(ctx, permission)
+  if (scope === 'organization') return null
+  if (scope === 'none') return []
   return lookup(ctx.organizationId, ctx.userId, false)
 }
 

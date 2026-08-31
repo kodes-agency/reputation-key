@@ -1,5 +1,6 @@
 // Notification context — event handler for inbox.inbox_item.created
-// Notifies assigned managers about new reviews AND feedback.
+// Routes new reviews to Property Responsible Managers and private feedback to
+// Portal Responsible Managers, with AccountAdmin recovery only when unowned.
 //
 // The handler is a thin adapter: it unpacks the bus event and hands it to
 // `fanoutInboxItemNotifications`, which owns recipient resolution, the

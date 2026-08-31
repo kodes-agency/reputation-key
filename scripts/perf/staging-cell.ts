@@ -200,6 +200,8 @@ async function cmdUp(): Promise<number> {
     releaseSha,
     probeOrgId,
     databaseUrl,
+    cacheRedisUrl: argValue('--cache-redis-url'),
+    redisUrl: argValue('--queue-redis-url'),
   })
   const { state } = result
   console.log('─'.repeat(60))
@@ -207,7 +209,9 @@ async function cmdUp(): Promise<number> {
   console.log(`  web:     http://localhost:${state.ports.web} (pid ${state.pids.web})`)
   console.log(`  worker:  pid ${state.pids.worker}`)
   console.log(`  stubs:   gbp :${state.ports.gbpStub} · mail :${state.ports.mailStub}`)
-  console.log(`  db:      ${state.dbName} · redis: ${state.redisUrl}`)
+  console.log(`  db:      ${state.dbName}`)
+  console.log(`  cache:   ${state.cacheRedisUrl}`)
+  console.log(`  queue:   ${state.redisUrl}`)
   console.log(`  release: ${state.releaseSha.slice(0, 12)}`)
   console.log(`  state:   ${STATE_PATH}`)
   console.log(
@@ -260,6 +264,7 @@ async function cmdEnv(): Promise<number> {
   const { state } = status
   const env = buildCellEnv({
     databaseUrl: state.databaseUrl,
+    cacheRedisUrl: state.cacheRedisUrl,
     redisUrl: state.redisUrl,
     ports: state.ports,
     probeOrgId: state.probeOrgId,

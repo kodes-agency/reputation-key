@@ -48,6 +48,7 @@ const PERSISTED_STATES: ReadonlyArray<PersistedPublicationState> = [
   'requested',
   'authorized',
   'sending',
+  'pending_observation',
   'published',
   'terminal',
   'ambiguous',
@@ -57,6 +58,7 @@ const PERSISTED_STATES: ReadonlyArray<PersistedPublicationState> = [
 const EVENTS: ReadonlyArray<PublicationStateEvent> = [
   'authorize',
   'claim',
+  'provider_accepted',
   'publish',
   'fail_terminal',
   'fail_ambiguous',

@@ -3,7 +3,6 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -35,6 +34,10 @@ import { AI_GATEWAY_BUILD_ATTESTATION_DIGEST } from '../../src/shared/ai-gateway
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
 import { AI_RUNTIME_CAPABILITIES_V1_DIGEST } from '../../src/shared/ai-runtime-capability-contract'
 import { selectProbeEvidence } from '#/shared/testing/probe-evidence'
+import {
+  readLocalStackFile,
+  readOptionalLocalStackFile,
+} from '../../src/shared/testing/local-stack-artifact-file'
 import {
   buildLocalStackEnv,
   createMigrationHeadProof,
@@ -74,7 +77,8 @@ const APP_SERVICES = [
 
 const FAULTS = [
   { name: 'db', service: 'postgres', endpoint: 'tcp', port: 55434 },
-  { name: 'redis', service: 'redis', endpoint: 'tcp', port: 56381 },
+  { name: 'cache-redis', service: 'redis', endpoint: 'operation' },
+  { name: 'redis', service: 'queue-redis', endpoint: 'operation' },
   {
     name: 'object-store',
     service: 'object-store',
@@ -217,7 +221,11 @@ function serializeEnv(env: Readonly<Record<string, string>>): string {
     .join('\n')}\n`
 }
 
-function prepareProviderRedisAssets(state: StackPaths, password: string): void {
+function prepareProviderRedisAssets(
+  state: StackPaths,
+  providerPassword: string,
+  googleAdmissionPassword: string,
+): void {
   mkdirSync(state.googleRuntime, { recursive: true, mode: 0o700 })
   chmodSync(state.googleRuntime, 0o700)
   const asset = (name: string) => resolve(state.googleRuntime, name)
@@ -226,6 +234,15 @@ function prepareProviderRedisAssets(state: StackPaths, password: string): void {
       name: 'provider-redis',
       commonName: 'provider-redis',
       dnsName: 'provider-redis-ingress',
+      usage: 'serverAuth',
+    },
+    // The admission's dedicated store. Like provider-redis it is fronted by a
+    // TCP relay, so the SAN has to name the relay: that is the host the client
+    // dials and therefore the name TLS verifies.
+    {
+      name: 'google-admission-redis',
+      commonName: 'google-admission-redis-store',
+      dnsName: 'google-admission-redis-ingress',
       usage: 'serverAuth',
     },
     {
@@ -251,29 +268,31 @@ function prepareProviderRedisAssets(state: StackPaths, password: string): void {
     {
       name: 'repkey-web',
       commonName: 'repkey-web-e2e',
-      dnsName: 'repkey-web',
       usage: 'clientAuth',
+      uriName: 'spiffe://repkey.internal/repkey-web',
     },
     {
       name: 'repkey-worker',
       commonName: 'repkey-worker-e2e',
-      dnsName: 'repkey-worker',
       usage: 'clientAuth',
+      uriName: 'spiffe://repkey.internal/repkey-worker',
     },
     {
       name: 'google-healthcheck',
       commonName: 'google-healthcheck',
-      dnsName: 'google-healthcheck',
       usage: 'clientAuth',
+      uriName: 'spiffe://repkey.internal/google-healthcheck',
     },
   ] as const
   const caCertificate = asset('ca.crt')
+  const mtlsProfile = asset('google-mtls-spiffe-v2')
   const generatedAssets = certificates.flatMap(({ name }) => [
     `${name}.crt`,
     `${name}.key`,
   ])
   if (
     !existsSync(caCertificate) ||
+    !existsSync(mtlsProfile) ||
     generatedAssets.some((name) => !existsSync(asset(name)))
   ) {
     for (const name of [
@@ -326,7 +345,7 @@ function prepareProviderRedisAssets(state: StackPaths, password: string): void {
         { capture: true },
       )
       const subjectAltNames = [
-        `DNS:${certificate.dnsName}`,
+        ...('dnsName' in certificate ? [`DNS:${certificate.dnsName}`] : []),
         ...('uriName' in certificate ? [`URI:${certificate.uriName}`] : []),
       ]
       writeFileSync(
@@ -357,6 +376,7 @@ function prepareProviderRedisAssets(state: StackPaths, password: string): void {
         { capture: true },
       )
     }
+    writeFileSync(mtlsProfile, 'google-mtls-spiffe-v2\n', { mode: 0o644 })
     for (const name of [
       'ca.key',
       'ca.srl',
@@ -365,37 +385,54 @@ function prepareProviderRedisAssets(state: StackPaths, password: string): void {
       rmSync(asset(name), { force: true })
     }
   }
-  writeFileSync(
-    asset('provider-redis.acl'),
-    `user default off\nuser repkey on >${password} ~provider-ephemeral:* +ping +info +config|get +acl|whoami +acl|dryrun +get +set +getdel +del +eval\n`,
-    { mode: 0o600 },
+  // Every provider-ephemeral Redis in the stack boots the same server shape,
+  // because verifyProviderEphemeralRedisRuntime inspects the live server at
+  // sidecar startup and refuses anything with persistence, replication, an
+  // unbounded maxmemory or a `default` ACL identity. Only the ACL identity's
+  // key space and command set differ per store.
+  const writeDedicatedRedis = (name: string, acl: string): void => {
+    writeFileSync(asset(`${name}.acl`), acl, { mode: 0o600 })
+    writeFileSync(
+      asset(`${name}.conf`),
+      [
+        'bind 0.0.0.0',
+        'protected-mode yes',
+        'port 0',
+        'tls-port 6379',
+        `tls-cert-file /run/repkey/${name}.crt`,
+        `tls-key-file /run/repkey/${name}.key`,
+        'tls-ca-cert-file /run/repkey/ca.crt',
+        'tls-auth-clients no',
+        'save ""',
+        'appendonly no',
+        'maxmemory 67108864',
+        'maxmemory-policy volatile-ttl',
+        `aclfile /run/repkey/${name}.acl`,
+        'dir /tmp',
+        '',
+      ].join('\n'),
+      { mode: 0o600 },
+    )
+    chmodSync(asset(`${name}.acl`), 0o644)
+    chmodSync(asset(`${name}.conf`), 0o644)
+  }
+  writeDedicatedRedis(
+    'provider-redis',
+    `user default off\nuser repkey on >${providerPassword} ~provider-ephemeral:* +ping +info +config|get +acl|whoami +acl|dryrun +get +set +getdel +del +eval\n`,
   )
-  writeFileSync(
-    asset('provider-redis.conf'),
-    [
-      'bind 0.0.0.0',
-      'protected-mode yes',
-      'port 0',
-      'tls-port 6379',
-      'tls-cert-file /run/repkey/provider-redis.crt',
-      'tls-key-file /run/repkey/provider-redis.key',
-      'tls-ca-cert-file /run/repkey/ca.crt',
-      'tls-auth-clients no',
-      'save ""',
-      'appendonly no',
-      'maxmemory 67108864',
-      'maxmemory-policy volatile-ttl',
-      'aclfile /run/repkey/provider-redis.acl',
-      'dir /tmp',
-      '',
-    ].join('\n'),
-    { mode: 0o600 },
+  // The admission's key space is its own: grants live under
+  // `google-admission:{id}:grant` and quota/in-flight state under
+  // `google-provider:{coordination}:...`. The extra verbs are what the Lua
+  // bodies call — quota buckets are hashes, in-flight leases sorted sets — and
+  // ACL applies to commands invoked inside EVAL under the calling user, so
+  // omitting one fails at admission time rather than at boot.
+  writeDedicatedRedis(
+    'google-admission-redis',
+    `user default off\nuser repkey on >${googleAdmissionPassword} ~google-admission:* ~google-provider:* +ping +info +config|get +acl|whoami +acl|dryrun +get +set +del +hget +hset +pexpire +zadd +zcard +zrange +zrem +zremrangebyscore +eval\n`,
   )
   chmodSync(caCertificate, 0o644)
+  chmodSync(mtlsProfile, 0o644)
   for (const name of generatedAssets) chmodSync(asset(name), 0o644)
-  chmodSync(asset('provider-redis.acl'), 0o644)
-
-  chmodSync(asset('provider-redis.conf'), 0o644)
 }
 function prepareAiInternalMtlsAssets(state: StackPaths): void {
   const specs = [
@@ -626,10 +663,12 @@ function prepareAiControlDatabaseTlsAssets(state: StackPaths): void {
   const caCertificate = asset('control-db-ca.crt')
   const serverCertificate = asset('control-db-server.crt')
   const serverKey = asset('control-db-server.key')
+  const tlsProfile = asset('control-database-tls-v2')
   if (
     !existsSync(caCertificate) ||
     !existsSync(serverCertificate) ||
-    !existsSync(serverKey)
+    !existsSync(serverKey) ||
+    !existsSync(tlsProfile)
   ) {
     for (const name of [
       'control-db-ca.crt',
@@ -639,6 +678,7 @@ function prepareAiControlDatabaseTlsAssets(state: StackPaths): void {
       'control-db-server.csr',
       'control-db-server.key',
       'control-db-server.ext',
+      'control-database-tls-v2',
     ]) {
       rmSync(asset(name), { force: true })
     }
@@ -679,9 +719,11 @@ function prepareAiControlDatabaseTlsAssets(state: StackPaths): void {
     )
     writeFileSync(
       asset('control-db-server.ext'),
-      ['subjectAltName=DNS:ai-control-postgres', 'extendedKeyUsage=serverAuth', ''].join(
-        '\n',
-      ),
+      [
+        'subjectAltName=DNS:ai-control-postgres,DNS:postgres',
+        'extendedKeyUsage=serverAuth',
+        '',
+      ].join('\n'),
       { mode: 0o600 },
     )
     run(
@@ -714,41 +756,48 @@ function prepareAiControlDatabaseTlsAssets(state: StackPaths): void {
     ]) {
       rmSync(asset(name), { force: true })
     }
+    writeFileSync(tlsProfile, 'control-database-tls-v2\n', { mode: 0o644 })
   }
   chmodSync(caCertificate, 0o644)
   chmodSync(serverCertificate, 0o644)
   chmodSync(serverKey, 0o640)
+  chmodSync(tlsProfile, 0o644)
 }
 
 type LocalApprovalRoleKeys = Readonly<
   Record<GoogleContentApprovalRole, Readonly<{ publicKey: string; privateKey: string }>>
 >
 
+function generateLocalApprovalRoleKeyPair(
+  publicPath: string,
+  privatePath: string,
+): Readonly<{ publicKey: string; privateKey: string }> {
+  const pair = generateKeyPairSync('ed25519')
+  const publicKey = pair.publicKey.export({ type: 'spki', format: 'pem' }).toString()
+  const privateKey = pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+  writeFileSync(publicPath, publicKey, { mode: 0o644 })
+  writeFileSync(privatePath, privateKey, { mode: 0o600 })
+  return { publicKey, privateKey }
+}
+
 function prepareLocalApprovalRoleKeys(state: StackPaths): LocalApprovalRoleKeys {
   const entries = GOOGLE_CONTENT_APPROVAL_ROLES.map((role) => {
     const stem = `approval-${role.replaceAll('/', '-')}`
     const publicPath = resolve(state.googleRuntime, `${stem}.pub.pem`)
     const privatePath = resolve(state.googleRuntime, `${stem}.key.pem`)
-    if (!existsSync(publicPath) || !existsSync(privatePath)) {
-      const pair = generateKeyPairSync('ed25519')
-      writeFileSync(publicPath, pair.publicKey.export({ type: 'spki', format: 'pem' }), {
-        mode: 0o644,
-      })
-      writeFileSync(
-        privatePath,
-        pair.privateKey.export({ type: 'pkcs8', format: 'pem' }),
-        { mode: 0o600 },
-      )
-    }
+    // The PEM the caller gets is the buffer these opens produced, or the PEM
+    // this pass just generated. The previous shape checked both paths with
+    // `existsSync` and then read them again, so a swap in between handed the
+    // stack approval keys it had never inspected.
+    const storedPublicKey = readOptionalLocalStackFile(publicPath)?.toString('utf8')
+    const storedPrivateKey = readOptionalLocalStackFile(privatePath)?.toString('utf8')
+    const material =
+      storedPublicKey === undefined || storedPrivateKey === undefined
+        ? generateLocalApprovalRoleKeyPair(publicPath, privatePath)
+        : { publicKey: storedPublicKey, privateKey: storedPrivateKey }
     chmodSync(publicPath, 0o644)
     chmodSync(privatePath, 0o600)
-    return [
-      role,
-      {
-        publicKey: readFileSync(publicPath, 'utf8'),
-        privateKey: readFileSync(privatePath, 'utf8'),
-      },
-    ] as const
+    return [role, material] as const
   })
   return Object.fromEntries(entries) as LocalApprovalRoleKeys
 }
@@ -907,7 +956,7 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
     if (privateKey.byteLength !== 48) {
       throw new Error(`Local ${label} signing key fixture is invalid`)
     }
-    const existing = existsSync(path) ? readFileSync(path) : null
+    const existing = readOptionalLocalStackFile(path)
     if (existing === null || !existing.equals(privateKey)) {
       writeFileSync(path, privateKey, { mode: 0o600 })
     }
@@ -915,11 +964,14 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
     chmodSync(path, 0o600)
   }
   const createSymmetricKey = (path: string): void => {
-    if (!existsSync(path)) {
+    // One open answers both questions this used to ask the path separately —
+    // "does it exist" and "what is in it". The freshly generated case needs no
+    // read-back: `randomBytes(32)` is 32 bytes by construction, so the length
+    // guard only ever has an already-present key to judge.
+    const existing = readOptionalLocalStackFile(path)
+    if (existing === null) {
       writeFileSync(path, randomBytes(32), { mode: 0o600 })
-    }
-    const key = readFileSync(path)
-    if (key.byteLength !== 32) {
+    } else if (existing.byteLength !== 32) {
       throw new Error('Local AI symmetric key is invalid')
     }
     chmodSync(path, 0o600)
@@ -938,11 +990,12 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
   createSymmetricKey(safetyIdentifierKeyPath)
   createSymmetricKey(subjectHmacKeyPath)
 
-  const privateKeyBase64 = (path: string): string => readFileSync(path).toString('base64')
+  const privateKeyBase64 = (path: string): string =>
+    readLocalStackFile(path).toString('base64')
   const publicKeyBase64 = (path: string): string =>
     createPublicKey(
       createPrivateKey({
-        key: readFileSync(path),
+        key: readLocalStackFile(path),
         format: 'der',
         type: 'pkcs8',
       }),
@@ -950,7 +1003,7 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
       .export({ format: 'der', type: 'spki' })
       .toString('base64')
   const encoded = (name: string): string =>
-    readFileSync(resolve(state.aiRuntime, name)).toString('base64')
+    readLocalStackFile(resolve(state.aiRuntime, name)).toString('base64')
   const admissionKid = 'admission-v1'
   const provenanceKid = 'provenance-v1'
   return {
@@ -965,9 +1018,9 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
     AI_WEB_INTERNAL_MTLS_KEY_B64: encoded('repkey-web.key'),
     AI_WORKER_INTERNAL_MTLS_CERT_B64: encoded('repkey-worker.crt'),
     AI_WORKER_INTERNAL_MTLS_KEY_B64: encoded('repkey-worker.key'),
-    AI_REQUEST_BINDING_HMAC_KEYS: `request-v1:${readFileSync(requestBindingKeyPath).toString('hex')}`,
-    AI_SAFETY_IDENTIFIER_HMAC_KEYS: `safety-v1:${readFileSync(safetyIdentifierKeyPath).toString('hex')}`,
-    AI_SUBJECT_HMAC_KEYS: `subject-v1:${readFileSync(subjectHmacKeyPath).toString('hex')}`,
+    AI_REQUEST_BINDING_HMAC_KEYS: `request-v1:${readLocalStackFile(requestBindingKeyPath).toString('hex')}`,
+    AI_SAFETY_IDENTIFIER_HMAC_KEYS: `safety-v1:${readLocalStackFile(safetyIdentifierKeyPath).toString('hex')}`,
+    AI_SUBJECT_HMAC_KEYS: `subject-v1:${readLocalStackFile(subjectHmacKeyPath).toString('hex')}`,
     AI_ADMISSION_ED25519_KID: admissionKid,
     AI_ADMISSION_ED25519_PRIVATE_KEY_B64: privateKeyBase64(admissionPrivateKeyPath),
     AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: JSON.stringify({
@@ -1013,11 +1066,23 @@ function prepare(mode: LocalStackMode, clearArtifacts = false): StackPaths {
     artifactDir: state.artifacts,
     e2eDir: state.e2eArtifacts,
   })
-  prepareProviderRedisAssets(state, baseEnv.PROVIDER_EPHEMERAL_REDIS_PASSWORD!)
+  // buildLocalStackEnv owns the shared secret set and knows nothing about the
+  // admission's own store, so its ACL password is derived here with the same
+  // revision-scoped formula: a clean stack must reproduce the exact password
+  // baked into the generated aclfile.
+  const googleAdmissionRedisPassword = sha256(
+    `rep-key/local/${releaseSha}/google-admission-redis`,
+  )
+  prepareProviderRedisAssets(
+    state,
+    baseEnv.PROVIDER_EPHEMERAL_REDIS_PASSWORD!,
+    googleAdmissionRedisPassword,
+  )
   prepareAiInternalMtlsAssets(state)
   prepareAiControlDatabaseTlsAssets(state)
   const env = {
     ...baseEnv,
+    GOOGLE_ADMISSION_REDIS_PASSWORD: googleAdmissionRedisPassword,
     ...buildLocalGoogleContentApprovalEnv(state, releaseSha),
     ...prepareLocalAiAdmissionEnv(state),
   }
@@ -1201,21 +1266,6 @@ async function waitWorkerRestart(
   throw new Error(`worker did not emit readiness line: ${WORKER_READY_LINE}`)
 }
 
-function serviceRunning(
-  mode: LocalStackMode,
-  state: StackPaths,
-  service: string,
-): boolean {
-  const id = dockerCompose(mode, state, ['ps', '--all', '--quiet', service], {
-    capture: true,
-    allowFailure: true,
-  }).trim()
-  if (!id) return false
-  const parsed = JSON.parse(
-    run('docker', ['inspect', id], { capture: true }),
-  ) as DockerInspect
-  return parsed[0]?.State.Running === true
-}
 function serviceNetworks(
   mode: LocalStackMode,
   state: StackPaths,
@@ -1273,6 +1323,11 @@ function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths):
     worker: ['ai-gateway-ingress', 'app', 'egress-control', 'provider-ephemeral'],
     'provider-redis': ['provider-redis-data'],
     'provider-redis-ingress': ['provider-ephemeral', 'provider-redis-data'],
+    'google-admission-redis-store': ['google-admission-redis-data'],
+    'google-admission-redis-ingress': [
+      'google-admission-redis',
+      'google-admission-redis-data',
+    ],
     'provider-sandbox': ['provider-egress'],
     'provider-control-proxy': ['provider-control', 'provider-egress'],
     'google-execution-admission': [
@@ -1305,12 +1360,24 @@ function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths):
     { source: 'web', host: 'google-egress-gateway', port: 8443, reachable: true },
     { source: 'web', host: 'provider-sandbox', port: 4100, reachable: false },
     { source: 'web', host: 'provider-redis', port: 6379, reachable: false },
+    {
+      source: 'web',
+      host: 'google-admission-redis-ingress',
+      port: 6379,
+      reachable: false,
+    },
     { source: 'web', host: 'ai-egress-gateway', port: 8443, reachable: true },
     { source: 'web', host: 'ai-provider-stub', port: 4102, reachable: false },
     { source: 'web', host: 'ai-execution-admission', port: 8443, reachable: false },
     { source: 'worker', host: 'google-egress-gateway', port: 8443, reachable: true },
     { source: 'worker', host: 'provider-sandbox', port: 4100, reachable: false },
     { source: 'worker', host: 'provider-redis', port: 6379, reachable: false },
+    {
+      source: 'worker',
+      host: 'google-admission-redis-ingress',
+      port: 6379,
+      reachable: false,
+    },
     { source: 'worker', host: 'ai-egress-gateway', port: 8443, reachable: true },
     { source: 'worker', host: 'ai-provider-stub', port: 4102, reachable: false },
     { source: 'worker', host: 'ai-execution-admission', port: 8443, reachable: false },
@@ -1329,16 +1396,38 @@ function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths):
     { source: 'google-egress-gateway', host: 'postgres', port: 5432, reachable: false },
     { source: 'google-egress-gateway', host: 'redis', port: 6379, reachable: false },
     {
+      source: 'google-egress-gateway',
+      host: 'google-admission-redis-ingress',
+      port: 6379,
+      reachable: false,
+    },
+    {
       source: 'google-execution-admission',
       host: 'postgres',
       port: 5432,
       reachable: true,
     },
+    // The admission reaches its own store only through the relay. The shared
+    // cache used to sit on google-admission-redis and was what REDIS_URL named;
+    // it is off that network now, because a plaintext no-ACL Redis within reach
+    // of this process is exactly what its startup contract forbids.
+    {
+      source: 'google-execution-admission',
+      host: 'google-admission-redis-ingress',
+      port: 6379,
+      reachable: true,
+    },
+    {
+      source: 'google-execution-admission',
+      host: 'google-admission-redis-store',
+      port: 6379,
+      reachable: false,
+    },
     {
       source: 'google-execution-admission',
       host: 'redis',
       port: 6379,
-      reachable: true,
+      reachable: false,
     },
     {
       source: 'google-execution-admission',
@@ -1606,7 +1695,7 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
   //
   // COMPOSE_PARALLEL_LIMIT: compose builds every service at once by default,
   // and each of these stages runs its own `pnpm install --frozen-lockfile`.
-  // Eight of those concurrently exhausted a 4 GiB Docker VM: the guest kernel
+  // Nine of those concurrently exhausted a 4 GiB Docker VM: the guest kernel
   // logged `global_oom` and killed whatever was largest, twice taking `dockerd`
   // itself, which surfaces to the client as the useless
   // `failed to solve: Unavailable: error reading from server: EOF`. Capping the
@@ -1619,6 +1708,7 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
       'build',
       'web',
       'worker',
+      'seed',
       'provider-sandbox',
       'google-execution-admission',
       'google-egress-gateway',
@@ -1640,8 +1730,11 @@ function startDependencies(mode: LocalStackMode, state: StackPaths): void {
     '180',
     'postgres',
     'redis',
+    'queue-redis',
     'provider-redis',
     'provider-redis-ingress',
+    'google-admission-redis-store',
+    'google-admission-redis-ingress',
     'object-store',
     'provider-sandbox',
     'provider-control-proxy',
@@ -1675,10 +1768,18 @@ function sanitationEvidence(
   const publicTables = Number(
     queryDb(mode, state, `SELECT count(*) FROM pg_tables WHERE schemaname = 'public'`),
   )
-  const redisKeys = Number(
+  const cacheRedisKeys = Number(
     dockerCompose(mode, state, ['exec', '-T', 'redis', 'redis-cli', '--raw', 'DBSIZE'], {
       capture: true,
     }).trim(),
+  )
+  const queueRedisKeys = Number(
+    dockerCompose(
+      mode,
+      state,
+      ['exec', '-T', 'queue-redis', 'redis-cli', '--raw', 'DBSIZE'],
+      { capture: true },
+    ).trim(),
   )
   oneShot(mode, state, 'object-store-init')
   const objectOutput = dockerCompose(
@@ -1701,16 +1802,19 @@ function sanitationEvidence(
   const evidence = {
     volumesRecreated: true,
     publicTablesBeforeMigration: publicTables,
-    redisKeysBeforeApplication: redisKeys,
+    cacheRedisKeysBeforeApplication: cacheRedisKeys,
+    redisKeysBeforeApplication: queueRedisKeys,
     objectCountBeforeApplication: objectCount,
     generatedEnvironmentMode: envMode.toString(8),
     noStaleDatabase: publicTables === 0,
-    noStaleRedisQueue: redisKeys === 0,
+    noStaleRedisCache: cacheRedisKeys === 0,
+    noStaleRedisQueue: queueRedisKeys === 0,
     noStaleObjects: objectCount === 0,
     protectedGeneratedSecrets: envMode === 0o600,
   }
   if (
     !evidence.noStaleDatabase ||
+    !evidence.noStaleRedisCache ||
     !evidence.noStaleRedisQueue ||
     !evidence.noStaleObjects ||
     !evidence.protectedGeneratedSecrets
@@ -1851,8 +1955,12 @@ async function cleanSmoke(
   }
 }
 
+function parseJsonBytes(bytes: Buffer): unknown {
+  return JSON.parse(bytes.toString('utf8')) as unknown
+}
+
 function readJson(path: string): unknown {
-  return JSON.parse(readFileSync(path, 'utf8')) as unknown
+  return parseJsonBytes(readLocalStackFile(path))
 }
 
 async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<string> {
@@ -1862,18 +1970,16 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
   })
   try {
     const scaleManifest = '/artifacts/perf/scale-dataset.json'
-    const runner = (args: readonly string[]) =>
+    const runner = (entry: 'seed-scale' | 'seed-fleet', args: readonly string[]) =>
       dockerCompose(mode, state, [
         'exec',
         '-T',
         'perf-runner',
-        'pnpm',
-        'exec',
-        'tsx',
+        'node',
+        `dist-perf-runner/perf/${entry}.js`,
         ...args,
       ])
-    runner([
-      'scripts/perf/seed-scale.ts',
+    runner('seed-scale', [
       '--seed=beta-local-scale-v1',
       '--orgs=100',
       '--properties=5000',
@@ -1881,8 +1987,7 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
       '--source-lifecycle',
       `--manifest=${scaleManifest}`,
     ])
-    runner([
-      'scripts/perf/seed-scale.ts',
+    runner('seed-scale', [
       '--seed=beta-local-scale-v1',
       '--orgs=100',
       '--properties=5000',
@@ -1891,8 +1996,7 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
       `--manifest=${scaleManifest}`,
       '--verify',
     ])
-    runner([
-      'scripts/perf/seed-scale.ts',
+    runner('seed-scale', [
       '--seed=beta-local-scale-v1',
       '--orgs=100',
       '--properties=5000',
@@ -1901,8 +2005,7 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
       `--manifest=${scaleManifest}`,
       '--clean',
     ])
-    runner([
-      'scripts/perf/seed-fleet.ts',
+    runner('seed-fleet', [
       '--seed=beta-local-fleet-v1',
       '--properties=5000',
       '--p1-ratio=0.5',
@@ -1910,18 +2013,22 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
     ])
     const scaleEvidencePath = resolve(state.artifacts, 'perf/scale-dataset.json')
     const fleetEvidencePath = resolve(state.artifacts, 'perf/fleet-fixture.json')
-    const scaleEvidence = readJson(scaleEvidencePath)
-    const fleetEvidence = readJson(fleetEvidencePath)
+    // Each fixture is read once and both the embedded value and the recorded
+    // digest come from that one buffer. Reading the path twice — once to parse,
+    // once to hash — let the evidence claim a sha256 over bytes it did not
+    // actually publish.
+    const scaleEvidenceBytes = readLocalStackFile(scaleEvidencePath)
+    const fleetEvidenceBytes = readLocalStackFile(fleetEvidencePath)
     return writeEvidence(state, 'scale', {
       schemaVersion: 'beta-local-1',
       evidenceKind: 'synthetic-local-scale-and-bounded-query',
       sourceRevision: revision(),
       sanitation,
       migrationHead: migrationHeadProof(mode, state, 'clean'),
-      scaleFixture: scaleEvidence,
-      scaleFixtureFileSha256: sha256(readFileSync(scaleEvidencePath)),
-      fleetFixture: fleetEvidence,
-      fleetFixtureFileSha256: sha256(readFileSync(fleetEvidencePath)),
+      scaleFixture: parseJsonBytes(scaleEvidenceBytes),
+      scaleFixtureFileSha256: sha256(scaleEvidenceBytes),
+      fleetFixture: parseJsonBytes(fleetEvidenceBytes),
+      fleetFixtureFileSha256: sha256(fleetEvidenceBytes),
       exclusions: ['hosted-capacity', 'managed-pitr', 'production-region'],
     })
   } finally {
@@ -1998,11 +2105,8 @@ function runAffectedOperation(
       'exec',
       '-T',
       'perf-runner',
-      'pnpm',
-      '--silent',
-      'exec',
-      'tsx',
-      'scripts/local-stack/fault-operation.ts',
+      'node',
+      'dist-perf-runner/local-stack/fault-operation.js',
       dependency,
       phase,
     ],
@@ -2186,13 +2290,15 @@ async function observeFault(
   const unavailable =
     fault.name === 'gbp' || fault.name === 'web'
       ? operationDuringFault.observed !== 'success'
-      : fault.endpoint === 'http'
-        ? !(await probeHttp(fault.url)).reachable
-        : !(await probeTcp(
-            fault.name === 'db'
-              ? Number(parseEnvFile(state.env).POSTGRES_HOST_PORT)
-              : Number(parseEnvFile(state.env).REDIS_HOST_PORT),
-          ))
+      : fault.endpoint === 'operation'
+        ? operationDuringFault.observed === 'failed-closed'
+        : fault.endpoint === 'http'
+          ? !(await probeHttp(fault.url)).reachable
+          : !(await probeTcp(
+              fault.name === 'db'
+                ? Number(parseEnvFile(state.env).POSTGRES_HOST_PORT)
+                : Number(parseEnvFile(state.env).REDIS_HOST_PORT),
+            ))
   const readinessDuringFault = await probeHttp('http://127.0.0.1:3000/api/health/ready')
   let failClosed = unavailable && operationDuringFault.observed === 'failed-closed'
   dockerCompose(mode, state, [
@@ -2213,13 +2319,15 @@ async function observeFault(
   const operationAfterRecovery = runAffectedOperation(mode, state, fault.name, 'recovery')
   const recovered =
     operationAfterRecovery.observed === 'success' &&
-    (fault.endpoint === 'http'
-      ? (await probeHttp(fault.url)).status === 200
-      : await probeTcp(
-          fault.name === 'db'
-            ? Number(parseEnvFile(state.env).POSTGRES_HOST_PORT)
-            : Number(parseEnvFile(state.env).REDIS_HOST_PORT),
-        ))
+    (fault.endpoint === 'operation'
+      ? true
+      : fault.endpoint === 'http'
+        ? (await probeHttp(fault.url)).status === 200
+        : await probeTcp(
+            fault.name === 'db'
+              ? Number(parseEnvFile(state.env).POSTGRES_HOST_PORT)
+              : Number(parseEnvFile(state.env).REDIS_HOST_PORT),
+          ))
   await waitHttp('web readiness recovery', 'http://127.0.0.1:3000/api/health/ready')
   const externalAfter = await externalEffectCounts()
   const durableAfter = await waitForDurableQuiescence(mode, state)
@@ -2408,7 +2516,13 @@ async function upgrade(
     buildImages(mode, state)
     startDependencies(mode, state)
     const sanitation = sanitationEvidence(mode, state)
-    const dumpSha256 = sha256(readFileSync(dumpPath))
+    // Symlinks are allowed here: the dump path comes from the operator's own
+    // `--pre-cutover-dump` flag and pointing it at a `latest.dump` link is
+    // ordinary usage. The descriptor read is still what stops a FIFO at that
+    // path from hanging the upgrade run. It does not make this digest a proof
+    // of what `restoreDump` copies — that step resolves the path again through
+    // `docker cp`, which takes a path and not this descriptor.
+    const dumpSha256 = sha256(readLocalStackFile(dumpPath, { allowSymlink: true }))
     restoreDump(mode, state, dumpPath)
     const preCutoverHead = unverifiedMigrationHead(mode, state)
     const legacyBefore = legacyFixtureState(mode, state)
@@ -2481,7 +2595,7 @@ async function acceptance(mode: LocalStackMode, dumpPath: string): Promise<void>
     upgradeDigest,
     cleanMigrationHead: clean.migrationHead,
     upgradeMigrationHead: upgraded.upgradedHead,
-    stackContractSha256: sha256(readFileSync(COMPOSE_FILE)),
+    stackContractSha256: sha256(readLocalStackFile(COMPOSE_FILE)),
     scaleFixtureSha256: scaleEvidence.scaleFixtureFileSha256,
     fleetFixtureSha256: scaleEvidence.fleetFixtureFileSha256,
     images: upgraded.images,

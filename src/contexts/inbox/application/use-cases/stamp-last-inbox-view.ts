@@ -7,7 +7,10 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { inboxError } from '../../domain/errors'
 
-export type StampLastInboxViewInput = Readonly<Record<string, never>>
+export type StampLastInboxViewInput = Readonly<{
+  /** Cutoff issued with the successfully loaded first Inbox page. */
+  responseCutoff: Date
+}>
 
 export type StampLastInboxViewDeps = Readonly<{
   viewRepo: InboxViewRepository
@@ -21,9 +24,20 @@ export type StampLastInboxView = (
 
 export const stampLastInboxView =
   (deps: StampLastInboxViewDeps): StampLastInboxView =>
-  async (_input, ctx) => {
+  async (input, ctx) => {
     if (!canForContext(ctx, 'inbox.read')) {
       throw inboxError('forbidden', 'No inbox read permission')
     }
-    return deps.viewRepo.stampLastInboxView(ctx.organizationId, ctx.userId, deps.clock())
+    const now = deps.clock()
+    if (
+      Number.isNaN(input.responseCutoff.getTime()) ||
+      input.responseCutoff.getTime() > now.getTime()
+    ) {
+      throw inboxError('invalid_input', 'Inbox response cutoff is invalid')
+    }
+    return deps.viewRepo.stampLastInboxView(
+      ctx.organizationId,
+      ctx.userId,
+      input.responseCutoff,
+    )
   }

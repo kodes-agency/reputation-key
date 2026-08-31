@@ -20,7 +20,14 @@
 
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { replies, reviews } from '#/shared/db/schema/review.schema'
+import {
+  googleReplyObservationHeads,
+  googleReplyObservations,
+  replies,
+  replyPublicationAuthorizations,
+  replyPublicationAttempts,
+  reviews,
+} from '#/shared/db/schema/review.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
@@ -28,8 +35,11 @@ import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { Reply } from '../domain/types'
 import { reviewError } from '../domain/errors'
+import { denyLegacyReviewDestruction } from '../application/review-lifecycle-safety'
 import {
   AMBIGUOUS_RECONCILE_DELAY_MS,
+  PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
+  nextPublicationCycle,
   nextPublicationState,
   type PersistedPublicationState,
   type PublicationStateEvent,
@@ -41,6 +51,30 @@ import type {
   ReplyRepository,
 } from '../application/ports/reply.repository'
 import type { ReplyCommandStore } from '../application/ports/reply-command-store.port'
+import type { PublicationAuthorizationFacts } from '../application/ports/reply-command-store.port'
+import { googleReplyTextDigest } from '../domain/google-reply-observation'
+import { lockReplyTruthScope } from './reply-truth-serialization'
+import { reviewReplyPublicationCancelled } from '../domain/events'
+
+/**
+ * Identity-owned, transaction-bound decision injected at composition. The
+ * callback must lock the actor's current permission generation plus the
+ * membership/grant rows it uses; Review invokes it inside the same command
+ * transaction that authorizes or claims the provider write.
+ */
+export type ReplyPublicationActorAuthority = (
+  tx: Tx,
+  input: Readonly<{
+    organizationId: string
+    propertyId: string
+    userId: string
+    at: Date
+  }>,
+) => Promise<boolean>
+
+const missingPublicationActorAuthority: ReplyPublicationActorAuthority = async () => {
+  throw reviewError('build_config_error', 'Reply publication actor authority is required')
+}
 
 async function assertAiDraftBinding(
   tx: Tx,
@@ -69,16 +103,17 @@ async function guardedReplyUpdate(
   tx: Tx,
   reply: Reply,
   updates: ConditionalReplyUpdate,
-  now: Date | undefined,
+  occurredAt: Date,
 ): Promise<Reply | null> {
   const result = await tx
     .update(replies)
-    .set(buildReplySetClause(updates, now ?? new Date()))
+    .set(buildReplySetClause(updates, occurredAt))
     .where(
       and(
         eq(replies.id, reply.id),
         eq(replies.organizationId, reply.organizationId),
         inArray(replies.status, [reply.status]),
+        eq(replies.publicationCycle, reply.publicationCycle),
       ),
     )
     .returning()
@@ -107,6 +142,8 @@ async function guardedPublicationUpdate(
         eq(replies.id, reply.id),
         eq(replies.organizationId, reply.organizationId),
         eq(replies.status, expectedStatus),
+        eq(replies.stateRevision, reply.stateRevision),
+        eq(replies.publicationCycle, reply.publicationCycle),
         inArray(replies.publicationState, [...allowedStates]),
       ),
     )
@@ -126,10 +163,341 @@ function nextStateOrNull(
   return nextPublicationState(reply.publicationState, event)
 }
 
-export function createAtomicReplyCommandStore(
+function assertPublicationIntentMatchesCycle(
+  reply: Reply,
+  facts: Pick<PublicationAuthorizationFacts, 'publicationIntent'> &
+    Readonly<{
+      lifecycleEvent?: Readonly<{
+        replyId: Reply['id']
+        reviewId: Reply['reviewId']
+        organizationId: Reply['organizationId']
+        propertyId: string
+        userId: string | null
+      }> | null
+    }>,
+): number {
+  const nextCycle = nextPublicationCycle(reply.publicationCycle)
+  const intent = facts.publicationIntent
+  if (
+    intent.replyId !== reply.id ||
+    intent.reviewId !== reply.reviewId ||
+    intent.organizationId !== reply.organizationId ||
+    typeof intent.userId !== 'string' ||
+    intent.userId.trim().length === 0 ||
+    intent.publicationCycle !== nextCycle ||
+    (facts.lifecycleEvent != null &&
+      (facts.lifecycleEvent.replyId !== reply.id ||
+        facts.lifecycleEvent.reviewId !== reply.reviewId ||
+        facts.lifecycleEvent.organizationId !== reply.organizationId ||
+        facts.lifecycleEvent.propertyId !== intent.propertyId ||
+        facts.lifecycleEvent.userId !== intent.userId)) ||
+    !Number.isSafeInteger(intent.sourceEpoch) ||
+    intent.sourceEpoch < 0 ||
+    !Number.isSafeInteger(intent.materialReviewRevision) ||
+    intent.materialReviewRevision < 1 ||
+    !Number.isSafeInteger(intent.baseObservationRevision) ||
+    intent.baseObservationRevision < 0
+  ) {
+    throw reviewError(
+      'invalid_transition',
+      'Reply publication intent does not match the authorized cycle',
+    )
+  }
+  return nextCycle
+}
+
+type LockedReplyTruthScope = Readonly<{
+  review: Readonly<{
+    propertyId: string
+    sourceEpoch: number
+    materialReviewRevision: number
+    sourceContentState: string
+  }>
+  head: Readonly<{
+    observationRevision: number
+    sourceEpoch: number
+    materialReviewRevision: number
+    state: string
+    source: string
+    contentState: string
+    observedAt: Date
+  }> | null
+}>
+
+async function lockCurrentReplyTruthScope(
+  tx: Tx,
+  input: Readonly<{
+    organizationId: Reply['organizationId']
+    reviewId: Reply['reviewId']
+    propertyId: string
+  }>,
+): Promise<LockedReplyTruthScope | null> {
+  await lockReplyTruthScope(tx, input.organizationId, input.reviewId)
+  const reviewRows = await tx
+    .select({
+      propertyId: reviews.propertyId,
+      sourceEpoch: reviews.sourceEpoch,
+      materialReviewRevision: reviews.sourceRevision,
+      sourceContentState: reviews.sourceContentState,
+    })
+    .from(reviews)
+    .where(
+      and(
+        eq(reviews.id, input.reviewId),
+        eq(reviews.organizationId, input.organizationId),
+        eq(reviews.propertyId, input.propertyId),
+      ),
+    )
+    .for('update')
+    .limit(1)
+  const review = reviewRows[0]
+  if (!review) return null
+
+  const headRows = await tx
+    .select({
+      observationRevision: googleReplyObservationHeads.observationRevision,
+      sourceEpoch: googleReplyObservationHeads.sourceEpoch,
+      materialReviewRevision: googleReplyObservationHeads.materialReviewRevision,
+      state: googleReplyObservationHeads.state,
+      source: googleReplyObservations.source,
+      contentState: googleReplyObservations.contentState,
+      observedAt: googleReplyObservations.observedAt,
+    })
+    .from(googleReplyObservationHeads)
+    .innerJoin(
+      googleReplyObservations,
+      eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
+    )
+    .where(
+      and(
+        eq(googleReplyObservationHeads.reviewId, input.reviewId),
+        eq(googleReplyObservationHeads.organizationId, input.organizationId),
+        eq(googleReplyObservationHeads.propertyId, input.propertyId),
+      ),
+    )
+    .for('update', { of: googleReplyObservationHeads })
+    .limit(1)
+
+  return { review, head: headRows[0] ?? null }
+}
+
+function authorizationFenceIsCurrent(
+  fence: Readonly<{
+    sourceEpoch: number
+    materialReviewRevision: number
+    baseObservationRevision: number
+  }>,
+  scope: LockedReplyTruthScope,
+): boolean {
+  const { review, head } = scope
+  return (
+    review.sourceContentState === 'active' &&
+    review.sourceEpoch === fence.sourceEpoch &&
+    review.materialReviewRevision === fence.materialReviewRevision &&
+    (head === null
+      ? fence.baseObservationRevision === 0
+      : head.observationRevision === fence.baseObservationRevision &&
+        head.sourceEpoch === fence.sourceEpoch &&
+        head.materialReviewRevision === fence.materialReviewRevision &&
+        head.contentState === 'active')
+  )
+}
+
+type PublicationAttemptStart = Parameters<ReplyCommandStore['markPublicationSending']>[1]
+type PublicationAuthorizationRow = typeof replyPublicationAuthorizations.$inferSelect
+
+/** Update the attempt row the Reply currently points at. Its absence means the
+ * append-only publication evidence and the Reply have diverged. */
+const updateCurrentAttempt = async (
+  tx: Tx,
+  reply: Reply,
+  set: Record<string, unknown>,
+): Promise<void> => {
+  const rows = await tx
+    .update(replyPublicationAttempts)
+    .set(set)
+    .where(
+      and(
+        eq(replyPublicationAttempts.replyId, reply.id),
+        eq(replyPublicationAttempts.organizationId, reply.organizationId),
+        eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
+        eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
+      ),
+    )
+    .returning({ id: replyPublicationAttempts.id })
+  if (!rows[0]) {
+    throw reviewError(
+      'invalid_transition',
+      'Reply publication attempt evidence is missing',
+    )
+  }
+}
+
+function selectPriorPublicationAttempt(tx: Tx, reply: Reply) {
+  return tx
+    .select({
+      baseObservationRevision: replyPublicationAttempts.baseObservationRevision,
+      sourceEpoch: replyPublicationAttempts.sourceEpoch,
+      materialReviewRevision: replyPublicationAttempts.materialReviewRevision,
+      replyStateRevision: replyPublicationAttempts.replyStateRevision,
+      expectedReplyDigest: replyPublicationAttempts.expectedReplyDigest,
+      createdAt: replyPublicationAttempts.createdAt,
+    })
+    .from(replyPublicationAttempts)
+    .where(
+      and(
+        eq(replyPublicationAttempts.organizationId, reply.organizationId),
+        eq(replyPublicationAttempts.reviewId, reply.reviewId),
+        eq(replyPublicationAttempts.replyId, reply.id),
+        eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
+        eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
+      ),
+    )
+    .limit(1)
+}
+
+type PriorPublicationAttemptRow = Awaited<
+  ReturnType<typeof selectPriorPublicationAttempt>
+>[number]
+
+/** Only an in-flight re-claim has a prior attempt to be fenced against. */
+async function readPriorPublicationAttempt(
+  tx: Tx,
+  reply: Reply,
+): Promise<PriorPublicationAttemptRow | undefined> {
+  if (reply.publicationState !== 'sending' || reply.publicationAttempts <= 0) {
+    return undefined
+  }
+  const rows = await selectPriorPublicationAttempt(tx, reply)
+  return rows[0]
+}
+
+/**
+ * The stored authorization for this cycle, but only while it still describes
+ * the reply text, the manager-observed source, and the locked provider truth
+ * this attempt claims. Anything else means the authorization is no longer the
+ * one being executed, and the claim must not proceed.
+ */
+async function readCurrentPublicationAuthorization(
+  tx: Tx,
+  reply: Reply,
+  attempt: PublicationAttemptStart,
+  scope: LockedReplyTruthScope,
+): Promise<PublicationAuthorizationRow | null> {
+  const authorizationRows = await tx
+    .select()
+    .from(replyPublicationAuthorizations)
+    .where(
+      and(
+        eq(replyPublicationAuthorizations.organizationId, reply.organizationId),
+        eq(replyPublicationAuthorizations.propertyId, attempt.propertyId),
+        eq(replyPublicationAuthorizations.reviewId, reply.reviewId),
+        eq(replyPublicationAuthorizations.replyId, reply.id),
+        eq(replyPublicationAuthorizations.publicationCycle, reply.publicationCycle),
+      ),
+    )
+    .limit(1)
+  const authorization = authorizationRows[0]
+  if (
+    !authorization ||
+    authorization.sourceEpoch !== attempt.sourceEpoch ||
+    authorization.materialReviewRevision !== attempt.materialReviewRevision ||
+    authorization.baseObservationRevision !== attempt.baseObservationRevision ||
+    googleReplyTextDigest(reply.text) !== authorization.expectedReplyDigest ||
+    scope.review.sourceContentState !== 'active' ||
+    scope.review.sourceEpoch !== authorization.sourceEpoch ||
+    scope.review.materialReviewRevision !== authorization.materialReviewRevision ||
+    (scope.head !== null &&
+      (scope.head.sourceEpoch !== authorization.sourceEpoch ||
+        scope.head.materialReviewRevision !== authorization.materialReviewRevision ||
+        scope.head.contentState !== 'active'))
+  ) {
+    return null
+  }
+  return authorization
+}
+
+/**
+ * A first claim must start from exactly the observation head the manager
+ * authorized. A re-claim of an uncertain `sending` row may only proceed when a
+ * targeted read, taken after that attempt, proved the provider currently holds
+ * no reply for the same source and the same authorized text.
+ */
+function claimObservationFenceIsCurrent(
+  reply: Reply,
+  attempt: PublicationAttemptStart,
+  authorization: PublicationAuthorizationRow,
+  head: LockedReplyTruthScope['head'],
+  priorAttempt: PriorPublicationAttemptRow | undefined,
+): boolean {
+  if (reply.publicationState === 'authorized') {
+    return (head?.observationRevision ?? 0) === authorization.baseObservationRevision
+  }
+  if (reply.publicationState !== 'sending') return true
+  return (
+    priorAttempt !== undefined &&
+    head !== null &&
+    head.state === 'absent' &&
+    head.source === 'targeted_reconciliation' &&
+    head.contentState === 'active' &&
+    head.sourceEpoch === attempt.sourceEpoch &&
+    head.materialReviewRevision === attempt.materialReviewRevision &&
+    head.observationRevision > priorAttempt.baseObservationRevision &&
+    head.observedAt.getTime() >= priorAttempt.createdAt.getTime() &&
+    priorAttempt.sourceEpoch === attempt.sourceEpoch &&
+    priorAttempt.materialReviewRevision === attempt.materialReviewRevision &&
+    priorAttempt.replyStateRevision === authorization.replyStateRevision &&
+    priorAttempt.expectedReplyDigest === authorization.expectedReplyDigest
+  )
+}
+
+/** The named manager has lost current authority: move the cycle to
+ * draft/cancelled in this same transaction so a consumed job never strands an
+ * authorized Reply. Returns the durable cancellation fact, or null when the row
+ * was no longer claimable. */
+async function cancelPublicationForLostAuthority(
+  tx: Tx,
+  reply: Reply,
+  attempt: PublicationAttemptStart,
+  at: Date,
+): Promise<DomainEvent | null> {
+  const cancelled = await guardedPublicationUpdate(
+    tx,
+    reply,
+    'approved',
+    ['authorized', 'sending'],
+    {
+      status: 'draft',
+      publicationState: 'cancelled',
+      updatedAt: at,
+    },
+  )
+  if (!cancelled) return null
+  if (cancelled.publicationAttempts > 0) {
+    await updateCurrentAttempt(tx, cancelled, {
+      outcome: 'superseded',
+      confirmedObservationRevision: null,
+      updatedAt: at,
+    })
+  }
+  const fact = reviewReplyPublicationCancelled({
+    replyId: cancelled.id,
+    reviewId: cancelled.reviewId,
+    propertyId: attempt.propertyId,
+    organizationId: cancelled.organizationId,
+    cause: 'policy',
+    occurredAt: at,
+  })
+  await insertOutboxRow(tx, fact)
+  return fact
+}
+
+export const createAtomicReplyCommandStore = (
   db: Database,
   events: EventBus,
-): ReplyCommandStore {
+  clock: () => Date,
+  publicationActorAuthority: ReplyPublicationActorAuthority = missingPublicationActorAuthority,
+): ReplyCommandStore => {
   /** Shared runner for the guarded-transition commands. */
   const transition = async (
     span: string,
@@ -139,9 +507,10 @@ export function createAtomicReplyCommandStore(
     now?: Date,
   ): Promise<Reply | null> => {
     return trace(span, async () => {
+      const occurredAt = now ?? clock()
       const saved = await db.transaction(async (tx) => {
         if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
-        const row = await guardedReplyUpdate(tx, reply, updates, now)
+        const row = await guardedReplyUpdate(tx, reply, updates, occurredAt)
         if (!row) return null
         if (event) await insertOutboxRow(tx, event)
         return row
@@ -160,19 +529,22 @@ export function createAtomicReplyCommandStore(
     set: (target: PersistedPublicationState, now: Date) => Record<string, unknown>,
     fact: DomainEvent | null,
     now?: Date,
+    afterWrite?: (tx: Tx, saved: Reply, at: Date) => Promise<void>,
   ): Promise<Reply | null> => {
     return trace(span, async () => {
       const target = nextStateOrNull(reply, event)
       if (!target) return null
+      const at = now ?? clock()
       const saved = await db.transaction(async (tx) => {
         const row = await guardedPublicationUpdate(
           tx,
           reply,
           reply.status,
           allowedStates,
-          set(target, now ?? new Date()),
+          set(target, at),
         )
         if (!row) return null
+        if (afterWrite) await afterWrite(tx, row, at)
         if (fact) await insertOutboxRow(tx, fact)
         return row
       })
@@ -187,6 +559,7 @@ export function createAtomicReplyCommandStore(
     now?: Date,
   ) => {
     const row = replyToRow(replyToUpsert)
+    const updatedAt = now ?? clock()
     const result = await tx
       .insert(replies)
       .values(row)
@@ -205,7 +578,7 @@ export function createAtomicReplyCommandStore(
           publishedAt: row.publishedAt,
           // BQC-3.8: publication columns are deliberately NOT in the conflict
           // set — a mirror refresh never clobbers an in-flight publication.
-          updatedAt: now ?? new Date(),
+          updatedAt,
         },
       })
       .returning()
@@ -237,32 +610,149 @@ export function createAtomicReplyCommandStore(
     // BQC-3.8: authorize = approve/retry re-authorization (new publication
     // cycle): guarded status update + authorized state + cycle reset + the
     // approved fact when one is supplied — one transaction.
-    markPublicationAuthorized: (reply, updates, event, now) => {
+    markPublicationAuthorized: (reply, updates, facts, now) => {
       if (!nextStateOrNull(reply, 'authorize')) return Promise.resolve(null)
-      return transition(
-        'reply.commandStore.markPublicationAuthorized',
-        reply,
-        {
-          ...updates,
-          publicationState: 'authorized',
-          publicationAttempts: 0,
-          publicationLastErrorClass: null,
-          reconcileDueAt: null,
-        },
-        event,
-        now,
-      )
+      const publicationCycle = assertPublicationIntentMatchesCycle(reply, facts)
+      const occurredAt = now ?? clock()
+      return trace('reply.commandStore.markPublicationAuthorized', async () => {
+        const saved = await db.transaction(async (tx) => {
+          const intent = facts.publicationIntent
+          const scope = await lockCurrentReplyTruthScope(tx, {
+            organizationId: reply.organizationId,
+            reviewId: reply.reviewId,
+            propertyId: intent.propertyId,
+          })
+          if (!scope || !authorizationFenceIsCurrent(intent, scope)) return null
+          const actorAllowed = await publicationActorAuthority(tx, {
+            organizationId: reply.organizationId,
+            propertyId: intent.propertyId,
+            userId: intent.userId,
+            at: occurredAt,
+          })
+          if (!actorAllowed) return null
+          if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
+          const row = await guardedReplyUpdate(
+            tx,
+            reply,
+            {
+              ...updates,
+              publicationState: 'authorized',
+              publicationCycle,
+              publicationAttempts: 0,
+              publicationLastErrorClass: null,
+              reconcileDueAt: null,
+            },
+            occurredAt,
+          )
+          if (!row) return null
+          await tx.insert(replyPublicationAuthorizations).values({
+            organizationId: reply.organizationId,
+            propertyId: intent.propertyId,
+            reviewId: reply.reviewId,
+            replyId: reply.id,
+            publicationCycle,
+            sourceEpoch: intent.sourceEpoch,
+            materialReviewRevision: intent.materialReviewRevision,
+            baseObservationRevision: intent.baseObservationRevision,
+            authorizedByUserId: intent.userId,
+            replyStateRevision: row.stateRevision,
+            normalizationVersion: 'google-reply-v1',
+            expectedReplyDigest: googleReplyTextDigest(row.text),
+            authorizedAt: occurredAt,
+            createdAt: occurredAt,
+          })
+          if (facts.lifecycleEvent) await insertOutboxRow(tx, facts.lifecycleEvent)
+          await insertOutboxRow(tx, facts.publicationIntent)
+          return row
+        })
+        if (saved && facts.lifecycleEvent) {
+          await emitAfterCommit(events, facts.lifecycleEvent)
+        }
+        return saved
+      })
     },
 
-    // BQC-3.8: claim. No fact — the claim is internal bookkeeping. The
-    // guarded UPDATE shares a transaction with the AI draft binding assertion.
-    markPublicationSending: async (reply, now) => {
+    // BQC-3.8/RPL-01: claim. The normal claim records no fact. If the named
+    // manager has lost current authority, the same transaction instead moves
+    // the cycle to draft/cancelled and records publication_cancelled(policy),
+    // so a consumed job never strands an authorized Reply.
+    markPublicationSending: async (reply, attempt, now) => {
       return trace('reply.commandStore.markPublicationSending', async () => {
         const target = nextStateOrNull(reply, 'claim')
         if (!target) return null
-        return db.transaction(async (tx) => {
+        if (
+          attempt.providerOperationKey.length < 1 ||
+          attempt.providerOperationKey.length > 255 ||
+          attempt.sourceEpoch < 0 ||
+          !Number.isSafeInteger(attempt.sourceEpoch) ||
+          attempt.materialReviewRevision < 1 ||
+          !Number.isSafeInteger(attempt.materialReviewRevision) ||
+          attempt.baseObservationRevision < 0 ||
+          !Number.isSafeInteger(attempt.baseObservationRevision)
+        ) {
+          throw reviewError('invalid_input', 'Invalid publication attempt fence')
+        }
+        const at = now ?? clock()
+        let authorityCancellation: DomainEvent | null = null
+        const claimed = await db.transaction(async (tx) => {
+          const scope = await lockCurrentReplyTruthScope(tx, {
+            organizationId: reply.organizationId,
+            reviewId: reply.reviewId,
+            propertyId: attempt.propertyId,
+          })
+          if (!scope) return null
           if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
-          return guardedPublicationUpdate(
+          const authorization = await readCurrentPublicationAuthorization(
+            tx,
+            reply,
+            attempt,
+            scope,
+          )
+          if (!authorization) return null
+          const actorAllowed = await publicationActorAuthority(tx, {
+            organizationId: authorization.organizationId,
+            propertyId: authorization.propertyId,
+            userId: authorization.authorizedByUserId,
+            at,
+          })
+          if (!actorAllowed) {
+            authorityCancellation = await cancelPublicationForLostAuthority(
+              tx,
+              reply,
+              attempt,
+              at,
+            )
+            return null
+          }
+          const duplicate = await tx
+            .select({ id: replyPublicationAttempts.id })
+            .from(replyPublicationAttempts)
+            .where(
+              and(
+                eq(replyPublicationAttempts.organizationId, reply.organizationId),
+                eq(
+                  replyPublicationAttempts.providerOperationKey,
+                  attempt.providerOperationKey,
+                ),
+              ),
+            )
+            .limit(1)
+          if (duplicate[0]) return null
+
+          const priorAttempt = await readPriorPublicationAttempt(tx, reply)
+          const head = scope.head
+          if (
+            !claimObservationFenceIsCurrent(
+              reply,
+              attempt,
+              authorization,
+              head,
+              priorAttempt,
+            )
+          ) {
+            return null
+          }
+          const claimed = await guardedPublicationUpdate(
             tx,
             reply,
             'approved',
@@ -270,12 +760,66 @@ export function createAtomicReplyCommandStore(
             {
               publicationState: target,
               publicationAttempts: sql`${replies.publicationAttempts} + 1`,
-              updatedAt: now ?? new Date(),
+              updatedAt: at,
             },
           )
+          if (!claimed) return null
+          if (reply.publicationState === 'sending' && reply.publicationAttempts > 0) {
+            await updateCurrentAttempt(tx, reply, {
+              outcome: 'ambiguous',
+              updatedAt: at,
+            })
+          }
+          await tx.insert(replyPublicationAttempts).values({
+            organizationId: reply.organizationId,
+            propertyId: attempt.propertyId,
+            reviewId: reply.reviewId,
+            replyId: reply.id,
+            publicationCycle: reply.publicationCycle,
+            attemptNumber: claimed.publicationAttempts,
+            providerOperationKey: attempt.providerOperationKey,
+            sourceEpoch: authorization.sourceEpoch,
+            materialReviewRevision: authorization.materialReviewRevision,
+            replyStateRevision: authorization.replyStateRevision,
+            baseObservationRevision: head?.observationRevision ?? 0,
+            normalizationVersion: authorization.normalizationVersion,
+            expectedReplyDigest: authorization.expectedReplyDigest,
+            outcome: 'sending',
+            createdAt: at,
+            updatedAt: at,
+          })
+          return claimed
         })
+        if (authorityCancellation) {
+          await emitAfterCommit(events, authorityCancellation)
+        }
+        return claimed
       })
     },
+
+    markProviderOutcomePendingObservation: (reply, outcome, now) =>
+      publicationTransition(
+        'reply.commandStore.markProviderOutcomePendingObservation',
+        reply,
+        'provider_accepted',
+        ['sending'],
+        (target, at) => ({
+          publicationState: target,
+          reconcileDueAt: new Date(
+            at.getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
+          ),
+          updatedAt: at,
+        }),
+        null,
+        now,
+        (tx, saved, at) =>
+          updateCurrentAttempt(tx, saved, {
+            outcome: 'provider_outcome_pending',
+            providerCorrelationId: outcome.providerCorrelationId,
+            providerRespondedAt: outcome.providerRespondedAt,
+            updatedAt: at,
+          }),
+      ),
 
     markPublicationTerminal: (reply, errorClass, event, now) =>
       publicationTransition(
@@ -291,6 +835,11 @@ export function createAtomicReplyCommandStore(
         }),
         event,
         now,
+        (tx, saved, at) =>
+          updateCurrentAttempt(tx, saved, {
+            outcome: 'terminal_rejection',
+            updatedAt: at,
+          }),
       ),
 
     markPublicationAmbiguous: (reply, event, now) =>
@@ -308,6 +857,11 @@ export function createAtomicReplyCommandStore(
         }),
         event,
         now,
+        (tx, saved, at) =>
+          updateCurrentAttempt(tx, saved, {
+            outcome: 'ambiguous',
+            updatedAt: at,
+          }),
       ),
 
     // BQC-3.8: retryable failure — back to 'authorized' (next attempt or
@@ -316,9 +870,24 @@ export function createAtomicReplyCommandStore(
       return trace('reply.commandStore.markPublicationRetryQueued', async () => {
         const target = nextStateOrNull(reply, 'requeue')
         if (!target) return null
-        return guardedPublicationUpdate(db, reply, 'approved', ['sending'], {
-          publicationState: target,
-          updatedAt: now ?? new Date(),
+        const occurredAt = now ?? clock()
+        return db.transaction(async (tx) => {
+          const saved = await guardedPublicationUpdate(
+            tx,
+            reply,
+            'approved',
+            ['sending'],
+            {
+              publicationState: target,
+              updatedAt: occurredAt,
+            },
+          )
+          if (!saved) return null
+          await updateCurrentAttempt(tx, saved, {
+            outcome: 'retryable_failure',
+            updatedAt: occurredAt,
+          })
+          return saved
         })
       })
     },
@@ -330,20 +899,63 @@ export function createAtomicReplyCommandStore(
     // the race — no fact, no mutation, the caller surfaces invalid_transition).
     editPublishedReply: (reply, command) => {
       if (reply.status !== 'published') return Promise.resolve(null)
-      return transition(
-        'reply.commandStore.editPublishedReply',
-        reply,
-        {
-          text: command.text,
-          status: 'approved',
-          publicationState: 'authorized',
-          publicationAttempts: 0,
-          publicationLastErrorClass: null,
-          reconcileDueAt: null,
-        },
-        command.event,
-        command.now,
-      )
+      const publicationCycle = assertPublicationIntentMatchesCycle(reply, command)
+      const occurredAt = command.now ?? clock()
+      return trace('reply.commandStore.editPublishedReply', async () => {
+        const saved = await db.transaction(async (tx) => {
+          const intent = command.publicationIntent
+          const scope = await lockCurrentReplyTruthScope(tx, {
+            organizationId: reply.organizationId,
+            reviewId: reply.reviewId,
+            propertyId: intent.propertyId,
+          })
+          if (!scope || !authorizationFenceIsCurrent(intent, scope)) return null
+          const actorAllowed = await publicationActorAuthority(tx, {
+            organizationId: reply.organizationId,
+            propertyId: intent.propertyId,
+            userId: intent.userId,
+            at: occurredAt,
+          })
+          if (!actorAllowed) return null
+          if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
+          const row = await guardedReplyUpdate(
+            tx,
+            reply,
+            {
+              text: command.text,
+              status: 'approved',
+              publicationState: 'authorized',
+              publicationCycle,
+              publicationAttempts: 0,
+              publicationLastErrorClass: null,
+              reconcileDueAt: null,
+            },
+            occurredAt,
+          )
+          if (!row) return null
+          await tx.insert(replyPublicationAuthorizations).values({
+            organizationId: reply.organizationId,
+            propertyId: intent.propertyId,
+            reviewId: reply.reviewId,
+            replyId: reply.id,
+            publicationCycle,
+            sourceEpoch: intent.sourceEpoch,
+            materialReviewRevision: intent.materialReviewRevision,
+            baseObservationRevision: intent.baseObservationRevision,
+            authorizedByUserId: intent.userId,
+            replyStateRevision: row.stateRevision,
+            normalizationVersion: 'google-reply-v1',
+            expectedReplyDigest: googleReplyTextDigest(row.text),
+            authorizedAt: occurredAt,
+            createdAt: occurredAt,
+          })
+          await insertOutboxRow(tx, command.lifecycleEvent)
+          await insertOutboxRow(tx, command.publicationIntent)
+          return row
+        })
+        if (saved) await emitAfterCommit(events, command.lifecycleEvent)
+        return saved
+      })
     },
 
     cancelPublications: async (commands) => {
@@ -356,18 +968,26 @@ export function createAtomicReplyCommandStore(
             // Rows whose state moved on (published/failed/cancelled/purged)
             // are skipped without a fact — the batch still commits.
             if (!nextStateOrNull(reply, 'cancel')) continue
+            const occurredAt = now ?? clock()
             const row = await guardedPublicationUpdate(
               tx,
               reply,
               reply.status,
-              ['requested', 'authorized', 'sending'],
+              ['requested', 'authorized', 'sending', 'pending_observation'],
               {
                 status: 'draft',
                 publicationState: 'cancelled',
-                updatedAt: now ?? new Date(),
+                updatedAt: occurredAt,
               },
             )
             if (!row) continue
+            if (row.publicationAttempts > 0) {
+              await updateCurrentAttempt(tx, row, {
+                outcome: 'superseded',
+                confirmedObservationRevision: null,
+                updatedAt: occurredAt,
+              })
+            }
             await insertOutboxRow(tx, event)
             committed.push(event)
             count++
@@ -406,36 +1026,32 @@ export function createAtomicReplyCommandStore(
 
     purgeExpiredReview: async (reviewId, event) => {
       return trace('reply.commandStore.purgeExpiredReview', async () => {
-        await db.transaction(async (tx) => {
-          // Delete + fact commit together: a crash removes neither or both.
-          await tx
-            .delete(reviews)
-            .where(
-              and(
-                eq(reviews.id, reviewId),
-                eq(reviews.organizationId, event.organizationId),
-              ),
-            )
-          await insertOutboxRow(tx, event)
-        })
-        await emitAfterCommit(events, event)
+        // SAFE-03: the current Review row still carries both provider content
+        // and stable RepKey Reply/history identity. Its Reply FK cascades, so
+        // this legacy command cannot be made safe without the REV-01 schema
+        // cutover. Deny before SQL and before recording a false expiry fact.
+        void reviewId
+        void event
+        denyLegacyReviewDestruction()
       })
     },
   }
 }
 
 /**
- * Non-transactional store for unit tests / expand-phase fakes.
- * Applies the same operation order (state → outbox → emit) without a real
- * transaction. Not for production — production must use
- * createAtomicReplyCommandStore.
+ * Non-transactional store for unit tests / expand-phase fakes. Applies the
+ * same operation order (state → outbox → emit) without a real transaction;
+ * the legacy Review purge is denied before every dependency in both stores.
+ * Not for production — production must use createAtomicReplyCommandStore.
  */
-export function createSequentialReplyCommandStore(deps: {
+export const createSequentialReplyCommandStore = (deps: {
   conditionalUpdate: ReplyRepository['conditionalUpdate']
   upsert: ReplyRepository['upsert']
   deleteByReviewIdAndSource: ReplyRepository['deleteByReviewIdAndSource']
+  /** @deprecated SAFE-03 keeps this compatibility dependency unreachable. */
   deleteReviewById: (reviewId: ReviewId, organizationId: OrganizationId) => Promise<void>
   events: EventBus
+  clock: () => Date
   recordOutbox?: (event: DomainEvent) => Promise<void>
   /**
    * BQC-3.8: publication-state-guarded update for the claim/cancel/requeue
@@ -447,7 +1063,7 @@ export function createSequentialReplyCommandStore(deps: {
     updates: ConditionalReplyUpdate,
     now?: Date,
   ) => Promise<Reply | null>
-}): ReplyCommandStore {
+}): ReplyCommandStore => {
   const recordAndEmit = async (event: DomainEvent): Promise<void> => {
     if (deps.recordOutbox) await deps.recordOutbox(event)
     await emitAfterCommit(deps.events, event)
@@ -501,28 +1117,53 @@ export function createSequentialReplyCommandStore(deps: {
         now,
       ),
 
-    markPublicationAuthorized: (reply, updates, event, now) => {
+    markPublicationAuthorized: async (reply, updates, facts, now) => {
       if (!nextStateOrNull(reply, 'authorize')) return Promise.resolve(null)
-      return transition(
-        reply,
+      const publicationCycle = assertPublicationIntentMatchesCycle(reply, facts)
+      const saved = await deps.conditionalUpdate(
+        reply.id,
+        reply.organizationId,
+        [reply.status],
         {
           ...updates,
           publicationState: 'authorized',
+          publicationCycle,
           publicationAttempts: 0,
           publicationLastErrorClass: null,
           reconcileDueAt: null,
         },
-        event,
         now,
       )
+      if (!saved) return null
+      if (facts.lifecycleEvent && deps.recordOutbox) {
+        await deps.recordOutbox(facts.lifecycleEvent)
+      }
+      if (deps.recordOutbox) await deps.recordOutbox(facts.publicationIntent)
+      if (facts.lifecycleEvent) await emitAfterCommit(deps.events, facts.lifecycleEvent)
+      return saved
     },
 
-    markPublicationSending: (reply, now) =>
+    markPublicationSending: (reply, _attempt, now) =>
       publicationTransition(
         reply,
         'claim',
         ['authorized', 'sending'],
         { publicationState: 'sending' },
+        null,
+        now,
+      ),
+
+    markProviderOutcomePendingObservation: (reply, _outcome, now) =>
+      publicationTransition(
+        reply,
+        'provider_accepted',
+        ['sending'],
+        {
+          publicationState: 'pending_observation',
+          reconcileDueAt: new Date(
+            (now ?? deps.clock()).getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
+          ),
+        },
         null,
         now,
       ),
@@ -551,7 +1192,7 @@ export function createSequentialReplyCommandStore(deps: {
           publicationState: 'ambiguous',
           publicationLastErrorClass: 'ambiguous',
           reconcileDueAt: new Date(
-            (now ?? new Date()).getTime() + AMBIGUOUS_RECONCILE_DELAY_MS,
+            (now ?? deps.clock()).getTime() + AMBIGUOUS_RECONCILE_DELAY_MS,
           ),
         },
         event,
@@ -572,19 +1213,32 @@ export function createSequentialReplyCommandStore(deps: {
     // atomic store — the fake's conditionalUpdate enforces the TOCTOU guard).
     editPublishedReply: (reply, command) => {
       if (reply.status !== 'published') return Promise.resolve(null)
-      return transition(
-        reply,
-        {
-          text: command.text,
-          status: 'approved',
-          publicationState: 'authorized',
-          publicationAttempts: 0,
-          publicationLastErrorClass: null,
-          reconcileDueAt: null,
-        },
-        command.event,
-        command.now,
-      )
+      const publicationCycle = assertPublicationIntentMatchesCycle(reply, command)
+      return deps
+        .conditionalUpdate(
+          reply.id,
+          reply.organizationId,
+          [reply.status],
+          {
+            text: command.text,
+            status: 'approved',
+            publicationState: 'authorized',
+            publicationCycle,
+            publicationAttempts: 0,
+            publicationLastErrorClass: null,
+            reconcileDueAt: null,
+          },
+          command.now,
+        )
+        .then(async (saved) => {
+          if (!saved) return null
+          if (deps.recordOutbox) {
+            await deps.recordOutbox(command.lifecycleEvent)
+            await deps.recordOutbox(command.publicationIntent)
+          }
+          await emitAfterCommit(deps.events, command.lifecycleEvent)
+          return saved
+        })
     },
 
     cancelPublications: async (commands) => {
@@ -593,7 +1247,7 @@ export function createSequentialReplyCommandStore(deps: {
         const saved = await publicationTransition(
           reply,
           'cancel',
-          ['requested', 'authorized', 'sending'],
+          ['requested', 'authorized', 'sending', 'pending_observation'],
           { status: 'draft', publicationState: 'cancelled' },
           null,
           now,
@@ -621,8 +1275,11 @@ export function createSequentialReplyCommandStore(deps: {
     },
 
     purgeExpiredReview: async (reviewId, event) => {
-      await deps.deleteReviewById(reviewId, event.organizationId)
-      await recordAndEmit(event)
+      // Keep the non-transactional fake aligned with production safety. Tests
+      // must never normalize a cascade that production deliberately denies.
+      void reviewId
+      void event
+      denyLegacyReviewDestruction()
     },
   }
 }

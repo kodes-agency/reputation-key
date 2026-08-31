@@ -2,6 +2,8 @@
 import { describe, it, expect } from 'vitest'
 import { updatePortalGroup } from './update-portal-group'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
+import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import {
@@ -13,6 +15,8 @@ import {
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 const FIXED_TIME = new Date('2026-05-30T12:00:00Z')
+const CURRENT_REVISION = new Date('2026-06-01T12:00:00Z')
+const NEXT_REVISION = new Date(CURRENT_REVISION.getTime() + 1)
 const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
 const PROP = propertyId('a0000000-0000-4000-8000-000000000001')
 const GROUP_ID = portalGroupId('group-0000-0000-4000-8000-000000000001')
@@ -24,34 +28,38 @@ const existing = {
   name: 'Old Name',
   sortKey: null,
   createdAt: new Date('2026-05-01T00:00:00Z'),
-  updatedAt: new Date('2026-05-01T00:00:00Z'),
+  updatedAt: CURRENT_REVISION,
   deletedAt: null,
 }
 
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 function setup(notFound = false, accessible: ReadonlyArray<PropertyId> | null = null) {
   const events = createCapturingEventBus()
+  const portalGroupRepo = {
+    findById: async () => (notFound ? null : existing),
+    listByProperty: async () => [],
+    nameExists: async () => false,
+    insert: async () => {},
+    update: async () => {},
+    softDelete: async () => {},
+    addPortal: async () => {},
+    removePortal: async () => false,
+    findPortalMembership: async () => null,
+    getGroupPortalIds: async () => [],
+    findGroupIdsByPortalIds: async () => [],
+    findGroupForPortal: async () => null,
+  }
   const useCase = updatePortalGroup({
-    portalGroupRepo: {
-      findById: async () => (notFound ? null : existing),
-      listByProperty: async () => [],
-      nameExists: async () => false,
-      insert: async () => {},
-      update: async () => {},
-      softDelete: async () => {},
-      addPortal: async () => {},
-      removePortal: async () => false,
-      findPortalMembership: async () => null,
-      getGroupPortalIds: async () => [],
-      findGroupIdsByPortalIds: async () => [],
-      findGroupForPortal: async () => null,
-    },
-    events,
+    portalGroupRepo,
+    commandStore: createInMemoryPortalCommandStore({
+      portalRepo: createInMemoryPortalRepo(),
+      portalGroupRepo,
+      events,
+    }),
     clock: () => FIXED_TIME,
     staffPublicApi: staffApiMock(accessible),
   })
@@ -68,8 +76,13 @@ describe('updatePortalGroup (use case)', () => {
       ctx,
     )
 
-    expect(result.name).toBe('New Name')
-    expect(events.capturedByTag('portal_group.updated')).toHaveLength(1)
+    expect(result).toMatchObject({ name: 'New Name', updatedAt: NEXT_REVISION })
+    expect(events.capturedByTag('portal_group.updated')).toEqual([
+      expect.objectContaining({
+        sourceAggregateVersion: NEXT_REVISION.toISOString(),
+        occurredAt: FIXED_TIME,
+      }),
+    ])
   })
 
   it('throws not_found for nonexistent group', async () => {

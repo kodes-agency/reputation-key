@@ -1,7 +1,11 @@
 # ADR 0013 — Portal Groups Replace Team and Staff as Goal/Leaderboard Scopes
 
-**Status:** Accepted
+**Status:** Partially superseded by ADR 0052
 **Date:** 2026-06-09
+
+> Historical decision record. ADR 0052 and the current beta program supersede
+> the statement that Team remains an administrative product concept. Team is
+> quarantined data only; Portal Groups are the supported grouping model.
 
 ## Context
 

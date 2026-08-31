@@ -1,5 +1,7 @@
 // Staff context — domain errors
 
+import { createErrorFactory } from '#/shared/domain/errors'
+
 export type StaffErrorCode =
   | 'forbidden'
   | 'invalid_input'
@@ -7,6 +9,7 @@ export type StaffErrorCode =
   | 'participation_archived'
   | 'user_not_member'
   | 'responsibility_conflict'
+  | 'revision_conflict'
   | 'property_not_found'
   | 'team_not_found'
   | 'assignment_not_found'
@@ -18,16 +21,9 @@ export type StaffError = Readonly<{
   context?: Readonly<Record<string, unknown>>
 }>
 
-export const staffError = (
-  code: StaffErrorCode,
-  message: string,
-  context?: Readonly<Record<string, unknown>>,
-): StaffError => ({
-  _tag: 'StaffError',
-  code,
-  message,
-  ...(context ? { context } : {}),
-})
+export const staffError = createErrorFactory<StaffError['_tag'], StaffError['code']>(
+  'StaffError',
+)
 
 export const isStaffError = (e: unknown): e is StaffError =>
   typeof e === 'object' && e !== null && (e as { _tag?: string })._tag === 'StaffError'

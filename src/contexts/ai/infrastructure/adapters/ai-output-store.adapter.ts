@@ -1,9 +1,13 @@
-import { and, desc, eq, gt, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import type { ReviewId } from '#/shared/domain/ids'
 import {
+  AI_PROPERTY_TREND_DEFINITION_DIGEST,
+  AI_PROPERTY_TREND_DEFINITION_VERSION,
   AI_TREND_RENDER_PROFILE_DIGEST,
   AI_TREND_RENDER_PROFILE_VERSION,
+  CLOSED_TREND_SIGNAL_IDS,
 } from '#/shared/ai-property-trend-contract'
 import {
   aiOperationAttempts,
@@ -15,13 +19,16 @@ import {
   aiPropertyTrendOutcomes,
   aiPropertyTrendSchedules,
   aiReviewAnalyses,
+  aiReviewAnalysisEnrollments,
   aiReviewEventCursors,
   merchantAiEnablement,
   reviews,
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
+import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import type {
   AiOutputStorePort,
+  AiTrendEvidence,
   AiTrendReportRead,
 } from '../../application/ports/ai-output-store.port'
 import type {
@@ -32,6 +39,7 @@ import {
   acquireAiReadDeliveryLease,
   assertAiReadDeliveryLease,
 } from './ai-read-barrier.adapter'
+import { addDays } from '../../application/local-date'
 
 function currentness(
   input: Readonly<{
@@ -56,6 +64,218 @@ function capabilityFence(value: unknown): Readonly<Record<string, unknown>> | nu
   return value !== null && typeof value === 'object' && !Array.isArray(value)
     ? (value as Readonly<Record<string, unknown>>)
     : null
+}
+
+const LOCAL_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const REVIEW_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const CLOSED_SIGNAL_ID_SET = new Set<string>(CLOSED_TREND_SIGNAL_IDS)
+
+function objectValue(value: unknown): Readonly<Record<string, unknown>> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Readonly<Record<string, unknown>>)
+    : null
+}
+
+function boundedCount(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= 10_000
+}
+
+function validWindowEvidence(
+  value: unknown,
+  startLocalDate: string,
+  endLocalDate: string,
+): boolean {
+  const window = objectValue(value)
+  const period = objectValue(window?.period)
+  if (
+    window === null ||
+    period?.startLocalDate !== startLocalDate ||
+    period.endLocalDate !== endLocalDate ||
+    !boundedCount(window.textCandidateCount) ||
+    !boundedCount(window.analyzedCount) ||
+    !boundedCount(window.excludedCount) ||
+    !boundedCount(window.starOnlyCount) ||
+    !boundedCount(window.coverageBasisPoints) ||
+    window.coverageBasisPoints > 10_000 ||
+    window.analyzedCount > window.textCandidateCount ||
+    window.excludedCount !== window.textCandidateCount - window.analyzedCount
+  ) {
+    return false
+  }
+  const expectedCoverage =
+    window.textCandidateCount === 0
+      ? 0
+      : Number(
+          (BigInt(window.analyzedCount) * 10_000n) / BigInt(window.textCandidateCount),
+        )
+  return window.coverageBasisPoints === expectedCoverage
+}
+
+/** The definition, render profile, and timezone the evidence was pinned to. */
+function validTrendProfile(candidate: Partial<AiTrendEvidence>): boolean {
+  return (
+    candidate.definitionVersion === AI_PROPERTY_TREND_DEFINITION_VERSION &&
+    candidate.definitionDigest === AI_PROPERTY_TREND_DEFINITION_DIGEST &&
+    candidate.renderProfileVersion === AI_TREND_RENDER_PROFILE_VERSION &&
+    candidate.renderProfileDigest === AI_TREND_RENDER_PROFILE_DIGEST &&
+    typeof candidate.timezone === 'string' &&
+    candidate.timezone.length >= 1 &&
+    candidate.timezone.length <= 100
+  )
+}
+
+function validModelLineage(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.length <= 10_000 &&
+    value.every((lineage) => {
+      const row = objectValue(lineage)
+      return (
+        row !== null &&
+        typeof row.analysisProfileVersion === 'string' &&
+        row.analysisProfileVersion.length > 0 &&
+        typeof row.providerDeploymentProfileVersion === 'string' &&
+        row.providerDeploymentProfileVersion.length > 0 &&
+        typeof row.modelSnapshot === 'string' &&
+        row.modelSnapshot.length > 0
+      )
+    })
+  )
+}
+
+/**
+ * Every selected signal must be a closed signal id whose counts sit inside the
+ * two analyzed windows and whose stored magnitude reproduces exactly from those
+ * counts — the number the merchant sees is never trusted from the row.
+ */
+function validSelectedSignal(
+  signal: unknown,
+  baselineAnalyzedCount: unknown,
+  currentAnalyzedCount: unknown,
+): boolean {
+  const row = objectValue(signal)
+  const baseline = objectValue(row?.baseline)
+  const current = objectValue(row?.current)
+  if (
+    row === null ||
+    typeof row.signalId !== 'string' ||
+    !CLOSED_SIGNAL_ID_SET.has(row.signalId) ||
+    baseline === null ||
+    current === null ||
+    !boundedCount(baseline.count) ||
+    !boundedCount(baseline.total) ||
+    !boundedCount(current.count) ||
+    !boundedCount(current.total) ||
+    baseline.count > baseline.total ||
+    current.count > current.total ||
+    !boundedCount(row.changeMagnitudeBasisPoints) ||
+    row.changeMagnitudeBasisPoints > 10_000 ||
+    baseline.total !== baselineAnalyzedCount ||
+    current.total !== currentAnalyzedCount
+  ) {
+    return false
+  }
+  const denominator = BigInt(baseline.total) * BigInt(current.total)
+  if (denominator === 0n) return false
+  const delta =
+    BigInt(current.count) * BigInt(baseline.total) -
+    BigInt(baseline.count) * BigInt(current.total)
+  const magnitude = delta < 0n ? -delta : delta
+  return row.changeMagnitudeBasisPoints === Number((magnitude * 10_000n) / denominator)
+}
+
+function validSelectedSignals(candidate: Partial<AiTrendEvidence>): boolean {
+  const signals = candidate.selectedSignals
+  return (
+    Array.isArray(signals) &&
+    signals.length <= 4 &&
+    signals.every((signal) =>
+      validSelectedSignal(
+        signal,
+        candidate.baseline?.analyzedCount,
+        candidate.current?.analyzedCount,
+      ),
+    ) &&
+    new Set(signals.map((signal) => signal.signalId)).size === signals.length
+  )
+}
+
+/** Local-date bounds of the two windows the evidence covers. */
+type TrendWindowBounds = Readonly<{
+  baselineStart: string
+  baselineEnd: string
+  currentStart: string
+  currentEnd: string
+}>
+
+function validSupportingReview(supporting: unknown, bounds: TrendWindowBounds): boolean {
+  const row = objectValue(supporting)
+  if (
+    row === null ||
+    typeof row.reviewId !== 'string' ||
+    !REVIEW_ID_PATTERN.test(row.reviewId) ||
+    (row.window !== 'baseline' && row.window !== 'current') ||
+    typeof row.localDate !== 'string' ||
+    !LOCAL_DATE_PATTERN.test(row.localDate) ||
+    typeof row.href !== 'string' ||
+    !row.href.endsWith(`/reviews?reviewId=${row.reviewId}`)
+  ) {
+    return false
+  }
+  return row.window === 'baseline'
+    ? row.localDate >= bounds.baselineStart && row.localDate <= bounds.baselineEnd
+    : row.localDate >= bounds.currentStart && row.localDate <= bounds.currentEnd
+}
+
+function validSupportingReviews(
+  candidate: Partial<AiTrendEvidence>,
+  bounds: TrendWindowBounds,
+): boolean {
+  const supportingReviews = candidate.supportingReviews
+  return (
+    Array.isArray(supportingReviews) &&
+    supportingReviews.length <= 20 &&
+    supportingReviews.every((supporting) => validSupportingReview(supporting, bounds)) &&
+    new Set(supportingReviews.map((supporting) => supporting.reviewId)).size ===
+      supportingReviews.length
+  )
+}
+
+function trendEvidence(value: unknown): AiTrendEvidence | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
+  const candidate = value as Partial<AiTrendEvidence>
+  if (
+    typeof candidate.dataThroughLocalDate !== 'string' ||
+    !LOCAL_DATE_PATTERN.test(candidate.dataThroughLocalDate)
+  ) {
+    return null
+  }
+  let bounds: TrendWindowBounds
+  try {
+    const currentStart = addDays(candidate.dataThroughLocalDate, -29)
+    bounds = {
+      baselineStart: addDays(currentStart, -30),
+      baselineEnd: addDays(currentStart, -1),
+      currentStart,
+      currentEnd: candidate.dataThroughLocalDate,
+    }
+  } catch {
+    return null
+  }
+  if (!validTrendProfile(candidate)) return null
+  if (
+    !validWindowEvidence(candidate.baseline, bounds.baselineStart, bounds.baselineEnd)
+  ) {
+    return null
+  }
+  if (!validWindowEvidence(candidate.current, bounds.currentStart, bounds.currentEnd)) {
+    return null
+  }
+  if (!validModelLineage(candidate.modelLineage)) return null
+  if (!validSelectedSignals(candidate)) return null
+  if (!validSupportingReviews(candidate, bounds)) return null
+  return candidate as AiTrendEvidence
 }
 
 type AiOutputCapability = 'review_analysis' | 'reply_drafting' | 'property_trends'
@@ -321,7 +541,13 @@ function findCurrentAnalysisReviewIds(
     .then((rows) => rows.map((row) => row.reviewId as ReviewId))
 }
 
-export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
+export const createAiOutputStoreAdapter = (
+  db: Database,
+  replyBrandProfiles?: Pick<
+    PortalAiReplyBrandProfilePublicApi,
+    'isCurrentAiReplyBrandProfile'
+  >,
+): AiOutputStorePort => {
   return {
     async storeAnalysis(input) {
       return db.transaction(async (tx) => {
@@ -548,6 +774,8 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
             noticeVersion: aiOperations.noticeVersion,
             noticeDigest: aiOperations.noticeDigest,
             propertyProfileVersion: aiOperations.propertyProfileVersion,
+            replyBrandProfileVersion: aiOperations.replyBrandProfileVersion,
+            replyBrandDisplayNameDigest: aiOperations.replyBrandDisplayNameDigest,
             routingPolicyVersion: aiOperations.routingPolicyVersion,
             sourcePolicyId: aiOperations.sourcePolicyId,
             redactionProfileVersion: aiOperations.redactionProfileVersion,
@@ -582,10 +810,28 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           operation.baseReplyStateRevision !== input.baseReplyStateRevision ||
           operation.authorizationLineageId !== input.authorizationLineageId ||
           operation.propertyProfileVersion !== input.propertyProfileVersion ||
-          operation.operationProfileVersion !== input.replyProfileVersion ||
+          operation.replyBrandProfileVersion !==
+            (input.replyBrandProfileVersion ?? null) ||
+          operation.replyBrandDisplayNameDigest !==
+            (input.replyBrandDisplayNameDigest ?? null) ||
+          operation.operationProfileVersion !== input.operationProfileVersion ||
+          input.replyProfileVersion !== AI_PERSONALIZED_REPLY_PROFILE_VERSION ||
           operation.capabilityRuntimeProfileVersion !== 'reply-drafting-runtime-v1' ||
           fence?.capability !== 'reply_drafting' ||
           fence.replyDraftingEpoch !== input.replyDraftingEpoch
+        ) {
+          return false
+        }
+        if (
+          operation.replyBrandProfileVersion !== null &&
+          operation.replyBrandDisplayNameDigest !== null &&
+          (!replyBrandProfiles ||
+            !(await replyBrandProfiles.isCurrentAiReplyBrandProfile(tx, {
+              organizationId: input.organizationId,
+              propertyId: input.propertyId,
+              version: operation.replyBrandProfileVersion,
+              displayNameDigest: operation.replyBrandDisplayNameDigest,
+            })))
         ) {
           return false
         }
@@ -900,7 +1146,7 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
             selectedSignalIds: [...input.selectedSignalIds],
             signalKey: input.report.signalKey,
             direction: input.report.direction,
-            confidenceBasisPoints: input.report.confidenceBasisPoints,
+            confidenceBasisPoints: input.report.changeMagnitudeBasisPoints,
             supportingReviewCount: input.report.supportingReviewCount,
             headline: input.report.headline,
             sentences: [...input.report.sentences],
@@ -1202,6 +1448,8 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           .select({
             state: merchantAiEnablement.state,
             authorizationLineageId: merchantAiEnablement.authorizationLineageId,
+            authorizationStateVersion: merchantAiEnablement.stateVersion,
+            analysisStartSequence: merchantAiEnablement.analysisStartSequence,
             capabilities: merchantAiEnablement.capabilities,
             reviewAnalysisEpoch: merchantAiEnablement.reviewAnalysisEpoch,
             propertyTrendsEpoch: merchantAiEnablement.propertyTrendsEpoch,
@@ -1225,14 +1473,48 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           )
           .limit(1)
           .for('share')
-        if (
-          authorization?.state !== 'enabled' ||
-          !authorization.capabilities.includes('property_trends') ||
-          authorization.reviewAnalysisEpoch !== input.reviewAnalysisEpoch ||
-          authorization.propertyTrendsEpoch !== input.propertyTrendsEpoch ||
-          authorization.sourceEpoch !== input.sourceEpoch
-        ) {
+        /** Trend delivery needs an enabled grant pinned to this read's epochs. */
+        const authorizationCoversTrends = () =>
+          authorization?.state === 'enabled' &&
+          authorization.capabilities.includes('property_trends') &&
+          authorization.reviewAnalysisEpoch === input.reviewAnalysisEpoch &&
+          authorization.propertyTrendsEpoch === input.propertyTrendsEpoch &&
+          authorization.sourceEpoch === input.sourceEpoch
+        const authorizationLineageId = authorization?.authorizationLineageId ?? null
+        if (authorizationLineageId === null || !authorizationCoversTrends()) {
           return deliverCurrent({ status: 'disabled' })
+        }
+
+        const [enrollment] = await tx
+          .select({ state: aiReviewAnalysisEnrollments.state })
+          .from(aiReviewAnalysisEnrollments)
+          .where(
+            and(
+              eq(aiReviewAnalysisEnrollments.organizationId, input.organizationId),
+              eq(aiReviewAnalysisEnrollments.propertyId, input.propertyId),
+              eq(
+                aiReviewAnalysisEnrollments.authorizationLineageId,
+                authorizationLineageId,
+              ),
+              eq(
+                aiReviewAnalysisEnrollments.authorizationStateVersion,
+                authorization.authorizationStateVersion,
+              ),
+              eq(aiReviewAnalysisEnrollments.sourceEpoch, input.sourceEpoch),
+              eq(
+                aiReviewAnalysisEnrollments.reviewAnalysisEpoch,
+                input.reviewAnalysisEpoch,
+              ),
+              eq(
+                aiReviewAnalysisEnrollments.analysisStartSequence,
+                authorization.analysisStartSequence,
+              ),
+            ),
+          )
+          .limit(1)
+          .for('share')
+        if (enrollment?.state !== 'caught_up') {
+          return deliverCurrent(preparing())
         }
 
         const [profile] = await tx
@@ -1246,12 +1528,13 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           )
           .limit(1)
           .for('share')
-        if (
-          !profile ||
-          profile.lifecycleState !== 'active' ||
-          profile.profileVersion !== input.propertyProfileVersion ||
-          profile.sourceEpoch !== input.sourceEpoch
-        ) {
+        /** The property profile must still be the exact one this read pins. */
+        const profileMatchesRead = () =>
+          Boolean(profile) &&
+          profile.lifecycleState === 'active' &&
+          profile.profileVersion === input.propertyProfileVersion &&
+          profile.sourceEpoch === input.sourceEpoch
+        if (!profileMatchesRead()) {
           return deliverCurrent(preparing())
         }
 
@@ -1304,20 +1587,23 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           )
           .limit(1)
           .for('share')
-        if (
-          !reviewHead ||
-          !cursor ||
-          !aggregateHead ||
-          reviewHead.headSequence !== cursor.consumedSequence ||
-          cursor.consumedSequence !== cursor.terminalAnalysisSequence ||
-          aggregateHead.terminalAnalysisSequence !== cursor.terminalAnalysisSequence ||
-          aggregateHead.aggregateRevision !== cursor.aggregateRevision
-        ) {
-          return deliverCurrent(preparing())
-        }
+        /**
+         * The analysis pipeline has consumed everything: the review head, the
+         * event cursor, and the aggregate head all agree on the same sequence
+         * and revision.
+         */
+        const analysisIsCaughtUp = () =>
+          reviewHead !== undefined &&
+          cursor !== undefined &&
+          aggregateHead !== undefined &&
+          reviewHead.headSequence === cursor.consumedSequence &&
+          cursor.consumedSequence === cursor.terminalAnalysisSequence &&
+          aggregateHead.terminalAnalysisSequence === cursor.terminalAnalysisSequence &&
+          aggregateHead.aggregateRevision === cursor.aggregateRevision
+        const caughtUp = analysisIsCaughtUp()
 
         const now = new Date(input.nowEpochMillis)
-        const [report] = await tx
+        const reports = await tx
           .select({
             disposition: aiPropertyTrendOutcomes.disposition,
             dueLocalDate: aiPropertyTrendSchedules.dueLocalDate,
@@ -1332,38 +1618,18 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
             summary: aiPropertyTrendOutcomes.summary,
             renderProfileVersion: aiPropertyTrendOutcomes.renderProfileVersion,
             renderProfileDigest: aiPropertyTrendOutcomes.renderProfileDigest,
+            definitionVersion: aiPropertyTrendOutcomes.definitionVersion,
+            definitionDigest: aiPropertyTrendOutcomes.definitionDigest,
+            evidence: aiPropertyTrendOutcomes.evidence,
+            operationId: aiPropertyTrendOutcomes.operationId,
+            providerSelectionRecordedAt:
+              aiPropertyTrendOutcomes.providerSelectionRecordedAt,
             generatedAt: aiPropertyTrendOutcomes.recordedAt,
-            operationState: aiOperations.state,
-            operationCommand: aiOperations.command,
-            operationCapability: aiOperations.capability,
-            operationOrganizationId: aiOperations.organizationId,
-            operationPropertyId: aiOperations.propertyId,
-            operationSourceEpoch: aiOperations.sourceEpoch,
-            operationDueLocalDate: aiOperations.dueLocalDate,
-            operationTerminalAnalysisSequence: aiOperations.terminalAnalysisSequence,
-            operationAggregateRevision: aiOperations.aggregateRevision,
-            operationAuthorizationLineageId: aiOperations.authorizationLineageId,
-            operationPropertyProfileVersion: aiOperations.propertyProfileVersion,
-            operationProfileVersion: aiOperations.operationProfileVersion,
-            operationCapabilityRuntimeProfileVersion:
-              aiOperations.capabilityRuntimeProfileVersion,
-            operationNoticeVersion: aiOperations.noticeVersion,
-            operationNoticeDigest: aiOperations.noticeDigest,
-            operationSourcePolicyId: aiOperations.sourcePolicyId,
-            operationRoutingPolicyVersion: aiOperations.routingPolicyVersion,
-            operationProviderDeploymentProfileVersion:
-              aiOperations.providerDeploymentProfileVersion,
-            operationRedactionProfileVersion: aiOperations.redactionProfileVersion,
-            operationCapabilityFences: aiOperations.capabilityFences,
           })
           .from(aiPropertyTrendOutcomes)
           .innerJoin(
             aiPropertyTrendSchedules,
             eq(aiPropertyTrendSchedules.id, aiPropertyTrendOutcomes.scheduleId),
-          )
-          .leftJoin(
-            aiOperations,
-            eq(aiOperations.id, aiPropertyTrendOutcomes.operationId),
           )
           .where(
             and(
@@ -1380,117 +1646,144 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
                 aiPropertyTrendSchedules.reportProfileVersion,
                 input.reportProfileVersion,
               ),
-              or(
-                isNull(aiPropertyTrendOutcomes.expiresAt),
-                gt(aiPropertyTrendOutcomes.expiresAt, now),
+              eq(
+                aiPropertyTrendOutcomes.definitionVersion,
+                AI_PROPERTY_TREND_DEFINITION_VERSION,
               ),
+              eq(
+                aiPropertyTrendOutcomes.definitionDigest,
+                AI_PROPERTY_TREND_DEFINITION_DIGEST,
+              ),
+              isNotNull(aiPropertyTrendOutcomes.evidence),
+              isNull(aiPropertyTrendOutcomes.operationId),
+              isNull(aiPropertyTrendOutcomes.providerSelectionRecordedAt),
+              gt(aiPropertyTrendOutcomes.expiresAt, now),
             ),
           )
           .orderBy(
             desc(aiPropertyTrendSchedules.dueLocalDate),
             desc(aiPropertyTrendSchedules.aggregateRevision),
           )
-          .limit(1)
-        if (
-          report &&
-          (report.terminalAnalysisSequence !== cursor.terminalAnalysisSequence ||
-            report.aggregateRevision !== cursor.aggregateRevision)
-        ) {
-          return deliverCurrent({
-            status: 'snapshot_superseded',
-            sourceEpoch: input.sourceEpoch,
-            reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-            propertyTrendsEpoch: input.propertyTrendsEpoch,
-            propertyProfileVersion: input.propertyProfileVersion,
-            terminalAnalysisSequence: cursor.terminalAnalysisSequence,
-            aggregateRevision: cursor.aggregateRevision,
-          })
-        }
-        if (
-          report?.disposition === 'insufficient_data' ||
-          report?.disposition === 'no_material_change'
-        ) {
-          return deliverCurrent({
-            status: report.disposition,
-            sourceEpoch: input.sourceEpoch,
-            reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-            propertyTrendsEpoch: input.propertyTrendsEpoch,
-            propertyProfileVersion: input.propertyProfileVersion,
-            dueLocalDate: report.dueLocalDate,
-            terminalAnalysisSequence: report.terminalAnalysisSequence,
-            aggregateRevision: report.aggregateRevision,
-          })
-        }
-        const fence = capabilityFence(report?.operationCapabilityFences)
-        if (
-          !report ||
-          report.disposition !== 'ready' ||
-          (report.operationState !== 'succeeded' &&
-            report.operationState !== 'succeeded_pending_delivery') ||
-          report.operationCommand !== 'trend' ||
-          report.operationCapability !== 'property_trends' ||
-          report.operationOrganizationId !== input.organizationId ||
-          report.operationPropertyId !== input.propertyId ||
-          report.operationSourceEpoch !== input.sourceEpoch ||
-          report.operationDueLocalDate !== report.dueLocalDate ||
-          report.operationTerminalAnalysisSequence !== report.terminalAnalysisSequence ||
-          report.operationAggregateRevision !== report.aggregateRevision ||
-          report.operationAuthorizationLineageId !==
-            authorization.authorizationLineageId ||
-          report.operationPropertyProfileVersion !== input.propertyProfileVersion ||
-          report.operationProfileVersion !== input.reportProfileVersion ||
-          report.operationCapabilityRuntimeProfileVersion !==
-            authorization.capabilityRuntimeProfileVersions.property_trends ||
-          report.operationNoticeVersion !== authorization.noticeVersion ||
-          report.operationNoticeDigest !== authorization.noticeDigest ||
-          report.operationSourcePolicyId !== authorization.sourcePolicyId ||
-          report.operationRoutingPolicyVersion !== authorization.routingPolicyVersion ||
-          report.operationRoutingPolicyVersion !== profile.routingPolicyVersion ||
-          report.operationProviderDeploymentProfileVersion !==
-            authorization.providerDeploymentProfileVersion ||
-          report.operationProviderDeploymentProfileVersion !==
-            profile.providerDeploymentProfileVersion ||
-          report.operationRedactionProfileVersion !==
-            authorization.redactionProfileFamily ||
-          report.renderProfileVersion !== AI_TREND_RENDER_PROFILE_VERSION ||
-          report.renderProfileDigest !== AI_TREND_RENDER_PROFILE_DIGEST ||
-          report.signalKey === null ||
-          report.direction === null ||
-          report.confidenceBasisPoints === null ||
-          report.supportingReviewCount === null ||
-          report.headline === null ||
-          !Array.isArray(report.sentences) ||
-          report.summary === null ||
-          fence?.capability !== 'property_trends' ||
-          fence.reviewAnalysisEpoch !== input.reviewAnalysisEpoch ||
-          fence.propertyTrendsEpoch !== input.propertyTrendsEpoch
-        ) {
+          .limit(32)
+        const latestComplete = reports.find((report) =>
+          ['ready', 'insufficient_data', 'no_material_change'].includes(
+            report.disposition,
+          ),
+        )
+        const latestUpdating = reports.find((report) => report.disposition === 'updating')
+        const updatingEvidence = trendEvidence(latestUpdating?.evidence)
+        if (!latestComplete) {
+          if (latestUpdating && updatingEvidence) {
+            return deliverCurrent({
+              status: 'updating',
+              sourceEpoch: input.sourceEpoch,
+              reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+              propertyTrendsEpoch: input.propertyTrendsEpoch,
+              propertyProfileVersion: input.propertyProfileVersion,
+              evidence: updatingEvidence,
+            })
+          }
+          if (!caughtUp) {
+            return deliverCurrent({
+              status: 'updating',
+              sourceEpoch: input.sourceEpoch,
+              reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+              propertyTrendsEpoch: input.propertyTrendsEpoch,
+              propertyProfileVersion: input.propertyProfileVersion,
+            })
+          }
           return deliverCurrent(preparing())
         }
-        return deliverCurrent({
-          status: 'ready',
-          sourceEpoch: input.sourceEpoch,
-          reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-          propertyTrendsEpoch: input.propertyTrendsEpoch,
-          propertyProfileVersion: input.propertyProfileVersion,
-          dueLocalDate: report.dueLocalDate,
-          terminalAnalysisSequence: report.terminalAnalysisSequence,
-          aggregateRevision: report.aggregateRevision,
-          reportProfileVersion: input.reportProfileVersion,
-          report: {
-            signalKey: report.signalKey,
-            direction: report.direction as 'improving' | 'stable' | 'declining',
-            confidenceBasisPoints: report.confidenceBasisPoints,
-            supportingReviewCount: report.supportingReviewCount,
-            headline: report.headline as
-              | 'Review signals improved'
-              | 'Review signals need attention'
-              | 'Notable review changes',
-            sentences: report.sentences as readonly string[],
-            summary: report.summary,
-          },
-          generatedAtEpochMillis: report.generatedAt.getTime(),
-        })
+        const evidence = trendEvidence(latestComplete.evidence)
+        if (evidence === null) return deliverCurrent(preparing())
+        /**
+         * A completed report is stale when the pipeline has moved past the
+         * sequence it was computed from, or when a newer report is already
+         * being produced for the same or a later due date.
+         */
+        const reportIsStale = (
+          complete: NonNullable<typeof latestComplete>,
+          candidate: typeof latestUpdating,
+        ) => {
+          const isCurrent =
+            caughtUp &&
+            complete.terminalAnalysisSequence === cursor?.terminalAnalysisSequence &&
+            complete.aggregateRevision === cursor?.aggregateRevision
+          const candidateIsNewer =
+            candidate !== undefined &&
+            (candidate.dueLocalDate > complete.dueLocalDate ||
+              (candidate.dueLocalDate === complete.dueLocalDate &&
+                candidate.aggregateRevision > complete.aggregateRevision))
+          return !isCurrent || candidateIsNewer
+        }
+        /**
+         * A `ready` disposition still has to carry a complete, current-profile
+         * render; anything missing means the row is not deliverable yet.
+         */
+        const readyRead = (
+          complete: NonNullable<typeof latestComplete>,
+          updating: boolean,
+        ): AiTrendReportRead => {
+          if (
+            complete.disposition !== 'ready' ||
+            complete.renderProfileVersion !== AI_TREND_RENDER_PROFILE_VERSION ||
+            complete.renderProfileDigest !== AI_TREND_RENDER_PROFILE_DIGEST ||
+            complete.signalKey === null ||
+            complete.direction === null ||
+            complete.confidenceBasisPoints === null ||
+            complete.supportingReviewCount === null ||
+            complete.headline === null ||
+            !Array.isArray(complete.sentences) ||
+            complete.summary === null
+          ) {
+            return preparing()
+          }
+          return {
+            status: 'ready',
+            sourceEpoch: input.sourceEpoch,
+            reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+            propertyTrendsEpoch: input.propertyTrendsEpoch,
+            propertyProfileVersion: input.propertyProfileVersion,
+            dueLocalDate: complete.dueLocalDate,
+            terminalAnalysisSequence: complete.terminalAnalysisSequence,
+            aggregateRevision: complete.aggregateRevision,
+            reportProfileVersion: input.reportProfileVersion,
+            report: {
+              signalKey: complete.signalKey,
+              direction: complete.direction as 'improving' | 'stable' | 'declining',
+              changeMagnitudeBasisPoints: complete.confidenceBasisPoints,
+              supportingReviewCount: complete.supportingReviewCount,
+              headline: complete.headline as
+                | 'Review signals improved'
+                | 'Review signals need attention'
+                | 'Notable review changes',
+              sentences: complete.sentences as readonly string[],
+              summary: complete.summary,
+            },
+            evidence,
+            updating,
+            generatedAtEpochMillis: complete.generatedAt.getTime(),
+          }
+        }
+        const updating = reportIsStale(latestComplete, latestUpdating)
+        if (
+          latestComplete.disposition === 'insufficient_data' ||
+          latestComplete.disposition === 'no_material_change'
+        ) {
+          return deliverCurrent({
+            status: latestComplete.disposition,
+            sourceEpoch: input.sourceEpoch,
+            reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+            propertyTrendsEpoch: input.propertyTrendsEpoch,
+            propertyProfileVersion: input.propertyProfileVersion,
+            dueLocalDate: latestComplete.dueLocalDate,
+            terminalAnalysisSequence: latestComplete.terminalAnalysisSequence,
+            aggregateRevision: latestComplete.aggregateRevision,
+            evidence,
+            updating,
+          })
+        }
+        return deliverCurrent(readyRead(latestComplete, updating))
       })
     },
   }

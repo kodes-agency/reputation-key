@@ -59,7 +59,7 @@ export function calculateContentExpiry(
 export function checkContentStatus(
   lastFetchedAt: Date | null,
   contentExpiresAt: Date | null,
-  now: Date = new Date(),
+  now: Date,
   policy: SourceContentPolicy = DEFAULT_POLICY,
 ): ReviewContentCheck {
   if (!lastFetchedAt || !contentExpiresAt) {
@@ -100,7 +100,7 @@ export function classifyReviewsForRefresh(
       contentExpiresAt: Date | null
     }>
   >,
-  now: Date = new Date(),
+  now: Date,
   policy: SourceContentPolicy = DEFAULT_POLICY,
 ): Readonly<{
   fresh: readonly string[]

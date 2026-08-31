@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { resolveLinkAndTrack } from '#/contexts/guest/server/guest-scans'
+import { resolvePublicPortalLink } from '#/contexts/guest/server/guest-scans'
 import { isValidExternalUrl } from '#/contexts/portal/application/public-api'
 import { getLogger } from '#/shared/observability/logger'
 
@@ -7,7 +7,7 @@ const notFound = () =>
   new Response('Link not found', {
     status: 404,
     headers: {
-      'Cache-Control': 'no-store',
+      'Cache-Control': 'private, no-store',
       'Referrer-Policy': 'no-referrer',
     },
   })
@@ -20,7 +20,7 @@ export async function handlePublicPortalClick(
 ): Promise<Response> {
   const logger = getLogger()
   try {
-    const result = await resolveLinkAndTrack({
+    const result = await resolvePublicPortalLink({
       data: { token: params.token, linkId: params.linkId },
     })
     if (!result || !isValidExternalUrl(result.url)) {
@@ -34,15 +34,16 @@ export async function handlePublicPortalClick(
       status: 302,
       headers: {
         Location: result.url,
-        'Cache-Control': 'no-store',
+        'Cache-Control': 'private, no-store',
         'Referrer-Policy': 'no-referrer',
       },
     })
-  } catch (error) {
-    // Raw public tokens are deliberately absent from logs and every unavailable
-    // token/link/lifecycle/policy outcome is externally indistinguishable.
+  } catch {
+    // Upstream errors are untrusted at this public capability boundary: their
+    // message or metadata may echo the raw token. Log only a stable code and the
+    // non-secret published link identifier.
     logger.error(
-      { err: error, linkId: params.linkId },
+      { linkId: params.linkId, errorCode: 'public_portal_click_unavailable' },
       '[handler] public Portal click unavailable',
     )
     return notFound()

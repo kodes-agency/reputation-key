@@ -2,12 +2,12 @@ import type { Database } from '#/shared/db'
 import { lte } from 'drizzle-orm'
 import { metricSourceWatermarks } from '#/shared/db/schema/metric.schema'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { registerConsumer } from '#/shared/outbox/dispatcher'
+import type { ConsumerRegistry } from '#/shared/outbox'
 
 type MetricCorrectedPayload = Readonly<{
   correctionId: string
   correctedReadingId: string
-  replacementReadingId: string
+  replacementReadingId: string | null
   organizationId: string
   propertyId: string
   definitionVersionId: string
@@ -25,7 +25,11 @@ function parseMetricCorrectedPayload(
   return validated as MetricCorrectedPayload
 }
 
-export function registerMetricCorrectionConsumer(db: Database): void {
+export function registerMetricCorrectionConsumer(
+  registry: ConsumerRegistry,
+  db: Database,
+): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'metric.corrected',
     consumerName: 'metric.correction-reconciliation',

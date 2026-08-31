@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { createPortalGroup } from './create-portal-group'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import {
@@ -93,7 +94,6 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const TEST_PORTAL_ID = portalId('p-00000000-0000-0000-0000-000000000001')
@@ -110,7 +110,13 @@ const seedPortal = (): Portal => ({
   description: null,
   heroImageUrl: null,
   theme: { primaryColor: '#000000' },
+  privateFeedbackThreshold: 3,
   publicationState: 'published',
+  createdBy: null,
+  responsibleManagerRevision: 1,
+  responsibilityNeededSince: FIXED_TIME,
+  primaryGuestLocale: 'en',
+  additionalGuestLocales: [],
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,
@@ -124,9 +130,10 @@ const createPortalRepoMock = (portal: Portal | null): PortalRepository =>
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
   const events = createCapturingEventBus()
+  const portalRepo = createPortalRepoMock(seedPortal())
   const deps = {
     portalGroupRepo,
-    portalRepo: createPortalRepoMock(seedPortal()),
+    portalRepo,
     staffPublicApi: staffApiMock(accessible),
     propertyApi: {
       propertyExists: async (_orgId: OrganizationId, pid: PropertyId) =>
@@ -137,9 +144,14 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       findBySlug: async () => null,
       getProcessingRegion: async () => 'us',
       findIdsByGoogleConnection: async () => [],
+      findGoogleNotificationAnchor: async () => null,
       clearGoogleConnectionRef: async () => {},
     },
-    events,
+    commandStore: createInMemoryPortalCommandStore({
+      portalRepo,
+      portalGroupRepo,
+      events,
+    }),
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
   }

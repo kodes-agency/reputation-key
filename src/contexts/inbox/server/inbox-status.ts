@@ -22,19 +22,22 @@ import {
 // ── updateInboxStatus ──────────────────────────────────────────────
 
 export const updateInboxStatusFn = createServerFn({ method: 'POST' })
-  .inputValidator(updateStatusDto)
+  .validator(updateStatusDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { useCases } = getContainer()
+        const { inboxPublicApi } = getContainer()
         try {
-          return await useCases.updateInboxStatus(
+          return await inboxPublicApi.updateInboxStatus(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
               newStatus: data.status,
+              expectedCommandRevision: data.expectedCommandRevision,
+              reopenReason: data.reopenReason,
+              reopenExplanation: data.reopenExplanation,
             },
             ctx,
           )
@@ -52,19 +55,24 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
 // ── bulkUpdateInboxStatus ──────────────────────────────────────────
 
 export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
-  .inputValidator(bulkUpdateStatusDto)
+  .validator(bulkUpdateStatusDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { useCases } = getContainer()
+        const { inboxPublicApi } = getContainer()
         try {
-          return await useCases.bulkUpdateInboxStatus(
+          return await inboxPublicApi.bulkUpdateInboxStatus(
             {
-              inboxItemIds: data.inboxItemIds.map((id) => inboxItemId(id)),
+              items: data.items.map((item) => ({
+                inboxItemId: inboxItemId(item.inboxItemId),
+                expectedCommandRevision: item.expectedCommandRevision,
+              })),
               newStatus: data.status,
+              reopenReason: data.reopenReason,
+              reopenExplanation: data.reopenExplanation,
             },
             ctx,
           )
@@ -82,17 +90,20 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
 // ── escalateInboxItem ──────────────────────────────────────────────
 
 export const escalateInboxItemFn = createServerFn({ method: 'POST' })
-  .inputValidator(escalateInboxItemDto)
+  .validator(escalateInboxItemDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { useCases } = getContainer()
+        const { inboxPublicApi } = getContainer()
         try {
-          return await useCases.escalateInboxItem(
-            { inboxItemId: inboxItemId(data.inboxItemId) },
+          return await inboxPublicApi.escalateInboxItem(
+            {
+              inboxItemId: inboxItemId(data.inboxItemId),
+              expectedCommandRevision: data.expectedCommandRevision,
+            },
             ctx,
           )
         } catch (e) {
@@ -109,17 +120,20 @@ export const escalateInboxItemFn = createServerFn({ method: 'POST' })
 // ── resolveEscalation ──────────────────────────────────────────────
 
 export const resolveEscalationFn = createServerFn({ method: 'POST' })
-  .inputValidator(resolveEscalationDto)
+  .validator(resolveEscalationDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.write' })
-        const { useCases } = getContainer()
+        const { inboxPublicApi } = getContainer()
         try {
-          return await useCases.resolveEscalation(
-            { inboxItemId: inboxItemId(data.inboxItemId) },
+          return await inboxPublicApi.resolveEscalation(
+            {
+              inboxItemId: inboxItemId(data.inboxItemId),
+              expectedCommandRevision: data.expectedCommandRevision,
+            },
             ctx,
           )
         } catch (e) {

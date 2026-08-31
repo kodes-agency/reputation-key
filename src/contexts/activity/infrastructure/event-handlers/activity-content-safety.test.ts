@@ -1,17 +1,17 @@
-// BQC-4.3 — activity_log content safety (ADR 0045/0030/0048).
+// BQC-4.3 — recent_activity_entries content safety (ADR 0045/0030/0048).
 //
-// The activity log is user-facing audit, not a content store: rows carry
+// Recent Activity is a user-facing convenience feed, not audit or a content store:
+// rows carry
 // identifiers, subject refs, and status transitions only. Review text, reply
 // text, reviewer identity, and note text must NEVER flow into an
-// insert-activity-log payload — even when the triggering domain event still
+// project-recent-activity payload — even when the triggering domain event still
 // carries them on the in-process bus (the outbox denylist strips them for
 // durability; these consumers must not reintroduce them).
 //
 // Method: invoke every review/reply/note-related handler with an event whose
 // content fields are planted with marker strings, then assert the enqueued
-// payload contains none of them. The reply-rejection `detail` (staff-authored
-// moderation reason) is documented in the data-flow map as the one free-text
-// field — it is tenant-authored, never provider content.
+// payload contains none of them. Staff-authored moderation reasons are content
+// too and are excluded from both the acceleration and durable paths.
 
 import { describe, it, expect, vi } from 'vitest'
 import type { Queue } from 'bullmq'
@@ -63,7 +63,7 @@ function createMockDeps() {
 function expectNoMarkerContent(calls: { name: string; data: unknown }[]) {
   expect(calls.length).toBeGreaterThan(0)
   for (const call of calls) {
-    expect(call.name).toBe('insert-activity-log')
+    expect(call.name).toBe('project-recent-activity')
     const serialized = JSON.stringify(call.data)
     for (const marker of MARKERS) {
       expect(serialized).not.toContain(marker)
@@ -115,7 +115,7 @@ describe('activity handlers — content safety (BQC-4.3)', () => {
     expectNoMarkerContent(calls)
   })
 
-  it('onReplyRejected keeps only the staff-authored reason — never review/reply content', async () => {
+  it('onReplyRejected drops staff-authored reasons and provider content', async () => {
     const { onReplyRejected } = await import('./on-reply-rejected')
     const { queue, calls, inboxItemLookup } = createMockDeps()
 
@@ -128,8 +128,6 @@ describe('activity handlers — content safety (BQC-4.3)', () => {
       propertyId: PROP,
       userId: USER,
       authorId: USER,
-      // Staff-authored moderation reason (documented free-text field) — its
-      // own value passes through; the planted provider content must not.
       reason: 'tone does not fit brand voice',
       source: 'web',
       occurredAt: new Date(),
@@ -139,7 +137,7 @@ describe('activity handlers — content safety (BQC-4.3)', () => {
 
     expectNoMarkerContent(calls)
     const data = calls[0]!.data as { payload: { detail: string | null } }
-    expect(data.payload.detail).toBe('tone does not fit brand voice')
+    expect(data.payload.detail).toBeNull()
   })
 
   it('onReplyPublished drops review/reply content from the activity payload', async () => {

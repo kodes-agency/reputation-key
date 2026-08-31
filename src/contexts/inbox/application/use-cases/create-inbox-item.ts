@@ -22,6 +22,10 @@ export type CreateInboxItemInput = Readonly<{
   sourceId: ReviewId | FeedbackId
   sourceDate: Date
   platform: string | null
+  /** Exact source occurrence that opened this Inbox work. */
+  sourceRevision?: number
+  /** Review-only compatibility anchor for older callers. */
+  materialReviewRevision?: number
 }>
 
 export type CreateInboxItemDeps = Readonly<{
@@ -82,6 +86,17 @@ export const createInboxItem =
         sourceId: item.sourceId,
         occurredAt: item.createdAt,
       }),
+      input.sourceType === 'feedback' && input.sourceRevision !== undefined
+        ? {
+            sourceRevision: input.sourceRevision,
+            openedReason: 'feedback_submitted',
+            actorType: 'guest',
+            triggerEventId: null,
+            openedAt: input.sourceDate,
+          }
+        : input.sourceType === 'review' && input.materialReviewRevision !== undefined
+          ? { materialReviewRevision: input.materialReviewRevision }
+          : undefined,
     )
 
     if (!created.created) {

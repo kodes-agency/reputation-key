@@ -45,7 +45,7 @@ function mapHead(row: typeof aiExecutionControlHeads.$inferSelect): AiControlHea
   }
 }
 
-export function createAiControlAdapter(db: Database): AiControlPort {
+export const createAiControlAdapter = (db: Database): AiControlPort => {
   return {
     async readHeads(input) {
       const scopes: readonly AiControlScope[] = [

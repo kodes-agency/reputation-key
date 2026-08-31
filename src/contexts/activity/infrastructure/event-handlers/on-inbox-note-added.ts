@@ -1,5 +1,5 @@
 import type { InboxNoteAdded } from '#/contexts/inbox/application/public-api'
-import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
+import type { ProjectRecentActivityInput } from '../../application/use-cases/project-recent-activity'
 import type { Queue } from 'bullmq'
 
 type Deps = { queue: Queue }
@@ -7,7 +7,7 @@ type Deps = { queue: Queue }
 export const onInboxNoteAdded =
   (deps: Deps) =>
   async (event: InboxNoteAdded): Promise<void> => {
-    const payload: InsertActivityLogInput = {
+    const payload: ProjectRecentActivityInput = {
       action: 'added' as const,
       resourceType: 'inbox_item' as const,
       resourceId: event.inboxItemId,
@@ -25,5 +25,5 @@ export const onInboxNoteAdded =
         detail: null,
       },
     }
-    await deps.queue.add('insert-activity-log', payload)
+    await deps.queue.add('project-recent-activity', payload)
   }

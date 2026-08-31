@@ -5,7 +5,6 @@ import {
   deactivate,
   reactivate,
   archive,
-  updateProfile,
   isActive,
   isValidTransition,
 } from './staff-participation'
@@ -17,7 +16,7 @@ describe('StaffParticipation', () => {
     id: 'part-1',
     organizationId: 'org-1',
     propertyId: 'prop-1',
-    userId: 'user-1',
+    staffParticipantId: 'participant-1',
     displayName: 'Jane Doe',
     createdBy: 'admin-1',
     now: NOW,
@@ -30,6 +29,8 @@ describe('StaffParticipation', () => {
       expect(isActive(p)).toBe(true)
       expect(p.startedAt).toEqual(NOW)
       expect(p.endedAt).toBeNull()
+      expect(p.linkedUserId).toBeNull()
+      expect(p.revision).toBe(1)
     })
   })
 
@@ -45,7 +46,11 @@ describe('StaffParticipation', () => {
     })
 
     it('prevents deactivating an archived participation', () => {
-      const p = archive(createParticipation(baseParams), NOW) as StaffParticipation
+      const p = archive(
+        createParticipation(baseParams),
+        NOW,
+        'left_property',
+      ) as StaffParticipation
       const result = deactivate(p, NOW)
       expect(result).toHaveProperty('code', 'already_archived')
     })
@@ -63,7 +68,11 @@ describe('StaffParticipation', () => {
     })
 
     it('cannot reactivate an archived participation', () => {
-      const p = archive(createParticipation(baseParams), NOW) as StaffParticipation
+      const p = archive(
+        createParticipation(baseParams),
+        NOW,
+        'left_property',
+      ) as StaffParticipation
       const result = reactivate(p, NOW)
       expect(result).toHaveProperty('code', 'invalid_transition')
     })
@@ -72,30 +81,26 @@ describe('StaffParticipation', () => {
   describe('archive', () => {
     it('archives an active participation', () => {
       const p = createParticipation(baseParams)
-      const result = archive(p, NOW)
+      const result = archive(p, NOW, 'left_property')
       expect(result).toHaveProperty('status', 'archived')
+      expect(result).toHaveProperty('archiveReason', 'left_property')
+      expect(result).toHaveProperty('revision', 2)
     })
 
     it('archives an inactive participation', () => {
       const p = deactivate(createParticipation(baseParams), NOW) as StaffParticipation
-      const result = archive(p, NOW)
+      const result = archive(p, NOW, 'left_property')
       expect(result).toHaveProperty('status', 'archived')
     })
 
     it('prevents archiving an already-archived participation', () => {
-      const p = archive(createParticipation(baseParams), NOW) as StaffParticipation
-      const result = archive(p, NOW)
+      const p = archive(
+        createParticipation(baseParams),
+        NOW,
+        'left_property',
+      ) as StaffParticipation
+      const result = archive(p, NOW, 'left_property')
       expect(result).toHaveProperty('code', 'already_archived')
-    })
-  })
-
-  describe('updateProfile', () => {
-    it('updates display name', () => {
-      const p = createParticipation(baseParams)
-      const updated = updateProfile(p, 'New Name', NOW)
-      expect(updated.displayName).toBe('New Name')
-      expect(updated.id).toBe(p.id)
-      expect(updated.updatedAt).toEqual(NOW)
     })
   })
 

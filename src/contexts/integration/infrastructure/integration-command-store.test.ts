@@ -7,7 +7,7 @@
 // failure must not propagate (durable row already retained).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createAtomicIntegrationCommandStore } from './integration-command-store'
+import { createAtomicIntegrationCommandStore as createProductionIntegrationCommandStore } from './integration-command-store'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -45,8 +45,23 @@ vi.mock('#/shared/observability/trace', () => ({
 }))
 
 const NOW = new Date('2026-06-01T12:00:00.000Z')
+const MUTATION_NOW = new Date('2026-06-01T12:34:56.789Z')
+
+const createAtomicIntegrationCommandStore = (
+  db: Database,
+  events: EventBus,
+  clock: () => Date = () => MUTATION_NOW,
+) =>
+  createProductionIntegrationCommandStore(db, events, clock, {
+    applyCredentialHome: async () => {},
+  })
 const ORG_ID = organizationId('org-integration-cmd-00000000001')
 const CONN_ID = googleConnectionId('6d000000-0000-0000-0000-000000000001')
+const HOME_BINDING = Object.freeze({
+  homeCellId: 'us' as const,
+  cataloguePolicyVersion: 2,
+  authorityGeneration: 1,
+})
 
 function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnection {
   return {
@@ -65,6 +80,9 @@ function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnec
     lifecycleVersion: 1,
     accessVersion: 1,
     credentialGeneration: 1,
+    credentialHomeCellId: 'us',
+    credentialHomePolicyVersion: 2,
+    credentialHomeAuthorityGeneration: 1,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,
@@ -72,6 +90,8 @@ function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnec
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
+    credentialAuthorizedBy:
+      overrides.credentialAuthorizedBy ?? userId('user-connector-000000000000001'),
   }
 }
 
@@ -85,6 +105,8 @@ function makeConnectionRow(overrides: Record<string, unknown> = {}) {
     tokenExpiresAt: new Date('2026-06-01T13:00:00.000Z'),
     scopes: ['scope-a'],
     connectedBy: 'user-connector-000000000000001',
+    credentialAuthorizedBy: 'user-connector-000000000000001',
+    credentialAuthorizedAt: NOW,
     visibility: 'private',
     status: 'active',
     credentialUseState: 'active',
@@ -92,6 +114,8 @@ function makeConnectionRow(overrides: Record<string, unknown> = {}) {
     lifecycleVersion: 1,
     accessVersion: 1,
     credentialGeneration: 1,
+    credentialHomeCellId: 'us',
+    credentialHomePolicyVersion: 2,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,
@@ -184,7 +208,7 @@ const connectedEvent = () =>
   integrationGoogleAccountConnected({
     connectionId: CONN_ID,
     organizationId: ORG_ID,
-    connectedBy: userId('user-connector-000000000000001'),
+    userId: userId('user-connector-000000000000001'),
     occurredAt: NOW,
   })
 
@@ -205,17 +229,21 @@ describe('createAtomicIntegrationCommandStore', () => {
       const store = createAtomicIntegrationCommandStore(db, events)
       const event = connectedEvent()
 
-      await store.connectGoogleAccount({ connection: makeConnection(), event })
+      await store.connectGoogleAccount({
+        connection: makeConnection(),
+        credentialHomeBinding: HOME_BINDING,
+        event,
+      })
 
       expect(insertedRows).toHaveLength(1)
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.eventType).toBe('integration.google_account.connected')
       expect(outboxRows[0]!.id).toBe(event.eventId)
       expect(Object.keys(outboxRows[0]!.payload as object).sort()).toEqual([
-        'connectedBy',
         'connectionId',
         'correlationId',
         'organizationId',
+        'userId',
       ])
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
     })
@@ -234,6 +262,7 @@ describe('createAtomicIntegrationCommandStore', () => {
       await expect(
         store.connectGoogleAccount({
           connection: makeConnection(),
+          credentialHomeBinding: HOME_BINDING,
           event: connectedEvent(),
         }),
       ).rejects.toSatisfy((e: unknown) => isUniqueViolationError(e))
@@ -266,6 +295,8 @@ describe('createAtomicIntegrationCommandStore', () => {
         encryptedRefreshToken: 'enc-r2',
         tokenExpiresAt: new Date('2026-06-01T14:00:00.000Z'),
         visibility: 'organization',
+        credentialHome: HOME_BINDING,
+        credentialHomeReason: 'credential_rotation',
         event: connectedEvent(),
       })
 
@@ -275,6 +306,7 @@ describe('createAtomicIntegrationCommandStore', () => {
         visibility: 'organization',
         googleSubject: 'google-subject-2',
         scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
+        updatedAt: MUTATION_NOW,
       })
       expect(outboxRows).toHaveLength(1)
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
@@ -297,6 +329,8 @@ describe('createAtomicIntegrationCommandStore', () => {
           encryptedRefreshToken: 'enc-r2',
           tokenExpiresAt: NOW,
           visibility: 'private',
+          credentialHome: HOME_BINDING,
+          credentialHomeReason: 'credential_rotation',
           event: connectedEvent(),
         }),
       ).rejects.toSatisfy(
@@ -328,7 +362,11 @@ describe('createAtomicIntegrationCommandStore', () => {
         updateSets,
       })
       const events = makeEvents(order)
-      const store = createAtomicIntegrationCommandStore(db, events)
+      const clock = vi
+        .fn<() => Date>()
+        .mockReturnValueOnce(MUTATION_NOW)
+        .mockReturnValueOnce(new Date('2099-01-01T00:00:00.000Z'))
+      const store = createAtomicIntegrationCommandStore(db, events, clock)
       const event = integrationGoogleAccountDisconnected({
         connectionId: CONN_ID,
         organizationId: ORG_ID,
@@ -341,13 +379,18 @@ describe('createAtomicIntegrationCommandStore', () => {
         event,
       })
 
-      expect(updateSets[0]).toMatchObject({ status: 'disconnected' })
+      expect(updateSets[0]).toMatchObject({
+        status: 'disconnected',
+        updatedAt: MUTATION_NOW,
+      })
       expect(updateSets[1]).toMatchObject({
         encryptedAccessToken: 'redacted',
         encryptedRefreshToken: 'redacted',
         googleSubject: null,
         scopes: [],
+        updatedAt: MUTATION_NOW,
       })
+      expect(clock).toHaveBeenCalledTimes(1)
       expect(result.status).toBe('disconnected')
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.id).toBe(event.eventId)
@@ -390,10 +433,12 @@ describe('createAtomicIntegrationCommandStore', () => {
     it('commits visibility update + fact in one tx before emit', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
+      const updateSets: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
         order,
         updateReturning: [makeConnectionRow({ visibility: 'organization' })],
         outboxRows,
+        updateSets,
       })
       const events = makeEvents(order)
       const store = createAtomicIntegrationCommandStore(db, events)
@@ -411,6 +456,7 @@ describe('createAtomicIntegrationCommandStore', () => {
       })
 
       expect(result.visibility).toBe('organization')
+      expect(updateSets[0]).toMatchObject({ updatedAt: MUTATION_NOW })
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.eventType).toBe(
         'integration.google_connection.visibility_changed',
@@ -429,6 +475,7 @@ describe('createAtomicIntegrationCommandStore', () => {
 
       await store.connectGoogleAccount({
         connection: makeConnection(),
+        credentialHomeBinding: HOME_BINDING,
         event: connectedEvent(),
       })
 
@@ -474,13 +521,13 @@ describe('createAtomicIntegrationCommandStore', () => {
 
     it('the connected payload is identifier-only', () => {
       const row = toOutboxEvent(connectedEvent())
-      expect(row.eventVersion).toBe(2)
+      expect(row.eventVersion).toBe(3)
       const payload = row.payload as Record<string, unknown>
       expect(Object.keys(payload).sort()).toEqual([
-        'connectedBy',
         'connectionId',
         'correlationId',
         'organizationId',
+        'userId',
       ])
     })
   })

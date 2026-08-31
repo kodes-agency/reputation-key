@@ -1,175 +1,152 @@
 // Goal context — build function (composition root)
 // Per architecture: "Build functions wire ports → adapters, deps → use cases."
 // Returns the public API surface of the goal context.
-// Also registers event handlers on the shared EventBus so that every process
-// (web server + worker) handles metric.recorded etc. without needing a
-// separate bootstrap() call.
+// Retained pre-beta CRUD/event handlers are intentionally not composed here;
+// the only active durable consumer reconciles GoalProgram result corrections.
 
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { ConsumerRegistry } from '#/shared/outbox'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
-import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
-import type { GoalRepository } from './application/ports/goal.repository'
-import type { getLogger as getLoggerType } from '#/shared/observability/logger'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type {
+  PortalGroupPublicApi,
+  PortalPublicApi,
+} from '#/contexts/portal/application/public-api'
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
-import { createGoalRepository } from './infrastructure/repositories/goal.repository'
-import { createGovernedGoalRepository } from './infrastructure/repositories/governed-goal.repository'
+import type { GoalExecutionPolicy } from './application/ports/goal-execution-policy'
+import { createGoalProgramSubjectReader } from './infrastructure/adapters/goal-program-subject-reader'
+import { createGoalProgramRepository } from './infrastructure/repositories/goal-program.repository'
+import { createGoalProgramService } from './application/use-cases/goal-programs'
+import type { GoalProgramRepository } from './application/ports/goal-program.repository'
+import type { MonthlyResultNotificationFactsLookup } from './application/ports/monthly-result-notification-facts.lookup'
+import { createMonthlyResultNotificationFactsLookup } from './infrastructure/adapters/monthly-result-notification-facts.lookup'
+import { reconcileMetricCorrection } from './application/use-cases/reconcile-metric-correction'
+import { registerGoalMetricCorrectionConsumer } from './infrastructure/metric-correction-outbox-consumers'
 import {
-  createGovernedGoalService,
-  type GoalExecutionPolicy,
-  type GovernedGoalService,
-} from './application/use-cases/governed-goals'
-import type { GovernedGoalRepository } from './application/ports/governed-goal.repository'
-import { createGovernedGoalPropertyReader } from './infrastructure/adapters/governed-goal-property-reader'
-import { createGoal } from './application/use-cases/create-goal'
-import { updateGoal } from './application/use-cases/update-goal'
-import { cancelGoal } from './application/use-cases/cancel-goal'
-import { listGoals } from './application/use-cases/list-goals'
-import { getGoal } from './application/use-cases/get-goal'
-import {
-  listStaffGoals,
-  type PortalGroupLookupPort,
-  type ListStaffGoals,
-} from './application/use-cases/list-staff-goals'
+  createGoalProgramMaintenanceHandler,
+  GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
+} from './infrastructure/jobs/goal-program-maintenance.job'
+import { createGoalOrganizationExportAdapter } from './infrastructure/adapters/goal-organization-export.adapter'
+import { createGoalOrganizationLifecycleAdapter } from './infrastructure/adapters/goal-organization-lifecycle.adapter'
+import type { GoalProgramRequestApi } from './application/public-api'
 
 export type GoalContextBuildInput = Readonly<{
   db: Database
   metricApi: MetricPublicApi
-  events: EventBus
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   idGen: () => string
-  staffPublicApi: StaffPublicApi
   propertyApi: PropertyFactsPublicApi
-  getLogger: typeof getLoggerType
-  /** Portal group resolution for staff-goal visibility. */
+  /** Portal Group validation and current-subject expansion for Goal Programs. */
   portalGroupApi: PortalGroupPublicApi
+  /** Tenant-bound Portal validation for canonical Goal Program subjects. */
+  portalApi: PortalPublicApi
 }>
 
 export type GoalContextApi = Readonly<{
   publicApi: Readonly<{
-    createGoal: ReturnType<typeof createGoal>
-    updateGoal: ReturnType<typeof updateGoal>
-    cancelGoal: ReturnType<typeof cancelGoal>
-    listGoals: ReturnType<typeof listGoals>
-    getGoal: ReturnType<typeof getGoal>
+    programs: GoalProgramRequestApi
+    findMonthlyResultNotificationFacts: MonthlyResultNotificationFactsLookup['findMonthlyResultNotificationFacts']
+    findMonthlyResultRevisionNotificationFacts: MonthlyResultNotificationFactsLookup['findMonthlyResultRevisionNotificationFacts']
   }>
+  /** Context-owned worker registration; exposes no repositories or use cases. */
+  worker: Readonly<{
+    registerOutboxConsumers: (
+      consumerRegistry: ConsumerRegistry,
+      policy: GoalExecutionPolicy,
+    ) => void
+    programMaintenance: Readonly<{
+      jobName: typeof GOAL_PROGRAM_MAINTENANCE_JOB_NAME
+      createHandler: (
+        policy: GoalExecutionPolicy,
+      ) => ReturnType<typeof createGoalProgramMaintenanceHandler>
+    }>
+  }>
+  /**
+   * LIF-01 Organization Export contributor. Deliberately outside `publicApi`:
+   * only Identity's bundle builder consumes it, and no tenant-reachable
+   * surface gains a key from wiring it here.
+   */
+  organizationExport: ReturnType<typeof createGoalOrganizationExportAdapter>
+  /**
+   * LIF-01 Organization lifecycle contributor. Deliberately outside
+   * `publicApi` for the same reason: only Identity's lifecycle coordinator
+   * consumes it, and the coordinator itself is composed only under an
+   * explicitly reviewed composition.
+   */
+  organizationLifecycle: ReturnType<typeof createGoalOrganizationLifecycleAdapter>
   internal: Readonly<{
     repos: Readonly<{
-      goalRepo: GoalRepository
-      governedGoalRepo: GovernedGoalRepository
+      goalProgramRepo: GoalProgramRepository
     }>
-    useCases: Readonly<{
-      createGoal: ReturnType<typeof createGoal>
-      updateGoal: ReturnType<typeof updateGoal>
-      cancelGoal: ReturnType<typeof cancelGoal>
-      listGoals: ReturnType<typeof listGoals>
-      getGoal: ReturnType<typeof getGoal>
-      listStaffGoals: ListStaffGoals
-      createGovernedGoalService: (policy: GoalExecutionPolicy) => GovernedGoalService
-    }>
-    events: EventBus
   }>
 }>
 
 export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi => {
-  const goalRepo = createGoalRepository(input.db)
-  const governedGoalRepo = createGovernedGoalRepository(input.db)
+  const goalProgramRepo = createGoalProgramRepository(input.db)
+  const monthlyResultNotificationFacts = createMonthlyResultNotificationFactsLookup(
+    input.db,
+  )
 
-  // Resolve portal group IDs for a batch of portal IDs (staff goals visibility).
-  const portalGroupLookup: PortalGroupLookupPort = {
-    findGroupIdsByPortalIds: (orgId, portalIds) =>
-      input.portalGroupApi.findGroupIdsByPortalIds(orgId, portalIds),
-  }
-
-  const _createGoal = createGoal({
-    goalRepo,
-    metricRepo: input.metricApi,
-    staffPublicApi: input.staffPublicApi,
-    idGen: input.idGen,
-    clock: input.clock,
-  })
-
-  const _updateGoal = updateGoal({
-    goalRepo,
-    staffPublicApi: input.staffPublicApi,
-    clock: input.clock,
-  })
-
-  const _cancelGoal = cancelGoal({
-    goalRepo,
-    staffPublicApi: input.staffPublicApi,
-    clock: input.clock,
-  })
-
-  const _listGoals = listGoals({
-    goalRepo,
-    staffPublicApi: input.staffPublicApi,
-  })
-
-  const _getGoal = getGoal({
-    goalRepo,
-    staffPublicApi: input.staffPublicApi,
-  })
-
-  const _listStaffGoals = listStaffGoals({
-    goalRepo,
-    staffPublicApi: input.staffPublicApi,
-    portalGroupLookup,
-  })
-
-  const governedProperties = createGovernedGoalPropertyReader(
+  const goalProgramSubjects = createGoalProgramSubjectReader(
     input.propertyApi,
+    input.portalApi,
     input.portalGroupApi,
   )
 
-  const buildGovernedService = (policy: GoalExecutionPolicy) =>
-    createGovernedGoalService({
-      repository: governedGoalRepo,
+  const buildGoalPrograms = (policy: GoalExecutionPolicy) =>
+    createGoalProgramService({
+      repository: goalProgramRepo,
       policy,
-      properties: governedProperties,
-      metrics: {
-        getApprovedVersion: async (versionId) => {
-          const governed = await input.metricApi.getApprovedGoalVersion?.(versionId)
-          if (!governed) return null
-          return {
-            definitionId: governed.definition.id,
-            versionId: governed.version.id,
-            metricKey: governed.definition.key,
-            valueKind: governed.definition.valueKind,
-            allowedScopes: governed.version.allowedScopes,
-            sourcePolicyAllowlist: governed.version.sourcePolicyAllowlist,
-            permittedConsumers: governed.version.permittedConsumers,
-            minimumSample: governed.version.minimumSample,
-            employmentDecisionEligible: governed.version.employmentDecisionEligible,
-          }
-        },
-      },
+      subjects: goalProgramSubjects,
+      metrics: input.metricApi,
       id: input.idGen,
       now: input.clock,
     })
 
+  const registerOutboxConsumers = (
+    consumerRegistry: ConsumerRegistry,
+    policy: GoalExecutionPolicy,
+  ): void => {
+    const goalPrograms = buildGoalPrograms(policy)
+    registerGoalMetricCorrectionConsumer(
+      consumerRegistry,
+      reconcileMetricCorrection({
+        findImpacts: input.metricApi.findGoalMetricCorrectionImpacts,
+        findCandidates: goalProgramRepo.findClosedResultIdsForMetricImpact,
+        reconcileClosedResult: goalPrograms.reconcileClosedResult,
+      }),
+    )
+  }
+
+  const programs: GoalProgramRequestApi = Object.freeze({
+    create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
+    revise: (policy, ...args) => buildGoalPrograms(policy).revise(...args),
+    changeAssignments: (policy, ...args) =>
+      buildGoalPrograms(policy).changeAssignments(...args),
+    changeStatus: (policy, ...args) => buildGoalPrograms(policy).changeStatus(...args),
+    get: (policy, ...args) => buildGoalPrograms(policy).get(...args),
+    list: (policy, ...args) => buildGoalPrograms(policy).list(...args),
+  })
+
   return {
     publicApi: {
-      createGoal: _createGoal,
-      updateGoal: _updateGoal,
-      cancelGoal: _cancelGoal,
-      listGoals: _listGoals,
-      getGoal: _getGoal,
+      programs,
+      findMonthlyResultNotificationFacts:
+        monthlyResultNotificationFacts.findMonthlyResultNotificationFacts,
+      findMonthlyResultRevisionNotificationFacts:
+        monthlyResultNotificationFacts.findMonthlyResultRevisionNotificationFacts,
     },
+    worker: Object.freeze({
+      registerOutboxConsumers,
+      programMaintenance: Object.freeze({
+        jobName: GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
+        createHandler: (policy: GoalExecutionPolicy) =>
+          createGoalProgramMaintenanceHandler(buildGoalPrograms(policy)),
+      }),
+    }),
+    organizationExport: createGoalOrganizationExportAdapter(input.db),
+    organizationLifecycle: createGoalOrganizationLifecycleAdapter(input.db),
     internal: {
-      repos: { goalRepo, governedGoalRepo },
-      useCases: {
-        createGoal: _createGoal,
-        updateGoal: _updateGoal,
-        cancelGoal: _cancelGoal,
-        listGoals: _listGoals,
-        getGoal: _getGoal,
-        listStaffGoals: _listStaffGoals,
-        createGovernedGoalService: buildGovernedService,
-      },
-      events: input.events,
+      repos: { goalProgramRepo },
     },
   }
 }

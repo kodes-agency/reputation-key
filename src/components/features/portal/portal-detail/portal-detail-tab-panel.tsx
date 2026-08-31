@@ -56,15 +56,29 @@ export function PortalDetailTabPanel(props: Props) {
 type SettingsPanelProps = Pick<
   PortalDetailResources,
   | 'portal'
+  | 'propertyId'
+  | 'googleReviewDestination'
+  | 'publicationHistory'
+  | 'loadMorePublicationHistory'
   | 'updateMutation'
   | 'completeReviewMutation'
   | 'requestUploadUrl'
   | 'finalizeUpload'
+  | 'responsibleManagers'
+  | 'responsibleManagerMembers'
+  | 'updateResponsibleManagersMutation'
+  | 'portalExperience'
+  | 'approvedDestinations'
+  | 'portalExperienceActions'
 > &
   ThemeDraft
 
 function SettingsPanel({
   portal,
+  propertyId,
+  googleReviewDestination,
+  publicationHistory,
+  loadMorePublicationHistory,
   updateMutation,
   completeReviewMutation,
   requestUploadUrl,
@@ -72,10 +86,20 @@ function SettingsPanel({
   theme,
   onThemeChange,
   formRef,
+  responsibleManagers,
+  responsibleManagerMembers,
+  updateResponsibleManagersMutation,
+  portalExperience,
+  approvedDestinations,
+  portalExperienceActions,
 }: SettingsPanelProps) {
   return (
     <PortalSettings
       portal={portal}
+      propertyId={propertyId}
+      googleReviewDestination={googleReviewDestination}
+      publicationHistory={publicationHistory}
+      loadMorePublicationHistory={loadMorePublicationHistory}
       mutation={updateMutation}
       completeReviewMutation={completeReviewMutation}
       theme={theme}
@@ -83,6 +107,12 @@ function SettingsPanel({
       requestUploadUrl={requestUploadUrl}
       finalizeUpload={finalizeUpload}
       formRef={formRef}
+      responsibleManagers={responsibleManagers}
+      responsibleManagerMembers={responsibleManagerMembers}
+      updateResponsibleManagersMutation={updateResponsibleManagersMutation}
+      portalExperience={portalExperience}
+      approvedDestinations={approvedDestinations}
+      portalExperienceActions={portalExperienceActions}
     />
   )
 }

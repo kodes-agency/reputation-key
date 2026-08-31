@@ -16,6 +16,8 @@ import type {
   PropertyAccessGrantRecord,
 } from '../../application/ports/property-access-grant.port'
 
+type PolicySqlExecutor = Pick<Database, 'execute'>
+
 // The record contract lives in application/ports (boundary rule); re-exported
 // here for the repository's existing consumers.
 export type { GrantSource, PropertyAccessGrantRecord }
@@ -51,7 +53,7 @@ function toDate(v: unknown): Date | null {
 }
 
 export async function grantPropertyAccess(
-  db: Database,
+  db: PolicySqlExecutor,
   input: GrantPropertyAccessInput,
 ): Promise<PropertyAccessGrantRecord> {
   const rows = await db.execute(sql`
@@ -75,7 +77,7 @@ export async function grantPropertyAccess(
 }
 
 export async function revokePropertyAccess(
-  db: Database,
+  db: PolicySqlExecutor,
   input: Readonly<{
     organizationId: string
     propertyId: string
@@ -97,6 +99,36 @@ export async function revokePropertyAccess(
     SELECT id FROM upd
   `)
   return rows.rows.length > 0
+}
+
+/** Offboarding fence: revoke every active grant for one Organization member. */
+/**
+ * LIF-01-T21: the executor is the narrow `execute` seam rather than a
+ * `Database`, so offboarding can run this revocation INSIDE the same
+ * transaction that deletes the membership. A grant that outlived a committed
+ * removal is exactly the inconsistency the repair command exists to find.
+ */
+export async function revokeAllPropertyAccessForUser(
+  db: PolicySqlExecutor,
+  input: Readonly<{
+    organizationId: string
+    userId: string
+    reason: string
+  }>,
+): Promise<number> {
+  const rows = await db.execute(sql`
+    WITH ${BUMP_POLICY_VERSION_SQL},
+    upd AS (
+      UPDATE property_access_grant
+      SET revoked_at = now(), revoke_reason = ${input.reason}
+      WHERE organization_id = ${input.organizationId}
+        AND user_id = ${input.userId}
+        AND revoked_at IS NULL
+      RETURNING id
+    )
+    SELECT id FROM upd
+  `)
+  return rows.rows.length
 }
 
 export async function listActiveGrantsForUser(

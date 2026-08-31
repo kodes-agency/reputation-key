@@ -1,0 +1,38 @@
+$ pnpm lint:ci
+started: 2026-08-24T23:01:52.505Z  durationMs: 12151  exit: 0
+
+
+> reputation-key@ lint:ci /private/tmp/repkey-fnd01.INMxZB/source
+> pnpm lint && node scripts/check-test-quality.mjs && pnpm check:google-provider-fixtures && pnpm check:ai-contract-attestations && pnpm check:ai-governance-artifacts
+
+
+> reputation-key@ lint /private/tmp/repkey-fnd01.INMxZB/source
+> eslint . && node scripts/check-filenames.mjs && node scripts/check-component-boundaries.mjs
+
+✓ All component files use kebab-case naming.
+✓ No component/server boundary violations.
+[test-quality] scanned 896 test/spec/story files across src+services+e2e (incl. 91 *.stories.tsx); skip|todo|skipIf|runIf: 10 registered site(s) in 6 file(s) (6 register entries; 5 runtime-fenced, ~146 tests retired off the pinned runtime)
+[test-quality] OK — no focused tests, no unregistered skips/fences, no generic-error acceptance, no unasserted async failures
+
+> reputation-key@ check:google-provider-fixtures /private/tmp/repkey-fnd01.INMxZB/source
+> tsx scripts/generate-google-provider-fixtures.ts --check && node scripts/check-google-provider-identifiers.mjs
+
+
+> reputation-key@ check:ai-contract-attestations /private/tmp/repkey-fnd01.INMxZB/source
+> tsx scripts/check-ai-contract-attestations.ts
+
+{"sourceCanonicalizerDigest":"df0c9ea9ea7efebe0fe270bb86f644a8dfffc411f58538bd6fc0634d295fcac5","reviewProviderSubjectCanonicalizerDigest":"9b6c7ff2467dcce05c1482a5b242b0f2925ead9d9be4b08340e374e1634a3ef6"}
+
+> reputation-key@ check:ai-governance-artifacts /private/tmp/repkey-fnd01.INMxZB/source
+> tsx scripts/generate-ai-governance-artifacts.ts --check
+
+
+[boundaries][warning]: Some element descriptors appear to use file patterns.
+  Element patterns match folders, not individual files. For file classification, use file descriptors ('boundaries/files'). Affected patterns: ["src/contexts/*/build.ts","src/contexts/*/build-*.ts","src/shared/outbox/index.ts","src/shared/outbox/emit-and-record.ts","src/shared/outbox/relay.ts","src/shared/outbox/dispatcher.ts","src/shared/outbox/event-adapter.ts"]. More info: https://www.jsboundaries.dev/docs/classification/elements/#partialmatch-optional
+
+[boundaries][warning]: [boundaries/dependencies] The 'rules' option is deprecated.
+  Please use 'policies' instead. More info: https://www.jsboundaries.dev/docs/releases/migration-guides/v6-to-v7/#rules-option-renamed-to-policies
+
+[boundaries][warning]: [boundaries/dependencies] Detected element selectors used directly as entity selectors in 17 policies at indices: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16.
+  Wrap them in an entity selector: use { element: { type: "your-type" } } instead of { type: "your-type" }. More info: https://www.jsboundaries.dev/docs/releases/migration-guides/v6-to-v7/#entity-selectors
+

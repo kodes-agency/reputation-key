@@ -84,7 +84,8 @@ describe('create governed Goal', () => {
     expect(command?.period.propertyTimezone).toBe('America/New_York')
   })
 
-  it('keeps Staff read-only even if a caller reaches the use case directly', async () => {
+  it('keeps Staff read-only through the current execution policy', async () => {
+    authorize.mockRejectedValueOnce(new GovernedGoalError('forbidden'))
     await expect(
       service.create(
         {
@@ -100,8 +101,67 @@ describe('create governed Goal', () => {
         staff,
       ),
     ).rejects.toEqual(new GovernedGoalError('forbidden'))
-    expect(authorize).not.toHaveBeenCalled()
+    expect(authorize).toHaveBeenCalledWith({
+      actor: staff,
+      organizationId: staff.organizationId,
+      propertyId: 'property-1',
+      action: 'goal.create',
+    })
     expect(repository.createDefinition).not.toHaveBeenCalled()
+  })
+
+  it('does not override an allow decision with the actor raw role label', async () => {
+    await expect(
+      service.create(
+        {
+          propertyId: 'property-1',
+          scope: { kind: 'property' },
+          name: 'Policy-authorized goal',
+          metricDefinitionVersionId: metric.versionId,
+          measureKind: 'level',
+          targetValue: 90,
+          sourcePolicy: 'portal_configuration',
+          recurrenceRule: { frequency: 'monthly', interval: 1 },
+        },
+        staff,
+      ),
+    ).resolves.toMatchObject({ definition: { name: 'Policy-authorized goal' } })
+  })
+})
+
+describe('list governed Goals', () => {
+  it('derives Portal-group visibility from current goal authority, not raw role', async () => {
+    repository.listForProperty.mockResolvedValue([])
+
+    await service.list(
+      { propertyId: 'property-1', visiblePortalGroupIds: ['group-1'] },
+      {
+        ...manager,
+        role: 'AccountAdmin',
+        effectivePermissions: new Set(['goal.read']),
+        scopeByPermission: new Map([['goal.read', 'assigned-properties']]),
+      },
+    )
+    expect(repository.listForProperty).toHaveBeenLastCalledWith('org-1', 'property-1', [
+      'group-1',
+    ])
+
+    await service.list(
+      { propertyId: 'property-1', visiblePortalGroupIds: ['group-1'] },
+      {
+        ...staff,
+        effectivePermissions: new Set(['goal.read', 'goal.create']),
+        scopeByPermission: new Map([
+          ['goal.read', 'organization'],
+          ['goal.create', 'organization'],
+        ]),
+      },
+    )
+    expect(repository.listForProperty).toHaveBeenLastCalledWith(
+      'org-1',
+      'property-1',
+      null,
+    )
   })
 })
 

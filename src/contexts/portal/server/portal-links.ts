@@ -51,7 +51,7 @@ async function authorizePortalLinkScopes(
 // ── Link CRUD ──────────────────────────────────────────────────────
 
 export const createLink = createServerFn({ method: 'POST' })
-  .inputValidator(createLinkInputSchema)
+  .validator(createLinkInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -59,16 +59,16 @@ export const createLink = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         await authorizePortalLinkScopes(ctx, 'portal.create', [
           () =>
-            getContainer().useCases.resolvePortalManagementScope(
+            getContainer().portalPublicApi.management.resolvePortalManagementScope(
               toPortalId(data.portalId),
             ),
           () =>
-            getContainer().useCases.resolvePortalCategoryManagementScope(
+            getContainer().portalPublicApi.management.resolvePortalCategoryManagementScope(
               toCategoryId(data.categoryId),
             ),
         ])
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           const link = await useCases.createLink(data, ctx)
           return { link }
         } catch (e) {
@@ -83,7 +83,7 @@ export const createLink = createServerFn({ method: 'POST' })
   )
 
 export const updateLink = createServerFn({ method: 'POST' })
-  .inputValidator(updateLinkInputSchema)
+  .validator(updateLinkInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -91,12 +91,12 @@ export const updateLink = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         await authorizePortalLinkScopes(ctx, 'portal.update', [
           () =>
-            getContainer().useCases.resolvePortalLinkManagementScope(
+            getContainer().portalPublicApi.management.resolvePortalLinkManagementScope(
               toLinkId(data.linkId),
             ),
         ])
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           const link = await useCases.updateLink(data, ctx)
           return { link }
         } catch (e) {
@@ -111,7 +111,7 @@ export const updateLink = createServerFn({ method: 'POST' })
   )
 
 export const deleteLink = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ linkId: z.string().min(1) }))
+  .validator(z.object({ linkId: z.string().min(1) }))
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -119,12 +119,12 @@ export const deleteLink = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         await authorizePortalLinkScopes(ctx, 'portal.delete', [
           () =>
-            getContainer().useCases.resolvePortalLinkManagementScope(
+            getContainer().portalPublicApi.management.resolvePortalLinkManagementScope(
               toLinkId(data.linkId),
             ),
         ])
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           await useCases.deleteLink(data, ctx)
           return { deleted: true }
         } catch (e) {
@@ -139,7 +139,7 @@ export const deleteLink = createServerFn({ method: 'POST' })
   )
 
 export const reorderLinks = createServerFn({ method: 'POST' })
-  .inputValidator(reorderLinksInputSchema)
+  .validator(reorderLinksInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -147,20 +147,22 @@ export const reorderLinks = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         await authorizePortalLinkScopes(ctx, 'portal.update', [
           () =>
-            getContainer().useCases.resolvePortalManagementScope(
+            getContainer().portalPublicApi.management.resolvePortalManagementScope(
               toPortalId(data.portalId),
             ),
           () =>
-            getContainer().useCases.resolvePortalCategoryManagementScope(
+            getContainer().portalPublicApi.management.resolvePortalCategoryManagementScope(
               toCategoryId(data.categoryId),
             ),
           ...data.items.map(
             (item) => () =>
-              getContainer().useCases.resolvePortalLinkManagementScope(toLinkId(item.id)),
+              getContainer().portalPublicApi.management.resolvePortalLinkManagementScope(
+                toLinkId(item.id),
+              ),
           ),
         ])
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           await useCases.reorderLinks(data, ctx)
           return { success: true }
         } catch (e) {
@@ -177,7 +179,7 @@ export const reorderLinks = createServerFn({ method: 'POST' })
 // ── List (read) ────────────────────────────────────────────────────
 
 export const listPortalLinks = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({ portalId: z.string().min(1) }))
+  .validator(z.object({ portalId: z.string().min(1) }))
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -185,11 +187,11 @@ export const listPortalLinks = createServerFn({ method: 'GET' })
         const ctx = await resolveTenantContext(headers)
         await authorizePortalLinkScopes(ctx, 'portal.read', [
           () =>
-            getContainer().useCases.resolvePortalManagementScope(
+            getContainer().portalPublicApi.management.resolvePortalManagementScope(
               toPortalId(data.portalId),
             ),
         ])
-        const { useCases } = getContainer()
+        const { management: useCases } = getContainer().portalPublicApi
 
         try {
           return await useCases.listPortalLinks(data, ctx)

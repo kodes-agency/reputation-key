@@ -1,42 +1,35 @@
-import { and, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
+import {
+  and,
+  count,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  sql,
+} from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { guestResponseMedia, guestResponses } from '#/shared/db/schema/guest.schema'
+import { escapeLikePattern } from '#/shared/db/like-pattern'
+import {
+  guestResponseExperienceSnapshots,
+  guestResponseMedia,
+  guestResponsePrivateFeedback,
+  guestResponseSessionBindings,
+  guestResponses,
+} from '#/shared/db/schema/guest.schema'
 import type { GuestResponseRepository } from '../../application/ports/guest-response.repository'
 import type {
   GuestMedia,
   GuestMediaContentType,
   GuestMediaStatus,
 } from '../../domain/guest-media'
-import type { GuestResponse, GuestResponseStatus } from '../../domain/guest-response'
+import { guestResponseFromRow } from '../mappers/guest-response.mapper'
+import type { Clock } from '#/shared/domain/clock'
 
-type ResponseRow = typeof guestResponses.$inferSelect
 type MediaRow = typeof guestResponseMedia.$inferSelect
-
-function responseFromRow(row: ResponseRow): GuestResponse {
-  return {
-    id: row.id,
-    organizationId: row.organizationId,
-    propertyId: row.propertyId,
-    portalId: row.portalId,
-    sessionId: row.sessionId,
-    status: row.status as GuestResponseStatus,
-    rating: row.rating,
-    category: row.categoryId,
-    text: row.responseText,
-    responseConsent: row.responseConsent,
-    textConsent: row.textConsent,
-    mediaConsent: row.mediaConsent,
-    contactConsent: false,
-    contactDetails: null,
-    correctionCount: row.correctionCount === 1 ? 1 : 0,
-    submittedAt: row.submittedAt,
-    correctedAt: row.correctedAt,
-    moderatedAt: row.moderatedAt,
-    deletedAt: row.deletedAt,
-    retentionDeadline: row.retentionDeadline,
-    schemaVersion: 1,
-  }
-}
 
 function mediaFromRow(row: MediaRow): GuestMedia {
   return {
@@ -60,28 +53,101 @@ function mediaFromRow(row: MediaRow): GuestMedia {
   }
 }
 
-export function createGuestResponseRepository(db: Database): GuestResponseRepository {
+export const createGuestResponseRepository = (
+  db: Database,
+  clock: Clock,
+): GuestResponseRepository => {
   return {
-    findForSession: async (scope, sessionId) => {
-      const [row] = await db
-        .select()
+    findForSession: async (scope, sessionId, asOf) => {
+      const [result] = await db
+        .select({
+          response: guestResponses,
+          binding: guestResponseSessionBindings,
+          feedback: guestResponsePrivateFeedback,
+          experience: guestResponseExperienceSnapshots,
+        })
         .from(guestResponses)
+        .innerJoin(
+          guestResponseSessionBindings,
+          and(
+            eq(guestResponseSessionBindings.responseId, guestResponses.id),
+            eq(
+              guestResponseSessionBindings.organizationId,
+              guestResponses.organizationId,
+            ),
+            eq(guestResponseSessionBindings.sessionId, sessionId),
+            gt(guestResponseSessionBindings.expiresAt, asOf),
+          ),
+        )
+        .leftJoin(
+          guestResponsePrivateFeedback,
+          and(
+            eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
+            eq(
+              guestResponsePrivateFeedback.organizationId,
+              guestResponses.organizationId,
+            ),
+            gt(guestResponsePrivateFeedback.expiresAt, asOf),
+          ),
+        )
+        .leftJoin(
+          guestResponseExperienceSnapshots,
+          and(
+            eq(guestResponseExperienceSnapshots.responseId, guestResponses.id),
+            eq(
+              guestResponseExperienceSnapshots.organizationId,
+              guestResponses.organizationId,
+            ),
+          ),
+        )
         .where(
           and(
             eq(guestResponses.organizationId, scope.organizationId),
             eq(guestResponses.propertyId, scope.propertyId),
             eq(guestResponses.portalId, scope.portalId),
-            eq(guestResponses.sessionId, sessionId),
           ),
         )
         .limit(1)
-      return row ? responseFromRow(row) : null
+      return result
+        ? guestResponseFromRow(
+            result.response,
+            result.binding,
+            result.feedback,
+            result.experience,
+          )
+        : null
     },
 
     findById: async (scope, responseId) => {
-      const [row] = await db
-        .select()
+      const asOf = clock()
+      const [result] = await db
+        .select({
+          response: guestResponses,
+          feedback: guestResponsePrivateFeedback,
+          experience: guestResponseExperienceSnapshots,
+        })
         .from(guestResponses)
+        .leftJoin(
+          guestResponsePrivateFeedback,
+          and(
+            eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
+            eq(
+              guestResponsePrivateFeedback.organizationId,
+              guestResponses.organizationId,
+            ),
+            gt(guestResponsePrivateFeedback.expiresAt, asOf),
+          ),
+        )
+        .leftJoin(
+          guestResponseExperienceSnapshots,
+          and(
+            eq(guestResponseExperienceSnapshots.responseId, guestResponses.id),
+            eq(
+              guestResponseExperienceSnapshots.organizationId,
+              guestResponses.organizationId,
+            ),
+          ),
+        )
         .where(
           and(
             eq(guestResponses.organizationId, scope.organizationId),
@@ -91,7 +157,9 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
           ),
         )
         .limit(1)
-      return row ? responseFromRow(row) : null
+      return result
+        ? guestResponseFromRow(result.response, null, result.feedback, result.experience)
+        : null
     },
 
     // Org-scoped by design (see the port comment): an inbox item knows only its
@@ -100,12 +168,25 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
     findSnippetForOrg: async (organizationId, responseId) => {
       const [row] = await db
         .select({
-          comment: guestResponses.responseText,
+          comment: guestResponsePrivateFeedback.body,
           ratingValue: guestResponses.rating,
+          feedbackSubmissionRevision: guestResponses.feedbackSubmissionRevision,
           textConsent: guestResponses.textConsent,
           responseConsent: guestResponses.responseConsent,
+          status: guestResponses.status,
         })
         .from(guestResponses)
+        .leftJoin(
+          guestResponsePrivateFeedback,
+          and(
+            eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
+            eq(
+              guestResponsePrivateFeedback.organizationId,
+              guestResponses.organizationId,
+            ),
+            gt(guestResponsePrivateFeedback.expiresAt, clock()),
+          ),
+        )
         .where(
           and(
             eq(guestResponses.organizationId, organizationId),
@@ -118,8 +199,9 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
       // Consent governs what staff may read, exactly as it governs what the
       // metric handlers record: an unconsented field is withheld, not shown.
       return {
-        comment: row.textConsent ? row.comment : null,
+        comment: row.textConsent && row.status !== 'moderated' ? row.comment : null,
         ratingValue: row.responseConsent ? row.ratingValue : null,
+        feedbackSubmissionRevision: row.feedbackSubmissionRevision,
       }
     },
 
@@ -128,12 +210,25 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
       const rows = await db
         .select({
           id: guestResponses.id,
-          comment: guestResponses.responseText,
+          comment: guestResponsePrivateFeedback.body,
           ratingValue: guestResponses.rating,
+          feedbackSubmissionRevision: guestResponses.feedbackSubmissionRevision,
           textConsent: guestResponses.textConsent,
           responseConsent: guestResponses.responseConsent,
+          status: guestResponses.status,
         })
         .from(guestResponses)
+        .leftJoin(
+          guestResponsePrivateFeedback,
+          and(
+            eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
+            eq(
+              guestResponsePrivateFeedback.organizationId,
+              guestResponses.organizationId,
+            ),
+            gt(guestResponsePrivateFeedback.expiresAt, clock()),
+          ),
+        )
         .where(
           and(
             eq(guestResponses.organizationId, organizationId),
@@ -143,12 +238,14 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
         )
       return rows.map((row) => ({
         id: row.id,
-        comment: row.textConsent ? row.comment : null,
+        comment: row.textConsent && row.status !== 'moderated' ? row.comment : null,
         ratingValue: row.responseConsent ? row.ratingValue : null,
+        feedbackSubmissionRevision: row.feedbackSubmissionRevision,
       }))
     },
 
     findEligibleSnippetIdsForOrg: async (organizationId, filter) => {
+      const asOf = clock()
       const conditions = [
         eq(guestResponses.organizationId, organizationId),
         isNull(guestResponses.deletedAt),
@@ -166,87 +263,89 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
         )
       }
       if (filter.textQuery) {
-        const escaped = filter.textQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        const escaped = escapeLikePattern(filter.textQuery)
         conditions.push(
           eq(guestResponses.textConsent, true),
-          sql`${guestResponses.responseText} ilike ${'%' + escaped + '%'}`,
+          sql`${guestResponses.status} <> 'moderated'`,
+          sql`${guestResponsePrivateFeedback.body} ilike ${'%' + escaped + '%'}`,
         )
       }
       const rows = await db
         .select({ id: guestResponses.id })
         .from(guestResponses)
+        .leftJoin(
+          guestResponsePrivateFeedback,
+          and(
+            eq(guestResponsePrivateFeedback.responseId, guestResponses.id),
+            eq(
+              guestResponsePrivateFeedback.organizationId,
+              guestResponses.organizationId,
+            ),
+            gt(guestResponsePrivateFeedback.expiresAt, asOf),
+          ),
+        )
         .where(and(...conditions))
       return rows.map((row) => row.id)
     },
 
-    insertSubmitted: async (response) => {
-      const inserted = await db
-        .insert(guestResponses)
-        .values({
-          id: response.id,
-          organizationId: response.organizationId,
-          propertyId: response.propertyId,
-          portalId: response.portalId,
-          sessionId: response.sessionId,
-          status: response.status,
-          rating: response.rating,
-          categoryId: response.category,
-          responseText: response.text,
-          responseConsent: response.responseConsent,
-          textConsent: response.textConsent,
-          mediaConsent: response.mediaConsent,
-          correctionCount: response.correctionCount,
-          submittedAt: response.submittedAt,
-          correctedAt: response.correctedAt,
-          moderatedAt: response.moderatedAt,
-          retentionDeadline: response.retentionDeadline,
-          deletedAt: response.deletedAt,
-          updatedAt: response.submittedAt ?? new Date(),
+    summarizePortalIntegrity: async (scope, startAt, endAt) => {
+      const ratingBusinessAt = sql<Date>`COALESCE(
+        ${guestResponses.correctedAt}, ${guestResponses.submittedAt}
+      )`
+      const rows = await db
+        .select({
+          outcome: guestResponses.integrityOutcome,
+          count: count(),
         })
-        .onConflictDoNothing()
-        .returning({ id: guestResponses.id })
-      return inserted.length === 1
-    },
-
-    saveCorrection: async (response) => {
-      const updated = await db
-        .update(guestResponses)
-        .set({
-          status: response.status,
-          rating: response.rating,
-          categoryId: response.category,
-          responseText: response.text,
-          responseConsent: response.responseConsent,
-          textConsent: response.textConsent,
-          mediaConsent: response.mediaConsent,
-          correctionCount: response.correctionCount,
-          correctedAt: response.correctedAt,
-          updatedAt: response.correctedAt ?? new Date(),
-        })
+        .from(guestResponses)
         .where(
           and(
-            eq(guestResponses.organizationId, response.organizationId),
-            eq(guestResponses.propertyId, response.propertyId),
-            eq(guestResponses.portalId, response.portalId),
-            eq(guestResponses.sessionId, response.sessionId),
-            eq(guestResponses.id, response.id),
-            eq(guestResponses.status, 'submitted'),
-            eq(guestResponses.correctionCount, 0),
+            eq(guestResponses.organizationId, scope.organizationId),
+            eq(guestResponses.propertyId, scope.propertyId),
+            eq(guestResponses.portalId, scope.portalId),
+            eq(guestResponses.responseConsent, true),
+            isNotNull(guestResponses.rating),
+            isNotNull(guestResponses.submittedAt),
             isNull(guestResponses.deletedAt),
+            gte(ratingBusinessAt, startAt),
+            lt(ratingBusinessAt, endAt),
           ),
         )
-        .returning({ id: guestResponses.id })
-      return updated.length === 1
+        .groupBy(guestResponses.integrityOutcome)
+      const summary = {
+        accepted: 0,
+        filteredAutomatically: 0,
+        underReview: 0,
+        total: 0,
+      }
+      for (const row of rows) {
+        switch (row.outcome) {
+          case 'accepted':
+            summary.accepted = row.count
+            break
+          case 'filtered_automatically':
+            summary.filteredAutomatically = row.count
+            break
+          case 'under_review':
+            summary.underReview = row.count
+            break
+          default:
+            throw new Error('Guest response integrity outcome is invalid')
+        }
+        summary.total += row.count
+      }
+      return summary
     },
 
     saveModeration: async (response) =>
       db.transaction(async (tx) => {
+        const updatedAt = response.moderatedAt ?? clock()
         const updated = await tx
           .update(guestResponses)
           .set({
             status: response.status,
             moderatedAt: response.moderatedAt,
-            updatedAt: response.moderatedAt ?? new Date(),
+            updatedAt,
           })
           .where(
             and(
@@ -267,7 +366,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
             processingLease: null,
             publicUrl: null,
             readyAt: null,
-            updatedAt: response.moderatedAt ?? new Date(),
+            updatedAt,
           })
           .where(
             and(
@@ -279,53 +378,6 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
             ),
           )
         return true
-      }),
-
-    deleteAndQueueMediaPurge: async (response) =>
-      db.transaction(async (tx) => {
-        const deleted = await tx
-          .update(guestResponses)
-          .set({
-            status: 'deleted',
-            rating: null,
-            categoryId: null,
-            responseText: null,
-            responseConsent: false,
-            textConsent: false,
-            mediaConsent: false,
-            deletedAt: response.deletedAt,
-            updatedAt: response.deletedAt ?? new Date(),
-          })
-          .where(
-            and(
-              eq(guestResponses.organizationId, response.organizationId),
-              eq(guestResponses.propertyId, response.propertyId),
-              eq(guestResponses.portalId, response.portalId),
-              eq(guestResponses.sessionId, response.sessionId),
-              eq(guestResponses.id, response.id),
-            ),
-          )
-          .returning({ id: guestResponses.id })
-        if (deleted.length === 0) return []
-        const media = await tx
-          .update(guestResponseMedia)
-          .set({
-            status: 'purge_pending',
-            processingLease: null,
-            publicUrl: null,
-            readyAt: null,
-            deletedAt: response.deletedAt,
-            updatedAt: response.deletedAt ?? new Date(),
-          })
-          .where(
-            and(
-              eq(guestResponseMedia.organizationId, response.organizationId),
-              eq(guestResponseMedia.responseId, response.id),
-              inArray(guestResponseMedia.status, ['issued', 'processing', 'ready']),
-            ),
-          )
-          .returning({ objectKey: guestResponseMedia.objectKey })
-        return media.map((item) => item.objectKey)
       }),
 
     insertMedia: async (media) => {
@@ -351,8 +403,20 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
 
     findMediaForSession: async (scope, sessionId, mediaId) => {
       const [row] = await db
-        .select()
+        .select({ media: guestResponseMedia })
         .from(guestResponseMedia)
+        .innerJoin(
+          guestResponseSessionBindings,
+          and(
+            eq(guestResponseSessionBindings.responseId, guestResponseMedia.responseId),
+            eq(
+              guestResponseSessionBindings.organizationId,
+              guestResponseMedia.organizationId,
+            ),
+            eq(guestResponseSessionBindings.sessionId, sessionId),
+            gt(guestResponseSessionBindings.expiresAt, clock()),
+          ),
+        )
         .where(
           and(
             eq(guestResponseMedia.organizationId, scope.organizationId),
@@ -363,7 +427,7 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
           ),
         )
         .limit(1)
-      return row ? mediaFromRow(row) : null
+      return row ? mediaFromRow(row.media) : null
     },
 
     claimMedia: async (media, lease, now) =>
@@ -374,11 +438,22 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
             mediaConsent: guestResponses.mediaConsent,
           })
           .from(guestResponses)
+          .innerJoin(
+            guestResponseSessionBindings,
+            and(
+              eq(guestResponseSessionBindings.responseId, guestResponses.id),
+              eq(
+                guestResponseSessionBindings.organizationId,
+                guestResponses.organizationId,
+              ),
+              eq(guestResponseSessionBindings.sessionId, media.sessionId),
+              gt(guestResponseSessionBindings.expiresAt, now),
+            ),
+          )
           .where(
             and(
               eq(guestResponses.organizationId, media.organizationId),
               eq(guestResponses.id, media.responseId),
-              eq(guestResponses.sessionId, media.sessionId),
             ),
           )
           .for('update')
@@ -419,11 +494,22 @@ export function createGuestResponseRepository(db: Database): GuestResponseReposi
             mediaConsent: guestResponses.mediaConsent,
           })
           .from(guestResponses)
+          .innerJoin(
+            guestResponseSessionBindings,
+            and(
+              eq(guestResponseSessionBindings.responseId, guestResponses.id),
+              eq(
+                guestResponseSessionBindings.organizationId,
+                guestResponses.organizationId,
+              ),
+              eq(guestResponseSessionBindings.sessionId, media.sessionId),
+              gt(guestResponseSessionBindings.expiresAt, now),
+            ),
+          )
           .where(
             and(
               eq(guestResponses.organizationId, media.organizationId),
               eq(guestResponses.id, media.responseId),
-              eq(guestResponses.sessionId, media.sessionId),
             ),
           )
           .for('update')

@@ -8,7 +8,11 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { isPropertyError } from '../domain/errors'
+import {
+  isPropertyError,
+  PROPERTY_DELETION_UNAVAILABLE_MESSAGE,
+  propertyError,
+} from '../domain/errors'
 import { propertyErrorStatus } from './property-shared'
 
 // ── Shared Zod validators ──────────────────────────────────────────
@@ -28,8 +32,8 @@ export const listProperties = createServerFn({ method: 'GET' }).handler(
       await requireExecutionAllowed({ actor: ctx, action: 'property.read' })
 
       try {
-        const { useCases } = getContainer()
-        const properties = await useCases.listProperties(ctx)
+        const { management } = getContainer().propertyPublicApi
+        const properties = await management.listProperties(ctx)
         return { properties }
       } catch (e) {
         if (isPropertyError(e))
@@ -45,7 +49,7 @@ export const listProperties = createServerFn({ method: 'GET' }).handler(
 // ── getProperty ────────────────────────────────────────────────────
 
 export const getProperty = createServerFn({ method: 'GET' })
-  .inputValidator(propertyIdSchema)
+  .validator(propertyIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -58,8 +62,8 @@ export const getProperty = createServerFn({ method: 'GET' })
         })
 
         try {
-          const { useCases } = getContainer()
-          const property = await useCases.getProperty(data, ctx)
+          const { management } = getContainer().propertyPublicApi
+          const property = await management.getProperty(data, ctx)
           return { property }
         } catch (e) {
           if (isPropertyError(e))
@@ -75,7 +79,7 @@ export const getProperty = createServerFn({ method: 'GET' })
 // ── deleteProperty ──────────────────────────────────────────────────
 
 export const deleteProperty = createServerFn({ method: 'POST' })
-  .inputValidator(propertyIdSchema)
+  .validator(propertyIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -87,15 +91,20 @@ export const deleteProperty = createServerFn({ method: 'POST' })
           propertyId: data.propertyId,
         })
 
-        try {
-          const { useCases } = getContainer()
-          await useCases.softDeleteProperty(data, ctx)
-          return { deleted: true, propertyId: data.propertyId }
-        } catch (e) {
-          if (isPropertyError(e))
-            throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        // LIF-01: keep this stale-client boundary so callers receive a typed,
+        // mild denial, but deliberately provide no edge to the legacy
+        // destructive use case. Archive/Disconnect and support-mediated
+        // erasure remains separate. The implemented recoverable lifecycle uses
+        // the dedicated Archive/Restore/Property-binding-disconnect commands.
+        const unavailable = propertyError(
+          'forbidden',
+          PROPERTY_DELETION_UNAVAILABLE_MESSAGE,
+        )
+        throwContextError(
+          'PropertyError',
+          unavailable,
+          propertyErrorStatus(unavailable.code),
+        )
       },
       'POST',
       'property.deleteProperty',

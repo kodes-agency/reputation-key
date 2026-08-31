@@ -54,6 +54,7 @@ const correction = (
   occurredAt: NOW,
   recordedAt: NOW,
   supersedesCorrectionId: null,
+  staffAttribution: null,
   ...overrides,
 })
 
@@ -98,7 +99,8 @@ describe('MetricReading', () => {
 
   it('constructs and recognizes closed metric errors', () => {
     const error = metricError('repo_insert_failed', 'write failed', { retry: false })
-    expect(error).toEqual({
+    expect(error).toBeInstanceOf(Error)
+    expect(error).toMatchObject({
       _tag: 'MetricError',
       code: 'repo_insert_failed',
       message: 'write failed',

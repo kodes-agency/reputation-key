@@ -4,22 +4,22 @@
 
 ## Bounded contexts
 
-| Context     | Description                                                          | Key Entities                           | Layer                    |
-| ----------- | -------------------------------------------------------------------- | -------------------------------------- | ------------------------ |
-| Identity    | Users, organizations, members, invitations                           | User, Organization, Member, Invitation | Thin (wraps better-auth) |
-| Property    | Properties (hotels/restaurants) + GBP location import                | Property                               | Thick                    |
-| Portal      | Guest-facing portal pages with links, per property                   | Portal, Link, LinkCategory             | Thick                    |
-| Guest       | Public portal rendering, rating collection, feedback                 | Rating, Feedback                       | Thick                    |
-| Team        | Staff teams and shift management                                     | Team                                   | Thick                    |
-| Staff       | Staff assignments to properties                                      | StaffAssignment                        | Standard                 |
-| Integration | Google connections, OAuth, tokens, GBP API adapter                   | GoogleConnection                       | Standard                 |
-| Review      | External platform reviews (Google), sync, replies                    | Review                                 | Thick                    |
-| AI          | Property-scoped private-beta review analysis, reply drafting, trends | AiOperation, AiReviewAnalysis          | Standard                 |
-| Inbox       | Unified triage surface for reviews + feedback                        | InboxItem, InboxNote                   | Thick                    |
-| Metric      | Aggregation of raw counters (scans, ratings, clicks, reviews)        | MetricReading                          | Standard                 |
-| Goal        | Property-scoped goals with progress tracking                         | Goal, GoalInstance                     | Thick                    |
-| Dashboard   | Read-only aggregation of metrics, reviews, replies                   | —                                      | Thin (read model)        |
-| Activity    | Immutable audit log, event-driven writes, query-driven reads         | ActivityLog                            | Thin (subscriber)        |
+| Context     | Description                                                          | Key Entities                                        | Layer                    |
+| ----------- | -------------------------------------------------------------------- | --------------------------------------------------- | ------------------------ |
+| Identity    | Users, organizations, members, invitations                           | User, Organization, Member, Invitation              | Thin (wraps better-auth) |
+| Property    | Properties (hotels/restaurants) + GBP location import                | Property                                            | Thick                    |
+| Portal      | Review gateway first; secondary link tree, groups, lifecycle         | Portal, Link, LinkCategory, PortalGroup             | Thick                    |
+| Guest       | Rating-first Guest Responses, feedback/contact, destination actions  | GuestResponse, Rating, Feedback                     | Thick                    |
+| Team        | Quarantined historical data and people migration reconciliation      | Team, TeamMembership                                | Quarantined              |
+| Staff       | Participants, Property participation, and Portal attribution         | StaffParticipation, PortalResponsibility            | Thick                    |
+| Integration | Organization Google authority, import/discovery, provider I/O        | GoogleConnection, GoogleImportSaga                  | Standard                 |
+| Review      | Stable Reviews, source observations/lifecycle, Reply workflow        | Review, ReviewSourceObservation, Reply              | Thick                    |
+| AI          | Property-scoped private-beta review analysis, reply drafting, trends | AiOperation, AiReviewAnalysis                       | Standard                 |
+| Inbox       | Stable Inbox Items and numbered Handling Cycles                      | InboxItem, HandlingCycle, InboxNote                 | Thick                    |
+| Metric      | Governed readings, versions, corrections, availability evidence      | MetricDefinition, MetricReading                     | Standard                 |
+| Goal        | Property, Portal Group, and Portal goals over approved measures      | GoalDefinition, GoalEvaluation                      | Thick                    |
+| Dashboard   | Read-only aggregation of metrics, reviews, replies                   | —                                                   | Thin (read model)        |
+| Activity    | Recent Activity plus restricted Operational Action History           | RecentActivityEntry, OperationalActionHistoryRecord | Thin (subscriber)        |
 
 **Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected. **Metric context** has no `server/` layer by design — it records readings via event handlers and background jobs, not via server functions called from routes.
 
@@ -60,6 +60,7 @@ Dependencies point inward: `server` → `application` → `domain`. Infrastructu
 - `server/` imports from `application/` (use cases, DTOs), `shared/`, TanStack Start. May import error type guards (`isXxxError`) and error code types from its own `domain/errors.ts` — the only permitted server-to-domain path.
 - Cross-context: import from `application/public-api.ts` only. Never from `domain/`, `infrastructure/`, `server/`, or non-public-api `application/`.
 - **Exception:** Cross-context adapter implementations (e.g., `integration/infrastructure/adapters/google-review-api.adapter.ts` implementing `review/application/ports/google-review-api.port.ts`) may import the port they implement. The port IS the public interface for adapter contracts.
+- **Port completeness (LIF-01):** that exception is the implementer's _only_ legal path, so a port written for foreign adapters must publish every name its own signatures use — re-export the owning context's domain types instead of leaving an implementer unable to spell them. `identity/application/ports/organization-export-contributor.port.ts` and `organization-lifecycle-contributor.port.ts` carry the Organization Export and lifecycle contributor contracts for this reason. Re-export, never copy: `CLASSIFICATIONS_BY_CONTEXT` is declared once in the port and re-exported by `application/organization-export-contract.ts`, because a second copy would drift away from the rule the bundle builder actually enforces.
 
 ### Mechanical enforcement (BQC-5.1)
 
@@ -81,14 +82,14 @@ mechanism, the owner, and the review/expiry point.
 **B-class — required controls, wire-or-remove in BQC-6/7** (each also carries a
 classification note in its own file header):
 
-| Item                                                                                                                                                                                                                                                                                                                                                                                | Mechanism                         | Owner   | Reason                                                                                               | Expiry      |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------- | ---------------------------------------------------------------------------------------------------- | ----------- |
-| `server/plugins/security-headers.ts`                                                                                                                                                                                                                                                                                                                                                | `overrides` → `unused-files: off` | BQC-7   | B0.7 control; Nitro plugin discovery inert under TanStack Start (STD-P1-07)                          | BQC-7 close |
-| `shared/security/security-headers.ts` `securityHeadersPlugin` + `default`                                                                                                                                                                                                                                                                                                           | `ignoreExports`                   | BQC-7   | One wiring seam kept for the B0.7 plugin                                                             | BQC-7 close |
-| `components/hooks/web-vitals.ts` (`setVitalsReporter`)                                                                                                                                                                                                                                                                                                                              | `ignoreExports`                   | BQC-7   | B2.7 wired in BQC-6.8 (LCP+CLS client collection); reporter seam is the future collector destination | BQC-7 close |
-| `shared/observability/telemetry.ts` (`initObservability`)                                                                                                                                                                                                                                                                                                                           | `ignoreExports`                   | BQC-7   | B3.5 telemetry init — wires the same observability destination as the BQC-6.8 vitals reporter        | BQC-7 close |
-| `identity/server/auth-settings.org.ts`, `organizations.roles.ts`, `policy-admin.ts`, `property/server/region-move.ts`                                                                                                                                                                                                                                                               | `overrides` → `unused-files: off` | BQC-6/7 | Catalogued entry points (entry-point-catalogue) awaiting UI wiring                                   | BQC-7 close |
-| Catalogued-but-unwired fns in wired files: `getOrgActivityFn` (activity), `stampLastInboxViewFn` (inbox-queries), `assignInboxItemFn` (inbox-item-actions), `createOrganizationFn` (auth-settings.org), `connectGoogle`/`updateConnectionVisibility` (google-connections), `createProperty`/`updateProperty` (properties), `updateGoal` (goals), 6 portal-group fns (portal-groups) | `ignoreExports`                   | BQC-6/7 | Catalogued entry points awaiting UI wiring                                                           | BQC-7 close |
+| Item                                                                                                                                                                                                                                                                                                                                                                                    | Mechanism                         | Owner   | Reason                                                                                               | Expiry      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------- | ---------------------------------------------------------------------------------------------------- | ----------- |
+| `server/plugins/security-headers.ts`                                                                                                                                                                                                                                                                                                                                                    | `overrides` → `unused-files: off` | BQC-7   | B0.7 control; Nitro plugin discovery inert under TanStack Start (STD-P1-07)                          | BQC-7 close |
+| `shared/security/security-headers.ts` `securityHeadersPlugin` + `default`                                                                                                                                                                                                                                                                                                               | `ignoreExports`                   | BQC-7   | One wiring seam kept for the B0.7 plugin                                                             | BQC-7 close |
+| `components/hooks/web-vitals.ts` (`setVitalsReporter`)                                                                                                                                                                                                                                                                                                                                  | `ignoreExports`                   | BQC-7   | B2.7 wired in BQC-6.8 (LCP+CLS client collection); reporter seam is the future collector destination | BQC-7 close |
+| `shared/observability/telemetry.ts` (`initObservability`)                                                                                                                                                                                                                                                                                                                               | `ignoreExports`                   | BQC-7   | B3.5 telemetry init — wires the same observability destination as the BQC-6.8 vitals reporter        | BQC-7 close |
+| `identity/server/auth-settings.org.ts`, `organizations.roles.ts`, `policy-admin.ts`, `property/server/region-move.ts`                                                                                                                                                                                                                                                                   | `overrides` → `unused-files: off` | BQC-6/7 | Catalogued entry points (entry-point-catalogue) awaiting UI wiring                                   | BQC-7 close |
+| Catalogued-but-unwired fns in wired files: `listRecentActivityFn` (activity), `stampLastInboxViewFn` (inbox-queries), `assignInboxItemFn` (inbox-item-actions), `createOrganizationFn` (auth-settings.org), `connectGoogle`/`updateConnectionVisibility` (google-connections), `createProperty`/`updateProperty` (properties), `updateGoal` (goals), 6 portal-group fns (portal-groups) | `ignoreExports`                   | BQC-6/7 | Catalogued entry points awaiting UI wiring                                                           | BQC-7 close |
 
 **E-class — public interface retained for a documented consumer:**
 
@@ -98,7 +99,7 @@ classification note in its own file header):
 | `shared/db/schema/auth.ts` `session`/`account`/`verification` (+ existing `member`/`organization`) | `ignoreExports`                                    | better-auth managed schema consumed by the CLI/migrations                                            |
 | `shared/bqc/status-schema.ts` exports                                                              | `ignoreExports`                                    | BQC tooling schema consumed by ignored `scripts/bqc/**`                                              |
 | `shared/auth/auth-client.ts` hook re-exports (7 inline `fallow-ignore-next-line unused-export`)    | inline                                             | Owner: Identity; documented convenience surface; review at BQC-6 close                               |
-| `contexts/*/domain/errors.ts` `isActivityError`/`isLeaderboardError`/`isMetricError`               | `ignoreExports` glob                               | Error-guard convention pinned by `src/shared/architecture/domain-error-convention.test.ts`           |
+| `contexts/*/domain/errors.ts` `isActivityError`/`isMetricError` and peer context guards            | `ignoreExports` glob                               | Error-guard convention pinned by `src/shared/architecture/domain-error-convention.test.ts`           |
 | `components/ui/**` (shadcn primitives)                                                             | `overrides` → `unused-exports`/`unused-types: off` | Vendored shadcn/ui surface kept whole for upgrade fidelity — see `src/components/CONTEXT.md`         |
 
 **`unused-types` decision:** trialled `warn` on 2026-07-28 (fallow 3.5.0) after
@@ -115,7 +116,16 @@ type-only module exclusions for any future re-enable are pre-declared in
 
 ## Build modules (BQC-5.2)
 
-Each context has exactly one build module (`contexts/<name>/build.ts`) — the wiring seam the composition root calls. It constructs the context's repos, adapters, use cases, and event-handler registrations and returns:
+Each context has exactly one build module (`contexts/<name>/build.ts`) — normally
+the wiring seam the composition root calls. Team, Badge, and Leaderboard are the
+explicit quarantine/contraction exceptions: their retained build modules are
+inert, are not production-composed, and the composition root must not import or
+call them. Team retains its inventory boundary; Badge retains only historical
+event decoding; Leaderboard retains only the content-free legacy Recognition
+inventory/report. Neither Recognition context constructs an application,
+repository, server operation, consumer, job, or schedule. Active context builds
+construct their repos, adapters, use cases, and event-handler registrations and
+return:
 
 ```typescript
 {
@@ -124,8 +134,8 @@ Each context has exactly one build module (`contexts/<name>/build.ts`) — the w
 ```
 
 - `publicApi` — the governed cross-context interface (matches `application/public-api.ts`).
-- `internal` — the pieces the composition root flattens into the container (`repos`, `useCases`, command stores).
-- **Readiness/runtime contributions** (optional) — e.g. identity's `refreshPolicyStore` (workers await it before starting) and inbox's `registerOutboxConsumers` (worker calls it before durable dispatch start).
+- `internal` — owning-context construction details available only to the composition root while a seam is being wired (`repos`, use cases, command stores). They are not a presentation or cross-context API. Legacy flattened entries are an explicitly staged ARC-03 residual; new and migrated entry points use a named public/runtime interface and delete their flattened alias in the same slice.
+- **Readiness/runtime contributions** (optional) — e.g. identity's `refreshPolicyStore`, Review's `registerWorkerJobs`, and Inbox's durable-consumer and response-target reminder-release contributions. They capture owning repositories/use cases and accept only root infrastructure or parsed runtime configuration.
 - **Shutdown hook** (optional, none today) — a context with teardown needs would expose it here; no context requires one at present.
 
 Contract for the composition root (`src/composition.ts`):
@@ -133,8 +143,8 @@ Contract for the composition root (`src/composition.ts`):
 - It **selects** the enabled modules and **supplies** cross-context adapters and true root scalars (db/redis/logger/clock/env, event bus, queues + job registry, outbox repo, provider endpoints + processing router).
 - It must **not** import individual use cases, event handlers, or business rules — those are constructed inside the owning build module.
 - A build module may import its **own** context's infrastructure, but never a foreign context's — foreign pieces arrive as injected deps typed via the target's `application/public-api.ts` (or a narrow structural port owned by the consuming context).
-- Worker/job/consumer/schedule registration is owned by BQC-3 (`bootstrap.ts` + `worker/`); the composition root consumes that runtime registry as one accepted interface and never introduces another worker/job registry.
-- Build **order is load-bearing** (TDZ): staff → identity → property → team/portal/guest → integration → review → inbox → metric → goal → dashboard → activity/badge/leaderboard/notification. Late-binding closures (e.g. staff's `portalLookup`) are the sanctioned escape hatch, not reordering.
+- Worker/job/consumer/schedule registration is owned by BQC-3 (`bootstrap.ts` + `worker/`); the composition root supplies the one runtime registry to context-owned registration contributions and never introduces another worker/job registry. Bootstrap invokes those named contributions instead of reaching through to context repositories.
+- Build **order is load-bearing** (TDZ): staff → identity → property → portal/guest → integration → review → inbox → metric → goal → dashboard → activity → notification. Team, Badge, and Leaderboard are not composed. Notification may retain narrowly scoped, neutral historical Badge compatibility without constructing Badge. Late-binding closures (e.g. staff's `portalLookup`) are the sanctioned escape hatch, not reordering.
 
 ## Use case shape
 
@@ -167,8 +177,8 @@ Anonymous/public use cases (registration, guest flows) omit `AuthContext` — th
 Every server function wraps logic in `tracedHandler()`:
 
 ```typescript
-export const createPortal = createServerFn({ method: 'POST' })
-  .inputValidator(createPortalInputSchema)
+export const draftReplyFn = createServerFn({ method: 'POST' })
+  .validator(draftReplyDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -176,17 +186,19 @@ export const createPortal = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
 
         try {
-          const { useCases } = getContainer()
-          const portal = await useCases.createPortal(data, ctx)
-          return { portal }
+          const { reviewPublicApi } = getContainer()
+          return await reviewPublicApi.reply.draft(
+            { reviewId: reviewId(data.reviewId), text: data.text },
+            ctx,
+          )
         } catch (e) {
-          if (isPortalError(e))
-            throwContextError('PortalError', e, portalErrorStatus(e.code))
-          throw e
+          if (isReviewError(e))
+            throwContextError('ReviewError', e, reviewErrorStatus(e.code))
+          throw catchUntagged(e)
         }
       },
       'POST',
-      'portal.createPortal',
+      'review.draftReply',
     ),
   )
 ```
@@ -195,6 +207,7 @@ Key points:
 
 - **`tracedHandler`** — wraps handler with ALS request context, correlation ID, named span with timing. From `shared/observability/traced-server-fn`.
 - **`resolveTenantContext(headers)`** — resolves org from session, returns `AuthContext`. Has a 5s TTL cache keyed by cookie header to deduplicate concurrent calls during page loads.
+- **Named context interface** — server adapters call their owning public API (`reviewPublicApi.reply` in the example). Do not add a new flattened `container.useCases` alias; migrate an existing alias one consumer family at a time.
 - **Error mapping** — catch with `isXxxError(e)` type guard, map `_tag`/`code` to HTTP status via `throwContextError()`. Never return `{ success: false }`.
 - **`catchUntagged`** — wrap untagged errors (DB, network) that would otherwise be swallowed raw.
 
@@ -211,17 +224,19 @@ Key points:
 
 ## Error pattern (authoritative — BQR-1.2)
 
-Tagged error shape: `{ _tag: 'XxxError', code: '<reason>', message: string, context?: Record<string, unknown> }`.
+Tagged business-error shape: `Error & { _tag: 'XxxError', code: '<reason>', message: string, context?: Record<string, unknown> }`. Tagged identity fields are enumerable so logs and serializers retain them; the real `Error` supplies a stack and interoperable runtime identity.
 
-Factories live in each context's `domain/errors.ts` (`xxxError` + `isXxxError`). Prefer `createErrorFactory` from `#/shared/domain/errors` unless the context needs the ADR 0005 hybrid (`Error & XxxError` for stack/logging — e.g. integration).
+Factories live in each context's `domain/errors.ts` (`xxxError` + `isXxxError`) and use `createErrorFactory` from `#/shared/domain/errors`. Use `createTaggedError` only when a context needs additional enumerable identity fields, such as Integration's `recoverable` flag. Do not build plain-object business errors.
 
-| Layer                   | Behavior                                                                                                             |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Domain (pure)           | Prefer `Result<T, XxxError>` from constructors/rules. Do **not** throw plain `Error` or untagged `{ code }` objects. |
-| Domain (assert helpers) | May throw **only** a tagged `XxxError` (same factory as the context). Used for lifecycle transition guards.          |
-| Application             | Throws tagged `XxxError` (or returns `Result` then throws at the boundary). Authorization and invariant failures.    |
-| Infrastructure          | Catches library errors (DB, network), translates to tagged domain errors.                                            |
-| Server                  | Catches via `isXxxError(e)`, maps to HTTP with `throwContextError`. Never return `{ success: false }`.               |
+| Layer                   | Behavior                                                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Domain (pure)           | Validation/constructors return `Result<T, XxxError>`. Do **not** throw plain `Error` or untagged `{ code }` objects.    |
+| Domain (assert helpers) | May throw **only** a tagged `XxxError` from the context factory. Used for lifecycle transition guards.                  |
+| Application             | Throws tagged `XxxError` for business failure. Do not propagate `Result` through async orchestration only for ceremony. |
+| Infrastructure          | Translate library failures only when the domain can handle them meaningfully; otherwise preserve the native failure.    |
+| Server                  | Catches via `isXxxError(e)`, maps once to safe HTTP with `throwContextError`. Never return `{ success: false }`.        |
+
+Ordinary alternatives that are not failures use explicit outcome unions. Unexpected programmer, configuration, or corrupt-state faults remain sanitized native errors at the delivery boundary.
 
 **Supersedes** older wording that said “all layers throw” or that domain constructors always throw. Shared source of truth for the shape is `src/shared/domain/errors.ts`.
 

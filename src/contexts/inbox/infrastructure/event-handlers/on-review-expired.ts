@@ -1,6 +1,7 @@
 // Inbox context — event handler for review.expired
-// Closes the inbox item when its source review is purged.
-// BQC-1.2: no scrub step — raw copies no longer exist (nothing to scrub).
+// Legacy compatibility only: scrubs any restored provider-controlled Inbox
+// projection values. The event has no source epoch/revision, so it must never
+// decide the status of possibly re-observed current work.
 //
 // Expand-phase dual path (the durable dispatcher is off in production): the
 // durable inbox.on-review-expired consumer performs the same projection via
@@ -8,17 +9,14 @@
 // (bus emit only — it never received an outboxRepo).
 
 import type { ReviewExpired } from '#/contexts/review/application/public-api'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
-import type { EventBus } from '#/shared/events/event-bus'
 import { unbrand } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
-import { inboxItemStatusChanged } from '../../domain/events'
-import { validateTransition } from '../../domain/rules'
 
 export type OnReviewExpiredDeps = Readonly<{
   repo: InboxRepository
-  events: EventBus
+  logger: LoggerPort
 }>
 
 export const onReviewExpired =
@@ -34,32 +32,13 @@ export const onReviewExpired =
         )
         if (!item) return
 
-        // Route through the domain transition rule (open → closed).
-        if (validateTransition(item.status, 'closed').isErr()) return
-
-        const oldStatus = item.status
-
-        await deps.repo.updateStatus(
+        await deps.repo.clearReviewSourceContent(
           item.id,
           item.organizationId,
-          'closed',
-          { closedAt: event.occurredAt },
           event.occurredAt,
         )
-
-        // Emit status changed event — symmetric with on-reply-published
-        await deps.events.emit(
-          inboxItemStatusChanged({
-            inboxItemId: item.id,
-            organizationId: item.organizationId,
-            propertyId: item.propertyId,
-            oldStatus,
-            newStatus: 'closed',
-            occurredAt: event.occurredAt,
-          }),
-        )
       } catch (err) {
-        getLogger().error({ err }, 'inbox: failed to handle review.expired')
+        deps.logger.error({ err }, 'inbox: failed to handle review.expired')
       }
     })
   }

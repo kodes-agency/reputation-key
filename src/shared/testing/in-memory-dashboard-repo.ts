@@ -1,6 +1,10 @@
 // Shared testing utility — in-memory dashboard repository for unit tests
 import type { DashboardRepository } from '#/contexts/dashboard/application/ports/dashboard.repository'
-import type { KPIs, EngagementFunnel } from '#/contexts/dashboard/domain/types'
+import type {
+  KPIs,
+  EngagementFunnel,
+  MetricKPIValue,
+} from '#/contexts/dashboard/domain/types'
 import { reviewId } from '#/shared/domain/ids'
 
 export function createInMemoryDashboardRepository(): DashboardRepository & {
@@ -12,11 +16,35 @@ export function createInMemoryDashboardRepository(): DashboardRepository & {
 } {
   const calls: string[] = []
 
+  const availableMetricKpi = (
+    value: number,
+    priorValue: number,
+    trend: number | null,
+  ): MetricKPIValue => ({
+    value,
+    priorValue,
+    trend,
+    evidence: {
+      current: {
+        state: 'available',
+        definitionVersionId: 'in-memory-current-version',
+        sampleCount: Math.max(value, 1),
+        minimumSample: 1,
+      },
+      prior: {
+        state: 'available',
+        definitionVersionId: 'in-memory-prior-version',
+        sampleCount: Math.max(priorValue, 1),
+        minimumSample: 1,
+      },
+    },
+  })
+
   const defaultKPIs: KPIs = {
     reviews: { value: 10, priorValue: 8, trend: 25 },
     avgRating: { value: 4.5, priorValue: 4.2, trend: 7 },
-    scans: { value: 100, priorValue: 80, trend: 25 },
-    feedback: { value: 20, priorValue: 15, trend: 33 },
+    scans: availableMetricKpi(100, 80, 25),
+    feedback: availableMetricKpi(20, 15, 33),
   }
 
   // Use a mutable container so tests can set kpisOverride and engagementFunnelOverride
@@ -26,14 +54,33 @@ export function createInMemoryDashboardRepository(): DashboardRepository & {
     engagementFunnelOverride?: EngagementFunnel
   } = {}
 
-  const repo: DashboardRepository = {
-    async getKPIs() {
-      calls.push('getKPIs')
-      return state.kpisOverride ?? defaultKPIs
+  const withoutComparison = (kpis: KPIs): KPIs => ({
+    reviews: { ...kpis.reviews, priorValue: 0, trend: null },
+    avgRating: { ...kpis.avgRating, priorValue: 0, trend: null },
+    scans: {
+      ...kpis.scans,
+      priorValue: null,
+      trend: null,
+      evidence: { ...kpis.scans.evidence, prior: null },
     },
-    async getKPIsForPortals() {
+    feedback: {
+      ...kpis.feedback,
+      priorValue: null,
+      trend: null,
+      evidence: { ...kpis.feedback.evidence, prior: null },
+    },
+  })
+
+  const repo: DashboardRepository = {
+    async getKPIs(input) {
+      calls.push('getKPIs')
+      const kpis = state.kpisOverride ?? defaultKPIs
+      return input.comparisonPeriod ? kpis : withoutComparison(kpis)
+    },
+    async getKPIsForPortals(input) {
       calls.push('getKPIsForPortals')
-      return state.kpisOverride ?? defaultKPIs
+      const kpis = state.kpisOverride ?? defaultKPIs
+      return input.comparisonPeriod ? kpis : withoutComparison(kpis)
     },
     async getRatingDistribution() {
       calls.push('getRatingDistribution')

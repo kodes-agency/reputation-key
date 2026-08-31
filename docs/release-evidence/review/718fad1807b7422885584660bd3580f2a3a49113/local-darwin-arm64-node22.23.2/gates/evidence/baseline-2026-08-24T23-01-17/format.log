@@ -1,0 +1,10 @@
+$ pnpm format:check
+started: 2026-08-24T23:01:17.427Z  durationMs: 15168  exit: 0
+
+
+> reputation-key@ format:check /private/tmp/repkey-fnd01.INMxZB/source
+> prettier --check .
+
+Checking formatting...
+All matched files use Prettier code style!
+

@@ -9,6 +9,8 @@ import { getAuth } from './auth'
 import { getLogger } from '#/shared/observability/logger'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { catchUntagged } from './server-errors'
+import { getDb } from '#/shared/db'
+import { readUserOrganizationBinding } from '#/shared/db/user-organization-binding'
 
 /** Get the current session using server-side request headers. */
 export const getSession = createServerFn({ method: 'GET' }).handler(
@@ -38,20 +40,19 @@ export const ensureActiveOrg = createServerFn({ method: 'POST' }).handler(
         const session = await auth.api.getSession({ headers })
         if (!session) return
 
-        // Already has active org
-        if (session.session.activeOrganizationId) return
-
-        // Find the first org for this user and set it active
-        const orgs = await auth.api.listOrganizations({ headers })
-        const orgList = Array.isArray(orgs) ? orgs : []
-        if (orgList.length > 0) {
+        const binding = await readUserOrganizationBinding(getDb(), session.user.id)
+        if (binding?.state === 'active' && binding.organizationId) {
+          if (session.session.activeOrganizationId === binding.organizationId) return
           await auth.api.setActiveOrganization({
             headers,
-            body: { organizationId: orgList[0].id },
+            body: { organizationId: binding.organizationId },
           })
         } else {
           const logger = getLogger()
-          logger.warn('User has no organizations — cannot set active org')
+          logger.warn(
+            { bindingState: binding?.state ?? 'missing' },
+            'User has no active beta Organization binding — cannot set active org',
+          )
         }
       } catch (e) {
         catchUntagged(e)

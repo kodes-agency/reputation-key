@@ -13,10 +13,10 @@
 //
 // Setup pattern mirrors delayed-policy-init.test.ts (BQC-2.5 wiring proof).
 
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { CapabilityPolicyEnv } from '#/shared/auth/beta-capabilities'
 import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import {
@@ -26,39 +26,52 @@ import {
 } from '#/shared/auth/system-execution-policy'
 import { gateJob } from '#/shared/jobs/delayed-execution-gate'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '#/shared/auth/process-policy-binding'
 import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
 import { setOrganizationPolicy } from './policy-state.repository'
 
 const db = getDb()
 const ORG = 'org-delayed-gate'
-const PROP = 'd4000000-0000-4000-8000-000000000088'
-const CONN = 'd4000000-0000-4000-8000-000000000099'
-
-const SYNC_DATA = {
-  propertyId: PROP,
+const POLICY_ENV = {
+  NODE_ENV: 'test',
+  BETA_E2E_GLOBAL_CAPABILITIES: 'notification.send_email',
+} satisfies CapabilityPolicyEnv
+const EMAIL_DATA = {
   organizationId: ORG,
-  connectionId: CONN,
-  locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  capability: 'notification.send_email' as const,
 }
 
 beforeAll(async () => {
   await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Delayed Gate Org', ${ORG}, now())`,
   )
   resetCapabilityPolicyStore()
   resetDelayedExecutionPolicy()
-  initPersistedCapabilityPolicyStore({ db, env: {} as CapabilityPolicyEnv })
+  // ARC-03-T8: the handle no longer installs itself — the dispatch gate reads
+  // the process-bound delayed policy, so bind explicitly.
+  bindProcessPolicies(
+    initPersistedCapabilityPolicyStore({
+      db,
+      env: POLICY_ENV,
+      clock: () => new Date(),
+      logger: { warn: () => {} },
+    }),
+  )
 })
 
 afterAll(async () => {
+  releaseProcessPolicies()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
   await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 async function auditRowsFor(
@@ -83,8 +96,8 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     // the pre-mutation posture — the queued envelope itself carries no
     // decision, only content-free context).
     const before = await gateJob(
-      'sync-property-reviews',
-      SYNC_DATA,
+      'digest-notification',
+      EMAIL_DATA,
       'worker:default',
       'worker',
     )
@@ -97,8 +110,8 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     // Dispatch-time re-authorization sees the CURRENT policy and denies with
     // a typed terminal outcome — the stale allow never executes.
     const after = await gateJob(
-      'sync-property-reviews',
-      SYNC_DATA,
+      'digest-notification',
+      EMAIL_DATA,
       'worker:default',
       'worker',
     )
@@ -120,8 +133,8 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     )
 
     const outcome = await gateJob(
-      'sync-property-reviews',
-      SYNC_DATA,
+      'digest-notification',
+      EMAIL_DATA,
       'worker:default',
       'worker',
     )
@@ -130,18 +143,24 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     expect(outcome.decision.reason).toBe('policy_unavailable')
     expect(outcome.decision.allowed).toBe(false)
 
-    // Restore the composition-installed persisted policy for later tests.
-    initPersistedCapabilityPolicyStore({ db, env: {} as CapabilityPolicyEnv })
+    // Restore the process-bound persisted policy for later tests.
+    releaseProcessPolicies()
+    bindProcessPolicies(
+      initPersistedCapabilityPolicyStore({
+        db,
+        env: POLICY_ENV,
+        clock: () => new Date(),
+        logger: { warn: () => {} },
+      }),
+    )
   })
 
   it('(c) manual-enqueue initiator: stamped envelope decides; audit records principal + correlation', async () => {
     const outcome = await gateJob(
-      'publish-reply',
+      'digest-notification',
       {
-        replyId: 'd4000000-0000-4000-8000-0000000000aa',
         organizationId: ORG,
-        propertyId: PROP,
-        capability: 'property.publish_reply',
+        capability: 'notification.send_email',
         initiator: { kind: 'user', id: 'user-manual-1' },
         correlationId: 'corr-manual-enqueue-1',
         policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
@@ -157,7 +176,7 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     expect(rows[0]).toMatchObject({
       actor_type: 'system',
       actor_id: 'worker:default',
-      action: 'system:reply.publish',
+      action: 'system:notification.email_digest',
       execution_kind: 'worker',
       decision: 'allow',
       correlation_id: 'corr-manual-enqueue-1',

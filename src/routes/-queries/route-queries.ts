@@ -12,21 +12,22 @@
 // context server functions — shared/ must not depend on context implementations.
 
 import { queryOptions } from '@tanstack/react-query'
-import { listUserOrganizations } from '#/contexts/identity/server/organizations'
 import { listProperties, getProperty } from '#/contexts/property/server/properties'
+import { listMembers } from '#/contexts/identity/server/organizations'
 import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
-// Structural data (orgs + the user's property list) — consumed by the app shell
-// sidebars + 7 sibling routes. Rarely changes; 5-min staleTime.
-export const organizationsQuery = queryOptions({
-  queryKey: identityKeys.organizations(),
-  queryFn: () => listUserOrganizations(),
-  staleTime: 5 * 60 * 1000,
-})
+// Structural property data consumed by the app shell and sibling routes.
+// Rarely changes; 5-min staleTime.
 
 export const propertiesQuery = queryOptions({
   queryKey: propertyKeys.list(),
   queryFn: () => listProperties(),
   staleTime: 5 * 60 * 1000,
+})
+
+export const membersQuery = queryOptions({
+  queryKey: identityKeys.members(),
+  queryFn: () => listMembers(),
+  staleTime: 30_000,
 })
 
 // A single property — consumed by the property layout + 9 property-scoped routes.

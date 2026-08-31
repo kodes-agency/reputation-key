@@ -1,26 +1,17 @@
 import { useForm } from '@tanstack/react-form'
-import { z } from 'zod/v4'
 import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import type { Action } from '#/components/hooks/use-action'
-
-const setNewPasswordSchema = z
-  .object({
-    newPassword: z.string().min(8, 'Password must be at least 8 characters'),
-    confirmPassword: z.string().min(1, 'Please confirm your password'),
-  })
-  .refine((value) => value.newPassword === value.confirmPassword, {
-    message: 'Passwords do not match',
-    path: ['confirmPassword'],
-  })
-
-type SetNewPasswordValues = z.infer<typeof setNewPasswordSchema>
+import {
+  setNewPasswordFormSchema,
+  type SetNewPasswordFormInput,
+} from '#/contexts/identity/application/dto/password-reset.dto'
 
 type Props = Readonly<{
-  mutation: Action<SetNewPasswordValues>
+  mutation: Action<SetNewPasswordFormInput>
 }>
 
 export function SetNewPasswordForm({ mutation }: Props) {
@@ -28,9 +19,9 @@ export function SetNewPasswordForm({ mutation }: Props) {
     defaultValues: {
       newPassword: '',
       confirmPassword: '',
-    } satisfies SetNewPasswordValues,
-    validators: { onSubmit: setNewPasswordSchema },
-    onSubmit: async ({ value }: { value: SetNewPasswordValues }) => {
+    } satisfies SetNewPasswordFormInput,
+    validators: { onSubmit: setNewPasswordFormSchema },
+    onSubmit: async ({ value }: { value: SetNewPasswordFormInput }) => {
       await mutation(value)
     },
   })

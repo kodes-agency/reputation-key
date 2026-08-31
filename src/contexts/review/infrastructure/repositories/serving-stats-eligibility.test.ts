@@ -22,6 +22,7 @@ const REVIEW_IDS = {
   eligible: '2b000000-0000-0000-0000-0000000000b1',
   expired: '2b000000-0000-0000-0000-0000000000b2',
   clockLess: '2b000000-0000-0000-0000-0000000000b3',
+  boundary: '2b000000-0000-0000-0000-0000000000b4',
 } as const
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -38,6 +39,7 @@ async function insertReview(
   id: string,
   contentExpiresAt: Date | null,
   rating = 5,
+  reviewedAt: Date | null = null,
 ): Promise<void> {
   await db.execute(sql`
     INSERT INTO reviews (
@@ -48,7 +50,7 @@ async function insertReview(
       ai_source_byte_length, ai_source_digest
     ) VALUES (
       ${id}, ${ORG}, ${PROP}, 'google', ${'ext-' + id.slice(-2)},
-      ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, 'Jane', ${rating}, 'Great stay', now(),
+      ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, 'Jane', ${rating}, 'Great stay', ${reviewedAt ?? new Date()},
       now(), ${contentExpiresAt}, now(), now(), 0, 0, 0, 1, ${'0'.repeat(64)}
     )
   `)
@@ -115,6 +117,28 @@ describe('ReviewServingStats eligibility (BQC-5.5 / ADR 0031)', () => {
 
     expect(result.count).toBe(1)
     expect(result.avgRating).toBe(4)
+  })
+
+  it('uses half-open period bounds so an end-boundary review belongs only to the next period', async () => {
+    const endAt = new Date(Date.now() + 60 * 60 * 1000)
+    const contentExpiresAt = new Date(Date.now() + 10 * DAY_MS)
+    await insertReview(
+      REVIEW_IDS.eligible,
+      contentExpiresAt,
+      4,
+      new Date(endAt.getTime() - 1),
+    )
+    await insertReview(REVIEW_IDS.boundary, contentExpiresAt, 1, endAt)
+
+    const stats = createStats(db)
+    const result = await stats.getPeriodStats(
+      ORG,
+      PROP,
+      new Date(endAt.getTime() - DAY_MS),
+      endAt,
+    )
+
+    expect(result).toEqual({ count: 1, avgRating: 4 })
   })
 
   it('getRatingDistribution excludes expired and clock-less content from star buckets', async () => {

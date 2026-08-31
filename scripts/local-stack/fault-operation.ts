@@ -8,7 +8,7 @@ const dependency = process.argv[2]
 const phase = process.argv[3]
 if (!dependency || (phase !== 'fault' && phase !== 'recovery')) {
   throw new Error(
-    'Usage: fault-operation <db|redis|object-store|gbp|mail|web> <fault|recovery>',
+    'Usage: fault-operation <db|cache-redis|redis|object-store|gbp|mail|web> <fault|recovery>',
   )
 }
 
@@ -26,8 +26,14 @@ async function operation(): Promise<void> {
       }
       return
     }
+    case 'cache-redis':
     case 'redis': {
-      const redis = new Redis(process.env.REDIS_URL!, {
+      const redisUrl =
+        dependency === 'cache-redis'
+          ? process.env.REDIS_URL
+          : (process.env.QUEUE_REDIS_URL ?? process.env.REDIS_URL)
+      if (!redisUrl) throw new Error(`${dependency} URL is not configured`)
+      const redis = new Redis(redisUrl, {
         connectTimeout: 2_000,
         maxRetriesPerRequest: 0,
         retryStrategy: () => null,
@@ -62,6 +68,9 @@ async function operation(): Promise<void> {
         Buffer.from('local application fault probe'),
         'text/plain',
       )
+      if (!storage.inspectObject) {
+        throw new Error('Object-store metadata inspection is unavailable')
+      }
       await storage.inspectObject(key)
       await storage.deleteObject(key)
       return

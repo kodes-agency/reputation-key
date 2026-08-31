@@ -1,5 +1,6 @@
 // Inbox page state hook — extracted from inbox-page-v2 for line-limit compliance.
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useEffect, useRef } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import { useInboxDetail } from '#/components/inbox/use-inbox-detail'
 import { useInboxState } from '#/components/inbox/use-inbox-state'
@@ -11,10 +12,13 @@ import type { InboxServerFns } from './types'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
 import { toggleInboxSelection } from './inbox-selection'
+import { inboxCachePolicy } from './inbox-cache-policy'
 
 export type InboxPageNav = (o: {
   to: '.'
   search: (p: InboxSearchParams) => Partial<InboxSearchParams>
+  /** Replace transient typeahead state instead of growing browser history. */
+  replace?: boolean
 }) => void
 
 export function useInboxPage(
@@ -22,7 +26,11 @@ export function useInboxPage(
   search: InboxSearchParams,
   onNavigate: InboxPageNav,
   inboxFns: InboxServerFns,
+  recordInboxVisit: boolean,
 ) {
+  const queryClient = useQueryClient()
+  const stampedOrganization = useRef<string | null>(null)
+  const stampingOrganization = useRef<string | null>(null)
   const { itemId: _, folder, ...rest } = search
   const isMobile = useIsMobile()
   const filters: InboxFilterValues = useMemo(
@@ -56,6 +64,8 @@ export function useInboxPage(
   const {
     items,
     nextCursor,
+    hasLoadedSuccessfully,
+    responseCutoff,
     totalCount,
     isLoading,
     error,
@@ -70,13 +80,43 @@ export function useInboxPage(
     handleBulkDone,
   } = useInboxState(orgId, filters, search.itemId, onNavigate, inboxFns.getInboxItems)
 
-  // Stable reference — only recomputes when a different item is selected,
-  // NOT when the same item's status/fields update (detail panel uses detailState.currentItem).
+  const { mutate: stampInboxVisit } = useMutation({
+    mutationFn: (cutoff: Date) =>
+      inboxFns.stampLastInboxView({ data: { responseCutoff: cutoff } }),
+    onSuccess: () => inboxCachePolicy.onInboxVisited(queryClient),
+    retry: 2,
+  })
+
+  useEffect(() => {
+    if (
+      !recordInboxVisit ||
+      !orgId ||
+      !hasLoadedSuccessfully ||
+      responseCutoff === null ||
+      stampedOrganization.current === orgId ||
+      stampingOrganization.current === orgId
+    ) {
+      return
+    }
+    stampingOrganization.current = orgId
+    stampInboxVisit(responseCutoff, {
+      onSuccess: () => {
+        stampedOrganization.current = orgId
+      },
+      onSettled: () => {
+        if (stampingOrganization.current === orgId) {
+          stampingOrganization.current = null
+        }
+      },
+    })
+  }, [hasLoadedSuccessfully, orgId, recordInboxVisit, responseCutoff, stampInboxVisit])
+
+  // Resolve the selected row from the current query data so status and field
+  // changes cannot leave the detail controller holding a stale object.
   const selectedItemId = search.itemId
-  const foundItemId = items.find((i) => i.id === selectedItemId)?.id
   const selectedItem = useMemo(
     () => (selectedItemId ? (items.find((i) => i.id === selectedItemId) ?? null) : null),
-    [selectedItemId, foundItemId],
+    [items, selectedItemId],
   )
   // Optimistic list sync after a detail status change (mark-read / escalate /
   // archive): delegates to useInboxState.patchItem, which patches the cached

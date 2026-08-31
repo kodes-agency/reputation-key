@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
@@ -9,12 +10,14 @@ import { clearEventSchemas, validateEventPayload } from '#/shared/events/schema-
 import {
   metricReadingId,
   organizationId,
+  portalId,
   portalGroupId,
   propertyId,
 } from '#/shared/domain/ids'
 import { createReading, type MetricReading } from '../domain/metric-reading'
 import { metricRecorded, type MetricRecorded } from '../domain/events'
 import { createAtomicMetricCommandStore } from './metric-command-store'
+import { portalLifetimeFactForMetric } from '../domain/portal-lifetime-aggregate'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
@@ -131,7 +134,7 @@ describe('createAtomicMetricCommandStore', () => {
   it('commits governed reading and outbox fact before emitting', async () => {
     const order: string[] = []
     const { db, stateValues, outboxRows } = createMockDb(order)
-    const store = createAtomicMetricCommandStore(db, makeEvents(order))
+    const store = createAtomicMetricCommandStore(db, makeEvents(order), randomUUID)
     const reading = makeReading()
     const result = await store.recordMetric({ reading, event: recordedEvent(reading) })
 
@@ -157,7 +160,7 @@ describe('createAtomicMetricCommandStore', () => {
     } as unknown as MetricRecorded
 
     await expect(
-      createAtomicMetricCommandStore(db, events).recordMetric({
+      createAtomicMetricCommandStore(db, events, randomUUID).recordMetric({
         reading: makeReading(),
         event: ghost,
       }),
@@ -172,6 +175,7 @@ describe('createAtomicMetricCommandStore', () => {
     const result = await createAtomicMetricCommandStore(
       db,
       makeEvents(order, true),
+      randomUUID,
     ).recordMetric({
       reading: makeReading(),
       event: recordedEvent(),
@@ -232,9 +236,14 @@ describe('createAtomicMetricCommandStore', () => {
         }
         if (table === metricCorrections) {
           return {
-            values: vi.fn(async (row: Record<string, unknown>) => {
-              correctionRows.push(row)
-            }),
+            values: vi.fn((row: Record<string, unknown>) => ({
+              onConflictDoNothing: vi.fn(() => ({
+                returning: vi.fn(async () => {
+                  correctionRows.push(row)
+                  return [{ id: row.id }]
+                }),
+              })),
+            })),
           }
         }
         if (table === outboxEvents) {
@@ -254,7 +263,11 @@ describe('createAtomicMetricCommandStore', () => {
     } as unknown as Database
     const events = makeEvents([])
 
-    const result = await createAtomicMetricCommandStore(db, events).recordMetric({
+    const result = await createAtomicMetricCommandStore(
+      db,
+      events,
+      randomUUID,
+    ).recordMetric({
       reading: replacement,
       supersedesSourceEventId: 'source-event-1',
       event: recordedEvent(replacement),
@@ -274,5 +287,206 @@ describe('createAtomicMetricCommandStore', () => {
       'metric.corrected',
     ])
     expect(events.emit).toHaveBeenCalledTimes(2)
+  })
+
+  // Delivery is at-least-once, so this consumer WILL see the same event twice —
+  // a retry, or a reading a retention purge removed between deliveries. The
+  // insert used to raise metric_corrections_source_unique on the second pass;
+  // the job then failed every attempt and the domain-events queue stopped
+  // draining, which surfaced as unrelated projection timeouts everywhere else.
+  it('reuses the existing correction when the retraction is redelivered', async () => {
+    const outboxRows: Array<Record<string, unknown>> = []
+    const EXISTING_CORRECTION_ID = 'c0000000-0000-4000-8000-0000000000c9'
+    const replacement = makeReading({
+      id: metricReadingId('d0000000-0000-4000-8000-0000000000d2'),
+      sourceEventId: 'source-event-2',
+      value: 0.8,
+      numerator: 4,
+      denominator: 5,
+      sampleCount: 5,
+    })
+    const tx = {
+      select: vi.fn((columns?: Record<string, unknown>) => ({
+        from: vi.fn((table: unknown) => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(async () =>
+              table === metricCorrections
+                ? [{ id: EXISTING_CORRECTION_ID }]
+                : [{ id: READING_ID, organizationId: ORG_ID, propertyId: PROP_ID }],
+            ),
+          })),
+        })),
+        __columns: columns,
+      })),
+      insert: vi.fn((table: unknown) => {
+        if (table === metricReadings) {
+          return {
+            values: vi.fn(() => ({
+              onConflictDoNothing: vi.fn(() => ({
+                returning: vi.fn(async () => [{ id: replacement.id }]),
+              })),
+            })),
+          }
+        }
+        if (table === metricCorrections) {
+          return {
+            values: vi.fn(() => ({
+              // The row is already there: nothing inserted, nothing returned.
+              onConflictDoNothing: vi.fn(() => ({
+                returning: vi.fn(async () => []),
+              })),
+            })),
+          }
+        }
+        if (table === outboxEvents) {
+          return {
+            values: vi.fn(async (row: Record<string, unknown>) => {
+              outboxRows.push(row)
+            }),
+          }
+        }
+        throw new Error('unexpected table')
+      }),
+    }
+    const db = {
+      transaction: vi.fn(async (work: (value: typeof tx) => Promise<unknown>) =>
+        work(tx),
+      ),
+    } as unknown as Database
+    const events = makeEvents([])
+
+    const result = await createAtomicMetricCommandStore(
+      db,
+      events,
+      randomUUID,
+    ).recordMetric({
+      reading: replacement,
+      supersedesSourceEventId: 'source-event-1',
+      event: recordedEvent(replacement),
+    })
+
+    expect(result).toEqual({ status: 'recorded', reading: replacement })
+    // The event must describe the correction that EXISTS, not the id this pass
+    // happened to generate — otherwise a replay announces a second correction
+    // that was never written.
+    const corrected = outboxRows.find((row) => row.eventType === 'metric.corrected')
+    expect(corrected?.payload).toMatchObject({ correctionId: EXISTING_CORRECTION_ID })
+  })
+
+  it('updates the anonymous lifetime aggregate before the outbox fact commits', async () => {
+    const order: string[] = []
+    let aggregateExecuteCount = 0
+    const rating = makeReading({
+      portalId: portalId('b0000000-0000-4000-8000-0000000000b1'),
+      portalGroupId: null,
+      metricKey: 'portal.rating',
+      value: 4,
+      definitionVersionId: '11111111-1111-4111-8111-111111111202',
+      sourcePolicy: 'first_party_guest_private',
+    })
+    const tx = {
+      execute: vi.fn(async () => {
+        aggregateExecuteCount += 1
+        order.push(`tx.lifetime.${aggregateExecuteCount}`)
+        return { rows: [] }
+      }),
+      insert: vi.fn((table: unknown) => {
+        if (table === metricReadings) {
+          order.push('tx.state')
+          return {
+            values: vi.fn(() => ({
+              onConflictDoNothing: vi.fn(() => ({
+                returning: vi.fn(async () => [{ id: rating.id }]),
+              })),
+            })),
+          }
+        }
+        if (table === outboxEvents) {
+          order.push('tx.outbox')
+          return { values: vi.fn(async () => undefined) }
+        }
+        throw new Error('unexpected table')
+      }),
+    }
+    const db = {
+      transaction: vi.fn(async (work: (value: typeof tx) => Promise<unknown>) => {
+        order.push('tx.start')
+        const result = await work(tx)
+        order.push('tx.commit')
+        return result
+      }),
+    } as unknown as Database
+
+    await createAtomicMetricCommandStore(db, makeEvents(order), randomUUID).recordMetric({
+      reading: rating,
+      portalLifetimeFact: portalLifetimeFactForMetric({
+        metricKey: rating.metricKey,
+        value: rating.value,
+      }),
+      event: recordedEvent(rating),
+    })
+
+    expect(order).toEqual([
+      'tx.start',
+      'tx.state',
+      'tx.lifetime.1',
+      'tx.lifetime.2',
+      'tx.lifetime.3',
+      'tx.outbox',
+      'tx.commit',
+      'emit',
+    ])
+  })
+
+  it('does not publish when the lifetime aggregate mutation fails', async () => {
+    const rating = makeReading({
+      portalId: portalId('b0000000-0000-4000-8000-0000000000b1'),
+      portalGroupId: null,
+      metricKey: 'portal.rating',
+      value: 4,
+      definitionVersionId: '11111111-1111-4111-8111-111111111202',
+      sourcePolicy: 'first_party_guest_private',
+    })
+    let executeCount = 0
+    const tx = {
+      execute: vi.fn(async () => {
+        executeCount += 1
+        if (executeCount === 3) throw new Error('aggregate unavailable')
+        return { rows: [] }
+      }),
+      insert: vi.fn((table: unknown) => {
+        if (table === metricReadings) {
+          return {
+            values: vi.fn(() => ({
+              onConflictDoNothing: vi.fn(() => ({
+                returning: vi.fn(async () => [{ id: rating.id }]),
+              })),
+            })),
+          }
+        }
+        if (table === outboxEvents) {
+          return { values: vi.fn(async () => undefined) }
+        }
+        throw new Error('unexpected table')
+      }),
+    }
+    const db = {
+      transaction: vi.fn(async (work: (value: typeof tx) => Promise<unknown>) =>
+        work(tx),
+      ),
+    } as unknown as Database
+    const events = makeEvents([])
+
+    await expect(
+      createAtomicMetricCommandStore(db, events, randomUUID).recordMetric({
+        reading: rating,
+        portalLifetimeFact: portalLifetimeFactForMetric({
+          metricKey: rating.metricKey,
+          value: rating.value,
+        }),
+        event: recordedEvent(rating),
+      }),
+    ).rejects.toThrow('aggregate unavailable')
+    expect(events.emit).not.toHaveBeenCalled()
   })
 })

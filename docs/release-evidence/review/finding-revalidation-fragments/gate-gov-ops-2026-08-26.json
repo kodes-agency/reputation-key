@@ -1,0 +1,1282 @@
+{
+  "version": 1,
+  "fragmentId": "gate-gov-ops",
+  "frozenSha": "718fad1807b7422885584660bd3580f2a3a49113",
+  "comparisonSha": "a41ae6421b436d7d55c7bb96faf68d969b2efc4f",
+  "sourceRegisterSha256": "77eb6bb21ea555197a3c7e10edac5f0e5356cabac0f953adecf8408c4f622135",
+  "assessedAt": "2026-08-26",
+  "families": ["GATE", "GOV", "OPS"],
+  "evidence": {
+    "frozen": {
+      "frozen.gate.google-story": {
+        "kind": "git_file",
+        "path": "src/components/features/property/google-performance-section.stories.tsx",
+        "sha256": "7f773ace94762ce61a265603e406aca587e7440477c43d05da536261b4491980",
+        "contains": [
+          "export const Compact320: Story =",
+          "await userEvent.keyboard('{Home}{Enter}')"
+        ],
+        "omits": ["const contentId = range.getAttribute('aria-controls')"]
+      },
+      "frozen.gov.catalogue": {
+        "kind": "git_file",
+        "path": "src/shared/governance/event-job-catalogue.ts",
+        "sha256": "18e26a30b06d1841b3f2d4c80a6e68bac9d328a4ff8a7dba7128bdc73074c417",
+        "contains": [
+          "recordedInOutbox: boolean",
+          "'goal.completed'",
+          "'badge.awarded'",
+          "'discover-new-reviews'"
+        ],
+        "omits": []
+      },
+      "frozen.gov.boundaries": {
+        "kind": "git_file",
+        "path": "eslint.config.js",
+        "sha256": "2af079cf7346de9a1bc928c1059267c4988f4c1df98aac9fbd190658207eb855",
+        "contains": [
+          "type: 'context-build'",
+          "type: 'shared-outbox-runtime'",
+          "'boundaries/no-unknown-files': 'off'"
+        ],
+        "omits": ["category: 'composition-root'"]
+      },
+      "frozen.gov.dashboard-metrics": {
+        "kind": "git_file",
+        "path": "src/contexts/dashboard/infrastructure/read-facade.ts",
+        "sha256": "1c8851e4c2dcb0b89cc12e65ed13cc2dcd3adf12328f3a6d72158abdb8e66281",
+        "contains": [
+          "import { metricReadings, inboxItems, goals, reviews }",
+          ".from(metricReadings)",
+          ".groupBy(metricReadings.metricKey)"
+        ],
+        "omits": ["metricDefinitionVersions", "permittedConsumers"]
+      },
+      "frozen.gov.badge-metrics": {
+        "kind": "git_file",
+        "path": "src/contexts/badge/infrastructure/repositories/badge.repository.ts",
+        "sha256": "c6316628c99853a9892ee72aa2d349e27858617adb62717e6e4fd0ea0d93ee77",
+        "contains": [
+          "import { metricReadings }",
+          "FROM ${metricReadings}",
+          "${metricReadings.metricKey} = ${input.metricKey}"
+        ],
+        "omits": ["metricDefinitionVersions", "permittedConsumers"]
+      },
+      "frozen.gov.oauth": {
+        "kind": "git_file",
+        "path": "src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts",
+        "sha256": "3ad492d9ce45021acdd607ec4ba28a819bb11c21b017438f6ab3e1d0dd2da26c",
+        "contains": [
+          "fetch(config.jwksUrl",
+          "fetch(config.tokenUrl",
+          "fetch(config.revokeUrl"
+        ],
+        "omits": ["assertDirectCredentialEgressAllowed"]
+      },
+      "frozen.gov.audit-adr": {
+        "kind": "git_file",
+        "path": "docs/adr/0045-activity-audit-and-domain-events.md",
+        "sha256": "812753be9549bc3113b2f403b4103d679b2c0b5dac3bc08b876bc174d7de3730",
+        "contains": [
+          "**Status:** Accepted",
+          "hash/sequence/tamper detection",
+          "Activity as audit"
+        ],
+        "omits": ["Partially superseded"]
+      },
+      "frozen.gov.review-adr": {
+        "kind": "git_file",
+        "path": "docs/adr/0003-review-bounded-context.md",
+        "sha256": "fd897d2ae262b2dd4b52d2025033b29d837d17f3696c423ef955265f7f0d819a",
+        "contains": ["Pub/Sub push + manual sync only", "No periodic polling"],
+        "omits": ["Partially superseded"]
+      },
+      "frozen.gov.auth-adr-0001": {
+        "kind": "git_file",
+        "path": "docs/adr/0001-dynamic-access-control.md",
+        "sha256": "ce9f0e11e68380f033c58840e21ca0e82a56aae63b802d763003b8712812624e",
+        "contains": [
+          "**Status:** Implemented",
+          "Server-side permission checks use `can()`"
+        ],
+        "omits": ["ExecutionPolicy"]
+      },
+      "frozen.gov.auth-adr-0009": {
+        "kind": "git_file",
+        "path": "docs/adr/0009-permission-model.md",
+        "sha256": "b8b1ec8e1b911010c1f3293fe65b2ac013f0d34d71a0f6c591350b76a42e6573",
+        "contains": [
+          "**Status:** Accepted",
+          "Every server function calls `can(ctx.role",
+          "Permission is always checked at the HTTP boundary"
+        ],
+        "omits": ["ExecutionPolicy"]
+      },
+      "frozen.gov.readme": {
+        "kind": "git_file",
+        "path": "README.md",
+        "sha256": "5b6d8a14a30c7242bae2f76db1ffee8e996cbf1e9183ee7eafcb8165968a8cd0",
+        "contains": [
+          "pnpm db:push          # Push schema to DB (dev)",
+          "pnpm db:migrate       # Apply migrations"
+        ],
+        "omits": []
+      },
+      "frozen.gov.migration": {
+        "kind": "git_file",
+        "path": "MIGRATION.md",
+        "sha256": "cba6a233a53573cd16e8a388e29342256aa837dccebf463e6b8763d08ebedde0",
+        "contains": [
+          "For rapid prototyping in development, you can use schema push",
+          "pnpm db:push",
+          "Use `db:generate` + `db:migrate` for production"
+        ],
+        "omits": []
+      },
+      "frozen.ops.package": {
+        "kind": "git_file",
+        "path": "package.json",
+        "sha256": "8a4f45f2e49d200f0557d831cde7565d95549a3671f4350bbce5991c731f68fd",
+        "contains": [
+          "\"db:push\": \"drizzle-kit push\"",
+          "npx -y @better-auth/cli generate",
+          "npx -y @better-auth/cli migrate"
+        ],
+        "omits": ["scripts/better-auth-schema.ts"]
+      },
+      "frozen.ops.tsup": {
+        "kind": "git_file",
+        "path": "tsup.config.ts",
+        "sha256": "704e27ce5f933802c08bd74ae4da04752fad2fb6a98aa14eae4bec384d8280d7",
+        "contains": [
+          "'seed-e2e-user': 'scripts/seed-e2e-user.ts'",
+          "'provision-ai-admission-role':"
+        ],
+        "omits": ["worker-observability-preload"]
+      },
+      "frozen.ops.sandbox-ignore": {
+        "kind": "git_file",
+        "path": "Dockerfile.sandbox.dockerignore",
+        "sha256": "8b0dd6daf8e505e2d8c09c486651ceacbd34198df32aa6b91b6160e304a1006a",
+        "contains": ["!e2e/fixtures/gbp-stub.ts", "!e2e/fixtures/mail-stub.ts"],
+        "omits": ["ai-provider-stub.ts"]
+      },
+      "frozen.ops.sandbox-dockerfile": {
+        "kind": "git_file",
+        "path": "Dockerfile.sandbox",
+        "sha256": "b4b81bfa3c5d888b4971887c577f6109c6bdcec1f2f9bdfbfa3d4069e01e91fb",
+        "contains": [
+          "COPY e2e/fixtures/gbp-stub.ts e2e/fixtures/mail-stub.ts e2e/fixtures/ai-provider-stub.ts",
+          "scripts/perf/cell-stub-server.ts"
+        ],
+        "omits": []
+      },
+      "frozen.ops.tsconfig-main": {
+        "kind": "git_file",
+        "path": "tsconfig.json",
+        "sha256": "bb61edd131471f25341198d3d8708f265916b41766340ce6ff8267a76c1fc7da",
+        "contains": ["\"src/**/*.ts\"", "\"services/**/*.ts\"", "\"e2e/**/*.ts\""],
+        "omits": ["scripts/**/*.ts", "server/**/*.ts", ".storybook/**/*.ts"]
+      },
+      "frozen.ops.tsconfig-scripts": {
+        "kind": "git_file",
+        "path": "tsconfig.scripts.json",
+        "sha256": "f0e6f0bd99c4216038d43715c562fb461243f09df878c70d653ca9a662e68494",
+        "contains": ["\"scripts/release/**/*.ts\"", "\"scripts/ops/**/*.ts\""],
+        "omits": ["scripts/review/**/*.ts", "scripts/ci/**/*.ts"]
+      },
+      "frozen.ops.fallow": {
+        "kind": "git_file",
+        "path": ".fallowrc.json",
+        "sha256": "bbeb46265c153b16d1319bd2a0cc35b492d22ed32702bd294309bde61a71210f",
+        "contains": ["\"scripts/**\"", "\"production\": false"],
+        "omits": []
+      },
+      "frozen.ops.deploy": {
+        "kind": "git_file",
+        "path": "scripts/release/deploy-beta.ts",
+        "sha256": "8192c09163bc668414608e000b5863dc05310db0a94fd723d7a999ca9c6aa50c",
+        "contains": [
+          "`railway up` uploads the WORKING TREE",
+          "railway up --service",
+          "--force",
+          "--skip-audit"
+        ],
+        "omits": ["imageDigest"]
+      },
+      "frozen.ops.ci": {
+        "kind": "git_file",
+        "path": ".github/workflows/ci.yml",
+        "sha256": "f9d9566f1848508a307c2c2598cba09076e18cc1bb14da0242c63c0ec8cdf668",
+        "contains": [
+          "Build AI execution admission image",
+          "Build AI egress gateway image",
+          "SBOM web image",
+          "SBOM worker image",
+          "SBOM Google import compatibility image",
+          "if [ \"${{ github.event_name }}\" = \"push\" ]; then",
+          "pnpm check:coverage"
+        ],
+        "omits": [
+          "SBOM AI execution admission image",
+          "Vulnerability scan AI egress gateway image"
+        ]
+      },
+      "frozen.ops.security-policy": {
+        "kind": "git_file",
+        "path": "docs/operations/security-ci-policy.md",
+        "sha256": "d1a59bcc4ed536f712c3cd5e269f80b9b2e45b0614748c03892c33b0e45b738a",
+        "contains": ["`main` has NO branch protection", "branch protection blocks merge"],
+        "omits": []
+      },
+      "frozen.ops.google-egress-docker": {
+        "kind": "git_file",
+        "path": "Dockerfile.google-egress-gateway",
+        "sha256": "80d15417f1ccb6900f5dce30962d5dd0f94f5998b563926030f2521c808479f6",
+        "contains": [
+          "FROM base AS prod-deps",
+          "COPY --from=prod-deps /app/node_modules ./node_modules",
+          "COPY package.json ./"
+        ],
+        "omits": ["FROM runtime AS production"]
+      },
+      "frozen.ops.google-admission-docker": {
+        "kind": "git_file",
+        "path": "Dockerfile.google-execution-admission",
+        "sha256": "1559d1c2caa8206cf2aec135a4398e28cdd7f4ada27efafe51453ada68bfc8de",
+        "contains": [
+          "FROM base AS prod-deps",
+          "COPY --from=prod-deps /app/node_modules ./node_modules",
+          "COPY package.json ./"
+        ],
+        "omits": []
+      },
+      "frozen.ops.ai-probe": {
+        "kind": "git_file",
+        "path": "railway.ai-egress-probe.json",
+        "sha256": "d33d86f69ee89ec981b74756de005b1cfacc749310ef3ba1d30efcd2a62acfb9",
+        "contains": [
+          "\"startCommand\": \"node dist-ai-egress-probe/runtime-egress-probe.js\""
+        ],
+        "omits": ["\"build\""]
+      },
+      "frozen.ops.ai-gateway-config": {
+        "kind": "git_file",
+        "path": "railway.ai-egress-gateway.json",
+        "sha256": "0942023c3a362bfcf680427ec2b18b59f6d7dab7270974a5fdda1e6265ffda62",
+        "contains": [
+          "\"startCommand\": \"node dist-ai-egress-gateway/index.js\"",
+          "\"drainingSeconds\": 130"
+        ],
+        "omits": ["healthcheckPath"]
+      },
+      "frozen.ops.google-gateway-config": {
+        "kind": "git_file",
+        "path": "railway.google-egress-gateway.json",
+        "sha256": "f08ec47faaca5468e8cf7082c24c78814bfd40e26073b29f4ed7f9d9f0c2f6f0",
+        "contains": [
+          "\"dockerfilePath\": \"Dockerfile.google-egress-gateway\"",
+          "\"drainingSeconds\": 30"
+        ],
+        "omits": ["healthcheckPath"]
+      },
+      "frozen.ops.simulation": {
+        "kind": "git_file",
+        "path": ".github/workflows/simulation.yml",
+        "sha256": "89a1f3216dcadeef015b572d5f3b62a28152820a32109d6738dc7347f16054e0",
+        "contains": [
+          "- 'src/**'",
+          "- 'scripts/seed.ts'",
+          "- 'scripts/simulate.ts'",
+          "run: pnpm seed -- --org=sim-ci-org --invariants"
+        ],
+        "omits": ["pnpm simulate", "pnpm-lock.yaml", "drizzle/**"]
+      },
+      "frozen.ops.tmp-results": {
+        "kind": "git_tree",
+        "path": ".tmp-unit-results.json",
+        "sha256": "9c82eca9d6f0bdab16cde4b491031e447b0d8d034cf2e7dfd5f50bc12257ad76",
+        "includes": [".tmp-unit-results.json"],
+        "excludes": []
+      }
+    },
+    "current": {
+      "current.gate.google-story": {
+        "kind": "git_file",
+        "path": "src/components/features/property/google-performance-section.stories.tsx",
+        "sha256": "191564caf66a45a6ce1c30ade2fa765290387318c99f1dc02baac7da070c3211",
+        "contains": [
+          "export const Compact320: Story =",
+          "const contentId = range.getAttribute('aria-controls')",
+          "expect(contentId).not.toBeNull()"
+        ],
+        "omits": []
+      },
+      "current.gov.catalogue": {
+        "kind": "git_file",
+        "path": "src/shared/governance/event-job-catalogue.ts",
+        "sha256": "2a15f1bf30413a6a6d3df1e99c66d58100ff7d3a01f4ab2c5ead92041b6733cd",
+        "contains": [
+          "recordedInOutbox: boolean",
+          "'goal.completed'",
+          "'badge.awarded'",
+          "'discover-new-reviews'"
+        ],
+        "omits": []
+      },
+      "current.gov.entry-catalogue-test": {
+        "kind": "git_file",
+        "path": "src/shared/governance/entry-point-catalogue.test.ts",
+        "sha256": "886d77f85e10a3ef285177f676a72da91dee1d4f56fcc2b86532aed2f1cdb227",
+        "contains": [
+          "function discoverJobs()",
+          "function discoverConsumers()",
+          "function discoverSchedules()"
+        ],
+        "omits": ["observed runtime registry"]
+      },
+      "current.gov.boundary-controls": {
+        "kind": "git_file",
+        "path": "scripts/check-architecture-boundary-controls.mjs",
+        "sha256": "2403b4797472dadb3931c8ed4373b3bce0c0db6e30643a5342cadd3e26b3fabc",
+        "contains": [
+          "context build cannot import UI",
+          "composition root cannot import UI",
+          "outbox runtime cannot import auth implementation",
+          "invalid imports rejected"
+        ],
+        "omits": []
+      },
+      "current.gov.dashboard-metrics": {
+        "kind": "git_file",
+        "path": "src/contexts/dashboard/infrastructure/read-facade.ts",
+        "sha256": "4e329f735f375d0c4d79e5d6c4470caeeec48a176ad60da177d87df66c97e71d",
+        "contains": [
+          "import { metricReadings, inboxItems, goals, reviews }",
+          ".from(metricReadings)",
+          ".groupBy(metricReadings.metricKey)"
+        ],
+        "omits": ["metricDefinitionVersions", "permittedConsumers"]
+      },
+      "current.gov.badge-metrics": {
+        "kind": "git_file",
+        "path": "src/contexts/badge/infrastructure/repositories/badge.repository.ts",
+        "sha256": "c6316628c99853a9892ee72aa2d349e27858617adb62717e6e4fd0ea0d93ee77",
+        "contains": [
+          "import { metricReadings }",
+          "FROM ${metricReadings}",
+          "${metricReadings.metricKey} = ${input.metricKey}"
+        ],
+        "omits": ["metricDefinitionVersions", "permittedConsumers"]
+      },
+      "current.gov.oauth": {
+        "kind": "git_file",
+        "path": "src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts",
+        "sha256": "b1c1d476bbc7539ee94a25634c54c5447e338ed5d03cd22b5127520ec88f89a0",
+        "contains": [
+          "fetch(config.jwksUrl",
+          "fetch(config.tokenUrl",
+          "fetch(config.revokeUrl",
+          "assertDirectCredentialEgressAllowed"
+        ],
+        "omits": []
+      },
+      "current.gov.provider-guard": {
+        "kind": "git_file",
+        "path": "src/shared/config/provider-config-guards.ts",
+        "sha256": "6dadb1e0f95ea187eb17dd6ecfe4352e2322d3984ea6f98f2d435e7bae1f2023",
+        "contains": [
+          "export function assertDirectCredentialEgressAllowed",
+          "if (env.NODE_ENV !== 'production') return",
+          "Refused direct Google credential egress",
+          "credential gateway transport is not wired"
+        ],
+        "omits": []
+      },
+      "current.gov.integrity-adr": {
+        "kind": "git_file",
+        "path": "docs/adr/0056-operational-action-history-integrity-claims.md",
+        "sha256": "c608e1252c31da4df2b334b1f0f13fe1dda66f5b233528f491aaaf108855ff51",
+        "contains": [
+          "status: accepted",
+          "This ADR supersedes ADR 0045 rule 5",
+          "Hash each row in the same mutable database"
+        ],
+        "omits": []
+      },
+      "current.gov.integrity-test": {
+        "kind": "git_file",
+        "path": "src/contexts/activity/domain/integrity-claims.test.ts",
+        "sha256": "6255b5015d19f91591dc46828a14cb09aaf053d2a56d73caca2697b4df497266",
+        "contains": [
+          "contains no home-grown Operational Action History or row-hash implementation",
+          "Activity is a rebuildable Recent Activity projection",
+          "not be simulated with hashes stored beside mutable rows"
+        ],
+        "omits": []
+      },
+      "current.gov.review-adr": {
+        "kind": "git_file",
+        "path": "docs/adr/0003-review-bounded-context.md",
+        "sha256": "9960451a461d78eebb26a4be7689c4616563d853acaf9d1b83cd39c01c580209",
+        "contains": ["Pub/Sub push + manual sync only", "No periodic polling"],
+        "omits": ["polling clause is superseded"]
+      },
+      "current.gov.bootstrap": {
+        "kind": "git_file",
+        "path": "src/bootstrap.ts",
+        "sha256": "bf63b68716cdd70ab32fbe473f1464968142152c8ef8f4d6e3892aa064a9dd87",
+        "contains": [
+          "DISCOVER_NEW_REVIEWS_JOB_NAME",
+          "const discoveryBaseIntervalMs",
+          "registered discover-new-reviews job handler"
+        ],
+        "omits": []
+      },
+      "current.gov.worker": {
+        "kind": "git_file",
+        "path": "src/worker/index.ts",
+        "sha256": "e347d6632e099f13aea52876535c7422751217e8e1868fdc1cb0cd43fdd0ca78",
+        "contains": [
+          "jobName: DISCOVER_NEW_REVIEWS_JOB_NAME",
+          "repeat: { every: 15 * 60 * 1000 }"
+        ],
+        "omits": []
+      },
+      "current.gov.auth-adr-0001": {
+        "kind": "git_file",
+        "path": "docs/adr/0001-dynamic-access-control.md",
+        "sha256": "ce9f0e11e68380f033c58840e21ca0e82a56aae63b802d763003b8712812624e",
+        "contains": [
+          "**Status:** Implemented",
+          "Server-side permission checks use `can()`"
+        ],
+        "omits": ["ExecutionPolicy"]
+      },
+      "current.gov.auth-adr-0009": {
+        "kind": "git_file",
+        "path": "docs/adr/0009-permission-model.md",
+        "sha256": "b8b1ec8e1b911010c1f3293fe65b2ac013f0d34d71a0f6c591350b76a42e6573",
+        "contains": [
+          "**Status:** Accepted",
+          "Every server function calls `can(ctx.role",
+          "Permission is always checked at the HTTP boundary"
+        ],
+        "omits": ["ExecutionPolicy"]
+      },
+      "current.gov.auth-adr-0033": {
+        "kind": "git_file",
+        "path": "docs/adr/0033-authorization-policy.md",
+        "sha256": "317465c2bc00d666f62bf855f493cd0c4f662e75560b9c86ec15e170b2c15d3c",
+        "contains": [
+          "## Superseded (BQC-2.4/2.6)",
+          "The `ExecutionPolicy`",
+          "`authorization-policy.ts`",
+          "was deleted"
+        ],
+        "omits": []
+      },
+      "current.gov.readme": {
+        "kind": "git_file",
+        "path": "README.md",
+        "sha256": "978ffc201d89a4d3295042479031a929bc59bbcc144aebe4f75cd7880ce88856",
+        "contains": ["pnpm db:migrate"],
+        "omits": ["pnpm db:push"]
+      },
+      "current.gov.migration": {
+        "kind": "git_file",
+        "path": "MIGRATION.md",
+        "sha256": "ef513635c47fc9cc95a043ee2a3465c25c20efe177330a79d7ab72ad61694cfc",
+        "contains": ["Never use `pnpm db:push`", "authoritative migration journal"],
+        "omits": ["For rapid prototyping in development"]
+      },
+      "current.ops.package": {
+        "kind": "git_file",
+        "path": "package.json",
+        "sha256": "089ac5bad000b5e78ec4a04118595aa1dd5fc7998eb3e39282b7971b5a618dcc",
+        "contains": [
+          "\"auth:generate\": \"tsx scripts/better-auth-schema.ts generate\"",
+          "\"auth:migrate\": \"tsx scripts/better-auth-schema.ts migrate\""
+        ],
+        "omits": ["\"db:push\"", "npx -y @better-auth/cli"]
+      },
+      "current.ops.tsup": {
+        "kind": "git_file",
+        "path": "tsup.config.ts",
+        "sha256": "f796cc75689086fd8f09a93d31d3e3c827b210143b6ccc6549c22a82bd6ce0c7",
+        "contains": [
+          "'migrate-deploy': 'scripts/migrate-deploy.ts'",
+          "'worker-observability-preload':"
+        ],
+        "omits": ["seed-e2e-user", "provision-ai-admission-role"]
+      },
+      "current.ops.artifact-boundary": {
+        "kind": "git_file",
+        "path": "src/shared/testing/production-artifact-boundary.test.ts",
+        "sha256": "e7ebbe1b1c9464f007e948135c667c3b71239b15c1395d98b5f3805d92ddc863",
+        "contains": [
+          "keeps local-only executables outside the production worker bundle",
+          "fails closed unless the local stack supplies its exact execution identity",
+          "Production artifact policy violation"
+        ],
+        "omits": []
+      },
+      "current.ops.sandbox-ignore": {
+        "kind": "git_file",
+        "path": "Dockerfile.sandbox.dockerignore",
+        "sha256": "8b0dd6daf8e505e2d8c09c486651ceacbd34198df32aa6b91b6160e304a1006a",
+        "contains": ["!e2e/fixtures/gbp-stub.ts", "!e2e/fixtures/mail-stub.ts"],
+        "omits": ["ai-provider-stub.ts"]
+      },
+      "current.ops.sandbox-dockerfile": {
+        "kind": "git_file",
+        "path": "Dockerfile.sandbox",
+        "sha256": "ac7af7de052983edf6222e9b44dff3a2a8848723589c301b4e5f7d09ab8bbc8d",
+        "contains": [
+          "COPY e2e/fixtures/gbp-stub.ts e2e/fixtures/mail-stub.ts e2e/fixtures/ai-provider-stub.ts",
+          "provider-sandbox.mjs"
+        ],
+        "omits": []
+      },
+      "current.ops.tsconfig-main": {
+        "kind": "git_file",
+        "path": "tsconfig.json",
+        "sha256": "bb61edd131471f25341198d3d8708f265916b41766340ce6ff8267a76c1fc7da",
+        "contains": ["\"src/**/*.ts\"", "\"services/**/*.ts\"", "\"e2e/**/*.ts\""],
+        "omits": ["scripts/**/*.ts", "server/**/*.ts", ".storybook/**/*.ts"]
+      },
+      "current.ops.tsconfig-scripts": {
+        "kind": "git_file",
+        "path": "tsconfig.scripts.json",
+        "sha256": "c45a10929afcd2e94a155f9cf951ad9261f7ac616b55d259fc74ae083143ba22",
+        "contains": [
+          "\"scripts/release/**/*.ts\"",
+          "\"scripts/ops/**/*.ts\"",
+          "\"scripts/review/**/*.ts\"",
+          "\"scripts/ci/**/*.ts\""
+        ],
+        "omits": ["scripts/local-stack/**/*.ts", "scripts/perf/**/*.ts"]
+      },
+      "current.ops.fallow": {
+        "kind": "git_file",
+        "path": ".fallowrc.json",
+        "sha256": "04f4bc84c53f56069c62d93b3b6de001077b743ac7696f32e0a91e291b68fe55",
+        "contains": ["\"scripts/**\"", "\"production\": false"],
+        "omits": []
+      },
+      "current.ops.deploy": {
+        "kind": "git_file",
+        "path": "scripts/release/deploy-beta.ts",
+        "sha256": "24c97f9f4b3d446e9e2d59c42a813e9cf19f16eee3eea86748a36bdd9a87ad1f",
+        "contains": [
+          "readonly imageDigest: string",
+          "connect the exact registry digest",
+          "'source'",
+          "'connect'",
+          "active image digest"
+        ],
+        "omits": ["railway up", "uploads the WORKING TREE"]
+      },
+      "current.ops.promotion-test": {
+        "kind": "git_file",
+        "path": "src/shared/release/promotion-manifest.test.ts",
+        "sha256": "792eb0394d3f8874e51f519a7012d918d0f23d3943470c7fb85e9bd0e1e0f0e9",
+        "contains": [
+          "maps Railway services to digest-pinned registry references",
+          "builds one exact-image plan for every Railway runtime service",
+          "retired working-tree uploads from the promotion command"
+        ],
+        "omits": []
+      },
+      "current.ops.release-workflow": {
+        "kind": "git_file",
+        "path": ".github/workflows/release-images.yml",
+        "sha256": "e462aefdad704859fde19b231a73197e11dafc8732c239a47632ee803a3559ac",
+        "contains": [
+          "Build and publish immutable image once",
+          "Generate image SBOM",
+          "Sign image and capture provenance",
+          "Create and sign canonical promotion manifest"
+        ],
+        "omits": ["railway up"]
+      },
+      "current.ops.ci": {
+        "kind": "git_file",
+        "path": ".github/workflows/ci.yml",
+        "sha256": "e71755231a39a8e9a3730b3f7c97f670c4934b634c7d0fafd93fcd135f0aa514",
+        "contains": [
+          "Build AI execution admission image",
+          "Build Google egress gateway image",
+          "Build provider sandbox image",
+          "Build performance runner image",
+          "SBOM AI execution admission image",
+          "SBOM Google egress gateway image",
+          "Vulnerability scan AI egress gateway image",
+          "if [ \"${{ github.event_name }}\" = \"push\" ]; then",
+          "pnpm check:coverage"
+        ],
+        "omits": []
+      },
+      "current.ops.image-policy": {
+        "kind": "git_file",
+        "path": "security/container-images.json",
+        "sha256": "f487216f6a6bb2afd0253e40359483b1b8f942181ea2f63548771dadc3ecce48",
+        "contains": [
+          "\"id\": \"web\"",
+          "\"id\": \"google-egress-gateway\"",
+          "\"id\": \"provider-sandbox\"",
+          "\"id\": \"perf-runner\""
+        ],
+        "omits": []
+      },
+      "current.ops.security-policy": {
+        "kind": "git_file",
+        "path": "docs/operations/security-ci-policy.md",
+        "sha256": "346fa9f39fc2050aac3462c80d604833e1557db668d25d4b94420d7ad7211d1b",
+        "contains": ["`main` has NO branch protection", "branch protection blocks merge"],
+        "omits": []
+      },
+      "current.ops.runbooks": {
+        "kind": "git_file",
+        "path": "docs/operations/runbooks.md",
+        "sha256": "e713c3874c715de3837040cb36f5ee667bb1c2d604604f0e31e58dc65d6c167b",
+        "contains": ["branch protection blocks", "GitHub check"],
+        "omits": []
+      },
+      "current.ops.schema-runner": {
+        "kind": "git_file",
+        "path": "scripts/better-auth-schema.ts",
+        "sha256": "e000fb5bd5a950c9f540d60a13834c5ba98a23cada9bf5e7f8cea8d93ebcfe60",
+        "contains": [
+          "exact `better-auth` runtime pinned",
+          "import('better-auth/db/migration')",
+          "type Command = 'generate' | 'migrate'"
+        ],
+        "omits": ["npx"]
+      },
+      "current.ops.schema-test": {
+        "kind": "git_file",
+        "path": "src/shared/testing/pinned-schema-tools.test.ts",
+        "sha256": "c4a388e5d3a1eaa371c79e82b6a6807f1d17a186b007c44826735502a86eef9f",
+        "contains": [
+          "runs Better Auth schema operations through the installed runtime",
+          "pins environment tooling and never network-fetches it in schema commands",
+          "not.toMatch(/\\bnpx\\b/u)"
+        ],
+        "omits": []
+      },
+      "current.ops.google-egress-docker": {
+        "kind": "git_file",
+        "path": "Dockerfile.google-egress-gateway",
+        "sha256": "e45075b241fec76156e4a0c65edfa4d53383c1637c7d90e887099b7f7e3c6bdc",
+        "contains": [
+          "FROM node:22-slim@sha256:",
+          "AS runtime",
+          "COPY --from=build /app/dist-google-egress-gateway"
+        ],
+        "omits": [
+          "FROM base AS prod-deps",
+          "COPY --from=prod-deps",
+          "COPY package.json ./"
+        ]
+      },
+      "current.ops.google-admission-docker": {
+        "kind": "git_file",
+        "path": "Dockerfile.google-execution-admission",
+        "sha256": "129a88ebf6cd20f60ac87d07d0ba008a1333c4b5364811be17ef01e6096babb3",
+        "contains": [
+          "FROM node:22-slim@sha256:",
+          "AS runtime",
+          "COPY --from=build /app/dist-google-execution-admission"
+        ],
+        "omits": [
+          "FROM base AS prod-deps",
+          "COPY --from=prod-deps",
+          "COPY package.json ./"
+        ]
+      },
+      "current.ops.ai-probe": {
+        "kind": "git_file",
+        "path": "railway.ai-egress-probe.json",
+        "sha256": "d33d86f69ee89ec981b74756de005b1cfacc749310ef3ba1d30efcd2a62acfb9",
+        "contains": [
+          "\"startCommand\": \"node dist-ai-egress-probe/runtime-egress-probe.js\""
+        ],
+        "omits": ["\"build\""]
+      },
+      "current.ops.railway-iac": {
+        "kind": "git_file",
+        "path": ".railway/railway.ts",
+        "sha256": "e8b35038f9b7b031c2c8b03bfa7cc656f23ab986003db9c74dc4f0206535b207",
+        "contains": [
+          "healthcheckPath: '/api/health/ready'",
+          "service('google-execution-admission'",
+          "service('google-egress-gateway'",
+          "service('ai-execution-admission'",
+          "service('ai-egress-gateway'"
+        ],
+        "omits": ["service('ai-egress-probe'"]
+      },
+      "current.ops.ai-gateway-config": {
+        "kind": "git_file",
+        "path": "railway.ai-egress-gateway.json",
+        "sha256": "0942023c3a362bfcf680427ec2b18b59f6d7dab7270974a5fdda1e6265ffda62",
+        "contains": [
+          "\"startCommand\": \"node dist-ai-egress-gateway/index.js\"",
+          "\"drainingSeconds\": 130"
+        ],
+        "omits": ["healthcheckPath"]
+      },
+      "current.ops.google-gateway-config": {
+        "kind": "git_file",
+        "path": "railway.google-egress-gateway.json",
+        "sha256": "f08ec47faaca5468e8cf7082c24c78814bfd40e26073b29f4ed7f9d9f0c2f6f0",
+        "contains": [
+          "\"dockerfilePath\": \"Dockerfile.google-egress-gateway\"",
+          "\"drainingSeconds\": 30"
+        ],
+        "omits": ["healthcheckPath"]
+      },
+      "current.ops.simulation": {
+        "kind": "git_file",
+        "path": ".github/workflows/simulation.yml",
+        "sha256": "1711746543982ae343bc3ac977c6b222682eb14ca299ada63a6627601fb44bff",
+        "contains": [
+          "- 'src/**'",
+          "- 'scripts/seed.ts'",
+          "- 'scripts/simulate.ts'",
+          "run: pnpm seed -- --org=sim-ci-org --invariants"
+        ],
+        "omits": ["pnpm simulate", "pnpm-lock.yaml", "drizzle/**"]
+      },
+      "current.ops.tmp-results": {
+        "kind": "git_tree",
+        "path": ".tmp-unit-results.json",
+        "sha256": "9c82eca9d6f0bdab16cde4b491031e447b0d8d034cf2e7dfd5f50bc12257ad76",
+        "includes": [".tmp-unit-results.json"],
+        "excludes": []
+      }
+    }
+  },
+  "findings": [
+    {
+      "id": "GATE-01",
+      "frozenPosition": 53,
+      "frozenSeverity": "Gate blocker",
+      "frozenSourceLine": 225,
+      "frozenSummary": "Two current unit tests fail and coverage cannot complete",
+      "disposition": "reproduced",
+      "reachability": "operator_only",
+      "impact": "The legacy Storybook gate was repaired, but the current browser-project Storybook command still fails the Compact320 interaction when the open control has no aria-controls value.",
+      "ownerPackage": "SAFE-05",
+      "targetPackages": ["FND-01", "FND-04", "SAFE-05"],
+      "frozenEvidence": ["frozen.gate.google-story"],
+      "currentEvidence": ["current.gate.google-story"],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "SAFE-05",
+        "expected": "Make both governed and developer component-test commands green, then capture one immutable full-gate result at the candidate revision."
+      },
+      "note": "Reproduced locally at the comparison source: the three selected story files ran 30 tests with 29 passing and Compact320 failing at the aria-controls assertion. The repository documents the legacy runner as authoritative, so this is an honest developer-gate defect rather than proof that the hosted merge gate is red."
+    },
+    {
+      "id": "GOV-01",
+      "frozenPosition": 54,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 226,
+      "frozenSummary": "Event catalogue, schema registry, producer wiring, consumer registration, and runtime reachability disagree",
+      "disposition": "confirmed",
+      "reachability": "active",
+      "impact": "The catalogue remains source-derived and cannot yet prove that every declared producer, consumer, schedule, and durability claim is reachable in the running composition.",
+      "ownerPackage": "FND-03",
+      "targetPackages": ["ARC-01", "ARC-02", "FND-03"],
+      "frozenEvidence": ["frozen.gov.catalogue"],
+      "currentEvidence": ["current.gov.catalogue", "current.gov.entry-catalogue-test"],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "FND-03",
+        "expected": "Compare the complete governed catalogue with an observed boot registry and make producer, schema, consumer, durability, and reachability classifications agree."
+      },
+      "note": "Catalogue coverage has expanded materially, but the current checker still discovers jobs, consumers, and schedules from source syntax rather than an observed runtime registry."
+    },
+    {
+      "id": "GOV-02",
+      "frozenPosition": 55,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 227,
+      "frozenSummary": "Boundary enforcement accepts known-invalid imports in build/composition/outbox files",
+      "disposition": "closed",
+      "reachability": "not_reachable",
+      "impact": "Known high-leverage file categories could previously bypass dependency enforcement through incomplete classification.",
+      "ownerPackage": "GOV-02",
+      "targetPackages": ["ARC-03", "GOV-02"],
+      "frozenEvidence": ["frozen.gov.boundaries"],
+      "currentEvidence": ["current.gov.boundary-controls"],
+      "closure": {
+        "kind": "verified_current",
+        "evidence": ["current.gov.boundary-controls"],
+        "expected": "Executable negative controls reject invalid build, composition, outbox, route, component, service, and plugin imports while accepting governed seams."
+      },
+      "note": "The lint command now runs the in-memory negative controls; the focused checker was also executed successfully during this revalidation."
+    },
+    {
+      "id": "GOV-03",
+      "frozenPosition": 56,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 280,
+      "frozenSummary": "Dashboard and Badge bypass the governed Metric read path",
+      "disposition": "confirmed",
+      "reachability": "active",
+      "impact": "Dashboard remains active and reads raw metric rows without definition-version, consumer-permission, or correction semantics; Badge retains the same bypass behind a dark capability.",
+      "ownerPackage": "MET-01",
+      "targetPackages": ["MET-01", "REC-01"],
+      "frozenEvidence": ["frozen.gov.dashboard-metrics", "frozen.gov.badge-metrics"],
+      "currentEvidence": ["current.gov.dashboard-metrics", "current.gov.badge-metrics"],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "MET-01",
+        "expected": "Route active Dashboard reads through the governed Metric authority and either contract or remove the dark Badge reader under REC-01."
+      },
+      "note": "The Badge file is byte-identical to the frozen source; Dashboard changed window semantics but retained the raw metric aggregate."
+    },
+    {
+      "id": "GOV-04",
+      "frozenPosition": 57,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 281,
+      "frozenSummary": "OAuth/JWKS/token/revoke and other Google adapters use direct `fetch` despite ADR-0050's approved gateway rule",
+      "disposition": "configuration-dependent",
+      "reachability": "configuration_dependent",
+      "impact": "Production now refuses direct credential calls, but the adapter still implements direct OAuth/JWKS/token/revoke transport and no credential-gateway implementation replaces it, so production OAuth readiness depends on unresolved wiring.",
+      "ownerPackage": "SAFE-04",
+      "targetPackages": ["GGL-01", "SAFE-04"],
+      "frozenEvidence": ["frozen.gov.oauth"],
+      "currentEvidence": ["current.gov.oauth", "current.gov.provider-guard"],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "SAFE-04",
+        "expected": "Route every retained production Google credential operation through the approved typed gateway/admission path and remove or structurally isolate direct production transports."
+      },
+      "note": "The new guard is a valuable containment: credential-bearing direct calls always throw in production. It does not make the ADR implementation complete, and fixed-origin JWKS remains a direct read in the adapter."
+    },
+    {
+      "id": "GOV-05",
+      "frozenPosition": 58,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 282,
+      "frozenSummary": "ADR-0045's tamper-evident audit store is not implemented",
+      "disposition": "superseded",
+      "reachability": "not_reachable",
+      "impact": "The earlier decision required an integrity property the repository did not implement and could not honestly claim.",
+      "ownerPackage": "GOV-02",
+      "targetPackages": ["GOV-02", "NTF-01"],
+      "frozenEvidence": ["frozen.gov.audit-adr"],
+      "currentEvidence": ["current.gov.integrity-adr", "current.gov.integrity-test"],
+      "closure": {
+        "kind": "verified_current",
+        "evidence": ["current.gov.integrity-adr", "current.gov.integrity-test"],
+        "expected": "ADR 0056 supersedes the unsupported integrity claim and executable language checks prevent Recent Activity from being presented as tamper-evident audit history."
+      },
+      "note": "This closes only the frozen decision contradiction. Operational Action History remains a separate incomplete product obligation and no cryptographic integrity claim is made."
+    },
+    {
+      "id": "GOV-06",
+      "frozenPosition": 59,
+      "frozenSeverity": "Medium",
+      "frozenSourceLine": 283,
+      "frozenSummary": "Fifteen-minute review discovery polling contradicts ADR-0003's push/manual-sync-only decision",
+      "disposition": "confirmed",
+      "reachability": "active",
+      "impact": "The worker still schedules and registers review discovery polling while the accepted decision still says no periodic polling.",
+      "ownerPackage": "FND-02",
+      "targetPackages": ["FND-02", "GGL-01"],
+      "frozenEvidence": ["frozen.gov.review-adr"],
+      "currentEvidence": [
+        "current.gov.review-adr",
+        "current.gov.bootstrap",
+        "current.gov.worker"
+      ],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "FND-02",
+        "expected": "Record and enforce one authoritative discovery decision: amend the ADR for bounded adaptive polling or remove the recurring job."
+      },
+      "note": "ADR 0003 is partially superseded for other clauses, but its polling row remains unchanged and the current worker fires the discovery schedule every fifteen minutes."
+    },
+    {
+      "id": "GOV-07",
+      "frozenPosition": 60,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 284,
+      "frozenSummary": "Authorization documents still prescribe deleted `can()`/boundary-first semantics",
+      "disposition": "confirmed",
+      "reachability": "operator_only",
+      "impact": "Accepted or implemented authorization records direct maintainers toward deleted runtime seams, while only ADR 0033 documents the ExecutionPolicy replacement.",
+      "ownerPackage": "FND-02",
+      "targetPackages": ["FND-02", "GOV-01", "GOV-02"],
+      "frozenEvidence": ["frozen.gov.auth-adr-0001", "frozen.gov.auth-adr-0009"],
+      "currentEvidence": [
+        "current.gov.auth-adr-0001",
+        "current.gov.auth-adr-0009",
+        "current.gov.auth-adr-0033"
+      ],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "FND-02",
+        "expected": "Clause-level supersede the obsolete can()/boundary-first instructions and point all active authorization guidance to effective ExecutionPolicy authority."
+      },
+      "note": "ADR 0001 and ADR 0009 are byte-identical to the frozen revision and still carry active statuses; ADR 0033 accurately states the deleted seam and replacement."
+    },
+    {
+      "id": "GOV-08",
+      "frozenPosition": 61,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 285,
+      "frozenSummary": "Database setup documents expose conflicting `db:push` and authoritative-migration instructions",
+      "disposition": "closed",
+      "reachability": "not_reachable",
+      "impact": "Developers could previously bypass the migration journal by following the root setup guidance.",
+      "ownerPackage": "GOV-01",
+      "targetPackages": ["FND-02", "GOV-01", "GOV-02"],
+      "frozenEvidence": [
+        "frozen.gov.readme",
+        "frozen.gov.migration",
+        "frozen.ops.package"
+      ],
+      "currentEvidence": [
+        "current.gov.readme",
+        "current.gov.migration",
+        "current.ops.package"
+      ],
+      "closure": {
+        "kind": "verified_current",
+        "evidence": [
+          "current.gov.readme",
+          "current.gov.migration",
+          "current.ops.package"
+        ],
+        "expected": "Root setup guidance and executable scripts expose only the journaled migration path and explicitly prohibit db:push."
+      },
+      "note": "The db:push package script and positive README instruction are gone; MIGRATION.md now names the authoritative journal and explicitly prohibits schema push."
+    },
+    {
+      "id": "OPS-01",
+      "frozenPosition": 62,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 223,
+      "frozenSummary": "Web and worker bundles contain an E2E seeder with default credentials and no environment guard",
+      "disposition": "closed",
+      "reachability": "not_reachable",
+      "impact": "A local seeder and provisioner were previously production bundle entry points.",
+      "ownerPackage": "SAFE-05",
+      "targetPackages": ["SAFE-05"],
+      "frozenEvidence": ["frozen.ops.tsup"],
+      "currentEvidence": ["current.ops.tsup", "current.ops.artifact-boundary"],
+      "closure": {
+        "kind": "verified_current",
+        "evidence": ["current.ops.tsup", "current.ops.artifact-boundary"],
+        "expected": "Local executables live only in the local-tools artifact and serving-artifact checks reject their names, imports, and default credential marker."
+      },
+      "note": "Production tsup no longer exposes either local entry, and focused artifact-boundary tests fail closed on their reintroduction."
+    },
+    {
+      "id": "OPS-02",
+      "frozenPosition": 63,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 476,
+      "frozenSummary": "Sandbox Dockerfile copies an AI stub excluded by its Dockerignore; strong static build-failure chain, but build was not run",
+      "disposition": "confirmed",
+      "reachability": "active",
+      "impact": "The CI-declared provider-sandbox build still requests ai-provider-stub.ts while its Dockerfile-specific context allowlist excludes that file.",
+      "ownerPackage": "SAFE-05",
+      "targetPackages": ["SAFE-05"],
+      "frozenEvidence": ["frozen.ops.sandbox-ignore", "frozen.ops.sandbox-dockerfile"],
+      "currentEvidence": [
+        "current.ops.sandbox-ignore",
+        "current.ops.sandbox-dockerfile",
+        "current.ops.ci"
+      ],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "SAFE-05",
+        "expected": "Include the exact AI fixture in the sandbox build context and retain a real container build/smoke result at the candidate revision."
+      },
+      "note": "The ignore file is byte-identical to the frozen revision and still omits the requested fixture. This revalidation did not invoke Docker, so the disposition remains static-confirmed rather than runtime-reproduced."
+    },
+    {
+      "id": "OPS-03",
+      "frozenPosition": 64,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 477,
+      "frozenSummary": "Seventy-three production TypeScript modules are outside the actual typecheck, including 42 scripts, all server plugins, Storybook support, and root configs",
+      "disposition": "confirmed",
+      "reachability": "active",
+      "impact": "The typecheck surface expanded to review and CI scripts, but many executable scripts, server plugins, Storybook support files, and root configs remain outside every invoked TypeScript project.",
+      "ownerPackage": "SAFE-05",
+      "targetPackages": ["SAFE-05"],
+      "frozenEvidence": ["frozen.ops.tsconfig-main", "frozen.ops.tsconfig-scripts"],
+      "currentEvidence": ["current.ops.tsconfig-main", "current.ops.tsconfig-scripts"],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "SAFE-05",
+        "expected": "Inventory every executable TypeScript surface, assign each to an invoked strict project, and add a negative coverage guard for new unowned files."
+      },
+      "note": "The frozen count is historical and is not repeated as the current count. Current configuration still limits the script project to release, ops, review, and CI subtrees."
+    },
+    {
+      "id": "OPS-04",
+      "frozenPosition": 65,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 478,
+      "frozenSummary": "Scripts are a 20k-LOC, largely ungated operational surface; ESLint/Fallow ignore them and only 7/88 TS/JS modules have a direct test/story/E2E importer",
+      "disposition": "confirmed",
+      "reachability": "operator_only",
+      "impact": "The scripts tree has grown and remains excluded wholesale from Fallow while only selected subtrees are typechecked, leaving operational maintenance and reachability risk.",
+      "ownerPackage": "SAFE-05",
+      "targetPackages": ["SAFE-05"],
+      "frozenEvidence": ["frozen.ops.tsconfig-scripts", "frozen.ops.fallow"],
+      "currentEvidence": ["current.ops.tsconfig-scripts", "current.ops.fallow"],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "SAFE-05",
+        "expected": "Classify every retained script, put it under appropriate type/lint/reachability checks, and remove or quarantine obsolete operator tools."
+      },
+      "note": "Current inspection counted 122 TS/JS/MJS/Python script modules and 26,654 lines; those counts are observational, while the immutable proof records the governing exclusions."
+    },
+    {
+      "id": "OPS-05",
+      "frozenPosition": 66,
+      "frozenSeverity": "High",
+      "frozenSourceLine": 479,
+      "frozenSummary": "Release uses `railway up` from the working tree rather than deploying the CI-built image/digest",
+      "disposition": "closed",
+      "reachability": "not_reachable",
+      "impact": "The former promotion command rebuilt from local source instead of promoting verified artifacts.",
+      "ownerPackage": "REG-03",
+      "targetPackages": ["REG-03"],
+      "frozenEvidence": ["frozen.ops.deploy"],
+      "currentEvidence": [
+        "current.ops.deploy",
+        "current.ops.promotion-test",
+        "current.ops.release-workflow"
+      ],
+      "closure": {
+        "kind": "verified_current",
+        "evidence": [
+          "current.ops.deploy",
+          "current.ops.promotion-test",
+          "current.ops.release-workflow"
+        ],
+        "expected": "CI builds, inventories, signs, and binds immutable image digests; deployment connects Railway services to those exact registry digests without a working-tree upload path."
+      },
+      "note": "Repository-owned promotion now uses a signed canonical manifest and exact digest references. Live Railway application and release rehearsal remain separate REG-03 evidence obligations."
+    },
+    {
+      "id": "OPS-06",
+      "frozenPosition": 67,
+      "frozenSeverity": "Medium",
+      "frozenSourceLine": 480,
+      "frozenSummary": "CI builds five images but generates SBOM/Grype evidence for only three; AI images and some Google service images are omitted",
+      "disposition": "closed",
+      "reachability": "not_reachable",
+      "impact": "Several built images previously bypassed image inventory, SBOM, and vulnerability evidence.",
+      "ownerPackage": "REG-03",
+      "targetPackages": ["REG-03", "SAFE-04", "SAFE-05"],
+      "frozenEvidence": ["frozen.ops.ci"],
+      "currentEvidence": ["current.ops.ci", "current.ops.image-policy"],
+      "closure": {
+        "kind": "verified_current",
+        "evidence": ["current.ops.ci", "current.ops.image-policy"],
+        "expected": "Every classified container is built, smoke-checked, inventoried, SBOMed, and scanned under an executable image policy."
+      },
+      "note": "The current CI names all ten governed images and includes SBOM and vulnerability steps for the formerly omitted AI and Google images. Hosted execution at the candidate SHA is still release evidence, not source closure."
+    },
+    {
+      "id": "OPS-07",
+      "frozenPosition": 68,
+      "frozenSeverity": "Medium",
+      "frozenSourceLine": 481,
+      "frozenSummary": "Branch protection/rulesets are absent while docs later claim red checks block merge",
+      "disposition": "configuration-dependent",
+      "reachability": "configuration_dependent",
+      "impact": "Repository documents still contain mutually exclusive statements about merge enforcement, and the actual hosted branch policy can change independently of source.",
+      "ownerPackage": "REL-01",
+      "targetPackages": ["REG-03", "REL-01"],
+      "frozenEvidence": ["frozen.ops.security-policy"],
+      "currentEvidence": ["current.ops.security-policy", "current.ops.runbooks"],
+      "closure": {
+        "kind": "external_evidence",
+        "dependency": "Current GitHub main-branch protection/ruleset state and required-check inventory",
+        "expected": "Capture current hosted enforcement, reconcile the contradictory documents, and bind the verified required checks to REL-01 release evidence."
+      },
+      "note": "No live GitHub query was made. A post-review repository artifact captured branch protection with five checks but no ruleset; current prose still says both no protection and protection blocks merge, so source alone cannot establish hosted state."
+    },
+    {
+      "id": "OPS-08",
+      "frozenPosition": 69,
+      "frozenSeverity": "Medium",
+      "frozenSourceLine": 482,
+      "frozenSummary": "Coverage ratchet runs on push/main rather than every PR in the same way, weakening pre-merge evidence",
+      "disposition": "confirmed",
+      "reachability": "active",
+      "impact": "Pull requests run the ordinary test suite while only pushes run the coverage ratchet, so pre-merge evidence does not exercise the same threshold and staleness policy.",
+      "ownerPackage": "REL-01",
+      "targetPackages": ["REG-03", "REL-01"],
+      "frozenEvidence": ["frozen.ops.ci"],
+      "currentEvidence": ["current.ops.ci"],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "REL-01",
+        "expected": "Run the same governed coverage ratchet on pull requests and candidate pushes, or record an accepted equivalent pre-merge control with executable parity evidence."
+      },
+      "note": "The conditional is materially unchanged from the frozen revision."
+    },
+    {
+      "id": "OPS-09",
+      "frozenPosition": 70,
+      "frozenSeverity": "Medium",
+      "frozenSourceLine": 483,
+      "frozenSummary": "Better Auth schema commands use unpinned network-fetched CLIs",
+      "disposition": "closed",
+      "reachability": "not_reachable",
+      "impact": "Schema generation and migration previously executed network-fetched command packages outside the lockfile authority.",
+      "ownerPackage": "GOV-01",
+      "targetPackages": ["GOV-01", "SAFE-05"],
+      "frozenEvidence": ["frozen.ops.package"],
+      "currentEvidence": [
+        "current.ops.package",
+        "current.ops.schema-runner",
+        "current.ops.schema-test"
+      ],
+      "closure": {
+        "kind": "verified_current",
+        "evidence": [
+          "current.ops.package",
+          "current.ops.schema-runner",
+          "current.ops.schema-test"
+        ],
+        "expected": "Auth schema commands use the installed, lockfile-pinned Better Auth runtime and regression tests reject network-fetching command forms."
+      },
+      "note": "The npx-based package scripts are gone and the replacement imports better-auth/db/migration from the installed dependency."
+    },
+    {
+      "id": "OPS-10",
+      "frozenPosition": 71,
+      "frozenSeverity": "Medium",
+      "frozenSourceLine": 484,
+      "frozenSummary": "Two Google minimal Dockerfiles copy the whole package manifest/dependency surface; sidecars carry more dependencies than their boundary requires",
+      "disposition": "closed",
+      "reachability": "not_reachable",
+      "impact": "The Google sidecar runtime images previously carried the root production dependency tree and manifest.",
+      "ownerPackage": "SAFE-05",
+      "targetPackages": ["REG-03", "SAFE-04", "SAFE-05"],
+      "frozenEvidence": [
+        "frozen.ops.google-egress-docker",
+        "frozen.ops.google-admission-docker"
+      ],
+      "currentEvidence": [
+        "current.ops.google-egress-docker",
+        "current.ops.google-admission-docker",
+        "current.ops.ci"
+      ],
+      "closure": {
+        "kind": "verified_current",
+        "evidence": [
+          "current.ops.google-egress-docker",
+          "current.ops.google-admission-docker",
+          "current.ops.ci"
+        ],
+        "expected": "Both production sidecar runtime stages contain only their verified bundles on a fresh runtime base, with CI proving no package manifest or node_modules tree."
+      },
+      "note": "Build stages still install the repository toolchain, but the frozen runtime-surface finding is closed: runtime stages no longer copy prod-deps or package.json."
+    },
+    {
+      "id": "OPS-11",
+      "frozenPosition": 72,
+      "frozenSeverity": "Medium",
+      "frozenSourceLine": 485,
+      "frozenSummary": "AI egress probe Railway config lacks an explicit build, making its declared start artifact dependent on dashboard/out-of-band setup",
+      "disposition": "confirmed",
+      "reachability": "operator_only",
+      "impact": "The standalone probe config still names an artifact without declaring how Railway obtains the gateway image that contains it, and the canonical cell IaC does not define a probe service.",
+      "ownerPackage": "REG-03",
+      "targetPackages": ["REG-03", "SAFE-04", "SAFE-05"],
+      "frozenEvidence": ["frozen.ops.ai-probe"],
+      "currentEvidence": ["current.ops.ai-probe", "current.ops.railway-iac"],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "REG-03",
+        "expected": "Give the probe an explicit digest-pinned image/source contract in canonical IaC or retire the standalone Railway config in favor of a documented in-image operator invocation."
+      },
+      "note": "railway.ai-egress-probe.json is byte-identical to the frozen revision."
+    },
+    {
+      "id": "OPS-12",
+      "frozenPosition": 73,
+      "frozenSeverity": "Medium",
+      "frozenSourceLine": 486,
+      "frozenSummary": "Several sidecars cannot expose a normal platform health check over the mTLS-only port; post-boot dependency loss is not surfaced to the platform",
+      "disposition": "confirmed",
+      "reachability": "configuration_dependent",
+      "impact": "Sidecar code has dependency-aware readiness, but Railway configs and canonical IaC expose a platform health check only for the web service, leaving sidecar replacement behavior disconnected from readiness loss.",
+      "ownerPackage": "REG-04",
+      "targetPackages": ["REG-02", "REG-04"],
+      "frozenEvidence": [
+        "frozen.ops.ai-gateway-config",
+        "frozen.ops.google-gateway-config"
+      ],
+      "currentEvidence": [
+        "current.ops.railway-iac",
+        "current.ops.ai-gateway-config",
+        "current.ops.google-gateway-config"
+      ],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "REG-04",
+        "expected": "Provide Railway-compatible, least-privilege readiness for every retained sidecar and prove post-boot dependency-loss replacement without weakening mTLS request boundaries."
+      },
+      "note": "No live Railway behavior was inspected. The repository-owned topology and per-service configs contain no sidecar healthcheckPath."
+    },
+    {
+      "id": "OPS-13",
+      "frozenPosition": 74,
+      "frozenSeverity": "Medium",
+      "frozenSourceLine": 487,
+      "frozenSummary": "Simulation workflow path filters do not cover all files that affect the simulation",
+      "disposition": "confirmed",
+      "reachability": "active",
+      "impact": "Pull requests that change the lockfile, migration files, auth schema tooling, workflow dependencies, or other simulation inputs can bypass the simulation workflow.",
+      "ownerPackage": "FND-03",
+      "targetPackages": ["FND-03", "REG-03"],
+      "frozenEvidence": ["frozen.ops.simulation"],
+      "currentEvidence": ["current.ops.simulation"],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "FND-03",
+        "expected": "Derive or exhaustively test the workflow trigger set against every file consumed by simulation setup, migrations, seed execution, and dependency installation."
+      },
+      "note": "The workflow trigger set remains limited to src, two script files, shared testing, and the workflow itself; it still executes seed rather than scripts/simulate.ts."
+    },
+    {
+      "id": "OPS-14",
+      "frozenPosition": 75,
+      "frozenSeverity": "Low",
+      "frozenSourceLine": 488,
+      "frozenSummary": "`.tmp-unit-results.json` is a large tracked stale test artifact and pollutes repository review surface",
+      "disposition": "confirmed",
+      "reachability": "active",
+      "impact": "The generated test-result path remains tracked at the comparison revision and therefore still adds stale review surface to every clone.",
+      "ownerPackage": "CNV-01",
+      "targetPackages": ["CNV-01"],
+      "frozenEvidence": ["frozen.ops.tmp-results"],
+      "currentEvidence": ["current.ops.tmp-results"],
+      "closure": {
+        "kind": "planned_in_package",
+        "package": "CNV-01",
+        "expected": "Remove the tracked artifact, add the generated path to appropriate ignore policies, and retain only intentional immutable test evidence under the release-evidence structure."
+      },
+      "note": "Immutable tree evidence confirms that the generated path remains tracked at both the frozen and comparison revisions; this assessment does not treat its historical test results as current execution evidence."
+    }
+  ]
+}

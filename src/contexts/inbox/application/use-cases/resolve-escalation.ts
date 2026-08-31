@@ -11,10 +11,16 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { inboxItemEscalationResolved } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
-import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
+import {
+  loadInboxItemOrThrow,
+  assertExpectedCommandRevision,
+  assertInboxSourcePropertyAccessible,
+  canHandleInboxSource,
+} from '../inbox-access'
 
 export type ResolveEscalationInput = Readonly<{
   inboxItemId: InboxItemId
+  expectedCommandRevision: number
 }>
 
 export type ResolveEscalationDeps = Readonly<{
@@ -41,10 +47,15 @@ export const resolveEscalation =
       input.inboxItemId,
       ctx.organizationId,
     )
-    await assertPropertyAccessible(
+    assertExpectedCommandRevision(item, input.expectedCommandRevision)
+    if (!canHandleInboxSource(ctx, item.sourceType)) {
+      throw inboxError('forbidden', 'No permission to handle this inbox source')
+    }
+    await assertInboxSourcePropertyAccessible(
       deps.staffPublicApi,
       ctx,
-      'inbox.write',
+      'handle',
+      item.sourceType,
       item.propertyId,
     )
 

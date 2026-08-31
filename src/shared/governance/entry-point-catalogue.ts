@@ -11,6 +11,10 @@
 //                   schedule | operator_command
 //   action        — a Permission for user actions; a SystemAction for
 //                   system/session/public/operator work
+//   owner         — defining context or platform area
+//   mutation      — total read/write classification; mutations record their
+//                   state owner and one FND-03 disposition
+//   registration  — registration owner and strongest proven reachability
 //   capability    — the beta capability gate (ADR 0032); 'none' when ungated
 //   resourceScope — organization | property | tenant_cross | none
 //   principals    — user | system | operator | public
@@ -28,6 +32,7 @@
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import { isCoreCapability, isBlockedCapability } from '#/shared/auth/beta-capabilities'
 import type { Permission } from '#/shared/domain/permissions'
+import { classifyOperatorCommandMutation } from './operator-command-mutation-classifier'
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -51,6 +56,54 @@ export type ResourceScope =
 
 export type BetaPosture = 'core' | 'non_core' | 'blocked'
 
+export type EntryPointOwner =
+  | 'activity'
+  | 'ai'
+  | 'badge'
+  | 'dashboard'
+  | 'goal'
+  | 'guest'
+  | 'identity'
+  | 'inbox'
+  | 'integration'
+  | 'leaderboard'
+  | 'metric'
+  | 'notification'
+  | 'portal'
+  | 'property'
+  | 'review'
+  | 'staff'
+  | 'team'
+  | 'operations'
+  | 'shared'
+  | 'web'
+  | 'worker'
+
+export type MutationDisposition =
+  | 'atomic_state_and_fact'
+  | 'local_only_with_reason'
+  | 'non_atomic_defect'
+  | 'temporarily_accepted_debt'
+
+export type EntryPointMutation =
+  | Readonly<{ kind: 'read_only' }>
+  | Readonly<{
+      kind: 'mutation'
+      stateOwner: EntryPointOwner
+      disposition: MutationDisposition
+      reason: string
+      debtOwner?: string
+      expiresAt?: string
+    }>
+
+export type EntryPointRegistration = Readonly<{
+  /** File that owns declaration/composition/registry registration. */
+  ownerFile: string
+  /** Strongest reachability claim this repository can currently prove. */
+  reachability:
+    'direct_declaration' | 'source_composed' | 'boot_registry' | 'declared_only'
+}>
+
 /**
  * Canonical actions for work that has no role Permission: session/identity
  * bootstrap, guest/public surface, machine ingress, UI rendering, delayed
@@ -66,6 +119,8 @@ export type SystemAction =
   | 'system:identity.accept_invitation'
   | 'system:identity.create_organization'
   | 'system:identity.auth_api'
+  | 'system:identity.organization_lifecycle'
+  | 'system:identity.organization_export'
   // guest / public surface (dark — portal.read gated)
   | 'system:guest.portal_read'
   | 'system:guest.rating'
@@ -74,11 +129,17 @@ export type SystemAction =
   | 'system:guest.click_track'
   | 'public:portal.response.submit'
   | 'public:portal.response.correct'
+  | 'public:portal.response.start_new'
+  | 'public:portal.response.text.submit'
+  | 'public:portal.response.text.withdraw'
+  | 'public:portal.google_review.select'
+  | 'public:portal.secondary_link.select'
   | 'public:portal.response.withdraw'
   | 'public:portal.media.issue'
   | 'public:portal.media.confirm'
   | 'public:portal.read'
   | 'public:portal.analytics.record'
+  | 'public:notification.email_unsubscribe'
   // machine ingress
   | 'system:integration.google_callback'
   | 'system:integration.gbp_webhook'
@@ -87,6 +148,9 @@ export type SystemAction =
   // delayed/system execution
   | 'system:health.check'
   | 'system:image.process'
+  | 'system:image.cleanup'
+  | 'system:portal.health_reconcile'
+  | 'system:portal.destination_revalidate'
   | 'system:property.import'
   | 'system:property.import_v2'
   | 'system:review.sync'
@@ -97,26 +161,36 @@ export type SystemAction =
   | 'system:reply.publish'
   | 'system:metric.refresh'
   | 'system:metric.record'
+  | 'system:metric.record_guest_analytics'
+  | 'system:metric.record_public_reputation'
+  | 'system:metric.record_portal_workflow'
   | 'system:retention.sweep'
   | 'system:quarantine.ttl'
   | 'system:ai.execution_reap'
+  | 'system:ai.authorization_erasure'
   | 'system:ai.review_analysis_backfill_advance'
+  | 'system:ai.review_analysis_enrollment_sweep'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
   | 'system:goal.reconcile'
   | 'system:goal.spawn'
   | 'system:goal.progress'
+  | 'system:goal.maintain'
   | 'system:badge.reconcile'
   | 'system:badge.evaluate'
   | 'system:leaderboard.reconcile'
   | 'system:leaderboard.refresh'
   | 'system:activity.record'
   | 'system:notification.insert'
+  | 'system:notification.insert_goal'
+  | 'system:notification.insert_portal'
+  | 'system:notification.insert_property_responsibility'
   | 'system:notification.email_urgent'
   | 'system:notification.email_digest'
   | 'system:notification.delivery_event'
   | 'system:notification.reconcile'
   | 'system:inbox.update'
+  | 'system:inbox.project_guest_feedback'
   | 'system:ai.trend'
   | 'system:ai.trend_schedule'
   // operator commands
@@ -132,6 +206,11 @@ export type EntryPointRow = Readonly<{
   name: string
   /** Repo-relative file where the entry point is defined. */
   file: string
+  /** Context or platform area that owns this executable boundary. */
+  owner: EntryPointOwner
+  /** Total read/write classification; every write path has an owner/disposition. */
+  mutation: EntryPointMutation
+  registration: EntryPointRegistration
   /** Canonical action for the ExecutionPolicy decision request. */
   action: EntryPointAction
   /** Additional permissions the code also asserts (kept exhaustive by the guard). */
@@ -169,6 +248,719 @@ export function postureForCapability(cap: Capability | 'none'): BetaPosture {
   return 'non_core'
 }
 
+const CONTEXT_OWNER_RE = /^src\/contexts\/([^/]+)\//u
+const READ_ONLY_SERVER_FN_RE = /^(?:explain|get|list|resolve)/u
+const MUTATING_QUERY_NAMES = new Set([
+  'getGoogleAuthUrl',
+  'listImportAccounts',
+  'listImportCandidates',
+  'getPropertyGooglePerformance',
+  'getRegionDiagnosticFn',
+  'getSetupChecklistFn',
+])
+const READ_ONLY_NO_EFFECT_ENTRIES = new Set([
+  'server_function:deleteProperty',
+  // These POST declarations are retained only so stale beta links fail
+  // predictably. `organization.create` is a hard-blocked capability, and both
+  // handlers reach that fail-closed gate before any provider or database call.
+  'server_function:registerUserAndOrg',
+  'server_function:createOrganizationFn',
+  'route_api:/api/public/p/$token/click/$linkId',
+])
+const ATOMIC_IDENTITY_MUTATIONS = new Set([
+  'inviteMember',
+  'registerMember',
+  'updateMemberRole',
+  'removeMember',
+  'acceptInvitation',
+  'cancelInvitation',
+  'enableMerchantAiFn',
+  'changeMerchantAiCapabilitiesFn',
+  'revokeMerchantAiFn',
+  'setOrgCapabilityFn',
+  'setPropertyCapabilityFn',
+  'setOrgSuspensionFn',
+  'setPropertySuspensionFn',
+  'grantPropertyAccessFn',
+  'revokePropertyAccessFn',
+])
+const LOCAL_ONLY_IDENTITY_MUTATIONS = new Set([
+  'submitBetaFeedbackHandler',
+  'submitBetaFeedbackFn',
+  'resendInvitation',
+  'signInUser',
+  'setActiveOrganization',
+  'updateOrgResponseSlaFn',
+  'createCustomRole',
+  'updateCustomRole',
+  'deleteCustomRole',
+  'changePasswordFn',
+  'updateProfileFn',
+  'updateUserImageFn',
+  'updateOrganization',
+  'requestOrgLogoUpload',
+  'finalizeOrgLogoUpload',
+  'requestAvatarUpload',
+  'finalizeAvatarUpload',
+  'getRegionDiagnosticFn',
+])
+const ATOMIC_PROPERTY_MUTATIONS = new Set([
+  'createProperty',
+  'updateProperty',
+  'updatePropertyResponsibleManagers',
+  'requestRegionMoveFn',
+])
+const ATOMIC_INTEGRATION_MUTATIONS = new Set([
+  'disconnectGoogle',
+  'updateConnectionVisibility',
+  'startPropertyImportV2',
+  'retryPropertyImportItem',
+  'cancelPropertyImportV2',
+  'recoverPropertyImportV2',
+])
+const LOCAL_ONLY_INTEGRATION_MUTATIONS = new Set([
+  'getGoogleAuthUrl',
+  'listImportAccounts',
+  'listImportCandidates',
+  'renewImportAuthorizationLease',
+  'getPropertyGooglePerformance',
+  'renewPropertyGooglePerformanceLease',
+])
+const ATOMIC_GOAL_MUTATIONS = new Set([
+  'createGoalProgram',
+  'reviseGoalProgram',
+  'changeGoalProgramAssignments',
+  'changeGoalProgramStatus',
+])
+const LOCAL_ONLY_STAFF_MUTATIONS = new Set([
+  'createStaffParticipation',
+  'archiveStaffParticipation',
+  'updatePortalResponsibilities',
+])
+const LOCAL_ONLY_SHARED_MUTATIONS = new Set(['ensureActiveOrg'])
+const LOCAL_ONLY_AI_MUTATIONS = new Set(['generateReplySuggestionFn'])
+const LOCAL_ONLY_DASHBOARD_MUTATIONS = new Set(['getSetupChecklistFn'])
+const ATOMIC_ROUTE_MUTATIONS = new Set(['/api/auth/google/callback'])
+const LOCAL_ONLY_ROUTE_MUTATIONS = new Set([
+  '/api/auth/$',
+  '/api/notifications/unsubscribe',
+  '/api/webhooks/gbp/notifications',
+  '/api/webhooks/resend/events',
+])
+const ATOMIC_PORTAL_MUTATIONS = new Set([
+  'createPortal',
+  'updatePortal',
+  'rollbackPortalPublication',
+  'completeContentReview',
+  'deletePortal',
+  'finalizeUpload',
+  'createPortalGroup',
+  'updatePortalGroup',
+  'addPortalToGroup',
+  'removePortalFromGroup',
+  'createLink',
+  'reorderLinks',
+  'createLinkCategory',
+  'reorderCategories',
+  'issuePortalToken',
+  'rotatePortalToken',
+  'revokePortalTokens',
+  'updatePortalResponsibleManagers',
+  'savePropertyPortalBrandProfile',
+  'savePropertyPortalBrandContent',
+  'savePortalLocalizedOverride',
+  'requestPortalApprovedDestination',
+  'approvePortalApprovedDestination',
+  'disablePortalApprovedDestination',
+])
+const LOCAL_ONLY_PORTAL_MUTATIONS = new Set([
+  'requestUploadUrl',
+  'updateLink',
+  'deleteLink',
+  'updateLinkCategory',
+  'deleteLinkCategory',
+])
+const ATOMIC_GUEST_MUTATIONS = new Set([
+  'submitGuestResponseFn',
+  'correctGuestResponseFn',
+  'submitPrivateFeedbackFn',
+  'withdrawPrivateFeedbackFn',
+  'selectGoogleReviewFn',
+  'selectSecondaryLinkFn',
+  'withdrawGuestResponseFn',
+  'moderateGuestResponseFn',
+  'recordScanFn',
+])
+const ATOMIC_REVIEW_MUTATIONS = new Set([
+  'submitReplyFn',
+  'approveReplyFn',
+  'editPublishedReplyFn',
+  'rejectReplyFn',
+  'retryPublishFn',
+])
+const LOCAL_ONLY_REVIEW_MUTATIONS = new Set(['draftReplyFn', 'deleteReplyFn'])
+const ATOMIC_INBOX_MUTATIONS = new Set([
+  'assignInboxItemFn',
+  'bulkAssignInboxItemsFn',
+  'addInboxNoteFn',
+  'markFeedbackHandledFn',
+  'correctFeedbackHandlingOutcomeFn',
+  'setResponseTargetPolicyFn',
+  'updateInboxStatusFn',
+  'bulkUpdateInboxStatusFn',
+  'escalateInboxItemFn',
+])
+const LOCAL_ONLY_INBOX_MUTATIONS = new Set(['stampLastInboxViewFn'])
+const LOCAL_ONLY_NOTIFICATION_MUTATIONS = new Set([
+  'markNotificationReadFn',
+  'markNotificationUnreadFn',
+  'markAllNotificationsReadFn',
+  'dismissAllNotificationsFn',
+  'dismissNotificationFn',
+  'updateNotificationPreferenceFn',
+  'muteNotificationCategoryFn',
+  'updateNotificationUserSettingsFn',
+])
+/**
+ * Exact delayed-entry classifications. These are deliberately enumerated
+ * rather than inferred from a filename or kind: adding a new job/consumer must
+ * make an explicit state/fact decision before the governance gate accepts it.
+ */
+const ATOMIC_JOB_MUTATIONS = new Set([
+  'portal-approved-destination-revalidation',
+  'process-image',
+  'portal-upload-source-cleanup',
+  'import-gbp-property-item-v2',
+  'sync-property-reviews',
+  'generate-property-ai-trend',
+  'schedule-property-ai-trends',
+  'publish-reply',
+  'reconcile-ambiguous-publications',
+  'goal-program.maintain',
+  'ai-review-analysis-backfill-advance',
+  'ai-review-analysis-enrollment-sweep',
+  'recover-invited-registrations',
+  'advance-organization-lifecycle',
+  'release-response-target-reminders',
+])
+const LOCAL_ONLY_JOB_MUTATIONS = new Set([
+  'health-check',
+  'refresh-expiring-reviews',
+  'reconcile-missing-notifications',
+  'discover-new-reviews',
+  'expire-review-provider-source',
+  'sweep-review-provider-tombstones',
+  'refresh-daily-metrics',
+  'refresh-weekly-metrics',
+  'refresh-daily-inbox-metrics',
+  'retention-sweep',
+  'quarantine-ttl-sweep',
+  'ai-operation-execution-reaper',
+  'ai-authorization-derivative-erasure',
+  'permit-start-deadline-sweep',
+  'google-import-claim-reaper',
+  'project-recent-activity',
+  'insert-activity-log',
+  'insert-notification',
+  'urgent-email',
+  'digest-notification',
+  'generate-organization-export',
+  'purge-expired-organization-exports',
+])
+const ATOMIC_CONSUMER_MUTATIONS = new Set([
+  'activity.outbox-consumers',
+  'inbox.outbox-consumers',
+  'inbox.guest-feedback',
+  'ai.outbox-consumers',
+  'metric.event-handlers',
+  'metric.public-reputation',
+  'metric.current-google-reputation',
+  'metric.portal-workflow',
+  'metric.guest-analytics',
+  'goal.metric-correction-reconciliation',
+  'review.event-handlers',
+  'inbox.event-handlers',
+  'portal.health-outbox-consumers',
+])
+const LOCAL_ONLY_CONSUMER_MUTATIONS = new Set([
+  'review.outbox-consumers',
+  'portal.outbox-consumers',
+  'notification.outbox-consumers',
+  'notification.workflow-outbox-consumers',
+  'notification.bulk-assignment-outbox-consumers',
+  'notification.escalation-resolution-outbox-consumers',
+  'notification.handling-cycle-outbox-consumers',
+  'notification.response-target-outbox-consumers',
+  'notification.goal-outbox-consumers',
+  'notification.on-google-reauthorization-required',
+  'notification.portal-outbox-consumers',
+  'notification.portal-health-outbox-consumers',
+  'notification.property-outbox-consumers',
+  'notification.identity-account-outbox-consumers',
+  'integration.property-import-dispatch',
+  'integration.google-review-push-dispatch',
+  'property.import-retention-release',
+  'activity.event-handlers',
+  'metric.correction-reconciliation',
+  'notification.event-handlers',
+  'notification.portal-event-handlers',
+  'notification.property-event-handlers',
+])
+const MUTATION_DEBT_EXPIRY = '2026-10-31'
+const ENTRY_POINT_OWNERS = new Set<EntryPointOwner>([
+  'activity',
+  'ai',
+  'badge',
+  'dashboard',
+  'goal',
+  'guest',
+  'identity',
+  'inbox',
+  'integration',
+  'leaderboard',
+  'metric',
+  'notification',
+  'portal',
+  'property',
+  'review',
+  'staff',
+  'team',
+  'operations',
+  'shared',
+  'web',
+  'worker',
+])
+const MUTATION_DISPOSITIONS = new Set<MutationDisposition>([
+  'atomic_state_and_fact',
+  'local_only_with_reason',
+  'non_atomic_defect',
+  'temporarily_accepted_debt',
+])
+
+function ownerForFile(file: string): EntryPointOwner {
+  const context = CONTEXT_OWNER_RE.exec(file)?.[1]
+  if (context) return context as EntryPointOwner
+  if (file.startsWith('src/routes/')) return 'web'
+  if (file === 'src/bootstrap.ts' || file.startsWith('src/worker/')) return 'worker'
+  if (file === 'package.json' || file.startsWith('scripts/')) return 'operations'
+  return 'shared'
+}
+
+function isReadOnlyEntry(kind: EntryPointKind, name: string): boolean {
+  return (
+    READ_ONLY_NO_EFFECT_ENTRIES.has(`${kind}:${name}`) ||
+    kind === 'route_ui' ||
+    (kind === 'route_api' && name.startsWith('/api/health')) ||
+    (kind === 'server_function' &&
+      READ_ONLY_SERVER_FN_RE.test(name) &&
+      !MUTATING_QUERY_NAMES.has(name))
+  )
+}
+
+/**
+ * Dispositions decided by the entry kind: operator commands, read-only
+ * surfaces, schedules, jobs, and consumers. `null` means no kind-scoped rule
+ * matched and the name-scoped tables decide.
+ */
+function kindScopedMutation(
+  kind: EntryPointKind,
+  name: string,
+  owner: EntryPointOwner,
+): EntryPointMutation | null {
+  if (kind === 'operator_command') {
+    const classification = classifyOperatorCommandMutation(name)
+    if (classification) return classification
+  }
+  if (isReadOnlyEntry(kind, name)) {
+    return { kind: 'read_only' }
+  }
+  if (kind === 'schedule') {
+    return {
+      kind: 'mutation',
+      stateOwner: 'worker',
+      disposition: 'local_only_with_reason',
+      reason:
+        'Owns BullMQ repeatable-schedule metadata; domain mutation occurs only in the separately catalogued job.',
+    }
+  }
+  if (kind === 'job' && ATOMIC_JOB_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: owner,
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The job delegates authoritative writes to its fenced command store, which co-commits each state transition and every required durable fact; provider or queue effects are separately claimed and reconciled.',
+    }
+  }
+  if (kind === 'job' && LOCAL_ONLY_JOB_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: owner,
+      disposition: 'local_only_with_reason',
+      reason:
+        'This job owns bounded operational, projection, delivery, retention, or queue state only; its source fact remains authoritative and no additional cross-context domain fact is required for the local effect.',
+    }
+  }
+  if (kind === 'consumer' && ATOMIC_CONSUMER_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: owner,
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'Authoritative consumer paths delegate to the owning command store, which co-commits context state and every required durable fact; identifier-only dispatch branches own only idempotent queue/receipt state.',
+    }
+  }
+  if (kind === 'consumer' && LOCAL_ONLY_CONSUMER_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: owner,
+      disposition: 'local_only_with_reason',
+      reason:
+        'The source durable fact remains authoritative; this handler owns only an idempotent projection, queue admission, delivery, compatibility no-op, or consumer receipt and requires no new cross-context domain fact.',
+    }
+  }
+  return null
+}
+
+/**
+ * Dispositions for context command and server-function entry points, matched by
+ * entry name. `null` means no rule in this table matched.
+ */
+function contextCommandMutation(name: string): EntryPointMutation | null {
+  if (ATOMIC_IDENTITY_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'identity',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Identity command store locks and changes the authoritative Better Auth/Identity or policy rows and co-commits every required versioned lifecycle fact or content-free decision audit; post-commit email, cache refresh, or reconciliation is independently retryable.',
+    }
+  }
+  if (LOCAL_ONLY_IDENTITY_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'identity',
+      disposition: 'local_only_with_reason',
+      reason:
+        'This boundary changes only Identity-owned session/profile/configuration, scoped upload, custom-role, audit, rate-limit, or explicit email/Sentry state; no cross-context durable domain fact is part of its contract.',
+    }
+  }
+  if (ATOMIC_PROPERTY_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'property',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        name === 'requestRegionMoveFn'
+          ? 'The accepted region-move request authority co-commits the Property move machine row and its required content-free operator decision; denied requests change no Property state and remain audit-only.'
+          : 'The Property command or responsibility store commits the revision-fenced state, audit metadata, and every required Property/responsibility fact in one PostgreSQL transaction.',
+    }
+  }
+  if (ATOMIC_INTEGRATION_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'integration',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Integration command/lifecycle store fences current tenant, connection, authorization generation, and revision then co-commits state and every required identifier-only outbox fact.',
+    }
+  }
+  if (LOCAL_ONLY_INTEGRATION_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'integration',
+      disposition: 'local_only_with_reason',
+      reason:
+        'This boundary issues or renews a short-lived OAuth/import/performance authorization or cache lease; it is Integration-local admission state and requires no cross-context domain fact.',
+    }
+  }
+  if (ATOMIC_GOAL_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'goal',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Goal Program repository commits the aggregate/version/assignment/result change, audit row, and its versioned outbox fact under one revision-fenced PostgreSQL transaction.',
+    }
+  }
+  if (LOCAL_ONLY_STAFF_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'staff',
+      disposition: 'local_only_with_reason',
+      reason:
+        'Staff Participant, Participation, and Portal Responsibility intervals are Staff-owned attribution state consumed by event-time lookup; no cross-context durable fact is required, and eligibility repair is idempotent.',
+    }
+  }
+  if (LOCAL_ONLY_SHARED_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'shared',
+      disposition: 'local_only_with_reason',
+      reason:
+        "This compatibility boundary only repairs the authenticated session's active-Organization pointer from durable membership authority; it creates no domain transition.",
+    }
+  }
+  if (LOCAL_ONLY_AI_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'ai',
+      disposition: 'local_only_with_reason',
+      reason:
+        'The request owns bounded AI admission/operation/outcome state and returns a draft to the caller; it cannot publish or mutate Review workflow and requires no downstream domain fact.',
+    }
+  }
+  if (LOCAL_ONLY_DASHBOARD_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'dashboard',
+      disposition: 'local_only_with_reason',
+      reason:
+        'Reads canonical, tenant-scoped setup facts and only inserts missing content-free first-completion milestones; source state remains authoritative in its owning context.',
+    }
+  }
+  return null
+}
+
+function localRouteStateOwner(name: string): EntryPointOwner {
+  if (
+    name === '/api/notifications/unsubscribe' ||
+    name === '/api/webhooks/resend/events'
+  ) {
+    return 'notification'
+  }
+  if (name === '/api/webhooks/gbp/notifications') return 'integration'
+  return 'identity'
+}
+
+/**
+ * Dispositions for HTTP routes and the request-facing collaboration surfaces
+ * (portal, guest, review, inbox, notification), matched by entry name. `null`
+ * means no rule in this table matched.
+ */
+function requestSurfaceMutation(name: string): EntryPointMutation | null {
+  if (ATOMIC_ROUTE_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'integration',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The OAuth route consumes one opaque ceremony then delegates connection authority to the Integration command store, which co-commits connection state and its lifecycle fact.',
+    }
+  }
+  if (LOCAL_ONLY_ROUTE_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: localRouteStateOwner(name),
+      disposition: 'local_only_with_reason',
+      reason:
+        'This authenticated/provider boundary owns only context-local session, preference, delivery-state, replay, or deterministic queue-admission effects; the source authority remains external or already durable and no new cross-context fact is required.',
+    }
+  }
+  if (name === 'softDeletePortalGroup' || ATOMIC_PORTAL_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'portal',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The owning Portal transaction commits its revision-fenced state or command receipt, required side effects, and every required versioned outbox fact together.',
+    }
+  }
+  if (LOCAL_ONLY_PORTAL_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'portal',
+      disposition: 'local_only_with_reason',
+      reason:
+        name === 'requestUploadUrl'
+          ? 'Creates one scoped, expiring upload issuance; no domain fact is required until verified finalization atomically stages processing.'
+          : 'The Portal contract declares no durable fact for this link/category edit; it is a context-local state write.',
+    }
+  }
+  if (ATOMIC_GUEST_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'guest',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Guest command or observation store atomically fences and persists the response/action receipt with every required content-minimal fact.',
+    }
+  }
+  if (name === 'startNewGuestResponseFn') {
+    return {
+      kind: 'mutation',
+      stateOwner: 'guest',
+      disposition: 'local_only_with_reason',
+      reason:
+        'Issues a fresh signed response-integrity session without changing the prior Guest Response or requiring a durable domain fact.',
+    }
+  }
+  if (ATOMIC_REVIEW_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'review',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Review command store commits the revision-fenced Reply transition and every required versioned lifecycle/publication fact in one PostgreSQL transaction.',
+    }
+  }
+  if (LOCAL_ONLY_REVIEW_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'review',
+      disposition: 'local_only_with_reason',
+      reason:
+        name === 'draftReplyFn'
+          ? 'Draft text is private Review-owned working state; durable workflow facts begin only when the manager submits it.'
+          : 'Deleting an unpublished draft/rejected Reply is Review-local state and has no downstream lifecycle fact contract.',
+    }
+  }
+  if (ATOMIC_INBOX_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'inbox',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Inbox command store locks and revalidates the exact tenant/source/cycle head, commits the optimistic state transition/history, and records every required content-free fact atomically.',
+    }
+  }
+  if (LOCAL_ONLY_INBOX_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'inbox',
+      disposition: 'local_only_with_reason',
+      reason:
+        "Advances the current user's private Inbox visit watermark; it is not a shared workflow transition and requires no domain fact.",
+    }
+  }
+  if (LOCAL_ONLY_NOTIFICATION_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'notification',
+      disposition: 'local_only_with_reason',
+      reason:
+        "Mutates only the current recipient's Notification read/dismiss/preference projection; it is not an authoritative cross-context domain transition.",
+    }
+  }
+  return null
+}
+
+/**
+ * Classify one entry point's mutation semantics. The three tables are consulted
+ * in order — kind-scoped rules first, then the name-scoped context and request
+ * surface tables — and the first match wins; anything unmatched is recorded as
+ * temporarily accepted debt rather than silently claimed as safe.
+ */
+function mutationForEntry(
+  kind: EntryPointKind,
+  name: string,
+  owner: EntryPointOwner,
+): EntryPointMutation {
+  return (
+    kindScopedMutation(kind, name, owner) ??
+    contextCommandMutation(name) ??
+    requestSurfaceMutation(name) ?? {
+      kind: 'mutation',
+      stateOwner: owner,
+      disposition: 'temporarily_accepted_debt',
+      reason:
+        'This bounded catalogue slice has not yet proven atomic-state-and-fact or local-only semantics.',
+      debtOwner: 'FND-03',
+      expiresAt: MUTATION_DEBT_EXPIRY,
+    }
+  )
+}
+
+function registrationForEntry(
+  kind: EntryPointKind,
+  file: string,
+): EntryPointRegistration {
+  if (kind === 'job') {
+    return { ownerFile: 'src/bootstrap.ts', reachability: 'boot_registry' }
+  }
+  if (kind === 'schedule') {
+    return { ownerFile: 'src/worker/index.ts', reachability: 'source_composed' }
+  }
+  if (kind === 'consumer') {
+    const context = CONTEXT_OWNER_RE.exec(file)?.[1]
+    return {
+      ownerFile: context ? `src/contexts/${context}/build.ts` : file,
+      reachability: context ? 'source_composed' : 'declared_only',
+    }
+  }
+  return { ownerFile: file, reachability: 'direct_declaration' }
+}
+
+function entryOwnerIssues(id: string, entry: Partial<EntryPointRow>): readonly string[] {
+  if (!entry.owner) return [`${id}: owner is missing`]
+  if (!ENTRY_POINT_OWNERS.has(entry.owner)) return [`${id}: owner is invalid`]
+  if (entry.file && entry.owner !== ownerForFile(entry.file)) {
+    return [`${id}: owner does not match definition path`]
+  }
+  return []
+}
+
+function entryRegistrationIssues(
+  id: string,
+  registration: EntryPointRegistration | undefined,
+): readonly string[] {
+  if (!registration?.ownerFile || !registration.reachability) {
+    return [`${id}: registration ownership is missing`]
+  }
+  if (
+    !['direct_declaration', 'source_composed', 'boot_registry', 'declared_only'].includes(
+      registration.reachability,
+    )
+  ) {
+    return [`${id}: registration reachability is invalid`]
+  }
+  return []
+}
+
+function entryMutationIssues(
+  id: string,
+  mutation: EntryPointMutation | undefined,
+): readonly string[] {
+  if (!mutation || typeof mutation !== 'object') {
+    return [`${id}: mutation classification is missing`]
+  }
+  if (mutation.kind === 'read_only') return []
+  if (mutation.kind !== 'mutation') return [`${id}: mutation kind is invalid`]
+
+  const issues: string[] = []
+  if (!MUTATION_DISPOSITIONS.has(mutation.disposition)) {
+    issues.push(`${id}: mutation disposition is invalid`)
+  }
+  if (!mutation.stateOwner) issues.push(`${id}: mutation state owner is missing`)
+  else if (!ENTRY_POINT_OWNERS.has(mutation.stateOwner)) {
+    issues.push(`${id}: mutation state owner is invalid`)
+  }
+  if (!mutation.reason) issues.push(`${id}: mutation reason is missing`)
+  if (mutation.disposition === 'temporarily_accepted_debt') {
+    if (!mutation.debtOwner) issues.push(`${id}: debt owner is missing`)
+    if (!/^\d{4}-\d{2}-\d{2}$/u.test(mutation.expiresAt ?? '')) {
+      issues.push(`${id}: debt expiry is invalid`)
+    }
+  }
+  return issues
+}
+
+export function validateEntryPointGovernance(
+  rows: readonly unknown[],
+): readonly string[] {
+  const issues: string[] = []
+  for (const candidate of rows) {
+    const entry = candidate as Partial<EntryPointRow>
+    const id = typeof entry.id === 'string' ? entry.id : '<unknown-entry>'
+    issues.push(
+      ...entryOwnerIssues(id, entry),
+      ...entryRegistrationIssues(id, entry.registration),
+      ...entryMutationIssues(id, entry.mutation),
+    )
+  }
+  return issues
+}
+
 // ── Row factories (records of functions — no classes) ───────────────
 
 type RowOpts = Partial<
@@ -187,11 +979,15 @@ function row(
   }>,
   opts: RowOpts = {},
 ): EntryPointRow {
+  const owner = opts.owner ?? ownerForFile(file)
   return {
     id: `${kind}:${name}`,
     kind,
     name,
     file,
+    owner,
+    mutation: opts.mutation ?? mutationForEntry(kind, name, owner),
+    registration: opts.registration ?? registrationForEntry(kind, file),
     action: base.action,
     capability: base.capability,
     resourceScope: base.resourceScope,
@@ -351,9 +1147,6 @@ const DASHBOARD = 'src/contexts/dashboard/server'
 const NOTIFICATION = 'src/contexts/notification/server'
 const ACTIVITY = 'src/contexts/activity/server'
 const GOAL = 'src/contexts/goal/server'
-const TEAM = 'src/contexts/team/server'
-const LEADERBOARD = 'src/contexts/leaderboard/server'
-const BADGE = 'src/contexts/badge/server'
 const STAFF = 'src/contexts/staff/server'
 const PORTAL = 'src/contexts/portal/server'
 const GUEST = 'src/contexts/guest/server'
@@ -364,6 +1157,345 @@ const AUTHED = 'src/routes/_authenticated'
 const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   // ── identity ──────────────────────────────────────────────────────
   ...[
+    sf(
+      'getClosureCenterHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+      },
+    ),
+    sf(
+      'getClosureCenterFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+      },
+    ),
+    sf(
+      'requestOrganizationClosureHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Commits the closure request, the Organization-wide suspension and the lifecycle authority row in one transaction after locking the membership and binding rows',
+        },
+      },
+    ),
+    sf(
+      'requestOrganizationClosureFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Commits the closure request, the Organization-wide suspension and the lifecycle authority row in one transaction after locking the membership and binding rows',
+        },
+      },
+    ),
+    sf(
+      'cancelOrganizationClosureHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Commits the cancellation and DELIBERATELY LEAVES the Organization-wide suspension in place, setting the reactivation fence so nothing resumes silently. Only reactivateOrganization lifts the suspension, which is why requestClosure refuses when reactivation is not composed',
+        },
+      },
+    ),
+    sf(
+      'cancelOrganizationClosureFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Commits the cancellation and DELIBERATELY LEAVES the Organization-wide suspension in place, setting the reactivation fence so nothing resumes silently. Only reactivateOrganization lifts the suspension, which is why requestClosure refuses when reactivation is not composed',
+        },
+      },
+    ),
+    sf(
+      'reactivateOrganizationHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Clears the reactivation fence only after every declared health, Google authorization and Portal reactivation check passes, in one transaction with its evidence',
+        },
+      },
+    ),
+    sf(
+      'reactivateOrganizationFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Clears the reactivation fence only after every declared health, Google authorization and Portal reactivation check passes, in one transaction with its evidence',
+        },
+      },
+    ),
+    sf(
+      'requestOrganizationExportHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Idempotently binds the caller-supplied request id to one export request row',
+        },
+      },
+    ),
+    sf(
+      'requestOrganizationExportFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Idempotently binds the caller-supplied request id to one export request row',
+        },
+      },
+    ),
+    sf(
+      'issueOrganizationExportRetrievalHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Co-commits the digest-only, bounded retrieval authority with its access audit',
+        },
+      },
+    ),
+    sf(
+      'issueOrganizationExportRetrievalFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Co-commits the digest-only, bounded retrieval authority with its access audit',
+        },
+      },
+    ),
+    sf(
+      'downloadOrganizationExportHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Atomically consumes an unexpired single-use token and co-commits the access audit',
+        },
+      },
+    ),
+    sf(
+      'downloadOrganizationExportFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Atomically consumes an unexpired single-use token and co-commits the access audit',
+        },
+      },
+    ),
+    sf(
+      'listOutstandingResponsibilitiesHandler',
+      `${IDENTITY}/organization-leave-fns.ts`,
+      'identity.leave_org',
+      'identity.invite',
+      'organization',
+      {
+        notes:
+          'LIF-01-T21 transfer-first leave. Gated by identity.leave_org; a sole AccountAdmin cannot leave, and outstanding responsibilities must transfer before the membership is removed',
+      },
+    ),
+    sf(
+      'listOutstandingResponsibilitiesFn',
+      `${IDENTITY}/organization-leave-fns.ts`,
+      'identity.leave_org',
+      'identity.invite',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T21 transfer-first leave. Gated by identity.leave_org; a sole AccountAdmin cannot leave, and outstanding responsibilities must transfer before the membership is removed',
+      },
+    ),
+    sf(
+      'leaveOrganizationHandler',
+      `${IDENTITY}/organization-leave-fns.ts`,
+      'identity.leave_org',
+      'identity.invite',
+      'organization',
+      {
+        notes:
+          'LIF-01-T21 transfer-first leave. Gated by identity.leave_org; a sole AccountAdmin cannot leave, and outstanding responsibilities must transfer before the membership is removed',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Removes the membership, transfers or refuses on outstanding responsibilities, and revokes sessions in one transaction with its durable fact',
+        },
+      },
+    ),
+    sf(
+      'leaveOrganizationFn',
+      `${IDENTITY}/organization-leave-fns.ts`,
+      'identity.leave_org',
+      'identity.invite',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T21 transfer-first leave. Gated by identity.leave_org; a sole AccountAdmin cannot leave, and outstanding responsibilities must transfer before the membership is removed',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Removes the membership, transfers or refuses on outstanding responsibilities, and revokes sessions in one transaction with its durable fact',
+        },
+      },
+    ),
+    sf(
+      'submitBetaFeedbackHandler',
+      `${IDENTITY}/beta-feedback.ts`,
+      'feedback.respond',
+      'portal.guest_response',
+      'organization',
+      {
+        externalEffect: true,
+        purpose: 'beta_product_feedback',
+        notes:
+          'Server-only implementation behind submitBetaFeedbackFn; resolves tenant authority through the central execution policy before applying the bounded feedback contract',
+      },
+    ),
+    sf(
+      'submitBetaFeedbackFn',
+      `${IDENTITY}/beta-feedback.ts`,
+      'feedback.respond',
+      'portal.guest_response',
+      'organization',
+      {
+        canonicalOnly: true,
+        externalEffect: true,
+        purpose: 'beta_product_feedback',
+        notes:
+          'AccountAdmin/PropertyManager only; strict text-only contract; actor + organization rate limits; sends scrubbed report to Sentry',
+      },
+    ),
     sf(
       'inviteMember',
       `${IDENTITY}/organizations.members.ts`,
@@ -433,9 +1565,13 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'registerMember',
       `${IDENTITY}/organizations.registration.ts`,
       'system:identity.register',
-      'identity.register',
       'none',
-      { notes: 'public unauthenticated; IP rate-limited' },
+      'none',
+      {
+        canonicalOnly: true,
+        notes:
+          'public; IP rate-limited; content-free pre-provider recovery fence + exact pending manager invitation acceptance; interrupted provider commits are durably resumed, safely compensated, or stopped for manual review',
+      },
     ),
     sfPublic(
       'registerUserAndOrg',
@@ -443,7 +1579,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'system:identity.register',
       'organization.create',
       'none',
-      { notes: 'public; creates org; IP rate-limited' },
+      {
+        notes:
+          'dormant in beta; permanently blocked organization.create capability; creates org when reactivated',
+      },
     ),
     sfPublic(
       'signInUser',
@@ -459,7 +1598,11 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'system:session.mutate',
       'none',
       'none',
-      { canonicalOnly: true, notes: 'session-only, no permission assert' },
+      {
+        canonicalOnly: true,
+        notes:
+          'session-only; may only reassert the exact active beta Organization binding',
+      },
     ),
     sf(
       'listUserInvitations',
@@ -512,22 +1655,22 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'createCustomRole',
       `${IDENTITY}/organizations.roles.ts`,
       'member.update',
-      'identity.invite',
+      'identity.custom_roles',
       'organization',
-      { notes: 'use case re-checks + escalation guard' },
+      { notes: 'beta-disabled capability; dormant use case also re-checks escalation' },
     ),
     sf(
       'updateCustomRole',
       `${IDENTITY}/organizations.roles.ts`,
       'member.update',
-      'identity.invite',
+      'identity.custom_roles',
       'organization',
     ),
     sf(
       'deleteCustomRole',
       `${IDENTITY}/organizations.roles.ts`,
       'member.update',
-      'identity.invite',
+      'identity.custom_roles',
       'organization',
     ),
     sf(
@@ -560,7 +1703,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'system:identity.create_organization',
       'organization.create',
       'organization',
-      { notes: 'F045 closed in BQC-2.4: assertGlobalCapability(organization.create)' },
+      {
+        notes:
+          'self-service path is dormant in beta; permanently blocked organization.create capability',
+      },
     ),
     sf(
       'updateOrganization',
@@ -765,6 +1911,105 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   // ── property ──────────────────────────────────────────────────────
   ...[
     sf(
+      'archivePropertyHandler',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.archive',
+      'property.create',
+      'property',
+      {
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.archived outbox fact in one PostgreSQL transaction; no deletion occurs.',
+        },
+      },
+    ),
+    sf(
+      'archiveProperty',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.archive',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.archived outbox fact in one PostgreSQL transaction; no deletion occurs.',
+        },
+      },
+    ),
+    sf(
+      'restorePropertyHandler',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.restore',
+      'property.create',
+      'property',
+      {
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.restored outbox fact in one PostgreSQL transaction; readiness prerequisites are checked before transition.',
+        },
+      },
+    ),
+    sf(
+      'restoreProperty',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.restore',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.restored outbox fact in one PostgreSQL transaction; readiness prerequisites are checked before transition.',
+        },
+      },
+    ),
+    sf(
+      'disconnectPropertyGoogleBindingHandler',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.disconnect',
+      'property.create',
+      'property',
+      {
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property Google binding store locks/fences the exact Property binding, atomically commits disconnected binding state, source-epoch and destination-readiness changes with its required identifier-only property.google_binding.changed fact; the Organization Google connection and Property row/history remain intact.',
+        },
+      },
+    ),
+    sf(
+      'disconnectPropertyGoogleBinding',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.disconnect',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property Google binding store locks/fences the exact Property binding, atomically commits disconnected binding state, source-epoch and destination-readiness changes with its required identifier-only property.google_binding.changed fact; the Organization Google connection and Property row/history remain intact.',
+        },
+      },
+    ),
+    sf(
       'createProperty',
       `${PROPERTY}/properties.ts`,
       'property.create',
@@ -795,12 +2040,34 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'policy-wired in BQC-2.4 with target propertyId' },
     ),
     sf(
+      'listPropertyResponsibleManagers',
+      `${PROPERTY}/property-responsible-managers.ts`,
+      'property.read',
+      'property.create',
+      'property',
+      { notes: 'scoped via authoritative propertyId' },
+    ),
+    sf(
+      'updatePropertyResponsibleManagers',
+      `${PROPERTY}/property-responsible-managers.ts`,
+      'property.update',
+      'property.create',
+      'property',
+      {
+        notes:
+          'role/access/participation eligibility and CAS revalidated in the use case',
+      },
+    ),
+    sf(
       'deleteProperty',
       `${PROPERTY}/property-read.ts`,
       'property.delete',
-      'property.create',
+      'property.erase',
       'property',
-      { notes: 'soft-delete; policy-wired in BQC-2.4 with target propertyId' },
+      {
+        notes:
+          'LIF-01 containment: blocked capability and server/use-case denial preserve stale-client compatibility without a destructive effect',
+      },
     ),
     sf(
       'requestRegionMoveFn',
@@ -817,14 +2084,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
 
   // ── integration ───────────────────────────────────────────────────
   ...[
-    sf(
-      'connectGoogle',
-      `${INTEGRATION}/google-connections.ts`,
-      'integration.manage',
-      'integration.use',
-      'organization',
-      { externalEffect: true, notes: 'exchanges OAuth code, stores Google tokens' },
-    ),
     sf(
       'listGoogleConnections',
       `${INTEGRATION}/google-connections.ts`,
@@ -905,6 +2164,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       {
         externalEffect: true,
         notes: 'atomically advances one retry revision and dispatches the new attempt',
+      },
+    ),
+    sf(
+      'cancelPropertyImportV2',
+      `${INTEGRATION}/gbp-import.ts`,
+      'integration.manage',
+      'property.import_gbp_v2',
+      'organization',
+      {
+        notes:
+          'initiator-scoped, idempotent cancellation of every active child batch in one import saga',
       },
     ),
     sf(
@@ -1068,12 +2338,69 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'scoped via inboxItemId' },
     ),
     sf(
+      'getResponseTargetPolicySettingsFn',
+      `${INBOX}/inbox-response-targets.ts`,
+      'organization.update',
+      'identity.invite',
+      'organization',
+      {
+        notes:
+          'AccountAdmin-only current policy/version read for compare-and-set Organization and optional Property settings',
+      },
+    ),
+    sf(
+      'getPrivateFeedbackTargetAnalyticsFn',
+      `${INBOX}/inbox-response-targets.ts`,
+      'inbox.read',
+      'inbox.use',
+      'organization',
+      {
+        alsoActions: ['feedback.read'],
+        notes:
+          'intersects the caller current private-feedback Property scope; only measured, non-withdrawn target cycles contribute',
+      },
+    ),
+    sf(
+      'getGoogleReviewTargetAnalyticsFn',
+      `${INBOX}/inbox-response-targets.ts`,
+      'inbox.read',
+      'inbox.use',
+      'organization',
+      {
+        alsoActions: ['review.read'],
+        notes:
+          'intersects the caller current Google-review Property scope; only measured target cycles contribute',
+      },
+    ),
+    sf(
+      'setResponseTargetPolicyFn',
+      `${INBOX}/inbox-response-targets.ts`,
+      'organization.update',
+      'identity.invite',
+      'organization',
+      {
+        notes:
+          'version-fenced Organization target or Private Feedback Property override; commits an identifier-only policy-changed fact',
+      },
+    ),
+    sf(
       'getInboxNotesFn',
       `${INBOX}/inbox-item-queries.ts`,
       'inbox.read',
       'inbox.use',
       'property',
       { notes: 'scoped via inboxItemId' },
+    ),
+    sf(
+      'getInboxItemHistoryFn',
+      `${INBOX}/inbox-item-queries.ts`,
+      'inbox.read',
+      'inbox.use',
+      'property',
+      {
+        notes:
+          'IBX-01-T5 complete handling record: cycles, assignments and escalations for one Inbox Item, scoped via inboxItemId; manager-internal note text additionally requires inbox.write and feedback.handle',
+      },
     ),
     sf(
       'assignInboxItemFn',
@@ -1084,12 +2411,48 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'scoped via inboxItemId' },
     ),
     sf(
+      'bulkAssignInboxItemsFn',
+      `${INBOX}/inbox-item-actions.ts`,
+      'inbox.write',
+      'inbox.use',
+      'property',
+      {
+        alsoActions: ['inbox.manage'],
+        notes:
+          'bounded all-or-nothing assignment/reassignment/release; scoped via inboxItemIds and transactionally reauthorizes every actor/assignee/property/source tuple',
+      },
+    ),
+    sf(
       'addInboxNoteFn',
       `${INBOX}/inbox-item-actions.ts`,
       'inbox.write',
       'inbox.use',
       'property',
       { notes: 'scoped via inboxItemId' },
+    ),
+    sf(
+      'markFeedbackHandledFn',
+      `${INBOX}/inbox-feedback-handling.ts`,
+      'inbox.write',
+      'inbox.use',
+      'property',
+      {
+        alsoActions: ['feedback.handle'],
+        notes:
+          'private-feedback source only; exact Property authority and revision/cycle/source/state fences are rechecked transactionally',
+      },
+    ),
+    sf(
+      'correctFeedbackHandlingOutcomeFn',
+      `${INBOX}/inbox-feedback-handling.ts`,
+      'inbox.write',
+      'inbox.use',
+      'property',
+      {
+        alsoActions: ['feedback.handle'],
+        notes:
+          'append-only private-feedback outcome correction; exact Property authority and prior-outcome revision are rechecked transactionally',
+      },
     ),
     sf(
       'updateInboxStatusFn',
@@ -1136,6 +2499,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'property-access check; reply fields zeroed for Staff' },
     ),
     sf(
+      'getPropertyOverviewFn',
+      `${DASHBOARD}/dashboard.ts`,
+      'dashboard.read',
+      'dashboard.use',
+      'property',
+      {
+        alsoActions: ['dashboard.fleet_read'],
+        notes: 'shared KPI snapshot for Property dashboard and attention',
+      },
+    ),
+    sf(
       'getStaffDashboardDataFn',
       `${DASHBOARD}/staff-dashboard.ts`,
       'dashboard.read',
@@ -1154,6 +2528,18 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       },
     ),
     sf(
+      'getSetupChecklistFn',
+      `${DASHBOARD}/setup-checklist.ts`,
+      'dashboard.read',
+      'dashboard.use',
+      'organization',
+      {
+        alsoActions: ['dashboard.fleet_read'],
+        notes:
+          'role-aware exact Property scope; content-free monotonic setup milestones only',
+      },
+    ),
+    sf(
       'getPortalAnalyticsFn',
       `${DASHBOARD}/portal-analytics.ts`,
       'dashboard.read',
@@ -1161,29 +2547,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property',
       { notes: '+ isPropertyAccessibleForPermission check (D6-001)' },
     ),
-    sf(
-      'getAttentionSignalsFn',
-      `${DASHBOARD}/attention-signals.ts`,
-      'dashboard.read',
-      'dashboard.use',
-      'property',
-      {
-        alsoActions: ['dashboard.fleet_read'],
-        notes: '+ property-access check (D6-001)',
-      },
-    ),
   ],
 
   // ── notification ──────────────────────────────────────────────────
   ...[
-    sf(
-      'getUnreadNotificationCountFn',
-      `${NOTIFICATION}/notifications.ts`,
-      'notification.read',
-      'notification.in_app',
-      'organization',
-      { notes: 'tolerates no-active-org (returns 0)' },
-    ),
     sf(
       'getNotificationsFn',
       `${NOTIFICATION}/notifications.ts`,
@@ -1191,6 +2558,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'notification.in_app',
       'organization',
       { notes: 'tolerates no-active-org' },
+    ),
+    sf(
+      'getNotificationFeedHeadFn',
+      `${NOTIFICATION}/notifications.ts`,
+      'notification.read',
+      'notification.in_app',
+      'organization',
+      {
+        notes:
+          'snapshot-consistent offset-zero page + exact unread count + shared watermark; tolerates no-active-org',
+      },
     ),
     sf(
       'markNotificationReadFn',
@@ -1245,6 +2623,14 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'notification preferences settings route' },
     ),
     sf(
+      'muteNotificationCategoryFn',
+      `${NOTIFICATION}/notifications.ts`,
+      'notification.update',
+      'notification.in_app',
+      'organization',
+      { notes: 'notification-row action; mutes only the selected in-app category' },
+    ),
+    sf(
       'getNotificationUserSettingsFn',
       `${NOTIFICATION}/notifications.ts`,
       'notification.read',
@@ -1276,7 +2662,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       },
     ),
     sf(
-      'getOrgActivityFn',
+      'listRecentActivityFn',
       `${ACTIVITY}/activity.ts`,
       'inbox.read',
       'inbox.use',
@@ -1286,229 +2672,125 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
           'activity surface gated via inbox.read → inbox.use today; remap to activity.use in BQC-2.4',
       },
     ),
+    sf(
+      'listOperationalActionHistoryFn',
+      `${ACTIVITY}/activity.ts`,
+      'policy.admin',
+      'identity.invite',
+      'organization',
+      {
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'activity',
+          disposition: 'local_only_with_reason',
+          reason:
+            'The restricted read atomically appends its content-free access outcome to Activity-owned Operational Action History before returning a tenant-forced bounded page; it creates no cross-context domain transition.',
+        },
+        notes:
+          'Current AccountAdmin authority is revalidated inside the Activity application seam; the context build remains default-deny until Identity composition injects that authority.',
+      },
+    ),
+    sf(
+      'exportOperationalActionHistoryFn',
+      `${ACTIVITY}/activity.ts`,
+      'policy.admin',
+      'identity.invite',
+      'organization',
+      {
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'activity',
+          disposition: 'local_only_with_reason',
+          reason:
+            'The restricted export atomically appends its content-free access outcome and returns only an identifier/code canonical page with a reproducibility fingerprint; it creates no cross-context domain transition.',
+        },
+        notes:
+          'Current AccountAdmin authority is revalidated inside the Activity application seam; the context build remains default-deny until Identity composition injects that authority.',
+      },
+    ),
   ],
 
   // ── goal (dark) ───────────────────────────────────────────────────
   ...[
-    sf('createGoal', `${GOAL}/goals.ts`, 'goal.create', 'goal.use', 'property'),
-    sf('updateGoal', `${GOAL}/goals.ts`, 'goal.update', 'goal.use', 'property', {
-      notes: 'scoped via goalId',
-    }),
-    sf('cancelGoal', `${GOAL}/goals.ts`, 'goal.cancel', 'goal.use', 'property', {
-      notes: 'scoped via goalId',
-    }),
-    sf('listGoals', `${GOAL}/goals.ts`, 'goal.read', 'goal.use', 'property'),
-    sf('getGoal', `${GOAL}/goals.ts`, 'goal.read', 'goal.use', 'property', {
-      notes: 'scoped via goalId',
-    }),
-    sf('listStaffGoals', `${GOAL}/staff-goals.ts`, 'goal.read', 'goal.use', 'property'),
     sf(
-      'createGovernedGoal',
-      `${GOAL}/governed-goals.ts`,
+      'createGoalProgram',
+      `${GOAL}/goal-programs.ts`,
       'goal.create',
       'goal.use',
       'property',
       {
         canonicalOnly: true,
-        notes: 'authorization is injected through the governed Goal service policy',
+        notes:
+          'canonical beta Goal Program writer; policy is injected through the application service',
       },
     ),
     sf(
-      'reviseGovernedGoal',
-      `${GOAL}/governed-goals.ts`,
+      'reviseGoalProgram',
+      `${GOAL}/goal-programs.ts`,
       'goal.update',
       'goal.use',
       'property',
       {
         canonicalOnly: true,
-        notes: 'authorization is injected through the governed Goal service policy',
+        notes:
+          'canonical next-full-month revision; policy is injected through the application service',
       },
     ),
     sf(
-      'changeGovernedGoalStatus',
-      `${GOAL}/governed-goals.ts`,
+      'changeGoalProgramAssignments',
+      `${GOAL}/goal-programs.ts`,
       'goal.update',
       'goal.use',
       'property',
       {
         canonicalOnly: true,
-        notes: 'authorization is injected through the governed Goal service policy',
+        notes:
+          'point-in-time Goal Program assignment replacement; the application service reauthorizes every selected Property before the command store commits the new assignment revision',
       },
     ),
     sf(
-      'getGovernedGoal',
-      `${GOAL}/governed-goals.ts`,
+      'changeGoalProgramStatus',
+      `${GOAL}/goal-programs.ts`,
+      'goal.update',
+      'goal.use',
+      'property',
+      {
+        canonicalOnly: true,
+        alsoActions: ['goal.cancel'],
+        notes:
+          'canonical Goal Program lifecycle transition; end requests assert goal.update here and goal.cancel inside the service',
+      },
+    ),
+    sf(
+      'getGoalProgram',
+      `${GOAL}/goal-programs.ts`,
       'goal.read',
       'goal.use',
       'property',
       {
         canonicalOnly: true,
-        notes: 'authorization is injected through the governed Goal service policy',
+        notes: 'canonical Goal Program aggregate read',
       },
     ),
     sf(
-      'listGovernedGoals',
-      `${GOAL}/governed-goals.ts`,
+      'listGoalPrograms',
+      `${GOAL}/goal-programs.ts`,
       'goal.read',
       'goal.use',
       'property',
       {
         canonicalOnly: true,
-        notes: 'authorization is injected through the governed Goal service policy',
+        notes: 'canonical Property-scoped Goal Program aggregate list',
       },
     ),
-  ],
-
-  // ── team (dark) ───────────────────────────────────────────────────
-  ...[
-    sf('createTeam', `${TEAM}/teams.ts`, 'team.create', 'team.use', 'property'),
-    sf('updateTeam', `${TEAM}/teams.ts`, 'team.update', 'team.use', 'property', {
-      notes: 'scoped via teamId',
+    sf('listStaffGoals', `${GOAL}/staff-goals.ts`, 'goal.read', 'goal.use', 'property', {
+      notes:
+        'retained compatibility declaration fails closed with HTTP 410 before container or historical-row access; no Staff Home consumer is routed',
     }),
-    sf('listTeams', `${TEAM}/teams.ts`, 'team.read', 'team.use', 'property'),
-    sf('deleteTeam', `${TEAM}/teams.ts`, 'team.delete', 'team.use', 'property', {
-      notes: 'soft-delete; scoped via teamId',
-    }),
-    sf('listTeamMemberships', `${TEAM}/teams.ts`, 'team.read', 'team.use', 'property', {
-      notes: 'scoped via teamId',
-    }),
-    sf(
-      'addTeamMember',
-      `${TEAM}/teams.ts`,
-      'team.membership.manage',
-      'team.use',
-      'property',
-      { notes: 'scoped via teamId and participationId' },
-    ),
-    sf(
-      'removeTeamMember',
-      `${TEAM}/teams.ts`,
-      'team.membership.manage',
-      'team.use',
-      'property',
-      { notes: 'scoped via teamId and participationId' },
-    ),
-    sf('setTeamLead', `${TEAM}/teams.ts`, 'team.update', 'team.use', 'property', {
-      notes: 'one lead per team; scoped via teamId and participationId',
-    }),
-    sf('clearTeamLead', `${TEAM}/teams.ts`, 'team.update', 'team.use', 'property', {
-      notes: 'scoped via teamId',
-    }),
-    sf('listMyTeam', `${TEAM}/teams.ts`, 'team.read', 'team.use', 'property', {
-      canonicalOnly: true,
-      notes: 'authorization is applied per assigned scope before team details are read',
-    }),
-  ],
-
-  // ── property-scoped recognition ───────────────────────────────────
-  ...[
-    sf(
-      'getRecognitionBoard',
-      `${LEADERBOARD}/leaderboards.ts`,
-      'leaderboard.read',
-      'leaderboard.use',
-      'property',
-    ),
-    sf(
-      'getRecognitionSettings',
-      `${LEADERBOARD}/leaderboards.ts`,
-      'badge.manage',
-      'badge.use',
-      'property',
-      {
-        alsoActions: ['leaderboard.read'],
-        notes: 'also requires leaderboard.read through ExecutionPolicy',
-      },
-    ),
-    sf(
-      'activateRecognition',
-      `${LEADERBOARD}/leaderboards.ts`,
-      'badge.manage',
-      'badge.use',
-      'property',
-      {
-        alsoActions: ['leaderboard.read'],
-        notes: 'also requires leaderboard.read through ExecutionPolicy',
-      },
-    ),
-    sf(
-      'deactivateRecognition',
-      `${LEADERBOARD}/leaderboards.ts`,
-      'badge.manage',
-      'badge.use',
-      'property',
-      {
-        alsoActions: ['leaderboard.read'],
-        notes: 'also requires leaderboard.read through ExecutionPolicy',
-      },
-    ),
-  ],
-
-  // ── badge (dark) ──────────────────────────────────────────────────
-  ...[
-    sf(
-      'getStaffVisibleBadges',
-      `${BADGE}/badges.ts`,
-      'badge.read',
-      'badge.use',
-      'property',
-    ),
-    sf(
-      'getVisibleTargetBadges',
-      `${BADGE}/badges.ts`,
-      'badge.read',
-      'badge.use',
-      'property',
-      { notes: '+ role-filtered visibility check (Staff/PM)' },
-    ),
-    sf(
-      'setOrganizationBadgeEnablement',
-      `${BADGE}/badges.ts`,
-      'badge.manage',
-      'badge.use',
-      'organization',
-    ),
-    sf(
-      'getOrganizationBadgeDefinitionsFn',
-      `${BADGE}/badges.ts`,
-      'badge.read',
-      'badge.use',
-      'organization',
-    ),
   ],
 
   // ── staff ─────────────────────────────────────────────────────────
   ...[
-    sf(
-      'createStaffAssignment',
-      `${STAFF}/staff-assignments.ts`,
-      'staff.manage',
-      'staff.use',
-      'property',
-    ),
-    sf(
-      'removeStaffAssignment',
-      `${STAFF}/staff-assignments.ts`,
-      'staff.manage',
-      'staff.use',
-      'property',
-      { notes: 'scoped via assignmentId' },
-    ),
-    sf(
-      'listStaffAssignments',
-      `${STAFF}/staff-assignments.ts`,
-      'staff.read',
-      'staff.use',
-      'property',
-    ),
-    sf(
-      'updateStaffPortals',
-      `${STAFF}/staff-portals-update.ts`,
-      'staff.manage',
-      'staff.use',
-      'property',
-      { notes: 'defense-in-depth; use case also enforces' },
-    ),
     sf(
       'listStaffPortals',
       `${STAFF}/staff-portals.ts`,
@@ -1563,7 +2845,21 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.update',
       'portal.write',
       'property',
-      { notes: 'scoped via portalId' },
+      {
+        notes:
+          'scoped via portalId; publish, archive, and restore commit a dedicated content-minimal semantic fact with state and any immutable publication mutation',
+      },
+    ),
+    sf(
+      'rollbackPortalPublication',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'appends a new activation for an earlier immutable snapshot and co-commits the exact target version/digest rollback fact; scoped via portalId',
+      },
     ),
     sf(
       'completeContentReview',
@@ -1574,9 +2870,126 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'scoped via authoritative portalId before recording workflow facts' },
     ),
     sf('listPortals', `${PORTAL}/portals.ts`, 'portal.read', 'portal.read', 'property'),
+    sf(
+      'listPortalResponsibleManagers',
+      `${PORTAL}/portal-responsible-managers.ts`,
+      'portal.read',
+      'portal.read',
+      'property',
+      { notes: 'scoped via authoritative portalId' },
+    ),
+    sf(
+      'updatePortalResponsibleManagers',
+      `${PORTAL}/portal-responsible-managers.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'scoped via authoritative portalId; role/access/participation eligibility and CAS revalidated in the use case',
+      },
+    ),
     sf('getPortal', `${PORTAL}/portals.ts`, 'portal.read', 'portal.read', 'property', {
       notes: 'scoped via portalId',
     }),
+    sf(
+      'getPortalPublicationHistory',
+      `${PORTAL}/portals.ts`,
+      'portal.read',
+      'portal.read',
+      'property',
+      {
+        notes:
+          'scoped via authoritative portalId; read model queries the exact organization/property/portal tuple',
+      },
+    ),
+    sf(
+      'getPropertyPortalExperience',
+      `${PORTAL}/portals.ts`,
+      'portal.read',
+      'portal.read',
+      'property',
+      { notes: 'Property scope is resolved from the requested Property id' },
+    ),
+    sf(
+      'savePropertyPortalBrandProfile',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'serializes the Property publication source and atomically records pending publication state plus an identifier-only version fact',
+      },
+    ),
+    sf(
+      'savePropertyPortalBrandContent',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'serializes localized Property content and atomically records pending publication state plus an identifier-only locale/version fact',
+      },
+    ),
+    sf(
+      'savePortalLocalizedOverride',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'locks the exact Portal working copy and atomically records pending publication state plus an identifier-only locale/version fact',
+      },
+    ),
+    sf(
+      'listPortalApprovedDestinations',
+      `${PORTAL}/portals.ts`,
+      'portal.read',
+      'portal.read',
+      'property',
+      {
+        notes:
+          'scoped via authoritative Portal id; returns manager-only Property destination state',
+      },
+    ),
+    sf(
+      'requestPortalApprovedDestination',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        externalEffect: true,
+        notes:
+          'scoped via authoritative Portal id; every DNS answer and pinned redirect hop is validated before the atomic Property registry write/fact',
+      },
+    ),
+    sf(
+      'approvePortalApprovedDestination',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        externalEffect: true,
+        notes:
+          'AccountAdmin-only approval; network policy is revalidated before the atomic approval/pending/fact transaction',
+      },
+    ),
+    sf(
+      'disablePortalApprovedDestination',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'AccountAdmin-only terminal disable; serializes with publication and records pending state plus identifier-only fact',
+      },
+    ),
     sf(
       'deletePortal',
       `${PORTAL}/portals.ts`,
@@ -1591,7 +3004,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.update',
       'portal.upload',
       'property',
-      { externalEffect: true, notes: 'issues S3 presigned upload URL' },
+      {
+        externalEffect: true,
+        notes: 'persists a scoped, single-purpose issuance; returns no object key',
+      },
     ),
     sf(
       'finalizeUpload',
@@ -1599,7 +3015,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.update',
       'portal.upload',
       'property',
-      { externalEffect: true, notes: 'verifies uploaded object in S3' },
+      {
+        externalEffect: true,
+        notes: 'CAS-consumes an opaque issuance after exact S3 metadata verification',
+      },
     ),
     sf(
       'issuePortalToken',
@@ -1776,6 +3195,68 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       },
     ),
     sfPublic(
+      'startNewGuestResponseFn',
+      `${GUEST}/public.ts`,
+      'public:portal.response.start_new',
+      'portal.guest_response',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'signed rated session only; rotates shared-device recovery identity without mutating the earlier response',
+      },
+    ),
+    sfPublic(
+      'submitPrivateFeedbackFn',
+      `${GUEST}/public.ts`,
+      'public:portal.response.text.submit',
+      'portal.guest_text',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'signed rated session; eligibility uses the Portal threshold captured at rating submission',
+      },
+    ),
+    sfPublic(
+      'withdrawPrivateFeedbackFn',
+      `${GUEST}/public.ts`,
+      'public:portal.response.text.withdraw',
+      'portal.guest_text',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'signed rated session; purges private text within 24 hours while preserving the private rating',
+      },
+    ),
+    sfPublic(
+      'selectGoogleReviewFn',
+      `${GUEST}/public.ts`,
+      'public:portal.google_review.select',
+      'portal.public_read',
+      'property',
+      {
+        canonicalOnly: true,
+        externalEffect: true,
+        notes:
+          'signed rated session; records core selection analytics and returns the Property-owned Google URI',
+      },
+    ),
+    sfPublic(
+      'selectSecondaryLinkFn',
+      `${GUEST}/public.ts`,
+      'public:portal.secondary_link.select',
+      'portal.public_read',
+      'property',
+      {
+        canonicalOnly: true,
+        externalEffect: true,
+        notes:
+          'signed rated session; explicit mutation records the first session/destination action and returns the approved URL',
+      },
+    ),
+    sfPublic(
       'withdrawGuestResponseFn',
       `${GUEST}/public.ts`,
       'public:portal.response.withdraw',
@@ -1784,30 +3265,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       {
         canonicalOnly: true,
         notes: 'terminal anonymization and durable media purge scheduling',
-      },
-    ),
-    sfPublic(
-      'issueGuestMediaFn',
-      `${GUEST}/public.ts`,
-      'public:portal.media.issue',
-      'portal.guest_media',
-      'property',
-      {
-        canonicalOnly: true,
-        externalEffect: true,
-        notes: 'single-use scoped object issuance after response/media consent',
-      },
-    ),
-    sfPublic(
-      'confirmGuestMediaFn',
-      `${GUEST}/public.ts`,
-      'public:portal.media.confirm',
-      'portal.guest_media',
-      'property',
-      {
-        canonicalOnly: true,
-        externalEffect: true,
-        notes: 'confirms object then conditionally completes a leased media row',
       },
     ),
     sf(
@@ -1829,7 +3286,8 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property',
       {
         canonicalOnly: true,
-        notes: 'public signed-session write; analytics consent and rate limit required',
+        notes:
+          'core portal visit analytics; signed-session dedupe and layered rate limits required',
       },
     ),
     sfPublic(
@@ -1844,14 +3302,15 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       },
     ),
     sfPublic(
-      'resolveLinkAndTrack',
+      'resolvePublicPortalLink',
       `${GUEST}/guest-scans.ts`,
-      'system:guest.click_track',
-      'portal.read',
+      'public:portal.read',
+      'portal.public_read',
       'property',
       {
         canonicalOnly: true,
-        notes: 'opaque token resolves through Portal public policy before click tracking',
+        notes:
+          'navigation-only no-JavaScript/failure fallback; opaque token resolves through Portal public policy and GET never records analytics',
       },
     ),
   ],
@@ -1966,14 +3425,10 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
       { notes: 'staff surface; loader via staff server fns' },
     ),
-    ui(
-      '/progress',
-      `${AUTHED}/progress.tsx`,
-      'system:ui.render',
-      'goal.use',
-      'organization',
-      { notes: 'staff goals surface (dark)' },
-    ),
+    ui('/progress', `${AUTHED}/progress.tsx`, 'system:ui.render', 'none', 'none', {
+      notes:
+        'retained URL compatibility only; Staff returns home and authorized managers move to the canonical Property Goal Program surface',
+    }),
     ui(
       '/leaderboard',
       `${AUTHED}/leaderboard.tsx`,
@@ -1982,9 +3437,6 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
       { notes: 'staff leaderboard surface (dark)' },
     ),
-    ui('/team', `${AUTHED}/team.tsx`, 'system:ui.render', 'team.use', 'organization', {
-      notes: 'placeholder page (dark)',
-    }),
     ui(
       '/properties/import-google',
       `${AUTHED}/properties/import-google/index.tsx`,
@@ -2032,6 +3484,17 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
     ui('/settings', `${AUTHED}/settings/index.tsx`, 'system:ui.render', 'none', 'none', {
       notes: 'index redirect → /settings/profile',
     }),
+    ui(
+      '/settings/closure',
+      `${AUTHED}/settings/closure.tsx`,
+      'system:ui.render',
+      'none',
+      'organization',
+      {
+        notes:
+          'LIF-01-T17 Closure Center: authenticated read-only status plus the closure lifecycle and export retrieval commands. The loader primes the Query cache and returns void so the payload is not serialized twice',
+      },
+    ),
     ui(
       '/settings/profile',
       `${AUTHED}/settings/profile.tsx`,
@@ -2140,6 +3603,14 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'staff/teams/portal assignments' },
     ),
     ui(
+      '/properties/$propertyId/settings',
+      `${AUTHED}/properties/$propertyId/settings.tsx`,
+      'property.read',
+      'property.create',
+      'property',
+      { notes: 'responsible-manager settings; mutation requires property.update' },
+    ),
+    ui(
       '/properties/$propertyId/reviews',
       `${AUTHED}/properties/$propertyId/reviews.tsx`,
       'inbox.read',
@@ -2199,38 +3670,6 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.read',
       'property',
       { notes: 'loader notFound if missing; dark' },
-    ),
-    ui(
-      '/properties/$propertyId/teams',
-      `${AUTHED}/properties/$propertyId/teams/index.tsx`,
-      'team.read',
-      'team.use',
-      'property',
-      { notes: 'manager team listing and creation surface' },
-    ),
-    ui(
-      '/properties/$propertyId/teams/$teamId (layout)',
-      `${AUTHED}/properties/$propertyId/teams/$teamId.tsx`,
-      'team.read',
-      'team.use',
-      'property',
-      { notes: 'team layout with tabs; loader notFound if missing (dark)' },
-    ),
-    ui(
-      '/properties/$propertyId/teams/$teamId',
-      `${AUTHED}/properties/$propertyId/teams/$teamId/index.tsx`,
-      'system:ui.render',
-      'team.use',
-      'property',
-      { notes: 'team settings tab (dark)' },
-    ),
-    ui(
-      '/properties/$propertyId/teams/$teamId/members',
-      `${AUTHED}/properties/$propertyId/teams/$teamId/members.tsx`,
-      'system:ui.render',
-      'team.use',
-      'property',
-      { notes: 'team members tab (dark)' },
     ),
   ],
 ]
@@ -2298,7 +3737,7 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     {
       notes:
-        'startup probe: container built + migrations match + policy readable; platform activation gate (railway.json healthcheckPath; activation ≠ liveness)',
+        'startup diagnostic: container built + migrations match + policy readable; retained for local/staging orchestration while Railway activation uses /api/health/ready',
     },
   ),
   api(
@@ -2322,6 +3761,18 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'token resolves authoritative org/property/Portal and public ExecutionPolicy before exact link ownership; neutral 404/no effect on mismatch; validates stored HTTPS URL; 302 no-referrer redirect',
+    },
+  ),
+  api(
+    '/api/notifications/unsubscribe',
+    `${ROUTES}/api/notifications/unsubscribe.ts`,
+    'public:notification.email_unsubscribe',
+    'notification.send_email',
+    'none',
+    {
+      principals: ['public'],
+      notes:
+        'RFC 8058 unauthenticated POST; exact form value plus active/retained HMAC bearer capability; target resolves an email row or immutable digest batch and atomically disables only represented optional email scopes; mandatory mail excluded; invalid/stale tokens receive neutral 204',
     },
   ),
   api(
@@ -2354,6 +3805,18 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
 
 const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   job(
+    'portal-approved-destination-revalidation',
+    'src/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job.ts',
+    'system:portal.destination_revalidate',
+    'portal.write',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'bounded tenant-cross discovery; each Property is independently authorized before pinned DNS/redirect validation and any exact-fenced quarantine transaction',
+    },
+  ),
+  job(
     'health-check',
     'src/shared/jobs/health-check.job.ts',
     'system:health.check',
@@ -2369,7 +3832,20 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
     {
       externalEffect: true,
-      notes: 'R2/S3 fetch+upload (sharp resize); registration-gated; no-op when dark',
+      notes:
+        'issuance-only private read + derived writes (sharp re-encode); stale-fenced; registration-gated; no-op when dark',
+    },
+  ),
+  job(
+    'portal-upload-source-cleanup',
+    'src/contexts/portal/infrastructure/jobs/cleanup-upload-sources.job.ts',
+    'system:image.cleanup',
+    'none',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'bounded oldest-first cleanup of issuance-derived private source objects; DeleteObject is idempotent and a durable source-deleted marker makes crash replay convergent; stays active while portal.upload is dark',
     },
   ),
   job(
@@ -2441,6 +3917,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
+    'release-response-target-reminders',
+    'src/contexts/inbox/infrastructure/jobs/release-response-target-reminders.job.ts',
+    'system:inbox.update',
+    'inbox.use',
+    'tenant_cross',
+    {
+      notes:
+        'bounded 100-slot timing sweep; each reminder release and its identifier-only durable fact commit atomically, and the exact target is revalidated downstream before delivery',
+    },
+  ),
+  job(
     'discover-new-reviews',
     'src/contexts/review/infrastructure/jobs/discover-new-reviews.job.ts',
     'system:review.discovery_sweep',
@@ -2457,7 +3944,11 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:review.purge',
     'none',
     'tenant_cross',
-    { notes: 'DB delete + review.expired event; retention evidence rows' },
+    {
+      mutation: { kind: 'read_only' },
+      notes:
+        'SAFE-03/REV-01 content-free checkpointed report/shadow authority; no Review/source/Reply/Inbox mutation and no destructive apply authority',
+    },
   ),
   job(
     'expire-review-provider-source',
@@ -2467,7 +3958,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'bounded Review raw-source expiry continuation; identifier-only source transition is committed with the row deletion',
+        'SAFE-03 quarantine continuation; validates and drains legacy expiry jobs without invoking row deletion',
     },
   ),
   job(
@@ -2501,7 +3992,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'BQC-3.8 ambiguous-publication reconcile sweep; provider re-read only — never a send; distinct action: shares nothing with property-scoped system:review.sync (strictest-scope merge would missing_scope-deny this tenant-cross sweep)',
+        'BQC-3.8 provider-pending and ambiguous publication reconcile sweep; provider re-read only — never a send; exact observations heal and every non-confirming/error row is guardedly rescheduled; distinct action: shares nothing with property-scoped system:review.sync (strictest-scope merge would missing_scope-deny this tenant-cross sweep)',
     },
   ),
   job(
@@ -2529,6 +4020,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'incremental rollup' },
   ),
   job(
+    'goal-program.maintain',
+    'src/contexts/goal/infrastructure/jobs/goal-program-maintenance.job.ts',
+    'system:goal.maintain',
+    'goal.use',
+    'tenant_cross',
+    {
+      notes:
+        'canonical monthly Goal Program lifecycle; discovers operational programs, then freshly authorizes every property before activation, next-month materialization, or governed result reconciliation',
+    },
+  ),
+  job(
     'retention-sweep',
     'src/shared/jobs/retention-sweep.job.ts',
     'system:retention.sweep',
@@ -2536,7 +4038,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'BQC-1.6 + 7.8: 11 rules (incl. 365d audit evidence); evidence in retention_runs; throws on any rule failure',
+        'Guest-owned Contact Request encrypted-material expiry, registered static rules, and Google import lifecycle (incl. per-entry cache expiry, 24h/7d guest pseudonym redaction, settled invitation-registration fences, and 365d audit evidence); separate deletion/redaction counts in retention_runs; throws on any subject failure',
     },
   ),
   job(
@@ -2562,6 +4064,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
+    'ai-authorization-derivative-erasure',
+    'src/shared/jobs/ai-authorization-erasure.job.ts',
+    'system:ai.authorization_erasure',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'Immediately eligible, PostgreSQL-leased exact retired-generation deletion for Review Analysis, Property aggregate, and Property Trend rows; eight persisted attempts, current-Identity safety fence, class-separated content-free evidence, no provider effect; remains active while AI is dark.',
+    },
+  ),
+  job(
     'ai-review-analysis-backfill-advance',
     'src/shared/jobs/ai-review-analysis-backfill-advance.job.ts',
     'system:ai.review_analysis_backfill_advance',
@@ -2570,6 +4083,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'Drives an open ops:ai-reanalyze run one review further: allocates and emits the next item only once its predecessor settled, terminal-settles an item whose redelivery has stopped, and closes a run whose epoch/watermark fence moved',
+    },
+  ),
+  job(
+    'ai-review-analysis-enrollment-sweep',
+    'src/shared/jobs/ai-review-analysis-enrollment-sweep.job.ts',
+    'system:ai.review_analysis_enrollment_sweep',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'Unconditional, bounded recovery for durable first-enablement enrollment intents. The owning AI use case rechecks each exact authorization lineage/source/capability fence and current global/provider/capability controls before it can open a replay; a full 50-head batch waits for the next recurrence rather than recursively enqueueing.',
     },
   ),
   job(
@@ -2584,6 +4108,52 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
+    'advance-organization-lifecycle',
+    'src/contexts/identity/infrastructure/jobs/advance-organization-lifecycle.job.ts',
+    'system:identity.organization_lifecycle',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'bounded 50-Organization lifecycle pass; current boot registration is a no-mutation safety handler and the recurring schedule remains reconciled away until every context-owned contributor plus independent support authorization is composed',
+    },
+  ),
+  job(
+    'generate-organization-export',
+    'src/contexts/identity/infrastructure/jobs/generate-organization-export.job.ts',
+    'system:identity.organization_export',
+    'none',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'one renewable generation claim and one deterministic private encrypted object write; currently a no-mutation safety handler with its schedule reconciled away pending all 17 reviewed contributors and storage binding',
+    },
+  ),
+  job(
+    'purge-expired-organization-exports',
+    'src/contexts/identity/infrastructure/jobs/purge-expired-organization-exports.job.ts',
+    'system:identity.organization_export',
+    'none',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'one expired export claim and verified encrypted-object deletion; currently a no-mutation safety handler with its schedule reconciled away pending storage binding and a live absence drill',
+    },
+  ),
+  job(
+    'recover-invited-registrations',
+    'src/contexts/identity/infrastructure/jobs/recover-invited-registrations.job.ts',
+    'system:identity.accept_invitation',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'bounded recovery of content-free invitation registration fences; exact preallocated provider identities only, with safe compensation or manual-review terminal state',
+    },
+  ),
+  job(
     'google-import-claim-reaper',
     'src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts',
     'system:property.import_claim_reap',
@@ -2595,12 +4165,23 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
-    'insert-activity-log',
-    'src/contexts/activity/infrastructure/jobs/insert-activity-log.job.ts',
+    'project-recent-activity',
+    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
     'system:activity.record',
     'none',
     'organization',
     { notes: 'enqueued by 29 activity event handlers' },
+  ),
+  job(
+    'insert-activity-log',
+    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
+    'system:activity.record',
+    'none',
+    'organization',
+    {
+      notes:
+        'registered solely to drain pre-migration-0160 queued work; all current producers use project-recent-activity',
+    },
   ),
   job(
     'insert-notification',
@@ -2634,27 +4215,82 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
         'hourly fanout re-enqueues immediate orphans per authorized property; ADR 0046 r.4 digest batches are per USER in the user timezone, grouped by property inside one email',
     },
   ),
-  job(
-    'leaderboard.reconcile',
-    'src/bootstrap.ts',
-    'system:leaderboard.reconcile',
-    'leaderboard.use',
-    'tenant_cross',
-    { notes: 'inline literal (no *.job.ts); registration-gated; dark' },
-  ),
 ]
 
 const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
+  consumer(
+    'review.outbox-consumers',
+    'src/contexts/review/infrastructure/outbox-consumers.ts',
+    'system:reply.publish',
+    'property.publish_reply',
+    'property',
+    ['review.reply.publication_requested'],
+    {
+      notes:
+        'durable identifier-only publication admission; reloads reply state and requires the exact committed publication cycle before enqueueing a deterministic reply+cycle job',
+    },
+  ),
+  consumer(
+    'portal.outbox-consumers',
+    'src/contexts/portal/infrastructure/outbox-consumers.ts',
+    'system:image.process',
+    'portal.upload',
+    'property',
+    ['portal.hero_image.processing_requested'],
+    {
+      externalEffect: true,
+      notes:
+        'durable ETag-bound image processing; stale issuance is obsolete and retries converge on issuance state',
+    },
+  ),
+  consumer(
+    'portal.health-outbox-consumers',
+    'src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts',
+    'system:portal.health_reconcile',
+    'portal.write',
+    'property',
+    [
+      'property.archived',
+      'property.restored',
+      'property.updated',
+      'property.deleted',
+      'property.google_binding.changed',
+      'portal.responsible_managers.updated',
+    ],
+    {
+      notes:
+        'recomputes derived Portal Health from committed dependencies and atomically settles the receipt, effective-dated interval, and identifier-only change fact',
+    },
+  ),
   consumer(
     'inbox.outbox-consumers',
     'src/contexts/inbox/infrastructure/outbox-consumers.ts',
     'system:inbox.update',
     'none',
     'organization',
-    ['review.created', 'review.expired', 'review.updated', 'review.reply.published'],
+    [
+      'review.created',
+      'review.expired',
+      'review.source_transitioned',
+      'review.updated',
+      'review.reply.published',
+      'review.reply.observed',
+    ],
     {
       notes:
-        'durable outbox consumers (receipt-idempotent, applyOnce co-commits state + receipt — BQC-3.4); dispatch disabled — BQR-0 containment',
+        'durable outbox consumers: source transition co-commits legacy-content scrub/close/receipt; publication is receipt-only; exact current reply observation applyOnce co-commits close/reopen state, facts, and receipt',
+    },
+  ),
+  consumer(
+    'inbox.guest-feedback',
+    'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts',
+    'system:inbox.project_guest_feedback',
+    'portal.read',
+    'organization',
+    ['guest.feedback.submitted', 'guest.feedback.retracted'],
+    {
+      notes:
+        'durable metadata-only private-feedback projection with source existence check',
     },
   ),
   consumer(
@@ -2670,15 +4306,174 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   consumer(
+    'notification.identity-account-outbox-consumers',
+    'src/contexts/notification/infrastructure/identity-account-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    [
+      'identity.invitation.accepted',
+      'identity.member.role_changed',
+      'identity.member.removed',
+      'identity.organization_lifecycle.changed',
+    ],
+    {
+      notes:
+        'durable affected-account access notices; exact schema-validated Identity fact is re-read at delivery, so role-change actor and target cannot be confused and a removed user still receives their own notice. LIF-01 program bullet 5: the lifecycle fact additionally carries the MANDATORY Purge Pending final notice, which is the one delivery deliberately carved out of the Closing suppression',
+    },
+  ),
+  consumer(
+    'notification.workflow-outbox-consumers',
+    'src/contexts/notification/infrastructure/workflow-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    [
+      'inbox.inbox_item.assigned',
+      'inbox.inbox_item.escalated',
+      'inbox.inbox_note.added',
+      'review.reply.submitted',
+      'review.reply.approved',
+      'review.reply.rejected',
+      'review.reply.published',
+      'review.reply.publish_failed',
+    ],
+    {
+      notes:
+        'durable identifier-only recovery for the notification workflow handlers; deterministic recipient jobs converge with the in-process fast path before the receipt is acknowledged',
+    },
+  ),
+  consumer(
+    'notification.bulk-assignment-outbox-consumers',
+    'src/contexts/notification/infrastructure/bulk-assignment-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['inbox.inbox_items.bulk_assignment_completed'],
+    {
+      notes:
+        'one durable identifier-only notification per next-assignee and Property; exact current assignment and Property eligibility are rechecked at delivery, while deterministic jobs converge before the completion receipt is acknowledged',
+    },
+  ),
+  consumer(
+    'notification.escalation-resolution-outbox-consumers',
+    'src/contexts/notification/infrastructure/escalation-resolution-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['inbox.inbox_item.escalation_resolved'],
+    {
+      notes:
+        'durable identifier-only resolution fan-out to the current assignee or current responsible managers; actor suppression and deterministic per-recipient jobs make stale delivery safe',
+    },
+  ),
+  consumer(
+    'notification.handling-cycle-outbox-consumers',
+    'src/contexts/notification/infrastructure/handling-cycle-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['inbox.handling_cycle.opened', 'inbox.handling_cycle.reopened'],
+    {
+      notes:
+        'durable identifier-only material-revision and reopen fan-out; initial item cycles are receipt-only, while exact current cycle/head, source-specific responsibility, and actor suppression are revalidated at delivery',
+    },
+  ),
+  consumer(
+    'notification.response-target-outbox-consumers',
+    'src/contexts/notification/infrastructure/response-target-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['inbox.response_target.reminder_due'],
+    {
+      notes:
+        'durable one-shot target reminder fan-out; the exact active target and current source-specific responsibility are revalidated both before enqueue and at notification materialization',
+    },
+  ),
+  consumer(
+    'notification.goal-outbox-consumers',
+    'src/contexts/notification/infrastructure/goal-outbox-consumers.ts',
+    'system:notification.insert_goal',
+    'goal.use',
+    'property',
+    ['goal.monthly_result.closed', 'goal.monthly_result.revised'],
+    {
+      notes:
+        'achieved-close and neutral result-revision fan-out; exact current result/revision fence and responsibility are reloaded before deterministic recipient jobs are acknowledged',
+    },
+  ),
+  consumer(
+    'notification.on-google-reauthorization-required',
+    'src/contexts/notification/infrastructure/integration-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['integration.google_account.reauthorization_required'],
+    {
+      notes:
+        'durable identifier-only AccountAdmin recovery fan-out for connector departure; recipient jobs converge by event and user before the receipt is acknowledged',
+    },
+  ),
+  consumer(
+    'notification.portal-outbox-consumers',
+    'src/contexts/notification/infrastructure/portal-outbox-consumers.ts',
+    'system:notification.insert_portal',
+    'portal.write',
+    'property',
+    ['portal.responsibility_became_needed'],
+    {
+      notes:
+        'portal-gated durable AccountAdmin recovery fan-out; identifier-only payload, receipt fencing, deterministic per-recipient job ids',
+    },
+  ),
+  consumer(
+    'notification.portal-health-outbox-consumers',
+    'src/contexts/notification/infrastructure/portal-health-outbox-consumers.ts',
+    'system:notification.insert_portal',
+    'portal.write',
+    'property',
+    ['portal.health.changed'],
+    {
+      notes:
+        'durable serious Portal Health fan-out; expected states and recovery settle receipt-only, while recipient jobs revalidate the exact enum/fence state before delivery',
+    },
+  ),
+  consumer(
+    'notification.property-outbox-consumers',
+    'src/contexts/notification/infrastructure/property-outbox-consumers.ts',
+    'system:notification.insert_property_responsibility',
+    'property.create',
+    'property',
+    ['property.responsibility_became_needed'],
+    {
+      notes:
+        'durable AccountAdmin recovery fan-out; identifier-only payload, receipt fencing, deterministic per-recipient job ids',
+    },
+  ),
+  consumer(
     'integration.property-import-dispatch',
     'src/contexts/integration/infrastructure/outbox-consumers.ts',
     'system:property.import_v2',
     'property.import_gbp_v2',
     'organization',
-    ['integration.property_import.requested'],
+    ['integration.property_import.requested', 'property.google_binding.changed'],
     {
       notes:
-        'durable identifier-only intent consumer; deterministic item job IDs converge ambiguous relay delivery',
+        'durable identifier-only import dispatch plus provider-authorization invalidation; deterministic item jobs and versioned invalidation delivery converge ambiguous relay delivery',
+    },
+  ),
+  consumer(
+    'integration.google-review-push-dispatch',
+    'src/contexts/integration/infrastructure/google-review-push-outbox-consumers.ts',
+    'system:review.sync',
+    'property.connect_gbp',
+    'property',
+    ['integration.google_review_push.accepted'],
+    {
+      externalEffect: true,
+      notes:
+        'durable identifier-only GBP push dispatch; deterministic existing review-sync job admission re-resolves current Property routing and credential home before provider access',
     },
   ),
   consumer(
@@ -2703,6 +4498,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'review.created',
       'review.updated',
       'review.source_transitioned',
+      'identity.merchant_ai.changed',
       'ai.review_analysis.backfill_requested',
       'ai.property_trend.generation_requested',
     ],
@@ -2732,11 +4528,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'review.reply.rejected',
       'review.reply.publication_cancelled',
       'review.reply.updated',
-      'team.created',
-      'team.updated',
-      'team.deleted',
-      'staff.assigned',
-      'staff.unassigned',
       'identity.organization.created',
       'identity.member.invited',
       'identity.invitation.accepted',
@@ -2750,34 +4541,71 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'property.updated',
       'property.deleted',
     ],
-    { notes: 'each handler enqueues insert-activity-log' },
+    { notes: 'each handler enqueues project-recent-activity' },
   ),
   consumer(
-    'badge.event-handlers',
-    'src/contexts/badge/infrastructure/event-handlers/index.ts',
-    'system:badge.evaluate',
-    'badge.use',
+    'activity.outbox-consumers',
+    'src/contexts/activity/infrastructure/outbox-consumers.ts',
+    'system:activity.record',
+    'none',
     'organization',
-    ['metric.recorded'],
-    { notes: 'BQC-3.2: emit-time gate denies via ExecutionPolicy' },
+    [
+      'goal.monthly_result.closed',
+      'goal.monthly_result.reconciled',
+      'goal.monthly_result.revised',
+      'identity.invitation.accepted',
+      'identity.invitation.canceled',
+      'identity.member.invited',
+      'identity.member.removed',
+      'identity.member.role_changed',
+      'identity.merchant_ai.changed',
+      'identity.organization.created',
+      'inbox.inbox_item.assigned',
+      'inbox.inbox_item.bulk_status_changed',
+      'inbox.inbox_item.created',
+      'inbox.inbox_item.escalated',
+      'inbox.inbox_item.escalation_resolved',
+      'inbox.inbox_item.status_changed',
+      'inbox.inbox_item.unassigned',
+      'inbox.inbox_note.added',
+      'integration.google_account.connected',
+      'integration.google_account.disconnected',
+      'integration.google_connection.visibility_changed',
+      'portal.archived',
+      'portal.approved_destination.updated',
+      'portal.health.changed',
+      'portal.hero_image.published',
+      'portal.publication.published',
+      'portal.publication.rolled_back',
+      'portal.restored',
+      'property.created',
+      'property.deleted',
+      'property.archived',
+      'property.restored',
+      'property.updated',
+      'review.reply.approved',
+      'review.reply.publication_cancelled',
+      'review.reply.published',
+      'review.reply.rejected',
+      'review.reply.submitted',
+      'review.reply.updated',
+    ],
+    {
+      notes:
+        'durable Recent Activity projection plus the explicit Operational Action History source-fact subset; Recent Activity settles each content-free replay fact, projected row, and receipt atomically, while restricted history settles its identifier-only record and receipt through its separate append authority',
+    },
   ),
   consumer(
-    'goal.event-handlers',
-    'src/contexts/goal/infrastructure/event-handlers/index.ts',
-    'system:goal.progress',
+    'goal.metric-correction-reconciliation',
+    'src/contexts/goal/infrastructure/metric-correction-outbox-consumers.ts',
+    'system:goal.maintain',
     'goal.use',
-    'organization',
-    ['metric.recorded', 'portal.deleted', 'portal_group.deleted'],
-    { notes: 'BQC-3.2: emit-time gate denies via ExecutionPolicy' },
-  ),
-  consumer(
-    'leaderboard.event-handlers',
-    'src/contexts/leaderboard/infrastructure/event-handlers/index.ts',
-    'system:leaderboard.refresh',
-    'leaderboard.use',
-    'organization',
-    ['metric.recorded'],
-    { notes: 'BQC-3.2: emit-time gate denies via ExecutionPolicy' },
+    'property',
+    ['metric.corrected'],
+    {
+      notes:
+        'durable exact-scope Metric correction impact reconciliation; appends serialized closed-result revisions and their identifier-only facts atomically',
+    },
   ),
   consumer(
     'metric.event-handlers',
@@ -2787,8 +4615,12 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'organization',
     [
       'guest.scan.recorded',
+      'guest.qualified_scan.recorded',
+      'guest.qualified_scan.retracted',
       'guest.rating.submitted',
+      'guest.rating.retracted',
       'guest.feedback.submitted',
+      'guest.feedback.retracted',
       'guest.review_link.clicked',
       'review.created',
       'portal.content_review.completed',
@@ -2800,7 +4632,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   consumer(
     'metric.portal-workflow',
     'src/contexts/metric/infrastructure/outbox-consumers.ts',
-    'system:metric.record',
+    'system:metric.record_portal_workflow',
     'portal.write',
     'organization',
     [
@@ -2809,6 +4641,48 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.approved_destination_ratio.recorded',
     ],
     { notes: 'durable governed Portal workflow metric ingestion' },
+  ),
+  consumer(
+    'metric.public-reputation',
+    'src/contexts/metric/infrastructure/public-reputation-outbox-consumers.ts',
+    'system:metric.record_public_reputation',
+    'none',
+    'organization',
+    ['review.created'],
+    {
+      notes:
+        'durable bounded-period Google Review activity ingestion; reloads the eligible rating from Review authority and settles the Metric write with its consumer receipt',
+    },
+  ),
+  consumer(
+    'metric.current-google-reputation',
+    'src/contexts/metric/infrastructure/current-google-reputation-outbox-consumers.ts',
+    'system:metric.record_public_reputation',
+    'none',
+    'organization',
+    ['review.google_reputation_snapshot.verified'],
+    {
+      notes:
+        'durable Review-verified provider aggregate projected into Metric current state with atomic receipt and source-epoch/evaluated-time fencing; never a bounded-period metric reading',
+    },
+  ),
+  consumer(
+    'metric.guest-analytics',
+    'src/contexts/metric/infrastructure/guest-outbox-consumers.ts',
+    'system:metric.record_guest_analytics',
+    'portal.read',
+    'organization',
+    [
+      'guest.scan.recorded',
+      'guest.qualified_scan.recorded',
+      'guest.qualified_scan.retracted',
+      'guest.rating.submitted',
+      'guest.rating.retracted',
+      'guest.feedback.submitted',
+      'guest.feedback.retracted',
+      'guest.review_link.clicked',
+    ],
+    { notes: 'durable, content-free Guest analytics ingestion' },
   ),
   consumer(
     'metric.correction-reconciliation',
@@ -2835,10 +4709,27 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'review.reply.rejected',
       'review.reply.published',
       'review.reply.publish_failed',
-      'goal.completed',
-      'badge.awarded',
+      'integration.google_account.reauthorization_required',
     ],
-    { notes: 'each handler enqueues insert-notification' },
+    { notes: 'each active handler enqueues insert-notification' },
+  ),
+  consumer(
+    'notification.portal-event-handlers',
+    'src/contexts/notification/infrastructure/event-handlers/portal-event-handlers.ts',
+    'system:notification.insert_portal',
+    'portal.write',
+    'property',
+    ['portal.responsibility_became_needed'],
+    { notes: 'portal-gated fast path for the content-free recovery alert' },
+  ),
+  consumer(
+    'notification.property-event-handlers',
+    'src/contexts/notification/infrastructure/event-handlers/property-event-handlers.ts',
+    'system:notification.insert_property_responsibility',
+    'property.create',
+    'property',
+    ['property.responsibility_became_needed'],
+    { notes: 'fast path for the content-free Property recovery alert' },
   ),
   consumer(
     'review.event-handlers',
@@ -2860,15 +4751,35 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     [
       'review.created',
       'guest.feedback.submitted',
-      'review.reply.published',
+      'guest.feedback.retracted',
       'review.reply.submitted',
       'review.expired',
     ],
-    { notes: 'in-process twin of the durable consumers' },
+    {
+      notes:
+        'in-process lifecycle handlers; provider-reply close/reopen authority is intentionally durable-only',
+    },
   ),
 ]
 
 const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
+  schedule(
+    'portal-approved-destination-revalidation-recurring',
+    'system:portal.destination_revalidate',
+    'portal.write',
+    'tenant_cross',
+    { notes: 'every 15 min; oldest validation timestamp first, bounded at 100' },
+  ),
+  schedule(
+    'portal-upload-source-cleanup-recurring',
+    'system:image.cleanup',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'hourly bounded private-source cleanup; intentionally active when portal.upload is disabled',
+    },
+  ),
   schedule('health-check-recurring', 'system:health.check', 'none', 'none', {
     notes: 'every 5 min',
   }),
@@ -2907,18 +4818,23 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   schedule(
-    'purge-expired-reviews-recurring',
-    'system:review.purge',
-    'none',
+    'release-response-target-reminders-recurring',
+    'system:inbox.update',
+    'inbox.use',
     'tenant_cross',
-    { notes: 'daily, offset 2h' },
+    {
+      notes:
+        'every 5 min; releases at most 100 exact one-shot halfway or target-passed slots and leaves any remainder for the next tick',
+    },
   ),
   schedule(
     'reconcile-ambiguous-publications-recurring',
     'system:review.reconcile',
     'none',
     'tenant_cross',
-    { notes: 'every 30 min (BQC-3.8 ambiguous-outcome reconcile sweep)' },
+    {
+      notes: 'every 5 min (BQC-3.8 provider-pending and ambiguous observation sweep)',
+    },
   ),
   schedule(
     'retention-sweep-recurring',
@@ -2945,6 +4861,16 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   schedule(
+    'ai-authorization-derivative-erasure-recurring',
+    'system:ai.authorization_erasure',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 5 min; deletion starts immediately after containment and the lifecycle deadline is an exact 24-hour maximum, not a wait-until time',
+    },
+  ),
+  schedule(
     'ai-review-analysis-backfill-advance-recurring',
     'system:ai.review_analysis_backfill_advance',
     'none',
@@ -2955,11 +4881,63 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   schedule(
+    'ai-review-analysis-enrollment-sweep-recurring',
+    'system:ai.review_analysis_enrollment_sweep',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 5 min; one tick visits at most 50 enrollment heads and a full batch waits for the next recurrence, preventing continuation fan-out',
+    },
+  ),
+  schedule(
     'permit-start-deadline-sweep-recurring',
     'system:permit.start_deadline_fence',
     'none',
     'tenant_cross',
     { notes: 'every 5 min (execution-permit start-deadline fence)' },
+  ),
+  schedule(
+    'advance-organization-lifecycle-recurring',
+    'system:identity.organization_lifecycle',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'intended every 5 minutes, but operational posture is quarantined and reconciliation removes it until all 17 lifecycle contributors plus independent support authorization are bound',
+    },
+  ),
+  schedule(
+    'generate-organization-export-recurring',
+    'system:identity.organization_export',
+    'none',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'intended every minute, but operational posture is quarantined and reconciliation removes it until reviewed contributors and encrypted storage are bound',
+    },
+  ),
+  schedule(
+    'purge-expired-organization-exports-recurring',
+    'system:identity.organization_export',
+    'none',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'intended hourly, but operational posture is quarantined and reconciliation removes it until encrypted storage plus live deletion verification are bound',
+    },
+  ),
+  schedule(
+    'recover-invited-registrations-recurring',
+    'system:identity.accept_invitation',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 60s; the database lease prevents duplicate workers and the five-minute due time avoids racing an active foreground provider request',
+    },
   ),
   schedule(
     'google-import-claim-reaper-recurring',
@@ -2993,11 +4971,14 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'cron 5 * * * * (hourly)' },
   ),
   schedule(
-    'leaderboard.reconcile-recurring',
-    'system:leaderboard.reconcile',
-    'leaderboard.use',
+    'goal-program.maintain-recurring',
+    'system:goal.maintain',
+    'goal.use',
     'tenant_cross',
-    { notes: 'cron 30 * * * *; NOT scheduled while leaderboard.use dark' },
+    {
+      notes:
+        'hourly; database constraints and idempotent inserts fence duplicate activation, period materialization, and two-pass reconciliation',
+    },
   ),
   schedule(
     'digest-notification-recurring',
@@ -3030,6 +5011,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/manage-dormant-billing-data.ts',
+    'scripts/ops/manage-dormant-billing-data.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:manage-dormant-billing-data — EXP-01 content-free report plus destructive exact-fingerprint apply for all five dormant Better Auth Billing compatibility fields; serializable row locks, typed confirmation, ticket/reason audit, atomic nulling, and empty-state verification; columns remain intact',
+    },
+  ),
+  ops(
     'scripts/ops/quarantine-redrive.ts',
     'scripts/ops/quarantine-redrive.ts',
     'tenant_cross',
@@ -3057,12 +5047,209 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/cutover-single-us-data-cell.ts',
+    'scripts/ops/cutover-single-us-data-cell.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:cutover-single-us-data-cell — audited report/fence/bounded-backfill/verify transition to the single US policy-v3 Data Cell; apply is digest-bound and completion emits target-bound release evidence',
+    },
+  ),
+  ops(
     'scripts/ops/reconcile-people-team.ts',
     'scripts/ops/reconcile-people-team.ts',
     'tenant_cross',
     {
       notes:
-        'ops:reconcile-people-team — report/apply legacy assignment to participation/team reconciliation; ambiguous mappings remain findings',
+        'ops:reconcile-people-team — report/apply legacy assignment reconciliation; --apply verifies canonical participation/responsibility/Portal Group parity, leaves Team membership opaque and untouched, and writes one immutable audited version-2 evidence artifact; version-1 evidence and anomalies remain blocking findings',
+    },
+  ),
+  ops(
+    'scripts/ops/report-people-authority.ts',
+    'scripts/ops/report-people-authority.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-people-authority — read-only, explicit-time reconciliation of membership, access, Staff participation/attribution, manager responsibility, and retained Team/legacy rows; stable exact/mappable/conflict/orphan/unsafe output',
+    },
+  ),
+  ops(
+    'scripts/ops/report-portal-access-artifacts.ts',
+    'scripts/ops/report-portal-access-artifacts.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-portal-artifacts — read-only, explicit-time inventory of reachable legacy QR/NFC addresses that lack a published Qualified Scan Access Artifact; stable content-free replacement list',
+    },
+  ),
+  ops(
+    'scripts/ops/report-portal-beta-readiness.ts',
+    'scripts/ops/report-portal-beta-readiness.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-portal-beta-readiness — read-only POR-01 legacy Portal inventory with an explicit cutoff and optional Organization set; canonical identifier/reason/count output only, with no apply or provenance-inference path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-guest-response-readiness.ts',
+    'scripts/ops/report-guest-response-readiness.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-guest-response-readiness — read-only GST-01 legacy Rating/Feedback and canonical Guest Response reconciliation at an explicit observation time; identifier-only classifications, star distributions, and source/correction/retraction identities; no apply or inferred-provenance path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-organization-lifecycle.ts',
+    'scripts/ops/report-organization-lifecycle.ts',
+    'organization',
+    {
+      notes:
+        'ops:report-organization-lifecycle — read-only exact lifecycle authority and contributor/storage composition readiness; it cannot waive recovery, cancel pending purge, cross the irreversible boundary, reactivate, generate an export, or delete storage',
+    },
+  ),
+  ops(
+    'scripts/ops/triage-beta-feedback.ts',
+    'scripts/ops/triage-beta-feedback.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:triage-beta-feedback — content-free support queue report by default; apply changes exactly one delivered feedback receipt with optimistic concurrency, a named pseudonymous owner, ticketed reason, and an append-only transition in the same transaction; report text and masked attachments remain restricted provider content and engineering issues are linked only by an explicit later operator decision',
+    },
+  ),
+  ops(
+    'scripts/ops/recover-recent-activity.ts',
+    'scripts/ops/recover-recent-activity.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:recover-recent-activity — explicit-time readiness plus audited, bounded, cursor-resumable repair from Activity-owned replay facts; dry-run is read-only and --apply requires a reason',
+    },
+  ),
+  ops(
+    'scripts/ops/reconcile-recent-activity-vocabulary.ts',
+    'scripts/ops/reconcile-recent-activity-vocabulary.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:reconcile-recent-activity-vocabulary — Organization-scoped content-free report and one-pair exact-fingerprint compatibility repair; apply is ticketed, operation-idempotent, typed-confirmed, transactionally receipted, and never infers unmappable vocabulary',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-goals.ts',
+    'scripts/ops/report-legacy-goals.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-goals — read-only, explicit-time GOA-01/CNV-01 inventory of the two retained pre-beta Goal tables, exact row counts, all-schema foreign-key dependencies, fixed data-fate classifications, and a content-free fingerprint; no record identifiers or apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-people-team.ts',
+    'scripts/ops/report-legacy-people-team.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-people-team — read-only, explicit-time PPL-01/CNV-01 inventory of all five mixed-owner contraction tables: the Identity-owned plural PropertyAccessGrant plus retained StaffAssignment, Team, TeamMembership, and Team-to-Portal-Group rows and foreign-key dependencies; content-free counts and fingerprints only, with no apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-recognition.ts',
+    'scripts/ops/report-legacy-recognition.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-recognition — read-only REC-01 inventory of all 13 retained Badge/Leaderboard/Recognition tables, exact row counts, foreign-key dependencies, data-fate classifications, and a content-free fingerprint; no record identifiers or apply path',
+    },
+  ),
+  ops('scripts/ops/property-erase.ts', 'scripts/ops/property-erase.ts', 'property', {
+    notes:
+      'ops:property-erase — LIF-01-T19 support-mediated permanent Property Erase. Report-only by default; the destructive path additionally requires --apply, the typed confirmation, an operator id, a ticket, and an INDEPENDENT support authorization reference. It declares no capability on purpose: property.erase stays in BLOCKED_CAPABILITIES, so this operator command is the only entry point and no tenant-facing authorization path exists',
+  }),
+  ops('scripts/ops/privacy-request.ts', 'scripts/ops/privacy-request.ts', 'property', {
+    notes:
+      'ops:privacy-request — LIF-01-T20 privacy access, correction, withdrawal and erasure for Guest and Participant subjects. Tenant and property scoped; the subject is named only by the SHA-256 of a verified identifier, never in the clear. Report-only by default, destructive only under --apply',
+  }),
+  ops(
+    'scripts/ops/repair-partial-offboarding.ts',
+    'scripts/ops/repair-partial-offboarding.ts',
+    'property',
+    {
+      notes:
+        'ops:repair-partial-offboarding — LIF-01-T21 recovery for a membership removal that transferred some responsibilities and then failed. Reports the outstanding transfers by default and completes them only under --apply',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-custom-roles.ts',
+    'scripts/ops/report-legacy-custom-roles.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-custom-roles — read-only bullet-12 inventory of retained custom-role rows that must be reconciled or archived before migration; content-free counts at an explicit --as-of, no apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-multi-org.ts',
+    'scripts/ops/report-legacy-multi-org.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-multi-org — read-only bullet-12 inventory of users holding more than one Organization binding, which the singular-binding model must reconcile without erasing the evidence needed to resolve the conflict; no apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-guest-compatibility.ts',
+    'scripts/ops/report-legacy-guest-compatibility.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-guest-compatibility — read-only bullet-12 inventory of the legacy Guest compatibility rows. It is a reference scan, not a table inventory: the compatibility mirrors it reads are already claimed by ops:report-compatibility-read-surfaces, and claiming them twice would break the one-tool-per-table registry',
+    },
+  ),
+  ops(
+    'scripts/ops/report-inbox-handling-cutover.ts',
+    'scripts/ops/report-inbox-handling-cutover.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-inbox-handling-cutover — read-only IBX-01 legacy cutover and parity evidence over one Organization: opens a single REPEATABLE READ, READ ONLY snapshot at a mandatory --observed-at, classifies each relationship exact/mappable/ambiguous/orphan, and prints one content-free canonical report with its digest; no apply path and no inferred handling outcome',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-rollups.ts',
+    'scripts/ops/report-legacy-rollups.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-rollups — read-only MET-01/CNV-01 inventory of the four legacy Metric rollup tables with row counts, foreign-key metadata, contraction blockers and a content-free fingerprint at an explicit --as-of; no apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-import-control.ts',
+    'scripts/ops/report-legacy-import-control.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-import-control — read-only GGL-01/CNV-01 inventory of the two legacy Google import control tables with counts, foreign-key metadata and a content-free fingerprint at an explicit --as-of; there is no apply path. The table names are deliberately NOT written here: this catalogue is bundled into the final worker artifact, which may not contain Google import compatibility paths',
+    },
+  ),
+  ops(
+    'scripts/ops/report-compatibility-read-surfaces.ts',
+    'scripts/ops/report-compatibility-read-surfaces.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-compatibility-read-surfaces — read-only inventory of all seven compatibility_read mirrors plus the Integration-owned physical-to-Drizzle name mapping, carrying an active reader count per mirror so a mirror with live readers can never be presented as a contraction candidate; no apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-non-fk-references.ts',
+    'scripts/ops/report-non-fk-references.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-non-fk-references — read-only non-foreign-key reference scan for contraction candidates covering uuid columns without a declared reference, resource_type/resource_id pairs, textual aggregate identifiers and jsonb documents; content-free counts at an explicit --as-of with no apply path',
     },
   ),
   ops(
@@ -3073,6 +5260,16 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       notes:
         'ops:rebuild-projection — repair/rebuild the inbox projection via the rebuildInboxProjection use case (bounded, dry-run default); metric-rollup watermark reset deliberately NOT built (BQC-7.5)',
     },
+  ),
+  ops(
+    'scripts/ops/rebuild-metric-projection.ts',
+    'scripts/ops/rebuild-metric-projection.ts',
+    'property',
+    {
+      notes:
+        'ops:rebuild-metric-projection — report-first parity inspection and non-destructive repair for one anonymous Portal lifetime projection; exact Organization/Property/Portal scope, governed Metric facts, and the retained sealed checkpoint remain authoritative',
+    },
+    'metric.internal',
   ),
   ops(
     'scripts/ops/reconcile-publication.ts',
@@ -3094,7 +5291,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   ops('scripts/ops/enqueue-purge.ts', 'scripts/ops/enqueue-purge.ts', 'tenant_cross', {
     notes:
-      'ops:purge — bounded re-run of purge-expired-reviews / retention-sweep via the BQC-3 producer contract; destructive: typed --yes confirmation (BQC-7.5)',
+      'ops:purge — content-free static retention-rule report by default; retention apply is destructive and typed-confirmed; Review apply reaches the SAFE-03 no-mutation quarantine handler until REV-01 (BQC-7.5/GST-01)',
   }),
   ops(
     'scripts/ops/property-suspension.ts',
@@ -3142,16 +5339,25 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   }),
   ops('scripts/ops/restore-preflight.ts', 'scripts/ops/restore-preflight.ts', 'none', {
     notes:
-      'ops:restore-preflight — guided runbook §8 restore preflight (isolated-target refusal, journal readability, backup-window checklist); NOT a PITR executor (platform-owned) (BQC-7.5)',
+      'ops:restore-preflight — guided runbook §8 target preflight (exact loopback or attested Railway PITR sibling, Data Cell binding, journal readability, backup-window checklist); NOT a PITR executor (platform-owned) (REG-04)',
   }),
   ops('scripts/ops/restore-verify.ts', 'scripts/ops/restore-verify.ts', 'tenant_cross', {
     notes:
-      'ops:restore-verify — restore-drill purge-before-serving proof (BQC-7.8): hard-requires RESTORE_MODE=isolated + isolated target; runs the source-policy purge in-process (job core, not BullMQ), asserts zero expired rows, prints retention_runs evidence; destructive: typed --yes',
+      'ops:restore-verify — isolated restore retention/recovery proof (REG-04): hard-requires RESTORE_MODE=isolated + exact loopback or attested Railway PITR sibling; runs all retention/Google-import reconciliation in-process, invalidates restored auth/provider/AI/job authority, fences unpublished outbox facts, and records a replayable cell recovery generation; destructive: typed --yes',
   }),
   // ── top-level scripts ─────────────────────────────────────────────
   ops('scripts/audit-member-roles.ts', 'scripts/audit-member-roles.ts', 'tenant_cross', {
     notes: 'audit:member-roles — read-only role audit (raw pg)',
   }),
+  ops(
+    'scripts/audit-user-organization-bindings.ts',
+    'scripts/audit-user-organization-bindings.ts',
+    'tenant_cross',
+    {
+      notes:
+        'audit:user-organization-bindings — read-only SAFE-02 reconciliation report; classifies exact/mappable/conflict/orphan without guessing or mutation',
+    },
+  ),
   ops('scripts/check-db.ts', 'scripts/check-db.ts', 'tenant_cross', {
     notes: 'read-only diagnostics; identifiers + clocks only (BQC-1.6)',
   }),
@@ -3165,6 +5371,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     { notes: 'CI lint: component boundary check' },
   ),
+  ops(
+    'scripts/check-architecture-boundary-controls.mjs',
+    'scripts/check-architecture-boundary-controls.mjs',
+    'none',
+    {
+      notes:
+        'CI lint: executable negative/positive controls proving production files are classified and architectural dependency policies reject forbidden seams',
+    },
+  ),
   ops('scripts/check-bundle-budget.mjs', 'scripts/check-bundle-budget.mjs', 'none', {
     notes:
       'check:bundles — CI build gate (BQC-6.8): client bundle budgets on .output/public/assets; exits 1 over budget',
@@ -3176,6 +5391,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'check:google-import-artifacts — fails when browser/build/log artifacts contain protected Google import identifiers or Content',
+    },
+  ),
+  ops(
+    'scripts/check-production-artifacts.mjs',
+    'scripts/check-production-artifacts.mjs',
+    'none',
+    {
+      notes:
+        'check:production-artifacts — build/image gate rejecting local-only executables, credentials, simulations, operator commands, and Storybook sources from promoted web/worker artifacts',
     },
   ),
   ops(
@@ -3221,6 +5445,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'build-time image-profile gate for the pinned AI runtime, ICU, Unicode, and production dependency inventory',
+    },
+  ),
+  ops(
+    'scripts/verify-google-runtime-bundle.mjs',
+    'scripts/verify-google-runtime-bundle.mjs',
+    'none',
+    {
+      notes:
+        'build-time inventory gate proving each Google sidecar is a self-contained single-entry production bundle with no local/operator surfaces',
     },
   ),
   ops(
@@ -3367,6 +5600,122 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'check:action-pins — CI gate (BQC-7.7): every workflow uses: is full-SHA pinned with # v… comment; every image: is digest-pinned',
   }),
+  ops(
+    'scripts/ci/check-container-image-policy.ts',
+    'scripts/ci/check-container-image-policy.ts',
+    'none',
+    {
+      notes:
+        'check:container-images — read-only CI gate: every Dockerfile is explicitly classified and covered by build, smoke, SBOM, vulnerability scan, release posture, digest pinning, and Dependabot directory policy',
+    },
+  ),
+  ops(
+    'scripts/ci/check-technology-stack.ts',
+    'scripts/ci/check-technology-stack.ts',
+    'none',
+    {
+      notes:
+        'check:technology-stack — read-only GOV-01 gate: exact runtime/package/CLI authority, immutable action and Docker-base allowlists, mutable network-tool denial, migration guidance denial, and pino/BullMQ/Redis/pg contract evidence',
+    },
+  ),
+  ops(
+    'scripts/ci/check-typescript-project-coverage.ts',
+    'scripts/ci/check-typescript-project-coverage.ts',
+    'none',
+    {
+      notes:
+        'check:typescript-project-coverage — read-only OPS-03 gate proving every TypeScript module is owned by an invoked project',
+    },
+  ),
+  ops(
+    'scripts/ci/check-product-state-consistency.ts',
+    'scripts/ci/check-product-state-consistency.ts',
+    'none',
+    {
+      notes:
+        'check:product-state-consistency — read-only EXP-02 gate: inventories query-key, broad invalidation, and local state-mirror sites against an owned classification ledger',
+    },
+  ),
+  ops(
+    'scripts/review/baseline-inventory.ts',
+    'scripts/review/baseline-inventory.ts',
+    'none',
+    {
+      notes:
+        'review baseline support library: deterministic source classification, symbol/import discovery, entry-point inventory, and prior-finding parsing; imported by freeze-baseline, not a standalone mutator',
+    },
+  ),
+  ops(
+    'scripts/review/tracked-artifact.ts',
+    'scripts/review/tracked-artifact.ts',
+    'none',
+    {
+      notes:
+        'review baseline support library: turns one tracked path into its frozen ledger row, hashing a regular file from the single O_NOFOLLOW descriptor it opened, recording a symlink by its target rather than following or refusing it, and refusing any other irregular file by name; imported by freeze-baseline, not a standalone mutator',
+    },
+  ),
+  ops('scripts/review/freeze-baseline.ts', 'scripts/review/freeze-baseline.ts', 'none', {
+    notes:
+      'review:freeze-baseline — writes a release-SHA-bound, hashed review evidence bundle from tracked source, plan, consolidated report, validation gates, and repository governance state',
+  }),
+  ops(
+    'scripts/review/comprehensive-program-status.ts',
+    'scripts/review/comprehensive-program-status.ts',
+    'none',
+    {
+      notes:
+        'review:validate-program-status — read-only validation and summary of the machine-checked 42-package implementation ledger',
+    },
+  ),
+  ops(
+    'scripts/review/reachability-proof.ts',
+    'scripts/review/reachability-proof.ts',
+    'none',
+    {
+      notes:
+        'review:reachability-proof — CNV-01 local read-only deletion-evidence harness for one file and export: runs the real dead-code trace, symbol-impact and ripgrep passes and reads the analyser configuration plus both runtime catalogues, so each deletion slice carries machine-generated evidence rather than a claim',
+    },
+  ),
+  ops(
+    'scripts/review/legal-document-registry.ts',
+    'scripts/review/legal-document-registry.ts',
+    'none',
+    {
+      notes:
+        'check:legal-registry — LEG-01 read-only validator: recomputes every legal document digest, refuses an approved document whose bytes changed, refuses engineering self-approval, and refuses approving a document while a counsel decision that blocks it is still open',
+    },
+  ),
+  ops(
+    'scripts/review/finding-revalidation.ts',
+    'scripts/review/finding-revalidation.ts',
+    'none',
+    {
+      notes:
+        'FND-01 read-only validator: binds the complete finding revalidation record to the immutable review register, frozen source evidence, owner/package mapping, and executable or explicitly deferred closure criteria',
+    },
+  ),
+  ops(
+    'scripts/review/finding-revalidation-fragment.ts',
+    'scripts/review/finding-revalidation-fragment.ts',
+    'none',
+    {
+      notes:
+        'FND-01 read-only fragment validator: binds one governed finding-family slice to immutable frozen/current evidence before central reconciliation',
+    },
+  ),
+  ops('scripts/review/pre-fix-oracles.ts', 'scripts/review/pre-fix-oracles.ts', 'none', {
+    notes:
+      'review:validate-pre-fix-oracles / review:run-pre-fix-oracle — validates digest-bound historical regression artifacts and optionally runs one governed current test command; it does not mutate product data',
+  }),
+  ops(
+    'scripts/review/zod-v4-conformance.ts',
+    'scripts/review/zod-v4-conformance.ts',
+    'none',
+    {
+      notes:
+        'check:zod-conformance — scans source code for ambiguous Zod package-root imports and deprecated chained string-format APIs; enforced by lint',
+    },
+  ),
   ops('scripts/cleanup-all.ts', 'scripts/cleanup-all.ts', 'tenant_cross', {
     notes: 'DIRECT-DB: deletes ALL reviews/replies/inbox items/properties — dev-only',
   }),
@@ -3392,8 +5741,18 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   }),
   ops('scripts/simulate.ts', 'scripts/simulate.ts', 'tenant_cross', {
     externalEffect: true,
-    notes: 'Neon branch lifecycle (Neon API) + seed + invariants',
+    notes:
+      'local disposable PostgreSQL database lifecycle + deploy-equivalent migrations + seed + invariants; ignores the application DATABASE_URL and reads no inherited/customer data',
   }),
+  ops(
+    'scripts/simulation-invocation.ts',
+    'scripts/simulation-invocation.ts',
+    'tenant_cross',
+    {
+      notes:
+        'simulation support library: constructs the shell-free Node/tsx seed invocation; imported by simulate.ts and not a standalone mutator',
+    },
+  ),
   ops('scripts/test-db-setup.ts', 'scripts/test-db-setup.ts', 'tenant_cross', {
     notes:
       'BQC-6.1 — create + migrate the isolated local scratch test DB (auth:migrate → db:migrate → sidecar); localhost-guarded, idempotent',
@@ -3405,6 +5764,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ops('scripts/migrate-deploy.ts', 'scripts/migrate-deploy.ts', 'tenant_cross', {
     notes:
       'BQC-7.1 — predeploy migration runner (db:migrate-deploy / Railway preDeployCommand): advisory-locked idempotent trio (better-auth getMigrations → drizzle-orm migrator → registered sidecar); forward recovery — fix forward, rerun converges',
+  }),
+  ops('scripts/better-auth-schema.ts', 'scripts/better-auth-schema.ts', 'tenant_cross', {
+    notes:
+      'auth:generate/auth:migrate — compiles or applies auth-table changes through the exact repository-pinned Better Auth runtime; never network-fetches a separate CLI',
   }),
   ops(
     'scripts/google-import-final-schema-probe.ts',
@@ -3430,7 +5793,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:google-content-approval — signature-verified global content-treatment approval installation; ticketed and audited',
+        'ops:google-content-approval — signature-verifies private content-treatment bundles; direct apply is fail-closed until the atomic exact-target cell-us activation controller exists',
     },
   ),
   ops(
@@ -3439,7 +5802,16 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:google-content-approval-sign — operator-held role keystore; re-signs the existing evidence for a moved approval-bound version and installs it through ops:google-content-approval',
+        'ops:google-content-approval-sign — operator-held role keystore; prepares and validates private re-signing bundles, while database/Railway activation stays fail-closed until the atomic exact-target controller exists',
+    },
+  ),
+  ops(
+    'scripts/ops/provision-google-admission-role.ts',
+    'scripts/ops/provision-google-admission-role.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:google-admission-role — explicit --apply infrastructure provisioner/rotator; uses the Railway PostgreSQL owner credential to grant one login only the four journaled Google permit operations and no tables or sequences',
     },
   ),
   ops(
@@ -3449,6 +5821,33 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:google-import-lifecycle — tenant-scoped import backlog inspection and guarded cancellation',
+    },
+  ),
+  ops(
+    'scripts/ops/google-credential-home-backfill.ts',
+    'scripts/ops/google-credential-home-backfill.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:google-credential-home-backfill — report-first, drift-digest-bound installation of one explicitly reviewed Organization credential home; never infers placement',
+    },
+  ),
+  ops(
+    'scripts/ops/google-credential-routing-publish.ts',
+    'scripts/ops/google-credential-routing-publish.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:google-credential-routing-publish — ticketed publication of one signed, identifier-only, monotonically versioned Google credential routing directory revision',
+    },
+  ),
+  ops(
+    'scripts/ops/identity-invitation-fact-contract.ts',
+    'scripts/ops/identity-invitation-fact-contract.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:identity-invitation-facts — report-first rolling v1→v2 fact issuance, bounded PostgreSQL/live-queue/quarantine redaction, zero-copy verification, and pre-verification rollback; mutations require quiesced queues and typed confirmation',
     },
   ),
   ops(
@@ -3489,6 +5888,16 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'ai.analyze',
   ),
   ops(
+    'scripts/ops/ai-approve-enrollment.ts',
+    'scripts/ops/ai-approve-enrollment.ts',
+    'property',
+    {
+      notes:
+        'ops:ai-approve-enrollment — ticketed, typed-confirmation approval of one exact, complete first-enablement snapshot above the fixed 10,000-revision safety ceiling; records content-free immutable approval evidence but never changes consent, selects a subset, starts replay, or activates provider execution',
+    },
+    'ai.analyze',
+  ),
+  ops(
     'scripts/ops/permit-start-deadline-backfill.ts',
     'scripts/ops/permit-start-deadline-backfill.ts',
     'tenant_cross',
@@ -3513,7 +5922,68 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'release:validate-evidence — validates the named, path-contained BQC-8.8 reviewer evidence bundle; read-only',
     },
   ),
+  ops('scripts/release/iac-digest.ts', 'scripts/release/iac-digest.ts', 'none', {
+    notes:
+      'Shared read-only digest helper for binding Railway plan evidence and promotion manifests to the exact reviewed infrastructure source tree',
+  }),
+  ops(
+    'scripts/release/release-authority-digest.ts',
+    'scripts/release/release-authority-digest.ts',
+    'none',
+    {
+      notes:
+        'Shared read-only digest helper that binds signed manifests to the complete local release-controller authority surface',
+    },
+  ),
+  ops(
+    'scripts/release/staged-railway-sources.ts',
+    'scripts/release/staged-railway-sources.ts',
+    'none',
+    {
+      notes:
+        'Shared pure validation helper for exact-digest staged source maps and pinned Railway plan/apply evidence; it has no standalone mutation entry point',
+    },
+  ),
+  ops(
+    'scripts/release/railway-data-cell-plan.ts',
+    'scripts/release/railway-data-cell-plan.ts',
+    'none',
+    {
+      notes:
+        'release:railway-data-cell-plan — fail-closed read-only Railway infrastructure plan wrapper bound to the requested project and data-cell environment',
+    },
+  ),
+  ops(
+    'scripts/release/railway-data-cell-domain.ts',
+    'scripts/release/railway-data-cell-domain.ts',
+    'none',
+    {
+      externalEffect: true,
+      notes:
+        'infra:railway:domain — one-time exact-target production custom-domain registration; applies only a reviewed canonical intent after source-less foundation proof and verifies readback',
+    },
+  ),
+  ops(
+    'scripts/release/railway-data-cell-foundation.ts',
+    'scripts/release/railway-data-cell-foundation.ts',
+    'none',
+    {
+      externalEffect: true,
+      notes:
+        'infra:railway:foundation — fail-closed one-time Railway foundation planner/apply controller; requires an empty exact-project cell-us target and applies only the unchanged reviewed source-less plan',
+    },
+  ),
   // ── bqc ───────────────────────────────────────────────────────────
+  ops(
+    'scripts/release/railway-google-content-approval-activation.ts',
+    'scripts/release/railway-google-content-approval-activation.ts',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'infra:railway:google-content-approval — exact-target cell-us activation controller; requires all four capabilities killed and drained, installs retained database approvals from one private reviewed intent, changes only the two approved shared variables, and verifies the complete unrelated Railway configuration',
+    },
+  ),
   ops('scripts/bqc/run-baseline.ts', 'scripts/bqc/run-baseline.ts', 'tenant_cross', {
     notes: 'bqc:run-baseline — full gate run incl. migrations/seed/e2e; writes evidence',
   }),
@@ -3530,7 +6000,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'DIRECT-DB (psql): db:bootstrap-auth — provisions 8 better-auth baseline tables',
+        'RECOVERY-ONLY DIRECT-DB (psql): db:bootstrap-auth — compatibility provisioning for 8 Better Auth baseline tables; normal deploy uses db:migrate-deploy',
     },
   ),
   ops(
@@ -3723,12 +6193,102 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/release/create-promotion-manifest.ts',
+    'scripts/release/create-promotion-manifest.ts',
+    'none',
+    {
+      notes:
+        'release:create-promotion-manifest — verifies the exact trusted repository/workflow identity and emits the immutable, digest-bound multi-service promotion manifest',
+    },
+  ),
+  ops(
+    'scripts/release/freeze-release-candidate.ts',
+    'scripts/release/freeze-release-candidate.ts',
+    'none',
+    {
+      notes:
+        'release:freeze-candidate — REL-01 immutable candidate freeze: emits one freeze artifact and refuses a dirty worktree, a SHA that is not merged, generated-artifact drift, or an existing freeze file, so no proof can be produced against a moving tree',
+    },
+  ),
+  ops(
+    'scripts/release/capture-promotion-readback.ts',
+    'scripts/release/capture-promotion-readback.ts',
+    'none',
+    {
+      notes:
+        'release:capture-readback — REL-01 promotion read-back: writes the four typed promotion artifacts, including when a check failed, and exits non-zero if any artifact failed or is schema-invalid, so a failed promotion cannot be silently omitted',
+    },
+  ),
+  ops(
+    'scripts/release/import-live-evidence.ts',
+    'scripts/release/import-live-evidence.ts',
+    'none',
+    {
+      notes:
+        'release:import-live-evidence — REL-01 live-evidence importer: canonicalizes an operator capture against the producer schema for that gate, never synthesizes a field, and exits non-zero naming any missing required field',
+    },
+  ),
+  ops(
+    'scripts/release/prepare-gate-f-approval.ts',
+    'scripts/release/prepare-gate-f-approval.ts',
+    'none',
+    {
+      notes:
+        'release:prepare-approval — REL-01 approval envelope preparation: prints the canonical payload an approver signs offline and holds no key material, so engineering can never sign an approval that belongs to another role',
+    },
+  ),
+  ops(
+    'scripts/release/observe-canary-window.ts',
+    'scripts/release/observe-canary-window.ts',
+    'none',
+    {
+      notes:
+        'release:observe-canary — REL-01 canary observer: GET-only sampling of the production cell-us origin against the ratified threshold profile, writing one candidate-bound canary-window artifact; refuses retries, a non-production origin, a manifest-digest mismatch, an unratified observation window, or a signal source with no configured endpoint, so an unreachable source fails rather than producing a plausible artifact',
+    },
+  ),
+  ops(
+    'scripts/release/run-deployed-critical-journeys.ts',
+    'scripts/release/run-deployed-critical-journeys.ts',
+    'none',
+    {
+      notes:
+        'release:deployed-journeys — REL-01 deployed critical-journey runner: drives the isolated read-only deployed-critical browser project with no retries against the production cell-us origin and writes one candidate-bound journey artifact; checks the authorization window before launching a browser',
+    },
+  ),
+  ops(
+    'scripts/release/rehearse-recovery.ts',
+    'scripts/release/rehearse-recovery.ts',
+    'none',
+    {
+      notes:
+        'release:rehearse-recovery — REL-01 report-first recovery orchestrator: --plan writes one plan and stops, and --apply proceeds only under an authorization whose digest equals that plan, with a named operator, a reason and an operator-supplied platform receipt; reverse DDL is rejected at plan build and the tool itself calls no platform API',
+    },
+  ),
+  ops(
+    'scripts/release/create-legal-revision-set.ts',
+    'scripts/release/create-legal-revision-set.ts',
+    'none',
+    {
+      notes:
+        'release:create-legal-revision-set — LEG-01 producer for the typed legal revision set consumed by Gate F; refuses and writes nothing while any counsel-owned document is a draft, which is the current state, so engineering cannot manufacture legal approval',
+    },
+  ),
+  ops(
+    'scripts/release/bootstrap-schema-migrator.ts',
+    'scripts/release/bootstrap-schema-migrator.ts',
+    'tenant_cross',
+    {
+      notes:
+        'release:migrate-cell — audited first-rollout schema bootstrap: verifies the signed manifest and fresh exact-target no-drift Railway plan, attaches only the manifest web-image digest to the one-shot schema-migrator, and requires SUCCESS at that digest',
+    },
+  ),
+  ops(
     'scripts/release/deploy-beta.ts',
     'scripts/release/deploy-beta.ts',
     'tenant_cross',
     {
       notes:
-        'release:beta — deploys one revision to every google-closed-beta service (release identity per service class, ADR 0051), waits for every deployment to settle, then verifies it; --apply runs through the operator harness (named operator + reason + audited decision)',
+        'release:beta — before any Railway mutation, recomputes global people-authority parity and matches it to audited cutover evidence; then deploys one signed revision to every service, waits for settlement, and verifies it; --apply runs through the operator harness',
     },
   ),
   // ── package.json-only commands (CLI tools, no repo script file) ───
@@ -3743,15 +6303,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   }),
   ops('db:pull', 'package.json', 'tenant_cross', {
     notes: 'drizzle-kit pull — introspects DB to files',
-  }),
-  ops('db:studio', 'package.json', 'tenant_cross', {
-    notes: 'drizzle-kit studio — browser DB inspector',
-  }),
-  ops('auth:generate', 'package.json', 'none', {
-    notes: 'better-auth CLI generate — writes auth schema output',
-  }),
-  ops('auth:migrate', 'package.json', 'tenant_cross', {
-    notes: 'better-auth CLI migrate — applies better-auth migrations',
   }),
 ]
 

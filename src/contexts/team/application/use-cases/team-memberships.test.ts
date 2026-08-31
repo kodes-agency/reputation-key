@@ -17,6 +17,15 @@ const NOW = new Date('2026-08-08T12:00:00.000Z')
 const ORG = organizationId('org-1')
 const PROPERTY = propertyId('a0000000-0000-4000-8000-000000000001')
 const TEAM = teamId('b0000000-0000-4000-8000-000000000001')
+const teamMembershipContext = (
+  role: 'PropertyManager' | 'Staff',
+  overrides: Parameters<typeof buildTestAuthContext>[0] = {},
+) =>
+  buildTestAuthContext({
+    ...overrides,
+    role,
+    effectivePermissions: new Set(['team.membership.manage']),
+  })
 
 const teamRepo: TeamRepository = {
   findById: async () => ({
@@ -87,7 +96,6 @@ function setup(actorRole: 'member' | 'lead' | null) {
     staffApi: {
       getAccessiblePropertyIds: async () => [PROPERTY],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     },
     clock: () => NOW,
   }
@@ -99,7 +107,7 @@ describe('team membership commands', () => {
     const { deps, addMember } = setup('lead')
     const result = await addTeamMember(deps)(
       { teamId: TEAM, staffParticipationId: 'participation-2' },
-      buildTestAuthContext({ role: 'Staff', userId: userId('lead-user') }),
+      teamMembershipContext('Staff', { userId: userId('lead-user') }),
     )
     expect(result.role).toBe('member')
     expect(addMember).toHaveBeenCalledOnce()
@@ -110,7 +118,7 @@ describe('team membership commands', () => {
     await expect(
       addTeamMember(deps)(
         { teamId: TEAM, staffParticipationId: 'participation-2' },
-        buildTestAuthContext({ role: 'Staff' }),
+        teamMembershipContext('Staff'),
       ),
     ).rejects.toMatchObject({ _tag: 'TeamError', code: 'forbidden' })
     expect(addMember).not.toHaveBeenCalled()
@@ -118,7 +126,7 @@ describe('team membership commands', () => {
 
   it('never lets Staff appoint or clear a lead', async () => {
     const { deps, setLead, clearLead } = setup('lead')
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = teamMembershipContext('Staff')
     await expect(
       setTeamLead(deps)({ teamId: TEAM, staffParticipationId: 'participation-2' }, ctx),
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -133,7 +141,7 @@ describe('team membership commands', () => {
     const { deps, removeMember } = setup(null)
     const result = await removeTeamMember(deps)(
       { teamId: TEAM, staffParticipationId: 'participation-2', reason: 'reassigned' },
-      buildTestAuthContext({ role: 'PropertyManager' }),
+      teamMembershipContext('PropertyManager'),
     )
     expect(result.role).toBe('member')
     expect(removeMember).toHaveBeenCalledOnce()

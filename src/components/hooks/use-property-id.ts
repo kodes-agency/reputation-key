@@ -1,4 +1,12 @@
 import { useRouterState } from '@tanstack/react-router'
+import { z } from 'zod/v4'
+
+const propertyScopeSchema = z.uuid()
+
+const validPropertyScope = (value: unknown): string | null => {
+  const parsed = propertyScopeSchema.safeParse(value)
+  return parsed.success ? parsed.data : null
+}
 
 /**
  * Resolve the active property id from a parsed location.
@@ -19,10 +27,10 @@ export function propertyIdFromLocation(
   // against router state that has not always parsed a path yet, so this is a
   // real input rather than a defensive guard.
   const m = pathname?.match(/\/properties\/([^/]+)/)
-  if (m) return m[1] ?? null
+  const pathPropertyId = validPropertyScope(m?.[1])
+  if (pathPropertyId) return pathPropertyId
   if (search !== null && typeof search === 'object' && 'propertyId' in search) {
-    const value = search.propertyId
-    return typeof value === 'string' ? value : null
+    return validPropertyScope(search.propertyId)
   }
   return null
 }

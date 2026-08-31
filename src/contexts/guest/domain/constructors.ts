@@ -84,7 +84,7 @@ export type BuildScanEventInput = Readonly<{
   propertyId: PropertyId
   source: ScanSource
   sessionId: string
-  ipHash: string
+  ipHash: string | null
   now: Date
 }>
 

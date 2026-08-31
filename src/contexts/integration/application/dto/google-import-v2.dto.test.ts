@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cancelPropertyImportInputSchema,
+  googleImportReviewDraftSchema,
   recoverPropertyImportInputSchema,
   retryPropertyImportItemInputSchema,
   startPropertyImportInputSchema,
@@ -30,6 +32,61 @@ function createRequest() {
 }
 
 describe('Google import v2 DTOs', () => {
+  it('validates review controls with field-addressable issues', () => {
+    const result = googleImportReviewDraftSchema.safeParse({
+      items: [
+        {
+          candidateId: 'candidate-a',
+          candidateRef: CANDIDATE_A,
+          action: 'create',
+          existingPropertyId: null,
+          name: '   ',
+          address: '',
+          countryCode: 'ZZ',
+          timezone: 'Mars/Olympus',
+          countryConfirmed: false,
+          timezoneConfirmed: false,
+          updateExistingProfile: true,
+        },
+      ],
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) return
+    expect(result.error.issues.map((issue) => issue.path)).toEqual(
+      expect.arrayContaining([
+        ['items', 0, 'name'],
+        ['items', 0, 'countryCode'],
+        ['items', 0, 'timezone'],
+        ['items', 0, 'countryConfirmed'],
+        ['items', 0, 'timezoneConfirmed'],
+      ]),
+    )
+  })
+
+  it('requires only editable profile fields when reviewing a relink', () => {
+    const base = {
+      candidateId: 'candidate-a',
+      candidateRef: CANDIDATE_A,
+      action: 'relink' as const,
+      existingPropertyId: '00000000-0000-4000-8000-000000000002',
+      name: '',
+      address: '',
+      countryCode: '',
+      timezone: 'Europe/Sofia',
+      countryConfirmed: false,
+      timezoneConfirmed: true,
+      updateExistingProfile: false,
+    }
+
+    expect(googleImportReviewDraftSchema.safeParse({ items: [base] }).success).toBe(true)
+    expect(
+      googleImportReviewDraftSchema.safeParse({
+        items: [{ ...base, updateExistingProfile: true }],
+      }).success,
+    ).toBe(false)
+  })
+
   it('normalizes a confirmed create profile and preserves an explicit null address', () => {
     const result = startPropertyImportInputSchema.parse(createRequest())
 
@@ -143,23 +200,17 @@ describe('Google import v2 DTOs', () => {
     expect(startPropertyImportInputSchema.safeParse(input).success).toBe(false)
   })
 
-  it('accepts 100 unique items and rejects 101', () => {
-    const items = Array.from({ length: 101 }, (_, index) => ({
+  it('accepts a no-cap parent selection larger than one worker batch', () => {
+    const items = Array.from({ length: 250 }, (_, index) => ({
       ...createRequest().items[0],
       candidateRef: `v1.${index.toString(36).padStart(43, '0')}`,
     }))
     expect(
-      startPropertyImportInputSchema.safeParse({
-        ...createRequest(),
-        items: items.slice(0, 100),
-      }).success,
-    ).toBe(true)
-    expect(
       startPropertyImportInputSchema.safeParse({ ...createRequest(), items }).success,
-    ).toBe(false)
+    ).toBe(true)
   })
 
-  it('pins recovery, status, and retry identifiers', () => {
+  it('pins recovery, status, cancellation, and retry identifiers', () => {
     const requestId = '00000000-0000-4000-8000-000000000001'
     const importJobId = '00000000-0000-4000-8000-000000000002'
     const itemId = '00000000-0000-4000-8000-000000000003'
@@ -167,6 +218,9 @@ describe('Google import v2 DTOs', () => {
 
     expect(recoverPropertyImportInputSchema.parse({ requestId })).toEqual({ requestId })
     expect(getPropertyImportStatusInputSchema.parse({ importJobId })).toEqual({
+      importJobId,
+    })
+    expect(cancelPropertyImportInputSchema.parse({ importJobId })).toEqual({
       importJobId,
     })
     expect(

@@ -16,19 +16,23 @@
 import { definePlugin } from 'nitro'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
+import { getDb } from '#/shared/db'
+import { assertRecoveryCutoverAttestation } from '#/shared/config/recovery-cutover-attestation'
+import { createRecoveryCutoverRunReader } from '#/shared/db/recovery/recovery-cutover-run-reader'
 import {
   assertRestoreModeCompatible,
   isRestoreIsolated,
   RESTORE_ISOLATED_LOG_LINE,
 } from '#/shared/config/restore-mode'
 
-export default definePlugin(() => {
+export default definePlugin(async () => {
   const env = getEnv()
   assertRestoreModeCompatible(env, 'web')
+  await assertRecoveryCutoverAttestation(createRecoveryCutoverRunReader(getDb()), env)
   if (isRestoreIsolated(env)) {
     getLogger().warn(
       `${RESTORE_ISOLATED_LOG_LINE} — every capability denies fail-closed; ` +
-        'restore drill only (unset RESTORE_MODE to cut over)',
+        'restore drill only (pin the verified recovery run/generation before cutover)',
     )
   }
 })

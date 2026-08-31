@@ -21,24 +21,31 @@ import type {
   NotificationUserSettings,
 } from '../../domain/types'
 import { notificationError } from '../../domain/errors'
+import { isPreferenceDisableable } from '../../domain/notification-policy'
 
 type PreferenceRow = typeof notificationPreferences.$inferSelect
 
-const preferenceFromRow = (row: PreferenceRow): NotificationPreference => ({
-  id: notificationPreferenceId(row.id),
-  userId: toUserId(row.userId),
-  organizationId: toOrgId(row.organizationId),
-  propertyId: toPropertyId(row.propertyId),
-  category: row.category as NotificationCategory,
-  channel: row.channel as NotificationChannel,
-  enabled: row.enabled,
-  cadence: row.cadence as NotificationCadence,
-  urgentBypassEnabled: row.urgentBypassEnabled,
-  quietHoursStart: row.quietHoursStart?.slice(0, 5) ?? null,
-  quietHoursEnd: row.quietHoursEnd?.slice(0, 5) ?? null,
-  createdAt: row.createdAt,
-  updatedAt: row.updatedAt,
-})
+const preferenceFromRow = (row: PreferenceRow): NotificationPreference => {
+  const category = row.category as NotificationCategory
+  const channel = row.channel as NotificationChannel
+  return {
+    id: notificationPreferenceId(row.id),
+    userId: toUserId(row.userId),
+    organizationId: toOrgId(row.organizationId),
+    propertyId: toPropertyId(row.propertyId),
+    category,
+    channel,
+    // Expand-phase compatibility: stale false rows cannot make a required
+    // channel appear disabled while the backfill/constraint rolls out.
+    enabled: isPreferenceDisableable(category, channel) ? row.enabled : true,
+    cadence: row.cadence as NotificationCadence,
+    urgentBypassEnabled: row.urgentBypassEnabled,
+    quietHoursStart: row.quietHoursStart?.slice(0, 5) ?? null,
+    quietHoursEnd: row.quietHoursEnd?.slice(0, 5) ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
 
 export const createNotificationPreferenceRepository = (db: Database) => ({
   findForDelivery: async (
@@ -65,6 +72,12 @@ export const createNotificationPreferenceRepository = (db: Database) => ({
   },
 
   upsert: async (preference: NotificationPreference): Promise<NotificationPreference> => {
+    if (preference.category === 'mandatory') {
+      throw notificationError(
+        'invalid_input',
+        'Mandatory notifications cannot be configured',
+      )
+    }
     const rows = await db
       .insert(notificationPreferences)
       .values({
@@ -102,6 +115,57 @@ export const createNotificationPreferenceRepository = (db: Database) => ({
       .returning()
     if (!rows[0])
       throw notificationError('insert_failed', 'Preference UPSERT returned no row')
+    return preferenceFromRow(rows[0])
+  },
+
+  /**
+   * Semantic category mute: insert governed defaults when no row exists, but
+   * on conflict change only the enabled flag. Existing cadence, urgent bypass,
+   * and quiet hours must survive a mute action from the notification feed.
+   */
+  upsertEnabled: async (
+    preference: NotificationPreference,
+  ): Promise<NotificationPreference> => {
+    if (preference.category === 'mandatory') {
+      throw notificationError(
+        'invalid_input',
+        'Mandatory notifications cannot be configured',
+      )
+    }
+    const rows = await db
+      .insert(notificationPreferences)
+      .values({
+        id: preference.id as string,
+        userId: preference.userId as string,
+        organizationId: preference.organizationId as string,
+        propertyId: preference.propertyId as string,
+        category: preference.category,
+        channel: preference.channel,
+        enabled: preference.enabled,
+        cadence: preference.cadence,
+        urgentBypassEnabled: preference.urgentBypassEnabled,
+        quietHoursStart: preference.quietHoursStart,
+        quietHoursEnd: preference.quietHoursEnd,
+        createdAt: preference.createdAt,
+        updatedAt: preference.updatedAt,
+      })
+      .onConflictDoUpdate({
+        target: [
+          notificationPreferences.userId,
+          notificationPreferences.organizationId,
+          notificationPreferences.propertyId,
+          notificationPreferences.category,
+          notificationPreferences.channel,
+        ],
+        set: {
+          enabled: preference.enabled,
+          updatedAt: preference.updatedAt,
+        },
+      })
+      .returning()
+    if (!rows[0]) {
+      throw notificationError('insert_failed', 'Preference mute UPSERT returned no row')
+    }
     return preferenceFromRow(rows[0])
   },
 

@@ -5,6 +5,7 @@ import { reorderLinks } from './reorder-links'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import {
   buildTestAuthContext,
   buildTestPortal,
@@ -24,7 +25,6 @@ const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
@@ -35,7 +35,11 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     portalRepo,
     portalLinkRepo,
     staffPublicApi: staffApiMock(accessible),
-    events,
+    commandStore: createInMemoryPortalCommandStore({
+      portalRepo,
+      portalLinkRepo,
+      events,
+    }),
     clock: () => FIXED_TIME,
   }
   const useCase = reorderLinks(deps)

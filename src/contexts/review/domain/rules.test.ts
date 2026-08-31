@@ -90,6 +90,24 @@ describe('computeReviewContentHash', () => {
       computeReviewContentHash({ ...base, text: '' }),
     )
   })
+
+  it('normalizes every nullable source field without changing its canonical hash', () => {
+    expect(
+      computeReviewContentHash({
+        ...base,
+        text: null,
+        reviewerName: null,
+        languageCode: null,
+      }),
+    ).toBe(
+      computeReviewContentHash({
+        ...base,
+        text: '',
+        reviewerName: '',
+        languageCode: '',
+      }),
+    )
+  })
 })
 
 describe('canTransitionReply', () => {
@@ -189,6 +207,7 @@ describe('transitionReply — BQC-3.8 AI-draft publication proof', () => {
       approvedAt: null,
       publishedAt: null,
       publicationState: null,
+      publicationCycle: 0,
       publicationAttempts: 0,
       publicationLastErrorClass: null,
       reconcileDueAt: null,
@@ -209,6 +228,23 @@ describe('transitionReply — BQC-3.8 AI-draft publication proof', () => {
     if (submitted.isErr()) throw submitted.error
     const approved = transitionReply(submitted.value, 'approved', NOW)
     expect(approved.isOk()).toBe(true)
+  })
+
+  it('records the exact publication instant when an approved reply is published', () => {
+    const publishedAt = new Date('2026-07-17T00:05:00.000Z')
+    const result = transitionReply(
+      makeReply({ status: 'approved', approvedAt: NOW }),
+      'published',
+      publishedAt,
+    )
+
+    expect(result.isOk()).toBe(true)
+    if (result.isErr()) throw result.error
+    expect(result.value).toMatchObject({
+      status: 'published',
+      updatedAt: publishedAt,
+      publishedAt,
+    })
   })
 })
 

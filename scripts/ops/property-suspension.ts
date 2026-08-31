@@ -1,7 +1,9 @@
 // Operator CLI (BQC-7.5): suspend/restore property processing via the
-// BQC-2.7 policy-admin op (setPropertySuspension — reason + ticket required,
-// writes its own policy.property.suspend/unsuspend audit row on top of the
-// harness decision row). Suspension blocks the property in the capability
+// BQC-2.7 policy-admin op (setPropertySuspension — reason + ticket required).
+// Production policyAdmin routes the suspension/version change and its
+// policy.property.suspend/unsuspend audit row through one Identity transaction;
+// the operator harness decision remains its separate invocation evidence.
+// Suspension blocks the property in the capability
 // store (processing denies property_suspended within the refresh bound);
 // restore clears it.
 //

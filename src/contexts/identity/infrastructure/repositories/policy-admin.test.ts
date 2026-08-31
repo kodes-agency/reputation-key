@@ -6,10 +6,11 @@
 // read-only decision diagnostic that explains decisions without PII or
 // secret configuration.
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createPolicyAdminOps } from '../../application/use-cases/policy-admin'
 import {
   createPolicyDiagnostic,
@@ -29,24 +30,16 @@ import {
 } from '#/shared/auth/beta-capabilities'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import {
-  setOrganizationPolicy,
-  setPropertyPolicy,
-  addOrganizationCapability,
-  removeOrganizationCapability,
-  addPropertyCapability,
-  removePropertyCapability,
-  isOrgMember,
   getMemberRole,
   loadOrgPolicyState,
   loadPolicySnapshot,
 } from './policy-state.repository'
 import {
-  grantPropertyAccess,
-  revokePropertyAccess,
   hasActiveGrant,
   listActiveGrantsForOrg,
 } from './property-access-grant.repository'
 import { writePolicyDecision } from './policy-decision-audit.repository'
+import { createPostgresPolicyAdminCommandStore } from '../policy-admin-command-store'
 
 const db = getDb()
 const ORG = 'org-policy-admin'
@@ -54,6 +47,7 @@ const ADMIN = 'user-padmin-admin'
 const MEMBER = 'user-padmin-member'
 const PROP = 'd4000000-0000-4000-8000-000000000088'
 const NOW = new Date('2026-07-17T12:00:00Z')
+const reconcileResponsibleManagerEligibility = vi.fn(async () => undefined)
 
 const ops = createPolicyAdminOps({
   clock: () => NOW,
@@ -70,32 +64,14 @@ const ops = createPolicyAdminOps({
     resolveRouting: (propertyId) =>
       createProcessingRouter({
         loadPropertyRouting: createPropertyRoutingLoader({ db }),
-        cell: 'us',
       }).resolve({ kind: 'property', propertyId: propertyId }, 'review.sync'),
     cell: 'us',
     providerRef: providerRefForCell('us') ?? null,
   }),
   refreshPolicy: async () => {},
-  setOrganizationPolicy: (input) => setOrganizationPolicy(db, input),
-  setPropertyPolicy: (input) => setPropertyPolicy(db, input),
-  propertyBelongsToOrganization: async (orgId, propertyId) => {
-    const result = await db.execute(
-      sql`SELECT 1 FROM properties WHERE organization_id = ${orgId} AND id = ${propertyId}`,
-    )
-    return result.rows.length > 0
-  },
-  addOrganizationCapability: (orgId, cap, by) =>
-    addOrganizationCapability(db, orgId, cap, by),
-  removeOrganizationCapability: (orgId, cap) =>
-    removeOrganizationCapability(db, orgId, cap),
-  addPropertyCapability: (propertyId, cap, by) =>
-    addPropertyCapability(db, propertyId, cap, by),
-  removePropertyCapability: (propertyId, cap) =>
-    removePropertyCapability(db, propertyId, cap),
-  isOrgMember: (orgId, uid) => isOrgMember(db, orgId, uid),
+  commandStore: createPostgresPolicyAdminCommandStore(db),
   loadOrgPolicyState: (orgId) => loadOrgPolicyState(db, orgId),
-  grantPropertyAccess: (input) => grantPropertyAccess(db, input),
-  revokePropertyAccess: (input) => revokePropertyAccess(db, input),
+  reconcileResponsibleManagerEligibility,
   listActiveGrantsForOrg: (orgId, at) => listActiveGrantsForOrg(db, orgId, at),
   writePolicyDecision: (entry) => writePolicyDecision(db, entry),
 })
@@ -121,8 +97,8 @@ async function clearOrgFixtures() {
     sql`DELETE FROM properties WHERE organization_id = ${ORG}`,
     sql`DELETE FROM member WHERE "organizationId" = ${ORG}`,
     sql`DELETE FROM "user" WHERE id IN (${ADMIN}, ${MEMBER})`,
-    sql`DELETE FROM organization WHERE id = ${ORG}`,
   ])
+  await deleteTestOrganizations(db, [ORG])
 }
 
 beforeAll(async () => {
@@ -152,25 +128,64 @@ afterAll(async () => {
 })
 
 describe('policy administration (BQC-2.7)', () => {
+  it('rolls the policy row and version back when the required audit write fails', async () => {
+    const before = await loadPolicySnapshot(db)
+    const store = createPostgresPolicyAdminCommandStore(db, {
+      writeAudit: async () => {
+        throw new Error('injected policy audit failure')
+      },
+    })
+
+    await expect(
+      store.setOrganizationCapability({
+        organizationId: ORG,
+        capability: 'portal.read',
+        enabled: true,
+        createdBy: ADMIN,
+        audit: {
+          actorType: 'operator',
+          actorId: ADMIN,
+          organizationId: ORG,
+          propertyId: null,
+          action: 'policy.allowlist.set',
+          capability: 'portal.read',
+          executionKind: 'operator',
+          decision: 'allow',
+          reason: 'fault-injection atomicity proof',
+          policyVersion: EXECUTION_POLICY_VERSION,
+          correlationId: null,
+        },
+      }),
+    ).rejects.toThrow('injected policy audit failure')
+
+    const after = await loadPolicySnapshot(db)
+    expect(after.version).toBe(before.version)
+    expect(
+      after.orgCapabilities.some(
+        (row) => row.organizationId === ORG && row.capability === 'portal.read',
+      ),
+    ).toBe(false)
+  })
+
   it('allowlist: non-core capability can be enabled/disabled with reason + audit', async () => {
     await ops.setOrgCapability({
       organizationId: ORG,
-      capability: 'team.use',
+      capability: 'portal.read',
       enabled: true,
-      reason: 'pilot team evaluation',
+      reason: 'pilot portal evaluation',
       actorUserId: ADMIN,
       now: NOW,
     })
     let snapshot = await loadPolicySnapshot(db)
     expect(
       snapshot.orgCapabilities.some(
-        (c) => c.organizationId === ORG && c.capability === 'team.use',
+        (c) => c.organizationId === ORG && c.capability === 'portal.read',
       ),
     ).toBe(true)
 
     await ops.setOrgCapability({
       organizationId: ORG,
-      capability: 'team.use',
+      capability: 'portal.read',
       enabled: false,
       reason: 'pilot ended',
       actorUserId: ADMIN,
@@ -179,7 +194,7 @@ describe('policy administration (BQC-2.7)', () => {
     snapshot = await loadPolicySnapshot(db)
     expect(
       snapshot.orgCapabilities.some(
-        (c) => c.organizationId === ORG && c.capability === 'team.use',
+        (c) => c.organizationId === ORG && c.capability === 'portal.read',
       ),
     ).toBe(false)
   })
@@ -272,7 +287,7 @@ describe('policy administration (BQC-2.7)', () => {
     await expect(
       ops.setOrgCapability({
         organizationId: ORG,
-        capability: 'team.use',
+        capability: 'portal.read',
         enabled: true,
         reason: '',
         actorUserId: ADMIN,
@@ -378,6 +393,28 @@ describe('policy administration (BQC-2.7)', () => {
       }),
     ).resolves.toBe(true)
 
+    // A client retry converges on the existing unrevoked grant while still
+    // recording the retried operator decision atomically.
+    await ops.grantPropertyAccessOp({
+      organizationId: ORG,
+      propertyId: PROP,
+      userId: MEMBER,
+      reason: 'covering for holiday',
+      ticketRef: 'OPS-200',
+      expiresAt: new Date(NOW.getTime() + 7 * 24 * 60 * 60 * 1000),
+      actorUserId: ADMIN,
+      now: NOW,
+    })
+    const activeGrantCount = await db.execute(sql`
+      SELECT count(*)::int AS count
+      FROM property_access_grant
+      WHERE organization_id = ${ORG}
+        AND property_id = ${PROP}::uuid
+        AND user_id = ${MEMBER}
+        AND revoked_at IS NULL
+    `)
+    expect(activeGrantCount.rows[0]?.count).toBe(1)
+
     await ops.revokePropertyAccessOp({
       organizationId: ORG,
       propertyId: PROP,
@@ -394,6 +431,24 @@ describe('policy administration (BQC-2.7)', () => {
         at: NOW,
       }),
     ).resolves.toBe(false)
+    expect(reconcileResponsibleManagerEligibility).toHaveBeenCalledWith(
+      ORG,
+      MEMBER,
+      ADMIN,
+    )
+
+    // A retry after a downstream reconciliation failure still re-runs the
+    // idempotent cleanup even though the grant is already revoked.
+    reconcileResponsibleManagerEligibility.mockClear()
+    await ops.revokePropertyAccessOp({
+      organizationId: ORG,
+      propertyId: PROP,
+      userId: MEMBER,
+      reason: 'holiday cover ended',
+      actorUserId: ADMIN,
+      now: NOW,
+    })
+    expect(reconcileResponsibleManagerEligibility).toHaveBeenCalledOnce()
   })
 
   it('grant requires org membership (no phantom access)', async () => {
@@ -419,7 +474,7 @@ describe('policy administration (BQC-2.7)', () => {
       expect(row.decision).toBe('allow')
     }
     const actions = rows.map((r) => `${r.action}:${r.reason}`)
-    expect(actions).toContain('policy.allowlist.set:pilot team evaluation')
+    expect(actions).toContain('policy.allowlist.set:pilot portal evaluation')
     expect(actions).toContain('policy.org.suspend:billing hold (OPS-100)')
     expect(actions).toContain('policy.property.suspend:quality review (OPS-101)')
     expect(actions).toContain('policy.grant:covering for holiday (OPS-200)')

@@ -1,31 +1,25 @@
 import { Checkbox } from '#/components/ui/checkbox'
-import type {
-  ImportReviewItem,
-  ImportReviewValidation,
-} from './google-import-review-model'
+import type { ImportReviewItem } from './google-import-review-model'
 import { GoogleImportReviewFields } from './google-import-review-fields'
+import type { GoogleImportReviewFormApi } from './use-google-import-review-form'
 
 type Props = Readonly<{
+  form: GoogleImportReviewFormApi
   item: ImportReviewItem
   index: number
   total: number
   attempted: boolean
-  validation: ImportReviewValidation
   disabled: boolean
-  onChange: (item: ImportReviewItem) => void
 }>
 
 export function GoogleImportReviewItem({
+  form,
   item,
   index,
   total,
   attempted,
   disabled,
-  validation,
-  onChange,
 }: Props) {
-  const patch = (next: Partial<ImportReviewItem>) => onChange({ ...item, ...next })
-
   return (
     <section
       className="rounded-xl border bg-card p-4 shadow-xs sm:p-5"
@@ -49,24 +43,28 @@ export function GoogleImportReviewItem({
       </div>
 
       {item.action === 'relink' ? (
-        <label className="mb-5 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm">
-          <Checkbox
-            checked={item.updateExistingProfile}
-            disabled={disabled}
-            onCheckedChange={(checked) =>
-              patch({ updateExistingProfile: checked === true })
-            }
-          />
-          Update the existing property name and address from this review
-        </label>
+        <form.Field name={`items[${index}].updateExistingProfile`}>
+          {(field) => (
+            <label className="mb-5 flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm">
+              <Checkbox
+                name={field.name}
+                checked={field.state.value}
+                disabled={disabled}
+                onBlur={field.handleBlur}
+                onCheckedChange={(checked) => field.handleChange(checked === true)}
+              />
+              Update the existing property name and address from this review
+            </label>
+          )}
+        </form.Field>
       ) : null}
 
       <GoogleImportReviewFields
+        form={form}
         item={item}
+        index={index}
         attempted={attempted}
-        validation={validation}
         disabled={disabled}
-        onPatch={patch}
       />
     </section>
   )

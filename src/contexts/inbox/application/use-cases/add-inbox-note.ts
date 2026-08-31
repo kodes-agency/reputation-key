@@ -9,13 +9,19 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { createInboxNote } from '../../domain/constructors'
 import { inboxError } from '../../domain/errors'
-import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
+import {
+  loadInboxItemOrThrow,
+  assertExpectedCommandRevision,
+  assertInboxSourcePropertyAccessible,
+  canHandleInboxSource,
+} from '../inbox-access'
 import { canForContext } from '#/shared/domain/permissions'
 import { inboxNoteAdded } from '../../domain/events'
 
 export type AddInboxNoteInput = Readonly<{
   inboxItemId: InboxItemId
   text: string
+  expectedCommandRevision: number
 }>
 
 export type AddInboxNoteDeps = Readonly<{
@@ -38,10 +44,15 @@ export const addInboxNote =
       input.inboxItemId,
       ctx.organizationId,
     )
-    await assertPropertyAccessible(
+    assertExpectedCommandRevision(item, input.expectedCommandRevision)
+    if (!canHandleInboxSource(ctx, item.sourceType)) {
+      throw inboxError('forbidden', 'No permission to handle this inbox source')
+    }
+    await assertInboxSourcePropertyAccessible(
       deps.staffPublicApi,
       ctx,
-      'inbox.write',
+      'handle',
+      item.sourceType,
       item.propertyId,
     )
 
@@ -64,6 +75,7 @@ export const addInboxNote =
     // 3. Persist + record the fact atomically. Notes remain context-owned
     //    content — the event carries the note ID, never the text (BQC-3.4).
     return deps.commandStore.addNote(
+      item,
       note,
       inboxNoteAdded({
         inboxItemId: note.inboxItemId,

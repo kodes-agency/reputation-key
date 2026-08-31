@@ -4,7 +4,7 @@ import {
   Users,
   Globe,
   Target,
-  Trophy,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { SidebarMenu, SidebarMenuBadge } from '#/components/ui/sidebar'
 import { InboxVisitBadge } from '#/components/inbox/inbox-visit-badge'
@@ -12,7 +12,6 @@ import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import type { Capabilities } from '#/shared/hooks/useCapabilities'
 import { InertNavItem, LinkNavItem, NOT_IN_BETA_TOOLTIP } from './nav-items-shared'
-import type { NavLinkTarget } from './nav-items-shared'
 import type { Capability } from '#/shared/auth/beta-capabilities'
 
 type Props = Readonly<{
@@ -28,15 +27,11 @@ type Props = Readonly<{
  * `/unavailable`. Dashboard and Reviews have no entry because their routes
  * carry no capability gate. See `nav-items-shared` for why disabling here is
  * an affordance rather than a boundary.
- *
- * `useSearch` marks the org-scoped destinations, which take the property in
- * search rather than as a path param.
  */
 type ManagerNavItem = Readonly<{
   capability?: Capability
   key: string
   label: string
-  useSearch?: boolean
   icon: typeof LayoutDashboard
   to: string
 }>
@@ -76,12 +71,10 @@ const navItems: ReadonlyArray<ManagerNavItem> = [
     capability: 'goal.use',
   },
   {
-    key: 'leaderboard',
-    label: 'Leaderboard',
-    icon: Trophy,
-    to: '/leaderboard',
-    capability: 'leaderboard.use',
-    useSearch: true,
+    key: 'property-settings',
+    label: 'Property settings',
+    icon: SlidersHorizontal,
+    to: '/properties/$propertyId/settings',
   },
 ]
 
@@ -113,16 +106,12 @@ function ManagerNavRow({
     )
   }
 
-  const link: NavLinkTarget = item.useSearch
-    ? { to: item.to, search: { propertyId } }
-    : { to: item.to, params: { propertyId } }
-
   return (
     <LinkNavItem
       icon={item.icon}
       label={item.label}
       isActive={activeSection === item.key}
-      link={link}
+      link={{ to: item.to, params: { propertyId } }}
       badge={
         item.key === 'reviews' && (
           <SidebarMenuBadge>

@@ -75,6 +75,11 @@ describe('BQR-1.2: domain error modules', () => {
       it('uses _tag shape for the context error', () => {
         expect(src).toMatch(/_tag:\s*'[A-Za-z]+Error'/)
       })
+
+      it('constructs throwable errors through the shared enumerable Error helper', () => {
+        expect(src).toMatch(/create(?:ErrorFactory|TaggedError)/)
+        expect(src).not.toMatch(/=>\s*\(\{\s*_tag:/)
+      })
     })
   }
 })

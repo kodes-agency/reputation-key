@@ -230,14 +230,12 @@ describe('Google Account Management adapter', () => {
     expect(execute).toHaveBeenCalledTimes(2)
   })
 
-  it('shares one refresh leader per connection while every caller reacquires execution', async () => {
+  it('delegates every 401 to replica-safe refresh coordination before reacquiring execution', async () => {
     let releaseRefresh: ((value: string) => void) | undefined
-    const refreshAccessToken = vi.fn(
-      () =>
-        new Promise<string>((resolve) => {
-          releaseRefresh = resolve
-        }),
-    )
+    const distributedResult = new Promise<string>((resolve) => {
+      releaseRefresh = resolve
+    })
+    const refreshAccessToken = vi.fn(() => distributedResult)
     const getAccessToken = vi.fn(async () => 'shared-access-token')
     const reauthorize = vi.fn(async () => reauthorized)
     const firstBodies = [
@@ -291,7 +289,7 @@ describe('Google Account Management adapter', () => {
       accessToken: 'expired-access-token-2',
       authorization,
     })
-    await vi.waitFor(() => expect(refreshAccessToken).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(refreshAccessToken).toHaveBeenCalledTimes(2))
     releaseRefresh?.('leader-only-token')
 
     await expect(Promise.all([first, second])).resolves.toEqual([
@@ -456,6 +454,10 @@ describe('Google Business Information adapter', () => {
           categories: {
             primaryCategory: { displayName: 'Restaurant' },
           },
+          metadata: {
+            newReviewUri:
+              'https://search.google.com/local/writereview?placeid=location-1',
+          },
         },
       ],
       nextPageToken: 'next-location-page',
@@ -484,6 +486,8 @@ describe('Google Business Information adapter', () => {
           address: '123 Main Street, Suite 4, Sofia, Sofia City, 1000',
           primaryCategory: 'Restaurant',
           countryCode: 'BG',
+          googleReviewUri:
+            'https://search.google.com/local/writereview?placeid=location-1',
         },
       ],
       nextPageToken: 'next-location-page',
@@ -496,6 +500,31 @@ describe('Google Business Information adapter', () => {
         pageToken: 'location-page-token',
       },
       { authorization, deadlineMs: 15_000, signal: expect.any(AbortSignal) },
+    )
+  })
+
+  it('rejects an unsafe provider review destination', async () => {
+    const adapter = createGoogleBusinessInformationAdapter({
+      executor: executorReturning({
+        locations: [
+          {
+            name: 'locations/location-1',
+            title: 'Acme Diner',
+            metadata: { newReviewUri: 'https://google.com.evil.example/review' },
+          },
+        ],
+      }),
+    })
+
+    await expect(
+      adapter.listLocations({
+        accessToken: 'access-token',
+        authorization,
+        accountId: 'account-1',
+        accountDisplayName: 'Acme Group',
+      }),
+    ).rejects.toSatisfy(
+      (error: unknown) => isGbpApiError(error) && error.kind === 'parse_error',
     )
   })
 

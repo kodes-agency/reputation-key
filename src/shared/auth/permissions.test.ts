@@ -43,6 +43,7 @@ describe('permissions statement', () => {
     expect(statement.team).toContain('membership.manage')
     expect(statement.staff).toContain('manage')
     expect(statement.staff).toContain('read')
+    expect(statement.portal).toContain('admin')
     expect(statement.review).toContain('read')
     expect(statement.feedback).toContain('read')
     expect(statement.feedback).toContain('respond')
@@ -80,11 +81,6 @@ describe('owner role (AccountAdmin)', () => {
     'property.admin',
     'property.import_gbp_v2',
     'property.read_gbp_performance',
-    'team.create',
-    'team.update',
-    'team.delete',
-    'team.read',
-    'team.membership.manage',
     'staff.manage',
     'staff.read',
     'ac.create',
@@ -92,12 +88,14 @@ describe('owner role (AccountAdmin)', () => {
     'ac.update',
     'ac.delete',
     'portal.create',
+    'portal.admin',
     'portal.update',
     'portal.delete',
     'portal.read',
     'review.read',
     'reply.manage',
     'feedback.read',
+    'feedback.handle',
     'feedback.respond',
     'feedback.contact_read',
     'inbox.read',
@@ -120,6 +118,18 @@ describe('owner role (AccountAdmin)', () => {
       expect(can('AccountAdmin', permission)).toBe(true)
     }
   })
+
+  it('does not grant quarantined Team permissions', () => {
+    for (const permission of [
+      'team.create',
+      'team.update',
+      'team.delete',
+      'team.read',
+      'team.membership.manage',
+    ] satisfies Permission[]) {
+      expect(can('AccountAdmin', permission)).toBe(false)
+    }
+  })
 })
 
 describe('admin role (PropertyManager)', () => {
@@ -134,12 +144,7 @@ describe('admin role (PropertyManager)', () => {
     'property.update',
     'property.read',
     'property.admin',
-    'property.import_gbp_v2',
     'property.read_gbp_performance',
-    'team.create',
-    'team.update',
-    'team.read',
-    'team.membership.manage',
     'staff.manage',
     'staff.read',
     'portal.create',
@@ -148,13 +153,13 @@ describe('admin role (PropertyManager)', () => {
     'review.read',
     'reply.manage',
     'feedback.read',
+    'feedback.handle',
     'feedback.respond',
     'feedback.contact_read',
     'inbox.read',
     'inbox.write',
     'inbox.manage',
     'organization.update',
-    'integration.manage',
     'ai.reply.generate',
     'ai.trends.read',
     'ai.manage',
@@ -171,12 +176,19 @@ describe('admin role (PropertyManager)', () => {
     'member.update',
     'member.delete',
     'property.delete',
+    'team.create',
+    'team.update',
     'team.delete',
+    'team.read',
+    'team.membership.manage',
     'ac.create',
     'ac.read',
     'ac.update',
     'ac.delete',
     'portal.delete',
+    'portal.admin',
+    'property.import_gbp_v2',
+    'integration.manage',
   ]
 
   it('has all expected permissions', () => {
@@ -197,8 +209,8 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'review.read')).toBe(true)
   })
 
-  it('can read goals', () => {
-    expect(can('Staff', 'goal.read')).toBe(true)
+  it('does not expose manager-facing Goal metrics before a Staff dashboard exists', () => {
+    expect(can('Staff', 'goal.read')).toBe(false)
   })
 
   it('cannot create goals', () => {
@@ -225,19 +237,17 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'property.delete')).toBe(false)
   })
 
-  it('can read live GBP Performance but cannot import properties', () => {
-    expect(can('Staff', 'property.read_gbp_performance')).toBe(true)
+  it('cannot read live GBP Performance or import properties', () => {
+    expect(can('Staff', 'property.read_gbp_performance')).toBe(false)
     expect(can('Staff', 'property.import_gbp_v2')).toBe(false)
   })
 
-  it('cannot manage teams', () => {
+  it('has no Team permissions', () => {
     expect(can('Staff', 'team.create')).toBe(false)
     expect(can('Staff', 'team.update')).toBe(false)
     expect(can('Staff', 'team.delete')).toBe(false)
-  })
-
-  it('can manage non-lead membership through the scoped command boundary', () => {
-    expect(can('Staff', 'team.membership.manage')).toBe(true)
+    expect(can('Staff', 'team.read')).toBe(false)
+    expect(can('Staff', 'team.membership.manage')).toBe(false)
   })
 
   it('cannot manage staff participation lifecycle', () => {
@@ -260,9 +270,15 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'dashboard.fleet_read')).toBe(false)
     expect(can('Staff', 'property.admin')).toBe(false)
     expect(can('Staff', 'inbox.manage')).toBe(false)
+    expect(can('Staff', 'feedback.handle')).toBe(false)
     expect(can('Staff', 'ai.reply.generate')).toBe(false)
     expect(can('Staff', 'ai.trends.read')).toBe(false)
     expect(can('Staff', 'ai.manage')).toBe(false)
+  })
+
+  it('grants private-feedback handling to manager roles', () => {
+    expect(can('AccountAdmin', 'feedback.handle')).toBe(true)
+    expect(can('PropertyManager', 'feedback.handle')).toBe(true)
   })
 })
 

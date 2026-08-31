@@ -18,13 +18,14 @@ import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
 import { invitationId, userId } from '#/shared/domain/ids'
 import { acceptInvitationInputSchema } from '../application/dto/invitation.dto'
+import { enforceInvitationSendRateLimit } from './invitation-rate-limit.server'
 
 // ── Accept invitation ──────────────────────────────────────────────
 // User may not have an active org yet (they're joining), so we only
 // require authentication — not tenant context.
 
 export const acceptInvitation = createServerFn({ method: 'POST' })
-  .inputValidator(acceptInvitationInputSchema)
+  .validator(acceptInvitationInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -32,8 +33,7 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
           const headers = await headersFromContext()
           const user = await requireAuth(headers)
 
-          const { useCases } = getContainer()
-          await useCases.acceptInvitation({
+          await getContainer().identityPublicApi.requests.acceptInvitation({
             invitationId: invitationId(data.invitationId),
             headers,
             userId: userId(user.id),
@@ -42,6 +42,7 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
           // so any cached AuthContext (role/org) is now stale.
           resetTenantCache()
         } catch (e) {
+          if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
         }
       },
@@ -54,7 +55,7 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
 // Requires authenticated tenant context — only org members can cancel invitations.
 
 export const cancelInvitation = createServerFn({ method: 'POST' })
-  .inputValidator(acceptInvitationInputSchema)
+  .validator(acceptInvitationInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -63,8 +64,7 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
           const ctx = await resolveTenantContext(headers)
           await requireExecutionAllowed({ actor: ctx, action: 'invitation.cancel' })
 
-          const { useCases } = getContainer()
-          await useCases.cancelInvitation(
+          await getContainer().identityPublicApi.requests.cancelInvitation(
             { invitationId: invitationId(data.invitationId) },
             ctx,
           )
@@ -81,7 +81,7 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
 // ── Resend invitation ──────────────────────────────────────────────
 
 export const resendInvitation = createServerFn({ method: 'POST' })
-  .inputValidator(acceptInvitationInputSchema)
+  .validator(acceptInvitationInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -90,8 +90,15 @@ export const resendInvitation = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'invitation.resend' })
 
         try {
-          const { useCases } = getContainer()
-          await useCases.resendInvitation(data, ctx)
+          const { identityPublicApi, rateLimiter, identityRequestSecurity } =
+            getContainer()
+          await enforceInvitationSendRateLimit({
+            rateLimiter,
+            actorId: ctx.userId,
+            organizationId: ctx.organizationId,
+            keyHmacSecret: identityRequestSecurity.invitationRateLimitHmacSecret,
+          })
+          await identityPublicApi.requests.resendInvitation(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
@@ -112,8 +119,10 @@ export const listInvitations = createServerFn({ method: 'GET' }).handler(
       await requireExecutionAllowed({ actor: ctx, action: 'invitation.list' })
 
       try {
-        const { useCases } = getContainer()
-        return await useCases.listInvitations(undefined, ctx)
+        return await getContainer().identityPublicApi.requests.listInvitations(
+          undefined,
+          ctx,
+        )
       } catch (e) {
         if (isIdentityError(e)) throwIdentityError(e)
         throw catchUntagged(e)

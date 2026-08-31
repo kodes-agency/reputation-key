@@ -24,6 +24,17 @@ export type UpdateMemberRoleDeps = Readonly<{
   identity: IdentityPort
   commandStore: IdentityCommandStore
   clock: () => Date
+  reconcileResponsibleManagerEligibility?: (
+    organizationId: string,
+    userId: string,
+    actorId: string,
+  ) => Promise<void>
+  /** Fence current OAuth authority before an AccountAdmin role is lost. */
+  prepareGoogleConnectorDeparture?: (
+    organizationId: string,
+    userId: string,
+    cause: 'account_admin_role_lost',
+  ) => Promise<void>
 }>
 export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
 
@@ -77,6 +88,14 @@ export const updateMemberRole =
       }
     }
 
+    if (isOwnerToken(targetMember.rawRole) && input.role !== ADMIN_ROLE) {
+      await deps.prepareGoogleConnectorDeparture?.(
+        ctx.organizationId,
+        targetMember.userId,
+        'account_admin_role_lost',
+      )
+    }
+
     // 4. Persist + fact — atomic via the command store
     await deps.commandStore.changeMemberRole({
       organizationId: ctx.organizationId,
@@ -91,6 +110,11 @@ export const updateMemberRole =
         occurredAt: deps.clock(),
       }),
     })
+    await deps.reconcileResponsibleManagerEligibility?.(
+      ctx.organizationId,
+      targetMember.userId,
+      ctx.userId,
+    )
 
     return { success: true }
   }

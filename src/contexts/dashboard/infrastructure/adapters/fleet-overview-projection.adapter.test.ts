@@ -3,10 +3,7 @@ import type { Database } from '#/shared/db'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { FleetOverviewProjectionRow } from '../../application/ports/fleet-overview-projection.port'
 import { getFleetOverview } from '../../application/use-cases/get-fleet-overview'
-import {
-  createFleetOverviewProjectionAdapter,
-  FLEET_OVERVIEW_STATEMENT_BOUND,
-} from './fleet-overview-projection.adapter'
+import { createFleetOverviewProjectionAdapter } from './fleet-overview-projection.adapter'
 
 const NOW = new Date('2026-08-09T12:00:00.000Z')
 const ORG = organizationId('org-fleet-bounded')
@@ -34,6 +31,7 @@ function mainRows(items: readonly FleetProperty[], total: number) {
       {
         property_id: null,
         property_count: '0',
+        rating_sample_count: '0',
         overall_avg_rating: '0',
         rating_drop_total: '0',
         has_more: false,
@@ -46,6 +44,8 @@ function mainRows(items: readonly FleetProperty[], total: number) {
     cursor_lower_name: item.name.toLowerCase(),
     slug: item.slug,
     timezone: item.timezone,
+    period_start: new Date('2026-07-10T12:00:00Z'),
+    period_end: NOW,
     review_count: '2',
     prior_review_count: '1',
     avg_rating: '4.5',
@@ -53,6 +53,7 @@ function mainRows(items: readonly FleetProperty[], total: number) {
     scan_count: '3',
     feedback_count: '1',
     property_count: String(total),
+    rating_sample_count: String(total * 2),
     overall_avg_rating: '4.5',
     rating_drop_total: '0',
     has_more: total > 50,
@@ -72,13 +73,11 @@ function mainRows(items: readonly FleetProperty[], total: number) {
     feedback_correction_count: '0',
     feedback_source_policies: ['first_party_workflow'],
     unanswered: '0',
-    new_feedback: '0',
+    items_to_triage: '0',
     escalated: '0',
     goals_behind_pace: '0',
-    total_unanswered: '0',
-    total_new_feedback: '0',
-    total_escalated: '0',
-    total_goals_behind_pace: '0',
+    needs_attention: '0',
+    total_attention_work: '0',
   }))
 }
 
@@ -107,8 +106,6 @@ const input = {
   portalReadEnabled: true,
   goalReadEnabled: true,
   slaHours: 48,
-  startDate: new Date('2026-07-10T12:00:00Z'),
-  endDate: NOW,
   timeRange: '30d' as const,
 }
 const resolveAccessiblePropertyIds = async (
@@ -141,21 +138,17 @@ describe('fleet overview bulk projection', () => {
     expect(fleet.nextCursor).not.toBeNull()
     expect(tenCalls).toBe(2)
     expect(fleetCalls).toBe(tenCalls)
-    expect(fleetCalls).toBeLessThanOrEqual(FLEET_OVERVIEW_STATEMENT_BOUND)
+    expect(fleetCalls).toBeLessThanOrEqual(2)
     expect(observed).toEqual([
       {
         propertyCount: 10,
         returnedRows: 10,
-        statementCount: 4,
-        statementBound: 4,
-        withinBound: true,
+        durationMs: expect.any(Number),
       },
       {
         propertyCount: 5_000,
         returnedRows: 50,
-        statementCount: 4,
-        statementBound: 4,
-        withinBound: true,
+        durationMs: expect.any(Number),
       },
     ])
   })
@@ -175,7 +168,12 @@ describe('fleet overview bulk projection', () => {
 
     expect(result).toEqual({
       entries: [],
-      totals: { propertyCount: 0, totalAttention: 0, overallAvgRating: 0 },
+      totals: {
+        propertyCount: 0,
+        ratingSampleCount: 0,
+        totalAttention: 0,
+        overallAvgRating: 0,
+      },
       nextCursor: null,
     })
     expect(fake.calls()).toBe(2)

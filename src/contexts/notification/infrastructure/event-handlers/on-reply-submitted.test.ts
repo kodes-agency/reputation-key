@@ -37,6 +37,7 @@ describe('onReplySubmitted (notification)', () => {
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         payload: { ...EXPECTED_INBOX_PAYLOAD, actorRole: 'property_manager' },
+        audience: { kind: 'account_admin' },
       }),
     )
     expect(deps.jobs[1]).toEqual(
@@ -46,6 +47,7 @@ describe('onReplySubmitted (notification)', () => {
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         payload: { ...EXPECTED_INBOX_PAYLOAD, actorRole: 'property_manager' },
+        audience: { kind: 'account_admin' },
       }),
     )
   })

@@ -4,11 +4,7 @@
 node_modules
 .output
 dist
-dist-worker
-dist-google-import-compatibility
-dist-google-execution-admission
-dist-google-egress-gateway
-dist-provider-services
+dist-*
 storybook-static
 coverage
 test-results

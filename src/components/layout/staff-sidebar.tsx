@@ -1,6 +1,5 @@
 import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { Settings } from 'lucide-react'
 import {
   Sidebar,
@@ -15,19 +14,12 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from '#/components/ui/sidebar'
-import { useAction } from '#/components/hooks/use-action'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { StaffNavItems } from './staff-nav-items'
-import { StaffOrgSwitcher } from './staff-org-switcher'
 import { StaffPropertySwitcher } from './staff-property-switcher'
-import { clearTenantCacheBeforeNavigation } from '#/shared/queries/tenant-cache-transition'
 
 type Props = Readonly<{
-  organizations: ReadonlyArray<{ id: string; name: string }>
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>
-  activeOrganization: { id: string; name: string } | null
-  setActiveOrganization: (input: { data: { organizationId: string } }) => Promise<void>
-  hasTeam: boolean
 }>
 
 function useActiveSection(): string {
@@ -35,26 +27,15 @@ function useActiveSection(): string {
     select: (s) => {
       const path = s.location.pathname
       if (path === '/home' || path === '/') return 'home'
-      if (path.startsWith('/progress')) return 'progress'
-      if (path.startsWith('/leaderboard')) return 'leaderboard'
-      if (path.startsWith('/team')) return 'team'
       if (path.startsWith('/settings')) return 'settings'
       return 'home'
     },
   })
 }
 
-export function StaffSidebar({
-  organizations,
-  properties,
-  activeOrganization,
-  setActiveOrganization,
-  hasTeam,
-}: Props) {
+export function StaffSidebar({ properties }: Props) {
   const activeSection = useActiveSection()
   const navigate = useNavigate()
-  const setOrg = useAction(setActiveOrganization)
-  const queryClient = useQueryClient()
   const rawPropertyId = usePropertyId()
 
   // The URL ?propertyId= is the single source of truth (ADR 0016). Ensure a
@@ -80,16 +61,6 @@ export function StaffSidebar({
   const propertyId: string | undefined =
     rawPropertyId ?? (properties.length > 0 ? properties[0].id : undefined)
 
-  function handleOrgSwitch(orgId: string) {
-    setOrg({ data: { organizationId: orgId } })
-      .then(() =>
-        clearTenantCacheBeforeNavigation(queryClient, () => navigate({ to: '/' })),
-      )
-      .catch(() => {
-        // Error is tracked in setOrg.error via useAction
-      })
-  }
-
   function handlePropertySwitch(newPropertyId: string) {
     navigate({
       to: '.',
@@ -105,11 +76,6 @@ export function StaffSidebar({
       {/* BQC-6.8: nav landmark for the staff navigation (see manager-sidebar). */}
       <nav aria-label="Primary navigation" className="flex h-full w-full flex-col">
         <SidebarHeader>
-          <StaffOrgSwitcher
-            organizations={organizations}
-            activeOrganization={activeOrganization}
-            onSwitch={handleOrgSwitch}
-          />
           <StaffPropertySwitcher
             properties={properties}
             propertyId={propertyId}
@@ -122,7 +88,7 @@ export function StaffSidebar({
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupContent>
-              <StaffNavItems activeSection={activeSection} hasTeam={hasTeam} />
+              <StaffNavItems activeSection={activeSection} />
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>

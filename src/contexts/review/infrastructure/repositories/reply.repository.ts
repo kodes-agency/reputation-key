@@ -6,12 +6,49 @@ import type { Database } from '#/shared/db'
 import { replies } from '#/shared/db/schema/review.schema'
 import type { ReplyRepository } from '../../application/ports/reply.repository'
 import type { Reply, ReplySource } from '../../domain/types'
-import type { OrganizationId, ReplyId, ReviewId } from '#/shared/domain/ids'
+import {
+  reviewId as toReviewId,
+  type OrganizationId,
+  type ReplyId,
+  type ReviewId,
+} from '#/shared/domain/ids'
 import { replyFromRow, replyToRow } from '../mappers/reply.mapper'
 import { buildReplySetClause } from '../reply-set-clause'
 import { reviewError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
-export const createReplyRepository = (db: Database): ReplyRepository => ({
+
+type DuePublicationState = 'pending_observation' | 'ambiguous'
+
+async function findDuePublicationBatch(
+  db: Database,
+  states: readonly DuePublicationState[],
+  now: Date,
+  cursor: Readonly<{ reconcileDueAt: Date; id: string }> | null,
+  limit: number,
+): Promise<ReadonlyArray<Reply>> {
+  const rows = await db
+    .select()
+    .from(replies)
+    .where(
+      and(
+        inArray(replies.publicationState, [...states]),
+        isNotNull(replies.reconcileDueAt),
+        lte(replies.reconcileDueAt, now),
+        cursor
+          ? // Keyset: strictly after (reconcileDueAt, id) — no skip/repeat.
+            sql`(${replies.reconcileDueAt}, ${replies.id}) > (${cursor.reconcileDueAt}, ${cursor.id})`
+          : undefined,
+      ),
+    )
+    .orderBy(asc(replies.reconcileDueAt), asc(replies.id))
+    .limit(limit)
+  return rows.map(replyFromRow)
+}
+
+export const createReplyRepository = (
+  db: Database,
+  clock: () => Date,
+): ReplyRepository => ({
   findById: async (id: ReplyId, organizationId: OrganizationId) => {
     return trace('reply.findById', async () => {
       const rows = await db
@@ -52,6 +89,35 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
     })
   },
 
+  findMilestonesByReviewIds: async (reviewIds, organizationId) => {
+    return trace('reply.findMilestonesByReviewIds', async () => {
+      if (reviewIds.length === 0) return []
+      const rows = await db
+        .select({
+          reviewId: replies.reviewId,
+          firstSubmittedAt: sql<string | null>`min(${replies.submittedAt})`.as(
+            'first_submitted_at',
+          ),
+          firstPublishedAt: sql<string | null>`min(${replies.publishedAt})`.as(
+            'first_published_at',
+          ),
+        })
+        .from(replies)
+        .where(
+          and(
+            eq(replies.organizationId, organizationId),
+            sql`${replies.reviewId} = ANY(${sql.param(reviewIds.map(String))}::uuid[])`,
+          ),
+        )
+        .groupBy(replies.reviewId)
+      return rows.map((row) => ({
+        reviewId: toReviewId(row.reviewId),
+        firstSubmittedAt: row.firstSubmittedAt ? new Date(row.firstSubmittedAt) : null,
+        firstPublishedAt: row.firstPublishedAt ? new Date(row.firstPublishedAt) : null,
+      }))
+    })
+  },
+
   findGoogleSyncByReviewId: async (
     reviewId: ReviewId,
     organizationId: OrganizationId,
@@ -72,25 +138,33 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
     })
   },
 
-  findAmbiguousPublicationBatch: async (now, cursor, limit) => {
-    return trace('reply.findAmbiguousPublicationBatch', async () => {
-      const rows = await db
-        .select()
-        .from(replies)
+  findDuePublicationReconciliationBatch: (now, cursor, limit) =>
+    trace('reply.findDuePublicationReconciliationBatch', () =>
+      findDuePublicationBatch(
+        db,
+        ['pending_observation', 'ambiguous'],
+        now,
+        cursor,
+        limit,
+      ),
+    ),
+
+  deferPublicationReconciliation: async (command) => {
+    return trace('reply.deferPublicationReconciliation', async () => {
+      const deferred = await db
+        .update(replies)
+        .set({ reconcileDueAt: command.nextDueAt, updatedAt: command.updatedAt })
         .where(
           and(
-            eq(replies.publicationState, 'ambiguous'),
-            isNotNull(replies.reconcileDueAt),
-            lte(replies.reconcileDueAt, now),
-            cursor
-              ? // Keyset: strictly after (reconcileDueAt, id) — no skip/repeat.
-                sql`(${replies.reconcileDueAt}, ${replies.id}) > (${cursor.reconcileDueAt}, ${cursor.id})`
-              : undefined,
+            eq(replies.id, command.replyId),
+            eq(replies.organizationId, command.organizationId),
+            eq(replies.publicationCycle, command.publicationCycle),
+            eq(replies.publicationState, command.publicationState),
+            eq(replies.reconcileDueAt, command.currentDueAt),
           ),
         )
-        .orderBy(asc(replies.reconcileDueAt), asc(replies.id))
-        .limit(limit)
-      return rows.map(replyFromRow)
+        .returning({ id: replies.id })
+      return deferred.length === 1
     })
   },
 
@@ -104,7 +178,12 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
           and(
             inArray(replies.reviewId, [...reviewIds]),
             eq(replies.organizationId, organizationId),
-            inArray(replies.publicationState, ['requested', 'authorized', 'sending']),
+            inArray(replies.publicationState, [
+              'requested',
+              'authorized',
+              'sending',
+              'pending_observation',
+            ]),
           ),
         )
       return rows.map(replyFromRow)
@@ -114,7 +193,7 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
   upsert: async (reply: Omit<Reply, 'createdAt' | 'updatedAt'>, now?: Date) => {
     return trace('reply.upsert', async () => {
       const row = replyToRow(reply)
-      const updatedAt = now ?? new Date()
+      const updatedAt = now ?? clock()
       const result = await db
         .insert(replies)
         .values(row)
@@ -146,7 +225,7 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
 
   conditionalUpdate: async (id, organizationId, expectedStatuses, updates, now) => {
     return trace('reply.conditionalUpdate', async () => {
-      const updatedAt = now ?? new Date()
+      const updatedAt = now ?? clock()
       return db.transaction(async (tx) => {
         const assertion = await tx.execute(
           sql`SELECT assert_current_ai_draft_binding_v1(

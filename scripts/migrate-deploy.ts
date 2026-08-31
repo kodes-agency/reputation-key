@@ -1,11 +1,11 @@
 // Predeploy migration runner (BQC-7.1) — Railway `preDeployCommand`
-// (railway.json). Runs the deploy migration trio as ONE serialized,
+// (`.railway/railway.ts`). Runs the deploy migration trio as ONE serialized,
 // self-verifying step before the new web container starts serving.
 //
 // Apply order (the documented deploy order — src/shared/db/CONTEXT.md,
 // drizzle.config.ts, mirrored by the ci.yml "Run migrations" step):
 //   1. Better Auth track — getMigrations() from better-auth (the same code
-//      `pnpm auth:migrate` wraps; the CLI only adds an interactive prompt).
+//      `pnpm auth:migrate` wraps through the repository-pinned schema runner).
 //      Idempotent: creates only missing tables/columns.
 //   2. Staged Drizzle journal track — apply through immutable migration 0033,
 //      commit, autocommit cleanup_required, then apply 0034 onward. PostgreSQL
@@ -32,14 +32,14 @@
 // redeploy — the trio's idempotency makes the rerun converge (runbooks.md
 // §8). The only rollback path is PITR for data loss (runbooks.md §8).
 //
-// GUARD: refuses to run unless NODE_ENV=production (the deploy container
-// sets it) or DEPLOY_MIGRATE=1 (explicit local/CI invocation). This script's
-// whole point is remote production databases — the guard only prevents
-// accidental no-flag runs against a developer's default DATABASE_URL.
+// GUARD: Railway runs prove their exact built-in project, environment, and
+// service identity before DATABASE_URL is opened. Only cell-us and the
+// schema-migrator/web services are migration authorities. DEPLOY_MIGRATE=1 is
+// the explicit local/CI bypass for disposable database verification.
 //
-// Region posture (ADR 0048): the deploy target is the single approved
-// 'us' processing cell; the Railway region is a platform/dashboard setting
-// (us-west2 / us-east4-eqdc4a), deliberately not pinned in railway.json.
+// Region posture (ADR 0057): beta deploys only logical cell 'us'. The checked-in
+// TypeScript Railway graph pins compute to US West/California `us-west2` and
+// the bucket to `sjc`; this runner applies the journal only inside `cell-us`.
 //
 // Local verification (scratch database):
 //   NODE_ENV=production DEPLOY_MIGRATE=1 DATABASE_URL=postgresql://... \
@@ -54,6 +54,8 @@ import { Client, type Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { buildGooglePropertyBindingIndex } from './google-property-binding-index'
 import { runStagedDrizzleMigrations } from '../src/shared/db/staged-drizzle-migrator'
+import { authorizeDeployMigrationRuntime } from '../src/shared/db/deploy-migration-runtime'
+import { bindSingleUsDataCellCutoverTarget } from '../src/shared/db/single-us-data-cell-target-binding'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
 
 // dist-worker/migrate-deploy.js (built) and scripts/migrate-deploy.ts (tsx)
@@ -97,27 +99,21 @@ async function readJournalState(client: Client): Promise<Record<string, unknown>
 }
 
 async function main(): Promise<void> {
-  if (process.env.NODE_ENV !== 'production' && process.env.DEPLOY_MIGRATE !== '1') {
-    console.error(
-      '[migrate-deploy] Refusing to run: set NODE_ENV=production (deploy ' +
-        'containers) or DEPLOY_MIGRATE=1 (explicit local/CI run). This script ' +
-        'migrates the database DATABASE_URL points at.',
-    )
-    process.exit(1)
-  }
+  const runtime = authorizeDeployMigrationRuntime(process.env)
 
   loadEnv({ path: [join(ROOT, '.env.local'), join(ROOT, '.env')] })
 
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL is required')
 
-  // Deferred until after the guard: auth-cli.ts throws without
+  // Deferred until after the guard: the schema config throws without
   // BETTER_AUTH_SECRET and builds the full auth instance at import time.
   const { auth } = await import('../src/shared/auth/auth-cli')
   const { getMigrations } = await import('better-auth/db/migration')
 
   const lockKey = advisoryLockKey()
   const client = new Client({ connectionString: url })
+  const migrationDb = drizzle(client)
   await client.connect()
   try {
     await client.query('SELECT pg_advisory_lock($1::bigint)', [lockKey.toString()])
@@ -137,6 +133,21 @@ async function main(): Promise<void> {
       const stagedMigration = await runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)
       log('staged drizzle track applied', stagedMigration)
 
+      // Migration 0140 creates an unbound, open singleton. The first signed
+      // Railway migrator atomically binds it to Railway's platform-provided
+      // opaque target IDs; exact reruns (including web predeploy) are no-ops,
+      // while a copied/misdirected database is refused.
+      if (runtime.mode === 'railway') {
+        await bindSingleUsDataCellCutoverTarget(migrationDb, {
+          projectId: runtime.projectId,
+          environmentId: runtime.environmentId,
+        })
+        log('single-US Data Cell target bound', {
+          deploymentProfile: runtime.deploymentProfile,
+          service: runtime.service,
+        })
+      }
+
       // 3. Autocommit-only Google Property binding index gate
       const googlePropertyBindingIndex = await buildGooglePropertyBindingIndex(client)
       log('google property binding index', googlePropertyBindingIndex)
@@ -150,7 +161,7 @@ async function main(): Promise<void> {
       await client.query(readFileSync(SIDECAR_PATH, 'utf8'))
       log('sidecar applied', { file: SIDECAR_PATH.split('/').pop() })
       await initializeReviewProviderSubjectKeyInventoryFromEnvironment({
-        db: drizzle(client),
+        db: migrationDb,
         env: process.env,
       })
       log('review provider subject key inventory initialized')

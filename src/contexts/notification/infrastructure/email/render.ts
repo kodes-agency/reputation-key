@@ -48,8 +48,8 @@ export type NotificationEmailInput = Readonly<{
   rendered: RenderedNotification
   /** Absolute deep link to the item this notification is about. */
   actionUrl: string
-  /** Absolute /settings/notifications link. Required — every alert is opt-out. */
-  preferencesUrl: string
+  /** Null only for mandatory mail, which has no off switch. */
+  preferencesUrl: string | null
   priority: 'urgent' | 'normal'
 }>
 
@@ -65,13 +65,18 @@ export const renderNotificationEmail = (input: NotificationEmailInput): Rendered
   const { rendered, actionUrl, preferencesUrl } = input
   return {
     subject: clipSubject(rendered.title),
-    html: renderUrgentEmailHtml(input),
+    html: renderUrgentEmailHtml({
+      rendered,
+      actionUrl,
+      priority: input.priority,
+      ...(preferencesUrl === null ? {} : { preferencesUrl }),
+    }),
     text: composeText(
       rendered.title,
       rendered.body,
       toPlainFacts(rendered.summary),
       `${rendered.actionLabel}: ${actionUrl}`,
-      preferencesLine(preferencesUrl),
+      preferencesUrl === null ? '' : preferencesLine(preferencesUrl),
       EMAIL_SIGNATURE,
     ),
   }

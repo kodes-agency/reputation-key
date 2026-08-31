@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { canonicalGoogleContentSha256 } from './google-content-approval'
+import { GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION } from './google-content-contract'
 import type { GoogleContentRuntimeBinding } from './google-content-authority'
 import { parseGoogleContentRuntimeBindings } from './google-content-runtime-bindings'
 
@@ -28,7 +29,7 @@ function binding(
     railwayClosedBetaCohortSha256: null,
     railwayClosedBetaResidualRiskSha256: null,
     performanceCatalogVersion: '2026-08-05',
-    routeCatalogueVersion: '2026-08-16',
+    routeCatalogueVersion: GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
     capabilityPolicyVersion: 'beta-local-2',
     executionPolicyVersion: 'beta-local-2',
     migrationHead: '0032_property-operation-receipts-expand',
@@ -47,6 +48,8 @@ describe('Google Content runtime bindings', () => {
     const input = {
       'property.import_gbp_v2': binding('property.import_gbp_v2'),
       'property.read_gbp_performance': binding('property.read_gbp_performance'),
+      'property.connect_gbp': binding('property.connect_gbp'),
+      'property.publish_reply': binding('property.publish_reply'),
     }
     expect(parseGoogleContentRuntimeBindings(JSON.stringify(input))).toEqual(input)
   })

@@ -2,6 +2,8 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
 import boundaries from 'eslint-plugin-boundaries'
+import reactHooks from 'eslint-plugin-react-hooks'
+import query from '@tanstack/eslint-plugin-query'
 import security from 'eslint-plugin-security'
 import crossContextPublicApi from './eslint-rules/cross-context-public-api.mjs'
 
@@ -12,6 +14,46 @@ const local = {
   },
 }
 
+// ARC-03-T3: the element types that replaced the former `shared-other`
+// catch-all — every first-level `src/shared/` area without a dedicated element,
+// plus the transitional root contract kernel. Outer layers name this list where
+// they used to name `shared-other`, so splitting shared/ changes what shared/
+// may import WITHOUT silently changing what the rest of the repository may
+// import from it. Declared once in
+// src/shared/architecture/shared-dependency-policy.ts and asserted equal there.
+const sharedAreaElements = [
+  'shared-architecture',
+  'shared-bqc',
+  'shared-cache',
+  'shared-config',
+  'shared-email',
+  'shared-generated',
+  'shared-google-provider-control',
+  'shared-governance',
+  'shared-health',
+  'shared-hooks',
+  'shared-http',
+  'shared-jobs',
+  'shared-lifecycle',
+  'shared-observability',
+  'shared-ops',
+  'shared-outbox',
+  'shared-provider-ephemeral',
+  'shared-queries',
+  'shared-rate-limit',
+  'shared-release',
+  'shared-root-contracts',
+  'shared-routing',
+  'shared-security',
+]
+
+const elementType = (type) => ({ element: { type } })
+const elementTypes = (...types) => ({ element: { types: { anyOf: types } } })
+const fileCategory = (categories) => ({ file: { categories } })
+const localModule = { module: { origin: 'local' } }
+const rootedElements = (descriptors) =>
+  descriptors.map((descriptor) => ({ ...descriptor, partialMatch: false }))
+
 export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -21,6 +63,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/.output/**',
       '**/dist-worker/**',
+      '**/dist-local-tools/**',
       '**/dist-google-*/**',
       '**/dist-ai-*/**',
       '**/dist-provider-services/**',
@@ -30,10 +73,47 @@ export default tseslint.config(
       '**/.a5c/**',
       '**/.agents/**',
       'src/routeTree.gen.ts',
-      'scripts/**',
       'deacon/**',
       'reputation_key/**',
     ],
+  },
+
+  // Operational and CI scripts execute on the repository-pinned Node runtime.
+  // Keep them in the lint gate with the runtime globals they actually receive;
+  // do not make the whole repository ambiently Node-shaped because browser
+  // modules should still catch accidental server-global use.
+  {
+    files: ['scripts/**/*.{ts,mjs}'],
+    languageOptions: {
+      globals: {
+        AbortController: 'readonly',
+        Blob: 'readonly',
+        Buffer: 'readonly',
+        clearInterval: 'readonly',
+        clearTimeout: 'readonly',
+        console: 'readonly',
+        crypto: 'readonly',
+        fetch: 'readonly',
+        FormData: 'readonly',
+        Headers: 'readonly',
+        process: 'readonly',
+        Request: 'readonly',
+        Response: 'readonly',
+        setInterval: 'readonly',
+        setTimeout: 'readonly',
+        structuredClone: 'readonly',
+        TextDecoder: 'readonly',
+        TextEncoder: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
   },
 
   // ─── Architectural boundary enforcement ────────────────────────────
@@ -54,13 +134,26 @@ export default tseslint.config(
   //   shared-auth    → shared/auth/
   //   shared-db      → shared/db/ (schema barrel, drizzle client — allowed to use drizzle-orm)
   //   shared-events  → shared/events/ (event bus + master union)
-  //   shared-other   → shared/ (cache, config, fn, health, jobs, observability, rate-limit,
-  //                    routing, security, queries, ... — catch-all for dirs without a
-  //                    dedicated element; MUST stay the last shared-* pattern)
+  //   shared-<area>  → shared/<area>/ — one element per first-level area
+  //                    (ARC-03-T3); permitted dependencies are declared in
+  //                    src/shared/architecture/shared-dependency-policy.ts
+  //   shared-root-contracts → shared/*.ts (transitional contract kernel;
+  //                    MUST stay the last shared-* pattern)
   //   test-helpers   → shared/testing/
-  //   top-level      → composition.ts, bootstrap.ts, start.ts, router.tsx, worker/
+  //   top-level      → worker/
+  //   script-ci      → scripts/ci/, scripts/review/ (static verifiers)
+  //   script-operator→ scripts/ops/ (audited admin commands)
+  //   script-tooling → scripts/ (catch-all: release, perf, migrations, seeds)
+  //   file categories → composition.ts, bootstrap.ts, start.ts, router.tsx,
+  //                     generated/ambient files, API routes
   // ────────────────────────────────────────────────────────────────────
   {
+    files: [
+      'src/**/*.{ts,tsx}',
+      'services/**/*.ts',
+      'server/**/*.ts',
+      'scripts/**/*.{ts,mjs}',
+    ],
     plugins: {
       boundaries,
     },
@@ -70,7 +163,10 @@ export default tseslint.config(
           alwaysTryTypes: true,
         },
       },
-      'boundaries/elements': [
+      // Anchor every architectural element at the repository root. The v7
+      // default performs suffix matching, which otherwise makes `server/**`
+      // classify `src/contexts/*/server/**` as a Nitro runtime plugin.
+      'boundaries/elements': rootedElements([
         // ── Context layers (inner → outer) ──────────────────────────
         {
           type: 'domain',
@@ -87,17 +183,6 @@ export default tseslint.config(
         {
           type: 'server',
           pattern: 'src/contexts/*/server/**',
-        },
-        // BQC-5.1: per-context build files are the wiring seam — they may
-        // touch every layer of their OWN context + shared. Cross-context
-        // narrowing (public-api only) comes from the local rule.
-        {
-          type: 'context-build',
-          pattern: 'src/contexts/*/build.ts',
-        },
-        {
-          type: 'context-build',
-          pattern: 'src/contexts/*/build-*.ts',
         },
         // BQC-5.1: the activity context keeps root-level ports/ and queries/
         // dirs — they ARE application concerns; classifying them enforces the
@@ -124,6 +209,14 @@ export default tseslint.config(
           type: 'components',
           pattern: 'src/components/**',
         },
+        {
+          type: 'ui-support',
+          pattern: 'src/hooks/**',
+        },
+        {
+          type: 'ui-support',
+          pattern: 'src/lib/**',
+        },
 
         // ── Shared layers ───────────────────────────────────────────
         {
@@ -142,102 +235,277 @@ export default tseslint.config(
           type: 'shared-events',
           pattern: 'src/shared/events/**',
         },
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/cache/**',
-        },
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/config/**',
-        },
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/fn/**',
-        },
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/health/**',
-        },
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/jobs/**',
-        },
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/observability/**',
-        },
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/rate-limit/**',
-        },
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/routing/**',
-        },
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/security/**',
-        },
-        // BQR-1.3: public outbox surface is shared-other (application-allowed).
-        // Infrastructure implementation is a separate element so composition/worker
-        // can wire it without application reaching into adapters.
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/outbox/index.ts',
-        },
-        {
-          type: 'shared-other',
-          pattern: 'src/shared/outbox/emit-and-record.ts',
-        },
+        // BQR-1.3: the durable outbox adapter subtree stays a separate element
+        // so composition/worker can wire it without application reaching into
+        // adapters. It MUST precede `src/shared/outbox/**` — element matching
+        // is first-match-wins. Runtime root files are classified by
+        // boundaries/files.
         {
           type: 'shared-outbox-infra',
           pattern: 'src/shared/outbox/infrastructure/**',
         },
         {
-          type: 'shared-outbox-runtime',
-          pattern: 'src/shared/outbox/relay.ts',
-        },
-        {
-          type: 'shared-outbox-runtime',
-          pattern: 'src/shared/outbox/dispatcher.ts',
-        },
-        {
-          type: 'shared-outbox-runtime',
-          pattern: 'src/shared/outbox/event-adapter.ts',
-        },
-        {
           type: 'test-helpers',
           pattern: 'src/shared/testing/**',
         },
-        // BQC-5.1: catch-all for shared/ dirs without a dedicated element
-        // (queries, architecture, ...). MUST stay the last shared-* pattern —
-        // element matching is first-match-wins, so the specific patterns
-        // above keep their types.
         {
-          type: 'shared-other',
+          type: 'test-helpers',
+          pattern: 'src/test-fixtures/**',
+        },
+        // ARC-03-T3: one element per first-level shared area. These replaced
+        // the former `shared-other` catch-all, which was allowed to import
+        // itself and therefore expressed no placement rule at all. Owners and
+        // permitted dependencies are documented in src/shared/CONTEXT.md and
+        // declared once in src/shared/architecture/shared-dependency-policy.ts.
+        {
+          type: 'shared-architecture',
+          pattern: 'src/shared/architecture/**',
+        },
+        {
+          type: 'shared-bqc',
+          pattern: 'src/shared/bqc/**',
+        },
+        {
+          type: 'shared-cache',
+          pattern: 'src/shared/cache/**',
+        },
+        {
+          type: 'shared-config',
+          pattern: 'src/shared/config/**',
+        },
+        {
+          type: 'shared-email',
+          pattern: 'src/shared/email/**',
+        },
+        {
+          type: 'shared-generated',
+          pattern: 'src/shared/generated/**',
+        },
+        {
+          type: 'shared-google-provider-control',
+          pattern: 'src/shared/google-provider-control/**',
+        },
+        {
+          type: 'shared-governance',
+          pattern: 'src/shared/governance/**',
+        },
+        {
+          type: 'shared-health',
+          pattern: 'src/shared/health/**',
+        },
+        {
+          type: 'shared-hooks',
+          pattern: 'src/shared/hooks/**',
+        },
+        {
+          type: 'shared-http',
+          pattern: 'src/shared/http/**',
+        },
+        {
+          type: 'shared-jobs',
+          pattern: 'src/shared/jobs/**',
+        },
+        {
+          type: 'shared-lifecycle',
+          pattern: 'src/shared/lifecycle/**',
+        },
+        {
+          type: 'shared-observability',
+          pattern: 'src/shared/observability/**',
+        },
+        {
+          type: 'shared-ops',
+          pattern: 'src/shared/ops/**',
+        },
+        {
+          type: 'shared-outbox',
+          pattern: 'src/shared/outbox/**',
+        },
+        {
+          type: 'shared-provider-ephemeral',
+          pattern: 'src/shared/provider-ephemeral/**',
+        },
+        {
+          type: 'shared-queries',
+          pattern: 'src/shared/queries/**',
+        },
+        {
+          type: 'shared-rate-limit',
+          pattern: 'src/shared/rate-limit/**',
+        },
+        {
+          type: 'shared-release',
+          pattern: 'src/shared/release/**',
+        },
+        {
+          type: 'shared-routing',
+          pattern: 'src/shared/routing/**',
+        },
+        {
+          type: 'shared-security',
+          pattern: 'src/shared/security/**',
+        },
+        // The transitional cross-context contract kernel that lives directly
+        // in the shared root (src/shared/CONTEXT.md "Root production-file
+        // categories"). `*` does not cross a path separator, so this cannot
+        // swallow an area; it MUST still stay the last shared-* pattern so a
+        // new area gets an element instead of falling in here.
+        {
+          type: 'shared-root-contracts',
+          // v7 element descriptors always match FOLDERS, so this names the
+          // shared root itself and therefore catches exactly the files sitting
+          // directly in it — every area above has already claimed its own
+          // subtree. `shared-dependency-policy.test.ts` asserts that each
+          // first-level directory still has its own pattern, so a new area
+          // cannot quietly land in this bucket.
           pattern: 'src/shared/**',
         },
 
-        // ── Top-level entry points ──────────────────────────────────
-        {
-          type: 'top-level',
-          pattern: 'src/composition.*',
-        },
-        {
-          type: 'top-level',
-          pattern: 'src/bootstrap.*',
-        },
-        {
-          type: 'top-level',
-          pattern: 'src/start.*',
-        },
-        {
-          type: 'top-level',
-          pattern: 'src/router.*',
-        },
+        // ── Runtime entry points/boundaries ─────────────────────────
+        // Exact root files are classified by boundaries/files below;
+        // v7 element patterns describe folders, not individual files.
         {
           type: 'top-level',
           pattern: 'src/worker/**',
+        },
+        {
+          type: 'service',
+          pattern: 'services/**',
+        },
+        {
+          type: 'runtime-plugin',
+          pattern: 'server/**',
+        },
+
+        // ── Local trees outside the application graph (ARC-03-T16) ──
+        // Classified so `boundaries/no-unknown` can be turned on: until every
+        // local import target has an element, a module can route around the
+        // whole policy set by depending on an unclassified path.
+        {
+          type: 'story-fixtures',
+          pattern: '.storybook/**',
+        },
+        {
+          type: 'e2e-harness',
+          pattern: 'e2e/**',
+        },
+        {
+          type: 'release-config',
+          pattern: '.railway/**',
+        },
+        {
+          type: 'test-helpers',
+          pattern: 'test-fixtures/**',
+        },
+
+        // ── Repository tooling (ARC-03-T1) ──────────────────────────
+        // scripts/ is a mandated negative-control category. Splitting it
+        // by operational role is what makes the policies below say
+        // something: a static CI verifier and an audited admin command
+        // are not allowed to reach the same surfaces. Specific patterns
+        // precede the catch-all — element matching is first-match-wins.
+        {
+          type: 'script-ci',
+          pattern: 'scripts/ci/**',
+        },
+        {
+          type: 'script-ci',
+          pattern: 'scripts/review/**',
+        },
+        {
+          type: 'script-operator',
+          pattern: 'scripts/ops/**',
+        },
+        {
+          type: 'script-tooling',
+          pattern: 'scripts/**',
+        },
+      ]),
+      // v7 file descriptors classify individual seam/runtime files without
+      // pretending they are folders. These categories are consumed by the
+      // dependency policies below.
+      'boundaries/files': [
+        {
+          category: 'context-build',
+          pattern: ['src/contexts/*/build.ts', 'src/contexts/*/build-*.ts'],
+        },
+        {
+          category: 'shared-outbox-runtime',
+          pattern: [
+            'src/shared/outbox/relay.ts',
+            'src/shared/outbox/dispatcher.ts',
+            'src/shared/outbox/event-adapter.ts',
+          ],
+        },
+        {
+          category: 'composition-root',
+          pattern: ['src/composition.ts', 'src/composition/**/*.ts', 'src/bootstrap.ts'],
+        },
+        {
+          category: 'start-entry',
+          pattern: 'src/start.ts',
+        },
+        {
+          category: 'router-entry',
+          pattern: 'src/router.tsx',
+        },
+        {
+          category: 'generated-router',
+          pattern: 'src/routeTree.gen.ts',
+        },
+        {
+          category: 'ambient-types',
+          pattern: 'src/vite-env.d.ts',
+        },
+        {
+          category: 'api-route',
+          pattern: 'src/routes/api/**',
+        },
+        // ARC-03-T16: the worker-only wiring. `src/composition/deployables.ts`
+        // builds a complete Application Container for ONE process kind; a web
+        // request handler that can call it holds worker registration authority
+        // and a second set of queue connections. The composition-root category
+        // alone does not say that — api-route, server and the Nitro plugin are
+        // all allowed to resolve the composition root.
+        {
+          category: 'deployable-containers',
+          pattern: 'src/composition/deployables.ts',
+        },
+        // ARC-03-T16: browser stylesheets are local import targets too.
+        {
+          category: 'stylesheet',
+          pattern: 'src/**/*.css',
+        },
+        // ARC-03-T16: story files are fixtures that wire Storybook decorators
+        // and in-memory containers. Categorising them lets exactly those files
+        // reach `.storybook/**` while the component they render still cannot.
+        {
+          category: 'story-file',
+          pattern: ['src/**/*.stories.ts', 'src/**/*.stories.tsx'],
+        },
+        // ARC-03-T2: the shared kernel the separately deployed trust-boundary
+        // sidecars are allowed to link. These processes run outside the
+        // application's trust boundary, so "shared/" is not a package-level
+        // dependency they inherit — this list IS the dependency boundary the
+        // repository layout cannot express. It is a file category rather than
+        // an element type so that reclassifying it does not change what the
+        // in-process application layers may import.
+        // Documented in src/shared/CONTEXT.md "Trust-boundary sidecar kernel".
+        {
+          category: 'shared-provider-kernel',
+          pattern: [
+            'src/shared/ai-*',
+            'src/shared/openai-*',
+            'src/shared/merchant-ai-*',
+            'src/shared/closed-json-contract.ts',
+            'src/shared/canonical-json.ts',
+            'src/shared/ed25519-key-material.ts',
+            'src/shared/google-provider-control/**',
+            'src/shared/security/versioned-hmac-keyring.ts',
+            'src/shared/observability/telemetry.ts',
+            'src/shared/config/release-identity.ts',
+            'src/shared/provider-ephemeral/runtime-verification.ts',
+          ],
         },
       ],
     },
@@ -251,11 +519,11 @@ export default tseslint.config(
           default: 'disallow',
           message:
             'Architectural boundary violated. See src/contexts/CONTEXT.md "Dependency rules".',
-          rules: [
+          policies: [
             // domain → imports nothing outside domain/ and shared/domain/
             {
-              from: { type: 'domain' },
-              allow: { to: { type: 'shared-domain' } },
+              from: elementType('domain'),
+              allow: { to: elementType('shared-domain') },
             },
 
             // application → imports from domain/, shared/domain/, shared-events, shared-other (logger), application/ (cross-context public-api types)
@@ -263,17 +531,15 @@ export default tseslint.config(
             // Per architecture: use cases may import logger for error resilience catch blocks.
             // Per ADR-0001: contexts may import another context's application/public-api.ts types only.
             {
-              from: { type: 'application' },
+              from: elementType('application'),
               allow: {
-                to: {
-                  type: [
-                    'domain',
-                    'shared-domain',
-                    'shared-events',
-                    'shared-other',
-                    'application',
-                  ],
-                },
+                to: elementTypes(
+                  'domain',
+                  'shared-domain',
+                  'shared-events',
+                  ...sharedAreaElements,
+                  'application',
+                ),
               },
             },
 
@@ -281,63 +547,45 @@ export default tseslint.config(
             // Per architecture: job handlers need EventBus to emit domain events.
             // BQR-1.3: may use public outbox surface (shared-other), not relay/dispatcher.
             {
-              from: { type: 'infrastructure' },
+              from: elementType('infrastructure'),
               allow: {
-                to: {
-                  type: [
-                    'domain',
-                    'application',
-                    'shared-domain',
-                    'shared-auth',
-                    'shared-db',
-                    'shared-events',
-                    'shared-other',
-                  ],
-                },
+                to: elementTypes(
+                  'domain',
+                  'application',
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-db',
+                  'shared-events',
+                  ...sharedAreaElements,
+                ),
               },
             },
 
-            // shared outbox infrastructure may use shared-db / observability (via shared-other)
-            {
-              from: { type: 'shared-outbox-infra' },
-              allow: {
-                to: {
-                  type: ['shared-db', 'shared-other', 'shared-domain', 'shared-events'],
-                },
-              },
-            },
-            {
-              from: { type: 'shared-outbox-runtime' },
-              allow: {
-                to: {
-                  type: [
-                    'shared-outbox-infra',
-                    'shared-other',
-                    'shared-db',
-                    'shared-domain',
-                    'shared-events',
-                  ],
-                },
-              },
-            },
+            // ARC-03-T3: the outgoing edges of shared-outbox-infra and of the
+            // outbox runtime files are covered by the generated `outbox` row
+            // in the shared area policy block below.
 
             // server → imports from domain/ (error types + type guards), application/, shared/*, TanStack Start
             // Per architecture: server functions catch tagged errors and need isXxxError type guards (pattern #16).
             // BQC-5.1: server must NOT import shared/db — DB access goes through use cases/repos.
             {
-              from: { type: 'server' },
+              from: elementType('server'),
               allow: {
-                to: {
-                  type: [
-                    'domain',
-                    'application',
-                    'shared-domain',
-                    'shared-auth',
-                    'shared-events',
-                    'shared-other',
-                  ],
-                },
+                to: elementTypes(
+                  'domain',
+                  'application',
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-events',
+                  ...sharedAreaElements,
+                ),
               },
+            },
+            // Server functions are inbound adapters and resolve the already
+            // assembled use-case graph through the documented container seam.
+            {
+              from: elementType('server'),
+              allow: { to: fileCategory('composition-root') },
             },
 
             // context-build → the per-context wiring seam (BQC-5.1). May touch
@@ -345,30 +593,32 @@ export default tseslint.config(
             // cross-context-public-api rule narrows foreign-context imports to
             // public-api surfaces.
             {
-              from: { type: 'context-build' },
+              from: fileCategory('context-build'),
               allow: {
-                to: {
-                  type: [
-                    'domain',
-                    'application',
-                    'infrastructure',
-                    'server',
-                    'shared-domain',
-                    'shared-auth',
-                    'shared-db',
-                    'shared-events',
-                    'shared-other',
-                  ],
-                },
+                to: elementTypes(
+                  'domain',
+                  'application',
+                  'infrastructure',
+                  'server',
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-db',
+                  'shared-events',
+                  ...sharedAreaElements,
+                ),
               },
+            },
+            {
+              from: fileCategory('context-build'),
+              allow: { to: fileCategory('context-build') },
             },
 
             // context-ui → pure view helpers (e.g. goal/ui) consumed by routes
             // and components; reads application DTOs + shared types only.
             {
-              from: { type: 'context-ui' },
+              from: elementType('context-ui'),
               allow: {
-                to: { type: ['application', 'shared-domain', 'shared-other'] },
+                to: elementTypes('application', 'shared-domain', ...sharedAreaElements),
               },
             },
 
@@ -376,147 +626,670 @@ export default tseslint.config(
             //   Per conventions: routes need DTO types for mutation variable types.
             //   BQC-5.1: routes must NOT import shared/db (health probes use shared/health seams).
             {
-              from: { type: 'routes' },
+              from: elementType('routes'),
               allow: {
-                to: {
-                  type: [
-                    'server',
-                    'application',
-                    'components',
-                    'context-ui',
-                    'shared-domain',
-                    'shared-auth',
-                    'shared-other',
-                  ],
-                },
+                to: elementTypes(
+                  'server',
+                  'application',
+                  'components',
+                  'context-ui',
+                  'shared-domain',
+                  'shared-auth',
+                  ...sharedAreaElements,
+                  'ui-support',
+                ),
               },
             },
 
             // components → imports from other components/, shared/*, application/, server/ (TanStack server functions)
             // Per conventions: components call server functions via useServerFn
             {
-              from: { type: 'components' },
+              from: elementType('components'),
               allow: {
-                to: {
-                  type: [
-                    'components',
-                    'context-ui',
-                    'shared-domain',
-                    'shared-auth',
-                    'shared-other',
-                    'application',
-                    'server',
-                  ],
-                },
+                to: elementTypes(
+                  'components',
+                  'context-ui',
+                  'shared-domain',
+                  'shared-auth',
+                  ...sharedAreaElements,
+                  'application',
+                  'server',
+                  'ui-support',
+                ),
               },
             },
 
-            // shared-domain → pure, imports from itself and external libs only
+            // Shared browser helpers may compose one another and consume only
+            // shared contracts. They are not an alternate route into context
+            // server/application or database modules.
             {
-              from: { type: 'shared-domain' },
-              allow: { to: { type: 'shared-domain' } },
-            },
-
-            // shared-auth → imports from shared/ and external libs
-            {
-              from: { type: 'shared-auth' },
+              from: elementType('ui-support'),
               allow: {
-                to: { type: ['shared-domain', 'shared-db', 'shared-other'] },
+                to: elementTypes('ui-support', 'shared-domain', ...sharedAreaElements),
               },
             },
 
-            // shared-db → imports from shared/ and external libs (including drizzle-orm)
+            // ── Shared area placement rules (ARC-03-T3) ───────────────
+            // GENERATED from SHARED_DEPENDENCY_POLICY in
+            // src/shared/architecture/shared-dependency-policy.ts and asserted
+            // byte-identical by shared-context-ownership.test.ts. Do not hand
+            // edit: change the table (and its CONTEXT.md column) instead.
+            // shared-dependency-policy:start
             {
-              from: { type: 'shared-db' },
+              from: elementType('shared-architecture'),
+              allow: { to: elementType('shared-architecture') },
+            },
+            {
+              from: elementType('shared-auth'),
               allow: {
-                to: { type: ['shared-domain', 'shared-auth', 'shared-other'] },
+                to: elementTypes(
+                  'shared-auth',
+                  'shared-cache',
+                  'shared-config',
+                  'shared-db',
+                  'shared-domain',
+                  'shared-email',
+                  'shared-google-provider-control',
+                  'shared-governance',
+                  'shared-observability',
+                  'shared-routing',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-bqc'),
+              allow: { to: elementType('shared-bqc') },
+            },
+            {
+              from: elementType('shared-cache'),
+              allow: {
+                to: elementTypes('shared-cache', 'shared-config', 'shared-observability'),
+              },
+            },
+            {
+              from: elementType('shared-config'),
+              allow: {
+                to: elementTypes('shared-auth', 'shared-config', 'shared-domain'),
+              },
+            },
+            {
+              from: elementType('shared-db'),
+              allow: {
+                to: elementTypes(
+                  'shared-auth',
+                  'shared-config',
+                  'shared-db',
+                  'shared-domain',
+                  'shared-governance',
+                  'shared-observability',
+                  'shared-ops',
+                  'shared-outbox',
+                  'shared-release',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-domain'),
+              allow: { to: elementType('shared-domain') },
+            },
+            {
+              from: elementType('shared-email'),
+              allow: { to: elementType('shared-email') },
+            },
+            {
+              from: elementType('shared-events'),
+              allow: { to: elementTypes('shared-events', 'shared-observability') },
+            },
+            {
+              from: elementType('shared-generated'),
+              allow: { to: elementType('shared-generated') },
+            },
+            {
+              from: elementType('shared-google-provider-control'),
+              allow: {
+                to: elementTypes(
+                  'shared-domain',
+                  'shared-google-provider-control',
+                  'shared-security',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-governance'),
+              allow: {
+                to: elementTypes(
+                  'shared-auth',
+                  'shared-db',
+                  'shared-domain',
+                  'shared-governance',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-health'),
+              allow: {
+                to: elementTypes(
+                  'shared-auth',
+                  'shared-cache',
+                  'shared-config',
+                  'shared-db',
+                  'shared-domain',
+                  'shared-health',
+                  'shared-jobs',
+                  'shared-observability',
+                  'shared-outbox',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-hooks'),
+              allow: { to: elementTypes('shared-auth', 'shared-domain', 'shared-hooks') },
+            },
+            {
+              from: elementType('shared-http'),
+              allow: { to: elementType('shared-http') },
+            },
+            {
+              from: elementType('shared-jobs'),
+              allow: {
+                to: elementTypes(
+                  'shared-auth',
+                  'shared-config',
+                  'shared-db',
+                  'shared-domain',
+                  'shared-events',
+                  'shared-governance',
+                  'shared-health',
+                  'shared-jobs',
+                  'shared-observability',
+                  'shared-outbox',
+                  'shared-routing',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-lifecycle'),
+              allow: { to: elementType('shared-lifecycle') },
+            },
+            {
+              from: elementType('shared-observability'),
+              allow: {
+                to: elementTypes(
+                  'shared-auth',
+                  'shared-config',
+                  'shared-db',
+                  'shared-domain',
+                  'shared-health',
+                  'shared-jobs',
+                  'shared-observability',
+                  'shared-outbox',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-ops'),
+              allow: {
+                to: elementTypes(
+                  'shared-auth',
+                  'shared-config',
+                  'shared-db',
+                  'shared-domain',
+                  'shared-ops',
+                  'shared-outbox',
+                ),
+              },
+            },
+            {
+              from: elementTypes('shared-outbox', 'shared-outbox-infra'),
+              allow: {
+                to: elementTypes(
+                  'shared-db',
+                  'shared-domain',
+                  'shared-events',
+                  'shared-governance',
+                  'shared-jobs',
+                  'shared-observability',
+                  'shared-outbox',
+                  'shared-outbox-infra',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-provider-ephemeral'),
+              allow: {
+                to: elementTypes(
+                  'shared-auth',
+                  'shared-domain',
+                  'shared-provider-ephemeral',
+                  'shared-security',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-queries'),
+              allow: { to: elementType('shared-queries') },
+            },
+            {
+              from: elementType('shared-rate-limit'),
+              allow: { to: elementTypes('shared-observability', 'shared-rate-limit') },
+            },
+            {
+              from: elementType('shared-release'),
+              allow: {
+                to: elementTypes(
+                  'shared-auth',
+                  'shared-db',
+                  'shared-domain',
+                  'shared-governance',
+                  'shared-release',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-routing'),
+              allow: {
+                to: elementTypes('shared-domain', 'shared-routing', 'shared-security'),
+              },
+            },
+            {
+              from: elementType('shared-security'),
+              allow: {
+                to: elementTypes(
+                  'shared-config',
+                  'shared-domain',
+                  'shared-observability',
+                  'shared-security',
+                ),
+              },
+            },
+            {
+              from: elementType('test-helpers'),
+              allow: {
+                to: elementTypes(
+                  'shared-auth',
+                  'shared-bqc',
+                  'shared-config',
+                  'shared-db',
+                  'shared-domain',
+                  'shared-events',
+                  'shared-health',
+                  'shared-jobs',
+                  'shared-observability',
+                  'test-helpers',
+                ),
+              },
+            },
+            // shared-dependency-policy:end
+
+            // Edges the per-area table cannot express, because their targets
+            // are not shared areas.
+            //
+            // The shared root holds a transitional cross-context contract
+            // kernel (src/shared/CONTEXT.md "Root production-file categories").
+            // Only the areas that actually read it may — a new reader is a
+            // placement question, not a lint fix.
+            {
+              from: elementTypes(
+                'shared-db',
+                'shared-governance',
+                'shared-observability',
+                'shared-ops',
+                'test-helpers',
+              ),
+              allow: { to: elementType('shared-root-contracts') },
+            },
+            {
+              from: elementType('shared-root-contracts'),
+              allow: {
+                to: elementTypes(
+                  'shared-domain',
+                  'shared-generated',
+                  'shared-google-provider-control',
+                  'shared-root-contracts',
+                  'shared-security',
+                ),
               },
             },
 
-            // shared-events → imports from shared/ + context domain (event types only)
-            // Per architecture: "Cross-context type imports are allowed for events."
+            // shared-events → the master union imports each context's
+            // domain/events module. Per architecture: "Cross-context type
+            // imports are allowed for events."
             {
-              from: { type: 'shared-events' },
+              from: elementType('shared-events'),
+              allow: { to: elementType('domain') },
+            },
+
+            // test-helpers → in-memory fakes implement context port interfaces
+            // (pattern #18) and integration harnesses build the container.
+            {
+              from: elementType('test-helpers'),
+              allow: { to: elementTypes('domain', 'application') },
+            },
+            {
+              from: elementType('test-helpers'),
+              allow: { to: fileCategory('composition-root') },
+            },
+
+            // Worker entry points consume the assembled runtime graph plus
+            // infrastructure-owned job adapters and shared runtime services.
+            {
+              from: elementType('top-level'),
               allow: {
-                to: {
-                  type: [
-                    'domain',
-                    'shared-domain',
-                    'shared-auth',
-                    'shared-db',
-                    'shared-other',
-                  ],
-                },
+                to: elementTypes(
+                  'domain',
+                  'application',
+                  'infrastructure',
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-db',
+                  'shared-events',
+                  ...sharedAreaElements,
+                  // BQR-1.3: composition/worker construct outbox adapters and loops
+                  'shared-outbox-infra',
+                ),
+              },
+            },
+            {
+              from: elementType('top-level'),
+              allow: { to: fileCategory('composition-root') },
+            },
+
+            // eslint-plugin-boundaries v7 classifies exact root files through
+            // file categories. The composition/bootstrap pair may wire
+            // contexts and runtime infrastructure, but must never reach into
+            // UI/routes. Context build targets are categories as well.
+            {
+              from: fileCategory('composition-root'),
+              allow: {
+                to: elementTypes(
+                  'domain',
+                  'application',
+                  'infrastructure',
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-db',
+                  'shared-events',
+                  ...sharedAreaElements,
+                  'shared-outbox-infra',
+                  'service',
+                ),
+              },
+            },
+            {
+              from: fileCategory('composition-root'),
+              allow: {
+                to: fileCategory(['composition-root', 'context-build']),
+              },
+            },
+            {
+              from: fileCategory('start-entry'),
+              allow: {
+                to: elementTypes(
+                  'server',
+                  'shared-domain',
+                  'shared-auth',
+                  ...sharedAreaElements,
+                ),
+              },
+            },
+            {
+              from: fileCategory('router-entry'),
+              allow: {
+                to: elementTypes(
+                  'components',
+                  'ui-support',
+                  'shared-domain',
+                  ...sharedAreaElements,
+                ),
+              },
+            },
+            {
+              from: fileCategory('router-entry'),
+              allow: { to: fileCategory('generated-router') },
+            },
+            // HTTP API routes host non-createServerFn callbacks (auth,
+            // health, provider webhooks) and may resolve root-owned runtime
+            // capabilities. Browser route modules receive no such exception.
+            {
+              from: fileCategory('api-route'),
+              allow: { to: fileCategory('composition-root') },
+            },
+
+            // ARC-03-T2: the trust-boundary sidecars are separately deployed
+            // processes. They may link service-local modules and the NAMED
+            // shared-provider-kernel category — nothing else. Blanket
+            // shared-auth/shared-db/shared-other access is what let an
+            // out-of-boundary process reach the application database, the
+            // better-auth kernel and the job queue with no package-level
+            // dependency boundary to stop it.
+            {
+              from: elementType('service'),
+              allow: { to: elementType('service') },
+            },
+            {
+              from: elementType('service'),
+              allow: { to: fileCategory('shared-provider-kernel') },
+            },
+            {
+              from: elementType('runtime-plugin'),
+              allow: {
+                to: elementTypes(
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-db',
+                  'shared-events',
+                  ...sharedAreaElements,
+                ),
+              },
+            },
+            {
+              from: elementType('runtime-plugin'),
+              allow: { to: fileCategory('composition-root') },
+            },
+
+            // ── Repository tooling (ARC-03-T1) ────────────────────────
+            // CI verifiers are static: they read published catalogues and
+            // cross-context public APIs. They never open a database
+            // connection, never touch an adapter, and never resolve the
+            // runtime container — a check that boots the app is not a
+            // check, it is a deployment.
+            {
+              from: elementType('script-ci'),
+              allow: {
+                to: elementTypes(
+                  'application',
+                  'domain',
+                  'shared-domain',
+                  ...sharedAreaElements,
+                  'test-helpers',
+                ),
               },
             },
 
-            // shared-other → imports from shared/ and external libs only
-            // BQR-1.3: emit-and-record (shared-other) may depend on outbox infra + adapter
+            // Operator commands are audited in-process admin entry points.
+            // They resolve the composition root and the per-context build
+            // seams, and — like the worker — construct the adapters they
+            // drive. They must never reach a context's HTTP/server layer
+            // (that is an inbound adapter for browsers, not for a CLI) nor
+            // any browser element.
             {
-              from: { type: 'shared-other' },
+              from: elementType('script-operator'),
               allow: {
-                to: {
-                  type: [
-                    'shared-domain',
-                    'shared-auth',
-                    'shared-db',
-                    'shared-other',
-                    'shared-outbox-infra',
-                    'shared-outbox-runtime',
-                    'shared-events',
-                  ],
-                },
+                to: elementTypes(
+                  'domain',
+                  'application',
+                  'infrastructure',
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-db',
+                  'shared-events',
+                  ...sharedAreaElements,
+                  'shared-outbox-infra',
+                  'test-helpers',
+                ),
+              },
+            },
+            {
+              from: elementType('script-operator'),
+              allow: {
+                to: fileCategory(['composition-root', 'context-build']),
               },
             },
 
-            // test-helpers → may import domain, application (port interfaces), shared for building fixtures
-            // Per architecture: in-memory fakes implement context port interfaces (pattern #18).
+            // Build/seed/migration tooling wires the same runtime graph as
+            // the worker. Same ceiling as the operator commands, same
+            // browser and server-adapter floor.
             {
-              from: { type: 'test-helpers' },
+              from: elementType('script-tooling'),
               allow: {
-                to: {
-                  type: [
-                    'domain',
-                    'application',
-                    'shared-domain',
-                    'shared-auth',
-                    'shared-db',
-                    'shared-events',
-                    'shared-other',
-                  ],
-                },
+                to: elementTypes(
+                  'domain',
+                  'application',
+                  'infrastructure',
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-db',
+                  'shared-events',
+                  ...sharedAreaElements,
+                  'shared-outbox-infra',
+                  'test-helpers',
+                  'script-operator',
+                  'service',
+                ),
+              },
+            },
+            {
+              from: elementType('script-tooling'),
+              allow: {
+                to: fileCategory(['composition-root', 'context-build']),
               },
             },
 
-            // top-level → imports from infrastructure (wiring), shared/* (wiring everything together)
-            // Per architecture: composition.ts wires the full dependency graph, including infrastructure factories.
+            // File-category policies preserve the former single-file element
+            // semantics after the v7 migration. Because the runtime files now
+            // also belong to the shared-outbox element, the final policies
+            // deliberately narrow both incoming and outgoing runtime
+            // dependencies.
             {
-              from: { type: 'top-level' },
+              disallow: { to: fileCategory('shared-outbox-runtime') },
+            },
+            // ARC-03-T3: only the outbox area's own commit/emit helpers reach
+            // the relay — this was `shared-other`, i.e. all of shared/.
+            {
+              from: elementType('shared-outbox'),
+              allow: { to: fileCategory('shared-outbox-runtime') },
+            },
+            {
+              from: elementType('top-level'),
+              allow: { to: fileCategory('shared-outbox-runtime') },
+            },
+            {
+              from: fileCategory('shared-outbox-runtime'),
+              disallow: { to: localModule },
+            },
+            {
+              from: fileCategory('shared-outbox-runtime'),
               allow: {
-                to: {
-                  type: [
-                    'domain',
-                    'application',
-                    'infrastructure',
-                    'shared-domain',
-                    'shared-auth',
-                    'shared-db',
-                    'shared-events',
-                    'shared-other',
-                    // BQR-1.3: composition/worker construct outbox adapters and loops
-                    'shared-outbox-infra',
-                    'shared-outbox-runtime',
-                  ],
-                },
+                to: elementTypes(
+                  'shared-db',
+                  'shared-domain',
+                  'shared-events',
+                  'shared-governance',
+                  'shared-jobs',
+                  'shared-observability',
+                  'shared-outbox',
+                  'shared-outbox-infra',
+                ),
               },
+            },
+            {
+              from: fileCategory('shared-outbox-runtime'),
+              disallow: { to: fileCategory('shared-outbox-runtime') },
+            },
+
+            // ── Per-deployable container wiring (ARC-03-T16) ──────────
+            // Default-disallow already covers most callers, but api-route,
+            // server, the Nitro plugin and operator scripts are all allowed to
+            // resolve the composition root — and the worker container builder
+            // lives inside it. Deny it globally and re-open it only for the
+            // worker entry point and the process fixtures that assert the
+            // partition.
+            {
+              disallow: { to: fileCategory('deployable-containers') },
+            },
+            {
+              from: elementTypes('top-level', 'test-helpers'),
+              allow: { to: fileCategory('deployable-containers') },
+            },
+
+            // Browser layers may link a stylesheet; nothing else may.
+            {
+              from: elementTypes('routes', 'components', 'router-entry'),
+              allow: { to: fileCategory('stylesheet') },
+            },
+
+            // Only a story file may reach the Storybook harness. The component
+            // it renders keeps its ordinary policy, so decorators and
+            // in-memory containers cannot reach a production bundle.
+            {
+              from: fileCategory('story-file'),
+              allow: { to: elementType('story-fixtures') },
+            },
+
+            // Repository tooling drives the local end-to-end stubs and reads
+            // the Railway deployment source map (ARC-03-T16). Neither is part
+            // of the application graph, and no src/ element may reach them.
+            {
+              from: elementType('script-tooling'),
+              allow: { to: elementTypes('e2e-harness', 'release-config') },
             },
           ],
         },
       ],
 
-      // Off — too noisy for now. Files without an element type still
-      // get caught by the dependency rules if they import wrong things.
-      'boundaries/no-unknown-files': 'off',
+      // Every production src/service/plugin file must be classified. Test
+      // files are disabled in the dedicated override below.
+      'boundaries/no-unknown-files': 'error',
+
+      // ARC-03-T16: the other half of classification. no-unknown-files proves
+      // the file being linted has an element; this proves the files it IMPORTS
+      // do. Without it a module can route around every policy above by
+      // depending on a local path that matches no element at all.
+      // `boundaries/no-unknown` is the same rule under its pre-v7 name; using
+      // it prints a deprecation warning on every lint run, so the canonical id
+      // is enabled here and the control runner accepts either.
+      'boundaries/no-unknown-dependencies': 'error',
+    },
+  },
+
+  // ─── React and TanStack Query framework contracts ─────────────────
+  // Scope the official flat-config recommendations to application source.
+  // They catch render impurity/hook lifecycle defects and cache-key/query
+  // contract drift that the general TypeScript rules cannot see.
+  {
+    files: [
+      '.storybook/**/*.{ts,tsx}',
+      'src/components/**/*.{ts,tsx}',
+      'src/routes/**/*.{ts,tsx}',
+      'src/hooks/**/*.{ts,tsx}',
+      'src/lib/**/*.{ts,tsx}',
+      'src/contexts/*/ui/**/*.{ts,tsx}',
+      'src/shared/email/**/*.{ts,tsx}',
+      'src/shared/hooks/**/*.{ts,tsx}',
+      'src/router.tsx',
+    ],
+    plugins: {
+      'react-hooks': reactHooks,
+      '@tanstack/query': query,
+    },
+    rules: {
+      ...reactHooks.configs.flat.recommended.rules,
+      ...query.configs['flat/recommended'][0].rules,
+      // CI never accepts framework-contract warnings: a newly introduced
+      // stale closure or unsupported compiler construct must fail the gate.
+      'react-hooks/exhaustive-deps': 'error',
+      'react-hooks/incompatible-library': 'error',
+      'react-hooks/unsupported-syntax': 'error',
     },
   },
 
@@ -842,14 +1615,34 @@ export default tseslint.config(
 
   // ─── Test files: relaxed boundary rules ────────────────────────────
   {
-    files: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/test-setup.ts'],
+    files: [
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      'src/test-setup.ts',
+      'services/**/*.test.ts',
+    ],
     rules: {
       'boundaries/dependencies': 'off',
+      'boundaries/no-unknown-files': 'off',
       'no-restricted-imports': 'off',
       'local/cross-context-public-api': 'off',
       // BQC-5.3: test fixtures build dates freely — the ambient-clock ban
       // applies to production domain code only.
       'no-restricted-syntax': 'off',
+    },
+  },
+
+  // ─── ARC-03-T1: script test files ──────────────────────────────────
+  // A test must import the unit it covers, so the dependency policy is
+  // relaxed exactly as it is for src/ and services/ tests. Classification
+  // is NOT relaxed: boundaries/no-unknown-files stays on for every file
+  // under scripts/, tests included — an unclassified script would silently
+  // escape the policy above, which is the failure mode this task exists to
+  // close.
+  {
+    files: ['scripts/**/*.test.{ts,mjs}'],
+    rules: {
+      'boundaries/dependencies': 'off',
     },
   },
 

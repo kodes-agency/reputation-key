@@ -4,7 +4,7 @@
 // Reviews and guest interactions carry explicit timestamps (not DB defaults)
 // so the simulation controls the time dimension (ADR 0017).
 
-import type { Container } from '#/composition'
+import type { SimulationContainer } from '#/composition'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   reviewId,
@@ -31,6 +31,7 @@ import { metricReadings } from '#/shared/db/schema/metric.schema'
 import { goals } from '#/shared/db/schema/goal.schema'
 import { user, member, organization } from '#/shared/db/schema/auth'
 import { staffAssignments } from '#/shared/db/schema/staff-assignment.schema'
+import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 
 const MS_PER_DAY = 86_400_000
 
@@ -83,8 +84,8 @@ export type ScenarioResult = Readonly<{
 // ── Shared context for all helpers ──────────────────────────────────
 
 type Ctx = Readonly<{
-  db: Container['db']
-  container: Container
+  db: SimulationContainer['db']
+  container: SimulationContainer
   orgId: ReturnType<typeof organizationId>
   simUserId: ReturnType<typeof userId>
   now: Date
@@ -206,7 +207,19 @@ async function createReviews(
       sourceUpdatedAt: null,
       firstFetchedAt: ctx.now,
       lastFetchedAt: ctx.now,
-      contentExpiresAt: null,
+      // A fetch clock is what makes this a provider OBSERVATION rather than a
+      // bare row write. `reviewRepo.upsert` routes a review carrying both
+      // `lastFetchedAt` and `contentExpiresAt` through
+      // `persistReviewObservation` -- the same adapter the Google sync path
+      // uses -- which records the material_review_revisions and
+      // review_source_observations rows the review is not legally a review
+      // without. Without it the upsert took the pre-observation compatibility
+      // branch, and every downstream write with a
+      // `..._material_revision_fk` (reply_publication_authorizations, the
+      // Inbox handling cycle) failed against a revision that was never
+      // written. ADR 0031 derives the expiry from the fetch, never from
+      // `reviewedAt`, so a backdated review still gets a live content clock.
+      contentExpiresAt: contentExpiresAtFromFetch(ctx.now),
       contentHash: null,
       sourceSeenGeneration: null,
       // `sourceEpoch` is 0-based (0060 relaxed the AI-plane CHECK to >= 0), but
@@ -222,16 +235,31 @@ async function createReviews(
       aiSourceDigest: '0'.repeat(64),
     }
     try {
-      await ctx.container.reviewRepo.upsert(review, ctx.now)
+      // 'ongoing' is the honest origin: the scenario models reviews arriving
+      // on the live provider stream, each observed once, now. It is also the
+      // only origin that yields a `measured` response target (the provider
+      // timestamp is in the past, so it is usable), which is the state the
+      // SLA and Inbox invariants exist to check.
+      const observed = await ctx.container.simulationRuntime.review.upsert(
+        review,
+        ctx.now,
+        undefined,
+        'ongoing',
+      )
       await ctx.container.eventBus.emit(
         reviewCreated({
           reviewId: rId,
           propertyId: propId,
           organizationId: ctx.orgId,
           platform: 'google',
-          sourceEpoch: review.sourceEpoch,
-          sourceRevision: review.sourceRevision,
-          analysisSequence: review.analysisSequence,
+          // Announce what was PERSISTED. The observation adapter derives the
+          // material revision itself, and Inbox validates the announced
+          // revision against the material revision history -- announcing the
+          // requested value would desynchronise the two the moment the
+          // adapter's derivation and this fixture disagreed.
+          sourceEpoch: observed.sourceEpoch,
+          sourceRevision: observed.sourceRevision,
+          analysisSequence: observed.analysisSequence,
           occurredAt: ctx.now,
         }),
       )
@@ -258,12 +286,12 @@ async function createReviews(
           userId: ctx.simUserId,
           role: 'AccountAdmin',
         } as AuthContext
-        await ctx.container.useCases.draftReply(
+        await ctx.container.reviewPublicApi.reply.draft(
           { reviewId: rId, text: 'Thank you!' },
           replyCtx,
         )
-        await ctx.container.useCases.submitReply({ reviewId: rId }, replyCtx)
-        await ctx.container.useCases.approveReply({ reviewId: rId }, replyCtx)
+        await ctx.container.reviewPublicApi.reply.submit({ reviewId: rId }, replyCtx)
+        await ctx.container.reviewPublicApi.reply.approve({ reviewId: rId }, replyCtx)
         replies++
       } catch (err) {
         ctx.container.logger.warn(
@@ -305,7 +333,7 @@ async function createGuestData(
           organizationId: ctx.orgId,
           portalId: pId,
           propertyId: propId,
-          source: 'qr',
+          scanSource: 'qr',
           occurredAt: new Date(ctx.now.getTime() - daysAgo * MS_PER_DAY),
         }),
       )
@@ -489,7 +517,7 @@ async function createMetricHistory(
 // ── Main entry point ────────────────────────────────────────────────
 
 export async function buildScenario(
-  container: Container,
+  container: SimulationContainer,
   spec: ScenarioSpec,
 ): Promise<ScenarioResult> {
   const ctx: Ctx = {

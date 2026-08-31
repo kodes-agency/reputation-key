@@ -1,5 +1,14 @@
 # Property-Region Routing Standard
 
+> **Topology amendment (2026-08-27).** ADR 0057 and the August comprehensive
+> program supersede this document's initial country-to-Data-Cell table and its
+> Amsterdam closed-beta topology. Beta stores and executes every supported
+> Property in Railway `cell-us` (compute `us-west2` and object storage `sjc`,
+> both officially labelled US West/California; no city-level claim).
+> `europe` and the Data Cell named `global` are denied future identifiers.
+> The AI provider profile named `global`/`private-beta-global-v1` is a separate
+> external-processing vocabulary and does not imply a Railway `cell-global`.
+
 **Status:** Proposed normative standard  
 **Product decision:** The property, not the organization or current user, is the routing unit  
 **Owners:** Engineering, privacy, operations  
@@ -45,7 +54,11 @@ type ProcessingAvailability =
     }
 ```
 
-`us`, `europe`, and `global` are RepKey processing cells, not Azure/AWS/OpenAI region names. A separate Provider Deployment registry maps one processing cell to one exact approved provider/model/deployment/configuration.
+`us`, `europe`, and `global` are stable RepKey processing-cell identifiers, not
+Azure/AWS/OpenAI region names. For beta, only `us` has a Railway deployment;
+`europe` and `global` are denied compatibility/future identifiers. A separate
+Provider Deployment registry maps the accepting processing cell to one exact
+approved provider/model/deployment/configuration.
 
 ## 3. Routing inputs
 
@@ -68,34 +81,34 @@ type ProcessingAvailability =
 
 Country is a routing input, not proof of customer consent, lawful basis, transfer mechanism, or complete residency.
 
-## 4. Initial routing policy
+## 4. Current beta routing policy
 
 The actual country list lives in versioned executable configuration and must be reviewed by privacy/operations before activation.
 
-| Property classification | Default cell           | Conditions                                                                                          |
-| ----------------------- | ---------------------- | --------------------------------------------------------------------------------------------------- |
-| United States           | `us`                   | Approved US deployment and full-path data-flow evidence                                             |
-| EEA                     | `europe`               | Approved European deployment; applicable processor/transfer controls; no global inference fallback  |
-| United Kingdom          | `unresolved` initially | Route to `europe` only after explicit privacy/contract decision and approved provider path          |
-| Switzerland             | `unresolved` initially | Route to `europe` only after explicit privacy/contract decision and approved provider path          |
-| Other supported country | `global`               | Only after country/support/privacy review and an approved global or appropriate regional deployment |
-| Missing/invalid country | `unresolved`           | AI unavailable; prompt for authorized correction; non-AI features continue                          |
+| Property classification                  | Beta cell    | Conditions                                                                                   |
+| ---------------------------------------- | ------------ | -------------------------------------------------------------------------------------------- |
+| Any of the 245 versioned supported codes | `us`         | Explicit policy-v3 allocation to the sole accepting Railway Data Cell                        |
+| Missing, malformed, or unsupported code  | `unresolved` | No fallback; require authorized correction before Property-scoped processing may be admitted |
 
-Canada and other high-priority markets are not silently classified as `us`; they follow the reviewed rest-of-world map. “Europe” is a processing cell, not a claim that every European country has identical law or transfer requirements.
+This is an exhaustive versioned mapping, not a geography guess or implicit
+fallback. Europe, the United Kingdom, Switzerland, Canada, and every other
+supported market map explicitly to logical `us` during beta. A later residency
+partition requires a new accepted ADR, catalogue-policy revision, isolated
+infrastructure, and release/recovery evidence before `europe` or `global` can
+accept any country or workload.
 
-### Closed-beta cell topology (2026-08-19)
+### Beta cell topology (2026-08-27)
 
-The Railway `google-closed-beta` environment runs ONE approved processing cell,
-and that cell serves every resolved region (`us`, `europe`, `global`). The cell
-itself is hosted in EU West together with its database, Redis and provider
-gateways, so the owner's EEA property is processed in-region. `unresolved` and
-any region without a routing target still fail closed and quarantine the work.
+The dedicated Railway project has exactly one environment, `cell-us`, with
+compute in Railway US West/California (`us-west2`) and its object bucket in
+Railway US West/California (`sjc`). No `cell-europe` or `cell-global` Railway
+target exists. The legacy Amsterdam `google-closed-beta` environment is
+migration input only and is not current routing or release authority.
 
-The router's target table is the single authority: a region that the property
-domain treats as processable but that has no entry there is a defect, not a
-deny — the two are pinned to each other by a contract test
-(`src/contexts/property/domain/processing-routing.test.ts`). Adding a real
-per-region cell later changes only that table.
+The versioned Data Cell catalogue and its executable target table are one
+authority: only `us` is `accepting`; `europe` and `global` are known but denied;
+`unresolved` fails closed. Tests pin those states and all 245 supported-country
+allocations so dormant identifiers cannot silently become execution targets.
 
 ## 5. Resolution and change workflow
 

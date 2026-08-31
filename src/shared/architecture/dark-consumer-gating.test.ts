@@ -10,6 +10,8 @@
 // Asserts against the catalogue module's exported data (no file re-parsing).
 
 import { describe, it, expect } from 'vitest'
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 
 /** Beta-dark contexts (ADR 0032); 'ai' reserved — no context directory yet. */
@@ -21,10 +23,14 @@ const darkRows = ENTRY_POINT_CATALOGUE.filter(
     DARK_CONTEXTS.some((ctx) => row.file.startsWith(`src/contexts/${ctx}/`)),
 )
 
+const ALWAYS_ON_CONTAINMENT_JOBS = new Set(['job:portal-upload-source-cleanup'])
+
 describe('architecture: dark-context consumers and jobs are capability-gated (BQC-5.6)', () => {
   it('every dark-context consumer/job row carries a gate (never none)', () => {
     const ungated = darkRows
-      .filter((row) => row.capability === 'none')
+      .filter(
+        (row) => row.capability === 'none' && !ALWAYS_ON_CONTAINMENT_JOBS.has(row.id),
+      )
       .map((row) => `${row.id} (${row.file})`)
     expect(
       ungated,
@@ -35,10 +41,22 @@ describe('architecture: dark-context consumers and jobs are capability-gated (BQ
   it('pins the known dark consumer/job pairings', () => {
     const pairings = Object.fromEntries(darkRows.map((row) => [row.name, row.capability]))
     expect(pairings).toMatchObject({
-      'badge.event-handlers': 'badge.use',
-      'goal.event-handlers': 'goal.use',
-      'leaderboard.event-handlers': 'leaderboard.use',
       'process-image': 'portal.upload',
+      'portal-upload-source-cleanup': 'none',
     })
+    expect(pairings).not.toHaveProperty('badge.event-handlers')
+    expect(pairings).not.toHaveProperty('leaderboard.event-handlers')
+  })
+
+  it('keeps the legacy Goal handler disconnected and Recognition consumers removed', () => {
+    const composition = readFileSync(resolve('src/composition.ts'), 'utf8')
+
+    expect(composition).not.toContain('registerGoalEventHandlers')
+    expect(
+      [
+        'src/contexts/badge/infrastructure/event-handlers/index.ts',
+        'src/contexts/leaderboard/infrastructure/event-handlers/index.ts',
+      ].filter((path) => existsSync(resolve(path))),
+    ).toEqual([])
   })
 })

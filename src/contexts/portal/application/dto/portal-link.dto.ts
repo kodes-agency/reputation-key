@@ -1,20 +1,30 @@
 // Portal context — link DTOs
 
 import { z } from 'zod/v4'
+import { isValidExternalUrl } from '../../domain/rules'
+
+const portalLinkLabelSchema = z.string().trim().min(1, 'Label is required').max(100)
+
+const portalLinkUrlSchema = z
+  .string()
+  .trim()
+  .min(1, 'URL is required')
+  .max(500)
+  .refine(isValidExternalUrl, 'Links must start with https://')
 
 export const createLinkInputSchema = z.object({
   categoryId: z.string().min(1, 'Category ID is required'),
   portalId: z.string().min(1, 'Portal ID is required'),
-  label: z.string().min(1, 'Label is required').max(100),
-  url: z.string().min(1, 'URL is required').max(500),
+  label: portalLinkLabelSchema,
+  url: portalLinkUrlSchema,
   iconKey: z.string().max(50).optional(),
 })
 
 // CreateLinkInput — exported when consumed by route validators or forms
 export const updateLinkInputSchema = z.object({
   linkId: z.string().min(1, 'Link ID is required'),
-  label: z.string().min(1).max(100).optional(),
-  url: z.string().min(1).max(500).optional(),
+  label: portalLinkLabelSchema.optional(),
+  url: portalLinkUrlSchema.optional(),
   iconKey: z.string().max(50).nullable().optional(),
 })
 

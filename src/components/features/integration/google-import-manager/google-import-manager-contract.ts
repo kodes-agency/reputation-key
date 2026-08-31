@@ -1,8 +1,10 @@
 import type {
+  GoogleAuthUrlInput,
   GoogleConnectionDto,
   ImportProgressDto,
 } from '#/contexts/integration/application/public-api'
 import type {
+  cancelPropertyImportV2,
   getPropertyImportV2Status,
   listImportAccounts,
   listImportCandidates,
@@ -14,7 +16,7 @@ import type {
 
 export type GoogleImportStep = 'discover' | 'review' | 'progress'
 export type GoogleImportGetAuthUrl = (opts: {
-  data: { visibility: 'private' | 'organization' }
+  data: GoogleAuthUrlInput
 }) => Promise<{ url: string }>
 
 export type GoogleImportManagerProps = Readonly<{
@@ -32,4 +34,5 @@ export type GoogleImportManagerProps = Readonly<{
   recoverImport: typeof recoverPropertyImportV2
   getImportStatus: typeof getPropertyImportV2Status
   retryImportItem: typeof retryPropertyImportItem
+  cancelImport: typeof cancelPropertyImportV2
 }>

@@ -2,8 +2,8 @@
 // Import discovery uses the authorized Account Management and Business Information
 // adapters; this narrow port exists only for the best-effort notification lifecycle.
 
-import { z } from 'zod'
-import type { GbpApiPort, GbpAccount } from '../../application/ports/gbp-api.port'
+import { z } from 'zod/v4'
+import type { GbpApiPort, GbpApiAccount } from '../../application/ports/gbp-api.port'
 import { createGbpApiError } from '../../domain/gbp-api-error'
 import type { GbpApiErrorKind } from '../../domain/gbp-api-error'
 import { trace } from '#/shared/observability/trace'
@@ -35,7 +35,7 @@ function classifyHttpStatus(status: number): GbpApiErrorKind {
   return 'upstream_error'
 }
 
-function mapAccount(account: z.infer<typeof accountSchema>): GbpAccount {
+function mapAccount(account: z.infer<typeof accountSchema>): GbpApiAccount {
   const accountName = account.name.slice('accounts/'.length)
   return Object.freeze({
     name: account.name,
@@ -45,9 +45,13 @@ function mapAccount(account: z.infer<typeof accountSchema>): GbpAccount {
   })
 }
 
-export const createGbpApiAdapter = (config: { baseUrl: string }): GbpApiPort => ({
+export const createGbpApiAdapter = (config: {
+  baseUrl: string
+  assertDirectCredentialEgressAllowed?: (operation: string) => void
+}): GbpApiPort => ({
   listAccounts: async (accessToken) => {
-    const allAccounts: GbpAccount[] = []
+    config.assertDirectCredentialEgressAllowed?.('account-management.accounts.list')
+    const allAccounts: GbpApiAccount[] = []
     const seenAccountIds = new Set<string>()
     const seenPageTokens = new Set<string>()
     let nextPageToken: string | undefined

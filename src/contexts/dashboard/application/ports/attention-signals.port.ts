@@ -4,39 +4,20 @@
 
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
-/**
- * Facade port for the property attention-band counts.
- * Each method counts items that warrant attention for a single property.
- */
+export type AttentionCounts = Readonly<{
+  unanswered: number
+  itemsToTriage: number
+  escalated: number
+  goalsBehindPace: number
+  /** Distinct Review, Inbox-source, and Goal anchors. */
+  attentionWork: number
+}>
+
+/** Atomic property attention projection; overlapping reasons share one snapshot. */
 export type AttentionSignalsPort = Readonly<{
-  /**
-   * Reviews with no published reply AND age (now − reviewedAt) greater than
-   * the response SLA. The SLA is an org-level setting (hours).
-   */
-  getUnansweredReviewCount(
+  getAttentionCounts(
     organizationId: OrganizationId,
     propertyId: PropertyId,
     slaHours: number,
-  ): Promise<number>
-
-  /** Inbox items in 'new' status for the property (unactioned feedback). */
-  getNewInboxItemCount(
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-  ): Promise<number>
-
-  /** Inbox items in 'escalated' status for the property. */
-  getEscalatedInboxItemCount(
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-  ): Promise<number>
-
-  /**
-   * Active goals whose current progress is behind the pro-rated expected
-   * progress for the elapsed period. Only bounded, not-yet-ended goals count.
-   */
-  getGoalsBehindPaceCount(
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-  ): Promise<number>
+  ): Promise<AttentionCounts>
 }>

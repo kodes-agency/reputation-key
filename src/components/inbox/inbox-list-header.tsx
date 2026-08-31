@@ -43,11 +43,15 @@ export function InboxListHeader({
   return (
     <header className="shrink-0 border-b px-5 py-4">
       <div className="flex min-w-0 items-center gap-3">
+        {/* The drawer trigger is mobile-only because only the mobile branch of
+            InboxPageV2 passes onOpenSidebar; a second CSS-breakpoint gate would
+            duplicate that decision (and hide the control from viewport-less
+            component runners). */}
         {onOpenSidebar && (
           <Button
             variant="ghost"
             size="icon-sm"
-            className="-ml-2 md:hidden"
+            className="-ml-2"
             onClick={onOpenSidebar}
             aria-label="Open folders"
           >

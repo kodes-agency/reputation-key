@@ -40,9 +40,9 @@ export const validateTransition = (
 export const timestampFieldsForStatus = (
   status: InboxStatus,
   now: Date,
-): Partial<Record<string, Date>> => {
+): Partial<Record<string, Date | null>> => {
   if (status === 'closed') return { closedAt: now }
-  return {}
+  return { closedAt: null }
 }
 
 /** Returns true when the given role is allowed to assign inbox items.

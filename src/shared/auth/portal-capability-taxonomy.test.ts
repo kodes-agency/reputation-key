@@ -65,9 +65,9 @@ describe('BQC-0.2 portal capability taxonomy (STD-P0-01)', () => {
       expect(capabilityForPermission('portal.delete')).toBe('portal.write')
     })
 
-    it('treats portal read, write, and upload as independent promotable controls', () => {
+    it('keeps read/write promotable while upload is safety-blocked', () => {
       expect(isBlockedCapability('portal.write')).toBe(false)
-      expect(isBlockedCapability('portal.upload')).toBe(false)
+      expect(isBlockedCapability('portal.upload')).toBe(true)
       expect(isBlockedCapability('portal.read')).toBe(false)
     })
   })
@@ -119,13 +119,13 @@ describe('BQC-0.2 portal capability taxonomy (STD-P0-01)', () => {
   })
 
   describe('controlled write/upload environment posture', () => {
-    it('can enable each capability independently for isolated E2E execution', () => {
+    it('cannot override the upload safety block from an E2E environment', () => {
       const store = createEnvCapabilityPolicyStore({
         BETA_E2E_GLOBAL_CAPABILITIES: 'portal.read,portal.write,portal.upload,team.use',
       })
       expect(store.isCapabilityGloballyEnabled('portal.read')).toBe(true)
       expect(store.isCapabilityGloballyEnabled('portal.write')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('portal.upload')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('portal.upload')).toBe(false)
     })
   })
 })

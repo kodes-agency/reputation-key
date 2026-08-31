@@ -140,7 +140,6 @@ const setup = () => {
   const staffPublicApi: StaffPublicApi = {
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],
-    countAssignmentsByTeam: async () => 0,
   }
   const useCase = getGoal({ goalRepo, staffPublicApi })
 
@@ -249,7 +248,6 @@ describe('getGoal', () => {
     const staffPublicApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const useCase = getGoal({ goalRepo, staffPublicApi })
 

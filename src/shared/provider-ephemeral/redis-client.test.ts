@@ -18,6 +18,7 @@ describe('createProviderEphemeralRedis', () => {
     clients.push(client)
 
     expect(client.options.tls).toMatchObject({ ca })
+    expect(client.options.disableClientInfo).toBe(true)
   })
 
   it('uses the platform trust store when no private CA is configured', () => {

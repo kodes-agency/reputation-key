@@ -12,12 +12,16 @@ import type { OrganizationId } from '#/shared/domain/ids'
 
 import type { TeamMembershipRepository } from '../ports/team-membership.repository'
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
+const teamDeleteContext = () =>
+  buildTestAuthContext({
+    role: 'AccountAdmin',
+    effectivePermissions: new Set(['team.delete']),
+  })
 
 // AccountAdmin has org-wide access (null = all properties)
 const createStaffApi = (accessibleIds: PropertyId[] | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessibleIds,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = () => {
@@ -38,7 +42,7 @@ const setup = () => {
 describe('softDeleteTeam', () => {
   it('soft-deletes a team', async () => {
     const { useCase, teamRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const ctx = teamDeleteContext()
     const team = buildTestTeam({ organizationId: ctx.organizationId })
     teamRepo.seed([team])
 
@@ -64,7 +68,7 @@ describe('softDeleteTeam', () => {
 
   it('rejects when team not found', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const ctx = teamDeleteContext()
 
     await expect(useCase({ teamId: teamId('nonexistent') }, ctx)).rejects.toSatisfy(
       (e) => isTeamError(e) && e.code === 'team_not_found',
@@ -73,7 +77,7 @@ describe('softDeleteTeam', () => {
 
   it('emits team.deleted event', async () => {
     const { useCase, teamRepo, events } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const ctx = teamDeleteContext()
     const team = buildTestTeam({ organizationId: ctx.organizationId })
     teamRepo.seed([team])
 
@@ -85,7 +89,7 @@ describe('softDeleteTeam', () => {
 
   it('closes active memberships instead of rejecting or deleting history', async () => {
     const { useCase, teamRepo, closeForTeam } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const ctx = teamDeleteContext()
     const team = buildTestTeam({ organizationId: ctx.organizationId })
     teamRepo.seed([team])
 

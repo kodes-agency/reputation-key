@@ -17,12 +17,25 @@ export type Cursor = Readonly<{
 
 export type InboxSort = 'newest' | 'oldest'
 
+/**
+ * Visibility for one Inbox source family after intersecting the Inbox
+ * permission scope with the owning context's permission scope.
+ * `propertyIds === undefined` means organization-wide; an empty scope is
+ * omitted by the authorizer and therefore matches no rows.
+ */
+export type InboxSourceScope = Readonly<{
+  sourceType: SourceType
+  propertyIds?: ReadonlyArray<PropertyId>
+}>
+
 export type InboxFilters = Readonly<{
   propertyId?: PropertyId
   propertyIds?: ReadonlyArray<PropertyId>
   status?: InboxStatus | ReadonlyArray<InboxStatus>
   isEscalated?: boolean
   sourceType?: SourceType
+  /** Authorization-owned source/property predicates; never client supplied. */
+  sourceScopes?: ReadonlyArray<InboxSourceScope>
   platform?: string
   ratingMin?: number
   ratingMax?: number
@@ -47,6 +60,11 @@ export type InboxRepository = Readonly<{
     ids: ReadonlyArray<InboxItemId>,
     orgId: OrganizationId,
   ): Promise<ReadonlyArray<InboxItem>>
+  /**
+   * Raw source-anchor lookup for durable materialization and repair. Unlike
+   * active serving reads, this deliberately remains able to find a projection
+   * whose current Handling Cycle Head is absent.
+   */
   findBySource(
     sourceType: SourceType,
     sourceId: string,
@@ -59,20 +77,47 @@ export type InboxRepository = Readonly<{
     limit?: number,
   ): Promise<PaginatedResult>
   create(item: InboxItem, orgId: OrganizationId): Promise<InboxItem>
+  /**
+   * RETAINED for the receipt-coordinated command store only. Nothing in the
+   * Inbox context may call this directly: a status write that is not
+   * co-committed with `inbox_handling_cycle_heads` desynchronises the
+   * compatibility mirror from the workflow authority.
+   * `infrastructure/inbox-status-mirror.guard.test.ts` enforces that.
+   */
   updateStatus(
     id: InboxItemId,
     orgId: OrganizationId,
     status: InboxStatus,
-    timestampFields: Partial<Record<string, Date>>,
+    timestampFields: Partial<Record<string, Date | null>>,
     now?: Date,
   ): Promise<InboxItem>
   bulkUpdateStatus(
     ids: ReadonlyArray<InboxItemId>,
     orgId: OrganizationId,
     status: InboxStatus,
-    timestampFields: Partial<Record<string, Date>>,
+    timestampFields: Partial<Record<string, Date | null>>,
     now?: Date,
   ): Promise<{ updated: number }>
+  /**
+   * Stamp the first reply-submitted / reply-published milestones and NOTHING
+   * else.
+   *
+   * `inbox_items.status` is a write-side compatibility projection of the
+   * Handling Cycle head; every serving read already resolves status from the
+   * head. Milestone stamping used to borrow `updateStatus` and pass the item's
+   * own status back in, which made two unfenced writers of the mirror for no
+   * reason. This seam cannot express a status at all, so the mirror stays
+   * writable only where it co-commits with the head.
+   */
+  stampReplyMilestones(
+    id: InboxItemId,
+    orgId: OrganizationId,
+    milestones: Readonly<{
+      firstReplySubmittedAt?: Date
+      firstReplyPublishedAt?: Date
+    }>,
+    now?: Date,
+  ): Promise<InboxItem | null>
   updateAssignment(
     id: InboxItemId,
     orgId: OrganizationId,
@@ -83,6 +128,7 @@ export type InboxRepository = Readonly<{
     orgId: OrganizationId,
     status: InboxStatus,
     propertyIds?: ReadonlyArray<PropertyId>,
+    sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ): Promise<number>
   setEscalation(
     id: InboxItemId,
@@ -100,12 +146,14 @@ export type InboxRepository = Readonly<{
   countEscalatedActive(
     orgId: OrganizationId,
     propertyIds?: ReadonlyArray<PropertyId>,
+    sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ): Promise<number>
   /** Count `open` items created after `since` (null since = all open). */
   countOpenSince(
     orgId: OrganizationId,
     since: Date | null,
     propertyIds?: ReadonlyArray<PropertyId>,
+    sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ): Promise<number>
   findDetailById(id: InboxItemId, orgId: OrganizationId): Promise<InboxItemDetail | null>
   /**
@@ -116,6 +164,17 @@ export type InboxRepository = Readonly<{
     id: InboxItemId,
     orgId: OrganizationId,
     fields: Readonly<{ sourceDate: Date; platform: string | null }>,
+    now?: Date,
+  ): Promise<InboxItem | null>
+  /**
+   * Remove retained legacy provider-controlled values from one Review Inbox
+   * projection. Durable event handling uses the command store so this write
+   * and its receipt co-commit; this raw repository seam supports faithful
+   * test/repair adapters.
+   */
+  clearReviewSourceContent(
+    id: InboxItemId,
+    orgId: OrganizationId,
     now?: Date,
   ): Promise<InboxItem | null>
   /**

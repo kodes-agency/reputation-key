@@ -16,14 +16,18 @@ Capabilities are categorized into three sets (aligned with [BQR master plan §4]
    - `review.use`, `inbox.use`, `dashboard.use`, `staff.use`, `integration.use`
    - `activity.use`, `notification.in_app`, `metric.internal`
 2. **Non-core** — off by default, allowlistable per organization:
-   - `identity.register`, `organization.create`
-   - `team.use`, `goal.use`, `badge.use`, `leaderboard.use`
+   - `goal.use`
    - `portal.read` (**not** core — BQR-0 removed portal from core; portal and guest are default-deny, promotable through persisted policy)
    - `ai.analyze`, `ai.generate_reply`, `ai.detect_trends`
 3. **Blocked** — always off, cannot be allowlisted:
+   - `identity.register`, `organization.create`, `team.use`
+   - legacy `badge.use` and `leaderboard.use`; the future non-competitive
+     Healthy Guest Gateway requires a new capability and activation decision
+   - `property.erase` until LIF-01 supplies recoverable Archive/Disconnect and a distinct, verified support-mediated permanent-erasure workflow
+   - `portal.upload` until the issuance-bound upload implementation and adversarial evidence are complete
    - `gbp.reply.auto_publish`, `gbp.ai.cross_property_summary`, `gbp.review_solicitation_gamification`
 
-`notification.send_email`, `portal.write` and `portal.upload` appeared in this blocked list in an earlier draft. The code (`src/shared/auth/beta-capabilities.ts`) blocks exactly the three capabilities above; those three are non-core — off by default, allowlistable through persisted policy.
+Public registration, self-service secondary Organization creation, Team, and destructive Property deletion are beta-disabled product decisions and cannot be reopened by an environment allowlist. The legacy `property.delete` permission maps to blocked `property.erase`, and its server and use-case boundaries independently refuse before effects. `notification.send_email`, `portal.write`, and the approved Portal/Guest capabilities remain non-core and require persisted policy; `portal.upload` remains temporarily blocked by the public-edge safety gate.
 
 The decision function consumes authenticated user, organization, property, environment cohort, and operator overrides. It returns a typed `CapabilityDecision` with a stable reason code.
 
@@ -31,14 +35,17 @@ Mutations and external side effects fail closed: unknown capability, missing pol
 
 Emergency kill switches (`BETA_CAPABILITIES_OFF` env var) stop new effects immediately while preserving canonical data. Queued jobs re-check capability before side-effect execution so a kill switch affects already-enqueued work.
 
-**Supersedes** any prior listing of `portal.read` as core (including earlier drafts of this ADR).
+**Supersedes** any prior listing of `portal.read` as core and the earlier
+allowlistable posture for public registration, self-service Organization
+creation, Team, Badge, or Leaderboard. The 2026-08-25 comprehensive beta product
+contract is the approving authority for this amendment.
 
 ## Implementation
 
 - `src/shared/auth/beta-capabilities.ts` — decision function, capability registry, core/blocked sets
 - `BETA_ALLOWLIST_ORGS` / `BETA_SUSPENDED_ORGS` / `BETA_E2E_GLOBAL_CAPABILITIES` — operator env vars
 - `assertBetaCapability()` / `assertGlobalCapability()` — throw on deny
-- `requireAuthorized()` maps permission → capability (BQR-4.1)
+- `requireExecutionAllowed()` maps permission → capability (BQR-4.1)
 - Registration route checks `identity.register` before rendering
 
 ## Considered options

@@ -10,6 +10,9 @@ export type ReviewId = Brand<string, 'ReviewId'>
 export type ReplyId = Brand<string, 'ReplyId'>
 export type PortalId = Brand<string, 'PortalId'>
 export type ScanEventId = Brand<string, 'ScanEventId'>
+export type QualifiedScanId = Brand<string, 'QualifiedScanId'>
+export type PortalAccessArtifactId = Brand<string, 'PortalAccessArtifactId'>
+export type PortalApprovedDestinationId = Brand<string, 'PortalApprovedDestinationId'>
 export type RatingId = Brand<string, 'RatingId'>
 export type FeedbackId = Brand<string, 'FeedbackId'>
 export type TeamId = Brand<string, 'TeamId'>
@@ -22,7 +25,7 @@ export type InboxNoteId = Brand<string, 'InboxNoteId'>
 export type PortalGroupId = Brand<string, 'PortalGroupId'>
 export type GoalId = Brand<string, 'GoalId'>
 export type GoalProgressId = Brand<string, 'GoalProgressId'>
-export type ActivityLogId = Brand<string, 'ActivityLogId'>
+export type RecentActivityEntryId = Brand<string, 'RecentActivityEntryId'>
 
 // Convenience constructors — each wraps brandId with the correct tag.
 // These are the only acceptable `as` casts: branded ID parsing.
@@ -47,6 +50,18 @@ export function portalId(id: string): PortalId {
 
 export function scanEventId(id: string): ScanEventId {
   return id as ScanEventId
+}
+
+export function qualifiedScanId(id: string): QualifiedScanId {
+  return id as QualifiedScanId
+}
+
+export function portalAccessArtifactId(id: string): PortalAccessArtifactId {
+  return id as PortalAccessArtifactId
+}
+
+export function portalApprovedDestinationId(id: string): PortalApprovedDestinationId {
+  return id as PortalApprovedDestinationId
 }
 
 export function ratingId(id: string): RatingId {
@@ -104,8 +119,8 @@ export function portalGroupId(id: string): PortalGroupId {
   return id as PortalGroupId
 }
 
-export function activityLogId(id: string): ActivityLogId {
-  return id as ActivityLogId
+export function recentActivityEntryId(id: string): RecentActivityEntryId {
+  return id as RecentActivityEntryId
 }
 
 export type NotificationId = Brand<string, 'NotificationId'>
@@ -118,6 +133,11 @@ export function notificationEmailId(id: string): NotificationEmailId {
   return id as NotificationEmailId
 }
 
+export type NotificationDigestBatchId = Brand<string, 'NotificationDigestBatchId'>
+export function notificationDigestBatchId(id: string): NotificationDigestBatchId {
+  return id as NotificationDigestBatchId
+}
+
 export type NotificationPreferenceId = Brand<string, 'NotificationPreferenceId'>
 export function notificationPreferenceId(id: string): NotificationPreferenceId {
   return id as NotificationPreferenceId
@@ -128,20 +148,6 @@ export function badgeId(id: string): BadgeId {
   return id as BadgeId
 }
 
-export type OrganizationBadgeEnablementId = Brand<string, 'OrganizationBadgeEnablementId'>
-export function organizationBadgeEnablementId(id: string): OrganizationBadgeEnablementId {
-  return id as OrganizationBadgeEnablementId
-}
-
-export type LeaderboardSnapshotId = Brand<string, 'LeaderboardSnapshotId'>
-export function leaderboardSnapshotId(id: string): LeaderboardSnapshotId {
-  return id as LeaderboardSnapshotId
-}
-
-export type LeaderboardEntryId = Brand<string, 'LeaderboardEntryId'>
-export function leaderboardEntryId(id: string): LeaderboardEntryId {
-  return id as LeaderboardEntryId
-}
 /** Safely strip brand from a branded ID type for use at infrastructure boundaries. */
 export function unbrand<T extends string>(branded: T): string {
   return String(branded)

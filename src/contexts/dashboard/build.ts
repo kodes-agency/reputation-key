@@ -11,7 +11,6 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { ReviewServingStats } from '#/contexts/review/application/public-api'
 import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
 import { createMetricStatsAdapter } from './infrastructure/adapters/metric-stats.adapter'
-import { createPortalMetricsAdapter } from './infrastructure/adapters/portal-metrics.adapter'
 import { createAttentionSignalsAdapter } from './infrastructure/adapters/attention-signals.adapter'
 import { createFleetOverviewProjectionAdapter } from './infrastructure/adapters/fleet-overview-projection.adapter'
 import { createStaffPortalResolverAdapter } from './infrastructure/adapters/staff-portal-resolver.adapter'
@@ -20,8 +19,18 @@ import { getPortalAnalytics } from './application/use-cases/get-portal-analytics
 import { getStaffDashboardData } from './application/use-cases/get-staff-dashboard-data'
 import { getAttentionSignals } from './application/use-cases/get-attention-signals'
 import type { GetAttentionSignals } from './application/use-cases/get-attention-signals'
+import { getPropertyOverview } from './application/use-cases/get-property-overview'
+import type { GetPropertyOverview } from './application/use-cases/get-property-overview'
 import { getFleetOverview } from './application/use-cases/get-fleet-overview'
 import type { GetFleetOverview } from './application/use-cases/get-fleet-overview'
+import type { PortalResponseIntegrityPort } from './application/ports/portal-response-integrity.port'
+import type { PortalMetricsPort } from './application/ports/portal-metrics.port'
+import type { PortalLifetimeMetricsPort } from './application/ports/portal-lifetime-metrics.port'
+import { createDashboardOrganizationExportAdapter } from './infrastructure/adapters/dashboard-organization-export.adapter'
+import { createDashboardOrganizationLifecycleAdapter } from './infrastructure/adapters/dashboard-organization-lifecycle.adapter'
+import { createSetupChecklistRepository } from './infrastructure/repositories/setup-checklist.repository'
+import { getSetupChecklist } from './application/use-cases/get-setup-checklist'
+import type { GetSetupChecklist } from './application/use-cases/get-setup-checklist'
 
 export type DashboardContextBuildInput = Readonly<{
   db: Database
@@ -33,6 +42,11 @@ export type DashboardContextBuildInput = Readonly<{
    * here; structurally satisfies ReviewStatsPort.
    */
   reviewServingStats: ReviewServingStats
+  guestResponseIntegrity: PortalResponseIntegrityPort
+  /** Metric-owned governed Portal analytics public API. */
+  portalMetrics: PortalMetricsPort
+  /** Metric-owned anonymous All Time projection. */
+  portalLifetime: PortalLifetimeMetricsPort
 }>
 
 export type DashboardContextApi = Readonly<{
@@ -41,16 +55,36 @@ export type DashboardContextApi = Readonly<{
     getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
     getStaffDashboardData: ReturnType<typeof getStaffDashboardData>
     getAttentionSignals: GetAttentionSignals
+    getPropertyOverview: GetPropertyOverview
     getFleetOverview: GetFleetOverview
+    getSetupChecklist: GetSetupChecklist
   }>
+  /**
+   * LIF-01 Organization Export contributor. Deliberately outside `publicApi`:
+   * only Identity's bundle builder consumes it, and no tenant-reachable
+   * surface gains a key from wiring it here.
+   */
+  organizationExport: ReturnType<typeof createDashboardOrganizationExportAdapter>
+  /**
+   * LIF-01 Organization lifecycle contributor. Deliberately outside
+   * `publicApi` for the same reason: only Identity's lifecycle coordinator
+   * consumes it, and the coordinator itself is composed only under an
+   * explicitly reviewed composition.
+   */
+  organizationLifecycle: ReturnType<typeof createDashboardOrganizationLifecycleAdapter>
   internal: Readonly<{
-    repos: Readonly<{ dashboardRepo: ReturnType<typeof createDashboardRepository> }>
+    repos: Readonly<{
+      dashboardRepo: ReturnType<typeof createDashboardRepository>
+      setupChecklistRepo: ReturnType<typeof createSetupChecklistRepository>
+    }>
     useCases: Readonly<{
       getDashboardData: ReturnType<typeof getDashboardData>
       getPortalAnalytics: ReturnType<typeof getPortalAnalytics>
       getStaffDashboardData: ReturnType<typeof getStaffDashboardData>
       getAttentionSignals: GetAttentionSignals
+      getPropertyOverview: GetPropertyOverview
       getFleetOverview: GetFleetOverview
+      getSetupChecklist: GetSetupChecklist
     }>
   }>
 }>
@@ -58,26 +92,23 @@ export type DashboardContextApi = Readonly<{
 export const buildDashboardContext = (
   input: DashboardContextBuildInput,
 ): DashboardContextApi => {
-  // Facade ports per ADR-0007 — review stats arrive governed from the review
-  // context (BQC-5.5); the remaining SQL adapters are dashboard-owned
-  // infrastructure; the repo only composes.
+  // Facade ports per ADR-0007 — review and Portal metrics arrive governed from
+  // their owning contexts; remaining Dashboard-owned adapters only read
+  // content-minimal, explicitly catalogued Dashboard read projections.
   const metricStats = createMetricStatsAdapter(input.db)
-  const portalMetrics = createPortalMetricsAdapter(input.db)
   const attentionSignals = createAttentionSignalsAdapter(input.db, input.clock)
   const fleetOverviewProjection = createFleetOverviewProjectionAdapter(input.db)
   const staffPortalResolver = createStaffPortalResolverAdapter(input.staffPublicApi)
 
   const dashboardRepo = createDashboardRepository(input.reviewServingStats, metricStats)
+  const setupChecklistRepo = createSetupChecklistRepository(input.db)
 
-  const getDashboard = getDashboardData({
-    repo: dashboardRepo,
-    clock: input.clock,
-  })
+  const getDashboard = getDashboardData({ repo: dashboardRepo })
 
   const getPortal = getPortalAnalytics({
-    repo: dashboardRepo,
-    portalMetrics,
-    clock: input.clock,
+    portalMetrics: input.portalMetrics,
+    portalLifetime: input.portalLifetime,
+    responseIntegrity: input.guestResponseIntegrity,
   })
 
   const getStaffDashboard = getStaffDashboardData({
@@ -87,9 +118,13 @@ export const buildDashboardContext = (
   })
 
   const getAttention = getAttentionSignals({
-    repo: dashboardRepo,
     signals: attentionSignals,
-    clock: input.clock,
+    reviewStats: input.reviewServingStats,
+  })
+
+  const getOverview = getPropertyOverview({
+    getDashboardData: getDashboard,
+    attention: attentionSignals,
   })
 
   const getFleet = getFleetOverview({
@@ -102,6 +137,7 @@ export const buildDashboardContext = (
       ),
     clock: input.clock,
   })
+  const getSetup = getSetupChecklist({ repository: setupChecklistRepo })
 
   return {
     publicApi: {
@@ -109,16 +145,22 @@ export const buildDashboardContext = (
       getPortalAnalytics: getPortal,
       getStaffDashboardData: getStaffDashboard,
       getAttentionSignals: getAttention,
+      getPropertyOverview: getOverview,
       getFleetOverview: getFleet,
+      getSetupChecklist: getSetup,
     },
+    organizationExport: createDashboardOrganizationExportAdapter(input.db),
+    organizationLifecycle: createDashboardOrganizationLifecycleAdapter(input.db),
     internal: {
-      repos: { dashboardRepo },
+      repos: { dashboardRepo, setupChecklistRepo },
       useCases: {
         getDashboardData: getDashboard,
         getPortalAnalytics: getPortal,
         getStaffDashboardData: getStaffDashboard,
         getAttentionSignals: getAttention,
+        getPropertyOverview: getOverview,
         getFleetOverview: getFleet,
+        getSetupChecklist: getSetup,
       },
     },
   }

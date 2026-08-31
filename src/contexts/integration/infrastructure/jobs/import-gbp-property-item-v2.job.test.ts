@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Job } from 'bullmq'
 import type { GoogleImportV2ItemJobData } from '../../application/ports/gbp-queue.port'
 import { createGoogleImportV2ItemJobHandler } from './import-gbp-property-item-v2.job'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 const DATA: GoogleImportV2ItemJobData = {
   jobId: 'import-item-10000000-0000-4000-8000-000000000001-l2-enew-r0',
@@ -15,9 +16,10 @@ const DATA: GoogleImportV2ItemJobData = {
       organizationId: 'org-1',
       itemId: '10000000-0000-4000-8000-000000000001',
     },
+    cell: 'us',
     region: 'us',
     workloadClass: 'property.import',
-    routingPolicyVersion: 2,
+    routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
   },
 }
 

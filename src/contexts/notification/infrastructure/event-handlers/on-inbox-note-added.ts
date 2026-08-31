@@ -1,7 +1,7 @@
 // Notification context — event handler for inbox.inbox_note.added
-// Notifies property managers when a note is added to an inbox item.
-// The InboxNoteAdded event does not carry assigneeId (denormalized per Q7 decision).
-// MVP: notify all managers assigned to the property via userLookup.
+// Notifies the current assignee when a note is added to claimed work. For an
+// unassigned item, routes by source responsibility (Property for reviews,
+// Portal for private feedback) with AccountAdmin recovery.
 //
 // The note TEXT is never carried into the notification (ADR 0046 r.8): the row
 // says a note exists and who — by role — left it, and the deep link opens the
@@ -13,12 +13,18 @@ import type { InboxItemLookupPort } from '../../application/ports/inbox-item-loo
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InsertNotificationJobData } from '../jobs/insert-notification.job'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
-import type { Queue } from 'bullmq'
 import { buildInboxItemPayload } from './payload-facts'
+import type { ResponsibleManagerLookupPort } from '../../application/ports/responsible-manager-lookup.port'
+import {
+  inboxNotificationAudience,
+  resolveInboxResponsibleRecipients,
+} from '../../application/responsible-recipients'
+import type { NotificationJobEnqueuePort } from '../inbox-notification-fanout'
 
 type Deps = Readonly<{
-  queue: Queue
+  queue: NotificationJobEnqueuePort
   userLookup: UserLookupPort
+  responsibleManagers: ResponsibleManagerLookupPort
   inboxItemLookup: InboxItemLookupPort
   clock: () => Date
   logger: LoggerPort
@@ -34,11 +40,20 @@ export const onInboxNoteAdded =
       return
     }
     const propertyId = event.propertyId
-
-    const recipients = await deps.userLookup.findAssignedManagers(
+    const facts = await deps.inboxItemLookup.findInboxItemFacts(
+      event.inboxItemId,
       event.organizationId,
-      propertyId,
     )
+    const recipients = facts?.assignedTo
+      ? [facts.assignedTo]
+      : facts
+        ? await resolveInboxResponsibleRecipients(deps, event.organizationId, facts)
+        : await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
+    const audience = facts?.assignedTo
+      ? ({ kind: 'inbox_assignee', inboxItemId: event.inboxItemId } as const)
+      : facts
+        ? inboxNotificationAudience(facts)
+        : ({ kind: 'account_admin' } as const)
 
     // R2-M1: Filter out the note author to avoid self-notification
     const filtered = recipients.filter((uid) => uid !== event.userId)
@@ -66,9 +81,14 @@ export const onInboxNoteAdded =
       resourceId: event.inboxItemId,
       eventId: event.eventId,
       payload,
+      audience,
     }))
 
     await Promise.all(
-      jobs.map((data) => deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data)),
+      jobs.map((data) =>
+        deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data, {
+          jobId: `${event.eventId}-${data.userId}`,
+        }),
+      ),
     )
   }

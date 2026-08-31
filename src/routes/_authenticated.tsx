@@ -9,15 +9,11 @@ import {
   useRouterState,
 } from '@tanstack/react-router'
 import { getSession } from '#/shared/auth/auth.functions'
-import {
-  getActiveOrganization,
-  setActiveOrganization,
-} from '#/contexts/identity/server/organizations'
+import { getActiveOrganization } from '#/contexts/identity/server/organizations'
 import { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { notificationFns } from '#/routes/-notification-fns'
 import type { Role } from '#/shared/domain/roles'
 import type { ClientAuthz } from '#/shared/domain/auth-context'
-import { EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
 import {
   EMPTY_CAPABILITY_SET,
   getCapabilitySet,
@@ -31,9 +27,8 @@ import { SettingsSidebar } from '#/components/layout/settings-sidebar'
 import { AppTopBar } from '#/components/layout/app-top-bar'
 import { hasRole } from '#/shared/domain/roles'
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { organizationsQuery, propertiesQuery } from '#/routes/-queries/route-queries'
-import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { propertiesQuery } from '#/routes/-queries/route-queries'
+import { submitBetaFeedbackFn } from '#/contexts/identity/server/beta-feedback'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -61,13 +56,12 @@ export type AuthRouteContext = Readonly<{
     name: string
     slug: string
     contactEmail: string | null
-    billingCompanyName: string | null
-    billingAddress: string | null
-    billingCity: string | null
-    billingPostalCode: string | null
-    billingCountry: string | null
   } | null
 }>
+
+type CapabilityResolution =
+  | Readonly<{ ok: true; capabilities: CapabilitySet }>
+  | Readonly<{ ok: false; error: unknown }>
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ location }) => {
@@ -79,62 +73,60 @@ export const Route = createFileRoute('/_authenticated')({
       })
     }
 
-    let role: Role = 'Staff'
-    let authz: ClientAuthz = EMPTY_CLIENT_AUTHZ
-    let activeOrganization: {
-      id: string
-      name: string
-      slug: string
-      contactEmail: string | null
-      billingCompanyName: string | null
-      billingAddress: string | null
-      billingCity: string | null
-      billingPostalCode: string | null
-      billingCountry: string | null
-    } | null = null
+    let resolvedOrganization: Readonly<{
+      role: Role
+      authz: ClientAuthz
+      activeOrganization: NonNullable<AuthRouteContext['activeOrganization']>
+    }>
 
     // Resolved in parallel with the organization lookup: it reads the tenant
     // from the same request headers and does not depend on that result.
     // Property-scoped when a property is in scope, because policy allowlists
-    // per property. A failure (no active org yet, transient) yields the empty
-    // posture rather than an error — this set is a navigation affordance, and
-    // the route gates remain the boundary.
+    // per property. A failure yields the empty posture rather than an error —
+    // this set is a navigation affordance, and the route gates remain the
+    // boundary. Missing active-Organization state is handled separately below
+    // before any tenant shell or loader can mount.
     const scopedPropertyId = propertyIdFromLocation(location.pathname, location.search)
-    const capabilitiesPromise = getCapabilitySet({
+    const capabilitiesPromise: Promise<CapabilityResolution> = getCapabilitySet({
       data: scopedPropertyId ? { propertyId: scopedPropertyId } : {},
-    }).catch((e: unknown) => {
-      if (isRedirect(e)) throw e
-      return EMPTY_CAPABILITY_SET
-    })
+    }).then(
+      (capabilities) => ({ ok: true, capabilities }),
+      (error: unknown) => ({ ok: false, error }),
+    )
 
     // Error handling strategy for getActiveOrganization:
     //  1. isRedirect — always forward (e.g., auth middleware redirects).
     //  2. availability: disabled — the entire workspace is intentionally dark;
     //     redirect before rendering any authenticated surface.
-    //  3. no_active_org — expected for new users who haven't selected an org yet;
-    //     silently default to Staff role with no active organization.
+    //  3. no_active_org — expected for an account awaiting access; route to the
+    //     explicit invitation/support state before the tenant shell loads.
     //  4. Everything else — propagate to the route error boundary.
     try {
       const org = await getActiveOrganization()
       if (org.availability === 'disabled') {
         throw redirect({ to: '/unavailable', search: { feature: 'Workspace' } })
       }
-      if (org.role) {
-        role = org.role as Role
-      }
-      authz = org.authz
       if (org.organization) {
-        activeOrganization = {
-          id: org.organization.id,
-          name: org.organization.name,
-          slug: org.organization.slug,
-          contactEmail: org.organization.contactEmail,
-          billingCompanyName: org.organization.billingCompanyName,
-          billingAddress: org.organization.billingAddress,
-          billingCity: org.organization.billingCity,
-          billingPostalCode: org.organization.billingPostalCode,
-          billingCountry: org.organization.billingCountry,
+        resolvedOrganization = {
+          role: org.role ? (org.role as Role) : 'Staff',
+          authz: org.authz,
+          activeOrganization: {
+            id: org.organization.id,
+            name: org.organization.name,
+            slug: org.organization.slug,
+            contactEmail: org.organization.contactEmail,
+          },
         }
+      } else {
+        // A signed-in account without an active Organization must not fall
+        // through to the Staff shell. That shell immediately asks for
+        // tenant-scoped Properties and turns the expected invitation/no-access
+        // state into a failed loader. Keep it outside the tenant shell and
+        // point the person at the existing invitation recovery journey.
+        throw redirect({
+          to: '/unavailable',
+          search: { reason: 'workspace_access' },
+        })
       }
     } catch (e) {
       if (isRedirect(e)) throw e
@@ -146,11 +138,19 @@ export const Route = createFileRoute('/_authenticated')({
           ? (e as { code: string }).code
           : null
       if (errorCode === 'no_active_org') {
-        console.info('[beforeLoad] No active organization selected — using defaults')
+        throw redirect({
+          to: '/unavailable',
+          search: { reason: 'workspace_access' },
+        })
       } else {
         // Unexpected error — propagate to error boundary.
         throw e
       }
+    }
+
+    const capabilityResolution = await capabilitiesPromise
+    if (!capabilityResolution.ok && isRedirect(capabilityResolution.error)) {
+      throw capabilityResolution.error
     }
 
     return {
@@ -160,38 +160,27 @@ export const Route = createFileRoute('/_authenticated')({
         email: session.user.email,
         image: session.user.image ?? null,
       },
-      role,
-      authz,
-      capabilities: await capabilitiesPromise,
-      activeOrganization,
+      role: resolvedOrganization.role,
+      authz: resolvedOrganization.authz,
+      capabilities: capabilityResolution.ok
+        ? capabilityResolution.capabilities
+        : EMPTY_CAPABILITY_SET,
+      activeOrganization: resolvedOrganization.activeOrganization,
     } satisfies AuthRouteContext
   },
   loader: async ({ context }) => {
-    const [orgs, props] = await Promise.all([
-      context.queryClient.ensureQueryData(organizationsQuery),
-      context.queryClient.ensureQueryData(propertiesQuery),
-    ])
-    return {
-      organizations: orgs.organizations,
-      properties: props.properties,
-    }
+    await context.queryClient.ensureQueryData(propertiesQuery)
   },
-  // Structural data (orgs, properties) rarely changes. Cached via Query
-  // (organizationsQuery/propertiesQuery, 5-min staleTime); refetched by
-  // targeted key invalidation after org-switching mutations.
+  // The property list rarely changes. It is cached via Query and refetched by
+  // targeted invalidation after property mutations.
   staleTime: 5 * 60 * 1000, // 5 min — matches the Query staleTime
   component: AuthenticatedLayout,
 })
 
 function AuthenticatedLayout() {
   const ctx = Route.useRouteContext()
-  const { data: orgsData } = useSuspenseQuery(organizationsQuery)
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
-  const organizations = orgsData.organizations
   const properties = propsData.properties
-  const setActiveOrganizationFn = useActionMutation(setActiveOrganization, {
-    invalidateKeys: [identityKeys.organizations(), propertyKeys.list()],
-  })
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isSettings = pathname.startsWith('/settings')
   const isInbox = pathname.startsWith('/inbox') || pathname.includes('/reviews')
@@ -203,13 +192,7 @@ function AuthenticatedLayout() {
       ) : hasRole(ctx.role, 'PropertyManager') ? (
         <ManagerSidebar properties={properties} getLastVisitCount={getLastVisitCountFn} />
       ) : (
-        <StaffSidebar
-          organizations={organizations}
-          properties={properties}
-          activeOrganization={ctx.activeOrganization}
-          setActiveOrganization={setActiveOrganizationFn}
-          hasTeam={false}
-        />
+        <StaffSidebar properties={properties} />
       )}
       {/*
         BQC-6.8: the layout wrapper is a plain div, NOT SidebarInset — the
@@ -230,6 +213,9 @@ function AuthenticatedLayout() {
           user={ctx.user}
           organizationId={ctx.activeOrganization?.id ?? 'no-active-organization'}
           notificationFns={notificationFns}
+          submitBetaFeedback={
+            hasRole(ctx.role, 'PropertyManager') ? submitBetaFeedbackFn : undefined
+          }
         />
         <main
           className={`min-w-0 flex-1 ${

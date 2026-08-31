@@ -2,6 +2,7 @@
 
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
 import { baseWhere } from '#/shared/db/base-where'
 import { staffAssignments } from '#/shared/db/schema/staff-assignment.schema'
 import type { StaffAssignmentRepository } from '../../application/ports/staff-assignment.repository'
@@ -15,6 +16,7 @@ import { trace } from '#/shared/observability/trace'
 
 export const createStaffAssignmentRepository = (
   db: Database,
+  clock: Clock,
 ): StaffAssignmentRepository => ({
   findById: async (orgId, id) => {
     return trace('staffAssignment.findById', async () => {
@@ -133,7 +135,7 @@ export const createStaffAssignmentRepository = (
 
   softDelete: async (orgId, id) => {
     return trace('staffAssignment.softDelete', async () => {
-      const now = new Date()
+      const now = clock()
       await db
         .update(staffAssignments)
         .set({ deletedAt: now, updatedAt: now })

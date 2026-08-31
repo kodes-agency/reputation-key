@@ -11,7 +11,14 @@ import type { Capability } from './beta-capabilities'
 const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'property.create': 'property.create',
   'property.update': 'property.create',
-  'property.delete': 'property.create',
+  // LIF-01: destructive deletion is not ordinary Property management.
+  // This capability stays blocked until support-mediated erasure exists.
+  'property.delete': 'property.erase',
+  // Recoverable lifecycle commands are ordinary Property management and do
+  // not acquire the permanently blocked erasure capability.
+  'property.archive': 'property.create',
+  'property.restore': 'property.create',
+  'property.disconnect': 'property.create',
   'property.read': 'property.create',
   'property.admin': 'property.create',
   'property.import_gbp_v2': 'property.import_gbp_v2',
@@ -37,8 +44,10 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'invitation.cancel': 'identity.invite',
   'invitation.resend': 'identity.invite',
   // BQC-0.2 / STD-P0-01: mutations and media are independent of portal.read.
-  // portal.write and portal.upload remain hard-blocked for beta (ADR 0032).
+  // portal.write remains promotable. portal.upload is temporarily blocked at
+  // capability policy level until its issuance-bound SEC-01 remediation lands.
   'portal.create': 'portal.write',
+  'portal.admin': 'portal.write',
   'portal.update': 'portal.write',
   'portal.delete': 'portal.write',
   'portal.read': 'portal.read',
@@ -71,6 +80,9 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'ac.update': 'identity.invite',
   'ac.delete': 'identity.invite',
   'feedback.read': 'portal.guest_response',
+  // Handling is an Inbox workflow over already-submitted feedback. It must
+  // remain available when new Guest Response collection is paused.
+  'feedback.handle': 'inbox.use',
   'feedback.respond': 'portal.guest_response',
   'feedback.contact_read': 'portal.guest_contact',
 }

@@ -59,9 +59,9 @@ export function representativeTimezone(
   return winner
 }
 
-export function createNotificationOrganizationScopeResolver(
+export const createNotificationOrganizationScopeResolver = (
   pool: Pool,
-): NotificationOrganizationScopeResolver {
+): NotificationOrganizationScopeResolver => {
   return async (organizationId) => {
     const result = await pool.query<PropertyRow>(
       `SELECT id::text AS property_id, name, timezone

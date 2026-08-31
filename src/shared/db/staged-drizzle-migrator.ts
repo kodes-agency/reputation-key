@@ -57,6 +57,10 @@ type RailwayApprovalEnumState = Readonly<{
   railway_target_present: boolean
   railway_profile_present: boolean
 }>
+type GoogleContentCapabilityEnumState = Readonly<{
+  google_connect_present: boolean
+  google_publish_reply_present: boolean
+}>
 
 type MigrationStages = Readonly<{
   preEnumCommit: readonly MigrationMeta[]
@@ -102,6 +106,27 @@ const RAILWAY_APPROVAL_ENUM_STATE_SQL = `
         AND t.typname = 'google_content_environment_profile'
         AND e.enumlabel = 'railway-closed-beta-1'
     ) AS railway_profile_present
+`
+const GOOGLE_CONTENT_CAPABILITY_ENUM_STATE_SQL = `
+  SELECT
+    EXISTS (
+      SELECT 1
+      FROM pg_type AS t
+      JOIN pg_namespace AS n ON n.oid = t.typnamespace
+      JOIN pg_enum AS e ON e.enumtypid = t.oid
+      WHERE n.nspname = 'public'
+        AND t.typname = 'google_content_capability'
+        AND e.enumlabel = 'property.connect_gbp'
+    ) AS google_connect_present,
+    EXISTS (
+      SELECT 1
+      FROM pg_type AS t
+      JOIN pg_namespace AS n ON n.oid = t.typnamespace
+      JOIN pg_enum AS e ON e.enumtypid = t.oid
+      WHERE n.nspname = 'public'
+        AND t.typname = 'google_content_capability'
+        AND e.enumlabel = 'property.publish_reply'
+    ) AS google_publish_reply_present
 `
 
 function loadMigrationStages(migrationsFolder: string): MigrationStages {
@@ -317,9 +342,35 @@ async function prepareRailwayApprovalEnums(client: Client): Promise<void> {
   }
 }
 
+async function prepareGoogleContentCapabilityEnums(client: Client): Promise<void> {
+  const result = await client.query<GoogleContentCapabilityEnumState>(
+    GOOGLE_CONTENT_CAPABILITY_ENUM_STATE_SQL,
+  )
+  const state = result.rows[0]
+  if (!state)
+    throw new Error('Google Content capability enum preflight returned no state')
+  if (!state.google_connect_present) {
+    await client.query(`
+      ALTER TYPE "public"."google_content_capability"
+      ADD VALUE IF NOT EXISTS 'property.connect_gbp'
+    `)
+  }
+  if (!state.google_publish_reply_present) {
+    await client.query(`
+      ALTER TYPE "public"."google_content_capability"
+      ADD VALUE IF NOT EXISTS 'property.publish_reply'
+    `)
+  }
+}
+
 /**
  * Preserves immutable migration 0034 while satisfying PostgreSQL's enum rule:
  * a newly added enum label cannot be used until its transaction commits.
+ * Callers must serialize their complete schema-authority sequence with a
+ * session-level advisory lock. Locking only this function would leave the
+ * Better Auth and registered-sidecar phases exposed and would not be atomic
+ * across the required commit boundary. Deploy and test provisioning runners
+ * own that full-sequence lock.
  */
 export async function runStagedDrizzleMigrations(
   client: Client,
@@ -330,6 +381,7 @@ export async function runStagedDrizzleMigrations(
   const preEnumCommit = await applyMigrationBatch(client, stages.preEnumCommit)
   const outcome = await prepareGoogleImportOutcome(client)
   await prepareRailwayApprovalEnums(client)
+  await prepareGoogleContentCapabilityEnums(client)
   const postEnumCommit = await applyMigrationBatch(client, stages.postEnumCommit)
   return {
     preEnumCommitApplied: preEnumCommit.applied,

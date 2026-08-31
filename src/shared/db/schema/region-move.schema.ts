@@ -1,4 +1,5 @@
-// Region move workflow (BQC-4.5 / ADR 0048) — migration 0016.
+// Region move workflow (BQC-4.5 / ADR 0057 retained seam) — migrations 0016,
+// 0147–0148.
 //
 // Durable state machine for operator-driven cross-cell property moves:
 //   requested → writes_paused → queues_drained → data_copied → verified →
@@ -7,6 +8,8 @@
 // (src/contexts/property/domain/region-move-workflow.ts is the authority).
 // The property FK is ON DELETE RESTRICT — move history is evidence and must
 // survive; denial_reason/error stay content-free (typed reason / first line).
+// A partial unique index makes one non-terminal row the PostgreSQL authority
+// per Property. state_revision is the monotonic CAS token for transitions.
 
 import { sql, desc } from 'drizzle-orm'
 import {
@@ -14,8 +17,10 @@ import {
   text,
   uuid,
   varchar,
+  integer,
   timestamp,
   index,
+  uniqueIndex,
   check,
 } from 'drizzle-orm/pg-core'
 import { properties } from './property.schema'
@@ -33,6 +38,7 @@ export const regionMoves = pgTable(
     fromRegion: text('from_region').notNull(),
     toRegion: text('to_region').notNull(),
     state: text('state').notNull(),
+    stateRevision: integer('state_revision').notNull().default(1),
     denialReason: text('denial_reason'),
     requestedBy: varchar('requested_by', { length: 255 }).notNull(),
     requestedAt: timestamptz('requested_at').notNull().defaultNow(),
@@ -45,6 +51,10 @@ export const regionMoves = pgTable(
       'region_moves_state_check',
       sql`${t.state} IN ('requested', 'writes_paused', 'queues_drained', 'data_copied', 'verified', 'target_activated', 'source_erased', 'completed', 'failed', 'rolling_back', 'rolled_back')`,
     ),
+    check('region_moves_state_revision_check', sql`${t.stateRevision} > 0`),
+    uniqueIndex('region_moves_one_active_per_property_idx')
+      .on(t.propertyId)
+      .where(sql`${t.state} NOT IN ('completed', 'rolled_back')`),
     index('region_moves_property_state_idx').on(t.propertyId, t.state),
     index('region_moves_org_requested_idx').on(t.organizationId, desc(t.requestedAt)),
   ],

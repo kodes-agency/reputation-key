@@ -15,10 +15,7 @@ import {
   validateSlug,
   validateTimezone,
 } from '../../domain/rules'
-import {
-  resolvePropertyRouting,
-  wouldChangeResolvedRegion,
-} from '../../domain/processing-routing'
+import { resolvePropertyRouting } from '../../domain/processing-routing'
 import { propertyError } from '../../domain/errors'
 import { propertyUpdated } from '../../domain/events'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -74,7 +71,10 @@ async function assertSlugAvailable(
   return newSlug
 }
 
-// BQR-3.5: optional country resolves region; no silent region change once resolved.
+// Country is a correctable business fact. Once assigned, Data Cell placement
+// remains immutable: a correction that maps elsewhere updates the country but
+// preserves every placement/provenance field. A legacy unresolved Property may
+// still acquire its first assignment here.
 function resolveRoutingUpdate(
   existing: Property,
   countryCodeInput: string | undefined,
@@ -84,17 +84,7 @@ function resolveRoutingUpdate(
   const countryResult = normalizeCountryCode(countryCodeInput)
   if (countryResult.isErr()) throw countryResult.error
   const countryCode = countryResult.value
-  if (wouldChangeResolvedRegion(existing.processingRegion, countryCode)) {
-    throw propertyError(
-      'region_locked',
-      'processing region cannot change after it has been resolved',
-      {
-        currentRegion: existing.processingRegion,
-        attemptedCountry: countryCode,
-      },
-    )
-  }
-  return resolvePropertyRouting({
+  const resolved = resolvePropertyRouting({
     countryCode,
     countrySource: 'manual',
     now,
@@ -102,6 +92,15 @@ function resolveRoutingUpdate(
     timezoneSource: existing.timezoneSource,
     timezoneResolvedAt: existing.timezoneResolvedAt,
   })
+  if (existing.dataCellId === null) return resolved
+  return {
+    ...resolved,
+    processingRegion: existing.processingRegion,
+    dataCellId: existing.dataCellId,
+    processingRegionSource: existing.processingRegionSource,
+    routingPolicyVersion: existing.routingPolicyVersion,
+    processingRegionResolvedAt: existing.processingRegionResolvedAt,
+  }
 }
 
 async function validateUpdateFields(

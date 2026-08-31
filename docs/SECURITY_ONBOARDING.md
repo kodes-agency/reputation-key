@@ -8,14 +8,34 @@
 
 If `.env` has ever been shared, committed by mistake, or copied to an insecure location, **rotate these secrets immediately**:
 
-| Secret                | How to Rotate                                         |
-| --------------------- | ----------------------------------------------------- |
-| `DATABASE_URL` (Neon) | Neon Console → Project → Roles → Reset password       |
-| `DATABASE_URL_POOLER` | Same as above (uses same credentials)                 |
-| `RESEND_API_KEY`      | Resend Dashboard → API Keys → Revoke + Create new     |
-| `BETTER_AUTH_SECRET`  | Run `npx -y @better-auth/cli secret` → copy new value |
+| Secret                               | How to Rotate                                                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL` (Railway PostgreSQL)  | Rotate the scoped database role/password in the `cell-us` Railway database and update every approved service reference   |
+| `DATABASE_URL_POOLER`                | Rotate with the same scoped database authority; verify direct and pooled references before retiring the prior credential |
+| `RESEND_API_KEY`                     | Resend Dashboard → API Keys → Revoke + Create new                                                                        |
+| `BETTER_AUTH_SECRET`                 | Run `openssl rand -base64 48` and install the new value                                                                  |
+| `NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS` | Add a new active `vN:<64-hex>` from `openssl rand -hex 32`; retain the prior version for 90 days                         |
 
 After rotating, update `.env.local` (never `.env` — see §3).
+
+For `NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS`, install the new keyring on the web and
+worker services in the same Data Cell as one release. Keep the immediately
+previous version for at least the 90-day notification evidence window; an open
+digest also pins its signing version so provider retries remain byte-for-byte
+stable during rotation. Do not remove a retained version while any open digest
+uses it.
+
+Migration `0104_notification_one_click_unsubscribe` deliberately leaves a
+`legacy` database default for rolling-deploy compatibility. A later contract
+migration may remove that default only after every web/worker instance runs the
+new writer and this query returns zero:
+
+```sql
+SELECT count(*)
+FROM notification_digest_batches
+WHERE state IN ('prepared', 'retryable')
+  AND unsubscribe_key_version = 'legacy';
+```
 
 ---
 
@@ -84,7 +104,13 @@ Better Auth cookies should set `secure: true` in production. Verify in `auth.ts`
 
 ### 4.3 Redis is optional in dev
 
-BullMQ queues and rate limiting silently skip if `REDIS_URL` is unset. In production, Redis is required — verify the connection at startup.
+Local development may use one `REDIS_URL` for cache/rate limiting and BullMQ.
+Production web and worker require a physically distinct `QUEUE_REDIS_URL` and
+refuse boot when either resource is absent or both URLs resolve to one host.
+They inspect the live queue runtime before creating BullMQ clients: Redis 6.2+,
+GETDEL, and `maxmemory-policy=noeviction` are mandatory. Producer queue calls
+have a bounded timeout/retry policy; Worker blocking connections reconnect
+until the process enters its bounded shutdown drain.
 
 ---
 
@@ -101,7 +127,7 @@ BullMQ queues and rate limiting silently skip if `REDIS_URL` is unset. In produc
 If secrets are leaked:
 
 1. **Rotate immediately** (§1)
-2. **Check Neon logs** for unauthorized queries
+2. **Check the `cell-us` Railway PostgreSQL service logs and RepKey policy/action audit records** for unauthorized access
 3. **Check Resend logs** for unauthorized email sends
 4. **Invalidate Better Auth sessions** by rotating `BETTER_AUTH_SECRET` (forces all users to re-authenticate)
 

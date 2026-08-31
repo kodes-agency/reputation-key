@@ -1,7 +1,7 @@
 // Property context — BQC-4.4 loader for the operator region diagnostic.
 //
 // Org-scoped, content-free lookup of the property's persisted region facts
-// (migration 0006: processing_region + processing_region_source +
+// (migration 0089: data_cell_id + processing_region/source +
 // routing_policy_version). Distinct from the 4.2 createPropertyRoutingLoader
 // (router port, id-only by contract): this loader scopes by organization so
 // the 2.7 diagnostic surface treats cross-org properties as missing (least
@@ -11,13 +11,18 @@ import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import type { PropertyRegionRecord } from '#/shared/auth/policy-diagnostic'
+import { resolvePersistedDataCellId } from '#/shared/domain/data-cell-catalogue'
 
-export function createPropertyRegionLoader(deps: {
+export const createPropertyRegionLoader = (deps: {
   db: Database
-}): (organizationId: string, propertyId: string) => Promise<PropertyRegionRecord | null> {
+}): ((
+  organizationId: string,
+  propertyId: string,
+) => Promise<PropertyRegionRecord | null>) => {
   return async (organizationId, propertyId) => {
     const rows = await deps.db
       .select({
+        dataCellId: properties.dataCellId,
         processingRegion: properties.processingRegion,
         processingRegionSource: properties.processingRegionSource,
         routingPolicyVersion: properties.routingPolicyVersion,
@@ -30,7 +35,7 @@ export function createPropertyRegionLoader(deps: {
     const row = rows[0]
     if (!row) return null
     return {
-      processingRegion: row.processingRegion,
+      processingRegion: resolvePersistedDataCellId(row.dataCellId, row.processingRegion),
       processingRegionSource: row.processingRegionSource,
       routingPolicyVersion: row.routingPolicyVersion,
     }

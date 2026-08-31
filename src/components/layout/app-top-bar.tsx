@@ -1,4 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { LogOut, Moon, Sun, Monitor } from 'lucide-react'
 import { SidebarTrigger } from '#/components/ui/sidebar'
 import { Button } from '#/components/ui/button'
@@ -10,47 +11,29 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { authClient } from '#/shared/auth/auth-client'
-import { useEffect, useState } from 'react'
 import { NotificationPanel } from '#/components/features/notification/notification-panel'
 import type { NotificationServerFns } from '#/components/features/notification/types'
-
-type ThemeMode = 'light' | 'dark' | 'auto'
+import { useThemeMode } from '#/components/hooks/use-theme-mode'
+import { BetaFeedbackLauncher } from '#/components/features/beta-feedback/beta-feedback-launcher'
+import type { SubmitBetaFeedback } from '#/components/features/beta-feedback/beta-feedback-form-context'
+import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
 
 type Props = Readonly<{
   user: { id: string; name: string; email: string; image: string | null }
   organizationId: string
   notificationFns: NotificationServerFns
+  submitBetaFeedback?: SubmitBetaFeedback
 }>
 
-function useThemeMode() {
-  const [mode, setMode] = useState<ThemeMode>('auto')
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem('theme')
-    if (stored === 'light' || stored === 'dark' || stored === 'auto') {
-      setMode(stored)
-    }
-  }, [])
-
-  function applyMode(next: ThemeMode) {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const resolved = next === 'auto' ? (prefersDark ? 'dark' : 'light') : next
-
-    const root = document.documentElement
-    root.classList.remove('light', 'dark')
-    root.classList.add(resolved)
-    root.style.colorScheme = resolved
-
-    window.localStorage.setItem('theme', next)
-    setMode(next)
-  }
-
-  return { mode, applyMode } as const
-}
-
-export function AppTopBar({ user, organizationId, notificationFns }: Props) {
+export function AppTopBar({
+  user,
+  organizationId,
+  notificationFns,
+  submitBetaFeedback,
+}: Props) {
   const navigate = useNavigate()
-  const { mode, applyMode } = useThemeMode()
+  const queryClient = useQueryClient()
+  const { mode, setMode } = useThemeMode()
 
   const ThemeIcon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor
 
@@ -70,6 +53,7 @@ export function AppTopBar({ user, organizationId, notificationFns }: Props) {
       <div className="flex-1" />
 
       {/* Notifications + User menu */}
+      {submitBetaFeedback && <BetaFeedbackLauncher submitFeedback={submitBetaFeedback} />}
       <NotificationPanel
         notificationFns={notificationFns}
         organizationId={organizationId}
@@ -99,7 +83,7 @@ export function AppTopBar({ user, organizationId, notificationFns }: Props) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() =>
-              applyMode(mode === 'dark' ? 'light' : mode === 'light' ? 'auto' : 'dark')
+              setMode(mode === 'dark' ? 'light' : mode === 'light' ? 'auto' : 'dark')
             }
           >
             <ThemeIcon className="size-4" />
@@ -112,8 +96,11 @@ export function AppTopBar({ user, organizationId, notificationFns }: Props) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={async () => {
-              await authClient.signOut()
-              await navigate({ to: '/login' })
+              await clearTenantCacheAfterSessionEnd(
+                queryClient,
+                () => authClient.signOut(),
+                () => navigate({ to: '/login' }),
+              )
             }}
           >
             <LogOut className="size-4" />

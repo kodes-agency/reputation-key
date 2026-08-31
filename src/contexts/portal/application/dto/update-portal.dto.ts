@@ -8,10 +8,10 @@ export const updatePortalInputSchema = z
     name: z.string().min(1).max(100).optional(),
     slug: z.string().min(2, 'Must be at least 2 characters').max(64).optional(),
     description: z.string().max(500).nullable().optional(),
-    // Nullable, not merely optional: `null` is the explicit "remove the hero image"
-    // signal from the edit form, while an absent key means "leave unchanged".
-    // The schema is .strict(), so until this key existed every removal was rejected.
-    heroImageUrl: z.string().url().nullable().optional(),
+    privateFeedbackThreshold: z.number().int().min(1).max(5).optional(),
+    // Only removal is client-controlled. Non-null URLs are published solely by
+    // the issuance-bound derivative worker.
+    heroImageUrl: z.null().optional(),
     theme: z
       .object({
         primaryColor: z.string(),
@@ -20,6 +20,14 @@ export const updatePortalInputSchema = z
       })
       .optional(),
     publicationState: z.enum(['draft', 'published', 'disabled', 'archived']).optional(),
+    primaryGuestLocale: z.enum(['en', 'bg']).optional(),
+    additionalGuestLocales: z
+      .array(z.enum(['en', 'bg']))
+      .max(1)
+      .refine((locales) => new Set(locales).size === locales.length, {
+        message: 'Guest locales must be unique',
+      })
+      .optional(),
   })
   .strict()
 

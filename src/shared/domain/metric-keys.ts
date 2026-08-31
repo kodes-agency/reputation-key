@@ -11,6 +11,9 @@
 export type MetricKey =
   | 'portal.scan'
   | 'portal.rating'
+  | 'portal.qualified_scan'
+  | 'portal.rating_count'
+  | 'portal.rating_average'
   | 'portal.feedback'
   | 'portal.review_link_click'
   | 'property.review'
@@ -27,6 +30,9 @@ export type EntityScope = 'property' | 'portal_group' | 'portal'
 export const METRIC_KEYS: readonly MetricKey[] = [
   'portal.scan',
   'portal.rating',
+  'portal.qualified_scan',
+  'portal.rating_count',
+  'portal.rating_average',
   'portal.feedback',
   'portal.review_link_click',
   'property.review',
@@ -43,10 +49,23 @@ export const AGGREGATION_FUNCTIONS: readonly AggregationFunction[] = [
 ] as const
 
 /**
- * Which metric keys are valid for each entity scope.
- * Goal eligibility is restricted to the three beta-safe first-party Portal
- * workflow metrics. Guest, solicitation, and Google-derived analytics never
- * enter goal selection.
+ * Metrics exposed by the beta GoalProgram creation experience. Private
+ * feedback/contact, unqualified solicitation observations, Google-derived
+ * analytics, and the superseded workflow-health goals never enter the beta
+ * selector.
+ */
+export const BETA_GOAL_METRIC_KEYS_BY_SCOPE: Readonly<
+  Record<EntityScope, readonly MetricKey[]>
+> = {
+  property: ['portal.qualified_scan', 'portal.rating_count', 'portal.rating_average'],
+  portal_group: ['portal.qualified_scan', 'portal.rating_count', 'portal.rating_average'],
+  portal: ['portal.qualified_scan', 'portal.rating_count', 'portal.rating_average'],
+}
+
+/**
+ * Domain compatibility matrix for the legacy Goal aggregate. The legacy
+ * workflow-health measures remain valid while existing records and jobs are
+ * drained; new beta creation uses BETA_GOAL_METRIC_KEYS_BY_SCOPE instead.
  */
 export const VALID_SCOPE_METRIC_KEYS: Readonly<
   Record<EntityScope, readonly MetricKey[]>
@@ -55,13 +74,15 @@ export const VALID_SCOPE_METRIC_KEYS: Readonly<
     'portal.content_review.completed',
     'portal.configuration_completeness',
     'portal.approved_destination_ratio',
+    ...BETA_GOAL_METRIC_KEYS_BY_SCOPE.property,
   ],
   portal_group: [
     'portal.content_review.completed',
     'portal.configuration_completeness',
     'portal.approved_destination_ratio',
+    ...BETA_GOAL_METRIC_KEYS_BY_SCOPE.portal_group,
   ],
-  portal: [],
+  portal: ['portal.qualified_scan', 'portal.rating_count', 'portal.rating_average'],
 }
 
 /**
@@ -74,6 +95,9 @@ export const VALID_METRIC_AGGREGATIONS: Readonly<
 > = {
   'portal.scan': ['sum', 'count'],
   'portal.rating': ['count', 'max', 'avg'],
+  'portal.qualified_scan': ['sum'],
+  'portal.rating_count': ['sum'],
+  'portal.rating_average': ['avg'],
   'portal.feedback': ['sum', 'count'],
   'portal.review_link_click': ['sum', 'count'],
   'property.review': ['count', 'avg', 'max'],
@@ -85,9 +109,12 @@ export const VALID_METRIC_AGGREGATIONS: Readonly<
 /**
  * Default aggregation selected automatically per metric key in the create form.
  */
-export const DEFAULT_AGGREGATION: Readonly<Record<MetricKey, AggregationFunction>> = {
+const DEFAULT_AGGREGATION: Readonly<Record<MetricKey, AggregationFunction>> = {
   'portal.scan': 'sum',
   'portal.rating': 'avg',
+  'portal.qualified_scan': 'sum',
+  'portal.rating_count': 'sum',
+  'portal.rating_average': 'avg',
   'portal.feedback': 'sum',
   'portal.review_link_click': 'sum',
   'property.review': 'avg',

@@ -105,7 +105,7 @@ function runtimeMatches(
   )
 }
 
-export function createAiRuntimeCatalogueAdapter(db: Database): AiRuntimeCataloguePort {
+export const createAiRuntimeCatalogueAdapter = (db: Database): AiRuntimeCataloguePort => {
   async function loadComplete(): Promise<Readonly<{
     runtimeRows: ReadonlyArray<typeof aiRuntimeCapabilityProfiles.$inferSelect>
   }> | null> {

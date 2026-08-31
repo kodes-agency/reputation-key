@@ -23,25 +23,27 @@ describe('onInboxItemCreated (notification)', () => {
   })
 
   it('enqueues a notification job for each assigned manager for feedback source', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([
+    deps.responsibleManagers.findForPortal.mockResolvedValue([
       NOTIF_TEST_IDS.manager1,
       NOTIF_TEST_IDS.manager2,
     ])
     // Facts come from the item, not the event: portal-sourced feedback.
     deps.inboxItemLookup.findInboxItemFacts.mockResolvedValue({
       propertyId: 'prop-1',
+      portalId: 'portal-1',
+      assignedTo: null,
       propertyName: 'Riverside Hotel',
-      rating: 4,
+      guestRating: 4,
       sourceType: 'feedback',
       createdAt: new Date('2026-06-01T11:30:00.000Z'),
     })
 
-    await onInboxItemCreated(deps)(itemCreatedEvent)
+    await onInboxItemCreated(deps)(buildInboxItemCreatedEvent({ sourceType: 'feedback' }))
 
     expectJobsEnqueued(deps, 2)
     const expectedPayload = {
       propertyName: 'Riverside Hotel',
-      rating: 4,
+      guestRating: 4,
       platform: 'portal',
       // 30 minutes old — under an hour, so the copy shows no age at all.
       waitingHours: 0,
@@ -55,6 +57,10 @@ describe('onInboxItemCreated (notification)', () => {
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         payload: expectedPayload,
+        audience: {
+          kind: 'responsible_scope',
+          scope: { kind: 'portal', portalId: 'portal-1' },
+        },
       }),
       opts: { jobId: `${NOTIF_TEST_IDS.eventId}-mgr-1` },
     })
@@ -65,13 +71,17 @@ describe('onInboxItemCreated (notification)', () => {
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
         payload: expectedPayload,
+        audience: {
+          kind: 'responsible_scope',
+          scope: { kind: 'portal', portalId: 'portal-1' },
+        },
       }),
       opts: { jobId: `${NOTIF_TEST_IDS.eventId}-mgr-2` },
     })
   })
 
   it('never carries guest or review content into the payload', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
 
     await onInboxItemCreated(deps)(itemCreatedEvent)
 
@@ -83,18 +93,18 @@ describe('onInboxItemCreated (notification)', () => {
   })
 
   it('looks up managers by propertyId', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
 
     await onInboxItemCreated(deps)(itemCreatedEvent)
 
-    expect(deps.userLookup.findAssignedManagers).toHaveBeenCalledWith(
+    expect(deps.responsibleManagers.findForProperty).toHaveBeenCalledWith(
       NOTIF_TEST_IDS.orgId,
       NOTIF_TEST_IDS.propId,
     )
   })
 
   it('enqueues review.created notifications for review source', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
     const reviewSourceEvent = buildInboxItemCreatedEvent({
       sourceType: 'review',
     })
@@ -108,9 +118,13 @@ describe('onInboxItemCreated (notification)', () => {
         type: 'review.created',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        // The rating IS carried — a 1-5 star number is a numeric fact, not
-        // source content (ADR 0046 r.8). The review TEXT never is.
+        // Google/provider rating and text both remain in Review; Notification
+        // stores only content-free routing and display facts.
         payload: EXPECTED_INBOX_PAYLOAD,
+        audience: {
+          kind: 'responsible_scope',
+          scope: { kind: 'property', propertyId: NOTIF_TEST_IDS.propId },
+        },
       }),
       opts: { jobId: `${NOTIF_TEST_IDS.eventId}-mgr-1` },
     })
@@ -131,7 +145,7 @@ describe('onInboxItemCreated (notification)', () => {
   })
 
   it('falls back to the org AccountAdmins when no manager is assigned', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
     deps.userLookup.findByRole.mockResolvedValue([
       NOTIF_TEST_IDS.admin1,
       NOTIF_TEST_IDS.admin2,
@@ -163,7 +177,7 @@ describe('onInboxItemCreated (notification)', () => {
   })
 
   it('does not look up AccountAdmins when a manager is assigned', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
 
     await onInboxItemCreated(deps)(itemCreatedEvent)
 
@@ -172,7 +186,7 @@ describe('onInboxItemCreated (notification)', () => {
   })
 
   it('does not enqueue any jobs when there is no manager and no AccountAdmin', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
     deps.userLookup.findByRole.mockResolvedValue([])
 
     await onInboxItemCreated(deps)(itemCreatedEvent)
@@ -181,7 +195,7 @@ describe('onInboxItemCreated (notification)', () => {
   })
 
   it('warns only when neither a manager nor an AccountAdmin exists', async () => {
-    deps.userLookup.findAssignedManagers.mockResolvedValue([])
+    deps.responsibleManagers.findForProperty.mockResolvedValue([])
     deps.userLookup.findByRole.mockResolvedValue([])
 
     await onInboxItemCreated(deps)(itemCreatedEvent)
@@ -193,7 +207,7 @@ describe('onInboxItemCreated (notification)', () => {
   })
 
   it('propagates error from userLookup', async () => {
-    deps.userLookup.findAssignedManagers.mockRejectedValue(new Error('DB down'))
+    deps.responsibleManagers.findForProperty.mockRejectedValue(new Error('DB down'))
 
     await expect(onInboxItemCreated(deps)(itemCreatedEvent)).rejects.toThrow('DB down')
   })

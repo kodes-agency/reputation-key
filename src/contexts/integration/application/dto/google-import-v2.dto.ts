@@ -6,6 +6,7 @@ const ISO_COUNTRY_CODES = new Set(
     ' ',
   ),
 )
+export const GOOGLE_IMPORT_COUNTRY_CODES = Object.freeze([...ISO_COUNTRY_CODES].sort())
 
 const OPAQUE_REFERENCE = /^[a-z][a-z0-9_-]{0,31}\.[A-Za-z0-9_-]{43}$/
 const whitespace = /\s+/gu
@@ -88,10 +89,102 @@ const startItemSchema = z.discriminatedUnion('action', [
     .strict(),
 ])
 
+const googleImportReviewItemSchema = z
+  .object({
+    candidateId: z.string().min(1),
+    candidateRef: z.string().min(1),
+    action: z.enum(['create', 'relink']),
+    existingPropertyId: z.string().nullable(),
+    name: z.string(),
+    address: z.string(),
+    countryCode: z.string(),
+    timezone: z.string(),
+    countryConfirmed: z.boolean(),
+    timezoneConfirmed: z.boolean(),
+    updateExistingProfile: z.boolean(),
+  })
+  .strict()
+  .superRefine((item, context) => {
+    const normalizedName = normalizeTenantText(item.name)
+    const normalizedAddress = normalizeTenantText(item.address)
+    const editableProfile = item.action === 'create' || item.updateExistingProfile
+
+    if (editableProfile && normalizedName.length === 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['name'],
+        message: 'Enter a property name.',
+      })
+    } else if (normalizedName.length > 100) {
+      context.addIssue({
+        code: 'custom',
+        path: ['name'],
+        message: 'Property name must be 100 characters or fewer.',
+      })
+    }
+    if (normalizedAddress.length > 500) {
+      context.addIssue({
+        code: 'custom',
+        path: ['address'],
+        message: 'Address must be 500 characters or fewer.',
+      })
+    }
+    if (item.action === 'create') {
+      if (!ISO_COUNTRY_CODES.has(item.countryCode.trim().toUpperCase())) {
+        context.addIssue({
+          code: 'custom',
+          path: ['countryCode'],
+          message: 'Select a valid country.',
+        })
+      }
+      if (!item.countryConfirmed) {
+        context.addIssue({
+          code: 'custom',
+          path: ['countryConfirmed'],
+          message: 'Confirm the selected country.',
+        })
+      }
+    } else if (
+      !item.existingPropertyId ||
+      !z.uuid().safeParse(item.existingPropertyId).success
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['existingPropertyId'],
+        message: 'The existing property reference is invalid.',
+      })
+    }
+    if (!isValidIanaTimezone(item.timezone)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['timezone'],
+        message: 'Select a valid IANA timezone.',
+      })
+    }
+    if (!item.timezoneConfirmed) {
+      context.addIssue({
+        code: 'custom',
+        path: ['timezoneConfirmed'],
+        message: 'Confirm the selected timezone.',
+      })
+    }
+  })
+
+/**
+ * Editable review shape used before the durable import command is constructed.
+ * Field-level issue paths are part of the form contract: TanStack Form uses them
+ * to associate submit-time errors with the corresponding row control.
+ */
+export const googleImportReviewDraftSchema = z
+  .object({
+    items: z.array(googleImportReviewItemSchema).min(1),
+  })
+  .strict()
+
 export const startPropertyImportInputSchema = z
   .object({
     requestId: z.uuid(),
-    items: z.array(startItemSchema).min(1).max(100),
+    items: z.array(startItemSchema).min(1),
     confirmation: z.literal('apply'),
   })
   .strict()
@@ -115,6 +208,10 @@ export const getPropertyImportStatusInputSchema = z
   .object({ importJobId: z.uuid() })
   .strict()
 
+export const cancelPropertyImportInputSchema = z
+  .object({ importJobId: z.uuid() })
+  .strict()
+
 export const retryPropertyImportItemInputSchema = z
   .object({
     itemId: z.uuid(),
@@ -124,10 +221,12 @@ export const retryPropertyImportItemInputSchema = z
   .strict()
 
 export type StartPropertyImportV2Input = z.infer<typeof startPropertyImportInputSchema>
+export type GoogleImportReviewDraftInput = z.infer<typeof googleImportReviewDraftSchema>
 export type RecoverPropertyImportInput = z.infer<typeof recoverPropertyImportInputSchema>
 export type GetPropertyImportStatusInput = z.infer<
   typeof getPropertyImportStatusInputSchema
 >
+export type CancelPropertyImportInput = z.infer<typeof cancelPropertyImportInputSchema>
 export type RetryPropertyImportItemInput = z.infer<
   typeof retryPropertyImportItemInputSchema
 >

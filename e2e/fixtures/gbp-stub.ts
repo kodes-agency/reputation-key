@@ -70,6 +70,15 @@ export type StubReview = Readonly<{
   reviewReply?: { comment: string; updateTime: string }
 }>
 
+/** GBP wire star names to their numeric value. */
+const STUB_STAR_VALUES: Readonly<Record<string, number | undefined>> = {
+  ONE: 1,
+  TWO: 2,
+  THREE: 3,
+  FOUR: 4,
+  FIVE: 5,
+}
+
 export type StubLocation = Readonly<{
   /** Full resource name with account and location segments. */
   name: string
@@ -416,6 +425,12 @@ export async function startGbpStub(
     return Number.isSafeInteger(offset) && offset >= 0 ? offset : null
   }
 
+  /** Location-wide mean of the scripted stars, as Google reports it. */
+  function averageRating(reviews: readonly StubReview[]): number {
+    const stars = reviews.map((review) => STUB_STAR_VALUES[review.starRating] ?? 0)
+    return stars.reduce((total, star) => total + star, 0) / stars.length
+  }
+
   function providerPage<T>(
     items: readonly T[],
     offset: number,
@@ -605,9 +620,12 @@ export async function startGbpStub(
         return
       }
       const page = providerPage(reviews, offset, 50, tokenPrefix)
+      // Google returns `averageRating` on every non-empty page, and the
+      // snapshot validator rejects the page as `malformed_page` without it.
       json(res, 200, {
         reviews: page.items,
         totalReviewCount: reviews.length,
+        ...(reviews.length > 0 ? { averageRating: averageRating(reviews) } : {}),
         ...(page.nextPageToken ? { nextPageToken: page.nextPageToken } : {}),
       })
       return

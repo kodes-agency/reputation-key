@@ -1,139 +1,66 @@
-// Composition root — selects the enabled context modules and supplies the
-// cross-context adapters and true root scalars. This is the only place where
-// the full container is built. Both server and worker build it and use it.
+// Composition root — the only place a full container is built. It SELECTS
+// implementations and configuration rather than being one.
 //
-// Each context's build.ts owns its internal wiring (repos, adapters, use
-// cases, event handlers) and exposes only what composition needs: the
-// server/application interface (publicApi + internal), plus readiness/runtime
-// contributions where required (identity: refreshPolicyStore; inbox:
-// registerOutboxConsumers) and the optional shutdown hook (none today).
-// The root does NOT import individual use cases, event handlers, or business
-// rules. Worker/job/consumer/schedule registration is owned by BQC-3
-// (bootstrap.ts + worker/) — the root consumes that runtime registry as one
-// accepted interface and never introduces another.
+// Each context's build.ts owns its private wiring and exposes only NAMED
+// CAPABILITY GROUPS (docs/standards.md 3.1). ARC-03-T11/T12: the root reads no
+// context's private hatch — the single exception is the simulation runtime,
+// guarded by its option and absent from every application container. The root
+// imports no individual use case, event handler or business rule; job/consumer
+// registration stays owned by BQC-3 (bootstrap.ts + worker/). Cohesive
+// sub-graphs live in src/composition/, and the per-deployable projections that
+// bound what each process may hold live in its deployables module.
 //
 // Per architecture: "No DI framework, no auto-wiring, no decorators.
 // Dependencies are passed as function arguments. The wiring is in composition.ts, visible."
 
 import { getDb } from '#/shared/db'
-import type { Database } from '#/shared/db'
+import { getPool } from '#/shared/db/pool'
 import { getLogger } from '#/shared/observability/logger'
 import { getRedis } from '#/shared/cache/redis'
+import { closeJobQueueConnections } from '#/shared/jobs/queue'
 import { createEventBus } from '#/shared/events/event-bus'
-import type { EventBus } from '#/shared/events/event-bus'
-import {
-  createBusAuthorizer,
-  createScheduledScopeAuthorizer,
-} from '#/shared/jobs/delayed-execution-gate'
-import { createRedisCache } from '#/shared/cache/redis-cache'
-import { createNoopCache } from '#/shared/cache/noop-cache'
-import type { Cache } from '#/shared/cache/cache.port'
-import { createRateLimiter } from '#/shared/rate-limit/middleware'
-import type { RateLimiter } from '#/shared/rate-limit/middleware'
-import { createJobQueue, closeJobQueueConnections } from '#/shared/jobs/queue'
-import { createJobRegistry } from '#/shared/jobs/registry'
-import type { JobRegistry } from '#/shared/jobs/registry'
-import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
-import { createOperationsSnapshot } from '#/shared/health/operations-snapshot'
+import { createBusAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { createConsumerRegistry } from '#/shared/outbox'
+import { resolveCutoverState } from '#/shared/outbox/cutover-flags'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
+import { createTanstackRequestContext } from '#/shared/auth/tanstack-request-context'
+import { createBetterAuthSessionPort } from '#/shared/auth/better-auth-session'
 import { createGrantAccessLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
-import { registerExecutionPolicyInit } from '#/shared/auth/execution-policy'
-import { registerDelayedExecutionPolicyInit } from '#/shared/auth/system-execution-policy'
-import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
-import type { GoogleOAuthPort } from '#/contexts/integration/application/ports/google-oauth.port'
-import type { GbpApiPort } from '#/contexts/integration/application/ports/gbp-api.port'
-import type { GoogleAuthorizedProviderExecutor } from '#/contexts/integration/application/ports/google-authorized-provider-executor.port'
-import type { GoogleImportReferenceStore } from '#/contexts/integration/application/ports/google-import-reference-store.port'
-import type { GoogleImportContentAuthorizer } from '#/contexts/integration/application/google-import-command-authorizer'
-import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/infrastructure/google-content-authorization-check'
+import { BetaFeedbackTriageRepository } from '#/contexts/identity/infrastructure/beta-feedback-triage.repository'
 import {
-  authorityAdmissionCode,
-  createGoogleAuthorizedProviderExecutor,
-} from '#/contexts/integration/infrastructure/adapters/google-authorized-provider-executor.adapter'
-import { createOpaqueImportReferenceStore } from '#/contexts/integration/infrastructure/opaque-import-reference-store'
-import type { GoogleReviewCursorStore } from '#/contexts/integration/infrastructure/google-review-cursor-store'
-import { createGoogleCredentialBinder } from '#/shared/google-provider-control/credential-binding'
-import { createGoogleEgressGatewayHttpClient } from '../services/google-egress-gateway/http-api'
+  bindProcessPolicies,
+  registerProcessPolicyColdBoot,
+} from '#/shared/auth/process-policy-binding'
 import {
-  createInternalMtlsJsonTransport,
-  loadInternalMtlsMaterial,
-  loadInternalMtlsMaterialFromBase64,
-} from '../services/internal-mtls'
-import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
-import {
-  createPropertyCapabilityProvisioning,
-  type PropertyCapabilityProvisioning,
-} from '#/contexts/identity/application/use-cases/policy-admin'
-import {
-  getPropertyOrganizationId,
-  listOrganizationCapabilities,
-  listPropertyCapabilities,
-  listProvisionablePropertyIds,
-  provisionPropertyCapabilitiesFromOrganization,
-} from '#/contexts/identity/infrastructure/repositories/policy-state.repository'
-import { createGoogleContentAuthorizationAuthority } from '#/shared/auth/google-content-authority'
-import {
-  createGoogleContentRoleSignatureVerifier,
-  parseGoogleContentRolePublicKeys,
-} from '#/shared/auth/google-content-approval'
-import { parseGoogleContentRuntimeBindings } from '#/shared/auth/google-content-runtime-bindings'
-import type { PerformanceContentAuthorizer } from '#/contexts/integration/application/google-performance-authorizer'
-import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
-import { buildIdentityContext } from '#/contexts/identity/build'
-import { CAPABILITY_POLICY_VERSION } from '#/shared/auth/beta-capabilities'
-import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
-import { ROUTING_POLICY_VERSION } from '#/contexts/property/domain/processing-routing'
-import { createGoogleSourceContentPolicy } from '#/shared/domain/source-content-policy'
-import {
-  getAuth,
-  setMembershipRemovalLifecycle,
-  setOnAcceptInvitation,
-  INVITATION_EXPIRY_SECONDS,
-} from '#/shared/auth/auth'
+  buildIdentityContext,
+  createInvitationPropertyAccessProvisioner,
+} from '#/contexts/identity/build'
+import { INVITATION_EXPIRY_SECONDS } from '#/shared/auth/auth'
 import { sendInvitationEmail } from '#/shared/auth/emails'
-import { headersFromContext } from '#/shared/auth/headers'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
-import type { Env } from '#/shared/config/env'
 import {
+  assertDirectCredentialEgressAllowed,
   assertDirectProviderEgressAllowed,
   assertReviewProviderSubjectKeysConfigured,
 } from '#/shared/config/provider-config-guards'
-import type { Queue } from 'bullmq'
-import type { Redis } from 'ioredis'
-import type { Clock } from '#/shared/domain/clock'
-import { feedbackId, organizationId, propertyId } from '#/shared/domain/ids'
+import { feedbackId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { buildPropertyContext } from '#/contexts/property/build'
+import { createInboxCommandAuthority } from '#/contexts/inbox/infrastructure/adapters/inbox-command-authority.adapter'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
 import { createPropertyRegionLoader } from '#/contexts/property/infrastructure/property-region-loader'
-import { createProcessingRouter } from '#/shared/routing/processing-router'
-import { providerRefForCell } from '#/shared/routing/processing-router'
-import type { ProviderEndpoints } from '#/shared/routing/processing-router'
+import {
+  createProcessingRouter,
+  providerRefForCell,
+} from '#/shared/routing/processing-router'
+import { createDataCellExecutionFence } from '#/shared/routing/data-cell-execution-fence'
+import { parseGoogleCredentialBrokerRuntimeConfig } from '#/shared/routing/google-credential-broker-runtime'
 import { buildIntegrationContext } from '#/contexts/integration/build'
 import { createImportItemRoutingLoader } from '#/contexts/integration/infrastructure/import-item-routing.adapter'
-import { createOAuthStateHandleService } from '#/contexts/integration/application/oauth-state-handle'
-import {
-  createVersionedHmacKeyring,
-  type VersionedHmacKeyring,
-} from '#/shared/security/versioned-hmac-keyring'
-import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
-import { createRedisProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
-import { createProviderEphemeralRedis } from '#/shared/provider-ephemeral/redis-client'
-import { createInMemoryProviderEphemeralStore } from '#/shared/provider-ephemeral/in-memory-store'
-import {
-  createProviderAuthorizationLeaseService,
-  type ProviderAuthorizationLeaseService,
-} from '#/shared/provider-ephemeral/authorization-lease'
-import { providerAuthorizationFenceSha256 } from '#/shared/provider-ephemeral/authorization-binding'
-import {
-  validateProviderEphemeralRedisUrls,
-  verifyProviderEphemeralRedisRuntime,
-  type ProviderRedisReadiness,
-} from '#/shared/provider-ephemeral/runtime-verification'
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { validateGoogleRuntimeIsolationReadiness } from '#/shared/auth/google-runtime-isolation'
 import {
@@ -142,7 +69,6 @@ import {
   type OAuthCallbackQuotaCounter,
 } from '#/contexts/integration/application/oauth-callback-abuse-gate'
 import { createRedisOAuthCallbackQuotaCounter } from '#/contexts/integration/infrastructure/oauth-callback-quota-counter'
-import { buildTeamContext } from '#/contexts/team/build'
 import { buildStaffContext } from '#/contexts/staff/build'
 import { buildPortalContext } from '#/contexts/portal/build'
 import { buildGuestContext } from '#/contexts/guest/build'
@@ -150,351 +76,44 @@ import { buildReviewContext } from '#/contexts/review/build'
 import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'
 import { configureReviewProviderSubjectWriterKeys } from '#/contexts/review/application/provider-subject-keyring'
 import { buildInboxContext } from '#/contexts/inbox/build'
-import { buildMetricContext } from '#/contexts/metric/build'
-import { buildBadgeContext } from '#/contexts/badge/build'
-import { buildLeaderboardContext } from '#/contexts/leaderboard/build'
-import { buildDashboardContext } from '#/contexts/dashboard/build'
-import { buildGoalContext } from '#/contexts/goal/build'
-import { buildActivityContext } from '#/contexts/activity/build'
-import { buildNotificationContext } from '#/contexts/notification/build'
-import { createStaffAssignmentRepository } from '#/contexts/staff/infrastructure/repositories/staff-assignment.repository'
 import { buildAiContext } from '#/contexts/ai/build'
 import { GENERATE_PROPERTY_TREND_JOB_NAME } from '#/contexts/ai/infrastructure/jobs/generate-property-trend.job'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
-import type { AiInferencePort } from '#/contexts/ai/application/ports/ai-inference.port'
-import type { AiSubjectHmacPort } from '#/contexts/ai/application/ports/ai-subject-hmac.port'
-import { createAiGatewayAdapter } from '#/contexts/ai/infrastructure/adapters/ai-gateway.adapter'
-import { createAiSubjectHmacAdapter } from '#/contexts/ai/infrastructure/adapters/ai-subject-hmac.adapter'
-import { loadNamedEd25519PublicKeyring } from '#/shared/ed25519-key-material'
 import {
-  assertAiAdmissionPublicKeyringInventory,
-  assertAiProvenancePublicKeyringInventory,
-  resolveAiGatewayRuntimeKeyInventory,
-} from '#/shared/ai-gateway-key-inventory'
-import { AI_INTERNAL_RESPONSE_MAX_BYTES } from '#/shared/ai-internal-transport-contract'
-import type { AiGatewayCaller } from '#/shared/ai-gateway-transport-contract'
-import { createIdentityMembershipAdapter } from '#/contexts/staff/infrastructure/adapters/identity-membership.adapter'
+  applyProviderEndpointOverrides,
+  createAiRuntimeProviders,
+  providerConfigFor,
+} from './composition/provider-runtime'
+import { buildInfrastructure } from './composition/infrastructure'
+import { buildReadAndNotifyContexts } from './composition/read-and-notify-contexts'
+import type { CreateContainerOptions } from './composition/container-options'
+import { buildOperationalReadout } from './composition/operational-readout'
+import { composeOrganizationLifecycle } from '#/composition/organization-export-contributors'
+import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
+import { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
+import {
+  createDeferredMemberAuthorityLifecycle,
+  createMemberAuthorityLifecycle,
+} from './composition/member-authority-lifecycle'
+import type { StaffPortalLookupPort } from '#/contexts/staff/application/ports/portal-lookup.port'
 
-// ── Infrastructure ─────────────────────────────────────────────────
-
-function buildInfrastructure(options: {
-  redis: Redis | undefined
-  enableJobs: boolean
-  /** Override the queue (simulations inject an in-memory queue). */
-  queue?: Queue
-  /** Override the background queue (simulations inject an in-memory queue). */
-  backgroundQueue?: Queue
-}) {
-  const cache: Cache = options.redis ? createRedisCache(options.redis) : createNoopCache()
-  const rateLimiter: RateLimiter = createRateLimiter(options.redis, {
-    keyPrefix: 'ratelimit:public',
-    maxRequests: 60,
-    windowSeconds: 60,
-  })
-  // Use the injected queue if provided; otherwise create a BullMQ queue when
-  // Redis is available. The web server needs a queue to enqueue jobs; the
-  // worker needs one for processing.
-  const jobQueue: Queue | undefined =
-    options.queue ?? (options.redis ? createJobQueue('default') : undefined)
-  // Background queue for cron-scheduled maintenance jobs (health-check, metric
-  // refresh, badge/leaderboard reconciliation, etc.). Only created when jobs
-  // are enabled (worker process) to avoid an unused Redis connection in the
-  // web server.
-  const backgroundQueue: Queue | undefined =
-    options.backgroundQueue ??
-    (options.enableJobs && options.redis ? createJobQueue('background') : undefined)
-  const jobRegistry: JobRegistry = createJobRegistry()
-  return { cache, rateLimiter, jobQueue, backgroundQueue, jobRegistry }
-}
-
-// ── Provider endpoint mapping (BQC-4.3) ────────────────────────────
-// The ONE place Google/GBP endpoint URLs exist. ProcessingTarget.provider
-// carries a logical reference (from the router's CELL_TARGETS); this mapping
-// turns it into adapter construction config. Adapters receive their base URL
-// from here alone — no context adapter hardcodes a Google URL, so no code
-// path can silently fall back to another endpoint or region (ADR 0031/0048).
-// A future cell gets its own ref + entry via an explicit decision record.
-
-const PROVIDER_ENDPOINTS: Readonly<Record<string, ProviderEndpoints>> = {
-  'gbp-default': {
-    gbpApiBaseUrl: 'https://mybusinessbusinessinformation.googleapis.com/v1',
-    gbpAccountManagementBaseUrl: 'https://mybusinessaccountmanagement.googleapis.com/v1',
-    gbpPerformanceBaseUrl: 'https://businessprofileperformance.googleapis.com/v1',
-    reviewsApiBaseUrl: 'https://mybusiness.googleapis.com/v4',
-    notificationsApiBaseUrl: 'https://mybusinessnotifications.googleapis.com/v1',
-    oauthTokenUrl: 'https://oauth2.googleapis.com/token',
-    oauthJwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
-    oauthRevokeUrl: 'https://oauth2.googleapis.com/revoke',
-  },
-}
-
-/**
- * Resolve a logical provider reference to its endpoint construction config.
- * Fails closed: an unknown, denied, or missing ref throws — there is no
- * default endpoint to fall back to.
- */
-export function providerConfigFor(ref: string | undefined): ProviderEndpoints {
-  const endpoints = ref ? PROVIDER_ENDPOINTS[ref] : undefined
-  if (!endpoints) {
-    throw new Error(
-      `No approved provider configuration for ref '${ref ?? 'none'}' (ADR 0048: provider refs come from the router's CELL_TARGETS)`,
-    )
-  }
-  return endpoints
-}
-
-/**
- * BQC-6.5: operator sandbox seam. Explicit per-endpoint env overrides applied
- * ONCE at container build on top of the cell's approved provider endpoints.
- * A sandbox deployment can point the REAL adapters at a provider stub/sandbox
- * (e.g. GBP_API_BASE_URL=http://localhost:4100) without touching code. Every
- * override absent = the resolved endpoints pass through byte-identical — this
- * function changes nothing unless an operator explicitly set a variable.
- */
-export function applyProviderEndpointOverrides(
-  endpoints: ProviderEndpoints,
-  env: Env,
-): ProviderEndpoints {
-  const overrides = [
-    env.GBP_API_BASE_URL,
-    env.GBP_ACCOUNT_MANAGEMENT_BASE_URL,
-    env.GBP_PERFORMANCE_BASE_URL,
-    env.GBP_REVIEWS_API_BASE_URL,
-    env.GBP_NOTIFICATIONS_API_BASE_URL,
-    env.GOOGLE_OAUTH_TOKEN_URL,
-    env.GOOGLE_OAUTH_JWKS_URL,
-    env.GOOGLE_OAUTH_REVOKE_URL,
-  ]
-  if (
-    env.NODE_ENV === 'production' &&
-    env.GOOGLE_PROVIDER_ENDPOINT_PROFILE !== 'local-sandbox' &&
-    overrides.some((value) => value !== undefined)
-  ) {
-    throw new Error(
-      'provider endpoint overrides require the attested local-sandbox profile',
-    )
-  }
-  return {
-    gbpApiBaseUrl: env.GBP_API_BASE_URL ?? endpoints.gbpApiBaseUrl,
-    gbpAccountManagementBaseUrl:
-      env.GBP_ACCOUNT_MANAGEMENT_BASE_URL ?? endpoints.gbpAccountManagementBaseUrl,
-    gbpPerformanceBaseUrl:
-      env.GBP_PERFORMANCE_BASE_URL ?? endpoints.gbpPerformanceBaseUrl,
-    reviewsApiBaseUrl: env.GBP_REVIEWS_API_BASE_URL ?? endpoints.reviewsApiBaseUrl,
-    notificationsApiBaseUrl:
-      env.GBP_NOTIFICATIONS_API_BASE_URL ?? endpoints.notificationsApiBaseUrl,
-    oauthTokenUrl: env.GOOGLE_OAUTH_TOKEN_URL ?? endpoints.oauthTokenUrl,
-    oauthJwksUrl: env.GOOGLE_OAUTH_JWKS_URL ?? endpoints.oauthJwksUrl,
-    oauthRevokeUrl: env.GOOGLE_OAUTH_REVOKE_URL ?? endpoints.oauthRevokeUrl,
-  }
-}
-
-// ── Identity infrastructure helpers ────────────────────────────────
-
-async function setActiveOrg(orgId: string): Promise<void> {
-  const auth = getAuth()
-  const logger = getLogger()
-  try {
-    const headers = await headersFromContext()
-    await auth.api.setActiveOrganization({
-      headers,
-      body: { organizationId: orgId },
-    })
-  } catch (e) {
-    // If headers don't carry a valid session (e.g., during registration
-    // where cookies aren't yet available), this is non-fatal — the user
-    // will set their active org on first login.
-    logger.warn({ err: e }, 'Failed to set active organization during setup')
-  }
-}
-
-// ── Main container ─────────────────────────────────────────────────
-
-/** BQC-6.1: deterministic external provider adapters by injection. When a
- * slot is absent the context build constructs the real env-driven adapter —
- * defaults are byte-identical to the pre-slot behavior (additive change). */
-export type ProviderOverrides = Readonly<{
-  /** Google OAuth adapter (integration context). */
-  googleOAuth?: GoogleOAuthPort
-  /** Google Business Profile API adapter (integration context). */
-  gbpApi?: GbpApiPort
-  /** Authorized Google provider execution seam (local acceptance/tests). */
-  googleAuthorizedProviderExecutor?: GoogleAuthorizedProviderExecutor
-  /** Opaque import reference store backed by provider-ephemeral storage. */
-  googleImportReferences?: GoogleImportReferenceStore
-  /** Opaque Review paging cursor store backed by provider-ephemeral storage. */
-  googleReviewCursorStore?: GoogleReviewCursorStore
-  /** Fresh Google Content approval/kill authorization seam. */
-  authorizeGoogleImportContent?: GoogleImportContentAuthorizer
-  /** Fresh approval/kill authorization for live Performance reads. */
-  authorizeGooglePerformanceContent?: PerformanceContentAuthorizer
-  /** Principal-binding keyring for volatile Performance authorization leases. */
-  googlePerformancePrincipalKeys?: VersionedHmacKeyring
-  /** Provider-ephemeral Performance lease service. */
-  providerAuthorizationLeases?: ProviderAuthorizationLeaseService
-  /** AI egress inference adapter (deterministic tests/simulations). */
-  aiInference?: AiInferencePort
-  /** Worker-only keyed pseudonym authority for AI operations. */
-  aiSubjectHmac?: AiSubjectHmacPort
-  /** Object storage adapter (portal context). */
-  storage?: StoragePort
-}>
-
-function createAiRuntimeProviders(
-  input: Readonly<{
-    env: Env
-    enableJobs: boolean
-    inferenceOverride?: AiInferencePort
-    subjectHmacOverride?: AiSubjectHmacPort
-  }>,
-): Readonly<{
-  inference?: AiInferencePort
-  subjectHmac?: AiSubjectHmacPort
-  provenancePublicKeys?: ReturnType<typeof loadNamedEd25519PublicKeyring>
-}> {
-  const keyInventory = resolveAiGatewayRuntimeKeyInventory({
-    ...process.env,
-    AI_KEY_INVENTORY_PROFILE: input.env.AI_KEY_INVENTORY_PROFILE,
-  })
-  const gatewayConfig = [
-    input.env.AI_EGRESS_GATEWAY_ORIGIN,
-    input.env.AI_EGRESS_GATEWAY_SERVER_NAME,
-    input.env.AI_INTERNAL_MTLS_CA_B64,
-    input.env.AI_INTERNAL_MTLS_CERT_B64,
-    input.env.AI_INTERNAL_MTLS_KEY_B64,
-    input.env.AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON,
-  ] as const
-  const configured = gatewayConfig.filter((value): value is string => value !== undefined)
-  if (configured.length !== 0 && configured.length !== gatewayConfig.length) {
-    throw new Error('AI egress gateway transport configuration is incomplete')
-  }
-  if (!input.enableJobs && input.env.AI_SUBJECT_HMAC_KEYS !== undefined) {
-    throw new Error('AI subject HMAC authority is worker-only')
-  }
-
-  // The gateway pins a client certificate route per caller, so the runtime
-  // flag becomes a peer identity exactly here: jobs-enabled is the worker,
-  // every other container is the web app.
-  const caller: AiGatewayCaller = input.enableJobs ? 'worker' : 'web'
-
-  let inference = input.inferenceOverride
-  if (!inference && configured.length > 0) {
-    const [origin, serverName, ca, cert, key, publicKeysJson] = configured
-    const publicKeys = loadNamedEd25519PublicKeyring(
-      publicKeysJson,
-      [
-        keyInventory.admissionSigning.activeKid,
-        ...keyInventory.admissionSigning.retainedKids,
-      ],
-      keyInventory.admissionSigning.maximumConfiguredKeys,
-    )
-    assertAiAdmissionPublicKeyringInventory(publicKeys, keyInventory)
-    inference = createAiGatewayAdapter({
-      transport: createInternalMtlsJsonTransport({
-        origin,
-        serverName,
-        tls: loadInternalMtlsMaterialFromBase64({ ca, cert, key }),
-        peerIdentityPolicy: {
-          uri: 'spiffe://repkey.internal/ai-egress-gateway',
-          dnsName: serverName,
-          extendedKeyUsages: ['serverAuth', 'clientAuth'],
-        },
-        timeoutMs: 105_000,
-        maxResponseBytes: AI_INTERNAL_RESPONSE_MAX_BYTES,
-      }),
-      caller,
-      admissionSettlementPublicKeys: publicKeys,
-    })
-  }
-
-  const provenancePublicKeys = input.env.AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON
-    ? loadNamedEd25519PublicKeyring(
-        input.env.AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON,
-        [keyInventory.provenance.activeKid],
-        keyInventory.provenance.maximumPrivateKeysPerProcess,
-      )
-    : undefined
-  if (provenancePublicKeys) {
-    assertAiProvenancePublicKeyringInventory(provenancePublicKeys, keyInventory)
-  } else if (!input.enableJobs && configured.length > 0) {
-    throw new Error('AI provenance public keyring is unavailable')
-  }
-
-  const subjectHmac =
-    input.subjectHmacOverride ??
-    (input.env.AI_SUBJECT_HMAC_KEYS
-      ? createAiSubjectHmacAdapter(input.env.AI_SUBJECT_HMAC_KEYS)
-      : undefined)
-  if (input.enableJobs && inference !== undefined && subjectHmac === undefined) {
-    throw new Error('AI worker subject HMAC authority is unavailable')
-  }
-  return Object.freeze({ inference, subjectHmac, provenancePublicKeys })
-}
-
-/**
- * BQC-2.7 property capability provisioning, bound to identity's persistence.
- *
- * A property created by the Google import (and any property imported before
- * this wiring existed) starts with an EMPTY property_capability set, and an
- * empty set denies every non-core capability (`property_not_allowlisted`).
- * This binding grants a property its organization's allowlist idempotently.
- *
- * Exported because scripts/ is wiring-only: ops:property-capabilities binds
- * the same provisioning against the running container.
- */
-export function bindPropertyCapabilityProvisioning(
-  db: Database,
-  refreshPolicy: () => Promise<void>,
-): PropertyCapabilityProvisioning {
-  return createPropertyCapabilityProvisioning({
-    listOrganizationCapabilities: (orgId) => listOrganizationCapabilities(db, orgId),
-    listPropertyCapabilities: (propId) => listPropertyCapabilities(db, propId),
-    getPropertyOrganizationId: (propId) => getPropertyOrganizationId(db, propId),
-    listProvisionablePropertyIds: (orgId) => listProvisionablePropertyIds(db, orgId),
-    provisionPropertyCapabilities: (input) =>
-      provisionPropertyCapabilitiesFromOrganization(db, input),
-    refreshPolicy,
-  })
-}
+export {
+  applyProviderEndpointOverrides,
+  providerConfigFor,
+  type ProviderOverrides,
+} from './composition/provider-runtime'
+export { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
 
 // Accepted residual (BQC-5.2/BQC-5.7): per-dependency override pattern is
 // inherently branchy; extraction would scatter the wiring. Owner: BQC-5.2.
 // fallow-ignore-next-line complexity
-export function createContainer(options?: {
-  enableJobs?: boolean
-  /** Override the database connection (simulations, per-test isolation). */
-  db?: Database
-  /** Override the Redis client (simulations, deterministic backends). */
-  redis?: Redis
-  /** Override env (simulations against throwaway config). */
-  env?: Env
-  /** Override the clock (fast-forward time in tests/simulations). ADR 0017. */
-  clock?: Clock
-  /** Override the event bus (deterministic in-process delivery). */
-  eventBus?: EventBus
-  /** Override the job queue (simulations inject an in-memory queue). */
-  queue?: Queue
-  /** Override the background queue (simulations inject an in-memory queue). */
-  backgroundQueue?: Queue
-  /** Override the ops domain-events read handle (simulations/tests inject an
-   * in-memory queue — the real one opens a dedicated Redis connection). */
-  opsDomainEventsQueue?: Queue
-  /** Override the ops quarantine read handle (same rationale). */
-  opsQuarantineQueue?: Queue
-  /** Override the identity port (simulations use the in-memory identity fake). */
-  identityPort?: IdentityPort
-  /** Dedicated non-persistent provider store override for simulations/tests. */
-  providerEphemeralStore?: ProviderEphemeralStore
-  /** Override the email sender (simulations capture emails instead of sending). */
-  email?: typeof sendInvitationEmail
-  /** Override external provider adapters (BQC-6.1: deterministic Google/GBP/
-   * storage by injection — simulations/tests never hit the network). */
-  providers?: ProviderOverrides
-}) {
+export function createContainer(options?: CreateContainerOptions) {
   const { enableJobs = false } = options ?? {}
   const db = options?.db ?? getDb()
+  const betaFeedbackTriageRepo = BetaFeedbackTriageRepository.create(db)
+  const pool = options?.pool ?? getPool()
   const logger = getLogger()
-  const redis = options?.redis ?? getRedis()
+  const redis = options && 'redis' in options ? options.redis : getRedis()
   // BQC-3.2: the composition root wires the bus authorizer to the delayed
   // execution gate; bare createEventBus() (tests, Storybook, browser) stays
   // ungoverned and free of server-only policy imports.
@@ -502,6 +121,10 @@ export function createContainer(options?: {
     options?.eventBus ?? createEventBus({ authorizeConsumer: createBusAuthorizer() })
   const clock = options?.clock ?? (() => new Date())
   const env = options?.env ?? getEnv()
+  // Boot-time all-or-none validation only. Cross-cell effects remain dark;
+  // this proves a Railway public TCP deployment cannot start with partial,
+  // private-DNS, cleartext, or unpinned broker transport configuration.
+  parseGoogleCredentialBrokerRuntimeConfig(env)
   if (
     env.REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS !== undefined ||
     (!enableJobs && env.REVIEW_PROVIDER_SUBJECT_HMAC_KEYS !== undefined)
@@ -563,78 +186,6 @@ export function createContainer(options?: {
       now: clock(),
     })
   }
-  let providerEphemeralRedis: Redis | undefined
-  let providerEphemeralStore = options?.providerEphemeralStore
-  let oauthStateHandles: ReturnType<typeof createOAuthStateHandleService> | undefined
-  let providerEphemeralReadiness: Promise<ProviderRedisReadiness> | undefined
-  let googleImportReplayKeys: ReturnType<typeof createVersionedHmacKeyring> | undefined
-  let googleOpaqueReferenceKeys: ReturnType<typeof createVersionedHmacKeyring> | undefined
-  {
-    if (!providerEphemeralStore && env.PROVIDER_EPHEMERAL_REDIS_URL) {
-      if (env.NODE_ENV === 'production') {
-        const urlFailure = validateProviderEphemeralRedisUrls(
-          env.PROVIDER_EPHEMERAL_REDIS_URL,
-          env.REDIS_URL,
-        )
-        if (urlFailure) {
-          throw new Error(`Provider-ephemeral Redis denied: ${urlFailure.code}`)
-        }
-      }
-      providerEphemeralRedis = createProviderEphemeralRedis(
-        env.PROVIDER_EPHEMERAL_REDIS_URL,
-        env.PROVIDER_EPHEMERAL_REDIS_CA_PEM,
-      )
-      providerEphemeralStore = createRedisProviderEphemeralStore(providerEphemeralRedis)
-      providerEphemeralReadiness =
-        verifyProviderEphemeralRedisRuntime(providerEphemeralRedis)
-    }
-    if (!providerEphemeralStore) {
-      if (env.NODE_ENV === 'production') {
-        throw new Error('Opaque OAuth state requires provider-ephemeral Redis')
-      }
-      providerEphemeralStore = createInMemoryProviderEphemeralStore()
-    }
-    const fallbackKey = createHash('sha256').update(env.OAUTH_STATE_SECRET).digest('hex')
-    const requiredKeyring = (raw: string | undefined, name: string): string => {
-      if (raw) return raw
-      if (env.NODE_ENV === 'production') {
-        throw new Error(`${name} is required for opaque OAuth state`)
-      }
-      return `local:${fallbackKey}`
-    }
-    googleOpaqueReferenceKeys = createVersionedHmacKeyring(
-      requiredKeyring(
-        env.GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS,
-        'GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS',
-      ),
-    )
-    googleImportReplayKeys = createVersionedHmacKeyring(
-      requiredKeyring(env.GOOGLE_REPLAY_HMAC_KEYS, 'GOOGLE_REPLAY_HMAC_KEYS'),
-    )
-    oauthStateHandles = createOAuthStateHandleService({
-      store: providerEphemeralStore,
-      handleKeys: createVersionedHmacKeyring(
-        requiredKeyring(
-          env.GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS,
-          'GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS',
-        ),
-      ),
-      sessionKeys: createVersionedHmacKeyring(
-        requiredKeyring(
-          env.GOOGLE_SESSION_BINDING_HMAC_KEYS,
-          'GOOGLE_SESSION_BINDING_HMAC_KEYS',
-        ),
-      ),
-      ensureRuntimeReady: providerEphemeralReadiness
-        ? async () => {
-            const readiness = await providerEphemeralReadiness!
-            if (!readiness.ok) {
-              throw new Error(`Provider-ephemeral Redis denied: ${readiness.code}`)
-            }
-          }
-        : undefined,
-    })
-  }
 
   // Infrastructure
   const infra = buildInfrastructure({
@@ -644,45 +195,86 @@ export function createContainer(options?: {
     backgroundQueue: options?.backgroundQueue,
   })
 
-  // Identity port (adapter)
-  const identityPort = options?.identityPort ?? createBetterAuthIdentityAdapter(db)
+  // Identity port (adapter). Invitation property-access provisioning is a
+  // context-owned capability injected into this adapter instance; it is not a
+  // process-global Better Auth callback and cannot be replaced by another
+  // independently constructed process fixture.
+  const invitationPropertyAccessProvisioner = createInvitationPropertyAccessProvisioner({
+    db,
+    clock,
+    logger,
+  })
+  // ARC-03-T13: the framework/provider seam is selected HERE and injected
+  // everywhere else. No context and no other root line calls getRequest() or
+  // the better-auth process singleton.
+  const observeAbsentRequest = (err: unknown): void => {
+    logger.debug({ err }, 'no server request context available, using empty headers')
+  }
+  const requestContext =
+    options?.requestContext ?? createTanstackRequestContext({ observeAbsentRequest })
+  const authSession =
+    options?.authSession ?? createBetterAuthSessionPort({ requestContext })
+  const identityPort =
+    options?.identityPort ??
+    createBetterAuthIdentityAdapter(db, {
+      clock,
+      idGen: randomUUID,
+      logger,
+      requestContext,
+      onAcceptInvitation: invitationPropertyAccessProvisioner,
+    })
+  // ARC-03-T9: the Identity/Property/Portal/Inbox member-authority seam.
+  // Identity is upstream of the three contexts holding the authorities it
+  // releases, so the Identity-owned port is handed over now and its
+  // implementation is bound once, by name, after those contexts exist.
+  // Requests cannot reach the callback until the container finished composing.
+  const memberAuthorityLifecycle = createDeferredMemberAuthorityLifecycle()
 
   // BQC-4.2: the ONE routing decision model — shared by the review context
   // (enqueue envelope stamping) and the BQC-4.4 operator region diagnostic.
+  const loadPropertyRouting = createPropertyRoutingLoader({ db })
+  const dataCellExecutionFence = createDataCellExecutionFence({
+    localCell: env.PROCESSING_CELL,
+    loadPropertyRouting,
+  })
   const processingRouter = createProcessingRouter({
-    loadPropertyRouting: createPropertyRoutingLoader({ db }),
+    loadPropertyRouting,
     loadImportItemRouting: createImportItemRoutingLoader({ db }),
-    cell: env.PROCESSING_CELL,
   })
 
   // PRE17A A4: Create outbox repository and register event schemas.
   // The outbox records domain events durably. Event schemas are registered
   // once at startup so the relay can validate payloads before publishing.
   const outboxRepo = createOutboxRepository(db)
+  // ARC-03-T7: the durable consumer registry is CONTAINER-OWNED. It used to be
+  // a module-level Map whose duplicate check spanned the whole process, so a
+  // second container could not register its consumers at all. Every context
+  // registers into this instance; the worker's readiness gate and the
+  // dispatcher read the same one.
+  const consumerRegistry = createConsumerRegistry()
   registerAllEventSchemas()
 
   // ── Context builds (dependency order) ──────────────────────────────
-  const staffRepo = createStaffAssignmentRepository(db)
   const staff = buildStaffContext({
     db,
-    repo: staffRepo,
-    identityMembership: createIdentityMembershipAdapter(db),
     // BQC-2.3: property scope resolves from the identity-owned grant
     // repository (ADR 0039) — never from staff_assignments.
-    accessiblePropertyLookup: createGrantAccessLookup(db),
+    accessiblePropertyLookup: createGrantAccessLookup(db, clock),
     // Staff is built before portal (portal depends on staff.publicApi).
     // Late-binding closure: methods resolve portal at call time (runtime),
-    // long after createContainer returns — TDZ-safe.
+    // long after createContainer returns — TDZ-safe. ARC-03-T9: both methods
+    // now come from Portal's PUBLIC API, so the Staff/Portal seam is the
+    // Staff-owned StaffPortalLookupPort end to end.
     portalLookup: {
-      listPortalIdsByProperty: async (orgId, pid) => {
-        const portals = await portal.internal.repos.portalRepo.listByProperty(orgId, pid)
-        return portals.map((p) => p.id)
-      },
+      listPortalIdsByProperty: (orgId, pid) =>
+        portal.publicApi.portal.listPortalIdsByProperty(orgId, pid),
       getPortalInfo: (orgId, portalId) =>
         portal.publicApi.portal.getPortalInfo(orgId, portalId),
-    },
-    events: eventBus,
+    } satisfies StaffPortalLookupPort,
     clock,
+    idGen: randomUUID,
+    reconcileResponsibleManagerEligibility:
+      memberAuthorityLifecycle.port.reconcileResponsibleManagerEligibility,
   })
 
   const identity = buildIdentityContext({
@@ -690,23 +282,14 @@ export function createContainer(options?: {
     identityPort,
     events: eventBus,
     clock,
+    idGen: randomUUID,
     signUp: identityPort.signUp,
-    setActiveOrg,
-    updateOrg: async (data) => {
-      const auth = getAuth()
-      const headers = await headersFromContext()
-      await auth.api.updateOrganization({ headers, body: { data } })
-    },
+    authSession,
     sendEmail: options?.email ?? sendInvitationEmail,
-    getOrganizationName: async (_ctx) => {
-      const auth = getAuth()
-      const headers = await headersFromContext()
-      const org = await auth.api.getFullOrganization({ headers })
-      return org?.name ?? 'Unknown Organization'
-    },
     baseUrl: env.BETTER_AUTH_URL,
     invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
     deleteUser: identityPort.deleteUser,
+    logger,
     // BQC-2.2/2.7/4.4: identity owns the policy store, admin ops, and the
     // operator audit sink; the root supplies env + the shared routing
     // primitives (property region loader, router decision).
@@ -720,323 +303,74 @@ export function createContainer(options?: {
       resolveRouting: (pid) =>
         processingRouter.resolve({ kind: 'property', propertyId: pid }, 'review.sync'),
       cell: env.PROCESSING_CELL,
+      admitPropertyExecution: dataCellExecutionFence.decideProperty,
       providerRef: providerRefForCell(env.PROCESSING_CELL) ?? null,
     },
     cancelGoogleImportsForUser: (orgId, userIdValue) => {
-      const cancel = integration.internal.useCases.cancelGoogleImportV2ForUser
+      const cancel = integration.lifecycle.cancelImportsForUser
       if (!cancel) throw new Error('Google import lifecycle unavailable')
       return cancel(orgId, userIdValue).then(() => undefined)
     },
-    verifyMerchantAiStepUp: async ({ headers, password }) => {
-      try {
-        const result = await getAuth().api.verifyPassword({
-          headers,
-          body: { password },
-        })
-        return result.status === true
-      } catch {
-        return false
-      }
-    },
-  })
-
-  const googleContentRuntimeBindings = env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON
-    ? parseGoogleContentRuntimeBindings(env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON)
-    : undefined
-  let googleContentAuthority:
-    ReturnType<typeof createGoogleContentAuthorizationAuthority<Database>> | undefined
-  let googleContentAuthorityStore:
-    ReturnType<typeof createGoogleContentAuthorityRepository> | undefined
-  if (googleContentRuntimeBindings) {
-    const rawPublicKeys = env.GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON
-    if (!rawPublicKeys) {
-      throw new Error('Google Content approval role public keys are unavailable')
-    }
-    let publicKeysInput: unknown
-    try {
-      publicKeysInput = JSON.parse(rawPublicKeys)
-    } catch {
-      throw new Error('Google Content approval role public keys are invalid')
-    }
-    const publicKeys = parseGoogleContentRolePublicKeys(publicKeysInput)
-    if (!publicKeys.ok) {
-      throw new Error('Google Content approval role public keys are invalid')
-    }
-    googleContentAuthorityStore = createGoogleContentAuthorityRepository(db)
-    googleContentAuthority = createGoogleContentAuthorizationAuthority({
-      store: googleContentAuthorityStore,
-      clock,
-      newPermitId: randomUUID,
-      verifyRoleApproval: createGoogleContentRoleSignatureVerifier(publicKeys.publicKeys),
-      refreshPolicy: identity.internal.refreshPolicyStoreRequired,
-      isRegisteredOperator: () => false,
-      authorize: createGoogleContentAuthorizationCheck({
-        clock,
-        hasActivePropertyGrant: identity.internal.hasActivePropertyGrant,
-      }),
-    })
-  }
-  const ensureProviderEphemeralReady = providerEphemeralReadiness
-    ? async () => {
-        const readiness = await providerEphemeralReadiness
-        if (!readiness.ok) {
-          throw new Error(`Provider-ephemeral Redis denied: ${readiness.code}`)
-        }
-      }
-    : undefined
-  const defaultProviderAuthorizationLeases =
-    providerEphemeralStore && googleOpaqueReferenceKeys
-      ? createProviderAuthorizationLeaseService({
-          store: providerEphemeralStore,
-          handleKeys: googleOpaqueReferenceKeys,
-          randomNonce: () => randomBytes(32).toString('base64url'),
-          ensureRuntimeReady: ensureProviderEphemeralReady,
-          revalidate: async (record) => {
-            const runtimeBinding = googleContentRuntimeBindings?.[record.capability]
-            if (!runtimeBinding || !googleContentAuthority) {
-              return {
-                allowed: false,
-                approvalBindingId: null,
-                authorizationFenceSha256: null,
-              }
-            }
-            try {
-              const result = await googleContentAuthority.preauthorize({
-                runtimeBinding,
-                scope: {
-                  organizationId: record.organizationId,
-                  propertyId: record.propertyId,
-                  connectionId: record.connectionId,
-                  initiatorUserId: record.initiatorUserId,
-                },
-                operationKey: `${record.audience}.lease_renewal`,
-                vectorMode: 'full',
-              })
-              if (!result.ok) {
-                return {
-                  allowed: false,
-                  approvalBindingId: null,
-                  authorizationFenceSha256: null,
-                }
-              }
-              const lifecycleVersion =
-                result.authorizationVector.connectionLifecycleVersion
-              const accessVersion = result.authorizationVector.connectionAccessVersion
-              const credentialGeneration = result.authorizationVector.credentialGeneration
-              if (
-                !Number.isSafeInteger(lifecycleVersion) ||
-                !Number.isSafeInteger(accessVersion) ||
-                !Number.isSafeInteger(credentialGeneration)
-              ) {
-                return {
-                  allowed: false,
-                  approvalBindingId: null,
-                  authorizationFenceSha256: null,
-                }
-              }
-              return {
-                allowed: true,
-                approvalBindingId: result.approvalBindingId,
-                authorizationFenceSha256: providerAuthorizationFenceSha256({
-                  connectionLifecycleVersion: lifecycleVersion as number,
-                  connectionAccessVersion: accessVersion as number,
-                  authorizationVector: result.authorizationVector,
-                }),
-              }
-            } catch {
-              return {
-                allowed: false,
-                approvalBindingId: null,
-                authorizationFenceSha256: null,
-              }
-            }
-          },
-        })
-      : undefined
-  const providerAuthorizationLeases =
-    options?.providers?.providerAuthorizationLeases ?? defaultProviderAuthorizationLeases
-  const googleImportReferences =
-    options?.providers?.googleImportReferences ??
-    (providerEphemeralStore && googleOpaqueReferenceKeys && providerAuthorizationLeases
-      ? createOpaqueImportReferenceStore({
-          store: providerEphemeralStore,
-          handleKeys: googleOpaqueReferenceKeys,
-          leasePrincipalKeys: googleOpaqueReferenceKeys,
-          leases: providerAuthorizationLeases,
-          nowMs: () => clock().getTime(),
-        })
-      : undefined)
-  const googlePerformancePrincipalKeys =
-    options?.providers?.googlePerformancePrincipalKeys ?? googleOpaqueReferenceKeys
-
-  const unavailableGoogleContentAuthorization = Object.freeze({
-    ok: false as const,
-    code: 'runtime_unavailable' as const,
-  })
-  const authorizeGoogleImportContent: GoogleImportContentAuthorizer =
-    options?.providers?.authorizeGoogleImportContent ??
-    (async (input) => {
-      const binding = googleContentRuntimeBindings?.['property.import_gbp_v2']
-      if (!binding || !googleContentAuthority) {
-        return unavailableGoogleContentAuthorization
-      }
-      const result = await googleContentAuthority
-        .preauthorize({
-          runtimeBinding: binding,
-          scope: {
-            organizationId: input.actor.organizationId,
-            propertyId: null,
-            connectionId: input.connectionId,
-            initiatorUserId: input.actor.userId,
-          },
-          operationKey: `import.${input.phase}`,
-          vectorMode: 'full',
-        })
-        .catch((err: unknown) => {
-          logger.warn({ err }, 'Google Content preauthorization failed')
-          throw err
-        })
-      if (result.ok) return result
-      logger.warn(
-        { stage: 'google-content-preauthorize', code: result.code },
-        'Google Content authorization denied',
-      )
-      return {
-        ok: false as const,
-        code:
-          result.code === 'authorization_denied' ||
-          result.code === 'authorization_changed'
-            ? ('authorization_denied' as const)
-            : ('runtime_unavailable' as const),
-      }
-    })
-  const authorizeGooglePerformanceContent: PerformanceContentAuthorizer =
-    options?.providers?.authorizeGooglePerformanceContent ??
-    (async (input) => {
-      const binding = googleContentRuntimeBindings?.['property.read_gbp_performance']
-      if (!binding || !googleContentAuthority) {
-        return unavailableGoogleContentAuthorization
-      }
-      const result = await googleContentAuthority.preauthorize({
-        runtimeBinding: binding,
-        scope: {
-          organizationId: input.actor.organizationId,
-          propertyId: input.propertyId,
-          connectionId: input.connectionId,
-          initiatorUserId: input.actor.userId,
-        },
-        operationKey: `performance.${input.phase}`,
-        vectorMode: 'full',
+    prepareGoogleConnectorDeparture: async (orgId, userIdValue, cause) => {
+      await integration.lifecycle.prepareConnectorDeparture({
+        organizationId: organizationId(orgId),
+        connectorUserId: userId(userIdValue),
+        cause,
       })
-      return result.ok
-        ? result
-        : {
-            ok: false as const,
-            code:
-              result.code === 'authorization_denied' ||
-              result.code === 'authorization_changed'
-                ? ('authorization_denied' as const)
-                : ('runtime_unavailable' as const),
-          }
-    })
+    },
+    releaseMemberAuthorities: memberAuthorityLifecycle.port.releaseMemberAuthorities,
+    reconcileResponsibleManagerEligibility:
+      memberAuthorityLifecycle.port.reconcileResponsibleManagerEligibility,
+    organizationLifecycle: composeOrganizationLifecycle(
+      db,
+      options?.organizationLifecycle,
+    ),
+  })
 
-  const gatewayConfig = [
-    env.GOOGLE_EGRESS_GATEWAY_ORIGIN,
-    env.GOOGLE_EGRESS_GATEWAY_SERVER_NAME,
-    env.GOOGLE_INTERNAL_MTLS_CA_PATH,
-    env.GOOGLE_INTERNAL_MTLS_CERT_PATH,
-    env.GOOGLE_INTERNAL_MTLS_KEY_PATH,
-    env.GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS,
-  ] as const
-  const configuredGatewayValues = gatewayConfig.filter(
-    (value): value is string => value !== undefined,
-  )
-  if (
-    configuredGatewayValues.length !== 0 &&
-    configuredGatewayValues.length !== gatewayConfig.length
-  ) {
-    throw new Error('Google egress gateway transport configuration is incomplete')
-  }
-  let googleAuthorizedProviderExecutor =
-    options?.providers?.googleAuthorizedProviderExecutor
-  if (!googleAuthorizedProviderExecutor && configuredGatewayValues.length > 0) {
-    if (!googleContentAuthority || !googleContentRuntimeBindings) {
-      throw new Error('Google egress gateway requires Google Content runtime approval')
-    }
-    const [
-      gatewayOrigin,
-      gatewayServerName,
-      caPath,
-      certPath,
-      keyPath,
-      credentialBindingKeys,
-    ] = configuredGatewayValues
-    const bindCredential = createGoogleCredentialBinder(
-      createVersionedHmacKeyring(credentialBindingKeys),
-    )
-    const gateway = createGoogleEgressGatewayHttpClient(
-      createInternalMtlsJsonTransport({
-        origin: gatewayOrigin,
-        serverName: gatewayServerName,
-        tls: loadInternalMtlsMaterial({ caPath, certPath, keyPath }),
-        peerIdentityPolicy: {
-          uri: 'spiffe://repkey.internal/google-egress-gateway',
-          dnsName: gatewayServerName,
-          extendedKeyUsages: ['serverAuth', 'clientAuth'],
-        },
-        timeoutMs: 30_000,
-        maxResponseBytes: 5 * 1024 * 1024,
-      }),
-    )
-    googleAuthorizedProviderExecutor = createGoogleAuthorizedProviderExecutor({
-      bindCredential,
-      routeTarget:
-        env.GOOGLE_PROVIDER_ENDPOINT_PROFILE === 'local-sandbox'
-          ? {
-              kind: 'local_sandbox',
-              simulatorOrigin: new URL(providerEndpoints.gbpApiBaseUrl).origin,
-            }
-          : { kind: 'production' },
-      admit: async ({ authorization, admission }) => {
-        const binding = googleContentRuntimeBindings[authorization.capability]
-        if (!binding) return { ok: false, code: 'runtime_unavailable' }
-        const result = await googleContentAuthority!.admit({
-          runtimeBinding: binding,
-          scope: {
-            organizationId: authorization.organizationId,
-            propertyId: authorization.propertyId,
-            connectionId: authorization.connectionId,
-            initiatorUserId: authorization.initiatorUserId,
-          },
-          expectedApprovalBindingId: authorization.approvalBindingId,
-          expectedAuthorizationVector: authorization.authorizationVector,
-          operationKey: `provider.${admission.routeKey}`,
-          routeKey: admission.routeKey,
-          routeCatalogVersion: admission.catalogueVersion,
-          quotaPolicyId: admission.quotaPolicyId,
-          providerRequestBinding: {
-            requestBindingSha256: admission.requestBindingSha256,
-            credentialBinding: admission.credentialBinding,
-            projectFingerprint: binding.googleProjectAttestationSha256,
-            requestBodySha256: admission.requestBodySha256,
-            requestBodyBytes: admission.requestBodyBytes,
-          },
-          startVectorMode: 'full',
-          commitVectorMode: 'full',
-        })
-        return result.ok
-          ? { ok: true as const, permitId: result.permit.id }
-          : { ok: false as const, code: authorityAdmissionCode(result.code) }
-      },
-      gateway,
-      logger,
-    })
-  }
+  // ARC-03-T10: the Google provider trust boundary — provider-ephemeral
+  // storage, opaque OAuth state, the HMAC keyrings, the Content authorization
+  // authority, the per-capability authorizers, the authorization leases and the
+  // mTLS egress executor — is ONE named module. It is constructed here because
+  // it consults Identity's authority facts, and construction stays query-free.
+  const googleProviderAuthority = buildGoogleProviderAuthority({
+    db,
+    eventBus,
+    clock,
+    logger,
+    env,
+    redis,
+    providerEndpoints,
+    dataCellExecutionFence,
+    identity: {
+      refreshPolicyStoreRequired: identity.policy.refreshRequired,
+      hasActivePropertyGrant: identity.authority.hasActivePropertyGrant,
+    },
+    ...(options ? { options } : {}),
+  })
+  const {
+    providerEphemeralStore,
+    providerEphemeralRedis,
+    providerEphemeralReadiness,
+    oauthStateHandles,
+    googleImportReplayKeys,
+    googleOpaqueReferenceKeys,
+    googleRefreshCoordination,
+    providerAuthorizationLeases,
+    googleImportReferences,
+    googlePerformancePrincipalKeys,
+    authorizeGoogleImportContent,
+    authorizeGooglePerformanceContent,
+    authorizeGoogleReviewSyncContent,
+    authorizeGoogleReplyPublicationContent,
+    authorizeGoogleOAuthProviderCall,
+    googleDisconnectRevokeStore,
+    googleAuthorizedProviderExecutor,
+  } = googleProviderAuthority
 
   // BQC-1.7: the bounded lifecycle purge implementation is review-owned
   // infrastructure — the composition root is the only layer allowed to
-  // import it (CONTEXT.md cross-context rule). Constructed ONCE and shared
-  // by the property (hard delete) and integration (disconnect) builds.
+  // import it (CONTEXT.md cross-context rule). LIF-01 severs it from normal
+  // Property lifecycle; Integration still uses it for governed disconnect.
   const sourceContentPurge = createSourceContentPurge({ db, clock })
 
   // BQC-2.7: every path that creates a property grants it the capability
@@ -1046,55 +380,32 @@ export function createContainer(options?: {
   // (property context) and the Google import (integration context).
   const propertyCapabilityProvisioning = bindPropertyCapabilityProvisioning(
     db,
-    identity.internal.refreshPolicyStore,
+    identity.policy.refresh,
   )
 
   const property = buildPropertyContext({
     db,
-    repo: createPropertyRepository(db),
+    repo: createPropertyRepository(db, { localCell: env.PROCESSING_CELL }),
     events: eventBus,
     clock,
+    idGen: randomUUID,
+    localCell: env.PROCESSING_CELL,
     staffPublicApi: staff.publicApi,
-    sourceContentPurge,
+    identityManagerFacts: identity.publicApi.managerFacts,
     provisionPropertyCapabilities:
       propertyCapabilityProvisioning.provisionCreatedProperty,
     logger: getLogger(),
-    // BQC-4.5: region move workflow. Approved cells stay {'us'} (ADR 0048) —
-    // every real request denies typed + audited today. The audit sink is the
-    // identity-owned policy_decision_audit (content-free, operator kind),
-    // exposed by the identity build for injection; the stepper pauses/drains
-    // the cell's property-scoped queues.
+    // BQC-4.5: only catalogue-accepting cells can be targets. The Identity
+    // audit sink handles typed denial evidence; an accepted request instead
+    // uses Property's atomic move+audit adapter. The stepper pauses/drains the
+    // cell's property-scoped queues.
     regionMove: {
-      writeOperatorAudit: identity.internal.writeOperatorAudit,
+      writeOperatorAudit: identity.authority.writeOperatorAudit,
       queues: [
         { name: 'default', queue: infra.jobQueue },
         { name: 'background', queue: infra.backgroundQueue },
       ],
     },
-    googleImportLifecycle: {
-      prepareDeletion: async (orgId, propertyIdValue) => {
-        const prepare =
-          integration.internal.useCases.prepareGoogleImportV2PropertyDeletion
-        if (!prepare) throw new Error('Google import lifecycle unavailable')
-        const result = await prepare(orgId, propertyIdValue)
-        return { itemIds: result.itemIds }
-      },
-      finalizeDeletion: async (orgId, itemIds) => {
-        const finalize =
-          integration.internal.useCases.finalizeGoogleImportV2PropertyDeletion
-        if (!finalize) throw new Error('Google import lifecycle unavailable')
-        await finalize(orgId, itemIds)
-      },
-    },
-  })
-
-  const team = buildTeamContext({
-    db,
-    events: eventBus,
-    outboxRepo,
-    clock,
-    propertyApi: property.publicApi,
-    staffApi: staff.publicApi,
   })
 
   const portal = buildPortalContext({
@@ -1104,10 +415,12 @@ export function createContainer(options?: {
     clock,
     propertyApi: property.publicApi,
     staffPublicApi: staff.publicApi,
+    identityManagerFacts: identity.publicApi.managerFacts,
     baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
     idGen: () => crypto.randomUUID(),
+    secureRandomBytes: randomBytes,
     tokenHashSecret: env.PORTAL_TOKEN_HASH_SECRET,
-    queue: infra.jobQueue,
+    logger,
     storage: options?.providers?.storage,
     storageConfig: {
       accessKey: env.AWS_S3_ACCESS_KEY ?? '',
@@ -1123,13 +436,20 @@ export function createContainer(options?: {
   const guest = buildGuestContext({
     db,
     events: eventBus,
-    outboxRepo,
     clock,
+    idGen: randomUUID,
+    monotonicNow: performance.now.bind(performance),
     portalApi: portal.publicApi.portal,
+    identityManagerFacts: identity.publicApi.managerFacts,
+    identityAccountAdminAuthority: identity.publicApi.accountAdminAuthority,
+    staffApi: staff.publicApi,
     logger,
-    storage: portal.internal.storage,
+    storage: portal.uploads.storage,
     sessionSecret: env.GUEST_SESSION_SALT,
+    publicOrigin: new URL(env.BETTER_AUTH_URL).origin,
     secureCookies: env.NODE_ENV === 'production',
+    resolvePrimaryStaffAttribution: staff.publicApi.resolvePrimaryStaffAttribution,
+    observationLossRedis: redis,
   })
 
   const oauthCallbackQuotaCounter: OAuthCallbackQuotaCounter = redis
@@ -1145,24 +465,42 @@ export function createContainer(options?: {
 
   const integration = buildIntegrationContext({
     db,
+    outboxRepo,
     events: eventBus,
     clock,
+    idGen: randomUUID,
+    invalidationOwnerGen: () => randomBytes(32).toString('base64url'),
     jobQueue: infra.jobQueue,
     propertyApi: property.publicApi,
-    propertyBindingApi: property.bindingApi,
+    propertyBindingApi: property.publicApi,
     provisionPropertyCapabilities:
       propertyCapabilityProvisioning.provisionCreatedProperty,
     enqueueReviewSync: (data, options) =>
-      review.internal.repos.queue.addSyncJob(data, options),
+      review.publicApi.syncAdmission.addSyncJob(data, options),
+    enqueueTargetedReviewFetch: (data, options) =>
+      review.publicApi.syncAdmission.addTargetedFetchJob(data, options),
     logger: getLogger(),
     providerEndpoints,
+    config: {
+      nodeEnv: env.NODE_ENV,
+      googleClientId: env.GOOGLE_CLIENT_ID,
+      googleClientSecret: env.GOOGLE_CLIENT_SECRET,
+      encryptionKey: env.ENCRYPTION_KEY,
+      authBaseUrl: env.BETTER_AUTH_URL,
+      pubsubTopic: env.GBP_PUBSUB_TOPIC,
+      pubsubNotificationTypes: env.GBP_PUBSUB_NOTIFICATION_TYPES,
+    },
     sourceContentPurge,
     googleOAuth: options?.providers?.googleOAuth,
     gbpApi: options?.providers?.gbpApi,
     googleAuthorizedProviderExecutor,
+    googleDisconnectRevokeStore,
+    ...(googleAuthorizedProviderExecutor ? { authorizeGoogleOAuthProviderCall } : {}),
     googleImportReplayKeys,
     authorizeGoogleImportContent,
     authorizeGooglePerformanceContent,
+    authorizeGoogleReviewSyncContent,
+    authorizeGoogleReplyPublicationContent,
     googlePerformancePrincipalKeys,
     providerAuthorizationLeases,
     googleImportReferences,
@@ -1171,30 +509,25 @@ export function createContainer(options?: {
     googleReviewCursorStore: options?.providers?.googleReviewCursorStore,
     oauthStateHandles,
     oauthCallbackAbuseGate,
-    refreshPolicyStoreRequired: identity.internal.refreshPolicyStoreRequired,
+    refreshPolicyStoreRequired: identity.policy.refreshRequired,
+    googleRefreshCoordination,
+    localDataCellId: dataCellExecutionFence.localCell,
+    admitPropertyExecution: dataCellExecutionFence.decideProperty,
     // Fail closed on ungoverned provider egress in production. The review
     // adapter's direct-`fetch` fallback is reachable merely by leaving the
     // GOOGLE_EGRESS_* values unset, and it bypasses admission, quota control,
     // credential binding and mTLS. Outside production this is a no-op.
     assertDirectProviderEgressAllowed: (operation) =>
       assertDirectProviderEgressAllowed(env, operation),
-  })
-
-  setMembershipRemovalLifecycle({
-    beforeRemoveMember: async (orgId, userIdValue) => {
-      const cancel = integration.internal.useCases.cancelGoogleImportV2ForUser
-      if (!cancel) throw new Error('Google import lifecycle unavailable')
-      await cancel(orgId, userIdValue)
-    },
-    beforeDeleteOrganization: async (orgId) => {
-      const cancel = integration.internal.useCases.cancelGoogleImportV2ForOrganization
-      if (!cancel) throw new Error('Google import lifecycle unavailable')
-      await cancel(orgId)
-    },
+    assertDirectCredentialEgressAllowed: (operation) =>
+      assertDirectCredentialEgressAllowed(env, operation),
   })
 
   const aiRuntime = createAiRuntimeProviders({
     env,
+    // ARC-03-T14: injectable so a process fixture boots deterministically; the
+    // composition boundary is the ONE place allowed to fall back to ambient state.
+    runtimeEnvironment: options?.runtimeEnvironment ?? process.env,
     enableJobs,
     inferenceOverride: options?.providers?.aiInference,
     subjectHmacOverride: options?.providers?.aiSubjectHmac,
@@ -1202,10 +535,22 @@ export function createContainer(options?: {
   const review = buildReviewContext({
     db,
     events: eventBus,
+    outboxRepo,
     clock,
+    idGen: randomUUID,
+    snapshotRunIdGen: randomUUID,
     staffPublicApi: staff.publicApi,
-    googleReviewApi: integration.internal.googleReviewApi,
+    publicationActorAuthority: async (tx, authorityInput) =>
+      (await identity.authority.decidePublicationActorAuthority(tx, authorityInput))
+        .allowed,
+    googleReviewApi: integration.reviewSync.googleReviewApi,
+    targetedReviewReferences: integration.reviewSync.googleReviewPushTargetResolver,
     jobQueue: infra.jobQueue,
+    workerRuntime: {
+      pool,
+      registry: infra.jobRegistry,
+      backgroundQueue: infra.backgroundQueue,
+    },
     logger: getLogger(),
     // effect; the property context owns the routing fact (ADR 0048).
     propertyApi: property.publicApi,
@@ -1214,15 +559,20 @@ export function createContainer(options?: {
     processingRouter,
     providerSubjectKeyring: reviewProviderSubjectKeyring,
     aiReplyProvenancePublicKeys: aiRuntime.provenancePublicKeys,
+    replyBrandProfiles: portal.publicApi.portal,
   })
   const ai = buildAiContext({
     db,
+    outboxRepo,
     redis,
-    reviewSources: review.internal.aiReviewSource,
+    idGen: randomUUID,
+    nowEpochMillis: () => clock().getTime(),
+    reviewSources: review.publicApi.aiReviewSource,
     propertyReplyLanguages: {
       readDefaultReplyLanguage: ({ organizationId: orgId, propertyId: pid }) =>
         property.publicApi.getPropertyReplyLanguage(orgId, pid),
     },
+    replyBrandProfiles: portal.publicApi.portal,
     inference: aiRuntime.inference,
     subjectHmac: aiRuntime.subjectHmac,
     enqueuePropertyTrend: infra.jobQueue
@@ -1245,25 +595,43 @@ export function createContainer(options?: {
     db,
     events: eventBus,
     clock,
+    idGen: randomUUID,
+    cutoverState: (family) =>
+      resolveCutoverState(family, {
+        DURABLE_CUTOVER_INBOX: env.DURABLE_CUTOVER_INBOX,
+        DURABLE_CUTOVER_INBOX_REVIEW_CREATED: env.DURABLE_CUTOVER_INBOX_REVIEW_CREATED,
+        DURABLE_CUTOVER_INBOX_REVIEW_UPDATED: env.DURABLE_CUTOVER_INBOX_REVIEW_UPDATED,
+        DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED: env.DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED,
+        DURABLE_CUTOVER_INBOX_REVIEW_REPLY_PUBLISHED:
+          env.DURABLE_CUTOVER_INBOX_REVIEW_REPLY_PUBLISHED,
+      }),
     staffPublicApi: staff.publicApi,
+    authorizeCommand: createInboxCommandAuthority({
+      decideManagerPropertyAuthorities:
+        identity.authority.decideManagerPropertyAuthorities,
+      decideUserParticipationAuthority: staff.authority.decideUserParticipationAuthority,
+    }),
     // BQC-1.4: review.publicApi IS the governed read interface — it satisfies
     // the inbox ReviewLookupPort and metric ReviewRatingLookupPort directly.
     // No per-context eligibility adapters remain (single rule, one owner).
     reviewLookup: review.publicApi,
     aiInsights: {
       readCurrentReviewAnalysis: async (request) => {
-        const current = await review.internal.repos.reviewRepo.findById(
-          request.reviewId,
-          request.organizationId,
-        )
-        if (!current || current.propertyId !== request.propertyId) {
+        const current = await review.publicApi.aiReviewSource.readCurrentSource({
+          organizationId: request.organizationId,
+          reviewId: request.reviewId,
+        })
+        if (
+          current.status === 'not_found' ||
+          current.source.propertyId !== request.propertyId
+        ) {
           return { status: 'none' } as const
         }
         return ai.publicApi.readReviewAnalysis({
           ...request,
-          sourceEpoch: current.sourceEpoch,
-          sourceRevision: current.sourceRevision,
-          analysisSequence: current.analysisSequence,
+          sourceEpoch: current.source.sourceEpoch,
+          sourceRevision: current.source.sourceRevision,
+          analysisSequence: current.source.analysisSequence,
         })
       },
       findCurrentReviewIdsByAttention: ai.publicApi.findCurrentReviewIdsByAttention,
@@ -1276,188 +644,112 @@ export function createContainer(options?: {
       // `guest.feedback.submitted` carries the aggregate row id, so the
       // aggregate read is what makes a new feedback inbox item render at all —
       // the legacy lookup cannot resolve that id.
+      // ARC-03-T11: read through Guest's named snippet port. The root's only
+      // remaining job is the FeedbackId branding both generations share.
       feedback: {
         findResponseSnippetsByIds: async (ids, orgId) =>
-          (
-            await guest.internal.repos.guestResponseRepo.findSnippetsForOrg(orgId, ids)
-          ).map((row) => ({ ...row, id: feedbackId(row.id) })),
+          (await guest.snippets.findResponseSnippetsByIds(ids, orgId)).map((row) => ({
+            ...row,
+            id: feedbackId(row.id),
+          })),
         findEligibleResponseIds: async (orgId, filter) =>
-          (
-            await guest.internal.repos.guestResponseRepo.findEligibleSnippetIdsForOrg(
-              orgId,
-              filter,
-            )
-          ).map(feedbackId),
-        findLegacyFeedbackSnippetsByIds: (ids, orgId) =>
-          guest.internal.repos.guestRepo.findFeedbackSnippetsByIds(ids, orgId),
-        findEligibleLegacyFeedbackIds: (orgId, filter) =>
-          guest.internal.repos.guestRepo.findEligibleFeedbackIds(orgId, filter),
+          (await guest.snippets.findEligibleResponseIds(orgId, filter)).map(feedbackId),
+        findLegacyFeedbackSnippetsByIds: guest.snippets.findLegacyFeedbackSnippetsByIds,
+        findEligibleLegacyFeedbackIds: guest.snippets.findEligibleLegacyFeedbackIds,
       },
       property: property.publicApi,
-      reply: review.internal.repos.replyRepo,
-      review: review.internal.repos.reviewRepo,
+      reply: review.lookups.reply,
+      review: review.lookups.review,
+      replyObservationAuthority: review.publicApi.replyObservationAuthority,
+      responseTargetAuthority: review.publicApi.responseTargetAuthority,
+      sourceTransitionAuthority: review.publicApi.sourceTransitionAuthority,
     },
     logger: getLogger(),
   })
+  // ARC-03-T9: the member-authority seam's ONE implementation, bound now that
+  // Property, Portal and Inbox exist. It consumes named context capabilities,
+  // never repositories, and Identity received its port long before this line.
+  memberAuthorityLifecycle.provide(
+    createMemberAuthorityLifecycle({
+      clock,
+      propertyResponsibility: property.responsibility,
+      portalResponsibility: portal.responsibility,
+      inboxAssignments: inbox.assignments,
+      propertyAccess: identity.authority,
+      emit: (event) => eventBus.emit(event as Parameters<typeof eventBus.emit>[0]),
+      eligibility: {
+        listActiveManagers: identity.publicApi.managerFacts.listActiveManagers,
+        getAccessiblePropertyIds: staff.publicApi.getAccessiblePropertyIds,
+        findActiveParticipation: async (organizationIdValue, pid, managerId) =>
+          staff.publicApi.findActiveParticipation?.(
+            organizationIdValue,
+            pid,
+            managerId,
+          ) ?? null,
+      },
+    }),
+  )
 
-  const metricApi = buildMetricContext({
-    db,
-    events: eventBus,
-    clock,
-    portalGroupApi: portal.publicApi.portalGroup,
-    portalApi: portal.publicApi.portal,
-    reviewRatingLookup: review.publicApi,
-  })
+  // ARC-03-T10: the downstream leaf contexts — read models, projections and
+  // notifications — composed as one named group.
+  const { metricApi, goal, goalCorrectionPolicy, dashboard, activity, notification } =
+    buildReadAndNotifyContexts({
+      db,
+      events: eventBus,
+      clock,
+      idGen: randomUUID,
+      logger,
+      outboxRepo,
+      jobQueue: infra.jobQueue,
+      staff,
+      property,
+      portal,
+      guest,
+      review,
+      identity,
+      reviewServingStats: review.lookups.servingStats,
+    })
 
-  // Goal context — buildGoalContext creates its own repo and cancelGoalFn internally.
-  const goal = buildGoalContext({
-    db,
-    metricApi: metricApi.publicApi,
-    events: eventBus,
-    outboxRepo,
-    clock,
-    staffPublicApi: staff.publicApi,
-    propertyApi: property.publicApi,
-    idGen: () => crypto.randomUUID(),
-    getLogger,
-    portalGroupApi: portal.publicApi.portalGroup,
-  })
-
-  // ── Dashboard context (facade ports per ADR-0007) ────────────────
-  // Dashboard never queries review/reply/metric tables directly. BQC-5.5:
-  // review-content reads cross the review-owned governed serving interface
-  // (eligibility enforced at the owner, ADR 0031); the dashboard build
-  // constructs only its remaining direct-read SQL adapters internally.
-  const dashboard = buildDashboardContext({
-    db,
-    staffPublicApi: staff.publicApi,
-    clock,
-    reviewServingStats: review.internal.servingStats,
-  })
-
-  // ── Activity context ────────────────────────────────────────────
-  const activity = buildActivityContext({
-    db,
-    events: eventBus,
-    outboxRepo,
-    staffPublicApi: staff.publicApi,
-    queue: infra.jobQueue,
-    clock,
-    logger,
-  })
-
-  const badge = buildBadgeContext({
-    db,
-    events: eventBus,
-    outboxRepo,
-    clock,
-    metricApi: metricApi.publicApi,
-    authorizeReconciliationScope: createScheduledScopeAuthorizer(
-      'system:badge.reconcile',
-    ),
-  })
-
-  const leaderboard = buildLeaderboardContext({
-    db,
-    events: eventBus,
-    outboxRepo,
-    clock,
-    propertyApi: property.publicApi,
-    authorizeBoardReconciliationScope: createScheduledScopeAuthorizer(
-      'system:leaderboard.reconcile',
-    ),
-    authorizeAwardReconciliationScope: createScheduledScopeAuthorizer(
-      'system:badge.reconcile',
-    ),
-  })
-
-  // ── Notification context ──────────────────────────────────────────
-  const notification = buildNotificationContext({
-    db,
-    events: eventBus,
-    outboxRepo,
-    queue: infra.jobQueue,
-    clock,
-    logger,
-    propertyAccessHolders: identity.internal.propertyAccessHolders,
-  })
-
-  // ── Wire invitation acceptance lifecycle ─────────────────────────
-  // PropertyAccessGrant is the sole authorization input; participation is
-  // separate attribution/profile state. The post-commit hook provisions both
-  // idempotently and never writes the legacy staff_assignments table.
-  setOnAcceptInvitation(async ({ userId, organizationId, propertyIds, displayName }) => {
-    for (const rawPropertyId of propertyIds) {
-      try {
-        await identity.internal.grantInvitationPropertyAccess({
-          userId,
-          organizationId,
-          propertyId: rawPropertyId,
-        })
-        await staff.internal.systemStaffParticipation({
-          userId,
-          organizationId,
-          propertyId: rawPropertyId,
-          displayName,
-        })
-      } catch (error) {
-        logger.warn(
-          { err: error },
-          'Failed to provision invited property access and participation',
-        )
-      }
-    }
-  })
-  // ── Operations snapshot (BQC-5.5) ─────────────────────────────────
-  // The ONE governed operational read interface. Ops queue read handles
-  // (domain-events + quarantine — worker-owned write side) are opened ONCE
-  // here, read-only, one Redis connection per queue per process; the
-  // /api/health/metrics route and the health-check job both consume these —
-  // no per-request or per-module duplicates.
-  const opsQueues = {
-    domainEvents:
-      options?.opsDomainEventsQueue ??
-      (redis ? createJobQueue('domain-events') : undefined),
-    quarantine:
-      options?.opsQuarantineQueue ??
-      (redis ? createJobQueue(QUARANTINE_QUEUE_NAME) : undefined),
-  } as const
-  const operationsSnapshot = createOperationsSnapshot({
-    db,
-    outboxRepo,
-    queues: {
-      default: infra.jobQueue ?? null,
-      background: infra.backgroundQueue ?? null,
-      domainEvents: opsQueues.domainEvents ?? null,
-      quarantine: opsQueues.quarantine ?? null,
-    },
-    redis: redis ?? null,
-    clock,
-    // BQC-7.3: version identity — the root reads the constants (the shared
-    // zone cannot import context domain).
-    versions: {
-      capabilityPolicy: CAPABILITY_POLICY_VERSION,
-      executionPolicy: EXECUTION_POLICY_VERSION,
-      policyStore: identity.internal.policyStoreVersion,
-      routingPolicy: ROUTING_POLICY_VERSION,
-      sourceContentPolicy: createGoogleSourceContentPolicy().policyVersion,
-    },
-    // notification.missing_for_inbox_item: the query is the notification
-    // context's, the gauge is the shared health snapshot's — the root is the
-    // only place allowed to join them.
-    readMissingNotificationCount: notification.publicApi.readMissingNotificationCount,
-  })
+  // ARC-03-T10/T15: the process's operational readout and release seam.
+  const { opsQueues, jobDispatchWorkerRuntime, operationsSnapshot, containerShutdown } =
+    buildOperationalReadout({
+      db,
+      outboxRepo,
+      env,
+      clock,
+      logger,
+      redis,
+      enableJobs,
+      infra,
+      processingRouter,
+      identity: {
+        stopPolicyPolling: identity.policy.stopPolling,
+        policyStoreVersion: identity.policy.currentVersion,
+      },
+      notification: {
+        readMissingNotificationCount: notification.publicApi.readMissingNotificationCount,
+        readNotificationDeliveryLag: notification.publicApi.readNotificationDeliveryLag,
+      },
+      guestObservationLoss: guest.observationLoss,
+      ...(options ? { overrides: options } : {}),
+    })
 
   return {
+    betaFeedbackTriageRepo,
     db,
+    pool,
     logger,
+    idGen: randomUUID,
     redis,
     eventBus,
     outboxRepo,
     clock,
     opsQueues,
     operationsSnapshot,
-    ai: ai.internal,
+    guestContactRequestRetentionSweep: guest.contactRequestReadiness.retentionSweep,
+    dataCellExecutionFence,
+    aiPublicApi: ai.publicApi,
+    aiWorkerRuntime: ai.worker,
     // BQC-7.4: the alert dispatch port — composition-owned so the
     // health-check job (and any future evaluation point) shares the ONE
     // dispatcher (error-level ALERT log + optional ALERT_WEBHOOK_URL POST).
@@ -1466,84 +758,116 @@ export function createContainer(options?: {
       clock,
       webhookUrl: env.ALERT_WEBHOOK_URL,
     }),
+    // ARC-03-T6: the container's owned release seam. Everything a build()
+    // starts for the life of the process registers here, so the web
+    // graceful-shutdown plugin, the worker drain and closeContainer() all stop
+    // the same resources through one capability instead of leaking them.
+    shutdown: containerShutdown,
+    // ARC-03-T8: the policy trio this container owns. Constructing it installs
+    // nothing process-wide — an entry point calls bindProcessPolicies(container)
+    // exactly once, so a second container can never silently take over.
+    capabilityPolicyStore: identity.policy.capabilityPolicyStore,
+    executionPolicy: identity.policy.executionPolicy,
+    delayedExecutionPolicy: identity.policy.delayedExecutionPolicy,
     cache: infra.cache,
     rateLimiter: infra.rateLimiter,
     jobQueue: infra.jobQueue,
     backgroundQueue: infra.backgroundQueue,
     jobRegistry: infra.jobRegistry,
-    useCases: {
-      ...identity.internal.useCases,
-      ...property.internal.useCases,
-      ...staff.internal.useCases,
-      ...team.internal.useCases,
-      ...portal.internal.useCases,
-      ...guest.internal.useCases,
-      ...integration.internal.useCases,
-      handleGbpNotification: integration.internal.gbpNotificationHandler({
-        reviewQueue: review.internal.repos.queue,
-      }),
-      runReviewProviderSnapshot: review.internal.useCases.runReviewProviderSnapshot,
-      draftReply: review.internal.useCases.draftReply,
-      submitReply: review.internal.useCases.submitReply,
-      approveReply: review.internal.useCases.approveReply,
-      editPublishedReply: review.internal.useCases.editPublishedReply,
-      rejectReply: review.internal.useCases.rejectReply,
-      deleteReply: review.internal.useCases.deleteReply,
-      getReply: review.internal.useCases.getReply,
-      retryPublish: review.internal.useCases.retryPublish,
-      reconcileReplyPublication: review.internal.useCases.reconcileReplyPublication,
-      getStaffRecentActivity: review.internal.useCases.getStaffRecentActivity,
-      generateReplySuggestion: ai.publicApi.generateReplySuggestion,
-      generatePropertyTrend: ai.internal.generatePropertyTrend,
-      schedulePropertyTrends: ai.internal.schedulePropertyTrends,
-      advanceReviewAnalysisBackfill: ai.internal.advanceReviewAnalysisBackfill,
-      readPropertyAiTrend: ai.publicApi.readPropertyTrend,
-      readPropertyAiAggregates: ai.publicApi.readPropertyAggregates,
-      ...inbox.internal.useCases,
-      getDashboardData: dashboard.publicApi.getDashboardData,
-      getPortalAnalytics: dashboard.publicApi.getPortalAnalytics,
-      getStaffDashboardData: dashboard.publicApi.getStaffDashboardData,
-      getAttentionSignals: dashboard.publicApi.getAttentionSignals,
-      getFleetOverview: dashboard.publicApi.getFleetOverview,
-      ...goal.internal.useCases,
-      ...badge.internal.useCases,
-      ...leaderboard.internal.useCases,
-    },
-    storage: portal.internal.storage,
-    portalRepo: portal.internal.repos.portalRepo,
-    portalLinkRepo: portal.internal.repos.portalLinkRepo,
-    reviewRepo: review.internal.repos.reviewRepo,
+    jobDispatchWorkerRuntime,
+    /** Shared issued-object capability used by Identity profile assets and
+     * Portal media. The name exposes the port's purpose, not its adapter. */
+    assetStorage: portal.uploads.storage,
+    portalWorkerRuntime: Object.freeze({
+      storage: portal.uploads.storage,
+      uploadStore: portal.uploads.uploadStore,
+      revalidateApprovedDestinations: portal.worker.revalidateApprovedDestinations,
+    }),
+    /** Operator-only Review repair and lifecycle authority. */
+    reviewMaintenanceRuntime: review.maintenance,
+    ...(options?.exposeSimulationRuntime
+      ? {
+          /** Narrow scenario/invariant capabilities, absent from normal app
+           * containers even though they share the same deterministic builder. */
+          simulationRuntime: Object.freeze({
+            review: Object.freeze({
+              upsert: (
+                ...args: Parameters<typeof review.internal.repos.reviewRepo.upsert>
+              ) => review.internal.repos.reviewRepo.upsert(...args),
+              findByOrganizationId: (
+                ...args: Parameters<
+                  typeof review.internal.repos.reviewRepo.findByOrganizationId
+                >
+              ) => review.internal.repos.reviewRepo.findByOrganizationId(...args),
+            }),
+            reply: Object.freeze({
+              findByReviewId: (
+                ...args: Parameters<typeof review.internal.repos.replyRepo.findByReviewId>
+              ) => review.internal.repos.replyRepo.findByReviewId(...args),
+            }),
+            inbox: Object.freeze({
+              findBySource: (
+                ...args: Parameters<typeof inbox.internal.repos.inboxRepo.findBySource>
+              ) => inbox.internal.repos.inboxRepo.findBySource(...args),
+            }),
+          }),
+        }
+      : {}),
     providerEphemeralReadiness,
-    replyRepo: review.internal.repos.replyRepo,
-    badgePublicApi: badge.publicApi,
-    leaderboardPublicApi: leaderboard.publicApi,
-    reviewQueue: review.internal.repos.queue,
-    replyQueue: review.internal.repos.replyQueue,
-    googleReviewApi: integration.internal.googleReviewApi,
+    identityPublicApi: identity.publicApi,
+    identityWorkerRuntime: identity.worker,
+    integrationPublicApi: integration.publicApi,
+    integrationWorkerRuntime: integration.worker,
+    integrationMaintenanceRuntime: integration.maintenance,
+    integrationLifecycleRuntime: integration.lifecycle,
+    integrationWebhookRuntime: integration.webhook,
+    propertyPublicApi: property.publicApi,
+    reviewPublicApi: review.publicApi,
     staffPublicApi: staff.publicApi,
-    propertyProcessingScopeApi: property.publicApi,
-    inboxRepo: inbox.internal.repos.inboxRepo,
-    inboxNoteRepo: inbox.internal.repos.inboxNoteRepo,
-    goalRepo: goal.internal.repos.goalRepo,
+    identityLifecycleRuntime: identity.lifecycle,
+    guestPublicApi: guest.publicApi,
+    inboxPublicApi: inbox.publicApi,
+    /** Cross-context Inbox workflow authority; no request or repair surface. */
+    inboxLifecycleRuntime: inbox.lifecycle,
+    /** Bounded, operator-only Inbox projection repair authority. */
+    inboxMaintenanceRuntime: inbox.maintenance,
+    inboxRuntime: inbox.runtime,
     metricPublicApi: metricApi.publicApi,
+    metricMaintenanceRuntime: metricApi.maintenance,
+    dashboardPublicApi: dashboard.publicApi,
+    goalPublicApi: goal.publicApi,
+    goalWorkerRuntime: goal.worker,
     activityPublicApi: activity.publicApi,
-    activityRepo: activity.internal.repos.activityRepo,
+    activityWorkerRuntime: Object.freeze({
+      projectRecentActivity: activity.worker.projectRecentActivity,
+    }),
     notificationPublicApi: notification.publicApi,
     identityPort,
+    // Request-scoped Identity handlers consume only their parsed, semantic
+    // key material. They never re-read process configuration after boot.
+    identityRequestSecurity: Object.freeze({
+      invitationRateLimitHmacSecret: env.BETTER_AUTH_SECRET,
+      betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
+    }),
     // BQC-2.7: least-privilege policy administration operations.
-    policyAdmin: identity.internal.policyAdmin,
+    policyAdmin: identity.policy.admin,
     portalPublicApi: portal.publicApi,
-    notificationRepo: notification.internal.repos.notificationRepo,
-    notificationEmailRepo: notification.internal.repos.emailRepo,
-    notificationPrefRepo: notification.internal.repos.prefRepo,
+    notificationWorkerRuntime: Object.freeze({
+      notificationRepo: notification.delivery.repos.notificationRepo,
+      emailRepo: notification.delivery.repos.emailRepo,
+      preferenceRepo: notification.delivery.repos.preferenceRepo,
+    }),
+    handleResendEvent: notification.delivery.handleResendEvent,
+    notificationAudienceAuthorizer: notification.delivery.authorizeAudience,
+    notificationDeliverySettlement: notification.delivery.deliverySettlement,
     // The notification-gap healing sweep (registered by bootstrap on the
     // worker path). Undefined when no job queue exists.
     reconcileMissingNotificationsHandler:
-      notification.internal.reconcileMissingNotificationsHandler,
+      notification.delivery.reconcileMissingNotificationsHandler,
     // BQC-2.2: version-gated strong read of persisted policy state.
     // Workers await this before starting; side-effect paths use it for
     // fresh reads (BQC-2.5). Owned by the identity build (readiness).
-    refreshPolicyStore: identity.internal.refreshPolicyStore,
+    refreshPolicyStore: identity.policy.refresh,
     // `providerSubjectKeys` is always a service — the real keyring-backed one
     // when the writer material is configured, otherwise the secret-free deny
     // adapter whose acquireDeriver() throws `config_invalid`. So this IS the
@@ -1551,23 +875,42 @@ export function createContainer(options?: {
     // against the database's masked inventory before any job runs. The
     // env-level precondition is enforced earlier, at container construction
     // (assertReviewProviderSubjectKeysConfigured).
-    refreshReviewProviderSubjectKeys: async () => {
-      await review.internal.providerSubjectKeys.acquireDeriver()
-    },
+    refreshReviewProviderSubjectKeys: review.worker.refreshProviderSubjectKeys,
+    registerReviewWorkerJobs: ({
+      reviewDiscoveryIntervalMs,
+    }: {
+      reviewDiscoveryIntervalMs: number
+    }) =>
+      review.worker.registerWorkerJobs({
+        discoveryIntervalMs: reviewDiscoveryIntervalMs,
+      }),
+    /** ARC-03-T7: the durable consumer registry this container owns. */
+    consumerRegistry,
     // Worker-only durable consumer registration contributed by owning contexts.
+    // Every context registers into THIS container's registry.
     registerOutboxConsumers: () => {
-      integration.internal.registerOutboxConsumers()
-      property.internal.registerOutboxConsumers()
-      inbox.internal.registerOutboxConsumers()
-      metricApi.internal.registerOutboxConsumers()
-      ai.internal.registerOutboxConsumers()
-      notification.internal.registerOutboxConsumers()
+      integration.worker.registerOutboxConsumers(consumerRegistry)
+      review.worker.registerOutboxConsumers(consumerRegistry)
+      portal.worker.registerOutboxConsumers(consumerRegistry)
+      property.worker.registerOutboxConsumers(consumerRegistry)
+      inbox.worker.registerOutboxConsumers(consumerRegistry)
+      metricApi.worker.registerOutboxConsumers(consumerRegistry)
+      goal.worker.registerOutboxConsumers(consumerRegistry, goalCorrectionPolicy)
+      ai.worker.registerOutboxConsumers(consumerRegistry)
+      activity.worker.registerOutboxConsumers(consumerRegistry)
+      notification.worker.registerOutboxConsumers(consumerRegistry)
     },
     providerEphemeralRedis,
   } as const
 }
 
-export type Container = ReturnType<typeof createContainer>
+type BuiltContainer = ReturnType<typeof createContainer>
+/** Production/application container type. Simulation write authority is not
+ * representable here, even as an optional property. */
+export type Container = Omit<BuiltContainer, 'simulationRuntime'>
+export type SimulationContainer = BuiltContainer & {
+  simulationRuntime: NonNullable<BuiltContainer['simulationRuntime']>
+}
 
 // BQC-7.1: the production build bundles this module twice (nitro app chunk +
 // lazy SSR chunk) — a module-level singleton would give each copy its own
@@ -1606,6 +949,13 @@ export async function closeContainer(): Promise<void> {
   const container = store[CONTAINER_KEY]
   store[CONTAINER_KEY] = undefined
   if (!container) return
+  // ARC-03-T6: release container-owned background work FIRST. The policy
+  // poller re-reads the database on every tick, so stopping it before the
+  // connections go away is what keeps shutdown quiet instead of logging a
+  // refresh failure against a closing pool. Optional because the singleton is
+  // keyed by Symbol.for and shared across the two composition bundles the
+  // production build emits — an older bundle's container may predate the seam.
+  await container.shutdown?.run()
   await Promise.all([
     container.jobQueue?.close(),
     container.backgroundQueue?.close(),
@@ -1614,14 +964,35 @@ export async function closeContainer(): Promise<void> {
   await closeJobQueueConnections()
 }
 
-// Cold-boot race fix: the policy singletons (interactive + delayed) are
-// installed inside createContainer, but policy checks can run BEFORE any
-// getContainer() call in a fresh process (e.g. the first dashboard load
-// after a dev-server restart — requireExecutionAllowed precedes the fn's
-// own getContainer call and used to fail with "[EXECUTION POLICY] not
-// initialized"). Registering getContainer as the lazy initializer means the
-// first policy read builds the root on demand. Tests that reset the
-// singletons and don't need the lazy path are unaffected — the hooks only
-// fire while a policy is uninitialized.
-registerExecutionPolicyInit(() => getContainer())
-registerDelayedExecutionPolicyInit(() => getContainer())
+/**
+ * ARC-03-T8: make the singleton container's policy trio the process answer.
+ *
+ * Binding is idempotent for the same container and throws for a different one,
+ * so a simulation, an operator command's own policy boot, or a second
+ * container can no longer silently take the process over — which is exactly
+ * what building a container used to do.
+ *
+ * Each long-lived process names its installation point: the worker binds the
+ * container it builds (src/worker/index.ts), the operator harness binds its
+ * minimal policy boot (scripts/ops/operator-command.ts), and the web process
+ * binds through the cold-boot fallback registered below.
+ */
+export function bindProcessPoliciesFromSingleton(): void {
+  bindProcessPolicies(getContainer())
+}
+
+// Cold-boot fallback for the WEB process — one named registration, no policy
+// installation. A policy check can run before any getContainer() call in a
+// fresh process (requireExecutionAllowed precedes the server function's own
+// getContainer; historically the first dashboard load after a dev-server
+// restart failed with "[EXECUTION POLICY] not initialized"), so the first
+// policy read binds the root on demand.
+//
+// WHY it lives here rather than in a process entry file: this is the only
+// server-side module loaded in BOTH the vite dev SSR runtime and the built
+// server before the first gated request. Nitro plugins do not execute under
+// vite dev, and src/start.ts is an import-protection graph entry for the
+// client environment where '**/composition.ts' is denied. What changed is
+// that the installation itself now goes through the single guarded owner
+// (bindProcessPolicies) instead of two raw singleton writes.
+registerProcessPolicyColdBoot(bindProcessPoliciesFromSingleton)

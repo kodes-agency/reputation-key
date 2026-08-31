@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { onRatingSubmitted } from './on-rating-submitted'
 import type { RecordPortalMetricDeps as OnRatingSubmittedDeps } from './record-portal-metric'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   organizationId,
   portalId,
@@ -11,6 +12,13 @@ import {
 } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
+const STAFF_ATTRIBUTION = {
+  staffParticipantId: '10000000-0000-4000-8000-000000000001',
+  staffParticipationId: '10000000-0000-4000-8000-000000000002',
+  portalResponsibilityId: '10000000-0000-4000-8000-000000000003',
+  effectiveFrom: new Date('2026-05-01T00:00:00.000Z'),
+  effectiveTo: null,
+} as const
 
 const createFakeDeps = (
   overrides: Partial<Pick<OnRatingSubmittedDeps, 'findGroupForPortal'>> = {},
@@ -22,9 +30,10 @@ const createFakeDeps = (
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return input
+      return { status: 'duplicate', existingReadingId: input.sourceEventId }
     },
     findGroupForPortal: overrides.findGroupForPortal ?? (async () => null),
+    logger: createMockLogger(),
   }
 }
 
@@ -38,6 +47,7 @@ const ratingEvent = () => ({
   propertyId: propertyId('prop-1'),
   value: 4,
   occurredAt: FIXED_TIME,
+  staffAttribution: STAFF_ATTRIBUTION,
 })
 
 describe('onRatingSubmitted', () => {
@@ -47,11 +57,11 @@ describe('onRatingSubmitted', () => {
     deps = createFakeDeps()
   })
 
-  it('records a governed portal.rating reading with unresolved portal-group attribution', async () => {
+  it('records analytics, Goal count, and Goal average readings from one rating fact', async () => {
     const handler = onRatingSubmitted(deps)
     await handler(ratingEvent())
 
-    expect(deps.readings).toHaveLength(1)
+    expect(deps.readings).toHaveLength(3)
     expect(deps.readings[0]).toEqual({
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
@@ -65,6 +75,19 @@ describe('onRatingSubmitted', () => {
       sampleCount: 1,
       attributionQuality: 'exact',
       occurredAt: FIXED_TIME,
+      staffAttribution: STAFF_ATTRIBUTION,
+    })
+    expect(deps.readings[1]).toMatchObject({
+      definitionVersionId: '11111111-1111-4111-8111-111111111302',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      value: 1,
+      sampleCount: 1,
+    })
+    expect(deps.readings[2]).toMatchObject({
+      definitionVersionId: '11111111-1111-4111-8111-111111111303',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      value: 4,
+      sampleCount: 1,
     })
   })
 
@@ -80,8 +103,10 @@ describe('onRatingSubmitted', () => {
     const handler = onRatingSubmitted(groupDeps)
     await handler(ratingEvent())
 
-    expect(groupDeps.readings).toHaveLength(1)
-    expect(groupDeps.readings[0]!.portalGroupId).toEqual(groupId)
+    expect(groupDeps.readings).toHaveLength(3)
+    expect(groupDeps.readings.every((reading) => reading.portalGroupId === groupId)).toBe(
+      true,
+    )
     expect(calls).toEqual([
       { orgId: organizationId('org-1'), portalId: portalId('portal-1') },
     ])
@@ -96,8 +121,10 @@ describe('onRatingSubmitted', () => {
     const handler = onRatingSubmitted(groupDeps)
     await handler(ratingEvent())
 
-    expect(groupDeps.readings).toHaveLength(1)
-    expect(groupDeps.readings[0]!.portalGroupId).toBeNull()
+    expect(groupDeps.readings).toHaveLength(3)
+    expect(groupDeps.readings.every((reading) => reading.portalGroupId === null)).toBe(
+      true,
+    )
   })
 
   it('does not throw when recordMetric fails', async () => {
@@ -106,6 +133,7 @@ describe('onRatingSubmitted', () => {
         throw new Error('DB unavailable')
       },
       findGroupForPortal: async () => null,
+      logger: createMockLogger(),
     }
     const handler = onRatingSubmitted(failingDeps)
 

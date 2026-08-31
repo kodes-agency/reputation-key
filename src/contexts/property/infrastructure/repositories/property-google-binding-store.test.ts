@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -58,6 +59,8 @@ function makeProperty(idSuffix: string, overrides: Partial<Property> = {}): Prop
     lifecycleStateChangedAt: NOW,
     purgeScheduledFor: null,
     lifecycleInitiatedBy: null,
+    responsibleManagerRevision: 1,
+    responsibilityNeededSince: NOW,
     ...DEFAULT_PROPERTY_ROUTING,
     ...overrides,
   }
@@ -74,6 +77,13 @@ function makeActiveProperty(idSuffix: string, locationId: string): Property {
     profileConfirmedAt: CONFIRMED_AT,
     profileConfirmedBy: 'user-1',
     sourceEpoch: 1,
+    googleReviewDestination: {
+      state: 'verified',
+      uri: `https://search.google.com/local/writereview?placeid=${locationId}`,
+      retrievedAt: CONFIRMED_AT,
+      sourceEpoch: 1,
+      profileVersion: 1,
+    },
   })
 }
 
@@ -119,7 +129,7 @@ beforeEach(async () => {
 afterAll(async () => {
   await cleanup()
   await pool.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG_ID])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG_ID])
+  await deleteTestOrganizations(pool, [ORG_ID])
   clearEventSchemas()
   await pool.end()
 })
@@ -231,9 +241,16 @@ describe.sequential('Property Google binding store', () => {
         timezone: 'America/New_York',
         profileSource: 'tenant_confirmed',
         profileConfirmedAt: CONFIRMED_AT,
-        processingRegion: 'unresolved',
+        processingRegion: null,
         lifecycleState: 'active',
         deletedAt: null,
+        googleReviewDestination: {
+          state: 'verified',
+          uri: 'https://search.google.com/local/writereview?placeid=location-discovery',
+          retrievedAt: CONFIRMED_AT,
+          sourceEpoch: 1,
+          profileVersion: 1,
+        },
       },
     ])
     await expect(
@@ -298,6 +315,7 @@ describe.sequential('Property Google binding store', () => {
         address: '  2 Main Street  ',
         timezone: 'America/Chicago',
         confirmedBy: 'user-2',
+        googleReviewUri: 'https://search.google.com/local/writereview?placeid=location-2',
       },
       expectedSourceEpoch: 4,
       expectedProfileVersion: 3,
@@ -323,6 +341,13 @@ describe.sequential('Property Google binding store', () => {
       profileVersion: 4,
       profileSource: 'tenant_confirmed',
       profileConfirmedAt: NOW,
+      googleReviewDestination: {
+        state: 'verified',
+        uri: 'https://search.google.com/local/writereview?placeid=location-2',
+        retrievedAt: NOW,
+        sourceEpoch: 5,
+        profileVersion: 4,
+      },
     })
     const row = await pool.query(
       `SELECT name, address, timezone, timezone_source, profile_confirmed_by
@@ -370,6 +395,12 @@ describe.sequential('Property Google binding store', () => {
       sourceEpoch: 2,
       profileVersion: 1,
     })
+    expect(await store.readInternal(ORG_ID, property.id)).toMatchObject({
+      googleReviewDestination: {
+        state: 'awaiting_refresh',
+        uri: 'https://search.google.com/local/writereview?placeid=location-5',
+      },
+    })
     expect(
       await store.disconnect({
         organizationId: ORG_ID,
@@ -398,6 +429,10 @@ describe.sequential('Property Google binding store', () => {
       accountId: null,
       locationId: null,
       profileVersion: 1,
+      googleReviewDestination: {
+        state: 'unavailable',
+        uri: null,
+      },
     })
     expect(emitted.map((event) => event.change)).toEqual([
       'disconnected',

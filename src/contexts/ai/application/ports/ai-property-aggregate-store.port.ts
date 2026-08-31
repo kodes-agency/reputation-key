@@ -40,6 +40,33 @@ export type AiPropertyDailyAggregate = Readonly<{
   }>
 }>
 
+/**
+ * Content-free, current contribution evidence for trend coverage, model lineage,
+ * and supporting Review navigation. It deliberately carries no Review text.
+ */
+export type AiPropertyAnalyzedReview = Readonly<{
+  reviewId: ReviewId
+  sourceRevision: number
+  analysisSequence: number
+  localDate: string
+  sentiment: 'positive' | 'neutral' | 'negative' | 'mixed'
+  primaryCategory:
+    | 'service'
+    | 'staff'
+    | 'quality'
+    | 'value'
+    | 'cleanliness'
+    | 'wait_time'
+    | 'atmosphere'
+    | 'location'
+    | 'accessibility'
+    | 'other'
+  attention: 'urgent' | 'high' | 'medium' | 'low'
+  analysisProfileVersion: string
+  providerDeploymentProfileVersion: string
+  modelSnapshot: string
+}>
+
 export type AiPropertyAggregateStorePort = Readonly<{
   applyReviewAnalysis(
     input: Readonly<{
@@ -93,5 +120,6 @@ export type AiPropertyAggregateStorePort = Readonly<{
   ): Promise<Readonly<{
     head: AiPropertyAggregateHead
     days: readonly AiPropertyDailyAggregate[]
+    analyzedReviews: readonly AiPropertyAnalyzedReview[]
   }> | null>
 }>

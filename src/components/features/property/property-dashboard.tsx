@@ -120,6 +120,7 @@ export function PropertyDashboard({
       </div>
 
       <GooglePerformanceSection
+        key={`${propertyId}:${performanceRange}`}
         propertyId={propertyId}
         preset={performanceRange}
         onPresetChange={onPerformanceRangeChange}

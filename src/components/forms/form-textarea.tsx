@@ -9,7 +9,7 @@ import { Textarea } from '#/components/ui/textarea'
 export type BaseFieldApiTextarea = {
   name: string
   state: {
-    value: string
+    value: string | undefined
     meta: {
       isTouched: boolean
       isValid: boolean
@@ -27,6 +27,7 @@ type Props = Readonly<{
   placeholder?: string
   rows?: number
   disabled?: boolean
+  maxLength?: number
 }>
 
 export function FormTextarea({
@@ -36,6 +37,7 @@ export function FormTextarea({
   placeholder,
   rows = 3,
   disabled,
+  maxLength,
 }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
 
@@ -52,6 +54,7 @@ export function FormTextarea({
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}
+        maxLength={maxLength}
       />
       {isInvalid && <FieldError errors={field.state.meta.errors} />}
     </Field>

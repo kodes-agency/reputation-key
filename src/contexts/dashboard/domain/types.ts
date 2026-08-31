@@ -12,19 +12,41 @@ export type PortalRatingTrendPoint = Readonly<{
 // ─── KPI Strip ───
 
 export type KPIValue = Readonly<{
-  /** The metric value for the current period. 0 when no data exists. */
+  /** The Review-owned value for the current period. */
   value: number
-  /** The metric value for the prior period. 0 when no data exists. */
+  /** The Review-owned value for the prior period. */
   priorValue: number
   /** Percentage change vs prior period. Null when priorValue is 0. */
   trend: number | null
 }>
 
+export type MetricKPIDataState = 'available' | 'updating' | 'unavailable'
+
+export type MetricKPIPeriodEvidence = Readonly<{
+  state: MetricKPIDataState
+  definitionVersionId: string | null
+  sampleCount: number
+  minimumSample: number | null
+}>
+
+export type MetricKPIValue = Readonly<{
+  /** Null unless the governed current-period source is available. */
+  value: number | null
+  /** Null unless the governed prior-period source is available. */
+  priorValue: number | null
+  /** Present only when both governed periods are available. */
+  trend: number | null
+  evidence: Readonly<{
+    current: MetricKPIPeriodEvidence
+    prior: MetricKPIPeriodEvidence | null
+  }>
+}>
+
 export type KPIs = Readonly<{
   reviews: KPIValue
   avgRating: KPIValue
-  scans: KPIValue
-  feedback: KPIValue
+  scans: MetricKPIValue
+  feedback: MetricKPIValue
 }>
 
 // ─── Rating Distribution ───
@@ -112,17 +134,72 @@ export type DashboardData = Readonly<{
 // ─── Portal Analytics ───
 
 export type PortalKPIs = Readonly<{
-  scans: KPIValue
-  avgRating: KPIValue
-  feedback: KPIValue
-  reviewLinkClicks: KPIValue
+  scans: PortalCountKPIValue
+  avgRating: PortalRatingKPIValue
+  feedback: PortalCountKPIValue
+  reviewLinkClicks: PortalCountKPIValue
+}>
+
+export type PortalMetricDataState =
+  'ready' | 'updating' | 'insufficient_data' | 'temporarily_unavailable'
+
+export type PortalMetricEvidence = Readonly<{
+  /** Omitted means a bounded governed period; lifetime has no time series. */
+  basis?: 'governed_period' | 'anonymous_lifetime'
+  definitionVersionId: string | null
+  state: PortalMetricDataState
+  verifiedThrough: Date | null
+  latestActivity: Date | null
+  computedAt: Date
+  completeness: number
+  availabilityReason: string | null
+  correctionHead: Date | null
+  sampleCount: number
+}>
+
+export type PortalLifetimeReconciliationState = Readonly<{
+  state: 'not_initialized' | 'awaiting_first_reconciliation' | 'reconciled'
+  projectionRevision: number | null
+  sealedThroughLocalDate: string | null
+  lastRebuiltAt: Date | null
+  lastSealedAt: Date | null
+}>
+
+export type PortalCountKPIValue = Readonly<{
+  /** Null while the governed projection is not safe to serve. */
+  value: number | null
+  priorValue: number | null
+  trend: number | null
+  evidence: PortalMetricEvidence
+}>
+
+export type PortalRatingKPIValue = Readonly<{
+  /** Eligible private-rating average. Null means there is no eligible sample. */
+  value: number | null
+  priorValue: number | null
+  /** Absolute star difference; shown only when both bounded periods have 10+ ratings. */
+  comparison: number | null
+  sampleCount: number
+  priorSampleCount: number
+  evidence: PortalMetricEvidence
+}>
+
+export type PortalResponseIntegritySummary = Readonly<{
+  accepted: number
+  filteredAutomatically: number
+  underReview: number
+  total: number
 }>
 
 export type PortalAnalyticsData = Readonly<{
+  period: Readonly<{ startAt: Date; endAt: Date; timezone: string }>
+  /** Present only for the anonymous, non-comparative All Time projection. */
+  lifetimeReconciliation: PortalLifetimeReconciliationState | null
   kpis: PortalKPIs
-  engagementFunnel: EngagementFunnel
+  engagementFunnel: EngagementFunnel | null
   ratingDistribution: RatingDistribution
   ratingTrend: PortalRatingTrendPoint[]
+  responseIntegrity: PortalResponseIntegritySummary
 }>
 
 // ─── Staff Dashboard ───
@@ -138,14 +215,16 @@ export type StaffDashboardData = Readonly<{
 export type AttentionSignals = Readonly<{
   /** Reviews with no published reply past the response SLA. */
   unanswered: number
-  /** Inbox items in 'new' status (unactioned feedback). */
-  newFeedback: number
+  /** Current open Inbox work across Review and Private Feedback sources. */
+  itemsToTriage: number
   /** Active goals whose progress is behind the pro-rated pace. */
   goalsBehindPace: number
   /** Avg rating dropped ≥ 0.3 vs prior period. */
   ratingDrop: boolean
-  /** Inbox items in 'escalated' status. */
+  /** Inbox items with an active escalation, whether open or closed. */
   escalated: number
+  /** Distinct work anchors, plus one when the rating-drop signal is active. */
+  needsAttention: number
 }>
 
 // ─── Fleet Overview ───
@@ -156,6 +235,7 @@ export type FleetMetricEvidence = Readonly<{
   definitionVersionId: string
   periodStart: Date
   periodEnd: Date
+  timezone: string
   sourcePolicies: readonly string[]
   watermark: Date | null
   freshness: FleetMetricFreshness
@@ -171,8 +251,8 @@ export type FleetEntry = Readonly<{
   slug: string
   timezone: string
   avgRating: number
-  /** Percentage change in avg rating vs prior period. Null when no prior data. */
-  avgRatingTrend: number | null
+  /** Absolute star delta vs prior period. Null when either sample is insufficient. */
+  avgRatingComparison: number | null
   reviewCount: number
   feedbackCount: number
   scanCount: number
@@ -181,15 +261,17 @@ export type FleetEntry = Readonly<{
   scanEvidence: FleetMetricEvidence | null
   feedbackEvidence: FleetMetricEvidence | null
   attentionSignals: AttentionSignals
-  /** Sum of all attention signals (ratingDrop counts as 1 when true). */
+  /** Distinct attention work, never the sum of overlapping signal counts. */
   totalAttention: number
 }>
 
 /** Org-total summary shown in the fleet overview strip. */
 export type FleetTotals = Readonly<{
   propertyCount: number
+  /** Eligible reviews contributing to the rating-weighted fleet average. */
+  ratingSampleCount: number
   totalAttention: number
-  /** Mean of per-property avg ratings (properties with 0 rating excluded). */
+  /** Review-count-weighted mean across eligible property ratings. */
   overallAvgRating: number
 }>
 

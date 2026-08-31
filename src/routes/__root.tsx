@@ -15,6 +15,7 @@ import { authClient } from '#/shared/auth/auth-client'
 import { Toaster } from '#/components/ui/sonner'
 import appCss from '#/styles.css?url'
 import { notificationFns } from '#/routes/-notification-fns'
+import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
 
 const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark'||stored==='auto')?stored:'auto';var prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;var resolved=mode==='auto'?(prefersDark?'dark':'light'):mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);root.style.colorScheme=resolved;}catch(e){}})();`
 
@@ -46,6 +47,22 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     },
   })
 
+  // The public guest Portal is rendered ENTIRELY in the guest's locale — it
+  // carries none of the app chrome (see showChrome above), so a document that
+  // keeps claiming English misdescribes every word on it. `lang` is not
+  // decoration: it selects the screen-reader voice, offers the right
+  // translation prompt, and drives hyphenation.
+  const documentLanguage = useRouterState({
+    select: (s) => {
+      const portalMatch = s.matches.find((m) => m.routeId === '/p/$token')
+      const locale = (
+        portalMatch?.loaderData as
+          { localization?: { selectedLocale?: string } } | undefined
+      )?.localization?.selectedLocale
+      return locale === 'bg' ? 'bg' : 'en'
+    },
+  })
+
   // BQC-6.8: Core Web Vitals collection (LCP + CLS). Runs client-side only
   // (useEffect never fires during SSR); initWebVitals is a no-op without
   // PerformanceObserver support.
@@ -54,7 +71,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={documentLanguage} suppressHydrationWarning>
       <head>
         {/* The CSP nonce only exists on the server, and browsers scrub the `nonce`
             content attribute from the DOM once the document is parsed (HTML spec
@@ -73,7 +90,12 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         {showChrome ? (
           <>
             <Header
-              onSignOut={() => authClient.signOut()}
+              onSignOut={() => {
+                void clearTenantCacheAfterSessionEnd(
+                  router.options.context.queryClient,
+                  () => authClient.signOut(),
+                )
+              }}
               notificationFns={notificationFns}
             />
             <main>{children}</main>

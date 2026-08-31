@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { ZodError } from 'zod/v4'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
 import {
   applyBulkTimezone,
   buildConfirmedImportItems,
   createImportReviewDraft,
-  validateImportReviewDraft,
 } from './google-import-review-model'
 
 const createCandidate: ImportCandidateDto = {
@@ -64,16 +64,11 @@ describe('Google import review model', () => {
     })
   })
 
-  it('returns the first invalid control in row order', () => {
+  it('refuses to build a command from an incomplete review', () => {
     const draft = createImportReviewDraft([createCandidate, relinkCandidate], 'UTC')
     draft.items[0] = { ...draft.items[0]!, countryCode: '', name: '' }
 
-    const result = validateImportReviewDraft(draft)
-    expect(result.valid).toBe(false)
-    expect(result.firstInvalidControlId).toBe('import-name-candidate-create')
-    expect(result.errors['candidate-create.name']).toBeTruthy()
-    expect(result.errors['candidate-create.countryCode']).toBeTruthy()
-    expect(result.errors['candidate-create.timezoneConfirmed']).toBeTruthy()
+    expect(() => buildConfirmedImportItems(draft)).toThrow(ZodError)
   })
 
   it('applies a bulk timezone without erasing a later per-row override', () => {

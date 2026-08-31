@@ -2,7 +2,6 @@ import { useForm } from '@tanstack/react-form'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
 import { useState } from 'react'
-import { z } from 'zod/v4'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { Field, FieldLabel } from '#/components/ui/field'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
@@ -20,15 +19,10 @@ import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { toast } from 'sonner'
 import { AvatarCard } from './avatar-card'
 import type { Action } from '#/components/hooks/use-action'
-
-const profileSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Name is required')
-    .max(100, 'Name must be 100 characters or less'),
-})
-
-type FormValues = z.infer<typeof profileSchema>
+import {
+  updateProfileInputSchema,
+  type UpdateProfileInput,
+} from '#/contexts/identity/application/dto/profile-settings.dto'
 
 export type Props = Readonly<{
   user: {
@@ -58,8 +52,8 @@ export function ProfileSettingsForm({
   const form = useForm({
     defaultValues: {
       name: user.name,
-    } satisfies FormValues,
-    validators: { onSubmit: profileSchema },
+    } satisfies UpdateProfileInput,
+    validators: { onSubmit: updateProfileInputSchema },
     onSubmit: async ({ value }) => {
       await updateProfile({ data: { name: value.name } })
     },
@@ -110,7 +104,7 @@ export function ProfileSettingsForm({
               <form.Field
                 name="name"
                 validators={{
-                  onChangeAsync: profileSchema.shape.name,
+                  onChangeAsync: updateProfileInputSchema.shape.name,
                 }}
               >
                 {(field: BaseFieldApi) => (

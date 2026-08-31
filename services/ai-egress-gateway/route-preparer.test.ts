@@ -107,6 +107,8 @@ function replyRequest() {
     ...analysis,
     route: 'reply-suggestion',
     actorId: 'better-auth-user_01',
+    replyProfileVersion: 'reply-draft-v2',
+    brandProfile: { displayName: 'Example Hotel' },
     tone: 'professional',
     binding: {
       ...analysis.binding,
@@ -120,6 +122,9 @@ function replyRequest() {
         tag: 'bg-Cyrl-BG',
         templateGroup: 'bg-Cyrl',
       },
+      replyBrandProfileVersion: 7,
+      replyBrandDisplayNameDigest:
+        '030c644bf71ad1d7570dc9ab6131f5209ac02fa65e930e2910778e024fc643bf',
       replyLanguageVerifierDigest: AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
       languageScriptConsistencyDigest: AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST,
       zhOrthographyVerifierDigest: AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST,
@@ -266,10 +271,21 @@ describe('gateway route-preparer source lifetime', () => {
     })).prepare(request)
 
     expect(JSON.parse(prepared.invocation.sdkRequest.input[1].content)).toMatchObject({
+      propertyDisplayName: 'Example Hotel',
       reviewText: request.source.text,
       languageCode: 'bg-Cyrl-BG',
       tone: 'professional',
     })
+    expect(
+      Object.keys(JSON.parse(prepared.invocation.sdkRequest.input[1].content)).sort(),
+    ).toEqual([
+      'languageCode',
+      'propertyDisplayName',
+      'rating',
+      'replyProfileVersion',
+      'reviewText',
+      'tone',
+    ])
     expect(prepared.invocation.descriptor.binding).toMatchObject({
       evaluatedLanguage: 'tr-Latn',
       concreteReplyLanguage: {
@@ -278,8 +294,15 @@ describe('gateway route-preparer source lifetime', () => {
       },
     })
     const accepted = prepared.acceptProviderResult({
-      templateId: 'appreciation_positive',
       languageCode: 'bg-Cyrl-BG',
+      replyText:
+        'Example Hotel ви благодари за отзива. Радваме се, че внимателният и отзивчив персонал е допринесъл за приятния ви престой.',
+      grounding: [
+        {
+          sourceExcerpt: 'personel çok ilgili ve yardımseverdi',
+          replyExcerpt: 'внимателният и отзивчив персонал',
+        },
+      ],
     })
     expect(accepted).not.toBeNull()
     expect(
@@ -292,6 +315,7 @@ describe('gateway route-preparer source lifetime', () => {
       route: 'reply-suggestion',
       status: 'success',
       result: {
+        profileVersion: 'reply-draft-v2',
         concreteLanguageTag: 'bg-Cyrl-BG',
         templateGroup: 'bg-Cyrl',
       },

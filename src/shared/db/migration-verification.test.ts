@@ -20,6 +20,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import { collectSchemaDrift, formatDrifts } from './schema-drift'
 
 const EXPECTED_TABLES = [
+  'recovery_runs',
   // Auth tables (created by auth:migrate)
   'user',
   'session',
@@ -43,7 +44,9 @@ const EXPECTED_TABLES = [
   'feedback',
   'ratings',
   'scan_events',
+  'guest_network_pressure_records',
   'google_connections',
+  'gbp_import_sagas',
   'gbp_import_requests',
   'gbp_import_request_items',
   'gbp_import_item_retry_receipts',
@@ -52,6 +55,8 @@ const EXPECTED_TABLES = [
   'inbox_items',
   'inbox_notes',
   'inbox_user_views',
+  'user_organization_bindings',
+  'identity_invitation_fact_contract',
   'metric_definitions',
   'metric_readings',
   // Migrations 0046-0054 (AI private-beta control plane and read models)
@@ -92,9 +97,11 @@ const EXPECTED_TABLES = [
   'leaderboard_snapshots',
   'leaderboard_entries',
   'goals',
-  'activity_log',
+  'recent_activity_entries',
   'notifications',
   'notification_email_queue',
+  'notification_digest_batches',
+  'notification_digest_batch_members',
   'notification_preferences',
 ] as const
 

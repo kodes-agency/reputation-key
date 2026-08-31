@@ -18,12 +18,12 @@ import {
   stampLastInboxViewDto,
   getInboxFolderCountsDto,
 } from '../application/dto/inbox.dto'
-import { getLogger } from '#/shared/observability/logger'
+import { decodeInboxCursor } from '../application/inbox-cursor'
 
 // ── getInboxItems ──────────────────────────────────────────────────
 
 export const getInboxItemsFn = createServerFn({ method: 'GET' })
-  .inputValidator(getInboxItemsDto)
+  .validator(getInboxItemsDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -34,9 +34,14 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
           action: 'inbox.read',
           propertyId: data.propertyId,
         })
-        const { useCases } = getContainer()
+        const { inboxPublicApi, logger } = getContainer()
         try {
-          return await useCases.getInboxItems(
+          const cursor = data.cursor ? decodeInboxCursor(data.cursor) : null
+          if (data.cursor && cursor === null) {
+            // Do not echo the untrusted cursor into logs.
+            logger.warn('inbox: malformed cursor, treating as first page')
+          }
+          return await inboxPublicApi.getInboxItems(
             {
               filters: {
                 propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
@@ -61,34 +66,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
                 q: data.q,
                 sort: data.sort,
               },
-              cursor: data.cursor
-                ? (() => {
-                    try {
-                      const parsed = JSON.parse(
-                        Buffer.from(data.cursor, 'base64').toString('utf-8'),
-                      )
-                      // F134: Validate cursor shape — must have sourceDate (string) and id (string)
-                      if (
-                        !parsed ||
-                        typeof parsed.sourceDate !== 'string' ||
-                        typeof parsed.id !== 'string'
-                      ) {
-                        getLogger().warn(
-                          { cursor: data.cursor },
-                          'inbox: malformed cursor shape, treating as first page',
-                        )
-                        return undefined
-                      }
-                      return parsed
-                    } catch {
-                      getLogger().warn(
-                        { cursor: data.cursor },
-                        'inbox: malformed cursor encoding, treating as first page',
-                      )
-                      return undefined
-                    }
-                  })()
-                : undefined,
+              cursor: cursor ?? undefined,
               limit: data.limit,
             },
             ctx,
@@ -107,16 +85,16 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
 // ── getLastVisitCount ──────────────────────────────────────────────
 
 export const getLastVisitCountFn = createServerFn({ method: 'GET' })
-  .inputValidator(getLastVisitCountDto)
+  .validator(getLastVisitCountDto)
   .handler(
     tracedHandler(
       async () => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        const { useCases } = getContainer()
+        const { inboxPublicApi } = getContainer()
         try {
-          return await useCases.getLastVisitCount({}, ctx)
+          return await inboxPublicApi.getLastVisitCount({}, ctx)
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
@@ -131,16 +109,19 @@ export const getLastVisitCountFn = createServerFn({ method: 'GET' })
 // ── stampLastInboxView ─────────────────────────────────────────────
 
 export const stampLastInboxViewFn = createServerFn({ method: 'POST' })
-  .inputValidator(stampLastInboxViewDto)
+  .validator(stampLastInboxViewDto)
   .handler(
     tracedHandler(
-      async () => {
+      async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        const { useCases } = getContainer()
+        const { inboxPublicApi } = getContainer()
         try {
-          return await useCases.stampLastInboxView({}, ctx)
+          return await inboxPublicApi.stampLastInboxView(
+            { responseCutoff: data.responseCutoff },
+            ctx,
+          )
         } catch (e) {
           if (isInboxError(e))
             throwContextError('InboxError', e, inboxErrorStatus(e.code))
@@ -155,16 +136,16 @@ export const stampLastInboxViewFn = createServerFn({ method: 'POST' })
 // ── getInboxFolderCounts ──────────────────────────────────────────
 
 export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
-  .inputValidator(getInboxFolderCountsDto)
+  .validator(getInboxFolderCountsDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        const { useCases } = getContainer()
+        const { inboxPublicApi } = getContainer()
         try {
-          return await useCases.getInboxFolderCounts(
+          return await inboxPublicApi.getInboxFolderCounts(
             { propertyId: data?.propertyId },
             ctx,
           )

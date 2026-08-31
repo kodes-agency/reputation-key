@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import {
   GOOGLE_PERFORMANCE_DAILY_METRICS,
   MAX_GOOGLE_PERFORMANCE_DAILY_VALUE,

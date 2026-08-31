@@ -16,10 +16,10 @@ import type {
   PortalGroupId,
   PortalLinkCategoryId,
   PortalLinkId,
+  PortalApprovedDestinationId,
 } from '#/shared/domain/ids'
 import type { PortalError } from './errors'
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
-import { propertyId, teamId, userId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import {
   normalizeSlug,
   validateSlug,
@@ -30,6 +30,7 @@ import {
   validateLinkLabel,
   validateCategoryTitle,
   validateGroupName,
+  validatePrivateFeedbackThreshold,
 } from './rules'
 
 // ── Portal constructor ─────────────────────────────────────────────
@@ -38,13 +39,16 @@ export type BuildPortalInput = Readonly<{
   id: PortalId
   organizationId: OrganizationId
   propertyId: PropertyId
-  entityType?: 'property' | 'team' | 'staff'
-  entityId?: string
   name: string
   providedSlug?: string
   description?: string | null
   theme?: Partial<PortalTheme>
+  privateFeedbackThreshold?: number
   publicationState?: Portal['publicationState']
+  createdBy?: UserId | null
+  hasInitialResponsibleManager?: boolean
+  primaryGuestLocale?: 'en' | 'bg'
+  additionalGuestLocales?: readonly ('en' | 'bg')[]
   now: Date
 }>
 
@@ -54,26 +58,36 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
   const desc = validateDescription(input.description ?? null)
   const defaultTheme: PortalTheme = { primaryColor: '#6366F1' }
   const theme = validatePortalTheme(input.theme ?? defaultTheme)
+  const privateFeedbackThreshold = validatePrivateFeedbackThreshold(
+    input.privateFeedbackThreshold ?? 3,
+  )
 
-  return Result.combine([nameResult, slug, desc, theme]).map(
-    ([validName, validSlug, validDesc, validTheme]): Portal => ({
+  return Result.combine([nameResult, slug, desc, theme, privateFeedbackThreshold]).map(
+    ([
+      validName,
+      validSlug,
+      validDesc,
+      validTheme,
+      validPrivateFeedbackThreshold,
+    ]): Portal => ({
       id: input.id,
       organizationId: input.organizationId,
       propertyId: input.propertyId,
-      entityType: input.entityType ?? 'property',
-      entityId: input.entityId
-        ? input.entityType === 'team'
-          ? teamId(input.entityId)
-          : input.entityType === 'staff'
-            ? userId(input.entityId)
-            : propertyId(input.entityId)
-        : input.propertyId,
+      entityType: 'property',
+      entityId: input.propertyId,
       name: validName,
       slug: validSlug,
       description: validDesc,
       heroImageUrl: null,
       theme: validTheme,
+      privateFeedbackThreshold: validPrivateFeedbackThreshold,
       publicationState: input.publicationState ?? 'draft',
+      createdBy: input.createdBy ?? null,
+      responsibleManagerRevision: 1,
+      responsibilityNeededSince:
+        input.hasInitialResponsibleManager === true ? null : input.now,
+      primaryGuestLocale: input.primaryGuestLocale ?? 'en',
+      additionalGuestLocales: input.additionalGuestLocales ?? [],
       createdAt: input.now,
       updatedAt: input.now,
       deletedAt: null,
@@ -141,6 +155,9 @@ export type BuildLinkInput = Readonly<{
   categoryId: PortalLinkCategoryId
   portalId: PortalId
   organizationId: OrganizationId
+  propertyId: PropertyId
+  destinationId?: PortalApprovedDestinationId | null
+  legacyDestinationState?: PortalLink['legacyDestinationState']
   label: string
   url: string
   iconKey?: string | null
@@ -158,6 +175,13 @@ export const buildPortalLink = (
     categoryId: input.categoryId,
     portalId: input.portalId,
     organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    destinationId: input.destinationId ?? null,
+    legacyDestinationState:
+      input.legacyDestinationState ??
+      (input.destinationId === undefined || input.destinationId === null
+        ? 'unclassified'
+        : 'migrated'),
     label: validLabel,
     url: validUrl,
     iconKey: input.iconKey ?? null,

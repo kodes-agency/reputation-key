@@ -7,7 +7,12 @@ import type { AttentionSignals, FleetEntry, FleetOverviewData } from '../../doma
 import type { OrganizationId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
-import { computeTrend, isRatingDrop, priorPeriodDates, slaCutoff } from '../utils'
+import {
+  ratingComparison,
+  RATING_DROP_THRESHOLD,
+  slaCutoff,
+  timeRangeDays,
+} from '../utils'
 import { dashboardError } from '../../domain/errors'
 
 export type GetFleetOverviewInput = Readonly<{
@@ -16,8 +21,6 @@ export type GetFleetOverviewInput = Readonly<{
   portalReadEnabled: boolean
   goalReadEnabled: boolean
   slaHours: number
-  startDate: Date
-  endDate: Date
   timeRange: TimeRangePreset
   cursor?: string
 }>
@@ -74,20 +77,10 @@ export const getFleetOverview =
       portalReadEnabled,
       goalReadEnabled,
       slaHours,
-      startDate,
-      endDate,
       timeRange,
     } = input
     const now = deps.clock()
-    // priorPeriodDates returns null for 'all' (no prior window). The fleet
-    // projection port requires concrete bounds, so this path keeps the
-    // historical self-comparison until FleetOverviewQuery admits an absent
-    // prior period — same defect class as the portal-analytics fix.
-    const { priorStartDate, priorEndDate } = priorPeriodDates(
-      timeRange,
-      startDate,
-      endDate,
-    ) ?? { priorStartDate: startDate, priorEndDate: endDate }
+    const periodDays = timeRangeDays(timeRange)
     const accessiblePropertyIds = await deps.resolveAccessiblePropertyIds(
       organizationId,
       scope,
@@ -98,22 +91,30 @@ export const getFleetOverview =
       portalReadEnabled,
       goalReadEnabled,
       cursor: decodeFleetCursor(input.cursor),
-      startDate,
-      endDate,
-      priorStartDate,
-      priorEndDate,
+      periodDays,
       now,
       slaCutoff: slaCutoff(now, slaHours),
     })
 
     const entries: FleetEntry[] = projection.rows.map((row) => {
-      const ratingDrop = isRatingDrop(row.avgRating, row.priorAvgRating)
+      const avgRatingComparison =
+        periodDays === null
+          ? null
+          : ratingComparison(
+              row.avgRating,
+              row.reviewCount,
+              row.priorAvgRating,
+              row.priorReviewCount,
+            )
+      const ratingDrop =
+        avgRatingComparison !== null && avgRatingComparison <= -RATING_DROP_THRESHOLD
       const attentionSignals: AttentionSignals = {
         unanswered: row.unanswered,
-        newFeedback: row.newFeedback,
+        itemsToTriage: row.itemsToTriage,
         goalsBehindPace: row.goalsBehindPace,
         ratingDrop,
         escalated: row.escalated,
+        needsAttention: row.needsAttention + (ratingDrop ? 1 : 0),
       }
       return {
         propertyId: row.propertyId,
@@ -121,7 +122,7 @@ export const getFleetOverview =
         slug: row.slug,
         timezone: row.timezone,
         avgRating: row.avgRating,
-        avgRatingTrend: computeTrend(row.avgRating, row.priorAvgRating),
+        avgRatingComparison,
         reviewCount: row.reviewCount,
         feedbackCount: row.feedbackCount,
         scanCount: row.scanCount,
@@ -129,12 +130,7 @@ export const getFleetOverview =
         scanEvidence: row.scanEvidence,
         feedbackEvidence: row.feedbackEvidence,
         attentionSignals,
-        totalAttention:
-          row.unanswered +
-          row.newFeedback +
-          row.goalsBehindPace +
-          (ratingDrop ? 1 : 0) +
-          row.escalated,
+        totalAttention: row.needsAttention + (ratingDrop ? 1 : 0),
       }
     })
 

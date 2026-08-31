@@ -3,18 +3,18 @@
 
 import type {
   GbpApiPort,
-  GbpAccount,
+  GbpApiAccount,
 } from '#/contexts/integration/application/ports/gbp-api.port'
 import type { GbpApiError } from '#/contexts/integration/domain/gbp-api-error'
 
 export type InMemoryGbpApiPort = GbpApiPort &
   Readonly<{
-    setAccounts: (accounts: ReadonlyArray<GbpAccount>) => void
+    setAccounts: (accounts: ReadonlyArray<GbpApiAccount>) => void
     setError: (operation: string, error: Error | GbpApiError) => void
   }>
 
 export const createInMemoryGbpApiPort = (): InMemoryGbpApiPort => {
-  let accounts: ReadonlyArray<GbpAccount> = []
+  let accounts: ReadonlyArray<GbpApiAccount> = []
   const errors = new Map<string, Error | GbpApiError>()
 
   return {

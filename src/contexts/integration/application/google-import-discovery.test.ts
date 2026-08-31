@@ -70,6 +70,7 @@ function setup(
         address: candidate.address,
         primaryCategory: candidate.primaryCategory,
         countryCode: candidate.countryCode,
+        googleReviewUri: candidate.googleReviewUri ?? null,
         eligibility: { kind: 'create' as const },
         expectedSourceEpoch: null,
         expectedProfileVersion: null,
@@ -224,7 +225,7 @@ describe('Google import discovery', () => {
         },
       ],
       nextPageToken: 'provider-accounts-next',
-      contentDeadlineMs: Date.parse('2026-08-12T10:15:00.000Z'),
+      contentDeadlineMs: Date.parse('2026-08-13T10:00:00.000Z'),
     })
     expect(page.items[0]).toEqual({
       accountRef: 'v1.account',

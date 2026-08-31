@@ -1,12 +1,19 @@
 // Property context — public API surface for cross-context consumers.
-// Other contexts (team, portal, integration) consume this typed interface
+// Other contexts (portal, integration) consume this typed interface
 // to query property data. Per ADR-0001.
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { PropertyGoogleBindingStore } from './ports/property-google-binding.port'
 export { buildGoogleImportedProperty } from './build-google-imported-property'
 export type { BuildGoogleImportedPropertyInput } from './build-google-imported-property'
-export type { PropertyCreated, PropertyDeleted, PropertyUpdated } from '../domain/events'
+export type {
+  PropertyArchived,
+  PropertyCreated,
+  PropertyDeleted,
+  PropertyRestored,
+  PropertyUpdated,
+  PropertyResponsibilityNeeded,
+} from '../domain/events'
 
 /** Minimal property info returned for cross-context slug lookups (e.g., guest portal resolution). */
 export type PropertySlugLookupResult = Readonly<{
@@ -19,6 +26,11 @@ export type PropertyLookupResult = Readonly<{
   id: string
   organizationId: string
   googleConnectionId: string | null
+  gbpAccountId: string | null
+  gbpLocationId: string | null
+  googleBindingState:
+    'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
+  sourceEpoch: number
 }>
 
 // Sanctioned fail-closed cell gates for protected workloads (BQC-4.1 / ADR 0048).
@@ -45,6 +57,21 @@ export type PropertyProcessingScopePublicApi = Readonly<{
 
 /** Server-only binding lifecycle API. Provider identifiers never enter browser DTOs. */
 export type PropertyGoogleBindingPublicApi = PropertyGoogleBindingStore
+
+export type PropertyGoogleReviewDestinationPublicApi = Readonly<{
+  /** Safe Property-owned snapshot. A non-verified URI must never be rendered. */
+  getGoogleReviewDestination: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<
+    import('../domain/google-review-destination').PropertyGoogleReviewDestination | null
+  >
+}>
+
+/** Fail-closed current lifecycle authority for public and external-effect gates. */
+export type PropertyLifecyclePublicApi = Readonly<{
+  isPropertyActive: (orgId: OrganizationId, propertyId: PropertyId) => Promise<boolean>
+}>
 
 export type PropertyPublicApi = Readonly<{
   /**
@@ -93,6 +120,17 @@ export type PropertyPublicApi = Readonly<{
   ) => Promise<ReadonlyArray<string>>
 
   /**
+   * Stable Property scope used only to persist/deliver an Organization-level
+   * Google connection notice. Prefers an affected linked Property, then the
+   * first active Property in the Organization. Null only when the Organization
+   * has no Property rows at all.
+   */
+  findGoogleNotificationAnchor: (
+    connectionId: GoogleConnectionId,
+    orgId: OrganizationId,
+  ) => Promise<string | null>
+
+  /**
    * Null out all googleConnectionId references for a given connection.
    * Used by integration context when disconnecting a Google account.
    */
@@ -110,6 +148,21 @@ export type PropertyPublicApi = Readonly<{
     orgId: OrganizationId,
     propertyId: PropertyId,
   ) => Promise<string | null>
+}>
+
+/** Kept separate so ordinary Property readers do not acquire notification policy. */
+export type PropertyResponsibleManagerPublicApi = Readonly<{
+  /** Current explicit managers, revalidated against role/access/participation. */
+  getResponsibleManagerUserIds: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<ReadonlyArray<import('#/shared/domain/ids').UserId>>
+  /** Eligibility check for direct work recipients such as Inbox assignees. */
+  isEligibleResponsibleManagerUserId: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+    userId: import('#/shared/domain/ids').UserId,
+  ) => Promise<boolean>
 }>
 
 /** Optional product preference kept separate from the widely mocked core API. */

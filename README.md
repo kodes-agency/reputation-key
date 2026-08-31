@@ -18,14 +18,16 @@ pnpm install
 cp .env.example .env.local
 # Edit .env.local with your DATABASE_URL and BETTER_AUTH_SECRET
 
-# 3. Set up the database
-pnpm db:push          # Push schema to DB (dev)
-# or
-pnpm db:generate      # Generate migration SQL
-pnpm db:migrate       # Apply migrations
+# 3. Set up the database through the production-equivalent authority
+# (pinned Better Auth schema, staged Drizzle journal, registered sidecars,
+# and provider-subject initialization). DEPLOY_MIGRATE=1 is the explicit
+# local/CI authority; Railway deployments use platform identity instead.
+# On an empty database, also set one sealed
+# REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS entry in .env.local.
+DEPLOY_MIGRATE=1 pnpm db:migrate-deploy
 
 # 4. Generate auth secret (if not set)
-npx -y @better-auth/cli secret
+node --input-type=module -e "import { randomBytes } from 'node:crypto'; console.log(randomBytes(32).toString('base64url'))"
 
 # 5. Start dev server
 pnpm dev
@@ -35,26 +37,28 @@ pnpm dev
 
 - **Web app**: TanStack Start (React + SSR) — `pnpm dev` / `pnpm build` / `pnpm start`
 - **Worker**: Plain Node.js script — `pnpm build:worker` / `pnpm start:worker`
-- **Database**: PostgreSQL (Neon) via Drizzle ORM
+- **Database**: PostgreSQL via Drizzle ORM; production state is co-located per Railway Data Cell
 - **Auth**: Better Auth with DB-backed sessions
-- **Redis**: Optional in dev, required for queues/caching in production
+- **Redis**: Optional in basic development; physically separate Cache Redis and Queue Redis are required per production Data Cell
 
 ## Scripts
 
-| Command             | Description                                                                     |
-| ------------------- | ------------------------------------------------------------------------------- |
-| `pnpm dev`          | Start dev server on :3000                                                       |
-| `pnpm build`        | Build web app                                                                   |
-| `pnpm build:worker` | Build worker                                                                    |
-| `pnpm start`        | Run built web server                                                            |
-| `pnpm start:worker` | Run built worker                                                                |
-| `pnpm test`         | Run unit tests                                                                  |
-| `pnpm test:e2e`     | Run Playwright E2E tests                                                        |
-| `pnpm typecheck`    | TypeScript check (src/services/e2e + the release scripts project)               |
-| `pnpm lint`         | ESLint + filename/component-boundary checks                                     |
-| `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates                                |
-| `pnpm format`       | Prettier format                                                                 |
-| `pnpm release:beta` | Deploy + verify the closed beta (dry run; `--apply` needs an operator + reason) |
+| Command                        | Description                                                                                                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                     | Start dev server on :3000                                                                                                                                             |
+| `pnpm build`                   | Build web app                                                                                                                                                         |
+| `pnpm build:worker`            | Build worker                                                                                                                                                          |
+| `pnpm start`                   | Run built web server                                                                                                                                                  |
+| `pnpm start:worker`            | Run built worker                                                                                                                                                      |
+| `pnpm test`                    | Run unit tests                                                                                                                                                        |
+| `pnpm test:e2e`                | Run Playwright E2E tests                                                                                                                                              |
+| `pnpm typecheck`               | TypeScript check (src/services/e2e + the release scripts project)                                                                                                     |
+| `pnpm lint`                    | ESLint + filename/component-boundary checks                                                                                                                           |
+| `pnpm lint:ci`                 | `lint` + test-quality + Google/AI artifact gates                                                                                                                      |
+| `pnpm format`                  | Prettier format                                                                                                                                                       |
+| `pnpm infra:railway:plan-cell` | Retain the manifest-bound full-candidate plan for the dedicated `cell-us` project; requires Railway CLI 5.45.2+                                                       |
+| `pnpm release:migrate-cell`    | Audited, saved-plan schema migration for every signed single-US candidate; the first run also enables the bounded Data Cell cutover                                   |
+| `pnpm release:beta`            | Staged saved-plan promotion/read-back for the one `cell-us`; live promotion remains blocked until retained cutover, plan, provider, and recovery evidence is complete |
 
 ### Git hooks
 
@@ -70,14 +74,14 @@ Install hooks after cloning: `pnpm install` (the `prepare` script registers Husk
 
 ```
 src/
-├── contexts/       # Bounded business domains (identity, property, portal, guest, team, staff)
+├── contexts/       # Bounded business domains; Team is retained only as a quarantined migration package
 │   └── <name>/    # Each has: domain/, application/, infrastructure/, server/
 ├── components/     # React UI
 │   ├── ui/        # shadcn primitives
 │   ├── forms/     # shared form blocks (SubmitButton, FormErrorBanner, etc.)
 │   ├── layout/    # app shell (sidebars, header, top bar)
 │   ├── hooks/     # shared hooks (useMutationAction, useAction, usePropertyId)
-│   └── features/  # domain-concept folders (portal/, identity/, property/, team/, etc.)
+│   └── features/  # domain-concept folders (portal/, identity/, property/, inbox/, etc.)
 ├── shared/         # Cross-cutting infrastructure
 │   ├── auth/      # Better Auth config, middleware, permissions
 │   ├── cache/     # Redis client + cache port/impl

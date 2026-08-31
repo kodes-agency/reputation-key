@@ -1,5 +1,6 @@
 // Dashboard context — shared utilities for server and repository layers
 import type { TimeRangePreset } from './dto/dashboard.dto'
+import { shiftPropertyLocalDays } from '#/shared/domain/property-calendar'
 export const MS_PER_DAY = 86_400_000
 const MS_PER_HOUR = 3_600_000
 
@@ -10,14 +11,22 @@ export const slaCutoff = (now: Date, slaHours: number): Date =>
 
 /** Convert a time-range preset to concrete start/end dates relative to `now`.
  *  `now` is injected so callers can fast-forward time (ADR 0017). */
-export function timeRangeToDates(preset: TimeRangePreset, now: Date) {
+function presetDays(preset: Exclude<TimeRangePreset, 'all'>): number {
+  return preset === '7d' ? 7 : preset === '60d' ? 60 : preset === '90d' ? 90 : 30
+}
+
+export function timeRangeDays(preset: TimeRangePreset): number | null {
+  return preset === 'all' ? null : presetDays(preset)
+}
+
+export function timeRangeToDates(preset: TimeRangePreset, now: Date, timezone = 'UTC') {
   if (preset === 'all') {
     // No start bound — epoch captures all data
     return { startDate: new Date(0), endDate: now }
   }
-  const days = preset === '7d' ? 7 : preset === '60d' ? 60 : preset === '90d' ? 90 : 30
+  const days = presetDays(preset)
   return {
-    startDate: new Date(now.getTime() - days * MS_PER_DAY),
+    startDate: shiftPropertyLocalDays(now, -days, timezone),
     endDate: now,
   }
 }
@@ -29,39 +38,48 @@ export function computeTrend(current: number, prior: number): number | null {
   return Number.isFinite(result) ? Math.round(result) : null
 }
 
+const MIN_RATING_COMPARISON_SAMPLE = 10
+export const RATING_DROP_THRESHOLD = 0.3
+
+/** Absolute star delta, available only for statistically usable periods. */
+export function ratingComparison(
+  currentAverage: number,
+  currentCount: number,
+  priorAverage: number,
+  priorCount: number,
+): number | null {
+  if (
+    currentCount < MIN_RATING_COMPARISON_SAMPLE ||
+    priorCount < MIN_RATING_COMPARISON_SAMPLE
+  ) {
+    return null
+  }
+  return Math.round((currentAverage - priorAverage) * 10) / 10
+}
+
 // ── BQC-5.5: consolidated read-policy helpers (were inline copies ×5/×2) ──
 
 /** Default bound for the recent-reviews list read — the dashboard's one
  *  bounded list. Named here so the use case and the repo share it. */
 export const DEFAULT_RECENT_REVIEWS_LIMIT = 5
 
-/** Prior period: the same duration immediately before the current period.
+/** Prior period: the same number of local calendar days before the current period.
  *  Returns null for 'all' — an unbounded window has no prior window, and the
  *  previous behaviour (returning the CURRENT window) made callers compare the
  *  period against itself: computeTrend(x, x) is 0, not null, because the
  *  `prior === 0` guard never binds. Every user saw a fabricated 0% on first
  *  load ('all' is the default preset). Pure function of its inputs (ADR 0017).
- *  Dated presets keep contiguous, non-overlapping windows against inclusive
- *  bounds: priorEnd is 1ms before start. */
+ *  Dated presets keep contiguous, non-overlapping half-open windows: the
+ *  prior period ends exactly where the current period starts. */
 export function priorPeriodDates(
   preset: TimeRangePreset,
   startDate: Date,
-  endDate: Date,
+  _endDate: Date,
+  timezone = 'UTC',
 ): { priorStartDate: Date; priorEndDate: Date } | null {
   if (preset === 'all') return null
   return {
-    priorStartDate: new Date(
-      startDate.getTime() - (endDate.getTime() - startDate.getTime()),
-    ),
-    priorEndDate: new Date(startDate.getTime() - 1),
+    priorStartDate: shiftPropertyLocalDays(startDate, -presetDays(preset), timezone),
+    priorEndDate: new Date(startDate),
   }
-}
-
-/** A rating drop is flagged when avg rating falls ≥ this vs the prior period.
- *  Module-private: the servable contract is isRatingDrop (BQC-5.5). */
-const RATING_DROP_THRESHOLD = 0.3
-
-/** Rating-drop flag. Guards the no-prior-data false positive (priorValue 0). */
-export function isRatingDrop(currentAvg: number, priorAvg: number): boolean {
-  return priorAvg > 0 && priorAvg - currentAvg >= RATING_DROP_THRESHOLD
 }

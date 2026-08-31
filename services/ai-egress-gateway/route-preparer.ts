@@ -1,5 +1,5 @@
 import type { KeyObject } from 'node:crypto'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { zodTextFormat } from 'openai/helpers/zod'
 import { canonicalizeRfc8785 } from '../../src/shared/merchant-ai-notice-contract'
 import { encodeCanonicalAiReviewSource } from '../../src/shared/ai-review-source-contract'
@@ -30,12 +30,10 @@ import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from '../../src/shared/ai-zh-orthogr
 import {
   AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
   AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
-  resolveAiReplyTemplate,
 } from '../../src/shared/ai-reply-template-catalogue'
 import {
   AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
   AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
-  scanAiReplyOutput,
 } from '../../src/shared/ai-reply-output-leakage'
 import {
   CLOSED_TREND_SIGNAL_IDS,
@@ -45,9 +43,14 @@ import {
 } from '../../src/shared/ai-property-trend-contract'
 import {
   AI_ANALYSIS_OUTPUT_SCHEMA,
-  AI_REPLY_SELECTION_OUTPUT_SCHEMA,
+  AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
 } from '../../src/shared/openai-route-output-schemas'
+import {
+  AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+  parsePersonalizedReplyDraft,
+} from '../../src/shared/ai-personalized-reply-contract'
 import {
   AI_PROVIDER_DEPLOYMENT_PROFILE_V1,
   maximumCostMicros as maximumProviderCostMicros,
@@ -78,8 +81,9 @@ import {
 } from './prepared-invocation'
 import { derivePropertySafetyIdentifier } from './safety-identifier'
 import { digestRenderedReply, signAiReplyProvenance } from './provenance'
+import { digestAiReplyBrandDisplayName } from '../../src/shared/ai-reply-brand-profile.server'
 const analysisOutputSchema = AI_ANALYSIS_OUTPUT_SCHEMA
-const replySelectionSchema = AI_REPLY_SELECTION_OUTPUT_SCHEMA
+const personalizedReplySchema = AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA
 const trendSelectionSchema = AI_TREND_SELECTION_OUTPUT_SCHEMA
 const closedJsonSchemaFormatSchema = z
   .object({
@@ -288,11 +292,17 @@ export function createAiGatewayRoutePreparer(
             baseReplyStateRevision: number
             replyDraftingEpoch: number
             propertyProfileVersion: number
+            replyBrandProfileVersion: number
+            replyBrandDisplayNameDigest: string
+            brandDisplayName: string
             providerDeploymentProfileVersion: typeof AI_PROVIDER_DEPLOYMENT_PROFILE_V1.profileVersion
             operationProfileVersion: 'reply-suggestion-v1'
             modelSnapshot: typeof AI_PROVIDER_DEPLOYMENT_PROFILE_V1.modelSnapshot
             promptVersion: (typeof OPENAI_PROMPT_VERSIONS)['reply-suggestion']
+            replyProfileVersion: typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION
             concreteLanguage: ConcreteReplyLanguage
+            redactedReviewText: string
+            rating: 1 | 2 | 3 | 4 | 5
           }>
       if (request.route === 'property-trend') {
         const detachedTrendPayload = structuredClone(request.source)
@@ -370,16 +380,24 @@ export function createAiGatewayRoutePreparer(
           const fence = request.binding.capabilityFence
           if (
             fence.capability !== 'reply_drafting' ||
-            request.binding.sourceRevision === null
+            request.binding.sourceRevision === null ||
+            request.binding.replyBrandProfileVersion === null ||
+            request.binding.replyBrandProfileVersion === undefined ||
+            request.binding.replyBrandDisplayNameDigest === null ||
+            request.binding.replyBrandDisplayNameDigest === undefined ||
+            digestAiReplyBrandDisplayName(request.brandProfile.displayName) !==
+              request.binding.replyBrandDisplayNameDigest
           )
             throw new GatewayPreparationError('policy_unavailable')
           providerPayload = {
+            replyProfileVersion: request.replyProfileVersion,
+            propertyDisplayName: request.brandProfile.displayName,
             reviewText: text,
             rating: request.source.rating,
             languageCode: concrete.tag,
             tone: request.tone,
           }
-          outputSchema = replySelectionSchema
+          outputSchema = personalizedReplySchema
           responseContext = Object.freeze({
             route: 'reply-suggestion',
             operationId: request.operationId,
@@ -394,11 +412,17 @@ export function createAiGatewayRoutePreparer(
             baseReplyStateRevision: fence.baseReplyStateRevision,
             replyDraftingEpoch: fence.replyDraftingEpoch,
             propertyProfileVersion: request.binding.propertyProfileVersion,
+            replyBrandProfileVersion: request.binding.replyBrandProfileVersion,
+            replyBrandDisplayNameDigest: request.binding.replyBrandDisplayNameDigest,
+            brandDisplayName: request.brandProfile.displayName,
             providerDeploymentProfileVersion: profile.providerDeploymentProfileVersion,
             operationProfileVersion: profile.profileVersion,
             modelSnapshot: AI_PROVIDER_DEPLOYMENT_PROFILE_V1.modelSnapshot,
             promptVersion: OPENAI_PROMPT_VERSIONS['reply-suggestion'],
+            replyProfileVersion: request.replyProfileVersion,
             concreteLanguage: concrete,
+            redactedReviewText: text,
+            rating: request.source.rating,
           })
         }
       }
@@ -493,32 +517,21 @@ export function createAiGatewayRoutePreparer(
               }),
             })
           }
-          const result = replySelectionSchema.safeParse(rawResult)
+          const result = parsePersonalizedReplyDraft({
+            reviewText: responseContext.redactedReviewText,
+            rating: responseContext.rating,
+            targetLanguageTag: responseContext.concreteLanguage.tag,
+            tone: responseContext.tone,
+            countryCode: responseContext.redactionCountry,
+            brandDisplayName: responseContext.brandDisplayName,
+            output: rawResult,
+          })
           if (
-            !result.success ||
-            result.data.languageCode !== responseContext.concreteLanguage.tag
+            result.status !== 'accepted' ||
+            result.profileVersion !== responseContext.replyProfileVersion
           )
             return null
-          let replyText: string
-          try {
-            replyText = resolveAiReplyTemplate({
-              templateGroup: responseContext.concreteLanguage.templateGroup,
-              tone: responseContext.tone,
-              templateId: result.data.templateId,
-            })
-          } catch {
-            return null
-          }
-          if (
-            scanAiReplyOutput({
-              text: replyText,
-              countryCode: responseContext.redactionCountry,
-              expectedProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
-              expectedProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
-              expectedDetectorProfileDigest: AI_STRUCTURED_MARKER_DETECTORS_DIGEST,
-            }) !== 'safe'
-          )
-            return null
+          const replyText = result.draft.replyText
           if (
             verifyReplyLanguageOutput(
               replyText,
@@ -528,7 +541,6 @@ export function createAiGatewayRoutePreparer(
           )
             return null
           const renderDigest = digestRenderedReply(replyText)
-          const templateId = result.data.templateId
           return Object.freeze({
             buildResponse: (
               receipt: AiSettlementReceiptV1,
@@ -542,7 +554,7 @@ export function createAiGatewayRoutePreparer(
                 throw new GatewayPreparationError('output_invalid')
               const provenanceToken = signAiReplyProvenance(
                 {
-                  version: 'ai-reply-provenance-v1',
+                  version: 'ai-reply-provenance-v3',
                   kid: dependencies.provenanceKid,
                   operationId: responseContext.operationId,
                   actorId: responseContext.actorId,
@@ -558,13 +570,15 @@ export function createAiGatewayRoutePreparer(
                   providerDeploymentProfileVersion:
                     responseContext.providerDeploymentProfileVersion,
                   operationProfileVersion: responseContext.operationProfileVersion,
+                  replyProfileVersion: responseContext.replyProfileVersion,
+                  replyProfileDigest: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+                  replyBrandProfileVersion: responseContext.replyBrandProfileVersion,
+                  replyBrandDisplayNameDigest:
+                    responseContext.replyBrandDisplayNameDigest,
                   modelSnapshot: responseContext.modelSnapshot,
                   promptVersion: responseContext.promptVersion,
                   outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
                   outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
-                  replyTemplateCatalogueVersion: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
-                  replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-                  templateId,
                   concreteLanguageTag: responseContext.concreteLanguage.tag,
                   templateGroup: responseContext.concreteLanguage.templateGroup,
                   renderedSuggestionDigest: renderDigest,
@@ -578,11 +592,11 @@ export function createAiGatewayRoutePreparer(
                 status: 'success',
                 settlementReceipt: receipt,
                 result: {
+                  profileVersion: responseContext.replyProfileVersion,
                   replyText,
                   provenanceToken,
                   expiresAtEpochMillis: grant.replyTokenExpiresAtEpochMillis,
                   baseReplyStateRevision: responseContext.baseReplyStateRevision,
-                  templateId,
                   concreteLanguageTag: responseContext.concreteLanguage.tag,
                   templateGroup: responseContext.concreteLanguage.templateGroup,
                 },

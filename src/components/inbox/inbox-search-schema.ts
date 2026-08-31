@@ -11,7 +11,7 @@ export type InboxFolder = 'open' | 'escalated' | 'closed'
 
 export const inboxSearchObjectSchema = z.object({
   folder: z.enum(['open', 'escalated', 'closed']).optional(),
-  itemId: z.string().uuid().optional(),
+  itemId: z.uuid().optional(),
   propertyId: z.string().optional(),
   sourceType: z.enum(['review', 'feedback']).optional(),
   platform: z.string().optional(),

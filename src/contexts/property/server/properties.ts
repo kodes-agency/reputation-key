@@ -21,7 +21,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 // ── createProperty ─────────────────────────────────────────────────
 
 export const createProperty = createServerFn({ method: 'POST' })
-  .inputValidator(createPropertyInputSchema)
+  .validator(createPropertyInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -31,8 +31,8 @@ export const createProperty = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'property.create' })
 
         try {
-          const { useCases } = getContainer()
-          const property = await useCases.createProperty(data, ctx)
+          const { management } = getContainer().propertyPublicApi
+          const property = await management.createProperty(data, ctx)
           return { property }
         } catch (e) {
           if (isPropertyError(e))
@@ -48,7 +48,7 @@ export const createProperty = createServerFn({ method: 'POST' })
 // ── updateProperty ─────────────────────────────────────────────────
 
 export const updateProperty = createServerFn({ method: 'POST' })
-  .inputValidator(updatePropertyInputSchema)
+  .validator(updatePropertyInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -62,8 +62,8 @@ export const updateProperty = createServerFn({ method: 'POST' })
         })
 
         try {
-          const { useCases } = getContainer()
-          const property = await useCases.updateProperty(data, ctx)
+          const { management } = getContainer().propertyPublicApi
+          const property = await management.updateProperty(data, ctx)
           return { property }
         } catch (e) {
           if (isPropertyError(e))
@@ -79,3 +79,8 @@ export const updateProperty = createServerFn({ method: 'POST' })
 // ── Re-exports from split files ────────────────────────────────────
 
 export { listProperties, getProperty, deleteProperty } from './property-read'
+export {
+  archiveProperty,
+  disconnectPropertyGoogleBinding,
+  restoreProperty,
+} from './property-lifecycle'

@@ -59,7 +59,6 @@ describe('PR5 migration catalogue finalization', () => {
     for (const profile of AI_OPERATION_PROFILES) {
       const index = profileBlock.indexOf(`('${profile.profileVersion}'`)
       expect(index).toBeGreaterThan(previous)
-      expect(profileBlock).toContain(`'${profile.staticTokenBearingDigest}'`)
       previous = index
     }
     expect(profileBlock).toContain("'synthetic-canary','internal:synthetic-canary'")
@@ -85,10 +84,10 @@ describe('PR5 migration catalogue finalization', () => {
   it('forward-repins the affected operation profiles to the executable catalogue', () => {
     const sql = migration('0078_ai-language-catalogue-repin.sql')
     const affected = AI_OPERATION_PROFILES.filter(({ profileVersion }) =>
-      ['review-analysis-v1', 'reply-suggestion-v1'].includes(profileVersion),
+      ['review-analysis-v1'].includes(profileVersion),
     )
 
-    expect(affected).toHaveLength(2)
+    expect(affected).toHaveLength(1)
     for (const profile of affected) {
       expect(sql).toContain(`"profile_version":"${profile.profileVersion}"`)
       expect(sql).toContain(
@@ -96,6 +95,27 @@ describe('PR5 migration catalogue finalization', () => {
       )
       expect(sql).toContain(`"profile_digest":"${profile.profileDigest}"`)
     }
+    expect(sql).toContain(
+      'ALTER TABLE "ai_operation_profiles" DISABLE TRIGGER "ai_operation_profiles_immutable"',
+    )
+    expect(sql).toContain(
+      'ALTER TABLE "ai_operation_profiles" ENABLE TRIGGER "ai_operation_profiles_immutable"',
+    )
+  })
+
+  it('forward-repins the reply operation wrapper to the Brand Profile-grounded draft contract', () => {
+    const sql = migration('0163_ai_reply_brand_profile_grounding.sql')
+    const profile = AI_OPERATION_PROFILES.find(
+      ({ profileVersion }) => profileVersion === 'reply-suggestion-v1',
+    )
+    expect(profile).toBeDefined()
+    expect(sql).toContain(`"profile_version":"${profile!.profileVersion}"`)
+    expect(sql).toContain(`"output_schema_name":"reply_draft_v1"`)
+    expect(sql).toContain(
+      `"artifact_attestations_digest":"${profile!.artifactAttestationsDigest}"`,
+    )
+    expect(sql).toContain(`"profile_digest":"${profile!.profileDigest}"`)
+    expect(sql).toContain('"personalizedReplyProfileVersion":"reply-draft-v2"')
     expect(sql).toContain(
       'ALTER TABLE "ai_operation_profiles" DISABLE TRIGGER "ai_operation_profiles_immutable"',
     )

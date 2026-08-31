@@ -7,6 +7,7 @@ import {
   REVIEW_PROVIDER_SUBJECT_ATTESTATION_MEMBERS_V1,
   REVIEW_PROVIDER_SUBJECT_CANONICALIZER_ATTESTATION_V1,
   SOURCE_CANONICALIZER_ATTESTATION_V1,
+  assertPinnedProviderDependencyVersions,
   assertCanonicalizerAttestation,
   calculateReviewProviderSubjectAttestation,
   calculateSourceCanonicalizerAttestation,
@@ -46,6 +47,25 @@ afterEach(() => {
 })
 
 describe('canonicalizer build attestations', () => {
+  it('pins the assessed OpenAI SDK and Undici transport exactly', () => {
+    expect(assertPinnedProviderDependencyVersions(REPOSITORY_ROOT)).toEqual({
+      openai: '7.4.0',
+      undici: '8.10.0',
+    })
+  })
+
+  it('rejects drift from an assessed provider dependency', () => {
+    const root = mkdtempSync(join(tmpdir(), 'repkey-ai-dependencies-'))
+    temporaryRoots.push(root)
+    writeFileSync(
+      resolve(root, 'package.json'),
+      JSON.stringify({ dependencies: { openai: '^7.4.0', undici: '8.10.0' } }),
+    )
+    expect(() => assertPinnedProviderDependencyVersions(root)).toThrow(
+      /openai dependency must be pinned exactly to 7\.4\.0/,
+    )
+  })
+
   it('reproduces the exact ordered member hashes and profile digests', () => {
     const result = checkCanonicalizerAttestations(REPOSITORY_ROOT)
     expect(result).toEqual({

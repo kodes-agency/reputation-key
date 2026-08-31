@@ -21,6 +21,12 @@
 // Registered as unsupported-by-design (no code, see slice report):
 //   high-contrast (no forced-colors support), RTL, 44px touch-target
 //   convention (design-system decision — button heights are 36/32px).
+//
+// IBX-01-T9 — every Inbox item seeded here is scanned THROUGH the product (the
+// list rows, the detail panel, the keyboard journey), so all of them use
+// `seedReviewInboxItemWithCycle`. Serving reads resolve status from the
+// Handling Cycle head, so a bare `inbox_items` row renders nothing and the axe
+// scans would pass against an empty list rather than the intended surface.
 
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
@@ -32,7 +38,7 @@ import {
   cleanupE2eData,
   seedProperty,
   seedReview,
-  seedInboxItemForReview,
+  seedReviewInboxItemWithCycle,
 } from '../helpers/fixtures'
 
 const PREFIX = 'e2e-a11y-'
@@ -57,7 +63,7 @@ test.describe('Critical a11y: axe page scans', () => {
     })
     await signIn(page)
     await page.goto('/dashboard')
-    await expect(page.getByText('Needs action')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('Needs attention')).toBeVisible({ timeout: 15_000 })
     await assertNoAxeViolations(page, 'fleet dashboard (/dashboard)')
   })
 
@@ -75,7 +81,7 @@ test.describe('Critical a11y: axe page scans', () => {
     })
     await signIn(page)
     await page.goto('/dashboard')
-    await expect(page.getByText('Needs action')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('Needs attention')).toBeVisible({ timeout: 15_000 })
     // Light theme actually applied (not .dark).
     const themeState = await page.evaluate(() => ({
       isDark: document.documentElement.classList.contains('dark'),
@@ -103,7 +109,7 @@ test.describe('Critical a11y: axe page scans', () => {
       text: 'List scan review body.',
       reviewerName: 'Scan Reviewer',
     })
-    await seedInboxItemForReview({
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId,
@@ -123,7 +129,7 @@ test.describe('Critical a11y: axe page scans', () => {
       text: 'Detail scan review body — the room was noisy overnight.',
       reviewerName: 'Detail Reviewer',
     })
-    const { inboxItemId } = await seedInboxItemForReview({
+    const { inboxItemId } = await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId,
@@ -133,9 +139,11 @@ test.describe('Critical a11y: axe page scans', () => {
     await expect(page.getByText('Detail Reviewer').first()).toBeVisible({
       timeout: 15_000,
     })
-    // Detail actions rendered (the detail panel, not just the list).
+    // Detail actions rendered (the detail panel, not just the list). The
+    // control is labelled "Close detail" -- an exact match on "Close" silently
+    // stopped matching it and no longer proved the panel was open.
     await expect(
-      page.getByRole('button', { name: 'Close', exact: true }).first(),
+      page.getByRole('button', { name: 'Close detail', exact: true }).first(),
     ).toBeVisible()
     await assertNoAxeViolations(page, 'inbox detail (/inbox?itemId=)')
   })
@@ -189,7 +197,7 @@ test.describe('Critical a11y: keyboard', () => {
       text: 'Keyboard review A.',
       reviewerName: 'Kb Alpha',
     })
-    await seedInboxItemForReview({
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId: reviewA,
@@ -203,7 +211,7 @@ test.describe('Critical a11y: keyboard', () => {
       text: 'Keyboard review B.',
       reviewerName: 'Kb Beta',
     })
-    await seedInboxItemForReview({
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId: reviewB,
@@ -217,18 +225,30 @@ test.describe('Critical a11y: keyboard', () => {
     await expect(rowA).toBeVisible({ timeout: 15_000 })
     await expect(rowB).toBeVisible()
 
-    // List order is newest-first → [Kb Beta, Kb Alpha].
-    await expect(rowB).toBeVisible()
-    // 'j' selects the first row (Kb Beta) and opens the detail.
+    // The contract under test is "j moves down one row, k moves back up" —
+    // NOT that these two seeded rows are adjacent. The Inbox is shared, so
+    // other specs' items legitimately sort between them, and asserting
+    // adjacency made this test about the rest of the suite's fixtures.
+    const listOrder = await page
+      .getByRole('button', { name: /^open review from /i })
+      .evaluateAll((rows) =>
+        rows.map((row) =>
+          (row.getAttribute('aria-label') ?? '').replace(/^Open review from /i, ''),
+        ),
+      )
+    expect(listOrder.slice(0, 2).length).toBe(2)
+    const [firstRow, secondRow] = listOrder
+
+    // 'j' selects the first row and opens the detail.
     await page.keyboard.press('j')
     await expect(page).toHaveURL(/itemId=/, { timeout: 10_000 })
-    await expect(page.getByText('Kb Beta').nth(1)).toBeVisible({ timeout: 10_000 })
-    // 'j' again → next row (Kb Alpha).
+    await expect(page.getByText(firstRow!).nth(1)).toBeVisible({ timeout: 10_000 })
+    // 'j' again → the next row down.
     await page.keyboard.press('j')
-    await expect(page.getByText('Kb Alpha').nth(1)).toBeVisible({ timeout: 10_000 })
-    // 'k' → back up to Kb Beta.
+    await expect(page.getByText(secondRow!).nth(1)).toBeVisible({ timeout: 10_000 })
+    // 'k' → back up to the first.
     await page.keyboard.press('k')
-    await expect(page.getByText('Kb Beta').nth(1)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(firstRow!).nth(1)).toBeVisible({ timeout: 10_000 })
     // Escape → detail closes.
     await page.keyboard.press('Escape')
     await expect(page.getByText(/no message selected/i)).toBeVisible({
@@ -454,7 +474,7 @@ test.describe('Critical a11y: zoom reflow', () => {
       text: 'Zoom reflow review.',
       reviewerName: 'Zoom Reviewer',
     })
-    await seedInboxItemForReview({
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId,
@@ -505,7 +525,7 @@ test.describe('Critical a11y: zoom reflow', () => {
     await page.setViewportSize({ width: 320, height: 900 })
     await signIn(page)
     await page.goto('/dashboard')
-    const heading = page.getByText('Needs action')
+    const heading = page.getByText('Needs attention')
     await expect(heading).toBeVisible({ timeout: 15_000 })
 
     const report = await page.evaluate(() => {
@@ -549,7 +569,7 @@ test.describe('Critical a11y: mobile viewport (390×844)', () => {
       text: 'Mobile viewport review.',
       reviewerName: 'Mobile Reviewer',
     })
-    await seedInboxItemForReview({
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId,

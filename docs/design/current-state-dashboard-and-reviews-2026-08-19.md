@@ -1,5 +1,9 @@
 # Current state: dashboard and reviews page
 
+> **Historical snapshot — superseded 2026-08-28.** The Property route now reads
+> one `getPropertyOverviewFn` projection containing both Dashboard and attention
+> data. The standalone `getAttentionSignalsFn` described below was contracted.
+
 Date: 2026-08-19. Scope: what the dashboard surfaces and the reviews three-panel page render today, what data exists in the database with no UI consumer, and which primitives are already available. Facts only — no proposals.
 
 All paths are relative to the repository root. Line numbers were resolved by direct read/grep at the time of writing.

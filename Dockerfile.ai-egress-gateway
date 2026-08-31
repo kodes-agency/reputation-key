@@ -37,7 +37,7 @@ RUN rm -rf /opt/corepack /pnpm \
 COPY --from=build /app/dist-ai-egress-gateway ./dist-ai-egress-gateway
 COPY --from=build /app/dist-ai-egress-probe ./dist-ai-egress-probe
 USER node
-EXPOSE 8443
+EXPOSE 8080 8443
 CMD ["node", "dist-ai-egress-gateway/index.js"]
 
 FROM runtime AS local-provider

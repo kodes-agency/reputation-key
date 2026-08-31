@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "kind": "comprehensive-review-frozen-baseline",
+  "frozen": {
+    "branchCandidates": ["(no branch)", "codex/fix-ai-draft-language-readiness"],
+    "clean": true,
+    "origin": "https://github.com/kodes-agency/reputation-key.git",
+    "sha": "718fad1807b7422885584660bd3580f2a3a49113"
+  },
+  "environment": {
+    "node": "v22.23.2",
+    "platform": "darwin/arm64",
+    "pnpm": "10.6.5"
+  },
+  "digests": {
+    "lockfileSha256": "549e830058e30cc563655d0f82a9c687ab0979b63bb3ee84665083f4118cd85d",
+    "routeTreeSha256": "6aa1fa05e37c892bfb420893161cbc1ace2e92d1a4eb4567e391d2608b28db57"
+  },
+  "migrations": {
+    "betterAuth": [
+      "better-auth_migrations/2026-06-19T12-14-20.286Z.sql",
+      "better-auth_migrations/2026-06-21T18-37-49.995Z.sql"
+    ],
+    "drizzleHead": "0078_ai-language-catalogue-repin",
+    "drizzleJournalEntries": 79
+  },
+  "inventory": {
+    "artifacts": 3260,
+    "entryPoints": 213,
+    "files": 3260,
+    "findings": 114,
+    "imports": 13417,
+    "sourceFiles": 2649,
+    "symbols": 6483,
+    "unmappedFindings": []
+  },
+  "provenance": {
+    "inventoryLibrarySha256": "b1512ea69fff9015a3a776e0fce72d64b18c3e8cfd75b1e62a9461ac3c7b3aef",
+    "inventoryToolSha256": "05d77de092274b046cff1ddf042a9b13a1a2f80c9ef0194e0aa77104ee7dc344",
+    "plan": "docs/comprehensive-beta-implementation-program-2026-08-25.md",
+    "planSha256": "9afe6636f505856b9e40503ac3b87967adc7e6bd5b3156ebe0fda34d6ca62a21",
+    "report": "/Users/bozhidardenev/tmp/rep-key-comprehensive-review-consolidated-2026-08-24.md",
+    "reportSha256": "d14c4ebb6572c71a53a57c035b844ad27bf096d4def54a4b06af3be0fb0a6759"
+  },
+  "capturedAt": "2026-08-24T23:04:27.243Z"
+}

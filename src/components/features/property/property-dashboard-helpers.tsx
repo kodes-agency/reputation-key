@@ -2,6 +2,7 @@ import { Star, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import type {
   KPIValue,
+  MetricKPIValue,
   DashboardReplyStatus,
 } from '#/contexts/dashboard/application/public-api'
 
@@ -45,11 +46,25 @@ export function KPICard({
   formatValue,
 }: {
   label: string
-  kpi: KPIValue
+  kpi: KPIValue | MetricKPIValue
   icon: React.ComponentType<{ className?: string }>
   formatValue?: (v: number) => string
 }) {
-  const display = formatValue ? formatValue(kpi.value) : String(kpi.value)
+  const metricState = 'evidence' in kpi ? kpi.evidence.current.state : 'available'
+  const stateLabel =
+    metricState === 'updating'
+      ? 'Updating'
+      : metricState === 'unavailable' || kpi.value === null
+        ? 'Temporarily unavailable'
+        : null
+  const display =
+    stateLabel !== null
+      ? stateLabel
+      : kpi.value === null
+        ? 'Temporarily unavailable'
+        : formatValue
+          ? formatValue(kpi.value)
+          : String(kpi.value)
 
   return (
     <div className="rounded-lg border p-4">
@@ -58,11 +73,21 @@ export function KPICard({
         <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
       </div>
       <div className="mt-2 flex items-baseline gap-2">
-        <p className="text-2xl font-semibold tabular-nums">{display}</p>
-        <span className="flex items-center gap-0.5 text-xs tabular-nums text-muted-foreground">
-          <TrendIndicator trend={kpi.trend} />
-          {formatTrend(kpi.trend)}
-        </span>
+        <p
+          className={
+            stateLabel
+              ? 'text-sm font-medium text-muted-foreground'
+              : 'text-2xl font-semibold tabular-nums'
+          }
+        >
+          {display}
+        </p>
+        {stateLabel === null && (
+          <span className="flex items-center gap-0.5 text-xs tabular-nums text-muted-foreground">
+            <TrendIndicator trend={kpi.trend} />
+            {formatTrend(kpi.trend)}
+          </span>
+        )}
       </div>
     </div>
   )

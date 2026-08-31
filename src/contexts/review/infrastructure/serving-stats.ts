@@ -16,7 +16,7 @@
 
 import type { Database } from '#/shared/db'
 import { reviews, replies } from '#/shared/db/schema'
-import { and, count, avg, eq, gte, gt, lte, desc, isNotNull, sql } from 'drizzle-orm'
+import { and, count, avg, eq, gte, gt, lt, desc, isNotNull, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import type { Clock } from '#/shared/domain/clock'
@@ -29,7 +29,13 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
  * is pinned equivalent by an integration test over a shared fixture set.
  */
 const contentEligible = (now: Date) =>
-  and(isNotNull(reviews.contentExpiresAt), gt(reviews.contentExpiresAt, now))
+  and(
+    eq(reviews.sourceContentState, 'active'),
+    isNotNull(reviews.rating),
+    isNotNull(reviews.reviewedAt),
+    isNotNull(reviews.contentExpiresAt),
+    gt(reviews.contentExpiresAt, now),
+  )
 
 /** Period aggregate scope: tenant + property + reviewedAt range + eligibility. */
 function servingPeriodWhere(
@@ -43,7 +49,7 @@ function servingPeriodWhere(
     eq(reviews.organizationId, organizationId),
     eq(reviews.propertyId, propertyId),
     gte(reviews.reviewedAt, startDate),
-    lte(reviews.reviewedAt, endDate),
+    lt(reviews.reviewedAt, endDate),
     contentEligible(now),
   )
 }
@@ -191,7 +197,7 @@ export const createServingStats = (deps: {
               eq(reviews.propertyId, propertyId),
               eq(replies.status, 'published'),
               gte(reviews.reviewedAt, startDate),
-              lte(reviews.reviewedAt, endDate),
+              lt(reviews.reviewedAt, endDate),
               sql`replies.published_at IS NOT NULL`,
               // BQC-5.5: a reply of an expired review is not servable.
               contentEligible(now),
@@ -215,9 +221,9 @@ export const createServingStats = (deps: {
       const rows = await deps.db
         .select({
           id: reviews.id,
-          rating: reviews.rating,
+          rating: sql<number>`${reviews.rating}`,
           text: reviews.text,
-          reviewedAt: reviews.reviewedAt,
+          reviewedAt: sql<Date>`${reviews.reviewedAt}`,
           replyStatus: sql<string>`
             COALESCE(
               (SELECT CASE

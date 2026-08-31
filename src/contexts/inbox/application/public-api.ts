@@ -9,11 +9,91 @@ export type {
   InboxItemDetail,
   InboxStatus,
   SourceType,
+  ReviewHandlingCycle,
+  ReviewHandlingCycleHead,
+  ReviewHandlingCycleOpenReason,
+  ManualReopenReason,
 } from '../domain/types'
+export type {
+  ReviewHandlingCycleExpectation,
+  ReviewHandlingCycleResult,
+} from './ports/review-handling-cycle.store'
+export type {
+  FeedbackHandlingCommandResult,
+  FeedbackHandlingCorrectionExpectation,
+  FeedbackHandlingExpectation,
+  FeedbackHandlingState,
+} from './ports/feedback-handling.store'
+export type {
+  GoogleReviewTargetAnalytics,
+  PrivateFeedbackTargetAnalytics,
+  ResponseTargetView,
+} from './ports/response-target.store'
+export type {
+  ResponseTargetPolicyStore,
+  ResponseTargetPolicySettings,
+  ResponseTargetPolicyWriteResult,
+} from './ports/response-target-policy.store'
+export type {
+  ResponseTargetEligibility,
+  ResponseTargetEvaluation,
+  ResponseTargetKind,
+  ResponseTargetPolicySource,
+  ResponseTargetReminderKind,
+  ResponseTargetResult,
+} from '../domain/response-target'
+export {
+  PRIVATE_FEEDBACK_HANDLING_OUTCOMES,
+  type FeedbackHandlingDeadlineResult,
+  type FeedbackHandlingOutcomeFact,
+  type PrivateFeedbackHandlingOutcome,
+} from '../domain/feedback-handling'
+
+// IBX-01 cutover classification. Pure and read-only: it reports what the legacy
+// rows prove and never infers an outcome or an on-time result from `closedAt`.
+export {
+  INBOX_HANDLING_CUTOVER_REPORT_VERSION,
+  INBOX_LEGACY_CLASSIFICATIONS,
+  INBOX_LEGACY_REASON_CODES,
+  canonicalInboxHandlingCutoverReport,
+  classifyInboxLegacyRelationship,
+  type InboxHandlingCutoverReport,
+  type InboxHandlingCutoverReportInput,
+  type InboxHandlingCutoverReportPayload,
+  type InboxLegacyClassification,
+  type InboxLegacyCycleRow,
+  type InboxLegacyHeadRow,
+  type InboxLegacyItemRow,
+  type InboxLegacyNoteRow,
+  type InboxLegacyOutcomeRow,
+  type InboxLegacyReasonCode,
+  type InboxLegacyRelationship,
+  type InboxLegacyRelationshipInput,
+  type InboxLegacySourceAnchorRow,
+  type InboxLegacyTransitionRow,
+} from './inbox-handling-cutover'
 
 // Application-layer detail result (includes the review reply) — used by the
 // client detail state. See get-inbox-item-detail use case.
 export type { InboxItemDetailResult } from './use-cases/get-inbox-item-detail'
+export type { InboxNoteView } from './use-cases/get-inbox-notes'
+export type { GetInboxItemHistoryResult } from './use-cases/get-inbox-item-history'
+
+// IBX-01-T5: the manager Handling History record. Components render these
+// types, so they are published here rather than imported from domain/.
+export type {
+  InboxAssignmentReason,
+  InboxHistoryAssignmentDetail,
+  InboxHistoryCycleOpenedDetail,
+  InboxHistoryCycleTransitionDetail,
+  InboxHistoryDetail,
+  InboxHistoryEntry,
+  InboxHistoryEscalationDetail,
+  InboxHistoryKind,
+  InboxHistoryOutcomeDetail,
+} from '../domain/handling-history'
+export { INBOX_HISTORY_KINDS } from '../domain/handling-history'
+export type { InboxHistoryPage } from './ports/inbox-history.repository'
 export type { InboxError, InboxErrorCode } from '../domain/errors'
 export { isInboxError } from '../domain/errors'
 export { INBOX_BULK_LIMIT } from './dto/inbox.dto'
@@ -23,6 +103,30 @@ export type {
   ReviewAttention,
   ReviewCategory,
 } from './ports/ai-review-insights.port'
+
+/** Request-facing Inbox capabilities. Persistence and construction stay private. */
+export type InboxPublicApi = Readonly<{
+  updateInboxStatus: import('./use-cases/update-inbox-status').UpdateInboxStatus
+  bulkUpdateInboxStatus: import('./use-cases/bulk-update-inbox-status').BulkUpdateInboxStatus
+  bulkAssignInboxItems: import('./use-cases/bulk-assign-inbox-items').BulkAssignInboxItems
+  escalateInboxItem: import('./use-cases/escalate-inbox-item').EscalateInboxItem
+  resolveEscalation: import('./use-cases/resolve-escalation').ResolveEscalation
+  assignInboxItem: import('./use-cases/assign-inbox-item').AssignInboxItem
+  getInboxItems: import('./use-cases/get-inbox-items').GetInboxItems
+  addInboxNote: import('./use-cases/add-inbox-note').AddInboxNote
+  getLastVisitCount: import('./use-cases/get-last-visit-count').GetLastVisitCount
+  stampLastInboxView: import('./use-cases/stamp-last-inbox-view').StampLastInboxView
+  getInboxItemDetail: import('./use-cases/get-inbox-item-detail').GetInboxItemDetail
+  getInboxNotes: import('./use-cases/get-inbox-notes').GetInboxNotes
+  getInboxItemHistory: import('./use-cases/get-inbox-item-history').GetInboxItemHistory
+  getInboxFolderCounts: import('./use-cases/get-folder-counts').GetInboxFolderCounts
+  markFeedbackHandled: import('./use-cases/mark-feedback-handled').MarkFeedbackHandled
+  correctFeedbackHandlingOutcome: import('./use-cases/correct-feedback-handling-outcome').CorrectFeedbackHandlingOutcome
+  getGoogleReviewTargetAnalytics: import('./use-cases/get-response-targets').GetGoogleReviewTargetAnalytics
+  getPrivateFeedbackTargetAnalytics: import('./use-cases/get-response-targets').GetPrivateFeedbackTargetAnalytics
+  getResponseTargetPolicySettings: import('./use-cases/get-response-targets').GetResponseTargetPolicySettings
+  setResponseTargetPolicy: import('./use-cases/set-response-target-policy').SetResponseTargetPolicy
+}>
 
 // Event re-exports — cross-context consumers must import event types from public-api, not domain/events
 export type {
@@ -34,5 +138,12 @@ export type {
   InboxItemUnassigned,
   InboxNoteAdded,
   InboxItemBulkStatusChanged,
+  InboxBulkAssignmentTransition,
+  InboxBulkAssignmentCompleted,
+  InboxHandlingCycleOpened,
+  InboxHandlingCycleClosed,
+  InboxHandlingCycleReopened,
+  InboxResponseTargetReminderDue,
+  InboxResponseTargetPolicyChanged,
   InboxEvent,
 } from '../domain/events'

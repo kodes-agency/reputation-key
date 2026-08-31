@@ -2,14 +2,16 @@
 // Fleet data is server-resolved (role-aware property enumeration) and cached via
 // TanStack Query: the loader primes the cache (SSR), the component reads it.
 // The 0/1/2+ render decision uses the parent layout loader's `properties` list.
-import { useEffect } from 'react'
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import {
   infiniteQueryOptions,
+  queryOptions,
   useSuspenseInfiniteQuery,
   useSuspenseQuery,
 } from '@tanstack/react-query'
 import { getFleetOverviewFn } from '#/contexts/dashboard/server/fleet-overview'
+import { getSetupChecklistFn } from '#/contexts/dashboard/server/setup-checklist'
+import type { SetupChecklist } from '#/contexts/dashboard/application/public-api'
 import { can } from '#/shared/domain/permissions'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
@@ -20,6 +22,10 @@ import {
   FleetOverviewError,
   FleetOverviewLoading,
 } from '#/components/features/dashboard/fleet-overview'
+import {
+  SetupChecklistLanding,
+  SetupChecklistPanel,
+} from '#/components/features/dashboard/setup-checklist'
 
 // Shared query options — the loader (ensureInfiniteQueryData) and component
 // (useSuspenseInfiniteQuery) reference the SAME options object so the primed
@@ -32,6 +38,11 @@ import {
 // screen to say so. The cursor is server-produced and opaque, so `pageParam`
 // goes straight back — no client-side encoding, unlike the inbox list.
 const FLEET_TIME_RANGE = '30d' as const
+const setupChecklistQuery = queryOptions({
+  queryKey: dashboardKeys.setup(),
+  queryFn: () => getSetupChecklistFn(),
+  staleTime: 30_000,
+})
 const fleetQuery = infiniteQueryOptions({
   queryKey: dashboardKeys.fleet(FLEET_TIME_RANGE),
   queryFn: ({ pageParam }) =>
@@ -51,7 +62,19 @@ export const Route = createFileRoute('/_authenticated/dashboard')({
     if (!can(role, 'dashboard.fleet_read')) throw redirect({ to: '/home' })
   },
   loader: async ({ context }) => {
-    await context.queryClient.ensureInfiniteQueryData(fleetQuery)
+    const [{ properties }, checklist] = await Promise.all([
+      context.queryClient.ensureQueryData(propertiesQuery),
+      context.queryClient.ensureQueryData(setupChecklistQuery),
+    ])
+    if (properties.length === 1 && checklist.state === 'complete') {
+      throw redirect({
+        to: '/properties/$propertyId',
+        params: { propertyId: properties[0].id },
+      })
+    }
+    if (properties.length > 1) {
+      await context.queryClient.ensureInfiniteQueryData(fleetQuery)
+    }
   },
   // Fleet data is operational; refresh on revisit or after invalidate().
   staleTime: 60_000,
@@ -66,23 +89,25 @@ function DashboardError({ error }: { error: Error }) {
 
 function DashboardRoute() {
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
+  const { data: checklist } = useSuspenseQuery(setupChecklistQuery)
   const properties = propsData.properties
+
+  if (properties.length === 0) {
+    return <FleetOverviewEmpty setup={<SetupChecklistPanel checklist={checklist} />} />
+  }
+  if (properties.length === 1) {
+    return <SetupChecklistLanding checklist={checklist} propertyId={properties[0].id} />
+  }
+
+  return <FleetDashboard checklist={checklist} />
+}
+
+function FleetDashboard({
+  checklist,
+}: Readonly<{
+  checklist: SetupChecklist
+}>) {
   const fleet = useSuspenseInfiniteQuery(fleetQuery)
-  const navigate = useNavigate()
-
-  // Single property → land directly on that property's deep-dive.
-  useEffect(() => {
-    if (properties.length === 1) {
-      navigate({
-        to: '/properties/$propertyId',
-        params: { propertyId: properties[0].id },
-        replace: true,
-      })
-    }
-  }, [properties, navigate])
-
-  if (properties.length === 0) return <FleetOverviewEmpty />
-  if (properties.length === 1) return null
 
   const pages = fleet.data.pages
   // Totals are org-wide and identical on every page — they come from the
@@ -95,6 +120,7 @@ function DashboardRoute() {
   return (
     <FleetOverview
       data={data}
+      setup={<SetupChecklistPanel checklist={checklist} />}
       isFetchingNextPage={fleet.isFetchingNextPage}
       onLoadMore={() => {
         void fleet.fetchNextPage()

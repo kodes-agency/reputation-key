@@ -8,6 +8,18 @@ export type PublishReplyJobData = JobEnqueueAttribution &
     replyId: string
     organizationId: string
     /**
+     * Monotonic authorization generation. Required for current producers;
+     * optional only so a bounded pre-RPL-01 in-flight job can be recognized
+     * as legacy by the worker (legacy rows have cycle 0).
+     */
+    publicationCycle?: number
+    /** Property/Data Cell plus provider-truth tuple frozen by manager
+     * authorization. Optional only for recognizing bounded legacy jobs. */
+    propertyId?: string
+    sourceEpoch?: number
+    materialReviewRevision?: number
+    baseObservationRevision?: number
+    /**
      * BQC-4.2: content-free routing envelope stamped at enqueue. Telemetry
      * only — the worker re-resolves routing at dispatch; a payload region is
      * never accepted as authority (ADR 0048).
@@ -17,7 +29,7 @@ export type PublishReplyJobData = JobEnqueueAttribution &
 
 export type AddPublishJobOptions = Readonly<{
   /**
-   * BQC-3.3: saga idempotency key (reply:{replyId}:v{sourceVersion}) used as
+   * RPL-01: saga idempotency key (reply-{replyId}-v{publicationCycle}) used as
    * the BullMQ jobId so a duplicate enqueue of the same approval cycle is
    * deduped instead of running the provider publish twice.
    */

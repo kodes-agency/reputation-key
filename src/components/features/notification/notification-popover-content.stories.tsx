@@ -3,7 +3,7 @@
 // header affordances, the active filter and the body state.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
-import { notificationFixtures } from './notification-fixtures'
+import { notificationFixtures } from './notification.stories.fixtures'
 import { groupByReadState, matchesNotificationFilter } from './notification-filters'
 import { NotificationPopoverContent } from './notification-popover-content'
 import type { NotificationRowActions } from './types'
@@ -34,11 +34,9 @@ const meta: Meta<typeof NotificationPopoverContent> = {
     filter: 'all',
     onFilterChange,
     isMarkingAllRead: false,
-    isClearingAll: false,
     onRetry: noop,
     onLoadMore: noop,
     onMarkAllRead: noop,
-    onClearAll: noop,
     actions,
   },
   decorators: [
@@ -63,6 +61,7 @@ export const Default: Story = {
       'href',
       '/notifications',
     )
+    expect(canvas.queryByRole('button', { name: /dismiss all/i })).toBeNull()
   },
 }
 
@@ -74,15 +73,13 @@ export const FilterTabs: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const tabs = canvas.getAllByRole('tab').map((tab) => tab.textContent)
-    expect(tabs).toEqual([
-      'All',
-      'Unread',
-      'Urgent',
-      'Operations',
-      'Workflow',
-      'Recognition',
-    ])
-    expect(tabs).not.toContain('Account')
+    // Derived from the domain, never hand-listed. `Account` appeared when the
+    // Organization access/role/purge-pending notices made `mandatory` govern
+    // real types: a category the reader cannot switch off is still one they
+    // may filter TO. `Recognition` stays absent — it is retained for history
+    // and post-core, so it must not advertise a beta control.
+    expect(tabs).toEqual(['All', 'Unread', 'Urgent', 'Account', 'Action', 'Workflow'])
+    expect(tabs).not.toContain('Recognition')
     onFilterChange.mockClear()
     await userEvent.click(canvas.getByRole('tab', { name: 'Urgent' }))
     expect(onFilterChange).toHaveBeenCalledWith('urgent')

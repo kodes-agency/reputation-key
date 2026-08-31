@@ -1,7 +1,8 @@
 // POST-BETA-1 PB1.1: Staff participation lifecycle.
 //
-// StaffParticipation tracks that a user participates as staff at a
-// property. It holds display/profile fields and an active lifecycle,
+// StaffParticipation tracks that a StaffParticipant participates at a
+// property. A participant may exist without a login; linkedUserId is a
+// read-only projection of an optional current StaffUserLink.
 // but NOT authorization (that's PropertyAccessGrant) and NOT team
 // membership (that's TeamMembership).
 //
@@ -17,11 +18,14 @@ export interface StaffParticipation {
   readonly id: string
   readonly organizationId: string
   readonly propertyId: string
-  readonly userId: string
+  readonly staffParticipantId: string
+  readonly linkedUserId: string | null
   readonly displayName: string
   readonly status: ParticipationStatus
   readonly startedAt: Date
   readonly endedAt: Date | null
+  readonly archiveReason: string | null
+  readonly revision: number
   readonly createdBy: string
   readonly updatedAt: Date
 }
@@ -55,7 +59,7 @@ export function createParticipation(params: {
   id: string
   organizationId: string
   propertyId: string
-  userId: string
+  staffParticipantId: string
   displayName: string
   createdBy: string
   now: Date
@@ -64,11 +68,14 @@ export function createParticipation(params: {
     id: params.id,
     organizationId: params.organizationId,
     propertyId: params.propertyId,
-    userId: params.userId,
+    staffParticipantId: params.staffParticipantId,
+    linkedUserId: null,
     displayName: params.displayName,
     status: 'active',
     startedAt: params.now,
     endedAt: null,
+    archiveReason: null,
+    revision: 1,
     createdBy: params.createdBy,
     updatedAt: params.now,
   }
@@ -86,6 +93,7 @@ export function deactivate(
     ...participation,
     status: 'inactive',
     endedAt: now,
+    revision: participation.revision + 1,
     updatedAt: now,
   }
 }
@@ -103,6 +111,7 @@ export function reactivate(
     ...participation,
     status: 'active',
     endedAt: null,
+    revision: participation.revision + 1,
     updatedAt: now,
   }
 }
@@ -110,6 +119,7 @@ export function reactivate(
 export function archive(
   participation: StaffParticipation,
   now: Date,
+  reason: string,
 ): StaffParticipation | ParticipationError {
   if (!isValidTransition(participation.status, 'archived')) {
     if (participation.status === 'archived') return { code: 'already_archived' }
@@ -119,18 +129,8 @@ export function archive(
     ...participation,
     status: 'archived',
     endedAt: participation.endedAt ?? now,
-    updatedAt: now,
-  }
-}
-
-export function updateProfile(
-  participation: StaffParticipation,
-  displayName: string,
-  now: Date,
-): StaffParticipation {
-  return {
-    ...participation,
-    displayName,
+    archiveReason: reason,
+    revision: participation.revision + 1,
     updatedAt: now,
   }
 }

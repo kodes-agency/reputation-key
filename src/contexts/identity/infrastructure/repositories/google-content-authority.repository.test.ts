@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { getDb, type Database } from '#/shared/db'
 import {
   GOOGLE_CONTENT_APPROVAL_ROLES,
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   type GoogleContentApprovalBinding,
   type GoogleContentApprovalRoleDocument,
 } from '#/shared/auth/google-content-contract'
@@ -18,6 +19,9 @@ import {
 import { createGoogleContentAuthorityRepository } from './google-content-authority.repository'
 import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/infrastructure/google-content-authorization-check'
 import { closePool } from '#/shared/db/pool'
+import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 
 const db = getDb()
 const now = new Date('2026-08-10T10:00:00.000Z')
@@ -44,7 +48,7 @@ const bindingBase = (): Omit<GoogleContentApprovalBinding, 'evidenceIndexSha256'
   railwayClosedBetaCohortSha256: null,
   railwayClosedBetaResidualRiskSha256: null,
   performanceCatalogVersion: '2026-08-05',
-  routeCatalogueVersion: '2026-08-16',
+  routeCatalogueVersion: GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   capabilityPolicyVersion: 'beta-local-2',
   executionPolicyVersion: 'beta-local-2',
   migrationHead: '0029_google-content-control',
@@ -68,6 +72,54 @@ const runtimeBinding = (): GoogleContentRuntimeBinding => {
     ...runtime
   } = binding()
   return runtime
+}
+
+const runtimeBindingFromCandidate = (
+  approvalCandidate: GoogleContentApprovalCandidate,
+): GoogleContentRuntimeBinding => {
+  const {
+    approvedAt: _approvedAt,
+    expiresAt: _expiresAt,
+    status: _status,
+    ...runtime
+  } = approvalCandidate.binding
+  return runtime
+}
+
+const candidateRevision = (revision: string): GoogleContentApprovalCandidate => {
+  const base = candidate()
+  const releaseSha = `release-${revision}`
+  const evidenceManifestSha256 = canonicalGoogleContentSha256(`manifest-${revision}`)
+  const roleDocuments = base.roleDocuments.map(({ document }) => {
+    const revised = {
+      ...document,
+      releaseSha,
+      manifestSha256: evidenceManifestSha256,
+      signature: `${document.role}-${revision}-signature`,
+    }
+    return { sha256: canonicalGoogleContentSha256(revised), document: revised }
+  })
+  const indexDocument = {
+    manifestSha256: evidenceManifestSha256,
+    artifactSha256: base.index.artifactSha256,
+    roleDocumentSha256: Object.fromEntries(
+      roleDocuments.map(({ sha256, document }) => [document.role, sha256]),
+    ) as GoogleContentApprovalCandidate['index']['roleDocumentSha256'],
+  }
+  const index = {
+    ...indexDocument,
+    sha256: canonicalGoogleContentSha256(indexDocument),
+  }
+  return {
+    binding: {
+      ...base.binding,
+      releaseSha,
+      evidenceManifestSha256,
+      evidenceIndexSha256: index.sha256,
+    },
+    index,
+    roleDocuments,
+  }
 }
 
 const roleDocument = (
@@ -122,6 +174,13 @@ const approvalBundle = () => ({ manifest: 'manifest', candidate: candidate() })
 
 const binding = (): GoogleContentApprovalBinding => candidate().binding
 
+let dynamicAuthorizationFixture:
+  | Readonly<{
+      organization: string
+      property: string
+    }>
+  | undefined
+
 beforeEach(async () => {
   await db.transaction(async (tx) => {
     await tx.execute(sql`DELETE FROM credential_revoke_permits`)
@@ -144,6 +203,76 @@ beforeEach(async () => {
       WHERE scope = 'global'
     `)
   })
+})
+
+afterEach(async () => {
+  const fixture = dynamicAuthorizationFixture
+  dynamicAuthorizationFixture = undefined
+  if (!fixture) return
+  await withPublicationAuthorizationFixtureMutation(() =>
+    db.transaction(async (tx) => {
+      await tx.execute(sql`
+        DELETE FROM credential_revoke_permits AS revoke_permit
+        USING google_credential_source_operations AS source_operation
+        WHERE revoke_permit.source_operation_id = source_operation.id
+          AND source_operation.organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM credential_revoke_permits AS revoke_permit
+        USING authorization_execution_permits AS execution_permit
+        WHERE revoke_permit.cleanup_work_permit_id = execution_permit.id
+          AND execution_permit.organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM google_credential_source_operations
+        WHERE organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM authorization_execution_permits
+        WHERE organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM reply_publication_attempts
+        WHERE organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM reply_publication_authorizations
+        WHERE organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM replies
+        WHERE organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM material_review_revisions
+        WHERE organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM reviews
+        WHERE organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM property_capability
+        WHERE property_id = ${fixture.property}::uuid
+      `)
+      await tx.execute(sql`
+        DELETE FROM properties
+        WHERE organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM google_connections
+        WHERE organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM organization_capability
+        WHERE organization_id = ${fixture.organization}
+      `)
+      await tx.execute(sql`
+        DELETE FROM permission_version
+        WHERE organization_id = ${fixture.organization}
+      `)
+    }),
+  )
 })
 
 afterAll(async () => {
@@ -183,6 +312,56 @@ describe('Google Content authority repository', () => {
     })
   })
 
+  it('resolves the newest exact runtime approval while retaining older approval IDs', async () => {
+    const store = createGoogleContentAuthorityRepository(db)
+    const retainedCandidate = candidateRevision('retained-runtime')
+    const replacementCandidate = candidateRevision('replacement-runtime')
+    const retained = await store.transaction((tx) =>
+      store.appendApproval(tx, retainedCandidate),
+    )
+    const replacement = await store.transaction((tx) =>
+      store.appendApproval(tx, replacementCandidate),
+    )
+
+    await expect(
+      store.transaction((tx) =>
+        store.loadApprovalForRuntime(tx, runtimeBindingFromCandidate(retainedCandidate)),
+      ),
+    ).resolves.toEqual(retained)
+    await expect(
+      store.transaction((tx) =>
+        store.loadApprovalForRuntime(
+          tx,
+          runtimeBindingFromCandidate(replacementCandidate),
+        ),
+      ),
+    ).resolves.toEqual(replacement)
+    await expect(
+      store.transaction((tx) => store.loadApprovalById(tx, retained.id)),
+    ).resolves.toEqual(retained)
+    await expect(
+      store.transaction((tx) => store.ensureApproval(tx, replacementCandidate)),
+    ).resolves.toEqual({ record: replacement, inserted: false })
+
+    const conflictingCandidate = {
+      ...replacementCandidate,
+      roleDocuments: replacementCandidate.roleDocuments.map((entry, index) =>
+        index === 0
+          ? {
+              ...entry,
+              document: {
+                ...entry.document,
+                signature: `${entry.document.signature}-conflict`,
+              },
+            }
+          : entry,
+      ),
+    }
+    await expect(
+      store.transaction((tx) => store.ensureApproval(tx, conflictingCandidate)),
+    ).rejects.toThrow('google_content_approval_runtime_binding_conflict')
+  })
+
   it('keeps unrelated capability controls current across generation changes', async () => {
     const store = createGoogleContentAuthorityRepository(db)
     const importGeneration = await store.transaction((tx) =>
@@ -204,7 +383,7 @@ describe('Google Content authority repository', () => {
     await expect(store.transaction((tx) => store.loadControl(tx))).resolves.toMatchObject(
       {
         emergencyKillVersion: performanceGeneration,
-        killedCapabilities: [],
+        killedCapabilities: ['property.connect_gbp', 'property.publish_reply'],
       },
     )
 
@@ -218,7 +397,11 @@ describe('Google Content authority repository', () => {
     await expect(store.transaction((tx) => store.loadControl(tx))).resolves.toMatchObject(
       {
         emergencyKillVersion: deniedGeneration,
-        killedCapabilities: ['property.import_gbp_v2'],
+        killedCapabilities: [
+          'property.import_gbp_v2',
+          'property.connect_gbp',
+          'property.publish_reply',
+        ],
       },
     )
     const rows = await db.execute(sql`
@@ -235,6 +418,16 @@ describe('Google Content authority repository', () => {
       {
         capability: 'property.read_gbp_performance',
         denied: false,
+        emergency_kill_version: deniedGeneration.toString(),
+      },
+      {
+        capability: 'property.connect_gbp',
+        denied: true,
+        emergency_kill_version: deniedGeneration.toString(),
+      },
+      {
+        capability: 'property.publish_reply',
+        denied: true,
         emergency_kill_version: deniedGeneration.toString(),
       },
     ])
@@ -321,8 +514,14 @@ describe('Google Content authority repository', () => {
   it('derives the complete authorization vector from one transaction snapshot', async () => {
     const organization = `org-${randomUUID()}`
     const user = `user-${randomUUID()}`
+    const manager = `manager-${randomUUID()}`
+    const staff = `staff-${randomUUID()}`
     const connection = randomUUID()
     const property = randomUUID()
+    dynamicAuthorizationFixture = {
+      organization,
+      property,
+    }
     await db.execute(sql`
       INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
       VALUES (
@@ -335,12 +534,24 @@ describe('Google Content authority repository', () => {
       )
     `)
     await db.execute(sql`
+      INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+      VALUES
+        (${manager}, 'Google authority manager', ${`${manager}@example.test`}, true, ${now}, ${now}),
+        (${staff}, 'Google authority staff', ${`${staff}@example.test`}, true, ${now}, ${now})
+    `)
+    await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
       VALUES (${organization}, 'Google authority test', ${organization}, ${now})
     `)
     await db.execute(sql`
       INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
       VALUES (${randomUUID()}, ${user}, ${organization}, 'owner', ${now})
+    `)
+    await db.execute(sql`
+      INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
+      VALUES
+        (${randomUUID()}, ${manager}, ${organization}, 'admin', ${now}),
+        (${randomUUID()}, ${staff}, ${organization}, 'member', ${now})
     `)
     await db.execute(sql`
       INSERT INTO organization_capability (organization_id, capability)
@@ -361,7 +572,7 @@ describe('Google Content authority repository', () => {
         'encrypted-refresh',
         ${new Date('2026-08-12T12:00:00.000Z')},
         ARRAY['https://www.googleapis.com/auth/business.manage']::text[],
-        ${user},
+        ${`former-connector-${connection}`},
         'organization',
         'active',
         'active',
@@ -459,7 +670,9 @@ describe('Google Content authority repository', () => {
       allowed: true,
       vector: {
         executionPolicyVersion: 'beta-local-2',
+        principalKind: 'user',
         role: 'AccountAdmin',
+        permissionVersion: expect.any(Number),
         connectionLifecycleVersion: 3,
         connectionAccessVersion: 4,
         credentialGeneration: 5,
@@ -467,6 +680,30 @@ describe('Google Content authority repository', () => {
     })
     if (!decision.allowed) throw new Error('expected authorization')
     expect(decision.vector.permissionDigest).toMatch(/^[a-f0-9]{64}$/)
+
+    const permissionVersionBefore = decision.vector.permissionVersion
+    await db.execute(sql`
+      UPDATE permission_version
+      SET version = version + 1
+      WHERE organization_id = ${organization}
+    `)
+    const generationDecision = await db.transaction((tx) =>
+      authorize(tx as unknown as Database, {
+        capability: 'property.import_gbp_v2',
+        scope: {
+          organizationId: organization,
+          propertyId: null,
+          connectionId: connection,
+          initiatorUserId: user,
+        },
+        operationKey: 'import.permission_generation',
+        vectorMode: 'full',
+      }),
+    )
+    expect(generationDecision).toMatchObject({
+      allowed: true,
+      vector: { permissionVersion: Number(permissionVersionBefore) + 1 },
+    })
 
     const performanceDecision = await db.transaction((tx) =>
       authorize(tx as unknown as Database, {
@@ -492,6 +729,279 @@ describe('Google Content authority repository', () => {
         propertyTimezoneConfirmed: true,
       },
     })
+
+    await expect(
+      db.transaction((tx) =>
+        authorize(tx as unknown as Database, {
+          capability: 'property.import_gbp_v2',
+          scope: {
+            organizationId: organization,
+            propertyId: null,
+            connectionId: connection,
+            initiatorUserId: manager,
+          },
+          operationKey: 'import.manager_denied',
+          vectorMode: 'full',
+        }),
+      ),
+    ).resolves.toEqual({ allowed: false, code: 'authorization_denied' })
+
+    await expect(
+      db.transaction((tx) =>
+        authorize(tx as unknown as Database, {
+          capability: 'property.read_gbp_performance',
+          scope: {
+            organizationId: organization,
+            propertyId: property,
+            connectionId: connection,
+            initiatorUserId: manager,
+          },
+          operationKey: 'performance.manager_allowed',
+          vectorMode: 'full',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      allowed: true,
+      vector: { principalKind: 'user', role: 'PropertyManager' },
+    })
+
+    await expect(
+      db.transaction((tx) =>
+        authorize(tx as unknown as Database, {
+          capability: 'property.read_gbp_performance',
+          scope: {
+            organizationId: organization,
+            propertyId: property,
+            connectionId: connection,
+            initiatorUserId: staff,
+          },
+          operationKey: 'performance.staff_denied',
+          vectorMode: 'full',
+        }),
+      ),
+    ).resolves.toEqual({ allowed: false, code: 'authorization_denied' })
+
+    await db.execute(sql`
+      INSERT INTO organization_capability (organization_id, capability)
+      VALUES (${organization}, 'property.connect_gbp')
+    `)
+    await db.execute(sql`
+      INSERT INTO property_capability (property_id, capability)
+      VALUES (${property}::uuid, 'property.connect_gbp')
+    `)
+    await db.execute(sql`
+      UPDATE capability_execution_control
+      SET denied = false,
+          emergency_kill_version = (
+            SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'
+          ),
+          denied_at = NULL,
+          drained_at = NULL,
+          cleanup_drained_at = NULL
+      WHERE capability = 'property.connect_gbp'
+    `)
+    await expect(
+      db.transaction((tx) =>
+        authorize(tx as unknown as Database, {
+          capability: 'property.connect_gbp',
+          scope: {
+            organizationId: organization,
+            propertyId: property,
+            connectionId: connection,
+            initiatorUserId: null,
+          },
+          operationKey: 'review.sync',
+          vectorMode: 'full',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      allowed: true,
+      vector: {
+        principalKind: 'system',
+        systemPrincipal: 'review-sync-worker-v1',
+        role: 'System',
+        permissionVersion: null,
+        propertySourceEpoch: 7,
+      },
+    })
+
+    for (const operationKey of [
+      'notifications.manage',
+      'provider.notifications.subscribe',
+    ]) {
+      await expect(
+        db.transaction((tx) =>
+          authorize(tx as unknown as Database, {
+            capability: 'property.connect_gbp',
+            scope: {
+              organizationId: organization,
+              propertyId: property,
+              connectionId: connection,
+              initiatorUserId: null,
+            },
+            operationKey,
+            vectorMode: 'full',
+          }),
+        ),
+      ).resolves.toMatchObject({
+        allowed: true,
+        vector: {
+          principalKind: 'system',
+          systemPrincipal: 'notification-management-worker-v1',
+          role: 'System',
+          permissionVersion: null,
+          propertySourceEpoch: 7,
+        },
+      })
+    }
+
+    const publicationReview = randomUUID()
+    const publicationReply = randomUUID()
+    const publicationDigest = googleReplyTextDigest('Approved reply text')
+    await db.execute(sql`
+      INSERT INTO organization_capability (organization_id, capability)
+      VALUES (${organization}, 'property.publish_reply')
+    `)
+    await db.execute(sql`
+      INSERT INTO property_capability (property_id, capability)
+      VALUES (${property}::uuid, 'property.publish_reply')
+    `)
+    await db.execute(sql`
+      UPDATE capability_execution_control
+      SET denied = false,
+          emergency_kill_version = (
+            SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'
+          ),
+          denied_at = NULL,
+          drained_at = NULL,
+          cleanup_drained_at = NULL
+      WHERE capability = 'property.publish_reply'
+    `)
+    await db.execute(sql`
+      INSERT INTO reviews (
+        id, organization_id, property_id, platform, external_id,
+        external_location_id, google_connection_id, source_epoch,
+        source_revision, analysis_sequence, source_content_state
+      ) VALUES (
+        ${publicationReview}::uuid, ${organization}, ${property}::uuid,
+        'google', ${`provider-${publicationReview}`},
+        ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, ${connection}::uuid,
+        7, 9, 0, 'active'
+      )
+    `)
+    await db.execute(sql`
+      INSERT INTO material_review_revisions (
+        review_id, revision, organization_id, property_id, source_epoch,
+        normalization_version, source_digest, normalized_digest, rating,
+        normalized_text, content_state
+      ) VALUES (
+        ${publicationReview}::uuid, 9, ${organization}, ${property}::uuid, 7,
+        'review-material-v1', ${'1'.repeat(64)}, ${'2'.repeat(64)}, 5,
+        'A helpful review', 'active'
+      )
+    `)
+    await db.execute(sql`
+      INSERT INTO replies (
+        id, review_id, organization_id, text, status, source, created_by,
+        approved_by, ai_generated, authorship, state_revision, approved_at,
+        publication_state, publication_cycle, publication_attempts
+      ) VALUES (
+        ${publicationReply}::uuid, ${publicationReview}::uuid, ${organization},
+        'Approved reply text', 'approved', 'internal', ${manager}, ${manager},
+        false, 'human', 1, ${now}, 'sending', 3, 2
+      )
+    `)
+    await db.execute(sql`
+      INSERT INTO reply_publication_authorizations (
+        organization_id, property_id, review_id, reply_id,
+        publication_cycle, source_epoch, material_review_revision,
+        base_observation_revision, authorized_by_user_id,
+        reply_state_revision, normalization_version, expected_reply_digest,
+        authorized_at
+      ) VALUES (
+        ${organization}, ${property}::uuid, ${publicationReview}::uuid,
+        ${publicationReply}::uuid, 3, 7, 9, 4, ${manager}, 1,
+        'google-reply-v1', ${publicationDigest}, ${now}
+      )
+    `)
+    await db.execute(sql`
+      INSERT INTO reply_publication_attempts (
+        organization_id, property_id, review_id, reply_id,
+        publication_cycle, attempt_number, provider_operation_key,
+        source_epoch, material_review_revision, reply_state_revision,
+        base_observation_revision, normalization_version,
+        expected_reply_digest, outcome
+      ) VALUES (
+        ${organization}, ${property}::uuid, ${publicationReview}::uuid,
+        ${publicationReply}::uuid, 3, 2, ${`publish:${publicationReply}:3:2`},
+        7, 9, 1, 4, 'google-reply-v1', ${publicationDigest}, 'sending'
+      )
+    `)
+
+    const publicationInput = (
+      overrides: {
+        publicationCycle?: number
+        attemptNumber?: number
+        sourceEpoch?: number
+        materialReviewRevision?: number
+      } = {},
+    ) => ({
+      capability: 'property.publish_reply' as const,
+      scope: {
+        organizationId: organization,
+        propertyId: property,
+        connectionId: connection,
+        initiatorUserId: null,
+        publication: {
+          reviewId: publicationReview,
+          replyId: publicationReply,
+          publicationCycle: overrides.publicationCycle ?? 3,
+          attemptNumber: overrides.attemptNumber ?? 2,
+          sourceEpoch: overrides.sourceEpoch ?? 7,
+          materialReviewRevision: overrides.materialReviewRevision ?? 9,
+        },
+      },
+      operationKey: 'reply.publish',
+      vectorMode: 'full' as const,
+    })
+    await expect(
+      db.transaction((tx) => authorize(tx as unknown as Database, publicationInput())),
+    ).resolves.toMatchObject({
+      allowed: true,
+      vector: {
+        principalKind: 'system',
+        systemPrincipal: 'reply-publication-worker-v1',
+        confirmingActorUserId: manager,
+        confirmingActorRole: 'PropertyManager',
+        reviewId: publicationReview,
+        replyId: publicationReply,
+        publicationCycle: 3,
+        publicationAttemptNumber: 2,
+        materialReviewRevision: 9,
+        replyStateRevision: 1,
+        baseObservationRevision: 4,
+        expectedReplyDigest: publicationDigest,
+      },
+    })
+    for (const stale of [
+      publicationInput({ publicationCycle: 4 }),
+      publicationInput({ attemptNumber: 3 }),
+      publicationInput({ sourceEpoch: 8 }),
+      publicationInput({ materialReviewRevision: 10 }),
+    ]) {
+      await expect(
+        db.transaction((tx) => authorize(tx as unknown as Database, stale)),
+      ).resolves.toEqual({ allowed: false, code: 'authorization_denied' })
+    }
+    const revokedManagerAuthorize = createGoogleContentAuthorizationCheck({
+      clock: () => now,
+      hasActivePropertyGrant: async () => false,
+    })
+    await expect(
+      db.transaction((tx) =>
+        revokedManagerAuthorize(tx as unknown as Database, publicationInput()),
+      ),
+    ).resolves.toEqual({ allowed: false, code: 'authorization_denied' })
 
     await db.execute(sql`
       UPDATE properties

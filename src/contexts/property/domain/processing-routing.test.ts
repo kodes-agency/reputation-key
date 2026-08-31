@@ -5,6 +5,7 @@ import {
   resolvePropertyRouting,
   wouldChangeResolvedRegion,
   assertRegionResolved,
+  dataCellBlockedReason,
   isRegionProcessable,
   regionBlockedReason,
   ROUTING_POLICY_VERSION,
@@ -24,6 +25,7 @@ describe('resolvePropertyRouting', () => {
     })
     expect(routing.countryCode).toBeNull()
     expect(routing.processingRegion).toBe('unresolved')
+    expect(routing.dataCellId).toBeNull()
     expect(routing.processingRegionResolvedAt).toBeNull()
     expect(routing.routingPolicyVersion).toBe(ROUTING_POLICY_VERSION)
   })
@@ -36,35 +38,37 @@ describe('resolvePropertyRouting', () => {
     })
     expect(routing.countryCode).toBe('US')
     expect(routing.processingRegion).toBe('us')
+    expect(routing.dataCellId).toBe('us')
     expect(routing.processingRegionSource).toBe('country_default')
     expect(routing.countrySource).toBe('google_address')
     expect(routing.processingRegionResolvedAt).toBe(NOW)
   })
 
-  it('resolves EEA/UK/CH to europe', () => {
+  it('routes European countries to the single US beta cell', () => {
     expect(
       resolvePropertyRouting({
         countryCode: 'DE',
         countrySource: 'manual',
         now: NOW,
       }).processingRegion,
-    ).toBe('europe')
+    ).toBe('us')
     expect(
       resolvePropertyRouting({
         countryCode: 'GB',
         countrySource: 'manual',
         now: NOW,
       }).processingRegion,
-    ).toBe('europe')
+    ).toBe('us')
   })
 
-  it('resolves other countries to global', () => {
+  it('routes the rest of the supported world to the single US beta cell', () => {
     const routing = resolvePropertyRouting({
       countryCode: 'JP',
       countrySource: 'manual',
       now: NOW,
     })
-    expect(routing.processingRegion).toBe('global')
+    expect(routing.processingRegion).toBe('us')
+    expect(routing.dataCellId).toBe('us')
   })
 })
 
@@ -76,33 +80,33 @@ describe('wouldChangeResolvedRegion', () => {
 
   it('is false when new country maps to the same region', () => {
     expect(wouldChangeResolvedRegion('us', 'PR')).toBe(false)
-    expect(wouldChangeResolvedRegion('europe', 'FR')).toBe(false)
+    expect(wouldChangeResolvedRegion('us', 'FR')).toBe(false)
+    expect(wouldChangeResolvedRegion('us', 'JP')).toBe(false)
   })
 
-  it('is true when new country would change a resolved region', () => {
-    expect(wouldChangeResolvedRegion('us', 'DE')).toBe(true)
+  it('detects stale assignments to dormant future cells', () => {
     expect(wouldChangeResolvedRegion('europe', 'US')).toBe(true)
     expect(wouldChangeResolvedRegion('global', 'US')).toBe(true)
   })
 })
 
-// Private-beta execution is globally available for properties with a resolved
-// country-derived cell. A genuinely unresolved property still fails closed.
+// Cell identity and activation are separate: future cells remain readable
+// historical identifiers but are neither allocation nor execution targets.
 describe('isRegionProcessable', () => {
-  it.each(['us', 'europe', 'global'])('allows the resolved %s cell', (region) => {
-    expect(isRegionProcessable(region)).toBe(true)
+  it('allows the existing accepting US cell', () => {
+    expect(isRegionProcessable('us')).toBe(true)
   })
 
-  it('is false for unresolved or missing regions', () => {
-    expect(isRegionProcessable('unresolved')).toBe(false)
-    expect(isRegionProcessable(null)).toBe(false)
-  })
+  it.each(['europe', 'global', 'unresolved', null])(
+    'fails closed for the non-accepting or unresolved cell %s',
+    (region) => {
+      expect(isRegionProcessable(region)).toBe(false)
+    },
+  )
 })
 
-// The domain predicate and the router's target table are one decision written
-// twice. A region that is processable here but absent from CELL_TARGETS is
-// accepted at import time and then quarantined at dispatch with no terminal
-// state — a silent, unbounded retry loop. Keep them in lockstep.
+// The domain predicate and router both consume the authoritative catalogue.
+// Only cells in `accepting` state are processable and dispatchable.
 describe('processable regions vs routed regions (contract)', () => {
   it('every processable region has a routing target', () => {
     const unrouted = ALL_PROCESSING_REGIONS.filter(
@@ -111,25 +115,32 @@ describe('processable regions vs routed regions (contract)', () => {
     expect(unrouted).toEqual([])
   })
 
-  it('every routed region is processable', () => {
-    const unprocessable = [...ROUTED_REGIONS].filter(
-      (region) => !isRegionProcessable(region),
-    )
-    expect(unprocessable).toEqual([])
+  it('keeps known dormant cells recognizable but non-executable', () => {
+    expect(ROUTED_REGIONS).toEqual(new Set(['us', 'europe', 'global']))
+    expect([...ROUTED_REGIONS].filter((region) => !isRegionProcessable(region))).toEqual([
+      'europe',
+      'global',
+    ])
   })
 })
 
 describe('assertRegionResolved', () => {
-  it.each(['us', 'europe', 'global'])(
-    'does not throw for the resolved %s cell',
+  it('does not throw for the accepting US cell', () => {
+    expect(() => assertRegionResolved({ dataCellId: 'us' })).not.toThrow()
+  })
+
+  it.each(['europe', 'global'])(
+    'fails closed while the known %s cell is dormant',
     (region) => {
-      expect(() => assertRegionResolved({ processingRegion: region })).not.toThrow()
+      expect(() => assertRegionResolved({ dataCellId: region })).toThrow(
+        /accepting Data Cell/,
+      )
     },
   )
 
   it('throws region_unresolved when the region is missing (null)', () => {
     try {
-      assertRegionResolved({ processingRegion: null })
+      assertRegionResolved({ dataCellId: null })
       expect.unreachable('should have thrown')
     } catch (e) {
       expect(isPropertyError(e)).toBe(true)
@@ -142,9 +153,16 @@ describe('assertRegionResolved', () => {
 // detail DTO, operator diagnostic). Mirrors the ProcessingRouter's blocked
 // reasons — 'unresolved'/missing vs denied cell/placeholder.
 describe('regionBlockedReason', () => {
-  it.each(['us', 'europe', 'global'])('is null for the available %s cell', (region) => {
-    expect(regionBlockedReason(region)).toBeNull()
+  it('is null for the accepting US cell', () => {
+    expect(regionBlockedReason('us')).toBeNull()
   })
+
+  it.each(['europe', 'global'])(
+    'reports region_denied while the known %s cell is dormant',
+    (region) => {
+      expect(regionBlockedReason(region)).toBe('region_denied')
+    },
+  )
 
   it('is region_unresolved for unresolved or missing regions', () => {
     expect(regionBlockedReason('unresolved')).toBe('region_unresolved')
@@ -153,5 +171,15 @@ describe('regionBlockedReason', () => {
 
   it('is region_denied for unknown region values (fail closed)', () => {
     expect(regionBlockedReason('antarctica')).toBe('region_denied')
+  })
+})
+
+describe('dataCellBlockedReason', () => {
+  it('distinguishes unresolved legacy rows from invalid/conflicting rows', () => {
+    expect(dataCellBlockedReason(null, 'unresolved')).toBe('region_unresolved')
+    expect(dataCellBlockedReason(null, null)).toBe('region_unresolved')
+    expect(dataCellBlockedReason(null, 'unsupported-cell')).toBe('region_denied')
+    expect(dataCellBlockedReason('us', 'us')).toBeNull()
+    expect(dataCellBlockedReason('europe', 'europe')).toBe('region_denied')
   })
 })

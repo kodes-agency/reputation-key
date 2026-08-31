@@ -52,6 +52,8 @@ function makeEvent(overrides: Partial<PortalGroupDeleted> = {}): PortalGroupDele
     correlationId: null,
     portalGroupId: portalGroupId('pg-1'),
     organizationId: organizationId('org-1'),
+    propertyId: propertyId('prop-1'),
+    sourceAggregateVersion: FIXED_TIME.toISOString(),
     occurredAt: FIXED_TIME,
     ...overrides,
   } as PortalGroupDeleted
@@ -132,10 +134,7 @@ function makeFakeDeps(storedGoals: Goal[] = []) {
   const deps: OnPortalGroupDeletedDeps = {
     goalRepo,
     systemCancelGoalFn: systemCancelGoalFnMock,
-    getLogger: () =>
-      logger as unknown as OnPortalGroupDeletedDeps['getLogger'] extends () => infer R
-        ? R
-        : never,
+    logger,
   }
 
   return {
@@ -240,7 +239,7 @@ describe('onPortalGroupDeleted', () => {
     await expect(handler(makeEvent())).resolves.toBeUndefined()
 
     expect(fakes.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ goalId: g1.id }),
+      { errorCode: 'goal_not_found' },
       'goal: failed to cancel on portal group deleted',
     )
   })
@@ -270,7 +269,7 @@ describe('onPortalGroupDeleted', () => {
     expect(fakes.systemCancelGoalFn).toHaveBeenCalledTimes(2)
     // Error was logged for the failed one
     expect(fakes.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ goalId: g1.id }),
+      { errorCode: 'goal_not_active' },
       'goal: failed to cancel on portal group deleted',
     )
     // Second goal was still cancelled

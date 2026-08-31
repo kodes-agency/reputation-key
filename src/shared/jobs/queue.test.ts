@@ -2,8 +2,8 @@
 //
 // Pins the graceful-shutdown contract for queue connections:
 //   1. REDIS_URL absent → no queue, no connection;
-//   2. creation wires the dedicated connection (maxRetriesPerRequest=null —
-//      BullMQ's requirement) and the hardened defaultJobOptions, and tracks
+//   2. creation wires a bounded producer connection and hardened
+//      defaultJobOptions, and tracks
 //      the connection in the process-wide registry;
 //   3. closeJobQueueConnections quits tracked connections (BullMQ marks
 //      user-supplied instances `shared` and deliberately does NOT close them
@@ -15,6 +15,12 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { resetEnv } from '#/shared/config/env'
+
+const loggerError = vi.hoisted(() => vi.fn())
+
+vi.mock('#/shared/observability/logger', () => ({
+  getLogger: () => ({ error: loggerError }),
+}))
 
 vi.mock('ioredis', () => {
   class FakeRedis {
@@ -41,6 +47,7 @@ vi.mock('ioredis', () => {
 vi.mock('bullmq', () => {
   class FakeQueue {
     static instances: FakeQueue[] = []
+    listeners = new Map<string, (...args: unknown[]) => void>()
 
     constructor(
       public readonly name: string,
@@ -48,13 +55,22 @@ vi.mock('bullmq', () => {
     ) {
       FakeQueue.instances.push(this)
     }
+
+    on(event: string, listener: (...args: unknown[]) => void) {
+      this.listeners.set(event, listener)
+      return this
+    }
   }
   return { Queue: FakeQueue }
 })
 
 import { Redis } from 'ioredis'
 import { Queue } from 'bullmq'
-import { createJobQueue, closeJobQueueConnections } from './queue'
+import {
+  createJobQueue,
+  createWorkerBarrierQueue,
+  closeJobQueueConnections,
+} from './queue'
 
 type FakeRedisInstance = Redis & {
   url: string
@@ -63,7 +79,11 @@ type FakeRedisInstance = Redis & {
   quit: ReturnType<typeof vi.fn>
   disconnect: ReturnType<typeof vi.fn>
 }
-type FakeQueueInstance = Queue & { name: string; opts: Record<string, unknown> }
+type FakeQueueInstance = Queue & {
+  name: string
+  opts: Record<string, unknown>
+  listeners: Map<string, (...args: unknown[]) => void>
+}
 
 function fakeConnections(): FakeRedisInstance[] {
   return (Redis as unknown as { instances: FakeRedisInstance[] }).instances
@@ -74,6 +94,7 @@ function fakeQueues(): FakeQueueInstance[] {
 
 const CONNECTIONS_KEY = Symbol.for('repkey.shared.jobs.queueConnections')
 const ORIGINAL_REDIS_URL = process.env.REDIS_URL
+const ORIGINAL_QUEUE_REDIS_URL = process.env.QUEUE_REDIS_URL
 
 function clearStore(): void {
   delete (globalThis as Record<symbol, unknown>)[CONNECTIONS_KEY]
@@ -90,12 +111,18 @@ afterEach(() => {
   clearStore()
   if (ORIGINAL_REDIS_URL === undefined) delete process.env.REDIS_URL
   else process.env.REDIS_URL = ORIGINAL_REDIS_URL
+  if (ORIGINAL_QUEUE_REDIS_URL === undefined) delete process.env.QUEUE_REDIS_URL
+  else process.env.QUEUE_REDIS_URL = ORIGINAL_QUEUE_REDIS_URL
   resetEnv()
 })
 
 describe('createJobQueue', () => {
-  it('returns undefined and creates nothing when REDIS_URL is absent', () => {
+  it('returns undefined and creates nothing when no queue Redis is configured', () => {
+    // BOTH, because the queue prefers QUEUE_REDIS_URL and falls back to
+    // REDIS_URL. Deleting only the fallback leaves a configured queue, so the
+    // absent case has to remove the preferred one too.
     delete process.env.REDIS_URL
+    delete process.env.QUEUE_REDIS_URL
     resetEnv()
 
     expect(createJobQueue('default')).toBeUndefined()
@@ -118,11 +145,60 @@ describe('createJobQueue', () => {
       attempts: 3,
       backoff: { type: 'exponential', delay: 30_000 },
     })
-    // BullMQ-required connection options, and the connection IS the one the
-    // queue was built with — the registry must reap what queue.close() won't.
+    // Queue producers fail within one retry / command-timeout budget when
+    // Redis is unavailable. Workers use their separate indefinite connection.
+    // The connection IS the one the queue was built with — the registry must
+    // reap what queue.close() won't.
+    expect(fakeConnections()).toHaveLength(1)
+    expect(fakeConnections()[0].options).toEqual({
+      commandTimeout: 5_000,
+      connectTimeout: 5_000,
+      maxRetriesPerRequest: 1,
+    })
+    expect(fakeQueues()[0].opts.connection).toBe(fakeConnections()[0])
+  })
+
+  it('connects producers to QUEUE_REDIS_URL when the topology is split', () => {
+    process.env.REDIS_URL = 'redis://cache:6379'
+    process.env.QUEUE_REDIS_URL = 'redis://queue:6379'
+    resetEnv()
+
+    createJobQueue('default')
+
+    expect(fakeConnections()[0].url).toBe('redis://queue:6379')
+  })
+
+  it('creates a worker barrier queue with no ambiguous command timeout', () => {
+    process.env.REDIS_URL = 'redis://unit-test:6379'
+    resetEnv()
+
+    const queue = createWorkerBarrierQueue('quarantine')
+
+    expect(queue).toBeDefined()
     expect(fakeConnections()).toHaveLength(1)
     expect(fakeConnections()[0].options).toEqual({ maxRetriesPerRequest: null })
+    expect(fakeConnections()[0].options).not.toHaveProperty('commandTimeout')
     expect(fakeQueues()[0].opts.connection).toBe(fakeConnections()[0])
+  })
+
+  it('routes BullMQ error events through structured logging', () => {
+    process.env.REDIS_URL = 'redis://unit-test:6379'
+    resetEnv()
+
+    createJobQueue('background')
+    const error = Object.assign(new Error('connection string must not be logged'), {
+      code: 'ECONNRESET',
+    })
+    fakeQueues()[0].listeners.get('error')?.(error)
+
+    expect(loggerError).toHaveBeenCalledWith(
+      {
+        component: 'bullmq-queue',
+        queue: 'background',
+        err: error,
+      },
+      'BullMQ queue error',
+    )
   })
 })
 

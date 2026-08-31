@@ -75,6 +75,13 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ── 4. Version-bump triggers ─────────────────────────────────────────────────
+-- Ensure every existing Organization has a row that authorization-sensitive
+-- command transactions can lock. Later trigger bumps keep it current.
+INSERT INTO permission_version (organization_id, version, updated_at)
+SELECT id, 0, now()
+FROM organization
+ON CONFLICT (organization_id) DO NOTHING;
+
 -- member: INSERT / DELETE / UPDATE OF role,organizationId (member has no profile
 -- columns, so role + org are the only permission-relevant changes).
 DROP TRIGGER IF EXISTS member_perm_ver_ins ON member;
@@ -106,6 +113,14 @@ CREATE TRIGGER organization_role_policy_perm_ver_iud
 DROP TRIGGER IF EXISTS staff_assignments_perm_ver_iud ON staff_assignments;
 CREATE TRIGGER staff_assignments_perm_ver_iud
   AFTER INSERT OR UPDATE OR DELETE ON staff_assignments
+  FOR EACH ROW EXECUTE FUNCTION tgr_bump_perm_app();
+
+-- property_access_grant is the canonical assigned-Property authority (ADR
+-- 0039). A grant create, revoke, expiry edit, or reassignment must invalidate
+-- cached contexts and serialize transaction-bound delayed-command checks.
+DROP TRIGGER IF EXISTS property_access_grant_perm_ver_iud ON property_access_grant;
+CREATE TRIGGER property_access_grant_perm_ver_iud
+  AFTER INSERT OR UPDATE OR DELETE ON property_access_grant
   FOR EACH ROW EXECUTE FUNCTION tgr_bump_perm_app();
 
 -- ── 5. Last-owner backstop (defense-in-depth for direct-DB writes) ───────────

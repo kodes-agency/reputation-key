@@ -1,5 +1,10 @@
 # UI/UX overhaul proposal — dashboard, reviews AI panel, settings
 
+> **Superseded proposal.** This remains useful as a dated UI inventory, but its
+> recommendations are not current product authority. Implement against the
+> [2026-08-25 comprehensive beta program](../comprehensive-beta-implementation-program-2026-08-25.md)
+> and the nearest context contract.
+
 Date: 2026-08-19. Companion to the two current-state audits in this folder, which supply
 every fact cited here:
 

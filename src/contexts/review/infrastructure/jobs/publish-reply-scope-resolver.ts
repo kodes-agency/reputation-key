@@ -21,7 +21,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * (publish-reply); every other job name resolves to undefined so the gate
  * falls back to payload-carried scope or missing_scope denial.
  */
-export function createPublishReplyScopeResolver(deps: { db: Database }): ScopeResolver {
+export const createPublishReplyScopeResolver = (deps: {
+  db: Database
+}): ScopeResolver => {
   return async (jobName, data) => {
     if (jobName !== JOB_NAME || !isRecord(data)) return undefined
     const { replyId, organizationId } = data

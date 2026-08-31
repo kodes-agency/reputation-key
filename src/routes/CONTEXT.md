@@ -32,10 +32,7 @@ routes/
           index.tsx, new.tsx, $goalId.tsx
         portals/
           index.tsx, new.tsx, $portalId.tsx
-        teams/
-          $teamId.tsx, $teamId/index.tsx, $teamId/members.tsx
     leaderboard.tsx
-    team.tsx
     progress.tsx
   login.tsx                           unauthenticated
   register.tsx                        registration
@@ -46,6 +43,7 @@ routes/
   api/
     auth/google/callback.ts           Google OAuth callback
     health/index.ts                   health check
+    notifications/unsubscribe.ts     RFC 8058 signed one-click opt-out
     portals/$id/qr.ts                 QR code generation
     public/click/$linkId.ts           public link click tracking
     webhooks/gbp/notifications.ts     Google Pub/Sub webhook
@@ -56,6 +54,12 @@ routes/
 This is the app shell. It:
 
 1. **`beforeLoad`** — calls `getSession()` (server function, not `authClient` — SSR can't forward cookies otherwise). Redirects to `/login` if no session. Resolves role and active organization. Returns `AuthRouteContext` with `{ user, role, activeOrganization }`.
+
+   A signed-in account without an active Organization redirects to the
+   `workspace_access` unavailable state before the authenticated loader runs.
+   Never default this state into the Staff shell: tenant-scoped loaders must
+   not run until the account has accepted an invitation and has an active
+   Organization binding.
 
 2. **`loader`** — loads organizations and properties in parallel (`Promise.allSettled`). Sets `staleTime: 5 * 60 * 1000` (5 min — structural data rarely changes).
 
@@ -80,7 +84,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
 
 ### Reading parent layout data
 
-Parent layout data (orgs, properties, property) lives in the shared Query cache via cross-cutting query options in `src/routes/-queries/route-queries.ts` (`organizationsQuery`, `propertiesQuery`, `propertyQuery(propertyId)`). The parent loaders `ensureQueryData` these (SSR prime); every consumer reads the same options — no `getRouteApi().useLoaderData()`:
+Parent layout data (properties and property detail) lives in the shared Query cache via cross-cutting query options in `src/routes/-queries/route-queries.ts` (`propertiesQuery`, `propertyQuery(propertyId)`). The beta shell intentionally does not query or expose an Organization switcher. Parent loaders `ensureQueryData` these property queries (SSR prime); every consumer reads the same options — no `getRouteApi().useLoaderData()`:
 
 ```tsx
 import { propertyQuery } from '#/routes/-queries/route-queries'
@@ -90,11 +94,11 @@ const property = data.property
 
 ### StaleTime strategy
 
-| Data type                 | staleTime            | Why                             |
-| ------------------------- | -------------------- | ------------------------------- |
-| Organizations, properties | 5 min (layout level) | Structural data, rarely changes |
-| Property detail           | 60s                  | Moderate freshness needed       |
-| Active sub-routes         | 30s                  | Most dynamic                    |
+| Data type         | staleTime            | Why                             |
+| ----------------- | -------------------- | ------------------------------- |
+| Properties        | 5 min (layout level) | Structural data, rarely changes |
+| Property detail   | 60s                  | Moderate freshness needed       |
+| Active sub-routes | 30s                  | Most dynamic                    |
 
 ### TanStack Query (client server-state cache)
 
@@ -119,7 +123,7 @@ TanStack Query is wired app-wide (`QueryClient` in `router.tsx` via `setupRouter
 ```tsx
 const deleteAction = useActionMutation(deleteProperty, {
   successMessage: 'Property deleted',
-  invalidateKeys: [identityKeys.organizations(), propertyKeys.list()],
+  invalidateKeys: [propertyKeys.list()],
 })
 ```
 
@@ -175,7 +179,7 @@ Routes must **never**:
 
 ## Public routes
 
-Login (`/login`), join (`/join`), accept-invitation — these are outside `_authenticated` and have no auth guard. Guest portal routes resolve org from URL slug, not from session.
+Login (`/login`), join (`/join`), accept-invitation — these are outside `_authenticated` and have no auth guard. Guest portal routes resolve org from URL slug, not from session. `/api/notifications/unsubscribe` is also unauthenticated by design: the HMAC bearer capability in a delivered optional email resolves only its retained queue row or immutable digest batch, and the exact RFC 8058 form POST can only disable those represented optional email scopes.
 
 ### Webhook route exception
 
@@ -185,11 +189,11 @@ Webhook routes (`routes/api/webhooks/`) are exempt from the standard API route r
 - `getContainer()` for queue access (to enqueue background jobs)
 - `shared/auth/` imports for token/JWT verification
 - Direct `Response` construction (no server fn wrapping needed)
-- **Exception:** `routes/api/webhooks/gbp/notifications.ts` imports `handleGbpNotification` from `contexts/integration/infrastructure/handlers/` — this is allowed because the webhook handler is a thin infrastructure adapter that verifies the JWT and delegates to the use case. The eslint-disable comment on the import documents this exception.
 
 NOT allowed:
 
-- Importing use cases, repositories, or domain logic directly
+- Importing context use cases, infrastructure, repositories, or domain logic directly;
+  route callbacks resolve only the narrow runtime operation exposed by `getContainer()`
 - Creating new Queue instances (use container's singleton)
 
 **Pattern:** Verify the request signature/token, extract the relevant identifiers from the payload, look up the local resource, enqueue a job for processing, return 200 OK immediately.

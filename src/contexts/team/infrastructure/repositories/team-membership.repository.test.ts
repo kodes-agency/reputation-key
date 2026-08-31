@@ -4,6 +4,7 @@ import { getEnv } from '#/shared/config/env'
 import { organizationId, teamId } from '#/shared/domain/ids'
 import { createTeamMembershipRepository } from './team-membership.repository'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
 const ORG = organizationId('org-team-membership-integration')
 // A second, fully populated tenant. Every read and command below is
@@ -61,7 +62,7 @@ afterAll(async () => {
   await pool.query('DELETE FROM properties WHERE id = ANY($1)', [
     [PROPERTY, PROPERTY_OTHER],
   ])
-  await pool.query('DELETE FROM organization WHERE id = ANY($1)', [orgs])
+  await deleteTestOrganizations(pool, orgs)
   await pool.end()
 })
 

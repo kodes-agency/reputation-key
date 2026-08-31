@@ -4,11 +4,14 @@ import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { issueToken } from '../../domain/portal-token'
 import { issuePortalToken } from './issue-portal-token'
 
 const NOW = new Date('2026-08-16T12:00:00.000Z')
+const CURRENT_REVISION = new Date('2026-08-20T12:00:00.000Z')
+const NEXT_REVISION = new Date(CURRENT_REVISION.getTime() + 1)
 const staffPublicApi = {
   getAccessiblePropertyIds: vi.fn(async () => null),
 } as unknown as StaffPublicApi
@@ -22,29 +25,44 @@ const material = {
 describe('issuePortalToken', () => {
   it('persists a tenant-bound token, emits its event, and returns only public material', async () => {
     const portalRepo = createInMemoryPortalRepo()
-    const portal = buildTestPortal()
+    const portal = buildTestPortal({ updatedAt: CURRENT_REVISION })
     portalRepo.seed([portal])
     const insert = vi.fn(async () => undefined)
     const events = createCapturingEventBus()
+    const portalTokenRepo = {
+      findLatestForPortal: vi.fn(async () => null),
+      insert,
+    } as unknown as PortalTokenRepository
+    const ids = [
+      '6a100000-0000-4000-8000-000000000001',
+      '6a100000-0000-4000-8000-000000000002',
+      '6a100000-0000-4000-8000-000000000003',
+    ]
     const useCase = issuePortalToken({
       portalRepo,
-      portalTokenRepo: {
-        findLatestForPortal: vi.fn(async () => null),
-        insert,
-      } as unknown as PortalTokenRepository,
+      portalTokenRepo,
       tokenCodec: { issue: vi.fn(() => material) } as unknown as PortalTokenCodec,
       staffPublicApi,
-      events,
-      idGen: () => 'portal-token-1',
+      commandStore: createInMemoryPortalCommandStore({
+        portalRepo,
+        portalTokenRepo,
+        events,
+      }),
+      idGen: () => ids.shift()!,
       clock: () => NOW,
       baseUrl: 'https://example.test',
     })
 
     await expect(
-      useCase({ portalId: portal.id, printBatch: 'batch-1' }, buildTestAuthContext()),
+      useCase({ portalId: portal.id }, buildTestAuthContext()),
     ).resolves.toEqual({
       rawToken: 'raw-token',
-      publicUrl: 'https://example.test/p/raw-token',
+      publicUrl:
+        'https://example.test/p/raw-token?accessArtifact=6a100000-0000-4000-8000-000000000002',
+      publicUrls: {
+        qr: 'https://example.test/p/raw-token?accessArtifact=6a100000-0000-4000-8000-000000000002',
+        nfc: 'https://example.test/p/raw-token?accessArtifact=6a100000-0000-4000-8000-000000000003',
+      },
       tokenIdentifier: 'token-id',
       version: 1,
       issuedAt: NOW,
@@ -55,10 +73,34 @@ describe('issuePortalToken', () => {
         propertyId: portal.propertyId,
         portalId: portal.id,
         tokenHash: 'token-hash',
-        printBatch: 'batch-1',
+        printBatch: null,
       }),
     )
-    expect(events.capturedByTag('portal.token.issued')).toHaveLength(1)
+    expect(events.capturedByTag('portal.token.issued')).toEqual([
+      expect.objectContaining({
+        sourceAggregateVersion: NEXT_REVISION.toISOString(),
+        occurredAt: NOW,
+      }),
+    ])
+    expect(events.capturedByTag('portal.access_artifact.published')).toEqual([
+      expect.objectContaining({
+        accessArtifactId: '6a100000-0000-4000-8000-000000000002',
+        portalId: portal.id,
+        channel: 'qr',
+        sourceAggregateVersion: NEXT_REVISION.toISOString(),
+        occurredAt: NOW,
+      }),
+      expect.objectContaining({
+        accessArtifactId: '6a100000-0000-4000-8000-000000000003',
+        portalId: portal.id,
+        channel: 'nfc',
+        sourceAggregateVersion: NEXT_REVISION.toISOString(),
+        occurredAt: NOW,
+      }),
+    ])
+    await expect(
+      portalRepo.findById(portal.organizationId, portal.id),
+    ).resolves.toMatchObject({ updatedAt: NEXT_REVISION })
   })
 
   it('requires rotation while a non-revoked token exists', async () => {
@@ -76,14 +118,20 @@ describe('issuePortalToken', () => {
       version: 1,
       now: NOW,
     })
+    const portalTokenRepo = {
+      findLatestForPortal: vi.fn(async () => active),
+    } as unknown as PortalTokenRepository
+    const events = createCapturingEventBus()
     const useCase = issuePortalToken({
       portalRepo,
-      portalTokenRepo: {
-        findLatestForPortal: vi.fn(async () => active),
-      } as unknown as PortalTokenRepository,
+      portalTokenRepo,
       tokenCodec: { issue: vi.fn() } as unknown as PortalTokenCodec,
       staffPublicApi,
-      events: createCapturingEventBus(),
+      commandStore: createInMemoryPortalCommandStore({
+        portalRepo,
+        portalTokenRepo,
+        events,
+      }),
       idGen: () => 'portal-token-2',
       clock: () => NOW,
       baseUrl: 'https://example.test',

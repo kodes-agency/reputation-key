@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { CapabilityPolicyEnv } from '#/shared/auth/beta-capabilities'
 import {
   requireExecutionAllowed,
@@ -16,6 +17,10 @@ import {
   EXECUTION_POLICY_VERSION,
 } from '#/shared/auth/execution-policy'
 import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '#/shared/auth/process-policy-binding'
 import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
 import { grantPropertyAccess } from './property-access-grant.repository'
 import { organizationId, userId, propertyId } from '#/shared/domain/ids'
@@ -49,7 +54,7 @@ beforeAll(async () => {
   await db.execute(sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM "user" WHERE id IN (${ADMIN}, ${PM})`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Exec Init Org', ${ORG}, now())`,
   )
@@ -64,17 +69,28 @@ beforeAll(async () => {
   `)
   resetCapabilityPolicyStore()
   resetExecutionPolicy()
-  initPersistedCapabilityPolicyStore({ db, env: {} as CapabilityPolicyEnv })
+  // ARC-03-T8: the handle no longer installs itself — the process
+  // installation is the explicit bind, which is what production entry points
+  // now do too.
+  bindProcessPolicies(
+    initPersistedCapabilityPolicyStore({
+      db,
+      env: {} as CapabilityPolicyEnv,
+      clock: () => new Date(),
+      logger: { warn: () => {} },
+    }),
+  )
 })
 
 afterAll(async () => {
+  releaseProcessPolicies()
   resetExecutionPolicy()
   resetCapabilityPolicyStore()
   await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM "user" WHERE id IN (${ADMIN}, ${PM})`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 describe('ExecutionPolicy composition wiring (BQC-2.4)', () => {

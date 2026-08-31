@@ -242,14 +242,14 @@ function ttlSeconds(expiresAtMs: number, nowMs: number): number {
   return Math.max(1, Math.ceil((expiresAtMs - nowMs) / 1_000))
 }
 
-export function createGoogleReviewCursorStore(
+export const createGoogleReviewCursorStore = (
   deps: Readonly<{
     store: ProviderEphemeralStore
     keys: VersionedHmacKeyring
     nowMs?: () => number
     randomNonce?: () => string
   }>,
-): GoogleReviewCursorStore {
+): GoogleReviewCursorStore => {
   const nowMs = deps.nowMs ?? Date.now
   const randomNonce = deps.randomNonce ?? (() => randomBytes(32).toString('base64url'))
 
@@ -667,7 +667,7 @@ export function createGoogleReviewCursorStore(
   })
 }
 
-export function createUnavailableGoogleReviewCursorStore(): GoogleReviewCursorStore {
+export const createUnavailableGoogleReviewCursorStore = (): GoogleReviewCursorStore => {
   const unavailable = Object.freeze({ ok: false as const, code: 'unavailable' as const })
   return Object.freeze({
     redeem: async () => unavailable,

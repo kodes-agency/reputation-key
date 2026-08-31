@@ -97,30 +97,18 @@ export async function signIn(
   await page.waitForLoadState('networkidle')
 }
 
-/** Register a new account with a unique email. Returns the email used. */
-export async function registerAccount(
+/** Create a beta manager account from one exact invitation. */
+export async function registerInvitedAccount(
   page: Page,
+  invitationId: string,
   email: string,
   password = 'Password123!',
 ) {
-  // Unique org name avoids better-auth slug collisions with the seeded "E2E Test Org".
-  // Derive the suffix from the email's LOCAL PART (the unique segment) — the
-  // alnum tail of the full address is always "examplecom", which collided on
-  // slug for every registration after the first (latent helper bug).
-  const orgSuffix = email
-    .split('@')[0]
-    .replace(/[^a-z0-9]/gi, '')
-    .slice(-10)
-  const organizationName = `E2E Org ${orgSuffix}`
-
-  await page.goto('/register')
+  await page.goto(`/accept-invitation?id=${encodeURIComponent(invitationId)}`)
   await page.waitForLoadState('domcontentloaded')
-  if (page.url().includes('/login')) {
+  if (!page.url().includes('/join')) {
     throw new Error(
-      'Registration is capability-gated off (redirected to /login). ' +
-        'Set BETA_E2E_GLOBAL_CAPABILITIES=identity.register,organization.create for e2e. ' +
-        'BQC-0.3: the override boots only with NODE_ENV=test or ' +
-        'BETA_E2E_EXECUTION_IDENTITY=local-e2e set (test-only guard).',
+      `Invitation onboarding did not reach /join (current URL: ${page.url()}).`,
     )
   }
   // BQC-6.7: wait out the pre-hydration window BEFORE touching the controlled
@@ -130,13 +118,11 @@ export async function registerAccount(
   await page.locator('form').first().waitFor({ state: 'visible' })
   await page.getByLabel('Full name').fill('E2E Test User')
   await page.getByLabel('Email').fill(email)
-  await page.getByLabel('Organization name').fill(organizationName)
   await page.getByLabel('Password', { exact: true }).fill(password)
   await page.getByLabel('Confirm password').fill(password)
-  // Register form primary CTA is "Create account & organization" (not "Create account").
   await clickWhenReady(page.getByRole('button', { name: /create account/i }))
 
-  // Success renders on /register — no redirect. AuthCard title is a div (not a heading role).
+  // Success renders on /join — no implicit session or Organization switch.
   const success = page.getByText(/account created/i)
   const errorBanner = page.locator('[role="alert"]')
   // .first(): the failure banner's own copy can match /account created/i

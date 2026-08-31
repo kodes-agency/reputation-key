@@ -86,11 +86,11 @@ function staleSource(): GooglePerformanceAuthorizationResult {
   }
 }
 
-function connectionVisibleTo(connection: GoogleConnection, actor: AuthContext): boolean {
-  return (
-    connection.organizationId === actor.organizationId &&
-    (connection.visibility === 'organization' || connection.connectedBy === actor.userId)
-  )
+function connectionBelongsToOrganization(
+  connection: GoogleConnection,
+  actor: AuthContext,
+): boolean {
+  return connection.organizationId === actor.organizationId
 }
 
 function sameSnapshot(
@@ -133,11 +133,9 @@ export function createGooglePerformanceAuthorizer(
     decide(request: PerformanceDecisionRequest): Promise<PerformanceDecision>
     authorizeGoogleContent: PerformanceContentAuthorizer
     principalKeys: VersionedHmacKeyring
-    clock?: () => Date
+    clock: () => Date
   }>,
 ): GooglePerformanceAuthorizer {
-  const clock = deps.clock ?? (() => new Date())
-
   return async (input) => {
     let actor: AuthContext | null
     try {
@@ -152,7 +150,6 @@ export function createGooglePerformanceAuthorizer(
     ) {
       return unavailable('integration_unavailable', null)
     }
-
     const decide = async (action: string) =>
       deps.decide({
         principal: { kind: 'user', ctx: actor! },
@@ -161,12 +158,12 @@ export function createGooglePerformanceAuthorizer(
         organizationId: actor!.organizationId,
         propertyId: input.propertyId,
         executionKind: 'interactive',
-        now: clock(),
+        now: deps.clock(),
       })
 
     let readDecision: PerformanceDecision
     try {
-      readDecision = await decide('property.read')
+      readDecision = await decide('property.read_gbp_performance')
     } catch {
       return unavailable('integration_unavailable', null)
     }
@@ -224,7 +221,7 @@ export function createGooglePerformanceAuthorizer(
     if (
       !connection ||
       connection.id !== binding.connectionId ||
-      !connectionVisibleTo(connection, actor)
+      !connectionBelongsToOrganization(connection, actor)
     ) {
       return unavailable('integration_unavailable', null)
     }
@@ -255,11 +252,21 @@ export function createGooglePerformanceAuthorizer(
       return unavailable('policy_disabled', null)
     }
 
+    const permissionVersion = content.authorizationVector.permissionVersion
+    if (
+      content.authorizationVector.principalKind !== 'user' ||
+      !Number.isSafeInteger(permissionVersion) ||
+      Number(permissionVersion) < 0
+    ) {
+      return unavailable('policy_disabled', null)
+    }
     const expectedAuthorizationVector = Object.freeze({
       executionPolicyVersion: readDecision.policyVersion,
       googleContentPolicyVersion: content.policyVersion,
       emergencyKillVersion: content.emergencyKillVersion,
+      principalKind: 'user',
       role: actor.role,
+      permissionVersion: Number(permissionVersion),
       permissionDigest: googleAuthorizationPermissionDigest(actor),
       connectionLifecycleVersion: connection.lifecycleVersion,
       connectionAccessVersion: connection.accessVersion,
@@ -331,7 +338,9 @@ export function createGooglePerformanceAuthorizer(
     }
 
     try {
-      const accessToken = await deps.getAccessToken(actor.organizationId, connection.id)
+      const accessToken = await deps.getAccessToken(actor.organizationId, connection.id, [
+        input.propertyId,
+      ])
       return { ok: true, snapshot, accessToken }
     } catch {
       return unavailable('integration_unavailable', null)

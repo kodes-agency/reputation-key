@@ -7,6 +7,7 @@ import {
   AI_PROVIDER_DEPLOYMENT_PROFILE_V1,
 } from '../../src/shared/ai-openai-provider-profile'
 import { AI_RUNTIME_CAPABILITIES_V1_DIGEST } from '../../src/shared/ai-runtime-capability-contract'
+import { PRODUCTION_RAILWAY_PROJECT_NAME } from '../../src/shared/release/railway-deployment-profile'
 import {
   AI_ADMISSION_REQUIRED_ENVIRONMENT_NAMES,
   assertAiAdmissionEnvironmentIsIsolated,
@@ -19,7 +20,9 @@ const admissionEnvironment = (): Record<string, string> => ({
     AI_ADMISSION_REQUIRED_ENVIRONMENT_NAMES.map((name) => [name, 'masked']),
   ),
   HOST: '::',
-  PORT: '8443',
+  PORT: '8080',
+  INTERNAL_MTLS_PORT: '8443',
+  PROCESSING_CELL: 'us',
   RELEASE_SHA: 'a'.repeat(40),
   AI_KEY_INVENTORY_PROFILE: 'production-v1',
   AI_REQUEST_BINDING_KEYRING_GENERATION: String(
@@ -60,7 +63,6 @@ describe('AI admission startup isolation', () => {
     'PGPASSWORD',
     'POSTGRES_PASSWORD',
     'AWS_SECRET_ACCESS_KEY',
-    'SENTRY_DSN',
     'RESEND_API_KEY',
     'RAILWAY_TOKEN',
     'UNKNOWN_FLAG',
@@ -106,10 +108,12 @@ describe('AI admission startup isolation', () => {
       ).toThrow(message)
     }
   })
-  it('defaults missing admission host, port, and profile metadata', () => {
+  it('defaults missing admission host, ports, cell, and profile metadata', () => {
     const environment = admissionEnvironment()
     delete environment.HOST
     delete environment.PORT
+    delete environment.INTERNAL_MTLS_PORT
+    delete environment.PROCESSING_CELL
     delete environment.AI_KEY_INVENTORY_PROFILE
     expect(() => assertAiAdmissionRequiredEnvironment(environment)).not.toThrow()
   })
@@ -118,10 +122,28 @@ describe('AI admission startup isolation', () => {
     ['HOST', '::1'],
     ['PORT', '8444'],
     ['PORT', '443'],
+    ['INTERNAL_MTLS_PORT', '8080'],
+    ['INTERNAL_MTLS_PORT', '8444'],
   ])('rejects mutated private bind %s=%s', (name, value) => {
     expect(() =>
       assertAiAdmissionRequiredEnvironment({ ...admissionEnvironment(), [name]: value }),
     ).toThrow('AI admission bind address is invalid')
+  })
+
+  it('accepts monitoring variables and refuses a dormant beta cell', () => {
+    expect(() =>
+      assertAiAdmissionRequiredEnvironment({
+        ...admissionEnvironment(),
+        SENTRY_DSN: 'https://public@ingest.de.sentry.io/1',
+        SENTRY_TRACES_SAMPLE_RATE: '0.1',
+      }),
+    ).not.toThrow()
+    expect(() =>
+      assertAiAdmissionRequiredEnvironment({
+        ...admissionEnvironment(),
+        PROCESSING_CELL: 'europe',
+      }),
+    ).toThrow('AI admission processing cell is invalid')
   })
 
   it('accepts documented Node/Railway deployment metadata and rejects one extra secret', () => {
@@ -138,7 +160,7 @@ describe('AI admission startup isolation', () => {
       RAILWAY_BETA_ENABLE_RUNTIME_V2: '1',
       RAILWAY_DEPLOYMENT_ID: 'deployment',
       RAILWAY_ENVIRONMENT_ID: 'environment',
-      RAILWAY_ENVIRONMENT_NAME: 'google-closed-beta',
+      RAILWAY_ENVIRONMENT_NAME: 'cell-us',
       RAILWAY_GIT_AUTHOR: 'owner',
       RAILWAY_GIT_BRANCH: 'main',
       RAILWAY_GIT_COMMIT_MESSAGE: 'release',
@@ -147,7 +169,7 @@ describe('AI admission startup isolation', () => {
       RAILWAY_GIT_REPO_OWNER: 'owner',
       RAILWAY_PRIVATE_DOMAIN: 'ai-execution-admission.railway.internal',
       RAILWAY_PROJECT_ID: 'project',
-      RAILWAY_PROJECT_NAME: 'reputation-key',
+      RAILWAY_PROJECT_NAME: PRODUCTION_RAILWAY_PROJECT_NAME,
       RAILWAY_REPLICA_ID: 'replica',
       RAILWAY_REPLICA_REGION: 'us-west2',
       RAILWAY_SERVICE_ID: 'service',

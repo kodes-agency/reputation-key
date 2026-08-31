@@ -1,13 +1,24 @@
 import { describe, it, expect } from 'vitest'
-import { createActivityLog } from './constructors'
-import type { ActivityAction, ResourceType } from './types'
-import { userId, propertyId, organizationId, activityLogId } from '#/shared/domain/ids'
+import { createRecentActivityEntry } from './constructors'
+import {
+  ACTIVITY_ACTIONS,
+  ACTIVITY_RESOURCE_TYPES,
+  RECENT_ACTIVITY_KINDS,
+  type ActivityAction,
+  type ResourceType,
+} from './types'
+import {
+  userId,
+  propertyId,
+  organizationId,
+  recentActivityEntryId,
+} from '#/shared/domain/ids'
 
 const clock = () => new Date('2026-06-02T12:00:00Z')
 
-describe('createActivityLog', () => {
+describe('createRecentActivityEntry', () => {
   const validInput = {
-    id: activityLogId('al-1'),
+    id: recentActivityEntryId('al-1'),
     actorId: userId('user-1'),
     actorName: 'Bozhidar',
     actorAvatarUrl: null,
@@ -27,8 +38,8 @@ describe('createActivityLog', () => {
     eventId: 'test-event-id',
   }
 
-  it('constructs a valid activity log entry', () => {
-    const result = createActivityLog(validInput, clock)
+  it('constructs a valid recent activity entry', () => {
+    const result = createRecentActivityEntry(validInput, clock)
     expect(result.isOk()).toBe(true)
     if (!result.isOk()) throw new Error('unreachable')
     const entry = result.value
@@ -46,7 +57,7 @@ describe('createActivityLog', () => {
   })
 
   it('returns error for invalid action', () => {
-    const result = createActivityLog(
+    const result = createRecentActivityEntry(
       { ...validInput, action: 'invalid' as ActivityAction },
       clock,
     )
@@ -55,38 +66,47 @@ describe('createActivityLog', () => {
     expect(result.error.code).toBe('invalid_action')
   })
 
-  it('accepts all valid actions', () => {
-    const actions: ActivityAction[] = [
-      'created',
-      'changed',
-      'deleted',
-      'assigned',
-      'unassigned',
-      'published',
-      'rejected',
-      'approved',
-      'submitted',
-      'added',
-      'escalated',
-      'invited',
-      'connected',
-      'disconnected',
-    ]
-    for (const action of actions) {
-      const result = createActivityLog({ ...validInput, action }, clock)
+  it('accepts every governed Recent Activity kind', () => {
+    for (const kind of RECENT_ACTIVITY_KINDS) {
+      const result = createRecentActivityEntry({ ...validInput, ...kind }, clock)
       expect(result.isOk()).toBe(true)
     }
   })
 
+  it('keeps legacy action/resource values readable but rejects them for new entries', () => {
+    expect(ACTIVITY_ACTIONS).toContain('created')
+    expect(ACTIVITY_RESOURCE_TYPES).toContain('team')
+
+    for (const resourceType of ['review', 'note', 'team', 'staff_assignment'] as const) {
+      const result = createRecentActivityEntry({ ...validInput, resourceType }, clock)
+      expect(result.isErr()).toBe(true)
+      if (!result.isErr()) throw new Error('unreachable')
+      expect(result.error.code).toBe('invalid_event_kind')
+    }
+  })
+
+  it('rejects unsupported combinations of otherwise known values', () => {
+    const result = createRecentActivityEntry(
+      { ...validInput, action: 'deleted', resourceType: 'reply' },
+      clock,
+    )
+    expect(result.isErr()).toBe(true)
+    if (!result.isErr()) throw new Error('unreachable')
+    expect(result.error.code).toBe('invalid_event_kind')
+  })
+
   it('sets actorAvatarUrl to null when provided as null', () => {
-    const result = createActivityLog({ ...validInput, actorAvatarUrl: null }, clock)
+    const result = createRecentActivityEntry(
+      { ...validInput, actorAvatarUrl: null },
+      clock,
+    )
     expect(result.isOk()).toBe(true)
     if (!result.isOk()) throw new Error('unreachable')
     expect(result.value.actorAvatarUrl).toBeNull()
   })
 
   it('preserves actorAvatarUrl when provided', () => {
-    const result = createActivityLog(
+    const result = createRecentActivityEntry(
       { ...validInput, actorAvatarUrl: 'https://example.com/avatar.jpg' },
       clock,
     )

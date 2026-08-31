@@ -24,7 +24,7 @@
 // last_success_at is deliberately NOT an activity signal: it only records
 // that we polled, so keying on it would pin every property to `hot` forever.
 //
-// Pure and clock-injected (domain rule: no `new Date()` / `Date.now()`).
+// Pure and clock-injected (domain rule: no ambient wall-clock reads).
 
 /** Discovery cadence tier, coldest last. */
 export type DiscoveryBackoffTier = 'hot' | 'warm' | 'cold'

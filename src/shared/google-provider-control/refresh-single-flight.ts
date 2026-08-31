@@ -1,33 +1,3 @@
-export type RefreshSingleFlight = Readonly<{
-  run: <T>(connectionId: string, refresh: () => Promise<T>) => Promise<T>
-  forget: (connectionId: string) => void
-}>
-
-/**
- * Process-local implementation of the refresh coalescing port. A distributed
- * adapter uses the same connection key with a fenced Redis/DB lock.
- */
-export function createRefreshSingleFlight(): RefreshSingleFlight {
-  const flights = new Map<string, Promise<unknown>>()
-  return Object.freeze({
-    run: async <T>(connectionId: string, refresh: () => Promise<T>): Promise<T> => {
-      if (connectionId.length === 0) throw new Error('refresh connection key is empty')
-      const existing = flights.get(connectionId)
-      if (existing) return existing as Promise<T>
-      const flight = Promise.resolve().then(refresh)
-      flights.set(connectionId, flight)
-      try {
-        return await flight
-      } finally {
-        if (flights.get(connectionId) === flight) flights.delete(connectionId)
-      }
-    },
-    forget: (connectionId) => {
-      flights.delete(connectionId)
-    },
-  })
-}
-
 export type RefreshCoordinationRedis = Readonly<{
   set(
     key: string,
@@ -49,10 +19,36 @@ export type DistributedRefreshSingleFlight = Readonly<{
       connectionFingerprint: string
       deadlineMs: number
       loadLatest: () => Promise<T | null>
-      refresh: () => Promise<T>
+      refresh: (assertLeadership: () => Promise<void>) => Promise<T>
     }>,
   ): Promise<T>
 }>
+
+export type RefreshCoordinationErrorCode =
+  'coordination_unavailable' | 'coordination_deadline_exceeded' | 'leadership_lost'
+
+export type RefreshCoordinationError = Error &
+  Readonly<{
+    _tag: 'RefreshCoordinationError'
+    code: RefreshCoordinationErrorCode
+  }>
+
+function coordinationError(code: RefreshCoordinationErrorCode): RefreshCoordinationError {
+  const error = new Error(code.replaceAll('_', ' ')) as RefreshCoordinationError
+  Object.defineProperties(error, {
+    _tag: { value: 'RefreshCoordinationError', enumerable: true },
+    code: { value: code, enumerable: true },
+  })
+  return error
+}
+
+export function isRefreshCoordinationError(
+  value: unknown,
+): value is RefreshCoordinationError {
+  return (
+    value instanceof Error && '_tag' in value && value._tag === 'RefreshCoordinationError'
+  )
+}
 
 export type GoogleRefreshBackoffResult =
   | Readonly<{ ok: true; consecutiveFailures: number }>
@@ -76,6 +72,10 @@ const REFRESH_OWNER = /^[A-Za-z0-9_-]{16,128}$/
 const RELEASE_REFRESH_LOCK_SCRIPT = `-- google-refresh-lock-release-v1
 if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
 return redis.call('DEL', KEYS[1])
+`
+const RENEW_REFRESH_LOCK_SCRIPT = `-- google-refresh-lock-renew-v1
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+return redis.call('PEXPIRE', KEYS[1], ARGV[2])
 `
 
 export function createRedisDistributedRefreshSingleFlight(
@@ -106,7 +106,7 @@ export function createRedisDistributedRefreshSingleFlight(
         connectionFingerprint: string
         deadlineMs: number
         loadLatest: () => Promise<T | null>
-        refresh: () => Promise<T>
+        refresh: (assertLeadership: () => Promise<void>) => Promise<T>
       }>,
     ): Promise<T> => {
       if (
@@ -127,14 +127,50 @@ export function createRedisDistributedRefreshSingleFlight(
         try {
           acquired = await deps.redis.set(key, owner, 'PX', leaseMs, 'NX')
         } catch {
-          throw new Error('refresh coordination unavailable')
+          throw coordinationError('coordination_unavailable')
         }
         if (acquired === 'OK') {
+          let leadershipLost = false
+          let renewalInFlight = false
+          const renew = async (): Promise<void> => {
+            if (leadershipLost) throw coordinationError('leadership_lost')
+            let renewed: unknown
+            try {
+              renewed = await deps.redis.eval(
+                RENEW_REFRESH_LOCK_SCRIPT,
+                1,
+                key,
+                owner,
+                leaseMs,
+              )
+            } catch {
+              leadershipLost = true
+              throw coordinationError('coordination_unavailable')
+            }
+            if (Number(renewed) !== 1) {
+              leadershipLost = true
+              throw coordinationError('leadership_lost')
+            }
+          }
+          const renewal = setInterval(
+            () => {
+              if (renewalInFlight || leadershipLost) return
+              renewalInFlight = true
+              void renew()
+                .catch(() => undefined)
+                .finally(() => {
+                  renewalInFlight = false
+                })
+            },
+            Math.max(250, Math.floor(leaseMs / 3)),
+          )
+          renewal.unref()
           try {
             const committed = await input.loadLatest()
             if (committed !== null) return committed
-            return await input.refresh()
+            return await input.refresh(renew)
           } finally {
+            clearInterval(renewal)
             try {
               await deps.redis.eval(RELEASE_REFRESH_LOCK_SCRIPT, 1, key, owner)
             } catch {
@@ -145,7 +181,7 @@ export function createRedisDistributedRefreshSingleFlight(
         const remainingMs = input.deadlineMs - deps.nowMs()
         if (remainingMs > 0) await deps.sleep(Math.min(pollMs, remainingMs))
       }
-      throw new Error('refresh coordination deadline exceeded')
+      throw coordinationError('coordination_deadline_exceeded')
     },
   })
 }
@@ -175,6 +211,7 @@ local delayMs = math.max(5000, jitterMs, retryAfterMs)
 local nextAllowedAtMs = nowMs + delayMs
 redis.call(
   'HSET',
+  KEYS[1],
   'binding', ARGV[1],
   'failures', failures,
   'nextAllowedAtMs', nextAllowedAtMs

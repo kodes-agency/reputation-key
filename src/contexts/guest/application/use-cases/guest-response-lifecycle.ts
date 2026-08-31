@@ -15,13 +15,38 @@ import {
 import {
   correctResponse,
   createResponse,
-  deleteResponse,
+  DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS,
+  DEFAULT_RESPONSE_SESSION_WINDOW_MS,
+  DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS,
   moderateResponse,
+  submitPrivateFeedback,
   submitResponse,
+  withdrawPrivateFeedback,
+  withdrawResponse,
   type GuestResponse,
+  type GuestResponseExperienceSnapshot,
   type ResponseError,
 } from '../../domain/guest-response'
-import { guestFeedbackSubmitted, guestRatingSubmitted } from '../../domain/events'
+import {
+  changeGuestResponseIntegrity,
+  DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT,
+  initialGuestResponseIntegrityDecision,
+  isRatingMetricEligible,
+  ratingMetricOccurredAt,
+  type GuestResponseInitialIntegrityAssessment,
+  type GuestResponseIntegrityOutcome,
+} from '../../domain/guest-response-integrity'
+import {
+  guestFeedbackRetracted,
+  guestFeedbackSubmitted,
+  guestRatingRetracted,
+  guestRatingSubmitted,
+} from '../../domain/events'
+import type {
+  GuestResponseCommandStore,
+  GuestMutationFact,
+  GuestSubmissionFact,
+} from '../ports/guest-response-command-store.port'
 import {
   feedbackId,
   organizationId,
@@ -29,8 +54,7 @@ import {
   propertyId,
   ratingId,
 } from '#/shared/domain/ids'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { PrimaryStaffAttributionResolver } from '../ports/primary-staff-attribution.port'
 
 export type GuestResponseInput = Readonly<{
   rating?: number | null
@@ -41,18 +65,32 @@ export type GuestResponseInput = Readonly<{
   mediaConsent?: boolean
 }>
 
+export type GuestResponseExperienceInput = Readonly<{
+  portalPublicationState: 'published'
+  portalPublicationSnapshotId: string
+  portalPublicationVersion: number
+  portalPublicationDigest: string
+  portalConfigurationDigest: string
+  guestLocale: string
+  languagePackVersion: string
+  privateFeedbackThreshold: number
+}>
+
 export type GuestResponseView = Readonly<{
-  id: string
   status: GuestResponse['status']
-  responseConsent: boolean
-  textConsent: boolean
   rating: number | null
-  category: string | null
-  text: string | null
-  mediaConsent: boolean
+  hasPrivateFeedback: boolean
+  privateFeedbackEligible: boolean
   submittedAt: string | null
   correctedAt: string | null
   correctionDeadline: string | null
+  correctionAvailable: boolean
+  responseWithdrawalDeadline: string | null
+  responseWithdrawalAvailable: boolean
+  feedbackSubmittedAt: string | null
+  feedbackWithdrawalDeadline: string | null
+  feedbackWithdrawalAvailable: boolean
+  feedbackWithdrawnAt: string | null
   deletedAt: string | null
 }>
 
@@ -65,23 +103,110 @@ export class GuestResponseLifecycleError extends Error {
 
 /** Exported for the server boundary, which mirrors a submitted view's shape. */
 export const CORRECTION_WINDOW_MS = 60 * 60 * 1000
-const retentionMs = 90 * 24 * 60 * 60 * 1000
+const FEEDBACK_WITHDRAWAL_WINDOW_MS = DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS
+export const RESPONSE_WITHDRAWAL_WINDOW_MS = DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS
 
-function toView(response: GuestResponse): GuestResponseView {
+function factRetentionDeadline(from: Date): Date {
+  const deadline = new Date(from)
+  deadline.setUTCMonth(deadline.getUTCMonth() + 24)
+  return deadline
+}
+
+const CONFIGURATION_DIGEST_PATTERN = /^[0-9a-f]{64}$/
+const GUEST_LOCALE_LANGUAGE_PATTERN = /^[A-Za-z]{2,3}$/
+const GUEST_LOCALE_SUBTAG_PATTERN = /^[A-Za-z0-9]{2,8}$/
+const LANGUAGE_PACK_VERSION_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/
+
+function isGuestLocale(value: string): boolean {
+  if (value.length > 35) return false
+  const [language, ...subtags] = value.split('-')
+  return (
+    GUEST_LOCALE_LANGUAGE_PATTERN.test(language ?? '') &&
+    subtags.every((subtag) => GUEST_LOCALE_SUBTAG_PATTERN.test(subtag))
+  )
+}
+
+function captureExperience(
+  input: GuestResponseExperienceInput,
+  capturedAt: Date,
+): GuestResponseExperienceSnapshot {
+  if (
+    input.portalPublicationState !== 'published' ||
+    input.portalPublicationSnapshotId.length === 0 ||
+    !Number.isSafeInteger(input.portalPublicationVersion) ||
+    input.portalPublicationVersion < 1 ||
+    !CONFIGURATION_DIGEST_PATTERN.test(input.portalPublicationDigest) ||
+    !CONFIGURATION_DIGEST_PATTERN.test(input.portalConfigurationDigest) ||
+    !isGuestLocale(input.guestLocale) ||
+    !LANGUAGE_PACK_VERSION_PATTERN.test(input.languagePackVersion) ||
+    !Number.isInteger(input.privateFeedbackThreshold) ||
+    input.privateFeedbackThreshold < 1 ||
+    input.privateFeedbackThreshold > 5
+  ) {
+    throw new GuestResponseLifecycleError('response_unavailable')
+  }
   return {
-    id: response.id,
+    ...input,
+    capturedAt,
+  }
+}
+
+/** A window opens at `from` and lasts `windowMs`; no `from`, no window. */
+function windowDeadline(from: Date | null, windowMs: number): Date | null {
+  return from ? new Date(from.getTime() + windowMs) : null
+}
+
+function withinWindow(now: Date, deadline: Date | null): boolean {
+  return deadline !== null && now.getTime() <= deadline.getTime()
+}
+
+/** Private feedback is offered once, and only at or below the portal threshold. */
+function privateFeedbackEligible(response: GuestResponse): boolean {
+  return (
+    response.text === null &&
+    response.feedbackSubmittedAt === null &&
+    response.feedbackWithdrawnAt === null &&
+    response.rating !== null &&
+    response.privateFeedbackThreshold !== null &&
+    response.rating <= response.privateFeedbackThreshold
+  )
+}
+
+function toView(response: GuestResponse, now: Date): GuestResponseView {
+  const correctionDeadline = windowDeadline(response.submittedAt, CORRECTION_WINDOW_MS)
+  const feedbackWithdrawalDeadline = windowDeadline(
+    response.feedbackSubmittedAt,
+    FEEDBACK_WITHDRAWAL_WINDOW_MS,
+  )
+  const responseWithdrawalDeadline = windowDeadline(
+    response.submittedAt,
+    RESPONSE_WITHDRAWAL_WINDOW_MS,
+  )
+  return {
     status: response.status,
     rating: response.rating,
-    category: response.category,
-    text: response.text,
-    mediaConsent: response.mediaConsent,
-    responseConsent: response.responseConsent,
-    textConsent: response.textConsent,
+    // Receipt-only public projection: feedback content never returns to the
+    // browser or a shared device after submission. It is absent from the type,
+    // rather than represented as a nullable field that a future mapper might fill.
+    hasPrivateFeedback: response.text !== null,
+    privateFeedbackEligible: privateFeedbackEligible(response),
     submittedAt: response.submittedAt?.toISOString() ?? null,
     correctedAt: response.correctedAt?.toISOString() ?? null,
-    correctionDeadline: response.submittedAt
-      ? new Date(response.submittedAt.getTime() + CORRECTION_WINDOW_MS).toISOString()
-      : null,
+    correctionDeadline: correctionDeadline?.toISOString() ?? null,
+    correctionAvailable:
+      response.status === 'submitted' &&
+      response.correctionCount === 0 &&
+      withinWindow(now, correctionDeadline),
+    responseWithdrawalDeadline: responseWithdrawalDeadline?.toISOString() ?? null,
+    responseWithdrawalAvailable:
+      response.status !== 'deleted' && withinWindow(now, responseWithdrawalDeadline),
+    feedbackSubmittedAt: response.feedbackSubmittedAt?.toISOString() ?? null,
+    feedbackWithdrawalDeadline: feedbackWithdrawalDeadline?.toISOString() ?? null,
+    feedbackWithdrawalAvailable:
+      response.text !== null &&
+      response.feedbackWithdrawnAt === null &&
+      withinWindow(now, feedbackWithdrawalDeadline),
+    feedbackWithdrawnAt: response.feedbackWithdrawnAt?.toISOString() ?? null,
     deletedAt: response.deletedAt?.toISOString() ?? null,
   }
 }
@@ -97,13 +222,14 @@ export function guestResponseLifecycle(
     storage: StoragePort
     clock: () => Date
     idGen: () => string
-    events: EventBus
-    outboxRepo?: OutboxRepository
+    commandStore: GuestResponseCommandStore
+    resolvePrimaryStaffAttribution: PrimaryStaffAttributionResolver
   }>,
 ) {
   const getState = async (scope: GuestResponseScope, sessionId: string) => {
-    const response = await deps.repo.findForSession(scope, sessionId)
-    return response ? toView(response) : null
+    const now = deps.clock()
+    const response = await deps.repo.findForSession(scope, sessionId, now)
+    return response ? toView(response, now) : null
   }
 
   const removeObjects = async (
@@ -179,36 +305,188 @@ export function guestResponseLifecycle(
   // The aggregate row id is the identity of both facts: one submit yields at
   // most one rating and one feedback, and inbox keys its item on feedbackId,
   // so a replayed emission is idempotent rather than duplicated.
-  const emitSubmissionFacts = async (response: GuestResponse) => {
+  const submissionFacts = (response: GuestResponse): GuestSubmissionFact[] => {
+    const facts: GuestSubmissionFact[] = []
     const scopeIds = {
       organizationId: organizationId(response.organizationId),
       portalId: portalId(response.portalId),
       propertyId: propertyId(response.propertyId),
     }
     const occurredAt = response.submittedAt ?? deps.clock()
-    if (response.rating !== null && response.responseConsent) {
-      await emitAndRecord(
-        deps.events,
-        deps.outboxRepo,
+    if (isRatingMetricEligible(response)) {
+      facts.push(
         guestRatingSubmitted({
           ratingId: ratingId(response.id),
           ...scopeIds,
-          value: response.rating,
+          value: response.rating!,
           occurredAt,
+          staffAttribution: response.staffAttribution,
         }),
       )
     }
     if (response.text !== null && response.textConsent) {
-      await emitAndRecord(
-        deps.events,
-        deps.outboxRepo,
+      facts.push(
         guestFeedbackSubmitted({
           feedbackId: feedbackId(response.id),
           ...scopeIds,
           ratingId: response.rating !== null ? ratingId(response.id) : null,
+          responseRevision: response.feedbackSubmissionRevision!,
           occurredAt,
+          staffAttribution: response.staffAttribution,
         }),
       )
+    }
+    return facts
+  }
+
+  const correctionFacts = (
+    previous: GuestResponse,
+    corrected: GuestResponse,
+  ): GuestMutationFact[] => {
+    const facts: GuestMutationFact[] = []
+    const scopeIds = {
+      organizationId: organizationId(corrected.organizationId),
+      portalId: portalId(corrected.portalId),
+      propertyId: propertyId(corrected.propertyId),
+    }
+    const occurredAt = corrected.correctedAt ?? deps.clock()
+    const nextRatingShared = isRatingMetricEligible(corrected)
+    if (
+      nextRatingShared &&
+      (previous.rating !== corrected.rating || !previous.ratingSourceEventId)
+    ) {
+      facts.push(
+        guestRatingSubmitted({
+          ratingId: ratingId(corrected.id),
+          ...scopeIds,
+          value: corrected.rating!,
+          supersedesSourceEventId: previous.ratingSourceEventId,
+          occurredAt,
+          staffAttribution: corrected.staffAttribution,
+        }),
+      )
+    } else if (!nextRatingShared && previous.ratingSourceEventId) {
+      facts.push(
+        guestRatingRetracted({
+          ratingId: ratingId(corrected.id),
+          ...scopeIds,
+          supersedesSourceEventId: previous.ratingSourceEventId,
+          occurredAt,
+          staffAttribution: corrected.staffAttribution,
+        }),
+      )
+    }
+
+    const nextFeedbackShared = corrected.text !== null && corrected.textConsent
+    if (nextFeedbackShared && !previous.feedbackSourceEventId) {
+      facts.push(
+        guestFeedbackSubmitted({
+          feedbackId: feedbackId(corrected.id),
+          ...scopeIds,
+          ratingId: corrected.rating !== null ? ratingId(corrected.id) : null,
+          responseRevision: corrected.feedbackSubmissionRevision!,
+          occurredAt,
+          staffAttribution: corrected.staffAttribution,
+        }),
+      )
+    } else if (!nextFeedbackShared && previous.feedbackSourceEventId) {
+      facts.push(
+        guestFeedbackRetracted({
+          feedbackId: feedbackId(corrected.id),
+          ...scopeIds,
+          supersedesSourceEventId: previous.feedbackSourceEventId,
+          responseRevision: previous.feedbackSubmissionRevision!,
+          occurredAt,
+          staffAttribution: corrected.staffAttribution,
+        }),
+      )
+    }
+    return facts
+  }
+
+  const withdrawalFacts = (response: GuestResponse): GuestMutationFact[] => {
+    const scopeIds = {
+      organizationId: organizationId(response.organizationId),
+      portalId: portalId(response.portalId),
+      propertyId: propertyId(response.propertyId),
+    }
+    const occurredAt = deps.clock()
+    const facts: GuestMutationFact[] = []
+    if (response.ratingSourceEventId) {
+      facts.push(
+        guestRatingRetracted({
+          ratingId: ratingId(response.id),
+          ...scopeIds,
+          supersedesSourceEventId: response.ratingSourceEventId,
+          occurredAt,
+          staffAttribution: response.staffAttribution,
+        }),
+      )
+    }
+    if (response.feedbackSourceEventId) {
+      facts.push(
+        guestFeedbackRetracted({
+          feedbackId: feedbackId(response.id),
+          ...scopeIds,
+          supersedesSourceEventId: response.feedbackSourceEventId,
+          responseRevision: response.feedbackSubmissionRevision!,
+          occurredAt,
+          staffAttribution: response.staffAttribution,
+        }),
+      )
+    }
+    return facts
+  }
+
+  const integrityFacts = (
+    previous: GuestResponse,
+    changed: GuestResponse,
+  ): GuestMutationFact[] => {
+    const wasEligible = isRatingMetricEligible(previous)
+    const isEligible = isRatingMetricEligible(changed)
+    if (wasEligible === isEligible) return []
+    const scopeIds = {
+      organizationId: organizationId(changed.organizationId),
+      portalId: portalId(changed.portalId),
+      propertyId: propertyId(changed.propertyId),
+    }
+    if (wasEligible) {
+      if (!previous.ratingSourceEventId) {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
+      return [
+        guestRatingRetracted({
+          ratingId: ratingId(changed.id),
+          ...scopeIds,
+          supersedesSourceEventId: previous.ratingSourceEventId,
+          occurredAt: changed.integrityAssessedAt,
+          staffAttribution: changed.staffAttribution,
+        }),
+      ]
+    }
+    return [
+      guestRatingSubmitted({
+        ratingId: ratingId(changed.id),
+        ...scopeIds,
+        value: changed.rating!,
+        supersedesSourceEventId: previous.ratingSourceEventId,
+        occurredAt: ratingMetricOccurredAt(changed),
+        staffAttribution: changed.staffAttribution,
+      }),
+    ]
+  }
+
+  const requireKnownFactLineage = (response: GuestResponse): void => {
+    if (
+      (isRatingMetricEligible(response) && !response.ratingSourceEventId) ||
+      (response.integrityOutcome !== 'accepted' && response.ratingSourceEventId) ||
+      (response.text !== null &&
+        response.textConsent &&
+        (!response.feedbackSourceEventId || !response.feedbackSubmissionRevision))
+    ) {
+      // Never turn an unresolved historical fact into an additive correction or
+      // erase its source row while leaving a stale managerial projection.
+      throw new GuestResponseLifecycleError('response_unavailable')
     }
   }
 
@@ -219,70 +497,216 @@ export function guestResponseLifecycle(
       scope: GuestResponseScope,
       sessionId: string,
       input: GuestResponseInput,
+      experience: GuestResponseExperienceInput,
+      sessionExpiresAt?: Date,
+      initialIntegrityAssessment: GuestResponseInitialIntegrityAssessment = DEFAULT_GUEST_RESPONSE_INTEGRITY_ASSESSMENT,
     ): Promise<GuestResponseView> => {
-      const existing = await deps.repo.findForSession(scope, sessionId)
-      if (existing) return toView(existing)
       const now = deps.clock()
+      const bindingExpiresAt =
+        sessionExpiresAt ?? new Date(now.getTime() + DEFAULT_RESPONSE_SESSION_WINDOW_MS)
+      if (
+        bindingExpiresAt.getTime() - now.getTime() !==
+        DEFAULT_RESPONSE_SESSION_WINDOW_MS
+      ) {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
+      const existing = await deps.repo.findForSession(scope, sessionId, now)
+      if (existing) return toView(existing, now)
+      if (input.rating === null || input.rating === undefined) {
+        throw new GuestResponseLifecycleError('rating_required')
+      }
+      if (input.text?.trim()) {
+        throw new GuestResponseLifecycleError('feedback_must_follow_rating')
+      }
+      const experienceSnapshot = captureExperience(experience, now)
+      const staffAttribution = await deps.resolvePrimaryStaffAttribution({
+        organizationId: organizationId(scope.organizationId),
+        propertyId: propertyId(scope.propertyId),
+        portalId: portalId(scope.portalId),
+        observedAt: now,
+      })
       const submitted = unwrap(
         submitResponse(
           createResponse({
             id: deps.idGen(),
             ...scope,
             sessionId,
-            retentionDeadline: new Date(now.getTime() + retentionMs),
+            sessionExpiresAt: bindingExpiresAt,
+            retentionDeadline: factRetentionDeadline(now),
+            experienceSnapshot,
+            staffAttribution,
+            integrityAssessment: initialIntegrityAssessment,
           }),
           input,
           now,
         ),
       )
-      if (await deps.repo.insertSubmitted(submitted)) {
+      if (
+        (await deps.commandStore.commitSubmitted(
+          submitted,
+          submissionFacts(submitted),
+          initialGuestResponseIntegrityDecision(submitted, initialIntegrityAssessment),
+        )) === 'applied'
+      ) {
         // Only the winning insert emits: the `existing`/`raced` paths return an
         // already-counted response, so a refresh or a lost race adds no facts.
-        await emitSubmissionFacts(submitted)
-        return toView(submitted)
+        return toView(submitted, deps.clock())
       }
-      const raced = await deps.repo.findForSession(scope, sessionId)
+      const raced = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!raced) throw new GuestResponseLifecycleError('response_unavailable')
-      return toView(raced)
+      return toView(raced, deps.clock())
     },
 
-    // PB2.4: a correction deliberately emits NO fact, so one guest never yields
-    // two readings. Superseding (rather than adding) needs the whole chain
-    // metric-command-store.ts already implements for portal workflow facts:
-    // (1) a `rating_source_event_id` / `feedback_source_event_id` column on
-    // guest_responses, written in the same statement as the submit, so the
-    // correction knows which fact it replaces; (2) a `supersedesSourceEventId`
-    // member on GuestRatingSubmitted / GuestFeedbackSubmitted; and (3) that
-    // field forwarded by makeRecordMetricHandler (metric context) into
-    // RecordMetricInput. Until all three exist the reading keeps the submitted
-    // value — stale, but never double-counted.
+    addPrivateFeedback: async (
+      scope: GuestResponseScope,
+      sessionId: string,
+      input: Readonly<{ text: string; textConsent: boolean }>,
+    ): Promise<GuestResponseView> => {
+      const now = deps.clock()
+      const current = await deps.repo.findForSession(scope, sessionId, now)
+      if (!current) throw new GuestResponseLifecycleError('response_not_found')
+      if (
+        current.text !== null &&
+        current.feedbackSubmittedAt !== null &&
+        current.feedbackSourceEventId !== null
+      ) {
+        return toView(current, now)
+      }
+      requireKnownFactLineage(current)
+      const feedbackAdded = unwrap(submitPrivateFeedback(current, input, now))
+      const renewed = {
+        ...feedbackAdded,
+        sessionExpiresAt: new Date(now.getTime() + DEFAULT_RESPONSE_SESSION_WINDOW_MS),
+      }
+      const fact = guestFeedbackSubmitted({
+        feedbackId: feedbackId(renewed.id),
+        organizationId: organizationId(renewed.organizationId),
+        portalId: portalId(renewed.portalId),
+        propertyId: propertyId(renewed.propertyId),
+        ratingId: renewed.rating === null ? null : ratingId(renewed.id),
+        responseRevision: renewed.feedbackSubmissionRevision!,
+        occurredAt: renewed.feedbackSubmittedAt ?? now,
+        staffAttribution: renewed.staffAttribution,
+      })
+      if ((await deps.commandStore.commitFeedbackAdded(renewed, fact)) !== 'applied') {
+        throw new GuestResponseLifecycleError('feedback_already_submitted')
+      }
+      return toView(renewed, deps.clock())
+    },
+
+    withdrawPrivateFeedback: async (
+      scope: GuestResponseScope,
+      sessionId: string,
+    ): Promise<GuestResponseView> => {
+      const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
+      if (!current) throw new GuestResponseLifecycleError('response_not_found')
+      if (current.feedbackWithdrawnAt !== null) return toView(current, deps.clock())
+      requireKnownFactLineage(current)
+      const now = deps.clock()
+      const withdrawn = unwrap(
+        withdrawPrivateFeedback(current, now, FEEDBACK_WITHDRAWAL_WINDOW_MS),
+      )
+      const fact = guestFeedbackRetracted({
+        feedbackId: feedbackId(withdrawn.id),
+        organizationId: organizationId(withdrawn.organizationId),
+        portalId: portalId(withdrawn.portalId),
+        propertyId: propertyId(withdrawn.propertyId),
+        supersedesSourceEventId: current.feedbackSourceEventId!,
+        responseRevision: current.feedbackSubmissionRevision!,
+        occurredAt: withdrawn.feedbackWithdrawnAt ?? now,
+        staffAttribution: withdrawn.staffAttribution,
+      })
+      if (
+        (await deps.commandStore.commitFeedbackWithdrawn(current, withdrawn, fact)) !==
+        'applied'
+      ) {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
+      return toView(withdrawn, deps.clock())
+    },
+
+    // The response revision and every replacement/retraction fact share one
+    // transaction. Metric consumers can therefore append corrections without
+    // double-counting or leaving the originally submitted value stale.
     correct: async (
       scope: GuestResponseScope,
       sessionId: string,
       input: GuestResponseInput,
     ): Promise<GuestResponseView> => {
-      const current = await deps.repo.findForSession(scope, sessionId)
+      const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
+      if (input.text !== undefined) {
+        throw new GuestResponseLifecycleError('feedback_must_use_separate_action')
+      }
+      requireKnownFactLineage(current)
       const corrected = unwrap(
         correctResponse(current, input, deps.clock(), CORRECTION_WINDOW_MS),
       )
-      if (!(await deps.repo.saveCorrection(corrected))) {
+      if (
+        (await deps.commandStore.commitCorrected(
+          current,
+          corrected,
+          correctionFacts(current, corrected),
+        )) !== 'applied'
+      ) {
         throw new GuestResponseLifecycleError('already_submitted')
       }
-      return toView(corrected)
+      return toView(corrected, deps.clock())
+    },
+
+    /**
+     * Internal integrity control. Delivery layers must keep this unavailable to
+     * Property managers: their moderation path may hide text/media only.
+     */
+    changeIntegrity: async (
+      scope: GuestResponseScope,
+      responseId: string,
+      input: Readonly<{
+        outcome: GuestResponseIntegrityOutcome
+        reasonCode: string
+        source: 'automatic' | 'reviewer'
+        actorId: string
+      }>,
+    ) => {
+      const current = await deps.repo.findById(scope, responseId)
+      if (!current) throw new GuestResponseLifecycleError('response_not_found')
+      requireKnownFactLineage(current)
+      const changed = changeGuestResponseIntegrity(current, input, deps.clock())
+      if ('code' in changed) throw new GuestResponseLifecycleError(changed.code)
+      const facts = integrityFacts(current, changed.response)
+      if (
+        (await deps.commandStore.commitIntegrityChanged(
+          current,
+          changed.response,
+          changed.decision,
+          facts,
+        )) !== 'applied'
+      ) {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
+      return changed.decision
     },
 
     withdraw: async (
       scope: GuestResponseScope,
       sessionId: string,
     ): Promise<GuestResponseView> => {
-      const current = await deps.repo.findForSession(scope, sessionId)
+      const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
-      if (current.status === 'deleted') return toView(current)
-      const deleted = unwrap(deleteResponse(current, deps.clock()))
-      const objectKeys = await deps.repo.deleteAndQueueMediaPurge(deleted)
-      await removeObjects(scope, objectKeys)
-      return toView(deleted)
+      if (current.status === 'deleted') return toView(current, deps.clock())
+      requireKnownFactLineage(current)
+      const deleted = unwrap(
+        withdrawResponse(current, deps.clock(), RESPONSE_WITHDRAWAL_WINDOW_MS),
+      )
+      const committed = await deps.commandStore.commitWithdrawn(
+        deleted,
+        withdrawalFacts(current),
+      )
+      if (committed.outcome !== 'applied') {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
+      await removeObjects(scope, committed.objectKeys)
+      return toView(deleted, deps.clock())
     },
 
     moderate: async (
@@ -292,18 +716,15 @@ export function guestResponseLifecycle(
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findById(scope, responseId)
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
-      if (action === 'delete') {
-        if (current.status === 'deleted') return toView(current)
-        const deleted = unwrap(deleteResponse(current, deps.clock()))
-        const objectKeys = await deps.repo.deleteAndQueueMediaPurge(deleted)
-        await removeObjects(scope, objectKeys)
-        return toView(deleted)
-      }
+      // Both legacy moderation actions now mean manager-side quarantine/hide.
+      // A manager may hide abusive text/media but can never retract or erase the
+      // guest's numeric rating; only signed guest withdrawal owns that fact.
+      void action
       const moderated = unwrap(moderateResponse(current, deps.clock()))
       if (!(await deps.repo.saveModeration(moderated))) {
         throw new GuestResponseLifecycleError('response_not_found')
       }
-      return toView(moderated)
+      return toView(moderated, deps.clock())
     },
 
     issueMedia: async (
@@ -311,7 +732,7 @@ export function guestResponseLifecycle(
       sessionId: string,
       input: Readonly<{ contentType: string; sizeBytes: number }>,
     ) => {
-      const response = await deps.repo.findForSession(scope, sessionId)
+      const response = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!response) throw new GuestResponseLifecycleError('response_not_found')
       const media = issueGuestMedia(
         response,
@@ -346,7 +767,7 @@ export function guestResponseLifecycle(
       if (!namesIssuedObject(media, input.objectKey)) {
         throw new GuestResponseLifecycleError('media_not_found')
       }
-      const response = await deps.repo.findForSession(scope, sessionId)
+      const response = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!response) throw new GuestResponseLifecycleError('response_not_found')
 
       const lease = deps.idGen()

@@ -9,9 +9,11 @@
 // redriveMetadata in the payload.
 
 import { describe, it, expect, vi } from 'vitest'
-import type { Job, JobsOptions, Queue } from 'bullmq'
+import type { Job, JobProgress, JobsOptions, Queue } from 'bullmq'
 import {
+  confirmQuarantineFailure,
   quarantineExhaustedJob,
+  quarantineFinalAttemptJob,
   quarantineJobDirect,
   createRedriveJob,
   listQuarantinedJobs,
@@ -28,7 +30,11 @@ type FakeStoredJob = {
   name: string
   data: unknown
   opts?: JobsOptions
+  progress: JobProgress
+  state: string
   removed: boolean
+  updateProgress: (progress: JobProgress) => Promise<void>
+  getState: () => Promise<string>
   remove: () => Promise<void>
 }
 
@@ -44,7 +50,13 @@ function fakeQueue() {
         name,
         data,
         opts,
+        progress: 0,
+        state: 'waiting',
         removed: false,
+        updateProgress: async (progress) => {
+          stored.progress = progress
+        },
+        getState: async () => stored.state,
         remove: async () => {
           stored.removed = true
           jobs.delete(stored.id)
@@ -203,6 +215,154 @@ describe('quarantineExhaustedJob (BQC-3.6)', () => {
   })
 })
 
+describe('terminal-failure publication barrier', () => {
+  it('refuses a provisional ghost until the original failure is confirmed', async () => {
+    const quarantine = fakeQueue()
+    const target = fakeQueue()
+    const original = fakeJob({ attemptsMade: 0, opts: { attempts: 8 } })
+    const poison = Object.assign(new Error('schema poison'), {
+      name: 'UnrecoverableError',
+    })
+
+    const staged = await quarantineFinalAttemptJob(quarantine, original, poison)
+    expect(staged.quarantined).toBe(true)
+    expect(envelopeOf(quarantine.added[0]!)).toMatchObject({
+      publicationState: 'pending_failure',
+      attemptsMade: 1,
+    })
+
+    const redrive = createRedriveJob(quarantine, () => target)
+    await expect(redrive(staged.quarantineJobId!)).resolves.toEqual({
+      redriven: false,
+      reason: 'failure-not-confirmed',
+    })
+    expect(target.add).not.toHaveBeenCalled()
+
+    await expect(confirmQuarantineFailure(quarantine, original)).resolves.toBe(true)
+    await expect(redrive(staged.quarantineJobId!)).resolves.toMatchObject({
+      redriven: true,
+      targetQueue: 'default',
+    })
+    expect(target.add).toHaveBeenCalledTimes(1)
+  })
+
+  it('repairs a pending copy only when the original job is proven failed', async () => {
+    const quarantine = fakeQueue()
+    const target = fakeQueue()
+    const original = fakeJob({ attemptsMade: 2, opts: { attempts: 3 } })
+    const staged = await quarantineFinalAttemptJob(
+      quarantine,
+      original,
+      new Error('terminal'),
+    )
+    await target.add(original.name, original.data, { jobId: original.id })
+    target.jobs.get(original.id!)!.state = 'failed'
+
+    const redrive = createRedriveJob(quarantine, () => target)
+    await expect(redrive(staged.quarantineJobId!)).resolves.toMatchObject({
+      redriven: true,
+      targetQueue: 'default',
+    })
+    expect(target.add).toHaveBeenCalledTimes(2)
+    expect(quarantine.jobs.size).toBe(0)
+  })
+
+  it('stages invitation payload and failure metadata content-free before add', async () => {
+    const marker = 'late-invitee@example.test'
+    const quarantine = fakeQueue()
+    const invitationEvent = {
+      eventId: 'evt-late',
+      eventType: 'identity.member.invited',
+      eventVersion: 1,
+      payload: {
+        invitationId: 'invite-1',
+        organizationId: 'org-1',
+        userId: 'user-1',
+        role: 'member',
+        email: marker,
+      },
+      organizationId: 'org-1',
+      propertyId: null,
+      sourceContext: 'identity',
+      sourceAggregateId: 'invite-1',
+    }
+
+    await quarantineFinalAttemptJob(
+      quarantine,
+      fakeJob({
+        name: 'identity.member.invited',
+        queueName: 'domain-events',
+        data: invitationEvent,
+        attemptsMade: 2,
+      }),
+      new Error(`consumer rejected ${marker}`),
+    )
+
+    const staged = envelopeOf(quarantine.added[0]!)
+    expect(staged).toMatchObject({
+      publicationState: 'pending_failure',
+      data: { payload: { email: '[redacted]' } },
+      failedReason: 'Error: consumer rejected [redacted]',
+    })
+    expect(JSON.stringify(staged)).not.toContain(marker)
+
+    const bareQuarantine = fakeQueue()
+    await quarantineFinalAttemptJob(
+      bareQuarantine,
+      fakeJob({
+        name: 'identity.member.invited',
+        queueName: 'domain-events',
+        data: {
+          invitationId: 'invite-bare',
+          organizationId: 'org-1',
+          email: marker,
+        },
+        attemptsMade: 2,
+      }),
+      new Error(`bare consumer rejected ${marker}`),
+    )
+    const stagedBare = envelopeOf(bareQuarantine.added[0]!)
+    expect(stagedBare.data).toMatchObject({ invitationId: 'invite-bare' })
+    expect(stagedBare.data).not.toHaveProperty('email')
+    expect(JSON.stringify(stagedBare)).not.toContain(marker)
+
+    const boundaryQuarantine = fakeQueue()
+    await quarantineFinalAttemptJob(
+      boundaryQuarantine,
+      fakeJob({
+        name: 'identity.member.invited',
+        queueName: 'domain-events',
+        data: invitationEvent,
+        attemptsMade: 2,
+      }),
+      new Error(`${'x'.repeat(190)}${marker}`),
+    )
+    const boundary = envelopeOf(boundaryQuarantine.added[0]!)
+    expect(boundary.failedReason.length).toBeLessThanOrEqual(200)
+    expect(boundary.failedReason).not.toContain(marker)
+    expect(boundary.failedReason).not.toContain('late-invitee')
+  })
+
+  it('does not stage BullMQ non-failure control-flow errors', async () => {
+    const quarantine = fakeQueue()
+    const finalAttempt = fakeJob({ attemptsMade: 2, opts: { attempts: 3 } })
+    for (const name of ['DelayedError', 'WaitingError', 'WaitingChildrenError']) {
+      const control = Object.assign(new Error('control flow'), { name })
+      await expect(
+        quarantineFinalAttemptJob(quarantine, finalAttempt, control),
+      ).resolves.toEqual({ quarantined: false })
+    }
+    await expect(
+      quarantineFinalAttemptJob(
+        quarantine,
+        finalAttempt,
+        Object.assign(new Error('bullmq:rateLimitExceeded'), { name: 'RateLimitError' }),
+      ),
+    ).resolves.toEqual({ quarantined: false })
+    expect(quarantine.add).not.toHaveBeenCalled()
+  })
+})
+
 // ── quarantineJobDirect (BQC-4.2) ───────────────────────────────────
 
 describe('quarantineJobDirect (BQC-4.2)', () => {
@@ -317,6 +477,107 @@ describe('createRedriveJob (BQC-3.6)', () => {
     expect(quarantine.jobs.size).toBe(1)
   })
 
+  it('sanitizes legacy invitation facts while moving them between queues', async () => {
+    const marker = 'legacy-invitee@example.test'
+    const quarantine = fakeQueue()
+    const target = fakeQueue()
+    const invitationEvent = {
+      eventId: 'evt-legacy',
+      eventType: 'identity.member.invited',
+      eventVersion: 1,
+      payload: {
+        invitationId: 'invite-1',
+        organizationId: 'org-1',
+        userId: 'user-1',
+        role: 'member',
+        occurredAt: '2026-08-26T00:00:00.000Z',
+        email: marker,
+      },
+      organizationId: 'org-1',
+      propertyId: null,
+      sourceContext: 'identity',
+      sourceAggregateId: 'invite-1',
+    }
+    const eventId = 'legacy-invitation-quarantine'
+    await quarantine.add(
+      'identity.member.invited',
+      {
+        originalQueue: 'domain-events',
+        originalJobId: 'legacy-invitation-original',
+        jobName: 'identity.member.invited',
+        data: invitationEvent,
+        failedReason: 'legacy failure',
+        attemptsMade: 3,
+        quarantinedAt: '2026-08-26T00:00:00.000Z',
+        publicationState: 'confirmed_failed',
+      },
+      { jobId: eventId },
+    )
+
+    const redrive = createRedriveJob(quarantine, () => target)
+    await expect(redrive(eventId)).resolves.toMatchObject({ redriven: true })
+
+    const movedEvent = target.added[0]!.data as Record<string, unknown>
+    expect(movedEvent).toMatchObject({
+      eventType: 'identity.member.invited',
+      eventVersion: 1,
+      payload: { email: '[redacted]' },
+    })
+    expect(JSON.stringify(movedEvent)).not.toContain(marker)
+
+    const bareQuarantine = fakeQueue()
+    const bareTarget = fakeQueue()
+    const bareId = 'legacy-bare-invitation-quarantine'
+    await bareQuarantine.add(
+      'identity.member.invited',
+      {
+        originalQueue: 'domain-events',
+        originalJobId: 'legacy-bare-invitation-original',
+        jobName: 'identity.member.invited',
+        data: { invitationId: 'invite-bare', organizationId: 'org-1', email: marker },
+        failedReason: 'legacy bare failure',
+        attemptsMade: 3,
+        quarantinedAt: '2026-08-26T00:00:00.000Z',
+        publicationState: 'confirmed_failed',
+      },
+      { jobId: bareId },
+    )
+    await createRedriveJob(bareQuarantine, () => bareTarget)(bareId)
+    const movedBare = bareTarget.added[0]!.data as Record<string, unknown>
+    expect(movedBare).toMatchObject({ invitationId: 'invite-bare' })
+    expect(movedBare).not.toHaveProperty('email')
+    expect(JSON.stringify(movedBare)).not.toContain(marker)
+
+    const activityQuarantine = fakeQueue()
+    const activityTarget = fakeQueue()
+    const activityId = 'legacy-activity-quarantine'
+    await activityQuarantine.add(
+      'project-recent-activity',
+      {
+        originalQueue: 'default',
+        originalJobId: 'legacy-activity-original',
+        jobName: 'project-recent-activity',
+        data: {
+          action: 'invited',
+          resourceType: 'member',
+          resourceId: 'invite-1',
+          organizationId: 'org-1',
+          payload: { subject: 'member', detail: marker },
+        },
+        failedReason: 'legacy activity failure',
+        attemptsMade: 3,
+        quarantinedAt: '2026-08-26T00:00:00.000Z',
+        publicationState: 'confirmed_failed',
+      },
+      { jobId: activityId },
+    )
+
+    await createRedriveJob(activityQuarantine, () => activityTarget)(activityId)
+    const movedActivity = activityTarget.added[0]!.data as Record<string, unknown>
+    expect(movedActivity).toMatchObject({ payload: { detail: null } })
+    expect(JSON.stringify(movedActivity)).not.toContain(marker)
+  })
+
   it('reports not-found for an unknown quarantine job id', async () => {
     const quarantine = fakeQueue()
     const redrive = createRedriveJob(quarantine, () => fakeQueue())
@@ -354,9 +615,23 @@ describe('listQuarantinedJobs (BQC-3.6)', () => {
     const list = await listQuarantinedJobs(quarantine)
 
     expect(list).toHaveLength(2)
+    expect(list[0]!.publicationState).toBe('confirmed_failed')
     expect(list[0]!.envelope.jobName).toBe('sync-property-reviews')
     expect(list[1]!.envelope.jobName).toBe('unknown-x')
     expect(list[1]!.envelope.data).toEqual({ redacted: true })
     expect(typeof list[0]!.quarantineJobId).toBe('string')
+  })
+
+  it('reports a staged copy as pending until the failed transition is confirmed', async () => {
+    const quarantine = fakeQueue()
+    const original = fakeJob({ attemptsMade: 2, opts: { attempts: 3 } })
+    await quarantineFinalAttemptJob(quarantine, original, new Error('terminal'))
+
+    let [entry] = await listQuarantinedJobs(quarantine)
+    expect(entry?.publicationState).toBe('pending_failure')
+
+    await confirmQuarantineFailure(quarantine, original)
+    ;[entry] = await listQuarantinedJobs(quarantine)
+    expect(entry?.publicationState).toBe('confirmed_failed')
   })
 })

@@ -13,22 +13,25 @@ import { useMemo } from 'react'
 import { CheckCheck, Settings2, Trash2 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '#/components/ui/alert-dialog'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
-import {
-  useNotificationFormat,
-  useNotifications,
-  useUnreadNotificationCount,
-} from './notification-queries'
+import { useNotificationFormat, useNotifications } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import { NotificationFilterTabs } from './notification-filter-tabs'
 import { NotificationListBody } from './notification-list-body'
-import {
-  groupByProperty,
-  matchesNotificationFilter,
-  type NotificationFilter,
-} from './notification-filters'
+import { groupByProperty, type NotificationFilter } from './notification-filters'
 import type { NotificationRowActions, NotificationServerFns } from './types'
 
 const PAGE_SIZE = 50
@@ -50,17 +53,22 @@ export function NotificationPage({
   onFilterChange,
 }: Props) {
   const { announcement, announce } = useNotificationAnnouncer()
-  const { count } = useUnreadNotificationCount(
-    notificationFns.getUnreadCount,
+  const list = useNotifications(
+    notificationFns.getFeedHead,
+    notificationFns.getList,
     organizationId,
+    PAGE_SIZE,
+    filter,
+    true,
   )
-  const list = useNotifications(notificationFns.getList, organizationId, PAGE_SIZE, true)
+  const count = list.unreadCount
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(
     notificationFns,
     organizationId,
     announce,
     PAGE_SIZE,
+    filter,
   )
 
   const propertyNames = useMemo(
@@ -68,12 +76,8 @@ export function NotificationPage({
     [properties],
   )
   const groups = useMemo(
-    () =>
-      groupByProperty(
-        list.notifications.filter((n) => matchesNotificationFilter(n, filter)),
-        propertyNames,
-      ),
-    [list.notifications, filter, propertyNames],
+    () => groupByProperty(list.notifications, propertyNames),
+    [list.notifications, propertyNames],
   )
 
   // Following a row's CTA marks it read, exactly as it does in the popover —
@@ -101,15 +105,33 @@ export function NotificationPage({
               <CheckCheck aria-hidden="true" />
               Mark all read
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={mutations.clearAll}
-              disabled={mutations.isClearingAll || list.notifications.length === 0}
-            >
-              <Trash2 aria-hidden="true" />
-              Clear all
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={mutations.isDismissingAll || list.notifications.length === 0}
+                >
+                  <Trash2 aria-hidden="true" />
+                  Dismiss all
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Dismiss all notifications?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This hides every notification currently addressed to you. It does not
+                    change the underlying reviews, feedback, or other work.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep notifications</AlertDialogCancel>
+                  <AlertDialogAction onClick={mutations.dismissAll}>
+                    Dismiss all
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button asChild variant="ghost" size="sm">
               <Link to="/settings/notifications">
                 <Settings2 aria-hidden="true" />

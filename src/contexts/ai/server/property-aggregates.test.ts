@@ -41,14 +41,14 @@ vi.mock('@tanstack/react-start', () => ({
   createServerFn: (options?: { method?: string }) => {
     let validator: StandardValidator | null = null
     const builder = {
-      inputValidator(next: StandardValidator) {
+      validator(next: StandardValidator) {
         validator = next
         return builder
       },
       handler(fn: (ctx: { data: unknown }) => Promise<unknown>) {
         seam.method = options?.method ?? 'GET'
         return async (opts: { data: unknown }) => {
-          if (validator === null) throw new Error('server fn declared no inputValidator')
+          if (validator === null) throw new Error('server fn declared no validator')
           const parsed = await validator['~standard'].validate(opts.data)
           if (parsed.issues) throw new Error(JSON.stringify(parsed.issues))
           return fn({ data: parsed.value })
@@ -73,7 +73,7 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
 
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    useCases: { readPropertyAiAggregates: mocks.readPropertyAiAggregates },
+    aiPublicApi: { readPropertyAggregates: mocks.readPropertyAiAggregates },
   }),
 }))
 vi.mock('#/shared/auth/headers', () => ({

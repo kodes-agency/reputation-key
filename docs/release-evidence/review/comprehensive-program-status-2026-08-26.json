@@ -1,0 +1,1770 @@
+{
+  "version": 2,
+  "baselineSha": "d377da032526a36f6f5cdec02e1ec3610e8b66db",
+  "assessedAt": "2026-08-29",
+  "packages": [
+    {
+      "id": "FND-01",
+      "summary": "Immutable independent revalidation is complete for all 114 rows in the accepted register across the ARCH, AUTH, DATA, DEC, EVT, GATE, GOV, OPS, UI, and SEC families. The fragments pin exact frozen fields and digests, descendant comparison evidence, reachability, impact, owner/targets, and non-overstated closure criteria. Current dispositions are 56 closed, 5 superseded, 49 confirmed, 3 configuration-dependent, and 1 reproduced after current proof closed UI-06, UI-11, and UI-21. Package-planned and deployment-dependent residual criteria remain release work and are not treated as finding closure.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Satisfy or explicitly carry every package-planned criterion plus the live GitHub ruleset/required-check criterion as release gates; sign the completed baseline/revalidation authority, rerun every gate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Live GitHub ruleset and required-check evidence requires authorized repository administration.",
+          "Deployment-dependent release evidence requires an authorized production-equivalent environment."
+        ]
+      },
+      "codeEvidence": [
+        "docs/release-evidence/review/718fad1807b7422885584660bd3580f2a3a49113/",
+        "docs/release-evidence/review/finding-revalidation-fragments/arch-auth-data-dec-evt-2026-08-26.json",
+        "docs/release-evidence/review/finding-revalidation-fragments/gate-gov-ops-2026-08-26.json",
+        "docs/release-evidence/review/finding-revalidation-fragments/ui-2026-08-26.json",
+        "docs/release-evidence/review/finding-revalidation-fragments/data-runtime-safeguards-2026-08-26.json",
+        "scripts/review/finding-revalidation-fragment.ts"
+      ],
+      "testEvidence": [
+        "Frozen register SHA 718fad1807b7422885584660bd3580f2a3a49113 and register digest 77eb6bb21ea555197a3c7e10edac5f0e5356cabac0f953adecf8408c4f622135",
+        "114/114 rows in frozen order: ARCH 13, AUTH 1, DATA 19, DEC 1, EVT 18, GATE 1, GOV 8, OPS 14, UI 21, SEC 18",
+        "Each independent fragment passed direct CLI validation; base validator 7 tests, GATE/GOV/OPS validator 9 tests, combined UI/fragment validator 10 tests, and combined SEC/fragment validator 11 tests passed"
+      ]
+    },
+    {
+      "id": "FND-02",
+      "summary": "The FND-02 authority implementation is complete. Review/Inbox, the single-US beta Data Cell, operational action history, people responsibility, capability fate, and lifecycle contradictions have accepted superseding ADRs under an exhaustive machine-checked index and precedence rule. AI has an explicit bounded-context and public-API authority. All 210 current Drizzle tables have exactly one checked owner, lifecycle disposition, decision authority, and non-active exit criterion, while FND-03 now supplies the complete executable-surface reachability and mutation classification. Applying each governed purge, reconciliation, export, restore, or contraction remains owned by its downstream implementation package and is not misreported as authority-definition work.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Rerun the ADR, capability, context and data-fate authorities against the frozen candidate. Current discovery reports 242 governed Drizzle models, 537 entry points and 4,073 TypeScript modules."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_required",
+        "remaining": [],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "docs/adr/0052-beta-people-access-attribution-and-manager-responsibility.md",
+        "docs/adr/README.md",
+        "docs/adr/0054-data-cell-catalogue-and-routing.md",
+        "docs/adr/0055-stable-review-and-inbox-handling-cycles.md",
+        "docs/adr/0056-operational-action-history-integrity-claims.md",
+        "src/shared/auth/beta-capabilities.ts",
+        "src/shared/governance/data-fate-authority.ts",
+        "docs/architecture/beta-capability-fate-authority.md",
+        "src/contexts/ai/CONTEXT.md",
+        "src/contexts/ai/application/public-api.ts"
+      ],
+      "testEvidence": [
+        "src/shared/governance/context-acceptance-matrix.test.ts",
+        "src/shared/governance/adr-index.test.ts",
+        "src/shared/governance/data-fate-authority.test.ts (210/210 persisted models; missing and stale rows fail)",
+        "src/shared/governance/entry-point-catalogue.test.ts and event-job-catalogue.test.ts (complete route/job/consumer/schedule reachability and mutation authority)"
+      ]
+    },
+    {
+      "id": "FND-03",
+      "summary": "The local FND-03 implementation is complete. The executable entry-point catalogue covers all 463 discovered routes, request handlers, server-only implementation boundaries, jobs, consumers, schedules, operator commands, production scripts, migration utilities, and sidecar/release gates. Every row has a context/cell owner, exact mutation disposition, and registration-reachability classification: 156 read-only, 107 proven atomic state-and-fact, 200 local-only with a checked reason, zero non-atomic or time-bounded mutation debts, 379 direct declarations, 52 source-composed registrations, 31 boot-registry registrations, one explicitly blocked Badge declaration, and zero unresolved declared-only consumers. Goal cleanup is source-composed and Badge stays uncomposed behind its hard-blocked capability. Catalogue completeness and classification are not treated as deployed execution proof.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Rerun catalogue discovery/classification, active registration, hard-block denial, boot/readiness, consumer receipt, and delivery tests against the immutable final candidate; obtain independent review and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_started",
+        "remaining": [
+          "Revalidate the 537 catalogued entry points and retain deployed registration and delivery proof against the frozen candidate."
+        ],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "src/shared/governance/entry-point-catalogue.ts",
+        "src/shared/governance/event-job-catalogue.ts"
+      ],
+      "testEvidence": [
+        "src/shared/governance/entry-point-catalogue.test.ts — 463 rows, zero validator issues, zero mutation debts, zero non-atomic defects, zero unresolved declared-only consumers, exact source/boot registration discovery, and hard-blocked Badge denial",
+        "Portal five-blocker revision/atomicity regression matrix: 7 files / 53 tests; independent post-fix review found no remaining concrete defect",
+        "Entry-point and event/job catalogue matrix: 2 files / 38 tests passed after Review observation registration reconciliation"
+      ]
+    },
+    {
+      "id": "FND-04",
+      "summary": "A versioned pre-fix oracle index binds 13 accepted reproductions to the frozen review SHA, exact SHA-256 structural failure artifacts, accepted conclusion semantics, and current executable regression proofs. It covers Portal upload, CSRF, Review re-observation, ambiguous writes, proxy handling, digest identity, public redirect/cache behavior, Reply interruption, Goal/Recognition runtime, architecture boundaries, production bundles, and baseline-gate interruption. Two named seams are closed and eleven are partial; the previously open Reply commit-to-delivery seam now has local atomic-intent and interruption-recovery proof, while deployed queue/provider observation remains outstanding.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Close each oracle's explicitly recorded deployment or package evidence, including commit-to-worker Reply recovery and observed-on-Google closure with the outbox dispatcher and queue Redis enabled; then retain one immutable candidate run covering database, Redis, browser, container, coverage, and hosted-CI gates without retry."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_started",
+        "remaining": [
+          "Run the immutable production-equivalent database, Redis, browser, container, hosted-CI, and provider recovery evidence set."
+        ],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "docs/release-evidence/review/pre-fix-oracle-index-2026-08-26.json",
+        "scripts/review/pre-fix-oracles.ts",
+        "scripts/review/pre-fix-oracles.test.ts",
+        "src/start.test.ts",
+        "src/shared/db/pool.test.ts",
+        "src/contexts/review/infrastructure/outbox-consumers.ts"
+      ],
+      "testEvidence": [
+        "Oracle authority validates exact case order, frozen/retained source digests, expected conclusions, current proof markers, and per-case result artifacts",
+        "All 13 named oracle commands were run successfully after the index was frozen; Review command-store integration was independently rerun after migration 0116",
+        "Reply interruption recovery: 12 focused unit files / 279 tests, 1 real-PostgreSQL file / 6 commit-recovery and rollback tests, and 4 consumer/governance files / 46 tests; full typecheck passed after migration 0118"
+      ]
+    },
+    {
+      "id": "SAFE-01",
+      "summary": "The locally achievable SAFE-01 beta implementation is complete and portal.upload remains explicitly safety-blocked. Portal hero uploads use persisted, opaque, tenant/Property/Portal-bound single-use issuances; first-write-only source objects, exact MIME/size/metadata/ETag validation, atomic processing hand-off, ETag-bound worker reads, bounded image validation, server-derived derivatives, stale-worker fencing, and replay-safe source/orphan cleanup are enforced. Public Portal and Guest paths apply current Property and destination health, pinned DNS and redirect validation, exact origin/CSRF/session controls, shared rate limits and durable dedupe, private no-store/no-referrer responses, a minimized allowlisted DTO, content-minimal analytics, and a cross-replica fail-visible observation-loss monitor with P1 alerting. The independent local security review found and repaired eight defects and found no remaining known local code defect requiring upload activation.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Run and retain the disposable production-equivalent object-store adversarial drill, Railway forwarding-header trust proof, deployed HTTP/CDN header and cache proof, and two-replica observation-loss/alert drill before considering portal.upload activation. Guest media stays beta-disabled and must receive its own issued-storage migration before any future activation."
+        ],
+        "blockers": [
+          "Final activation requires a live object-store adversarial drill and independent security sign-off."
+        ]
+      },
+      "codeEvidence": [
+        "src/shared/auth/beta-capabilities.ts",
+        "src/start.ts",
+        "drizzle/0110_portal_upload_issuances.sql",
+        "src/contexts/portal/application/use-cases/request-upload-url.ts",
+        "src/contexts/portal/application/use-cases/finalize-upload.ts",
+        "src/contexts/portal/domain/safe-link.ts",
+        "src/components/forms/image-upload-field/put-file-presigned.ts",
+        "src/contexts/portal/infrastructure/portal-upload-issuance-store.ts",
+        "src/contexts/portal/infrastructure/adapters/s3-storage.adapter.ts",
+        "src/contexts/portal/infrastructure/jobs/process-image.job.ts",
+        "src/contexts/portal/infrastructure/jobs/cleanup-upload-sources.job.ts",
+        "src/contexts/portal/infrastructure/outbox-consumers.ts",
+        "src/contexts/guest/application/dto/public-portal.dto.ts",
+        "src/contexts/guest/server/guest-session.ts",
+        "src/contexts/guest/server/guest-scans.ts",
+        "src/contexts/guest/server/public.ts",
+        "drizzle/0143_portal_upload_source_cleanup.sql",
+        "drizzle/0144_portal_upload_orphan_derivative_cleanup.sql",
+        "src/contexts/guest/infrastructure/guest-observation-loss-monitor.ts",
+        "src/shared/observability/alert-definitions.ts",
+        "docs/release-evidence/review/safe-01-independent-security-review-2026-08-28.md"
+      ],
+      "testEvidence": [
+        "src/start.test.ts",
+        "src/contexts/portal/application/use-cases/request-upload-url.test.ts",
+        "src/contexts/portal/application/use-cases/finalize-upload.test.ts",
+        "src/components/forms/image-upload-field/put-file-presigned.test.ts",
+        "src/contexts/portal/infrastructure/adapters/s3-storage.adapter.test.ts",
+        "src/contexts/portal/infrastructure/jobs/process-image.job.test.ts",
+        "src/contexts/portal/infrastructure/outbox-consumers.test.ts",
+        "src/contexts/portal/infrastructure/portal-upload-issuance-store.integration.test.ts",
+        "src/contexts/guest/server/guest-session.integration.test.ts",
+        "src/shared/rate-limit/middleware.integration.test.ts",
+        "src/shared/architecture/guest-public-response-security.test.ts",
+        "Guest public DTO, safe-link, rating-first, and durable dedupe tests",
+        "Focused request and shared-store matrix: 4 files / 16 tests passed on 2026-08-26",
+        "Portal upload cleanup unit/migration policy matrix: 5 files / 25 tests passed; fresh PostgreSQL migration/store proof: 2 files / 17 tests through journal 145 with 210 governed tables",
+        "SAFE-01 current-tree verification on 2026-08-28: 13 focused unit files / 166 tests and 3 Redis/PostgreSQL integration files / 13 tests passed; the independent local security review records eight test-first repairs and the exact external activation drill"
+      ]
+    },
+    {
+      "id": "SAFE-02",
+      "summary": "The locally achievable SAFE-02 beta implementation is complete. Password change revokes other sessions and rotates the caller; password recovery revokes every existing session, with real authentication-boundary PostgreSQL proof. Current membership, one-active-Organization binding, suspension, Property access, and permission authorities are rechecked rather than trusted from stale session claims. Invitation-only registration is denied at visible, app-owned, and raw Better Auth boundaries and completes through a transactionally revalidated email/role/Organization/binding saga. Public registration, manager-created Organizations, custom-role mutation, incompatible second-Organization binding, and uncatalogued active raw-role decisions fail closed. Replica-safe Better Auth rate limiting, exact proxy-mode parsing, report-first binding/anomaly inventory, and exhaustive role-decision catalogues are executable. Retained Badge/Team/Leaderboard compatibility branches remain capability-dark and are owned by REC/CNV contraction rather than active beta authorization.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_started",
+        "remaining": [
+          "Retain hosted browser multi-device password-change/reset and revoked-cookie denial evidence, capture Railway's real forwarding-header overwrite/strip behavior, and disposition every production identity/membership anomaly through the reviewed People reconciliation authority."
+        ],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "src/contexts/identity/infrastructure/repositories/member-property-authority.ts",
+        "src/contexts/identity/infrastructure/repositories/manager-membership.repository.ts",
+        "src/shared/auth/auth.ts",
+        "src/routes/api/auth/$.ts",
+        "src/contexts/identity/server/organizations.registration.ts",
+        "src/contexts/identity/application/use-cases/register-invited-user.ts",
+        "src/shared/domain/permissions.ts",
+        "src/shared/responsible-manager-eligibility.ts",
+        "src/shared/governance/raw-role-decision-catalogue.ts",
+        "src/contexts/leaderboard/application/use-cases/governed-recognition.ts",
+        "src/contexts/leaderboard/build.ts",
+        "src/contexts/leaderboard/server/leaderboard.ts"
+      ],
+      "testEvidence": [
+        "Password reset, all-session revocation, invitation, membership/property authority, manager eligibility, tenant, proxy, and rate-limit suites",
+        "Raw-role catalogue negative controls: 1 file / 3 tests passed; surrounding role/permission/tenant authority matrix: 7 files / 83 tests passed",
+        "Invitation-only registration matrix: 5 files / 72 tests passed, covering public and raw account-creation denial, exact invitation consumption, email and Organization binding, replay/race handling, and local beta capability posture",
+        "Leaderboard effective-authority slice: 8 focused files / 115 tests passed; full typecheck, scoped lint, formatting, and diff-integrity checks passed",
+        "SAFE-02 current-tree verification on 2026-08-28: 10 focused unit files / 80 tests and 5 Redis/PostgreSQL integration files / 18 tests passed, covering session revocation, replica-safe auth throttling, invitation registration/recovery, one-Organization binding, dynamic tenant/property authority, proxy parsing, and exhaustive raw-role ownership"
+      ]
+    },
+    {
+      "id": "SAFE-03",
+      "summary": "The locally achievable SAFE-03 implementation is complete. Stable Review identities retain versioned source observations and material revisions, deterministic replay and provider-clock ordering, and content-free expiry without removing Review, Reply, Inbox, or operational identities. Provider-controlled Google reply text is represented by governed append-only observation heads rather than a manager-owned Reply mirror. Every compatibility purge entry point converges on one scope-bound, checkpointed, atomic lifecycle authority whose destructive mode requires an exact immutable approval on every page; ordinary composition and schedules remain report/shadow-only. Database access retries acquisition only and never replays a statement after SQL begins. Immutable Notification Digest batches bind exact members, content/member digests, provider idempotency, and settlement so late rows and ambiguous retries cannot mutate the original send.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Run authorized production reconciliation, lifecycle apply, restore, and erasure evidence."
+        ],
+        "blockers": [
+          "Final production reconciliation and destructive lifecycle approval require authorized production data and approval."
+        ]
+      },
+      "codeEvidence": [
+        "drizzle/0116_stable_review_observations_and_material_revisions.sql",
+        "src/contexts/review/domain/material-review-revision.ts",
+        "src/contexts/review/infrastructure/review-command-store.ts",
+        "src/contexts/review/infrastructure/google-reply-observation-store.ts",
+        "src/contexts/review/application/use-cases/run-source-content-lifecycle.ts",
+        "src/shared/db/pool.ts",
+        "drizzle/0081_immutable_notification_digest_batches.sql",
+        "docs/operations/review-source-content-cutover.md"
+      ],
+      "testEvidence": [
+        "Focused Review unit matrix: 6 files / 54 tests passed",
+        "Focused PostgreSQL matrix: 4 files / 38 tests passed, including expiry and retained Reply history",
+        "Independent post-migration Review command-store integration rerun: 1 file / 4 tests passed",
+        "SAFE-03/REV lifecycle current-tree verification on 2026-08-28: 11 focused unit files / 77 tests and 4 PostgreSQL files / 41 tests passed across lifecycle checkpoints, approval continuation, stable command writes, provider-reply observation, recovery receipt, and snapshot ordering",
+        "Database retry and immutable Digest Batch verification on 2026-08-28: 2 unit files / 45 tests and 1 PostgreSQL file / 4 tests passed"
+      ]
+    },
+    {
+      "id": "SAFE-04",
+      "summary": "The repository-achievable SAFE-04 implementation is complete. Every credential-bearing Google route—OAuth exchange and revoke, token refresh, account lookup, Notifications, imports, Review sync, reply publication, Business Information, and Performance—uses the catalogued permit/admission/gateway boundary; JWKS is the sole non-credential direct exception. Refresh coordination is Redis-backed, renewable, generation-fenced, and shared-backoff aware. Encrypted OAuth exchange recovery is expiring, one-use, lease-recoverable, atomically completed with connection/outbox state, and replays post-commit callbacks without re-exchange. Disconnect revoke uses a frozen credential binding, permit-linked durable attempt, atomic settlement/redaction, and no direct fallback; ambiguous started attempts never resend and settle as cleanup-ambiguous, while only provably unstarted attempts may become confirmed-not-sent. Admission SQL v3, recovery sweeps, role-provisioning support, executable egress inventory, lifecycle classification, fresh-schema proof, and sidecar forbidden-surface scans are present. Railway role/mTLS promotion and an authorized live Google drill remain external evidence.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Google production-boundary verification depends on approved provider configuration and reachable sandbox/live test surfaces."
+        ]
+      },
+      "codeEvidence": [
+        "src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts",
+        "src/contexts/integration/infrastructure/adapters/google-refresh-coordination.adapter.ts",
+        "src/contexts/integration/application/use-cases/refresh-google-token.ts",
+        "src/shared/google-provider-control/refresh-single-flight.ts",
+        "drizzle/0164_google_provider_recovery_authority.sql",
+        "src/contexts/integration/application/google-oauth-exchange-recovery.ts",
+        "src/contexts/integration/application/google-disconnect-revoke.ts",
+        "src/contexts/integration/infrastructure/repositories/google-oauth-exchange-recovery.repository.ts",
+        "src/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository.ts",
+        "src/shared/google-provider-control/egress-inventory.ts",
+        "services/google-execution-admission/postgres-permit-authority.ts",
+        "scripts/ops/provision-google-admission-role.ts"
+      ],
+      "testEvidence": [
+        "Real-Redis replica/renewal/backoff tests plus credential-egress refusal, SPIFFE SAN/EKU, TLS, permit-start, sidecar artifact, and SBOM suites",
+        "Current SAFE-04 unit matrix: 18 files / 123 tests passed; trust-boundary, mTLS, and credential-coordination matrix: 17 files / 127 tests passed",
+        "Fresh isolated database migrated through 165 journal entries with 230 tables; three real-PostgreSQL recovery/concurrency/rollback files / 30 tests passed; schema drift was clean",
+        "AI/Google admission and egress sidecars built successfully and both forbidden-surface bundle scans passed; scoped ESLint and formatting passed"
+      ]
+    },
+    {
+      "id": "SAFE-05",
+      "summary": "All ten classified Dockerfiles are built, smoke-checked, SBOMed, scanned, and dependency-monitored in CI: eight immutable release-candidate images and two explicitly CI-only support images. The provider-sandbox context now includes every copied fixture under an executable allowlist guard, and a local clean build plus health/non-root/runtime-purity smoke proof passes. All 3,086 current TypeScript modules are owned by one of three strict CI-invoked projects under a negative ownership guard; operational scripts are no longer excluded from ESLint or Fallow, and test-quality checks cover every executable test/configuration root. A clean hosted all-gates artifact record at the final candidate SHA is still required.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Rerun artifact containment against the frozen candidate. The current ownership scope is 4,073 TypeScript modules."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_started",
+        "remaining": [
+          "Retain the clean hosted CI, SBOM, scan, signature, and provenance run at the immutable candidate SHA."
+        ],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "security/container-images.json",
+        "scripts/ci/check-container-image-policy.ts",
+        "scripts/check-production-artifacts.mjs",
+        "scripts/ci/check-typescript-project-coverage.ts",
+        "scripts/ci/operational-tooling-coverage.test.ts",
+        "tsconfig.scripts.json",
+        "eslint.config.js",
+        ".fallowrc.json",
+        "scripts/check-test-quality.mjs",
+        ".github/workflows/ci.yml",
+        ".github/dependabot.yml",
+        "Dockerfile.sandbox.dockerignore"
+      ],
+      "testEvidence": [
+        "Container policy checker with independent negative fixtures",
+        "Production artifact boundary tests, image SBOM generation, and image scans for all ten classified artifacts",
+        "Technology-stack and gate-wiring inventory checks",
+        "Provider-sandbox COPY/allowlist negative regression plus local Docker build, health, non-root, source-revision, and runtime-purity smoke proof",
+        "Three-project strict TypeScript compile plus negative unowned-module regression: 3,086/3,086 modules owned",
+        "Operational script ESLint pass, Fallow graph inclusion with zero scripts-specific dead-code findings, and test-quality scan of 1,139 test/spec/story files"
+      ]
+    },
+    {
+      "id": "ARC-01",
+      "summary": "The locally achievable durable-fact contract is complete for beta-active paths. New relay envelopes carry explicit durable-command, identifier-only stable-fact, source-cell, routing, causation/correlation, occurrence, recording, and aggregate-version metadata while retaining a bounded old-envelope parser. Every catalogued beta mutation is classified with no non-atomic or unproved active row; active Identity, Property, Integration, Review, Inbox, Portal, Guest, Metric, Goal, AI, Activity, and Notification writes use context-owned atomic state-and-fact stores or an explicit local-only disposition. Bidirectional event/job/schema/consumer catalogues fail closed, content scans enforce ADR 0030, consumer settlement is receipt-fenced, and Inbox, Metric, Notification, and Recent Activity have bounded repair authorities. Recent Activity proves an empty retained projection rebuild to canonical parity. Team's legacy emit-and-record paths remain unreachable in beta and belong to the separately tracked Recognition/legacy contraction rather than this active fact plane.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_required",
+        "remaining": [],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "src/shared/outbox/envelope.ts",
+        "src/shared/outbox/commit.ts",
+        "src/contexts/portal/application/ports/portal-command-store.port.ts",
+        "src/contexts/portal/infrastructure/portal-command-store.ts",
+        "src/contexts/portal/application/portal-command-version.ts",
+        "src/contexts/portal/domain/events.ts",
+        "src/shared/events/schema-registrations.ts",
+        "src/contexts/review/infrastructure/outbox-consumers.ts",
+        "src/contexts/review/infrastructure/reply-command-store.ts"
+      ],
+      "testEvidence": [
+        "Durable Guest, analytics, AI, and identity fact tests",
+        "Portal command atomicity and revision proof: 70 files / 506 tests in the integrated unit rerun plus 55 fresh-PostgreSQL tests, including fact-conflict rollback, stale-revision refusal, joined child snapshots, Portal-first workflow locks, membership intervals, category/link ordering, and token issue/rotate/revoke",
+        "Five-blocker regression set: 7 files / 53 tests; final independent review found no remaining concrete Portal defect",
+        "Review publication intent: 279 focused unit tests, 6 real-PostgreSQL interruption/rollback tests, and 46 consumer/governance tests; full typecheck passed",
+        "2026-08-28 closure rerun: 19 envelope/atomicity/catalogue/repair unit files / 319 tests, 5 PostgreSQL-backed receipt/interruption/empty-projection files / 34 tests, and 5 Metric projection/repair files / 23 tests passed; the executable entry-point inventory contains zero non-atomic or temporarily unproved active mutations"
+      ]
+    },
+    {
+      "id": "ARC-02",
+      "summary": "Every governed job family now projects into one executable operational authority with a cell-local route, owner, processor, action/capability, queue policy, cadence, timeout/concurrency, freshness and queue-age objectives, registration posture, repair command, and runbook. Worker boot reconciles the complete scheduler set, persists content-free handler/scheduler observations, and health joins those heads to live BullMQ work and quarantine state. Dark work cannot execute, the legacy destructive Review lifecycle paths are report-only/quarantined, and retained Metric and Notification projections have bounded repair authorities.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Retain deployed restart, missed-schedule, poison-work, readiness, and last-success objective evidence."
+        ],
+        "blockers": [
+          "The deployed restart/fault drill requires an authorized production-equivalent Queue Redis and worker environment; this turn does not authorize deployment or live queue mutation."
+        ]
+      },
+      "codeEvidence": [
+        "src/shared/jobs/registry.ts",
+        "src/shared/governance/event-job-catalogue.ts",
+        "src/shared/jobs/operational-catalogue.ts",
+        "src/shared/jobs/runtime-authority.ts",
+        "src/shared/jobs/runtime-observations.ts",
+        "src/shared/jobs/job-schedulers.ts",
+        "src/shared/jobs/worker.ts",
+        "src/worker/index.ts",
+        "src/shared/health/operations-snapshot.ts",
+        "docs/operations/runbooks.md"
+      ],
+      "testEvidence": [
+        "Duplicate JobRegistry/manifest refusal, scheduler reconciliation, queue error, Redis isolation, digest, and Inbox rebuild tests",
+        "Governed runtime authority focused proof: 8 files / 69 tests passing, including durable restart heads, live scheduler reconciliation, missed-success and queue-age objectives, poison/dead-letter repair, stalled work, dark/quarantined execution denial, and owner/runbook/repair catalogue parity"
+      ]
+    },
+    {
+      "id": "ARC-03",
+      "summary": "Composition is decomposed: the root is under 1,000 lines with the Google provider boundary, leaf-context builds and per-deployable projections in named modules. ExecutionPolicy, DelayedExecutionPolicy, CapabilityPolicyStore and the outbox consumer registry are container-owned with one explicit process installation; the container has a shutdown seam and no longer leaks the policy poller. Late-bound build-order cycles are replaced by named ports with contract tests, the ambient request context and better-auth session are injected, and each deployable builds exactly one Application Container proved by independent process fixtures.",
+      "implementation": {
+        "status": "in_progress",
+        "remaining": [
+          "Bring scripts/** under eslint-plugin-boundaries with its negative control, give trust-boundary sidecars a named shared kernel, split the shared-other catch-all so the documented dependency rules stop being documentation-only, add the production-cannot-import-test-surfaces control, and enable boundaries/no-unknown. All five require editing eslint.config.js, which a local config-protection hook currently blocks; the exact change is prepared and reverted cleanly rather than routed around."
+        ]
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_required",
+        "remaining": [],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "src/shared/composition.ts",
+        "src/bootstrap.ts",
+        "src/worker/index.ts",
+        "src/contexts/ai/CONTEXT.md",
+        "src/contexts/ai/application/public-api.ts"
+      ],
+      "testEvidence": [
+        "Architecture boundary, React hook, and TanStack Query enforcement tests"
+      ]
+    },
+    {
+      "id": "REG-01",
+      "summary": "Catalogue policy v3 defines one deployable and accepting beta cell in Railway US West: every supported country allocates to us, while europe/global remain known but denied with no countries or workloads. Migration 0140 is now expand-only: it installs a durable open topology fence/control and exhaustive database admission backstops without rewriting tenant rows. The separately audited exact-digest operator performs one bounded, checkpointed, resumable Property or Google credential-home batch per invocation and can emit canonical evidence only after verified zero-error completion. Live execution, cell isolation, and retained final-candidate evidence remain open.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Live Railway currently has only production, staging, and google-closed-beta environments; all observed resources are in Amsterdam."
+        ]
+      },
+      "codeEvidence": [
+        "src/shared/domain/data-cell-catalogue.ts",
+        "src/shared/execution/execution-policy.ts",
+        "drizzle/0140_single_us_beta_data_cell.sql",
+        "scripts/ops/cutover-single-us-data-cell.ts",
+        "src/shared/db/single-us-data-cell-cutover.ts",
+        "src/shared/release/data-cell-cutover-evidence.ts",
+        "docs/adr/0057-single-us-beta-data-cell.md",
+        "docs/operations/railway-data-cells.md"
+      ],
+      "testEvidence": [
+        "Single-cell catalogue, routing, release-manifest, Railway-plan, IaC, and dormant-cell refusal suites",
+        "Fresh PostgreSQL migration reached all 141 journal entries through 0140",
+        "0140 static and PostgreSQL tests prove expand-only installation, exhaustive blocker-family fences, real concurrent-writer ordering/refusal, completed-state target pinning, bounded Property and credential-home batches, interruption-safe resume, zero-blocker completion, and idempotent rerun",
+        "Canonical Data Cell cutover evidence tests reject errors, malformed values, and non-canonical artifacts"
+      ]
+    },
+    {
+      "id": "REG-02",
+      "summary": "The local REG-02 implementation is complete for one beta cell only. TypeScript Railway IaC renders the complete cell-us graph in Railway US West/California with an sjc US West/California bucket, isolated database/cache/queue/provider resources, exact project/service/environment identity, source-less foundation staging, legacy Config-as-Code ownership diagnostics, reviewed-plan evidence, and rollback/recovery guards. Dormant future cells and unrelated environments are refused. The sjc identifier does not establish an exact city. Nothing has been applied: the current live services remain legacy Config-as-Code in Amsterdam and the target US resources do not yet exist.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Rerun the complete one-cell topology, project isolation, source staging, legacy ownership, plan-evidence, activation, and rollback guard matrix against the immutable final candidate; obtain independent review and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Review and approve the exact source-less foundation plan, create cell-us only, provision its isolated resources, reconcile the live legacy Config-as-Code ownership, attach signed sources, and perform staged rollback drills."
+        ],
+        "blockers": [
+          "Railway IaC apply requires explicit operator approval after reviewing the exact plan and resolving legacy-service ownership diagnostics."
+        ]
+      },
+      "codeEvidence": [
+        ".railway/railway.ts",
+        ".railway/cell-topology.ts",
+        ".railway/service-source-map.ts",
+        "scripts/release/railway-data-cell-plan.ts",
+        "scripts/release/railway-data-cell-foundation.ts",
+        "scripts/release/staged-railway-sources.ts",
+        "src/shared/release/railway-project-service-isolation.ts",
+        "src/shared/release/railway-plan-evidence.ts",
+        "docs/operations/railway-data-cells.md"
+      ],
+      "testEvidence": [
+        "pnpm infra:railway:validate — 9 files / 180 tests passed for the single-US topology, foundation, exact-target activation, project isolation, and sidecar environment contracts",
+        "Railway plan/domain/foundation/source-staging/project-isolation suites reject dormant cells, wrong projects/environments, unowned legacy configuration, attached-source foundation mutation, plan drift, and broad variable changes"
+      ]
+    },
+    {
+      "id": "REG-03",
+      "summary": "Immutable manifest and digest-promotion code now binds exactly the single us beta cell and refuses dormant targets, but no signed cell-us release has been completed and live services lack manifest identity.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Restore green authoritative CI on main, build/sign/scan one candidate, promote its exact digests through non-production and production cell-us, run expand/backfill/contract migration gates, and prove rollback without rebuilding."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "The remote main branch is stale/failing and the required live Railway cell topology is absent."
+        ]
+      },
+      "codeEvidence": [
+        "scripts/release/create-promotion-manifest.ts",
+        "scripts/release/deploy-beta.ts",
+        ".github/workflows/release-images.yml"
+      ],
+      "testEvidence": ["Promotion-manifest and release-script tests"]
+    },
+    {
+      "id": "REG-04",
+      "summary": "The locally achievable REG-04 implementation is complete. Web, worker, and all four provider sidecars share explicit liveness, readiness, dependency, drain, and shutdown contracts; sidecars expose ordinary Railway HTTP probes separately from protected private mTLS traffic. Regional platform signals, Sentry startup/capture/flush, cell-us availability and drift alerts, isolated restore/fresh-Redis/cutover/rollback authorities, and exact recovery evidence contracts are wired. The production and rehearsal Railway foundation graph digests were deliberately advanced with the new sidecar health variables and all pinned ceremony tests pass. Live backup/PITR enablement and retained Railway recovery drills remain external release evidence, not missing repository behavior.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Live Railway databases currently report PITR disabled and no backups; enabling service-level recovery changes external state."
+        ]
+      },
+      "codeEvidence": [
+        "src/shared/config/restore-mode.ts",
+        "src/shared/health/process-lifecycle.ts",
+        "src/shared/health/sidecar-runtime.ts",
+        "src/shared/observability/regional-platform-signals.ts",
+        "src/shared/release/data-cell-cutover-evidence.ts",
+        ".railway/railway.ts",
+        "docs/operations/backup-and-lifecycle.md"
+      ],
+      "testEvidence": [
+        "REG-04 regional/release matrix on 2026-08-28: 37 unit files / 368 tests passed, including pinned Railway foundation/domain/Google-activation ceremonies, health, observability, restore, cutover, and runbook catalogues",
+        "All sidecar bundle/runtime verifiers, fresh-schema recovery checks, scoped lint, formatting, architecture, and diff gates passed during the REG-04 implementation wave"
+      ]
+    },
+    {
+      "id": "PPL-01",
+      "summary": "The locally achievable People implementation is complete. Participant/login links, Staff participation and attribution, Property access, Portal/Property manager responsibility, retained Staff users, and quarantined Team history have an Identity-owned read-only reconciliation that deterministically classifies exact, mappable, conflict, orphan, and unsafe rows at one observation time with canonical identifier-only JSON and a stable SHA-256 fingerprint. Current StaffUserLink reads honor half-open intervals and fail closed on overlap; Staff/custom-role logins are denied for beta, Staff invitations are rejected, and production composition exposes only login-independent Staff Participant/Participation/Portal Responsibility seams. Portal and Property Responsible Manager selection is independent of access and Staff attribution, uses effective-dated history plus compare-and-swap revisions, preserves other managers during offboarding, emits content-free recovery only when the last manager leaves, and never guesses a replacement. Guest rating, feedback, correction, withdrawal, and Qualified Scan facts snapshot the single event-time Primary Staff Attribution interval; future reassignment never rewrites historical credit. Legacy StaffAssignment and Team endpoints, navigation, consumers, jobs, and composition are unreachable and their five-table bounded inventory remains read-only for verified contraction. The remaining zero-unexplained production reconciliation and one-release contraction proof are external release evidence, not missing local runtime behavior.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Final reconciliation requires scoped production data and reviewed authority to apply effective-dated corrections or retire legacy paths."
+        ]
+      },
+      "codeEvidence": [
+        "src/contexts/identity/application/people-authority-reconciliation.server.ts",
+        "src/contexts/identity/infrastructure/repositories/people-authority-reconciliation.repository.ts",
+        "src/contexts/identity/infrastructure/repositories/people-authority-reconciliation.repository.test.ts",
+        "src/contexts/staff/infrastructure/repositories/staff-participation.repository.ts",
+        "src/contexts/staff/infrastructure/primary-staff-attribution.ts",
+        "src/contexts/staff/production-legacy-containment.test.ts",
+        "src/contexts/portal/infrastructure/repositories/portal-responsible-manager.repository.ts",
+        "src/contexts/property/infrastructure/repositories/property-responsible-manager.repository.ts",
+        "src/composition.ts",
+        "src/shared/auth/tenant-resolver.ts",
+        "scripts/ops/report-legacy-people-team.ts",
+        "docs/operations/legacy-people-team-contraction.md",
+        "scripts/ops/report-people-authority.ts",
+        "docs/operations/people-authority-reconciliation.md"
+      ],
+      "testEvidence": [
+        "Unit authority/ADR/context matrix: 3 files / 53 tests passed",
+        "Real PostgreSQL people/staff/reconciliation matrix: 4 files / 13 tests passed",
+        "Application and scripts TypeScript, focused lint, formatting, architecture boundaries, filename checks, and diff checks passed",
+        "Current complete People/Identity/Staff/manager matrix: 78 unit files / 485 tests, 6 fresh-migrated real-PostgreSQL files / 23 tests, and 2 Chromium Storybook files / 11 states passed; scoped ESLint passed with zero warnings"
+      ]
+    },
+    {
+      "id": "GGL-01",
+      "summary": "The local GGL-01 implementation is complete for the single-US-cell beta contract. Google connections are Organization-owned, connector departure moves retained connections to an exact reauthorization state, Settings starts a gentle exact-target reauthorization ceremony, and credential-home authority fails closed outside cell-us. Pre-confirmation discovery is durable for arbitrary fleets with a bounded 24-hour lifecycle; confirmed imports remain replay-safe, checkpointed, and free of a product-level location cap. Identifier-only push receipts resolve an exact target into Review's targeted-fetch path with deterministic full reconciliation fallback. A reviewed all-four-capability activation controller now installs and verifies the retained approval bindings and exactly two Railway shared values without broad configuration mutation; cross-cell brokerage remains deliberately dark.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Rerun the complete Google connection/import/push/targeted-fetch/reauthorization and activation fault matrix against the immutable final candidate, obtain independent review, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Bind the user's written Google confirmation to the release evidence set, then retain a live non-customer-property targeted-push, credential-home, reauthorization, import-resume, and approval-activation journey in the deployed cell-us environment."
+        ],
+        "blockers": [
+          "Live targeted-push and credential-home proof depends on an authorized non-customer Google Business Profile, completed Google configuration, and deployed Railway cells; Google Business Profile has no provider sandbox."
+        ]
+      },
+      "codeEvidence": [
+        "drizzle/0111_google_import_parent_saga.sql",
+        "src/shared/db/schema/google-import-v2.schema.ts",
+        "src/contexts/integration/application/google-import-saga.ts",
+        "src/contexts/integration/application/google-import-transaction.ts",
+        "src/contexts/integration/infrastructure/google-import-v2-store.ts",
+        "src/components/features/integration/google-import-manager/use-google-import-discovery-controller.ts",
+        "drizzle/0124_google_organization_ownership.sql",
+        "drizzle/0131_google_credential_home.sql",
+        "drizzle/0133_google_credential_routing_authority.sql",
+        "drizzle/0136_google_import_discovery_checkpoint.sql",
+        "src/contexts/integration/infrastructure/gbp-review-push-receipt.store.ts",
+        "src/contexts/review/application/use-cases/run-targeted-google-review-fetch.ts",
+        "src/contexts/integration/application/dto/google-auth-url.dto.ts",
+        "src/components/features/settings/google-connection-settings-row.tsx",
+        "scripts/release/railway-google-content-approval-activation.ts"
+      ],
+      "testEvidence": [
+        "205-location planner and transaction regressions prove 100/100/5 stable batches and bounded opaque-reference claims",
+        "Fresh PostgreSQL migration and store integration prove atomic saga/items/outbox persistence, root replay/progress, 205-item cancellation, and repeated-cancel convergence",
+        "Select-all unit regression proves every remaining page loads before 205 eligible locations are selected",
+        "Data Cell transaction regression proves non-accepting regions fail before commit; the composition root also withholds the optional multi-cell credential-broker authorization",
+        "Focused Google import/push/credential matrix: 11 files / 53 tests passed on a clean PostgreSQL database, including more than 2,000 discovery candidates and targeted-fetch fallback",
+        "Exact-target reauthorization ceremony and gentle Settings UI: 6 files / 56 tests passed; full typecheck and targeted standards gates passed",
+        "Google Content activation and Railway validation: 9 files / 180 tests, 37 focused activation/governance tests, and 6 retained-approval repository tests on a fresh 141-migration PostgreSQL database"
+      ]
+    },
+    {
+      "id": "REV-01",
+      "summary": "The local REV-01 implementation is complete. Stable Reviews, versioned source observations, deterministic material-revision comparison, replay keys, provider-clock ordering, stable re-observation, provider deletion, and content-free expiry retain Review, manager Reply, Inbox, and operational identities. Translation, profile, and metadata observations do not create a material revision; rating or normalized original guest text does, and scope/key collisions fail closed. A separate append-only Google Reply Observation authority owns provider-controlled reply truth and current-head changes. All legacy/raw/connection/Property/Organization expiry seams delegate to one bounded frozen-window lifecycle with report, compatibility-shadow, exact approval, keyset continuation, atomic page/redaction evidence, and recovery receipts; normal runtime remains safely report-only until external cutover approval.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Run production backfill reconciliation and a zero-difference shadow window, retain report-only observation plus restore/erasure evidence, resolve every active legacy Google-reply mirror through governed observation or explicit review, and obtain the final recurring lifecycle-apply approval."
+        ],
+        "blockers": [
+          "Final lifecycle apply and restore/erasure evidence require an authorized production-data reconciliation and approval of destructive retention actions."
+        ]
+      },
+      "codeEvidence": [
+        "drizzle/0116_stable_review_observations_and_material_revisions.sql",
+        "src/contexts/review/domain/material-review-revision.ts",
+        "src/contexts/review/infrastructure/review-command-store.ts",
+        "src/contexts/review/infrastructure/review-source-content-store.ts",
+        "src/contexts/review/infrastructure/google-reply-observation-store.ts",
+        "src/contexts/review/application/use-cases/run-source-content-lifecycle.ts",
+        "src/contexts/review/application/use-cases/run-lifecycle-recovery-executor.ts",
+        "src/contexts/review/CONTEXT.md",
+        "docs/operations/review-source-content-cutover.md"
+      ],
+      "testEvidence": [
+        "Migration track applied locally through 0116: 176 tables and journal entry 117",
+        "Focused unit matrix: 6 files / 54 tests passed",
+        "Focused PostgreSQL matrix: 4 files / 38 tests passed across material/metadata changes, replay, collision, ordering, expiry, re-observation, scope, and retained Reply history",
+        "Typecheck, targeted lint, architecture, filenames, and diff checks passed",
+        "Independent Review command-store integration rerun after 0116: 1 file / 4 tests passed",
+        "REV-01 current-tree verification on 2026-08-28: 11 focused unit files / 77 tests and 4 PostgreSQL files / 41 tests passed, covering material/metadata change classification, replay, collision, provider ordering/deletion, lifecycle report/shadow/apply continuation, recovery receipts, rollback, re-observation, and retained history"
+      ]
+    },
+    {
+      "id": "IBX-01",
+      "summary": "Projection ordering, handling cycles and response targets converge to exact current state. The legacy classification contract, the read-only cutover and parity report and its signed runbook exist; escalation history is append-only (migration 0169); the manager experience presents the complete cycle, assignment and escalation record; the fresh-database replay matrix proves convergence, duplicate-harmlessness and deterministic rebuild; reminders are proved by time travel across the halfway, target and post-target boundaries; retention, redaction and source-unavailable can never produce a manager handling outcome; and inbox_items.status is read-only-retained with its writers cut.",
+      "implementation": {
+        "status": "in_progress",
+        "remaining": [
+          "Publish the section 16 completion record against the frozen candidate."
+        ]
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_started",
+        "remaining": [
+          "Retain hosted-browser proof for request scoping, cache policy, and full handling-cycle journeys."
+        ],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "drizzle/0117_inbox_handling_cycles_expand.sql",
+        "src/contexts/inbox/domain/handling-cycles.ts",
+        "src/contexts/inbox/infrastructure/review-handling-cycle.store.ts",
+        "src/contexts/inbox/infrastructure/outbox-consumers.ts",
+        "src/contexts/inbox/application/inbox-access.ts",
+        "src/contexts/inbox/application/ports/inbox.repository.ts",
+        "src/contexts/inbox/infrastructure/repositories/inbox.repository.ts",
+        "src/shared/domain/property-access.ts",
+        "src/shared/domain/permissions.ts",
+        "src/components/inbox/inbox-cache-policy.ts",
+        "src/components/inbox/inbox-item-status-observer.ts",
+        "drizzle/0123_inbox_command_revisions.sql",
+        "src/contexts/inbox/infrastructure/inbox-command-store.ts",
+        "src/contexts/inbox/infrastructure/adapters/inbox-command-authority.adapter.ts",
+        "src/contexts/identity/infrastructure/repositories/member-property-authority.ts",
+        "src/contexts/staff/infrastructure/repositories/current-user-participation-authority.ts",
+        "src/contexts/inbox/application/use-cases/bulk-update-inbox-status.ts",
+        "src/components/inbox/inbox-bulk-policy.ts",
+        "src/contexts/inbox/application/use-cases/stamp-last-inbox-view.ts",
+        "drizzle/0141_private_feedback_handling_outcomes.sql",
+        "src/contexts/inbox/domain/feedback-handling.ts",
+        "src/contexts/inbox/infrastructure/feedback-handling.store.ts",
+        "src/contexts/inbox/server/inbox-feedback-handling.ts",
+        "src/components/inbox/feedback-handling-card.tsx"
+      ],
+      "testEvidence": [
+        "31 affected unit files / 279 tests passed",
+        "Review Handling Cycle and migration verification: 2 PostgreSQL files / 13 tests passed; fresh journal verification 8/8 passed through migration 0117",
+        "All three TypeScript configurations passed for the Handling Cycle commit; targeted lint, architecture, filename, component-boundary, technology-stack, and fallow checks passed",
+        "Inbox UI matrix: 8 files / 59 tests passed; 17 focused cache/request-count assertions prove autosave adds zero requests and A-to-B-to-A selection makes exactly one detail and notes request per transition",
+        "Source-authorization matrix: 35 files / 331 tests in the integrated rerun; independent Spec review: 15 files / 159 tests with no actionable defect",
+        "Fresh PostgreSQL integrated repository/observation matrix contributed to 6 files / 102 tests through journal 123; distinct Review and feedback Property envelopes are covered",
+        "Integrated checkpoint gates: 872 unit files / 8,875 tests and 132 PostgreSQL-backed files / 758 tests passed; full typecheck, lint, architecture, technology-stack, Zod, product-state, formatting, and diff-integrity checks passed",
+        "Command-wide authorization: 46 focused unit tests and 17 fresh-PostgreSQL tests passed, including revocation races across assignment and multi-Property bulk commands without partial writes or deadlock",
+        "Command revision, ordered bulk-result, response-cutoff, cache, and UI policy suites are locally green; final fresh-database/full-suite checkpoint is pending the active migration integration",
+        "Private-feedback Handling Outcome slice: 108 focused unit tests, 4 fresh-PostgreSQL integration tests, 8 migration assertions, 2 schema assertions, and 13 Storybook assertions passed; typecheck, lint, formatting, and architecture checks passed"
+      ]
+    },
+    {
+      "id": "RPL-01",
+      "summary": "Approval, edit-and-republish, and retry advance a monotonic publication cycle and atomically commit a durable publication-request fact with reply state. Migration 0122 adds tenant- and material-revision-bound publication-attempt history plus append-only Google reply observations and one current head. Provider write acceptance moves only to pending_observation; exact current live provider evidence is the sole publication authority. A persisted uncertain send performs a targeted provider read before any resend, and absence is required before a guarded retry. Exact duplicate observation evidence remains replay-safe after the Review advances, while key reuse with changed evidence is refused. Inbox publication consumers are receipt-only; the exact observed head alone closes work, and deletion/divergence reopens a new Handling Cycle. Provider-reply retention now delegates to the single Review lifecycle authority; the bounded operator reconciliation command, ambiguity-age metric/alert, generated provider-resource fixture seam, and calm Confirm & Publish/check-and-retry UI complete the locally achievable recovery and manager-state surface.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "The final relay, queue, Google write/readback, and observation-settlement journey requires an authorized production-equivalent provider environment."
+        ]
+      },
+      "codeEvidence": [
+        "drizzle/0118_reply_publication_cycles.sql",
+        "drizzle/0122_reply_google_observation_truth.sql",
+        "src/contexts/review/domain/google-reply-observation.ts",
+        "src/contexts/review/application/ports/google-reply-observation-store.port.ts",
+        "src/contexts/review/infrastructure/google-reply-observation-store.ts",
+        "src/contexts/review/application/use-cases/reply-operations.ts",
+        "src/contexts/review/application/use-cases/reconcile-reply-publication.ts",
+        "src/contexts/review/application/ports/publication-reconciliation-run-lease.port.ts",
+        "src/contexts/review/infrastructure/reply-command-store.ts",
+        "src/contexts/review/infrastructure/publication-reconciliation-run-lease.ts",
+        "src/contexts/review/infrastructure/outbox-consumers.ts",
+        "src/contexts/review/infrastructure/jobs/publish-reply.job.ts",
+        "src/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job.ts",
+        "src/contexts/inbox/infrastructure/inbox-command-store.ts",
+        "src/contexts/inbox/infrastructure/outbox-consumers.ts",
+        "scripts/ops/reconcile-publication.ts"
+      ],
+      "testEvidence": [
+        "12 focused unit files / 279 tests",
+        "src/contexts/review/infrastructure/repositories/reply-command-store.test.ts: 6 real-PostgreSQL tests covering committed interruption recovery and invalid-intent rollback",
+        "4 consumer/governance/registration files / 46 tests",
+        "RPL observation, publication, Inbox, and governance matrix: 13 files / 246 tests; receipt-only Inbox/governance tightening: 8 files / 114 tests",
+        "Fresh PostgreSQL migration/observation/Inbox proof: 3 files / 26 tests; integrated database rerun through journal 123: 6 files / 102 tests",
+        "Full app/scripts/Railway typecheck, full lint, architecture/component/filename controls, technology-stack authority, Zod conformance, formatting, and diff-integrity checks passed",
+        "Integrated checkpoint gates: 872 unit files / 8,875 tests and 132 PostgreSQL-backed files / 758 tests passed; independent Standards and Spec review found no remaining actionable P0-P3 defect in the publication truth chain",
+        "2026-08-28 closure rerun: 13 focused unit files / 376 tests, 4 fresh-candidate PostgreSQL files / 37 tests, and 2 Storybook files / 17 interaction tests passed; manager uncertainty language now says Needs a check and preserves safe provider-read-before-retry behavior"
+      ]
+    },
+    {
+      "id": "AI-01",
+      "summary": "The locally achievable AI-01 implementation is complete. Property-scoped Merchant AI data-use authorization is an Identity-owned, versioned, step-up-protected authority independent of reply-language and Brand Profile configuration. One durable identifier-only lifecycle trigger owns enable, capability change, disable, revoke, restore reset, stale delivery, and replay. AI immediately hides retired generations through the current authorization fence, records an exact content-free 24-hour erasure objective, and runs an unconditional bounded worker that claims one retired fence, rechecks Identity authority, transactionally erases Review Analysis, Property Aggregate, and Property Trend derivatives, and records class-separated completion counts. Retry, lease recovery, deadline failure, non-mutation of current generations, and default-deny read/admission behavior are executable. Reply Draft provider output is ephemeral until Review-owned adoption, so there is no hidden AI output store to erase.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "External provider region/retention/legal facts and deployed cell evidence remain release-gated."
+        ]
+      },
+      "codeEvidence": [
+        "src/contexts/identity/application/use-cases/merchant-ai-authorization.ts",
+        "src/contexts/identity/infrastructure/repositories/merchant-ai-authorization.repository.ts",
+        "src/contexts/ai/application/use-cases/apply-ai-authorization-lifecycle.ts",
+        "src/contexts/ai/application/use-cases/erase-ai-authorization-derivatives.ts",
+        "src/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter.ts",
+        "src/shared/jobs/ai-authorization-erasure.job.ts",
+        "services/ai-execution-admission/",
+        "services/ai-egress-gateway/",
+        "src/contexts/ai/CONTEXT.md"
+      ],
+      "testEvidence": [
+        "AI consent, permit, quota, circuit, egress, provenance, and prohibited-source suites",
+        "AI-01 lifecycle revalidation on 2026-08-28: 52 AI unit files / 785 tests plus 4 focused Identity/lifecycle files / 31 tests passed",
+        "Fresh-PostgreSQL lifecycle evidence covers enable/change/disable/revoke/restore reset, immediate hiding, exact 24-hour objective, lease recovery, class-separated erasure, and refusal to delete a current generation"
+      ]
+    },
+    {
+      "id": "AI-02",
+      "summary": "Review Analysis now has a distinct exhaustive first-enablement enrollment authority over exact Material Review Revisions. It captures immutable relational membership without a 10,000-row coverage cap, pauses larger snapshots behind fixed assisted approval, advances through bounded restart-safe work, records exact caught-up counts/sequence/set digest, and supersedes, stalls, or lifecycle-erases stale work on authorization/source changes. The compatibility array remains expand-safe solely for older workers and is not the coverage authority.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Retain a deployed first-enablement/caught-up drill, prove all older workers retired, then remove the compatibility array/mirror in a separately reviewed contraction."
+        ],
+        "blockers": [
+          "Old-worker retirement and a production-shaped enrollment run require an authorized immutable deployment; this turn does not authorize deployment or destructive compatibility contraction."
+        ]
+      },
+      "codeEvidence": [
+        "drizzle/0119_ai_review_backfill_relational_membership.sql",
+        "drizzle/0137_ai_review_analysis_enrollment.sql",
+        "drizzle/0156_ai_review_analysis_material_revision.sql",
+        "drizzle/0157_ai_review_analysis_assisted_approval.sql",
+        "src/shared/db/schema/ai.schema.ts",
+        "src/contexts/ai/application/use-cases/backfill-review-analysis.ts",
+        "src/contexts/ai/application/use-cases/advance-review-analysis-backfill.ts",
+        "src/contexts/ai/application/use-cases/advance-review-analysis-enrollments.ts",
+        "src/contexts/ai/application/use-cases/approve-review-analysis-enrollment.ts",
+        "src/contexts/ai/application/use-cases/read-review-analysis-enrollment-readiness.ts",
+        "src/contexts/ai/application/use-cases/apply-ai-authorization-lifecycle.ts",
+        "src/contexts/ai/infrastructure/adapters/ai-review-analysis-backfill.adapter.ts",
+        "src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts",
+        "src/shared/governance/data-fate-authority.ts"
+      ],
+      "testEvidence": [
+        "Focused AI/governance unit proof: 3 files / 26 tests passing, including restart recovery through relational membership",
+        "Fresh PostgreSQL proof: exact 0119 backfill/order, old-binary mirror, duplicate-parent rollback, immutable update/delete fences, and 10,001 members including ordinal 10,000; adapter/recovery/schema parity 3 files / 26 tests passing",
+        "Fresh migration reported 179 tables at journal head 120; full repository typecheck passed",
+        "First-enablement enrollment/lifecycle focused proof on 2026-08-28: 7 unit files / 47 tests and 1 real-PostgreSQL file / 16 tests passing, including exact Material Revision membership, assisted approval, caught-up evidence, disable/supersede/stall/erase behavior, and scheduler recovery"
+      ]
+    },
+    {
+      "id": "AI-03",
+      "summary": "The locally achievable AI-03 implementation is complete. Personalized EN/BG reply drafts run through the governed provider transport with an exact public Brand Profile display name/version/digest, request fingerprint and binding, admission/settlement, and versioned provenance. Results remain session-ephemeral until explicit human adoption; adoption rechecks current Review material revision, authorization, and Brand Profile currentness, then records immutable provenance on the Review-owned draft. Later Brand Profile edits do not invalidate an already adopted draft, while pending output is invalidated or refused. Output contracts require the exact public display name once, reject structured/private material and unsafe commitments, and present gentle bounded failures. V1/V2 compatibility remains parse-only while V3 is the current authority.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Production activation depends on AI provider/legal approvals and the completed REV/POR/RPL contracts."
+        ]
+      },
+      "codeEvidence": [
+        "src/shared/ai-personalized-reply-contract.ts",
+        "src/shared/ai-operation-profiles.ts",
+        "services/ai-egress-gateway/route-preparer.ts",
+        "src/contexts/ai/application/use-cases/adopt-reply-suggestion.ts",
+        "src/contexts/ai/infrastructure/adapters/ai-gateway.adapter.ts",
+        "src/contexts/portal/application/ports/reply-brand-profile.port.ts",
+        "src/contexts/review/infrastructure/db/review.schema.ts",
+        "drizzle/0163_ai_brand_grounding.sql"
+      ],
+      "testEvidence": [
+        "AI-03 integration matrix on 2026-08-28: 52 unit files / 785 tests passed across AI context, egress gateway, execution admission, personalized output, provenance, adoption, and operation profiles",
+        "Fresh zero schema applied all 165 migrations with 230 tables; 24 PostgreSQL tests and the post-tightening adoption matrix passed during the AI-03 implementation wave",
+        "AI contract attestations, architecture, component boundaries, scoped lint, formatting, and diff gates passed"
+      ]
+    },
+    {
+      "id": "AI-04",
+      "summary": "The repository-owned Property Trend implementation is provider-free and deterministic: exact preceding/current 30-complete-day windows, 20 analyzed Reviews, 90% text-candidate coverage, gap fencing, 15-point change and 10% category eligibility, correction-aware cell-local scheduling, versioned evidence, latest-complete/update presentation, lifecycle hiding, and 24-month outcome retention are implemented. The candidate population is now fenced to AI-02's exact caught-up Material Review Revision enrollment; activation remains blocked on source cutover and deployed canary evidence, not local implementation.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Complete REV-01 source backfill/shadow cutover and record deterministic shadow parity, sufficient/insufficient/partial-coverage canaries, correction/rebuild recovery, lifecycle hide/erase, retention, and deployed cell-local scheduling drills before allowlisting Property Trends."
+        ],
+        "blockers": [
+          "Production-like canary and Railway cell evidence require the deployed environment after AI-02 and REV-01 close; no provider approval is required for the deterministic trend evaluation itself."
+        ]
+      },
+      "codeEvidence": [
+        "src/contexts/ai/application/use-cases/generate-property-trend.ts",
+        "src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts",
+        "src/contexts/ai/infrastructure/adapters/ai-property-aggregate-store.adapter.ts",
+        "src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts",
+        "src/contexts/review/application/ai-review-source.ts",
+        "src/contexts/review/infrastructure/repositories/review.repository.ts",
+        "src/shared/ai-property-trend-contract.ts",
+        "src/components/features/property/property-ai-trend-section.tsx",
+        "drizzle/0112_ai_property_trend_evidence.sql",
+        "docs/architecture/ai-property-trend-definition-v1.md"
+      ],
+      "testEvidence": [
+        "Deterministic contract, generation, Review population boundary, authorization/read-path, server DTO, scheduler, and scheduler-job suites (79 focused assertions passing on 2026-08-26)",
+        "Clean scratch-Postgres migration parity (8 assertions), AI persistence/read path (17 assertions), and Review trend-population repository (25 assertions) pass on 2026-08-26",
+        "Property dashboard Storybook states (8 assertions), TypeScript application/scripts/Railway configurations, focused lint, and architecture/component boundary checks pass on 2026-08-26",
+        "Final local trend rerun on 2026-08-28: 9 focused unit files / 97 tests and 1 real-PostgreSQL output-store file / 22 tests passing"
+      ]
+    },
+    {
+      "id": "NTF-01",
+      "summary": "The local NTF-01 implementation is complete. Private feedback uses the Action-needed delivery class, required in-app channels are enforced through domain/repository/UI/database controls, and filtered pagination carries exact server-derived continuation evidence. Client refresh reads only the unread count and newest page while retaining and de-duplicating on-demand history; a shared feed-head watermark proves coherent newest-page/unread-count snapshots under concurrent writes. Guest, Inbox, Integration, Portal, Goal, Reply, and exact Identity account source families have durable recipient-scoped consumers. Immediate-email lag is measured from source occurrence to provider acceptance with policy/quiet holds excluded, bounded p99/backlog/saturation health, an operations snapshot, metrics, a P2 alert, and a partial PostgreSQL index matching the bounded scan. Mandatory service/security/account notices are Organization-scoped, non-configurable, immediate in-app plus email policy; persistence forbids Property-scoped mandatory rows, mandatory preferences, and delayed mandatory email. Digest assembly fingerprints immutable membership and provider identity and refuses corrupt or content-drifted settlement. Deployed delivery, outage, redrive, alert, and provider-idempotency evidence remains external verification, not unfinished repository implementation.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_started",
+        "remaining": [
+          "Retain deployed Redis-to-database settlement, latency, outage, lag, and repair evidence."
+        ],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "src/contexts/notification/domain/notification-delivery-policy.ts",
+        "src/contexts/notification/infrastructure/repositories/notification-preference.repository.ts",
+        "src/contexts/notification/application/notification-page.ts",
+        "src/contexts/notification/server/notifications.ts",
+        "src/components/features/notification/notification-popover-content.tsx",
+        "src/components/features/notification/notification-page.tsx",
+        "src/components/features/notification/notification-queries.ts",
+        "src/components/features/notification/notification-feed-cache.ts",
+        "src/components/features/notification/notification-feed-pagination.ts",
+        "src/components/features/notification/notification-mutations.ts",
+        "src/contexts/notification/infrastructure/workflow-outbox-consumers.ts",
+        "src/shared/governance/event-job-catalogue.ts",
+        "drizzle/0109_notification_required_channels.sql",
+        "src/contexts/notification/application/ports/notification-delivery-lag.repository.ts",
+        "src/contexts/notification/infrastructure/repositories/notification-delivery-lag.repository.ts",
+        "src/contexts/notification/infrastructure/repositories/notification-delivery-settlement.repository.ts",
+        "src/contexts/notification/infrastructure/digest-batch-identity.ts",
+        "src/contexts/notification/infrastructure/repositories/notification-email.repository.ts",
+        "src/contexts/notification/server/notification-feed-head.ts",
+        "src/shared/observability/operations-snapshot.ts",
+        "src/contexts/notification/infrastructure/identity-account-outbox-consumers.ts",
+        "src/contexts/notification/infrastructure/adapters/organization-account-notification-authority.adapter.ts",
+        "drizzle/0151_notification_organization_mandatory.sql",
+        "drizzle/0161_notification_provider_acceptance_health_index.sql"
+      ],
+      "testEvidence": [
+        "Required-channel upgrade/constraint proof plus coalescing, responsibility resolution, outbox, digest, quiet-hours, unsubscribe, exact filtered pagination, and gap reconciliation tests",
+        "Notification workflow recovery: 15 focused assertions cover all eight added event families, stable registration, same-recipient replay identity, null system actors, tenant/property attribution denial, and no acknowledgement after enqueue failure",
+        "Complete Notification context suite: 56 files / 502 tests passing, including real-database adapters and delivery repositories",
+        "Focused client consistency matrix: 3 files / 10 tests; real QueryObserver and InfiniteQueryObserver coverage proves periodic offset-zero-only reads, retained/de-duplicated history, consistent count deltas, and complete rollback; full typecheck and targeted boundary/style checks passed",
+        "Complete Storybook component suite: 91 files / 530 assertions passing on 2026-08-26",
+        "Immediate-email source-clock health slice: 160 focused unit assertions plus fresh-PostgreSQL lag/settlement proof; seven metrics, P2 alert, operations snapshot, and retained-notBefore exclusion are covered",
+        "Feed-head/digest/matrix slice: 11 unit/matrix/observability files / 196 tests and 3 fresh-PostgreSQL files / 9 tests passed; full typecheck covered 3,419 TypeScript modules, with scoped lint and formatting green",
+        "Settled NTF-01 matrix on 2026-08-28: 66 unit/component/migration files / 691 tests and 10 PostgreSQL files / 31 tests; mandatory account fact reauthorization, non-configurable policy, null-safe tenant scoping, email behavior, migration constraints, and the physical provider-acceptance health index are covered"
+      ]
+    },
+    {
+      "id": "ACT-01",
+      "summary": "The locally achievable ACT-01 implementation is complete. Recent Activity is a bounded 90-day product projection with canonical code and physical identifiers. Migration 0160 renames the authority to recent_activity_entries without losing rows or indexes, retains an updatable activity_log compatibility view for rolling rollback, and makes project-recent-activity the only current enqueue name while the legacy job remains drain-only through the same idempotent handler. Historical vocabulary reconciliation is tenant-scoped, content-minimal, report-first, exact-fingerprint guarded, transactionally receipted, concurrency-safe, and default-deny in ordinary composition. Its sole apply boundary is now an Organization-scoped production operator command requiring a named policy decision, support ticket, reason, typed confirmation, exact count/fingerprint, canonical destination, and operation UUID; unmappable rows are never guessed. The separate restricted Operational Action History implements its explicit vocabulary, append/access/export/readiness/legal-hold/redaction/retention-assessment controls without claiming cryptographic or audit-log semantics.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "After production migration, prove the legacy queue remains empty for the full retention window, validate supported rollback and backup/restore artifacts, then authorize the separately journaled compatibility-view and drain-handler contraction. Obtain counsel acceptance before enabling destructive Operational Action History retention."
+        ],
+        "blockers": [
+          "Operational-history retention and legal-hold policy requires counsel approval."
+        ]
+      },
+      "codeEvidence": [
+        "src/contexts/activity/CONTEXT.md",
+        "src/contexts/activity/domain/types.ts",
+        "src/contexts/activity/domain/integrity-claims.test.ts",
+        "src/shared/jobs/retention-sweep.job.ts",
+        "docs/adr/0056-operational-action-history-integrity-claims.md",
+        "src/bootstrap.ts",
+        "src/contexts/activity/domain/types.ts",
+        "src/contexts/activity/domain/constructors.ts",
+        "src/contexts/activity/application/public-api.ts",
+        "src/components/inbox/inbox-timeline-helpers.tsx",
+        "drizzle/0160_recent_activity_identifiers.sql",
+        "scripts/ops/reconcile-recent-activity-vocabulary.ts",
+        "src/contexts/activity/application/recent-activity-vocabulary-invocation.ts",
+        "src/contexts/activity/application/use-cases/reconcile-recent-activity-vocabulary.ts",
+        "src/contexts/activity/infrastructure/recent-activity-vocabulary-reconciliation.store.ts",
+        "src/contexts/activity/infrastructure/operational-action-history-store.ts"
+      ],
+      "testEvidence": [
+        "Activity retention and selected projection tests",
+        "Integrity-claim regression rejects local AuditRecord/hash-chain implementations and audit-log/trail production vocabulary",
+        "Focused Activity matrix: 11 files / 61 tests passed, including all 23 governed event kinds, rejection of legacy/unsupported combinations, and absence of deprecated domain aliases; focused lint, formatting, and diff checks passed",
+        "ACT-01 identifier and reconciliation closure on 2026-08-28: 36 unit files / 314 tests and 3 fresh-PostgreSQL files / 10 tests passed; row preservation, rollback view, replay, stale-plan, interruption, concurrency, tenant isolation, canonical enqueue authority, schema drift, lint, formatting, and diff checks are covered",
+        "Report-first operator invocation and governance closure: 4 focused files / 47 tests passed, including malformed input, exact classifier/catalogue ownership, dry-by-default semantics, and the default-deny composition seam"
+      ]
+    },
+    {
+      "id": "POR-01",
+      "summary": "The local POR-01 beta implementation is complete. New Portals are Property-owned only, with the creator as default owner and notifications limited to the creator plus explicitly assigned responsible managers. Property Brand Profile content, EN/BG locale policy and overrides, governed approved destinations, automatically derived Property-owned Google review destination, explicit Portal Health intervals, stable public addresses, QR/NFC Access Artifacts with retirement/replacement, archive/restore-to-disabled, and bounded publication history are implemented. Immutable publication snapshots, activation/rollback history, snapshot-backed token resolution, exact Guest evidence binding, and dedicated publish/rollback/archive/restore facts commit atomically under revision fences. Portal Group, category/link, membership, token, ownership, and workflow commands use the typed command store and semantic replay identity. Public cache/privacy behavior is covered across cookie-bound and direct-link paths. A deterministic read-only beta-readiness report classifies ownership/provenance, group overlap, token/artifact replacement, brand/localization, and raw-link gaps without mutating or inventing legacy provenance.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_required",
+        "remaining": [],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "src/contexts/portal/",
+        "src/contexts/portal/application/portal-publication-snapshot.ts",
+        "src/contexts/portal/infrastructure/repositories/portal-publication.repository.ts",
+        "src/contexts/portal/infrastructure/portal-command-store.ts",
+        "src/shared/db/schema/portal.schema.ts",
+        "drizzle/0113_portal_publication_snapshots.sql",
+        "drizzle/0114_portal_publication_evidence_binding.sql",
+        "drizzle/0115_portal_publication_immutability.sql",
+        "src/contexts/property/domain/google-review-destination.ts",
+        "src/components/features/portal/portal-settings/google-review-destination-card.tsx",
+        "src/contexts/portal/application/use-cases/get-portal-publication-history.ts",
+        "src/components/features/portal/portal-settings/portal-publication-history-card.tsx",
+        "src/contexts/portal/domain/portal-access-artifact.ts",
+        "src/contexts/portal/infrastructure/repositories/portal-access-artifact.repository.ts",
+        "drizzle/0125_access_artifact_qualified_scans.sql",
+        "src/contexts/portal/domain/portal-experience.ts",
+        "src/contexts/portal/domain/portal-health.ts",
+        "src/contexts/portal/domain/events.ts",
+        "src/contexts/portal/infrastructure/portal-command-store.ts",
+        "src/contexts/portal/application/portal-beta-readiness-reconciliation.ts",
+        "src/contexts/portal/infrastructure/repositories/portal-beta-readiness-reconciliation.repository.ts",
+        "scripts/ops/report-portal-beta-readiness.ts",
+        "docs/operations/portal-beta-readiness-reconciliation.md"
+      ],
+      "testEvidence": [
+        "Portal snapshot/digest, publication transition, rollback, token revocation, tamper fail-closed, exact Guest evidence, responsibility, and Guest-flow tests; real PostgreSQL publication repository and atomic command-store suites",
+        "Google review destination presentation: 1 file / 3 tests; Portal detail Storybook: 1 file / 5 tests; targeted lint and typecheck passed",
+        "Publication-history commits 9a08c667 and b27ed616: focused Portal unit/PostgreSQL/server matrix 5 files / 45 tests, Portal Storybook 3 files / 19 tests, composition characterization 1 file / 8 tests, and targeted standards checks passed",
+        "Portal Group deletion commit 9a94fcc0: 3 focused files / 23 tests, including PostgreSQL commit/rollback, stale revision, membership closure, and post-commit recovery authority",
+        "Portal command/revision completion: 70 files / 506 tests in the integrated unit rerun, 55 fresh-PostgreSQL tests, and an independent five-blocker post-fix review with no remaining concrete defect",
+        "Access Artifact/Qualified Scan slice: focused domain, issue/rotation, exact address-bound verifier, dedupe, retention, correction, durable Metric replay, and governed Goal-source tests; clean isolated PostgreSQL migration through 0125 and 3 real-PostgreSQL vertical-slice tests passed with composite scope constraints",
+        "Integrated Portal unit matrix: 63 files / 519 tests; isolated PostgreSQL Portal command/upload atomicity matrix: 33 tests through migration 0142; property-only ownership and semantic workflow replay included",
+        "Portal beta-readiness report: 4 canonical unit tests, 2 fresh-PostgreSQL tests through the 143-entry journal, and 82 Portal/governance tests passed; application/script typechecks and scoped lint/format/boundary/filename/test-quality checks passed"
+      ]
+    },
+    {
+      "id": "GST-01",
+      "summary": "The locally achievable Guest implementation is complete around the canonical private-rating-first flow. Rating, feedback, correction, dual withdrawal, receipt, Google/secondary selection, Qualified Scan, integrity, pressure, and durable-fact behavior use explicit source identity, correction, privacy, retention, and attribution rules. The deterministic read-only legacy reconciliation now classifies every retained legacy/canonical row and fact, reconciles per-star distributions and lineage rather than only totals, fingerprints its identifier-only report, and has no apply path. Contact Request remains deliberately beta-dark: only readiness authorities and its unconditional scheduled cleanup are composed, while no route, public API, worker, UI, or allowlist can activate submission or reveal. Its email-only explicit consent/purpose, versioned scope-bound encryption, masked reads, audited just-in-time reveal, exact 30-day stale-read denial and bounded purge, immutable notice evidence, and atomic retirement are implemented. Current manager relationships are rechecked before access; activation remains blocked until the documented cross-transaction revocation interval is either explicitly accepted or replaced by a transactional permit, together with the named notice, handling, delivery, privacy, and key-lifecycle approvals. Public Guest validation and handler failures share private no-store/no-referrer policy and Cookie variance where applicable, and Contact/feedback values remain excluded from analytics, logs, notifications, search, and routine export.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Contact Request notices, retention, and privacy handling require counsel approval before external beta activation."
+        ]
+      },
+      "codeEvidence": [
+        "drizzle/0120_guest_contact_requests.sql",
+        "drizzle/0121_guest_contact_request_corrections.sql",
+        "src/contexts/guest/domain/contact-request.ts",
+        "src/contexts/guest/domain/private-feedback-text.ts",
+        "src/contexts/guest/application/dto/private-feedback.dto.ts",
+        "src/contexts/guest/application/ports/contact-request-execution-policy.port.ts",
+        "src/contexts/guest/application/ports/contact-request-manager-authority.port.ts",
+        "src/contexts/guest/application/ports/contact-request-response-authority.port.ts",
+        "src/contexts/guest/application/use-cases/contact-request-lifecycle.ts",
+        "src/contexts/guest/application/dto/contact-request.dto.ts",
+        "src/contexts/guest/infrastructure/adapters/contact-request-encryption.adapter.ts",
+        "src/contexts/guest/infrastructure/repositories/contact-request.repository.ts",
+        "src/shared/db/schema/guest.schema.ts",
+        "src/shared/auth/beta-capabilities.ts",
+        "src/contexts/guest/domain/qualified-scan.ts",
+        "src/contexts/guest/application/use-cases/record-scan.ts",
+        "src/contexts/guest/infrastructure/guest-observation-store.ts",
+        "src/contexts/guest/infrastructure/qualified-scan.integration.test.ts",
+        "src/shared/jobs/retention-sweep.job.ts",
+        "src/contexts/guest/application/guest-response-reconciliation.ts",
+        "src/contexts/guest/infrastructure/repositories/guest-response-reconciliation.repository.ts",
+        "scripts/ops/report-guest-response-readiness.ts",
+        "docs/operations/guest-response-reconciliation.md",
+        "src/contexts/guest/application/use-cases/contact-request-retention.ts",
+        "src/contexts/guest/infrastructure/adapters/contact-request-response-authority.adapter.ts",
+        "src/contexts/guest/infrastructure/adapters/contact-request-manager-authority.adapter.ts",
+        "src/contexts/guest/server/public-response-privacy.server.ts",
+        "src/contexts/guest/domain/networkPressure.ts",
+        "src/contexts/guest/application/use-cases/consume-guest-network-pressure.ts",
+        "src/contexts/guest/infrastructure/guest-network-pressure.store.ts",
+        "src/contexts/guest/server/public-response-privacy.server.ts",
+        "drizzle/0142_guest_network_pressure.sql"
+      ],
+      "testEvidence": [
+        "Rating-first, threshold, correction/withdrawal, fact, layered-limit, receipt, Google-action, and secondary-action suites",
+        "Contact Request repository: 10 real-PostgreSQL tests; focused Unicode, lifecycle, policy, encryption, and containment matrix: 8 files / 62 tests",
+        "Complete Guest context after correction: 33 files / 268 tests passed",
+        "Fresh journal and archived-HEAD-0120 upgrade databases both migrated through 0122 with zero schema drift and migration verification 8/8; the pre-existing-row guard independently aborted with SQLSTATE 23514",
+        "Targeted Guest lint, architecture, filename, component-boundary, Zod, product-state, formatting, and diff-integrity checks passed",
+        "Qualified Scan classifier/use-case tests cover direct, prefetch/prerender, bot/missing-agent, invalid artifact/address binding, accepted, duplicate, and independent diagnostic persistence failure paths; isolated real PostgreSQL proves exact-address/publication verification, event-time Group capture, concurrent/exact-boundary 24-hour dedupe, session-receipt retention, and replay-safe correction",
+        "Canonical Guest network-pressure/privacy slice: 13 focused files / 102 tests passed; fresh PostgreSQL proof 5 files / 33 tests through migration 0142 with 210 governed tables; full typecheck, scoped lint, and formatting passed",
+        "Current complete Guest rerun: 40 unit files / 355 tests and 11 real-PostgreSQL files / 63 tests passed, including reconciliation, Contact retention/authority, framework validation privacy, shared-device recovery, correction/withdrawal, pressure, Qualified Scan, fact, and failure-path coverage; scoped ESLint passed with zero warnings"
+      ]
+    },
+    {
+      "id": "MET-01",
+      "summary": "The locally achievable governed Metric implementation is complete. Exact Qualified Scan, private-rating count/average, feedback, and destination-action definitions are versioned and source-event idempotent; Guest rating, feedback, correction/withdrawal, and Qualified Scan facts preserve immutable event-time Primary Staff attribution, while Group attribution is producer-captured and never recomputed during current replay. Public Reputation and Current on Google are separate governed consumers and cannot enter the anonymous Guest Gateway lifetime aggregate. Dashboard and Goal reads cross narrow Metric-owned governed facades with correction, source-policy, sample, availability, half-open event-time, and version fences; dormant legacy Goal/Recognition paths are unregistered rather than alternate readers. The anonymous Portal lifetime projection applies corrections before source purge and has report-first inspect, exact-scope rebuild, sealing, parity, and operator recovery. Independent states and three timestamps avoid fabricated zeroes, rating averages retain count/sum evidence, and the retained 500,000-review scale pack plus constant-query-count integration proof satisfy the local performance posture pending final-candidate rerun.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_required",
+        "remaining": [],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "src/contexts/metric/",
+        "src/contexts/metric/CONTEXT.md",
+        "src/contexts/metric/infrastructure/event-handlers/on-qualified-scan-recorded.ts",
+        "src/contexts/metric/infrastructure/event-handlers/on-qualified-scan-retracted.ts",
+        "src/contexts/metric/infrastructure/guest-outbox-consumers.ts",
+        "src/contexts/metric/application/use-cases/query-goal-metric.ts"
+      ],
+      "testEvidence": [
+        "Metric definition, correction-aware aggregate, availability, timezone, and Portal analytics suites",
+        "Qualified Scan unit adapters prove producer-captured Group attribution, durable replay convergence, and source-addressed retraction; the real-PostgreSQL vertical slice proves one effective reading and a correction-aware aggregate returning to zero",
+        "2026-08-28 closure rerun: 38 Metric/Dashboard/Portal presentation unit files / 176 tests, 8 Metric/Guest/Staff PostgreSQL-backed files / 42 tests, and 2 Dashboard constant-query/timeout PostgreSQL files / 6 tests passed",
+        "Retained local scale pack: 500,000 reviews across 5,000 properties; dashboardMix warm p95 3.4ms against 500ms and dashboardCold p95 4.7ms against 2,000ms, with constant statement-count proof at 5,000 properties"
+      ]
+    },
+    {
+      "id": "GOA-01",
+      "summary": "The locally achievable Goal Program implementation is complete for all three agreed measures and all three scopes. Property-owned Programs have immutable effective versions, explicit point-in-time bulk subject assignments, complete Property-local calendar months, fixed monthly targets, Scheduled/Active/Paused/Ended lifecycle, overlap prevention, and no Person or Team scope. The hourly registered maintenance authority opens, reconciles, closes, and append-revises monthly results through governed Metric availability and a 24-hour late-arrival fence; correction replay is receipt/CAS/idempotency fenced. The manager Goal Results Matrix presents measure-specific count or average evidence, Ready/Updating/Insufficient/Unavailable, target provenance, corrections, ungrouped Portals, and gentle unassigned copy with no ranking or composite score. Close and material revision facts drive scope-responsible notifications, with revision notices only when outcome or availability changes. A read-only legacy-row/FK report and executable authority inventory retain old data for CNV-01 while denying or uncomposing every legacy and superseded Goal reader, mutation, job, schedule, and UI, leaving Goal Program as the sole beta model.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_required",
+        "remaining": [],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "src/contexts/goal/",
+        "Goal program routes and hourly maintenance",
+        "src/contexts/metric/application/use-cases/query-goal-metric.ts"
+      ],
+      "testEvidence": [
+        "Goal program, assignment, monthly result, and revision suites",
+        "Qualified Scan Goal-source unit test proves the governed definition queries recorded/retracted facts instead of returning metric_source_not_active",
+        "2026-08-28 closure rerun: 49 Goal/notification/component unit files / 596 tests, 4 PostgreSQL-backed Goal repository/notification files / 11 tests, and 2 active Goal Storybook interaction files / 2 tests passed",
+        "Privacy/type closure: retained legacy delete-handler errors are concretely typed, identifier logging is removed, and the focused handlers plus observability schema pass 3 files / 22 tests"
+      ]
+    },
+    {
+      "id": "REC-01",
+      "summary": "The locally achievable REC-01 beta implementation is complete. Recognition, Badge, Leaderboard, and Team product behavior is beta-dark at routes, navigation, network functions, production composition, delayed work, schedules, consumers, seeds, and positive journeys. Active Staff Home, Portal, Goal, and settings surfaces neither request nor present legacy competitive data. Badge and Leaderboard retain only inert build boundaries, historical event decoding where needed, neutral persisted-notification rendering, and content-free row/foreign-key inventory; Team retains only quarantined reconciliation and restore source with no product entry point. Executable allowlists prevent those retained sources from regaining runtime reachability. Database rows and schemas remain deliberately intact until CNV-01 obtains row, export, restore, and one-verified-release evidence. The future Healthy Guest Gateway design is a separate post-beta activation and is not simulated by reviving legacy recognition.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_required",
+        "remaining": [],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "src/shared/architecture/legacy-recognition-active-surfaces.test.ts",
+        "src/shared/auth/dark-context-matrix.test.ts",
+        "src/shared/architecture/dark-consumer-gating.test.ts",
+        "src/routes/_authenticated/home.tsx",
+        "src/routes/_authenticated/properties/$propertyId/portals/$portalId.tsx",
+        "src/components/features/portal/portal-group-management.tsx",
+        "src/components/features/portal/portal-settings/content-review-card.tsx",
+        "src/contexts/team/CONTEXT.md",
+        "src/contexts/badge/CONTEXT.md",
+        "src/contexts/leaderboard/CONTEXT.md",
+        "src/contexts/team/application/legacy-people-team-inventory.ts",
+        "src/contexts/leaderboard/application/legacy-recognition-inventory.ts",
+        "docs/operations/legacy-people-team-contraction.md"
+      ],
+      "testEvidence": [
+        "Recognition darkness matrix: 5 files / 60 tests passed",
+        "Staff Home browser stories: 1 file / 5 states passed",
+        "Recognition settings and Badge display contraction guards plus redirect proof: 4 files / 7 tests passed",
+        "Portal supported-copy browser contracts: 2 Storybook files / 18 tests passed; full repository typecheck and architecture boundary controls passed",
+        "Complete beta-dark contraction rerun on 2026-08-28: 10 files / 70 tests passed across active-surface allowlists, capability and consumer darkness, Team/Recognition inventory, and unavailable-route proofs"
+      ]
+    },
+    {
+      "id": "LIF-01",
+      "summary": "All seventeen Organization Export contributors and all seventeen destructive lifecycle contributors exist, on one frozen protocol and a shared transaction-bound receipt store. Export generation is unfenced because migration 0170 made the post-upload crash window recoverable. The backup-erasure ledger and restore resurrection fence stop a restore from undoing a purge; permanent Property Erase is operator-only with property.erase still blocked as a tenant capability; privacy access, correction, withdrawal and erasure exist; the retention registry ships report-only with apply refused while counsel approval is pending; and the Closure Center, explicit reactivation, transfer-first leave and the Purge Pending final notice are implemented.",
+      "implementation": {
+        "status": "in_progress",
+        "remaining": [
+          "Activate the lifecycle and export schedules and compose the destructive contributor set, which stays deliberately unarmed until crash recovery, backup fencing and counsel-approved retention are all satisfied. Publish the section 16 completion record against the frozen candidate."
+        ]
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Counsel-approved retention, export, and erasure policy is required for final external-beta closure."
+        ]
+      },
+      "codeEvidence": [
+        "src/contexts/property/application/use-cases/soft-delete-property.ts",
+        "src/components/property/delete-property-dialog.tsx",
+        "src/shared/retention/",
+        "src/shared/governance/data-fate-authority.ts"
+      ],
+      "testEvidence": [
+        "Processing suspension, retention registry, report/apply, and recovery-fencing suites",
+        "src/shared/governance/data-fate-authority.test.ts"
+      ]
+    },
+    {
+      "id": "EXP-01",
+      "summary": "The local EXP-01 implementation is complete. A durable role-aware setup checklist records the first canonical completion of Google connection, qualified Property import, initial Review snapshot, healthy published Portal, and responsible-manager assignment while separately deriving current health. AccountAdmin receives Organization-wide actions; PropertyManager is limited to current Property access and sees explicit waiting or no-access states; Staff remains beta-dark and is denied rather than receiving a fictional setup journey. Historical completion survives later degradation and each recovery action is permission-derived. Dormant Recognition surfaces remain absent and executable darkness guards cover retained routes, server boundaries, and jobs. Billing is neither accepted nor returned by Better Auth or Identity, and an exact-fingerprint report-first operator workflow can clear all five retained compatibility fields under typed confirmation without dropping columns. Production billing-data execution remains external evidence.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Run the content-free dormant Billing report against the authorized beta database, obtain the required retention/legal approval for any non-empty result, apply the exact fingerprint under change control, and retain the empty-state evidence."
+        ],
+        "blockers": [
+          "The repository cannot inspect or mutate production Billing compatibility data, and no live-data approval or execution was authorized in this implementation run."
+        ]
+      },
+      "codeEvidence": [
+        "Organization settings and unavailable-route surfaces",
+        "src/shared/auth/org-schema.ts",
+        "src/contexts/identity/application/ports/identity.port.ts",
+        "src/contexts/identity/application/organization-update-patch.ts",
+        "src/shared/architecture/legacy-recognition-active-surfaces.test.ts",
+        "src/contexts/dashboard/application/use-cases/get-setup-checklist.ts",
+        "src/contexts/dashboard/infrastructure/repositories/setup-checklist.repository.ts",
+        "src/components/features/dashboard/setup-checklist.tsx",
+        "src/shared/db/schema/dashboard.schema.ts",
+        "drizzle/0152_setup_checklist_milestones.sql",
+        "scripts/ops/manage-dormant-billing-data.ts",
+        "docs/operations/dormant-billing-data-lifecycle.md"
+      ],
+      "testEvidence": [
+        "Unavailable-route and selected role-gating tests",
+        "Recognition darkness matrix: 5 files / 60 tests passed; Staff Home browser stories: 1 file / 5 states passed",
+        "Billing runtime contraction: 5 focused files / 21 tests and complete Identity context 59 files / 359 tests passed; Better Auth schema migration authority reported up to date",
+        "Settled setup/dormancy slice on 2026-08-28: 4 focused unit files / 32 tests, 2 PostgreSQL files / 4 tests, and 6 Storybook states passed; canonical full-completion and later-degradation persistence, AccountAdmin/PropertyManager/no-access/waiting states, Staff denial, exact-fingerprint Billing lifecycle, and dormant capability guards are covered"
+      ]
+    },
+    {
+      "id": "EXP-02",
+      "summary": "The locally achievable EXP-02 implementation is complete. An executable product-state inventory owns all 74 exported query-key factory members, 82 production query-key sites, 38 mutation invalidation sites, the sole approved whole-router invalidation, and all 38 current conservative state-mirror candidates. Login, both sign-outs, and confirmed active-Organization changes clear tenant-scoped client state; owned server drafts have explicit remount, conflict, or synchronization policies. The obsolete Goal UI mirror is contracted, and every Portal Group mutation invalidates the exact same-Property Group and Goal subject projections only after success. All 13 Portal production form roots and the critical Guest response, Inbox note/feedback handling, and Notification formatting roots use TanStack Form with shared Zod v4 application DTO authority, negative source guards, bounded components, and preserved pending/error/accessibility behavior. Query and form inventories are intentionally scoped mechanical authorities; feature tests supply their semantic proof, while final hosted journeys remain release evidence rather than local implementation work.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_started",
+        "remaining": [
+          "Retain authenticated hosted-browser evidence for tenant isolation, remount, and Inbox request scoping."
+        ],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "src/shared/queries/query-keys.ts",
+        "scripts/ci/check-product-state-consistency.ts",
+        "scripts/ci/product-state-consistency-ledger.json",
+        "package.json",
+        "src/components/inbox/inbox-cache-policy.ts",
+        "src/components/inbox/inbox-item-status-observer.ts",
+        "src/contexts/integration/application/google-import-content-lifecycle.ts",
+        "src/shared/architecture/google-import-content-lifecycle-ownership.test.ts",
+        "src/shared/queries/tenant-cache-transition.ts",
+        "src/components/features/portal/portal-group-cache-policy.ts",
+        "src/routes/_authenticated/properties/$propertyId/portals/index.tsx",
+        "src/shared/architecture/portal-group-goal-cache-ownership.test.ts",
+        "src/shared/architecture/product-state-remount-boundaries.test.ts",
+        "src/shared/architecture/tenant-cache-transition-ownership.test.ts",
+        "src/shared/architecture/legacy-policy-ui-active-surfaces.test.ts",
+        "src/components/portal-form-standards.test.ts",
+        "src/components/journey-form-standards.test.ts",
+        "src/contexts/guest/application/dto/guest-response-form.dto.ts",
+        "src/contexts/notification/application/dto/notification-user-settings.dto.ts"
+      ],
+      "testEvidence": [
+        "Executable inventory passed with 72/72 owned query-key members, 81 query-key sites, 1 approved broad invalidation, and 45 classified state candidates",
+        "Portal Group to Goal cache matrix: 2 focused files / 7 tests passed; create, rename, archive, member-add, and member-remove each invalidate only the exact same-Property Group, Goal subject-picker, and Goal subject-name projections after success",
+        "Product-state/query/tenant/remount/legacy-surface unit matrix: 8 independently rerun files / 36 tests passed; the implementation run covered 10 files / 42 tests",
+        "Local Chromium Storybook matrix: 4 files / 14 states passed",
+        "Focused lint, scripts TypeScript, architecture/component/filename controls, formatting, and diff checks passed for commit 63c4db7d",
+        "Inbox UI matrix: 8 files / 59 tests passed; deterministic QueryObserver request-count and selected-item identity regressions passed",
+        "Provider-content lifecycle: 2 lifecycle/ownership files / 7 tests, 9 focused Integration UI/architecture files / 49 tests, and 3 Chromium Storybook files / 14 stories passed; full application typecheck and boundary controls passed",
+        "UI finding fragment validates 21/21 rows at 66afe661d5a2007ee12df13fa1057d4ee73609ca with 20 closed and 1 superseded",
+        "Current product-state consistency gate passed with 74/74 query-key members, 82 production query-key sites, 38 mutation invalidation sites, one approved broad invalidation, and 38/38 classified state candidates",
+        "Portal form/DTO closure: 85 unit files / 636 tests and 7 Chromium Storybook files / 45 tests passed; all 13 production Portal form roots use TanStack Form plus Zod v4 application DTOs",
+        "Guest, Inbox, and Notification form/DTO closure: Guest 42 files / 337 tests, Inbox/Notification/negative guard 3 files / 58 tests, 26 Guest/notes/notification Storybook tests, and 1 feedback-handling Storybook test passed; architecture, filename, component-boundary, and Zod gates passed"
+      ]
+    },
+    {
+      "id": "EXP-03",
+      "summary": "The locally achievable EXP-03 implementation is complete. Chromium critical/full E2E is complemented by bounded Firefox, WebKit, Android-sized Chromium, and iPhone-sized WebKit projects, each using the shared page-error and axe gates with exact JSON artifacts. The compatibility slice now covers English and Bulgarian public rating gateways, blocked local/session storage, reduced motion, portrait/landscape reflow, unknown/retired public addresses, and the authenticated manager shell without issuing product commands. The AI language authority admits only the supported English/Bulgarian profiles and fails other drafting languages closed. A machine-checked beta accessibility-debt register accepts only owned non-blocking findings, currently records none, and explicitly refuses to claim WCAG conformance. Real devices and manual assistive-technology evidence remain external candidate gates.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Execute and retain the complete hosted compatibility artifact at the immutable candidate SHA, then run and record the real iPhone/Android, VoiceOver, keyboard focus, 400% zoom/320px reflow, and high-contrast manual matrix."
+        ],
+        "blockers": [
+          "Real-device and manual assistive-technology evidence requires supported external test devices/operators."
+        ]
+      },
+      "codeEvidence": [
+        "playwright.config.ts",
+        "e2e/helpers/compatibility-projects.ts",
+        "e2e/compatibility/core-surfaces.spec.ts",
+        "docs/release-evidence/review/accessibility-debt-register-2026-08-28.json",
+        "src/shared/governance/accessibility-debt-register.test.ts",
+        "src/shared/ai-reply-language-verifier.ts",
+        ".github/workflows/ci.yml"
+      ],
+      "testEvidence": [
+        "Chromium critical E2E, axe, keyboard, mobile viewport, and reduced-motion suites",
+        "Compatibility/accessibility authorities on 2026-08-28: 2 files / 4 unit assertions passed; Playwright collection resolves setup plus 20 exact Firefox/WebKit/Android/iPhone journeys",
+        "The expanded public-Portal matrix is collected for blocked storage, orientation/reflow, unavailable address, and complete Bulgarian states; execution remains part of the immutable hosted candidate gate"
+      ]
+    },
+    {
+      "id": "OBS-01",
+      "summary": "The locally achievable OBS-01 implementation is complete. Web, worker, and retained-sidecar monitoring entry points use centralized prohibited-field scrubbing and cell/release metadata; a synthetic privacy canary traverses logs, traces, metrics, durable facts, monitoring, and feedback attachments. Native Bug/Suggestion intake has strict authorization and budgets, private receipts, content-free durable triage, report-first operator handling, and named support/incident ownership. Suggestions stay text-only; Bug consent captures nothing until a separate preview action creates an allowlisted masked-layout wireframe that can be previewed, removed, or discarded. Critical cell-us journey signals and honest external-evidence gates are executable. Germany-provider configuration, deployed test events, alert receipt, retention inspection, device evidence, and legal approval remain external release gates.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Rerun the OBS-01 unit, PostgreSQL, browser, bundle, and privacy-canary matrix against the immutable final candidate and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Sentry subprocessor/retention/notice and capture policy require legal approval; live probes require deployed cells."
+        ]
+      },
+      "codeEvidence": [
+        "docs/release-evidence/review/obs-01-local-implementation-2026-08-28.md",
+        "src/shared/observability/beta-support-operations.ts",
+        "src/shared/architecture/privacy-exfiltration-canary.test.ts",
+        "src/shared/masked-layout-snapshot.ts",
+        "src/contexts/identity/infrastructure/beta-feedback-triage.repository.ts",
+        "src/components/features/beta-feedback/masked-layout-attachment-control.tsx",
+        "docs/operations/runbooks.md"
+      ],
+      "testEvidence": [
+        "OBS-01 focused repository proof on 2026-08-28: 11 unit files / 71 tests and 1 fresh-schema PostgreSQL file / 5 tests passed (76 total).",
+        "The external-evidence authority explicitly refuses to treat local canaries as Germany-region, alert-delivery, provider-retention, supported-device, or legal proof."
+      ]
+    },
+    {
+      "id": "GOV-01",
+      "summary": "The locally achievable GOV-01 implementation is complete. One executable authority pins Node/pnpm, 41 core packages and CLIs, 11 GitHub Actions, 10 governed images, runtime contracts, review dates, owners, and one expiring exception. Better Auth extension fields use the installed version's documented input/returned controls plus defensive boundary stripping. PostgreSQL retries connection acquisition only, Redis/BullMQ runtime and scheduling contracts are explicit, pino's built-ESM development transport is proven, and repository-owned TanStack Query/Form, current validator, React, Zod v4, and error-policy controls are enforced by their feature/governance authorities. Hosted CI, current vulnerability feeds, all-image execution, and Railway runtime proof remain candidate-bound external evidence.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "At the immutable final candidate, rerun the frozen install, full type/lint/governance and stack matrix, every image build/smoke/SBOM/scan, dependency/license checks, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Hosted CI, current vulnerability databases, and deployed Railway runtime evidence cannot be replaced by local repository checks."
+        ]
+      },
+      "codeEvidence": [
+        "docs/release-evidence/review/gov-01-local-implementation-2026-08-28.md",
+        "security/technology-stack.json",
+        "scripts/ci/check-technology-stack.ts",
+        "docs/operations/technology-stack-authority.md",
+        "package.json",
+        "package.runtime.json",
+        "security/container-images.json",
+        "src/shared/observability/logger.ts",
+        "src/shared/jobs/redis-runtime.ts",
+        "src/shared/jobs/queue.ts",
+        "src/shared/jobs/worker.ts",
+        "src/shared/db/pool.ts",
+        "src/shared/auth/org-schema.ts",
+        "src/contexts/identity/infrastructure/adapters/better-auth-schemas.ts"
+      ],
+      "testEvidence": [
+        "GOV-01 current-tree proof on 2026-08-28: technology-stack, 10-image policy, 76 immutable Action/image references, and Zod v4 gates passed; 11 focused files / 64 tests passed.",
+        "Technology-stack checker with independent negative fixtures",
+        "Built-ESM pino-pretty resolution proof",
+        "BullMQ/Redis topology, compatibility, retry, error-handler, and scheduler suites",
+        "PostgreSQL acquisition-only retry count/backoff and ambiguous-statement non-replay suite: 13 tests",
+        "Container inventory, action-pin, dependency, license, and Zod conformance gates",
+        "Better Auth organization field controls and defensive response parsing: 2 focused files / 8 tests; repository auth migration authority reported schema up to date"
+      ]
+    },
+    {
+      "id": "GOV-02",
+      "summary": "The locally achievable GOV-02 implementation is complete. The exact 17-context inventory, capability ownership, documentation shape, root map, ADR index, current execution program, superseded-plan boundary, entry points, and owned exception register are executable. The 17-context by 11-dimension matrix covers all 187 cells with 122 evidenced, 24 not applicable, 41 narrowly registered accepted exceptions, and zero unresolved. Exceptions are explicitly non-conformant and carry exact scope/digest, owner, compensating check, expiry, and sunset trigger. Exhaustive event/envelope, application/error, type-triple, filename, repository-port, data-fate, entry-point, and production-boundary checks prevent silent drift without turning maintainability migration into a beta blocker.",
+      "implementation": {
+        "status": "complete",
+        "remaining": []
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Rerun the complete standards, documentation, entry-point, boundary, filename, and data-fate matrix at the immutable final candidate and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_required",
+        "remaining": [],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "src/shared/governance/context-standards-authority.ts",
+        "src/shared/governance/context-standards-matrix.ts",
+        "src/shared/governance/context-standards-matrix.event-envelope.test.ts",
+        "docs/governance/standards-exceptions.json",
+        "docs/standards.md",
+        "docs/adr/README.md",
+        "Context documents under src/contexts/*/CONTEXT.md",
+        "docs/deep-review.md",
+        "docs/release-evidence/review/gov-02-standards-matrix-closure-2026-08-28.md",
+        "docs/release-evidence/review/fallow-classification-2026-08-28.md",
+        "src/shared/governance/context-standards-current-tree.ts",
+        "src/shared/governance/documentation-authority.test.ts"
+      ],
+      "testEvidence": [
+        "GOV-02 current-tree rerun on 2026-08-28: full shared-governance plus context-acceptance matrix passed 18 files / 190 tests.",
+        "src/shared/governance/context-standards-authority.test.ts with incomplete-document and invalid-exception negative fixtures",
+        "src/shared/governance/context-standards-matrix.test.ts — exact 17 × 11 shape, 122/24/41/0 disposition totals, complete produced-event documentation, cell invariants, stable ordering, accepted-exception controls, and independently executed evidence pointers",
+        "src/shared/governance/context-standards-matrix.event-envelope.test.ts — exhaustive 13-context / 103-union-member event and constructor audit; every eventful context is evidenced for envelope and assertion conformance, including versioned Guest scan-source replay",
+        "Context acceptance, ADR index, capability fate, and architecture-boundary checks",
+        "GOV-02 closure on 2026-08-28: focused 5 files / 33 tests and full shared-governance 16 files / 140 tests passed; scoped lint, formatting, and diff checks passed"
+      ]
+    },
+    {
+      "id": "CNV-01",
+      "summary": "The analyser blind spots are modelled as configuration rather than deleted, so the reachability graph is trustworthy. The contraction inventory registry proves every bounded_contraction and compatibility_read table has exactly one read-only inventory command, and the six previously uncovered families now have one. The non-foreign-key reference scanner and the reachability-proof harness exist. No physical contraction has been performed.",
+      "implementation": {
+        "status": "in_progress",
+        "remaining": [
+          "Execute the proved-dead deletion slices for the residual analyser findings and the named candidate families, each carrying machine-generated reachability evidence, and publish the deletion report. Physical schema contraction stays blocked until one verified release plus restore proof."
+        ]
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "not_started",
+        "remaining": ["Retain release and restore evidence for every contraction slice."],
+        "blockers": []
+      },
+      "codeEvidence": [
+        "Team quarantine",
+        "src/shared/jobs/runtime.ts",
+        "src/shared/projections/projection-contract.ts",
+        "REUI.md",
+        "src/contexts/activity/domain/integrity-claims.test.ts",
+        "src/shared/governance/data-fate-authority.ts",
+        "src/shared/auth/org-schema.ts",
+        ".gitignore",
+        ".prettierignore"
+      ],
+      "testEvidence": [
+        "Darkness and boundary tests for selected quarantined surfaces",
+        "Activity false-integrity island and deprecated-domain-alias deletion plus bounded-new-vocabulary guards",
+        "src/shared/governance/data-fate-authority.test.ts (every Drizzle table catalogued exactly once)"
+      ]
+    },
+    {
+      "id": "LEG-01",
+      "summary": "Counsel approval is machine-checked and fails closed. A registry records five documents with their exact digests; the authority refuses post-approval drift, a stale draft digest, an approver who is not external counsel, self-approval, expiry, an unregistered document, and approving a document while a counsel decision blocking it is open. requireApprovedLegalDocument throws for all three counsel-owned documents, which are registered as drafts with a null approver. The nine open decision categories are an addressable checklist anchored to verbatim text in the source documents, and Gate F now consumes the validated result instead of accepting an unchecked reference.",
+      "implementation": {
+        "status": "in_progress",
+        "remaining": [
+          "Counsel must answer the checklist and approve the three documents. Engineering cannot self-approve this gate, and the registry refuses to let it."
+        ]
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Requires external counsel and provider-policy approval; engineering cannot self-approve legal acceptance."
+        ]
+      },
+      "codeEvidence": [
+        "docs/legal/implementation-facts-2026-08-26.md",
+        "docs/legal/privacy-notice.md",
+        "docs/legal/internal-beta-agreement.md",
+        "docs/legal/google-access-disclosure.md",
+        "src/shared/governance/capability-fate.ts",
+        "src/shared/jobs/retention-sweep.job.ts",
+        "Recorded Google written confirmation evidence"
+      ],
+      "testEvidence": [
+        "Targeted Markdown formatting, local source-link existence, and diff checks passed"
+      ]
+    },
+    {
+      "id": "REL-01",
+      "summary": "Every Gate F evidence key now has a producer that fails closed rather than improvising: the candidate freeze, promotion read-back, deployed critical journeys, the canary sampler against a versioned threshold profile, normalized live-evidence importers, the report-first recovery orchestrator with a digest-bound human pause, and the approval envelope that holds no key material. The legal fail-open is closed.",
+      "implementation": {
+        "status": "in_progress",
+        "remaining": [
+          "Ratify the canary observation window duration in ADR 0059, which is an operating owner decision rather than an engineering one; the sampler exits non-zero naming it until then. Freeze one immutable candidate and run Gate F against it."
+        ]
+      },
+      "repositoryVerification": {
+        "status": "in_progress",
+        "remaining": [
+          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+        ]
+      },
+      "externalVerification": {
+        "status": "blocked",
+        "remaining": [
+          "Obtain and retain the external approval or live-environment evidence named by this package."
+        ],
+        "blockers": [
+          "Depends on live Railway topology, green authoritative CI, provider/legal approvals, and explicit release authorization."
+        ]
+      },
+      "codeEvidence": [
+        "scripts/release/",
+        ".github/workflows/release-images.yml",
+        "docs/operations/immutable-release-promotion.md",
+        ".github/workflows/ci.yml"
+      ],
+      "testEvidence": [
+        "Release manifest, evidence validation, and deployment-script suites",
+        "CI gate-wiring and action-pin regressions: 20 focused tests plus 76 pinned references"
+      ]
+    }
+  ]
+}

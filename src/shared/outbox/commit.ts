@@ -37,6 +37,35 @@ export async function emitAfterCommit(
 }
 
 /** Insert the durable outbox row for a domain event inside the command transaction. */
-export async function insertOutboxRow(tx: Tx, event: DomainEvent): Promise<void> {
-  await tx.insert(outboxEvents).values({ ...toOutboxEvent(event), id: event.eventId })
+export async function insertOutboxRow(
+  tx: Tx,
+  event: DomainEvent,
+  options: Readonly<{ recordedAt?: Date }> = {},
+): Promise<void> {
+  await tx.insert(outboxEvents).values({
+    ...toOutboxEvent(event),
+    id: event.eventId,
+    ...(options.recordedAt ? { createdAt: options.recordedAt } : {}),
+  })
+}
+
+/**
+ * Insert a durable fact unless its deterministic event id already exists.
+ * Returns true only for the transaction that first records the fact.
+ */
+export async function insertOutboxRowIfNew(
+  tx: Tx,
+  event: DomainEvent,
+  options: Readonly<{ recordedAt?: Date }> = {},
+): Promise<boolean> {
+  const rows = await tx
+    .insert(outboxEvents)
+    .values({
+      ...toOutboxEvent(event),
+      id: event.eventId,
+      ...(options.recordedAt ? { createdAt: options.recordedAt } : {}),
+    })
+    .onConflictDoNothing()
+    .returning({ id: outboxEvents.id })
+  return rows.length === 1
 }

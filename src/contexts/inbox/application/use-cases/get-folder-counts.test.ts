@@ -7,12 +7,15 @@ import {
   inboxItemId,
   propertyId,
   reviewId,
+  feedbackId,
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import { isInboxError } from '../../domain/errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Role } from '#/shared/domain/roles'
+import type { Permission } from '#/shared/domain/permissions'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 // ── Test data factory (typed, no `any`) ─────────────────────────────
 const ORG_ID = organizationId('org-1')
@@ -20,6 +23,16 @@ const USER_ID = userId('user-1')
 
 const ctxFor = (role: Role): AuthContext =>
   ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
+
+const ctxWith = (...permissions: Permission[]): AuthContext => ({
+  organizationId: ORG_ID,
+  userId: USER_ID,
+  role: 'Staff',
+  effectivePermissions: new Set(permissions),
+  scopeByPermission: new Map(
+    permissions.map((permission) => [permission, 'organization' as const]),
+  ),
+})
 
 const makeItem = ({
   id,
@@ -47,6 +60,7 @@ const makeItem = ({
     closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
+    commandRevision: 1,
     createdAt: new Date('2025-01-01'),
     updatedAt: new Date('2025-01-01'),
     ...overrides,
@@ -55,13 +69,11 @@ const makeItem = ({
 const allAccessStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids.map(propertyId),
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = (staffApi: StaffPublicApi = allAccessStaffApi) => {
@@ -192,5 +204,67 @@ describe('getInboxFolderCounts', () => {
         e.code === 'forbidden' &&
         /No access to this property/.test(e.message),
     )
+  })
+
+  it('does not count private-feedback items without feedback.read', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(
+      makeItem({ id: 'ii-review', status: 'open' }),
+      makeItem({
+        id: 'ii-feedback',
+        status: 'open',
+        sourceType: 'feedback',
+        sourceId: feedbackId('fb-private'),
+        isEscalated: true,
+      }),
+    )
+
+    const counts = await useCase({}, ctxWith('inbox.read', 'review.read'))
+
+    expect(counts).toEqual({ open: 1, escalated: 0, closed: 0 })
+  })
+
+  it('counts each source only within its own permission scope', async () => {
+    const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
+    repo.items.push(
+      makeItem({ id: 'review-1', propertyId: propertyId('prop-1') }),
+      makeItem({ id: 'review-2', propertyId: propertyId('prop-2') }),
+      makeItem({
+        id: 'feedback-1',
+        sourceType: 'feedback',
+        sourceId: feedbackId('feedback-1'),
+        propertyId: propertyId('prop-1'),
+      }),
+      makeItem({
+        id: 'feedback-2',
+        sourceType: 'feedback',
+        sourceId: feedbackId('feedback-2'),
+        propertyId: propertyId('prop-2'),
+      }),
+    )
+
+    const counts = await useCase(
+      {},
+      createScopedAuthContext({
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        permissions: [
+          ['inbox.read', 'organization'],
+          ['review.read', 'organization'],
+          ['feedback.read', 'assigned-properties'],
+        ],
+      }),
+    )
+
+    expect(counts.open).toBe(3)
+  })
+
+  it('returns zero counts when no owning source context is readable', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(makeItem({ id: 'ii-review', status: 'open' }))
+
+    const counts = await useCase({}, ctxWith('inbox.read'))
+
+    expect(counts).toEqual({ open: 0, escalated: 0, closed: 0 })
   })
 })

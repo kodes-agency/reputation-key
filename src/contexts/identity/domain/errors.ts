@@ -4,6 +4,8 @@
 // "isXxxError type guard lets server functions detect 'this is my error' at catch time."
 // Error codes are a closed union so ts-pattern .exhaustive() works at the server boundary.
 
+import { createErrorFactory } from '#/shared/domain/errors'
+
 export type IdentityErrorCode =
   | 'forbidden'
   | 'invalid_slug'
@@ -13,8 +15,10 @@ export type IdentityErrorCode =
   | 'invitation_not_found'
   | 'registration_failed'
   | 'already_exists'
+  | 'organization_conflict'
   | 'last_owner'
   | 'org_setup_failed'
+  | 'feedback_triage_invalid'
 
 export type IdentityError = Readonly<{
   _tag: 'IdentityError'
@@ -24,16 +28,10 @@ export type IdentityError = Readonly<{
 }>
 
 /** Smart constructor — the only way to build an IdentityError. */
-export const identityError = (
-  code: IdentityErrorCode,
-  message: string,
-  context?: Readonly<Record<string, unknown>>,
-): IdentityError => ({
-  _tag: 'IdentityError',
-  code,
-  message,
-  ...(context ? { context } : {}),
-})
+export const identityError = createErrorFactory<
+  IdentityError['_tag'],
+  IdentityError['code']
+>('IdentityError')
 
 /** Type guard — lets server functions detect IdentityError at catch time. */
 export const isIdentityError = (e: unknown): e is IdentityError =>

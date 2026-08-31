@@ -47,12 +47,9 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
       return null
     },
 
-    listByOrganization: async (orgId, filter: ConnectionVisibilityFilter) => {
+    listByOrganization: async (orgId, _filter: ConnectionVisibilityFilter) => {
       const orgConnections = [...store.values()].filter(byOrg(orgId))
-      if (filter.showAll === true) return orgConnections
-      return orgConnections.filter(
-        (c) => c.visibility === 'organization' || c.connectedBy === filter.userId,
-      )
+      return orgConnections
     },
 
     insert: async (connection) => {
@@ -159,6 +156,9 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
       tokenExpiresAt,
       visibility,
       scopes,
+      credentialHome,
+      credentialAuthorizedBy,
+      credentialAuthorizedAt,
     ) => {
       const existing = store.get(id as string)
       if (!existing || !byOrg(orgId)(existing)) return
@@ -170,13 +170,18 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
         tokenExpiresAt,
         visibility,
         scopes: [...scopes],
+        credentialAuthorizedBy,
         status: 'active',
         credentialUseState: 'active',
+        credentialHomeCellId: credentialHome.homeCellId,
+        credentialHomePolicyVersion: credentialHome.cataloguePolicyVersion,
+        credentialHomeAuthorityGeneration: credentialHome.authorityGeneration,
         cleanupMaterialDeadlineAt: null,
         lifecycleVersion: existing.lifecycleVersion + 1,
         accessVersion: existing.accessVersion + 1,
         credentialGeneration: existing.credentialGeneration + 1,
-        updatedAt: new Date(),
+        statusChangedAt: credentialAuthorizedAt,
+        updatedAt: credentialAuthorizedAt,
       })
     },
 

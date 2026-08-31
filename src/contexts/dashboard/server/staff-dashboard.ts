@@ -11,22 +11,22 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { timeRangePreset } from '../application/dto/dashboard.dto'
-import { timeRangeToDates } from '../application/utils'
 import { propertyId, portalId, userId } from '#/shared/domain/ids'
 import { isDashboardError } from '../application/public-api'
 import { standardErrorStatus as staffDashboardErrorStatus } from '#/shared/http/status'
 import { z } from 'zod/v4'
+import { resolvePropertyPeriod } from './resolve-property-period'
 
 /** Local error constructor — server must not import domain error constructors. */
 
 const getStaffDashboardDataDto = z.object({
-  propertyId: z.string().uuid(),
-  portalId: z.string().uuid().optional(),
+  propertyId: z.uuid(),
+  portalId: z.uuid().optional(),
   timeRange: timeRangePreset.default('all'),
 })
 
 export const getStaffDashboardDataFn = createServerFn({ method: 'GET' })
-  .inputValidator(getStaffDashboardDataDto)
+  .validator(getStaffDashboardDataDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -38,18 +38,27 @@ export const getStaffDashboardDataFn = createServerFn({ method: 'GET' })
             action: 'dashboard.read',
             propertyId: data.propertyId,
           })
-          const { useCases, clock } = getContainer()
-          const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
+          const { dashboardPublicApi, clock, propertyPublicApi } = getContainer()
+          const pid = propertyId(data.propertyId)
+          const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
+            { propertyFacts: propertyPublicApi, clock },
+            {
+              organizationId: ctx.organizationId,
+              propertyId: pid,
+              timeRange: data.timeRange,
+            },
+          )
 
-          return await useCases.getStaffDashboardData(
+          return await dashboardPublicApi.getStaffDashboardData(
             {
               organizationId: ctx.organizationId,
               userId: userId(ctx.userId),
-              propertyId: propertyId(data.propertyId),
+              propertyId: pid,
               portalId: data.portalId ? portalId(data.portalId) : undefined,
               startDate,
               endDate,
               timeRange: data.timeRange,
+              propertyTimezone,
             },
             ctx,
           )

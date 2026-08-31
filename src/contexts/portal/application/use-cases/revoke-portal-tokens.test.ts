@@ -3,6 +3,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { revokePortalTokens } from './revoke-portal-tokens'
 
@@ -19,11 +20,16 @@ describe('revokePortalTokens', () => {
     const revokeForPortal = vi.fn(async () => 2)
     const events = createCapturingEventBus()
     const ctx = buildTestAuthContext()
+    const portalTokenRepo = { revokeForPortal } as unknown as PortalTokenRepository
     const useCase = revokePortalTokens({
       portalRepo,
-      portalTokenRepo: { revokeForPortal } as unknown as PortalTokenRepository,
+      portalTokenRepo,
       staffPublicApi,
-      events,
+      commandStore: createInMemoryPortalCommandStore({
+        portalRepo,
+        portalTokenRepo,
+        events,
+      }),
       clock: () => NOW,
     })
 
@@ -45,11 +51,17 @@ describe('revokePortalTokens', () => {
     const portal = buildTestPortal()
     portalRepo.seed([portal])
     const revokeForPortal = vi.fn()
+    const portalTokenRepo = { revokeForPortal } as unknown as PortalTokenRepository
+    const events = createCapturingEventBus()
     const useCase = revokePortalTokens({
       portalRepo,
-      portalTokenRepo: { revokeForPortal } as unknown as PortalTokenRepository,
+      portalTokenRepo,
       staffPublicApi,
-      events: createCapturingEventBus(),
+      commandStore: createInMemoryPortalCommandStore({
+        portalRepo,
+        portalTokenRepo,
+        events,
+      }),
       clock: () => NOW,
     })
 
@@ -64,13 +76,18 @@ describe('revokePortalTokens', () => {
     const portal = buildTestPortal()
     portalRepo.seed([portal])
     const events = createCapturingEventBus()
+    const portalTokenRepo = {
+      revokeForPortal: vi.fn(async () => 0),
+    } as unknown as PortalTokenRepository
     const useCase = revokePortalTokens({
       portalRepo,
-      portalTokenRepo: {
-        revokeForPortal: vi.fn(async () => 0),
-      } as unknown as PortalTokenRepository,
+      portalTokenRepo,
       staffPublicApi,
-      events,
+      commandStore: createInMemoryPortalCommandStore({
+        portalRepo,
+        portalTokenRepo,
+        events,
+      }),
       clock: () => NOW,
     })
 

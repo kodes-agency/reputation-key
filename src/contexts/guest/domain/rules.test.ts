@@ -25,7 +25,7 @@ describe('validateRating', () => {
 })
 
 describe('validateFeedback', () => {
-  it('accepts non-empty text under 1000 chars', () => {
+  it('accepts non-empty text under 2000 chars', () => {
     expect(validateFeedback('Great service!').isOk()).toBe(true)
   })
 
@@ -45,16 +45,36 @@ describe('validateFeedback', () => {
     }
   })
 
-  it('rejects over 1000 chars', () => {
-    const result = validateFeedback('a'.repeat(1001))
+  it('rejects over 2000 chars', () => {
+    const result = validateFeedback('a'.repeat(2001))
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('feedback_too_long')
+      expect(result.error.context).toEqual({ max: 2000 })
+    }
+  })
+
+  it('accepts exactly 2000 chars', () => {
+    expect(validateFeedback('a'.repeat(2000)).isOk()).toBe(true)
+  })
+
+  it('counts astral characters as one character at the 2000-character boundary', () => {
+    expect(validateFeedback('😀'.repeat(2000)).isOk()).toBe(true)
+
+    const result = validateFeedback('😀'.repeat(2001))
     expect(result.isErr()).toBe(true)
     if (result.isErr()) {
       expect(result.error.code).toBe('feedback_too_long')
     }
   })
 
-  it('accepts exactly 1000 chars', () => {
-    expect(validateFeedback('a'.repeat(1000)).isOk()).toBe(true)
+  it('normalizes line endings while preserving paragraph breaks', () => {
+    const result = validateFeedback('  First line\r\nsecond line\r\r\nThird paragraph  ')
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value).toBe('First line\nsecond line\n\nThird paragraph')
+    }
   })
 })
 

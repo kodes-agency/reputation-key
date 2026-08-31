@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { resolveRegion, checkProcessingAvailability } from './processing-profile'
 import type { ProcessingProfile } from './processing-profile'
 import { propertyId } from './ids'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from './data-cell-catalogue'
 
 describe('resolveRegion', () => {
   it('routes US territories to us', () => {
@@ -12,23 +13,23 @@ describe('resolveRegion', () => {
     expect(resolveRegion('GU')).toBe('us')
   })
 
-  it('routes EEA + UK + Switzerland to europe', () => {
-    expect(resolveRegion('DE')).toBe('europe')
-    expect(resolveRegion('FR')).toBe('europe')
-    expect(resolveRegion('GB')).toBe('europe')
-    expect(resolveRegion('CH')).toBe('europe')
-    expect(resolveRegion('IS')).toBe('europe')
+  it('routes European supported countries to the one US beta cell', () => {
+    expect(resolveRegion('DE')).toBe('us')
+    expect(resolveRegion('FR')).toBe('us')
+    expect(resolveRegion('GB')).toBe('us')
+    expect(resolveRegion('CH')).toBe('us')
+    expect(resolveRegion('IS')).toBe('us')
   })
 
-  it('routes other countries to global', () => {
-    expect(resolveRegion('JP')).toBe('global')
-    expect(resolveRegion('BR')).toBe('global')
-    expect(resolveRegion('AU')).toBe('global')
+  it('routes other supported countries to the one US beta cell', () => {
+    expect(resolveRegion('JP')).toBe('us')
+    expect(resolveRegion('BR')).toBe('us')
+    expect(resolveRegion('AU')).toBe('us')
   })
 
   it('handles lowercase country codes', () => {
     expect(resolveRegion('us')).toBe('us')
-    expect(resolveRegion('de')).toBe('europe')
+    expect(resolveRegion('de')).toBe('us')
   })
 })
 
@@ -42,7 +43,7 @@ describe('checkProcessingAvailability', () => {
     timezoneResolvedAt: new Date('2026-07-14'),
     processingRegion: 'us',
     processingRegionSource: 'country_default',
-    routingPolicyVersion: 1,
+    routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
     processingRegionResolvedAt: new Date('2026-07-14'),
   }
 
@@ -71,4 +72,17 @@ describe('checkProcessingAvailability', () => {
     expect(result.available).toBe(false)
     if (!result.available) expect(result.reason).toBe('region_unsupported')
   })
+
+  it.each(['europe', 'global'] as const)(
+    'returns region_unsupported when the known %s cell is dormant',
+    (processingRegion) => {
+      const result = checkProcessingAvailability({
+        ...baseProfile,
+        processingRegion,
+      })
+
+      expect(result.available).toBe(false)
+      if (!result.available) expect(result.reason).toBe('region_unsupported')
+    },
+  )
 })

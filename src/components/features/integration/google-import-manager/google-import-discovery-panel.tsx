@@ -1,10 +1,9 @@
-import { AlertCircle, Loader2, MapPin, Search } from 'lucide-react'
+import { AlertCircle, MapPin, Search } from 'lucide-react'
 import type {
   ImportAccountDto,
   ImportCandidateDto,
 } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
 import {
   Card,
   CardContent,
@@ -13,10 +12,9 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { Input } from '#/components/ui/input'
-import { GOOGLE_IMPORT_SELECTION_LIMIT } from './google-import-selection'
 import { GoogleImportAccountList } from './google-import-account-list'
-import { GoogleImportCandidateList } from './google-import-candidate-list'
-import { GoogleImportLoadingRows } from './google-import-loading-rows'
+import { GoogleImportCandidateResults } from './google-import-candidate-results'
+import { GoogleImportSelectionFooter } from './google-import-selection-footer'
 
 type Props = Readonly<{
   accounts: readonly ImportAccountDto[]
@@ -32,10 +30,13 @@ type Props = Readonly<{
   hasMoreCandidates: boolean
   accountsError: string | null
   candidatesError: string | null
+  selectAllError: string | null
+  isSelectingAll: boolean
   onSearchChange: (value: string) => void
   onSelectAccount: (accountRef: string) => void
   onToggleCandidate: (candidate: ImportCandidateDto, checked: boolean) => void
   onToggleLoaded: (checked: boolean) => void
+  onSelectAllEligible: () => void
   onLoadMoreAccounts: () => void
   onLoadMoreCandidates: () => void
   onReview: () => void
@@ -65,8 +66,8 @@ export function GoogleImportDiscoveryPanel(props: Props) {
             {selectedAccount ? selectedAccount.displayName : 'Locations'}
           </CardTitle>
           <CardDescription>
-            Search and select from loaded locations. Up to {GOOGLE_IMPORT_SELECTION_LIMIT}{' '}
-            properties can be imported at once.
+            Search and select locations. Large selections continue in resumable background
+            batches.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -94,61 +95,34 @@ export function GoogleImportDiscoveryPanel(props: Props) {
                 />
               </div>
 
-              {props.candidatesError ? (
-                <Alert variant="destructive">
+              {props.selectAllError ? (
+                <Alert>
                   <AlertCircle aria-hidden="true" />
-                  <AlertTitle>Locations unavailable</AlertTitle>
-                  <AlertDescription>{props.candidatesError}</AlertDescription>
+                  <AlertTitle>Some locations could not be loaded</AlertTitle>
+                  <AlertDescription>{props.selectAllError}</AlertDescription>
                 </Alert>
-              ) : props.isLoadingCandidates ? (
-                <GoogleImportLoadingRows label="Loading Google locations" />
-              ) : props.candidates.length === 0 ? (
-                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No matching loaded locations. Clear the search or load another page.
-                </p>
-              ) : (
-                <GoogleImportCandidateList
-                  candidates={props.candidates}
-                  selectedIds={props.selectedIds}
-                  onToggleCandidate={props.onToggleCandidate}
-                  onToggleLoaded={props.onToggleLoaded}
-                />
-              )}
+              ) : null}
 
-              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <div aria-live="polite" className="text-sm text-muted-foreground">
-                  <p>
-                    {props.selectedIds.size} selected · {props.candidates.length} matching
-                    loaded
-                  </p>
-                  <p className="mt-0.5 text-xs">
-                    Searching and select all never fetch additional pages.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  {props.hasMoreCandidates ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={props.isLoadingMoreCandidates}
-                      onClick={props.onLoadMoreCandidates}
-                    >
-                      {props.isLoadingMoreCandidates ? (
-                        <Loader2 className="animate-spin" aria-hidden="true" />
-                      ) : null}
-                      Load more locations
-                    </Button>
-                  ) : null}
-                  <Button
-                    type="button"
-                    disabled={props.selectedIds.size === 0}
-                    onClick={props.onReview}
-                  >
-                    Review {props.selectedIds.size || ''}{' '}
-                    {props.selectedIds.size === 1 ? 'property' : 'properties'}
-                  </Button>
-                </div>
-              </div>
+              <GoogleImportCandidateResults
+                candidates={props.candidates}
+                selectedIds={props.selectedIds}
+                isLoading={props.isLoadingCandidates}
+                error={props.candidatesError}
+                onToggleCandidate={props.onToggleCandidate}
+                onToggleLoaded={props.onToggleLoaded}
+              />
+
+              <GoogleImportSelectionFooter
+                selectedCount={props.selectedIds.size}
+                loadedCount={props.candidates.length}
+                isLoadingCandidates={props.isLoadingCandidates}
+                isLoadingMoreCandidates={props.isLoadingMoreCandidates}
+                hasMoreCandidates={props.hasMoreCandidates}
+                isSelectingAll={props.isSelectingAll}
+                onSelectAllEligible={props.onSelectAllEligible}
+                onLoadMoreCandidates={props.onLoadMoreCandidates}
+                onReview={props.onReview}
+              />
             </>
           )}
         </CardContent>

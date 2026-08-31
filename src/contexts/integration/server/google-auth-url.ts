@@ -4,23 +4,17 @@
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { getSessionFromHeaders, resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-
-// ── Shared Zod validators ──────────────────────────────────────────
-
-const getAuthUrlInputSchema = z.object({
-  visibility: z.enum(['private', 'organization']).default('private'),
-})
+import { googleAuthUrlInputSchema } from '../application/dto/google-auth-url.dto'
 
 // ── getGoogleAuthUrl ────────────────────────────────────────────────
 
 export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
-  .inputValidator(getAuthUrlInputSchema)
+  .validator(googleAuthUrlInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -34,17 +28,17 @@ export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
 
           await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
-          const { useCases } = getContainer()
+          const { integrationPublicApi } = getContainer()
           // BQC-7.6: the state is bound to the initiating user (sub) — the
           // callback rejects a state redeemed by any other session.
-          return await useCases.getGoogleAuthUrl({
+          return await integrationPublicApi.oauth.getAuthorizationUrl({
             visibility: data.visibility,
             userId: ctx.userId,
             organizationId: ctx.organizationId,
             sessionId: session.session.id,
             purpose: 'reviews',
-            connectionMode: 'new',
-            targetConnectionId: null,
+            connectionMode: data.connectionMode,
+            targetConnectionId: data.targetConnectionId,
           })
         } catch (e) {
           throw catchUntagged(e)

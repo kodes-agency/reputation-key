@@ -32,6 +32,7 @@ import {
   notificationId,
   organizationId,
   propertyId,
+  type PropertyId,
 } from '#/shared/domain/ids'
 import { absoluteUrl } from '#/shared/email/urls'
 import { maskEmail } from '#/shared/observability/pii'
@@ -51,6 +52,7 @@ import {
   assertPreferencesLink,
   mailClassForCategory,
   PREFERENCES_PATH,
+  requiresPreferencesLink,
   unsubscribeHeaders,
 } from './preferences-link'
 import { recipientTimezoneSource, resolveRecipientTimezone } from './recipient-timezone'
@@ -58,7 +60,7 @@ import { recipientTimezoneSource, resolveRecipientTimezone } from './recipient-t
 export const URGENT_EMAIL_JOB_NAME = 'urgent-email' as const
 
 export type UrgentEmailJobData = JobExecutionEnvelope &
-  Readonly<{ notificationEmailId: string; propertyId: string }>
+  Readonly<{ notificationEmailId: string }>
 
 export type UrgentEmailDeps = Readonly<{
   emailRepo: NotificationEmailRepositoryPort
@@ -73,6 +75,7 @@ export type UrgentEmailDeps = Readonly<{
   clock: () => Date
   /** `env.BETTER_AUTH_URL`. Injected, never read from env inside the job. */
   baseUrl: string
+  oneClickUnsubscribeUrl: (target: Readonly<{ kind: 'email'; id: string }>) => string
 }>
 
 const TRANSIENT_REJECTION = 'Transient email provider rejection'
@@ -80,17 +83,57 @@ const TRANSIENT_REJECTION = 'Transient email provider rejection'
 const retryAt = (now: Date, retryCount: number): Date =>
   new Date(now.getTime() + Math.min(60 * 60_000, 30_000 * 2 ** retryCount))
 
+/** Raw identifiers for logging/suppression, before branding. */
+type EmailDeliveryIds = Readonly<{
+  emailId: string
+  orgId: string
+  propId: string | null
+}>
+
+type StoredEmail = NonNullable<
+  Awaited<ReturnType<NotificationEmailRepositoryPort['findById']>>
+>
+type StoredNotification = NonNullable<
+  Awaited<ReturnType<NotificationRepositoryPort['findById']>>
+>
+type DeliveryPreference = Awaited<
+  ReturnType<NotificationPreferenceRepositoryPort['findForDelivery']>
+>
+
+/**
+ * An Organization-wide row is mandatory-only and immediate; a Property-scoped
+ * row is anything but mandatory. Either mismatch means the job and the stored
+ * row disagree about the delivery scope.
+ */
+const hasValidDeliveryScope = (entry: StoredEmail, mandatory: boolean): boolean =>
+  mandatory
+    ? entry.category === 'mandatory' &&
+      entry.propertyId === null &&
+      entry.cadence === 'immediate'
+    : entry.category !== 'mandatory'
+
+const isPreferenceEnabled = (
+  entry: StoredEmail,
+  preference: DeliveryPreference,
+): boolean => preference?.enabled ?? getDefaultEnabled(entry.category, 'email')
+
+const notificationMatchesEntry = (
+  notification: StoredNotification,
+  entry: StoredEmail,
+  propId: PropertyId | null,
+): boolean =>
+  notification.userId === entry.userId &&
+  notification.category === entry.category &&
+  notification.propertyId === propId
+
 export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
   /** Suppress + log. Every suppression reason must be visible in logs. */
-  const suppress = async (
-    ids: Readonly<{ emailId: string; orgId: string; propId: string }>,
-    reason: string,
-  ): Promise<void> => {
+  const suppress = async (ids: EmailDeliveryIds, reason: string): Promise<void> => {
     const now = deps.clock()
     await deps.emailRepo.markSuppressed(
       notificationEmailId(ids.emailId),
       organizationId(ids.orgId),
-      propertyId(ids.propId),
+      ids.propId === null ? null : propertyId(ids.propId),
       reason,
       now,
     )
@@ -109,7 +152,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
    * damages our sending domain.
    */
   const sendAndRecord = async (
-    ids: Readonly<{ emailId: string; orgId: string; propId: string }>,
+    ids: EmailDeliveryIds,
     entry: Readonly<{ idempotencyKey: string; retryCount: number }>,
     recipient: string,
     email: RenderedEmail,
@@ -117,7 +160,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
   ): Promise<void> => {
     const emailId = notificationEmailId(ids.emailId)
     const orgId = organizationId(ids.orgId)
-    const propId = propertyId(ids.propId)
+    const propId = ids.propId === null ? null : propertyId(ids.propId)
     const attemptedAt = deps.clock()
     try {
       const outcome = await deps.emailSender.send({
@@ -182,33 +225,148 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     }
   }
 
-  return async (job: Pick<Job<UrgentEmailJobData>, 'data'>): Promise<void> => {
-    const resolved = await deps.resolvePropertyScope(
-      job.data.organizationId,
-      job.data.propertyId,
-    )
-    if (!resolved) return
-    if (!(await deps.authorizeScope(resolved.organizationId, resolved.propertyId))) return
-
-    const orgId = organizationId(resolved.organizationId)
-    const propId = propertyId(resolved.propertyId)
-    const emailId = notificationEmailId(job.data.notificationEmailId)
-    const ids = {
-      emailId: job.data.notificationEmailId,
-      orgId: resolved.organizationId,
-      propId: resolved.propertyId,
+  /**
+   * Resolve the job's Property scope and re-check current authority. `null`
+   * means the job must be dropped without touching the stored row.
+   */
+  const resolveJobScope = async (data: UrgentEmailJobData) => {
+    const resolved =
+      data.propertyId === undefined
+        ? null
+        : await deps.resolvePropertyScope(data.organizationId, data.propertyId)
+    if (data.propertyId !== undefined && !resolved) return null
+    if (
+      resolved &&
+      !(await deps.authorizeScope(resolved.organizationId, resolved.propertyId))
+    ) {
+      return null
     }
+    return {
+      orgId: organizationId(data.organizationId),
+      emailId: notificationEmailId(data.notificationEmailId),
+      propId: resolved === null ? null : propertyId(resolved.propertyId),
+      propertyTimezone: resolved?.timezone ?? null,
+      ids: {
+        emailId: data.notificationEmailId,
+        orgId: data.organizationId,
+        propId: resolved?.propertyId ?? null,
+      } satisfies EmailDeliveryIds,
+    } as const
+  }
+
+  /**
+   * ADR 0046 r.3: quiet hours run on the RECIPIENT's clock. Property timezone
+   * is the last guess before UTC — an urgent email is scoped to exactly one
+   * property, so it is a better guess than UTC when the user never chose a
+   * zone. Mandatory Organization notices never reach here: they are immediate
+   * policy and deliberately bypass preference quiet hours.
+   *
+   * Returns true when the send was deferred and the job is finished.
+   */
+  const deferForQuietHours = async (
+    scope: Readonly<{
+      orgId: ReturnType<typeof organizationId>
+      emailId: ReturnType<typeof notificationEmailId>
+      propId: PropertyId | null
+      propertyTimezone: string | null
+      ids: EmailDeliveryIds
+    }>,
+    entry: StoredEmail,
+    preference: DeliveryPreference,
+  ): Promise<boolean> => {
+    const [settings, orgScope] = await Promise.all([
+      deps.preferenceRepo.getUserSettings(entry.userId, scope.orgId),
+      deps.resolveOrganizationScope(scope.ids.orgId),
+    ])
+    const sources = {
+      userTimezone: settings?.timezone ?? null,
+      organizationTimezone: orgScope.timezone,
+      propertyTimezone: scope.propertyTimezone,
+    }
+    const timezone = resolveRecipientTimezone(sources)
+    const timing = deliveryTiming({
+      now: deps.clock(),
+      timezone,
+      quietHoursStart: preference?.quietHoursStart ?? null,
+      quietHoursEnd: preference?.quietHoursEnd ?? null,
+      urgent: entry.priority === 'urgent',
+      urgentBypassEnabled: preference?.urgentBypassEnabled ?? false,
+    })
+    if (timing.kind !== 'defer') return false
+    await deps.emailRepo.markDelayed(
+      scope.emailId,
+      scope.orgId,
+      scope.propId,
+      timing.until,
+      deps.clock(),
+    )
+    deps.logger.info(
+      {
+        correlationId: emailCorrelationId(scope.ids.emailId),
+        timezone,
+        timezoneSource: recipientTimezoneSource(sources),
+        until: timing.until.toISOString(),
+        reason: 'quiet_hours',
+      },
+      'Urgent notification email deferred',
+    )
+    return true
+  }
+
+  /**
+   * ADR 0046 r.7 guard: `assertPreferencesLink` throws before the provider
+   * call for an optional email with no usable preferences link.
+   */
+  const composeEmail = (
+    notification: StoredNotification,
+    entry: StoredEmail,
+    ids: EmailDeliveryIds,
+    mandatory: boolean,
+  ) => {
+    const link = notificationLink(
+      notification.resourceType,
+      notification.resourceId,
+      ids.propId,
+    )
+    const mailClass = mailClassForCategory(entry.category)
+    const preferencesUrl = mandatory
+      ? null
+      : assertPreferencesLink(mailClass, absoluteUrl(deps.baseUrl, PREFERENCES_PATH))
+    const email = renderNotificationEmail({
+      rendered: renderNotification(notification.type, notification.payload),
+      actionUrl: absoluteUrl(deps.baseUrl, link.path, link.search),
+      preferencesUrl,
+      priority: entry.priority,
+    })
+    const oneClickUrl = requiresPreferencesLink(mailClass)
+      ? deps.oneClickUnsubscribeUrl({ kind: 'email', id: entry.id as string })
+      : ''
+    return { email, headers: unsubscribeHeaders(mailClass, oneClickUrl) } as const
+  }
+
+  return async (job: Pick<Job<UrgentEmailJobData>, 'data'>): Promise<void> => {
+    const scope = await resolveJobScope(job.data)
+    if (scope === null) return
+    const { emailId, orgId, propId, ids } = scope
+
     const entry = await deps.emailRepo.findById(emailId, orgId, propId)
     if (!entry || !['pending', 'failed', 'delayed'].includes(entry.status)) return
+    const mandatory = propId === null
+    if (!hasValidDeliveryScope(entry, mandatory)) {
+      await suppress(ids, 'invalid_delivery_scope')
+      return
+    }
 
-    const preference = await deps.preferenceRepo.findForDelivery(
-      entry.userId,
-      orgId,
-      propId,
-      entry.category,
-      'email',
-    )
-    if (!(preference?.enabled ?? getDefaultEnabled(entry.category, 'email'))) {
+    const preference = mandatory
+      ? null
+      : await deps.preferenceRepo.findForDelivery(
+          entry.userId,
+          orgId,
+          propId,
+          entry.category,
+          'email',
+        )
+    if (!mandatory && !isPreferenceEnabled(entry, preference)) {
       await suppress(ids, 'preference_disabled')
       return
     }
@@ -220,49 +378,16 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       return
     }
 
-    // ADR 0046 r.3: the recipient's clock. Property timezone is the last guess
-    // before UTC — an urgent email is scoped to exactly one property, so it is
-    // a better guess than UTC when the user never chose a zone.
-    const [settings, orgScope] = await Promise.all([
-      deps.preferenceRepo.getUserSettings(entry.userId, orgId),
-      deps.resolveOrganizationScope(resolved.organizationId),
-    ])
-    const sources = {
-      userTimezone: settings?.timezone ?? null,
-      organizationTimezone: orgScope.timezone,
-      propertyTimezone: resolved.timezone,
-    }
-    const timezone = resolveRecipientTimezone(sources)
+    if (!mandatory && (await deferForQuietHours(scope, entry, preference))) return
 
-    const timing = deliveryTiming({
-      now: deps.clock(),
-      timezone,
-      quietHoursStart: preference?.quietHoursStart ?? null,
-      quietHoursEnd: preference?.quietHoursEnd ?? null,
-      urgent: entry.priority === 'urgent',
-      urgentBypassEnabled: preference?.urgentBypassEnabled ?? false,
-    })
-    if (timing.kind === 'defer') {
-      await deps.emailRepo.markDelayed(emailId, orgId, propId, timing.until, deps.clock())
-      deps.logger.info(
-        {
-          correlationId: emailCorrelationId(ids.emailId),
-          timezone,
-          timezoneSource: recipientTimezoneSource(sources),
-          until: timing.until.toISOString(),
-          reason: 'quiet_hours',
-        },
-        'Urgent notification email deferred',
-      )
-      return
-    }
-
-    const notification = await deps.notifRepo.findByIdForProperty(
-      notificationId(entry.notificationId as string),
-      orgId,
-      propId,
-    )
-    if (!notification) {
+    const notification = mandatory
+      ? await deps.notifRepo.findById(notificationId(entry.notificationId), orgId)
+      : await deps.notifRepo.findByIdForProperty(
+          notificationId(entry.notificationId),
+          orgId,
+          propId,
+        )
+    if (!notification || !notificationMatchesEntry(notification, entry, propId)) {
       await suppress(ids, 'notification_unavailable')
       return
     }
@@ -272,31 +397,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       return
     }
 
-    const link = notificationLink(
-      notification.resourceType,
-      notification.resourceId,
-      resolved.propertyId,
-    )
-    // ADR 0046 r.7 guard: throws before the provider call for an optional
-    // email with no usable preferences link.
-    const mailClass = mailClassForCategory(entry.category)
-    const preferencesUrl = assertPreferencesLink(
-      mailClass,
-      absoluteUrl(deps.baseUrl, PREFERENCES_PATH),
-    )
-    const email = renderNotificationEmail({
-      rendered: renderNotification(notification.type, notification.payload),
-      actionUrl: absoluteUrl(deps.baseUrl, link.path, link.search),
-      preferencesUrl,
-      priority: entry.priority,
-    })
-
-    await sendAndRecord(
-      ids,
-      entry,
-      recipient,
-      email,
-      unsubscribeHeaders(mailClass, preferencesUrl),
-    )
+    const { email, headers } = composeEmail(notification, entry, ids, mandatory)
+    await sendAndRecord(ids, entry, recipient, email, headers)
   }
 }

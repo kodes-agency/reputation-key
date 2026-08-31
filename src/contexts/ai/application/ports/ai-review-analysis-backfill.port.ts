@@ -32,18 +32,18 @@ export type ReviewAnalysisBackfillStorePort = Readonly<{
 }>
 
 /**
- * Identity-owned lookup: users holding active access to one property.
+ * Identity-owned live authority decision for one member and property.
  *
- * Identity owns the grant table (ADR 0039 — explicit grants are the sole
- * authorization source for property scope), so this context never reads it.
- * Structurally identical to identity's own `PropertyGrantHolderLookup`, declared
- * here so the AI context depends on a shape rather than on identity's adapter,
- * exactly as the notification context does.
+ * Identity owns effective permissions and property grants, so the AI context
+ * asks for the verdict instead of reconstructing it from the legacy
+ * `member.role` label. The concrete adapter resolves current membership,
+ * effective `ai.manage`, scope, and (for assigned scope) an active grant.
  */
-export type PropertyAccessHolderLookup = (
+export type PropertyAuthorityLookup = (
   organizationId: string,
   propertyId: string,
-) => Promise<ReadonlyArray<string>>
+  userId: string,
+) => Promise<boolean>
 
 /**
  * The member whose consent this backfill replays — the `actor_user_id` of the
@@ -74,13 +74,8 @@ export type ReviewAnalysisConsentActor = Readonly<{
    */
   stateVersion: number
   /**
-   * That actor's `member.role` for this organization, verbatim (it is a
-   * comma-separated token list), or null when they are not a member at all.
-   *
-   * The authority VERDICT is not decided here: owner is settled by the role
-   * alone, but an admin also needs an active property grant, and the grant
-   * table belongs to identity. The use case combines this with
-   * `PropertyAccessHolderLookup`.
+   * That actor's legacy `member.role` label, retained only for an actionable
+   * operator diagnostic. It is never an authorization input.
    */
   memberRole: string | null
 }>
@@ -129,6 +124,17 @@ export type ReviewAnalysisBackfillCandidate = Readonly<{
   storedAnalysisSequence: number
 }>
 
+export type ReviewAnalysisBackfillRunMember = Readonly<{
+  reviewId: ReviewId
+  /**
+   * Exact Material Review Revision captured by first-enablement enrollment.
+   * Null is the temporary expand-compatibility shape for operator runs created
+   * before the revision-pinning migration; null may never be written by a new
+   * first-enablement enrollment.
+   */
+  sourceRevision: number | null
+}>
+
 export type ReviewAnalysisWatermarkReposition = Readonly<{
   sourceEpoch: number
   analysisStartSequence: number
@@ -160,8 +166,12 @@ export type ReviewAnalysisBackfillRun = Readonly<{
   reviewAnalysisEpoch: number
   /** `H` — the watermark this run repositioned to when it opened. */
   analysisStartSequence: number
-  /** The pinned, ordered candidate set. Never recomputed. */
-  reviewIds: ReadonlyArray<ReviewId>
+  /**
+   * Count of immutable relational membership rows pinned when the run opened.
+   * The run head deliberately carries no candidate array: recovery reads only
+   * the exact next ordinal and therefore stays bounded however large the run.
+   */
+  requestedReviewCount: number
   emittedReviewCount: number
   skippedReviewCount: number
   recoveredReviewCount: number
@@ -231,12 +241,22 @@ export type ReviewAnalysisBackfillSession = Readonly<{
       sourceEpoch: number
       reviewAnalysisEpoch: number
       analysisStartSequence: number
-      reviewIds: ReadonlyArray<ReviewId>
+      /** Deterministic order written as immutable relational membership rows. */
+      orderedReviewIds: ReadonlyArray<ReviewId>
       reasonCode: string
       correlationId: string
       occurredAt: Date
     }>,
   ) => Promise<string>
+  /**
+   * Canonical run membership at one zero-based ordinal. First-enablement rows
+   * include the exact Material Review Revision and the driver must skip, never
+   * substitute, when the current revision differs. Returns null only when the
+   * durable set is corrupt; callers must stop rather than recompute it.
+   */
+  readRunMember: (
+    input: Readonly<{ runId: string; ordinal: number }>,
+  ) => Promise<ReviewAnalysisBackfillRunMember | null>
   /**
    * One pinned candidate re-read at the moment its turn comes, under the
    * property lock, or null when it is no longer eligible. Eligibility is

@@ -39,8 +39,7 @@ export async function deleteProperty(page: Page) {
 
 import { getDb } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
-import { teams } from '#/shared/db/schema/team.schema'
-import { like, or } from 'drizzle-orm'
+import { like } from 'drizzle-orm'
 
 async function runDbCleanup() {
   const db = getDb()
@@ -52,13 +51,6 @@ async function runDbCleanup() {
     .where(like(properties.name, 'E2E %'))
     .returning({ name: properties.name })
   console.log(`  Deleted ${deletedProperties.length} properties`)
-
-  // Teams with E2E names (Front Desk / Housekeeping from team-management.spec.ts)
-  const deletedTeams = await db
-    .delete(teams)
-    .where(or(like(teams.name, 'Front Desk %'), like(teams.name, 'Housekeeping %')))
-    .returning({ name: teams.name })
-  console.log(`  Deleted ${deletedTeams.length} teams`)
 
   console.log('E2E DB cleanup complete.')
 }

@@ -18,6 +18,8 @@ import type {
   PropertyCapabilityRecord,
 } from '#/shared/auth/persisted-policy-store'
 
+type PolicySqlExecutor = Pick<Database, 'execute'>
+
 // ── Version ──────────────────────────────────────────────────────────
 
 export async function getPolicyControlVersion(
@@ -36,20 +38,6 @@ export async function getPolicyControlVersion(
 
 export async function getPolicyVersion(db: Database): Promise<number> {
   return (await getPolicyControlVersion(db)).version
-}
-
-/** Membership check for policy administration (grants require org membership). */
-export async function isOrgMember(
-  db: Database,
-  organizationId: string,
-  userId: string,
-): Promise<boolean> {
-  const rows = await db.execute(sql`
-    SELECT 1 AS one FROM member
-    WHERE "organizationId" = ${organizationId} AND "userId" = ${userId}
-    LIMIT 1
-  `)
-  return rows.rows.length > 0
 }
 
 /** The member's role in an org (for the read-only decision diagnostic). */
@@ -78,7 +66,7 @@ export type SetOrganizationPolicyInput = Readonly<{
 }>
 
 export async function setOrganizationPolicy(
-  db: Database,
+  db: PolicySqlExecutor,
   input: SetOrganizationPolicyInput,
 ): Promise<void> {
   await db.execute(sql`
@@ -110,7 +98,7 @@ export type SetPropertyPolicyInput = Readonly<{
 }>
 
 export async function setPropertyPolicy(
-  db: Database,
+  db: PolicySqlExecutor,
   input: SetPropertyPolicyInput,
 ): Promise<void> {
   await db.execute(sql`
@@ -130,7 +118,7 @@ export async function setPropertyPolicy(
 // ── Capability allowlists ────────────────────────────────────────────
 
 export async function addOrganizationCapability(
-  db: Database,
+  db: PolicySqlExecutor,
   organizationId: string,
   capability: string,
   createdBy?: string,
@@ -146,7 +134,7 @@ export async function addOrganizationCapability(
 }
 
 export async function removeOrganizationCapability(
-  db: Database,
+  db: PolicySqlExecutor,
   organizationId: string,
   capability: string,
 ): Promise<void> {
@@ -161,7 +149,7 @@ export async function removeOrganizationCapability(
 }
 
 export async function addPropertyCapability(
-  db: Database,
+  db: PolicySqlExecutor,
   propertyId: string,
   capability: string,
   createdBy?: string,
@@ -177,7 +165,7 @@ export async function addPropertyCapability(
 }
 
 export async function removePropertyCapability(
-  db: Database,
+  db: PolicySqlExecutor,
   propertyId: string,
   capability: string,
 ): Promise<void> {

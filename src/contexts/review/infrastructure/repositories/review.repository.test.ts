@@ -10,6 +10,7 @@ import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { Review } from '../../domain/types'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
 const ORG_A = organizationId('org-rev-test-aaaa-1111111111111111')
 const ORG_B = organizationId('org-rev-test-bbbb-2222222222222222')
@@ -32,9 +33,13 @@ async function truncateReviews(pool: Pool) {
 async function seedOrgs(pool: Pool, ids: string[]) {
   // Clean up stale rows that hold our target slugs (from previous test runs with different IDs)
   const slugs = ids.map((id) => 't-' + id.replace(/-/g, '').slice(-12))
-  await pool.query(
-    `DELETE FROM organization WHERE slug = ANY($1) AND NOT (id = ANY($2))`,
+  const conflictingOrganizations = await pool.query<{ id: string }>(
+    `SELECT id FROM organization WHERE slug = ANY($1) AND NOT (id = ANY($2))`,
     [slugs, ids],
+  )
+  await deleteTestOrganizations(
+    pool,
+    conflictingOrganizations.rows.map(({ id }) => id),
   )
   for (const id of ids) {
     const slug = 't-' + id.replace(/-/g, '').slice(-12)
@@ -118,7 +123,7 @@ describe.sequential('reviewRepository (integration)', () => {
   describe('upsert and findByExternalId', () => {
     it('inserts and retrieves a review', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
       const review = makeReview()
 
       const created = await repo.upsert(review)
@@ -132,14 +137,14 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('returns null for non-existent review', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
       const found = await repo.findByExternalId('google', 'non-existent', ORG_A)
       expect(found).toBeNull()
     })
 
     it('updates existing review on upsert', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
       const review = makeReview({ rating: 5 })
 
       await repo.upsert(review)
@@ -164,7 +169,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('advances fetch clock + hash baseline on an unchanged refetch, preserving firstFetchedAt', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
 
       await repo.upsert(
         makeReview({
@@ -203,7 +208,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('advances the clock and updates content + baseline on a changed refetch', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
 
       await repo.upsert(
         makeReview({
@@ -244,7 +249,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('returns only eligible reviews: excludes expired and clock-less rows', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
 
       await repo.upsert(
         makeReview({
@@ -279,7 +284,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('excludes rows at the exact expiry boundary (strictly future)', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
 
       await repo.upsert(
         makeReview({
@@ -296,6 +301,100 @@ describe.sequential('reviewRepository (integration)', () => {
         T1,
       )
       expect(rows).toHaveLength(0)
+    })
+  })
+
+  describe('readTrendPopulation', () => {
+    it('returns the bounded current-revision population with local dates and separate star-only evidence', async () => {
+      const repo = createReviewRepository(getDb(), () => new Date())
+      const future = new Date('2099-01-01T00:00:00Z')
+      const fetchedAt = new Date('2026-08-20T00:00:00Z')
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-0000000000a1',
+          externalId: 'trend-text',
+          text: 'Helpful staff',
+          reviewedAt: new Date('2026-08-15T22:30:00Z'),
+          firstFetchedAt: fetchedAt,
+          lastFetchedAt: fetchedAt,
+          contentExpiresAt: future,
+          sourceRevision: 3,
+          analysisSequence: 11,
+        }),
+      )
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-0000000000a2',
+          externalId: 'trend-star-only',
+          text: '   ',
+          reviewedAt: new Date('2026-08-16T10:00:00Z'),
+          firstFetchedAt: fetchedAt,
+          lastFetchedAt: fetchedAt,
+          contentExpiresAt: future,
+          sourceRevision: 4,
+          analysisSequence: 12,
+        }),
+      )
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-0000000000a3',
+          externalId: 'trend-other-epoch',
+          text: 'Must not cross the source-epoch fence',
+          reviewedAt: new Date('2026-08-16T11:00:00Z'),
+          firstFetchedAt: fetchedAt,
+          lastFetchedAt: fetchedAt,
+          contentExpiresAt: future,
+          sourceEpoch: 1,
+          sourceRevision: 1,
+          analysisSequence: 13,
+        }),
+      )
+
+      await expect(
+        repo.readTrendPopulation({
+          organizationId: ORG_A,
+          propertyId: PROP_A,
+          sourceEpoch: 0,
+          timezone: 'Europe/Sofia',
+          calendarProfileVersion: 'property-calendar-v1',
+          startLocalDate: '2026-08-16',
+          endLocalDate: '2026-08-16',
+          limit: 10,
+        }),
+      ).resolves.toEqual({
+        status: 'complete',
+        reviews: [
+          {
+            reviewId: reviewId('1a000000-0000-0000-0000-0000000000a1'),
+            // The observation adapter owns material numbering. Caller-supplied
+            // legacy counters cannot make the first material revision non-1.
+            sourceRevision: 1,
+            analysisSequence: 11,
+            localDate: '2026-08-16',
+            hasText: true,
+          },
+          {
+            reviewId: reviewId('1a000000-0000-0000-0000-0000000000a2'),
+            sourceRevision: 1,
+            analysisSequence: 12,
+            localDate: '2026-08-16',
+            hasText: false,
+          },
+        ],
+      })
+
+      await expect(
+        repo.readTrendPopulation({
+          organizationId: ORG_A,
+          propertyId: PROP_A,
+          sourceEpoch: 0,
+          timezone: 'Europe/Sofia',
+          calendarProfileVersion: 'property-calendar-v1',
+          startLocalDate: '2026-08-16',
+          endLocalDate: '2026-08-16',
+          limit: 2,
+        }),
+      ).resolves.toEqual({ status: 'limit_exceeded' })
     })
   })
 
@@ -317,7 +416,10 @@ describe.sequential('reviewRepository (integration)', () => {
         [ORG_A, PROP_A, GOOGLE_LOCATION_PRIMARY_RESOURCE],
       )
 
-      const ids = await createReviewRepository(getDb()).findIdsByContentFilter(
+      const ids = await createReviewRepository(
+        getDb(),
+        () => new Date(),
+      ).findIdsByContentFilter(
         ORG_A,
         { ratingMin: 5, textQuery: 'complete filter' },
         new Date(),
@@ -328,7 +430,12 @@ describe.sequential('reviewRepository (integration)', () => {
   })
 
   describe('findExpiringBatchAcrossTenants keyset batches (BQC-1.5)', () => {
-    const NOW = new Date('2025-06-01T12:00:00Z')
+    // This repository operation is deliberately cross-tenant, so an
+    // organization-scoped cleanup cannot isolate it from rows owned by other
+    // integration suites. Keep this synthetic walk in a reserved historical
+    // window: unrelated fixtures use contemporary dates and therefore cannot
+    // satisfy the upper-bound predicate.
+    const NOW = new Date('1900-06-01T12:00:00Z')
 
     async function seedExpiring(
       repo: ReturnType<typeof createReviewRepository>,
@@ -346,7 +453,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('walks all expiring rows in order with no duplicates or skips', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
       const threshold = new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000)
       const base = NOW.getTime()
       for (let i = 0; i < 5; i++) {
@@ -373,7 +480,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('does not re-scan rows inserted behind the cursor mid-walk', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
       const threshold = new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000)
       await seedExpiring(repo, 'c1', new Date(NOW.getTime() + 3 * 60 * 1000))
       await seedExpiring(repo, 'c2', new Date(NOW.getTime() + 4 * 60 * 1000))
@@ -407,7 +514,7 @@ describe.sequential('reviewRepository (integration)', () => {
   describe('tenant isolation', () => {
     it('same externalId, different org → separate reviews', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
       const sharedExternalId = 'ext-shared'
 
       await repo.upsert(
@@ -442,7 +549,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('findByExternalId does not leak across orgs', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
 
       await repo.upsert(
         makeReview({
@@ -460,7 +567,7 @@ describe.sequential('reviewRepository (integration)', () => {
   describe('findByPropertyId', () => {
     it('returns reviews for a property', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
 
       await repo.upsert(
         makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }),
@@ -475,7 +582,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('returns empty for property with no reviews', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
       const reviews = await repo.findByPropertyId(PROP_B, ORG_B)
       expect(reviews).toHaveLength(0)
     })
@@ -484,7 +591,7 @@ describe.sequential('reviewRepository (integration)', () => {
   describe('findByOrganizationId', () => {
     it('returns all reviews for an organization', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
 
       await repo.upsert(
         makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }),
@@ -541,7 +648,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('walks all expired rows oldest-first across batch boundaries with no duplicates or skips', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
       const base = NOW.getTime()
       // 12 expired rows + noise: future and null lifecycle rows must be ignored.
       const suffixes = [
@@ -575,7 +682,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('uses an exclusive contentExpiresAt boundary (a row expiring exactly at now is NOT eligible)', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
 
       await seedLifecycle(repo, 'b1', new Date(NOW.getTime() - 1)) // 1ms before now
       await seedLifecycle(repo, 'b2', NOW) // exactly now — excluded
@@ -587,7 +694,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('breaks contentExpiresAt ties by id and resumes mid-tie without skips or repeats', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
       const tie = new Date(NOW.getTime() - 60 * 1000)
       // Same expiry instant for all three — order must fall back to id.
       await seedLifecycle(repo, 'c3', tie)
@@ -601,7 +708,7 @@ describe.sequential('reviewRepository (integration)', () => {
 
     it('does not re-scan rows inserted behind the cursor mid-walk', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
       await seedLifecycle(repo, 'd2', new Date(NOW.getTime() - 2 * 60 * 1000))
       await seedLifecycle(repo, 'd3', new Date(NOW.getTime() - 1 * 60 * 1000))
 
@@ -635,7 +742,7 @@ describe.sequential('reviewRepository (integration)', () => {
   describe('countExpiredBeforeAcrossTenants (BQC-8.3)', () => {
     it('counts exactly the purge-eligible rows (exclusive boundary, null/future ignored)', async () => {
       const db = getDb()
-      const repo = createReviewRepository(db)
+      const repo = createReviewRepository(db, () => new Date())
       const NOW = new Date('2025-06-01T12:00:00Z')
 
       await repo.upsert(
@@ -668,73 +775,12 @@ describe.sequential('reviewRepository (integration)', () => {
     })
   })
 
-  describe('deleteById', () => {
-    it('deletes a review by id', async () => {
-      const db = getDb()
-      const repo = createReviewRepository(db)
-      const review = makeReview()
+  describe('stable identity lifecycle surface', () => {
+    it('does not expose destructive Review deletion entry points', () => {
+      const repo = createReviewRepository(getDb(), () => new Date())
 
-      await repo.upsert(review)
-      await repo.deleteById(review.id, ORG_A)
-
-      const found = await repo.findByExternalId('google', review.externalId, ORG_A)
-      expect(found).toBeNull()
-    })
-  })
-
-  describe('deleteByPropertyId', () => {
-    it('deletes all reviews for a property', async () => {
-      const db = getDb()
-      const repo = createReviewRepository(db)
-
-      await repo.upsert(
-        makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }),
-      )
-      await repo.upsert(
-        makeReview({ id: '1a000000-0000-0000-0000-000000000002', externalId: 'ext-2' }),
-      )
-
-      await repo.deleteByPropertyId(PROP_A, ORG_A)
-
-      const reviews = await repo.findByPropertyId(PROP_A, ORG_A)
-      expect(reviews).toHaveLength(0)
-    })
-  })
-
-  describe('cross-org delete protection', () => {
-    it('deleteById with wrong org does not delete the review', async () => {
-      const db = getDb()
-      const repo = createReviewRepository(db)
-      const review = makeReview()
-
-      await repo.upsert(review)
-
-      // Attempt delete with ORG_B (wrong org)
-      await repo.deleteById(review.id, ORG_B)
-
-      // Review should still exist for ORG_A
-      const found = await repo.findByExternalId('google', review.externalId, ORG_A)
-      expect(found).not.toBeNull()
-      expect(found!.id).toBe(review.id)
-    })
-
-    it('deleteByPropertyId with wrong org does not delete reviews', async () => {
-      const db = getDb()
-      const repo = createReviewRepository(db)
-
-      await repo.upsert(
-        makeReview({ id: '1a000000-0000-0000-0000-000000000001', externalId: 'ext-1' }),
-      )
-      await repo.upsert(
-        makeReview({ id: '1a000000-0000-0000-0000-000000000002', externalId: 'ext-2' }),
-      )
-
-      // Attempt delete with ORG_B (wrong org)
-      await repo.deleteByPropertyId(PROP_A, ORG_B)
-
-      // Reviews should still exist for ORG_A
-      const reviews = await repo.findByPropertyId(PROP_A, ORG_A)
-      expect(reviews).toHaveLength(2)
+      expect(repo).not.toHaveProperty('deleteById')
+      expect(repo).not.toHaveProperty('deleteByPropertyId')
     })
   })
 })

@@ -15,6 +15,7 @@ export type {
   IdentityMemberRemoved,
   IdentityMemberRoleChanged,
   IdentityMerchantAiChanged,
+  IdentityOrganizationLifecycleChanged,
 } from '#/contexts/identity/domain/events'
 
 // Property context events
@@ -23,6 +24,8 @@ export type {
   PropertyCreated,
   PropertyUpdated,
   PropertyDeleted,
+  PropertyArchived,
+  PropertyRestored,
 } from '#/contexts/property/domain/events'
 
 // Team context events
@@ -45,7 +48,19 @@ export type {
   PortalEvent,
   PortalCreated,
   PortalUpdated,
+  PortalPublicationPublished,
+  PortalPublicationRolledBack,
+  PortalArchived,
+  PortalRestored,
   PortalDeleted,
+  PortalResponsibilityNeeded,
+  PortalHealthChanged,
+  PortalPropertyBrandProfileUpdated,
+  PortalPropertyBrandContentUpdated,
+  PortalLocalizedOverrideUpdated,
+  PortalLocaleSetUpdated,
+  PortalApprovedDestinationUpdated,
+  PortalHeroImageProcessingRequested,
   PortalGroupCreated,
   PortalGroupUpdated,
   PortalGroupDeleted,
@@ -54,9 +69,12 @@ export type {
 // Guest context events
 export type {
   GuestEvent,
+  GuestQualifiedScanRecorded,
+  GuestQualifiedScanRetracted,
   GuestScanRecorded,
   GuestRatingSubmitted,
   GuestFeedbackSubmitted,
+  GuestFeedbackRetracted,
   GuestReviewLinkClicked,
 } from '#/contexts/guest/domain/events'
 
@@ -65,7 +83,9 @@ export type {
   IntegrationEvent,
   IntegrationGoogleAccountConnected,
   IntegrationGoogleAccountDisconnected,
+  IntegrationGoogleAccountReauthorizationRequired,
   IntegrationGoogleConnectionVisibilityChanged,
+  IntegrationGoogleReviewPushAccepted,
   IntegrationPropertyImportRequested,
 } from '#/contexts/integration/domain/events'
 
@@ -78,8 +98,11 @@ export type {
   ReviewSourceTransitioned,
   ReviewReplyPublished,
   ReviewReplyPublishFailed,
+  ReviewReplyPublicationRequested,
   ReviewReplyPublicationCancelled,
   ReviewReplyUpdated,
+  ReviewReplyObserved,
+  ReviewGoogleReputationSnapshotVerified,
 } from '#/contexts/review/domain/events'
 
 // Inbox context events
@@ -88,10 +111,21 @@ export type {
   InboxItemCreated,
   InboxItemStatusChanged,
   InboxItemAssigned,
+  InboxBulkAssignmentCompleted,
+  InboxHandlingCycleOpened,
+  InboxHandlingCycleClosed,
+  InboxHandlingCycleReopened,
+  InboxResponseTargetReminderDue,
+  InboxResponseTargetPolicyChanged,
 } from '#/contexts/inbox/domain/events'
 
 // Goal context events
-export type { GoalEvent, GoalCompleted } from '#/contexts/goal/domain/events'
+export type {
+  GoalEvent,
+  GoalCompleted,
+  GoalMonthlyResultClosed,
+  GoalMonthlyResultReconciled,
+} from '#/contexts/goal/domain/events'
 
 // Metric context events
 export type {
@@ -102,6 +136,13 @@ export type {
 
 // Badge context events
 export type { BadgeEvent, BadgeAwarded } from '#/contexts/badge/domain/events'
+
+// AI context events
+export type {
+  AiEvent,
+  AiPropertyTrendGenerationRequested,
+  AiReviewAnalysisBackfillRequested,
+} from '#/contexts/ai/domain/events'
 
 // Master union — adding a new context's events requires extending this.
 import type { BadgeEvent } from '#/contexts/badge/domain/events'
@@ -116,6 +157,7 @@ import type { ReviewEvent } from '#/contexts/review/domain/events'
 import type { InboxEvent } from '#/contexts/inbox/domain/events'
 import type { GoalEvent } from '#/contexts/goal/domain/events'
 import type { MetricEvent } from '#/contexts/metric/domain/events'
+import type { AiEvent } from '#/contexts/ai/domain/events'
 
 export type DomainEvent =
   | IdentityEvent
@@ -130,3 +172,4 @@ export type DomainEvent =
   | GoalEvent
   | MetricEvent
   | BadgeEvent
+  | AiEvent

@@ -14,37 +14,27 @@ import { throwIdentityError } from './organizations.errors.server'
 import { updateOrganization as updateOrganizationUseCase } from '../application/use-cases/update-organization'
 
 // ── Update organization ──────────────────────────────────────────────
-// Updates organization metadata including billing fields.
+// Updates organization metadata exposed by the beta application.
 // Per architecture: authorization lives in the use case, not the server function.
 
-const nullableTextInput = z
-  .string()
-  .nullable()
-  .optional()
-  .transform((value) => (value === '' ? null : value))
 const nullableEmailInput = z
-  .union([z.string().email(), z.literal('')])
+  .union([z.email(), z.literal('')])
   .nullable()
   .optional()
   .transform((value) => (value === '' ? null : value))
 
-const updateOrganizationInputSchema = z
+export const updateOrganizationInputSchema = z
   .object({
     name: z.string().min(1).optional(),
     slug: z.string().min(1).optional(),
     logo: z.string().nullable().optional(),
     contactEmail: nullableEmailInput,
-    billingCompanyName: nullableTextInput,
-    billingAddress: nullableTextInput,
-    billingCity: nullableTextInput,
-    billingPostalCode: nullableTextInput,
-    billingCountry: nullableTextInput,
     responseSlaHours: z.number().int().min(1).max(720).optional(),
   })
   .strict()
 
 export const updateOrganization = createServerFn({ method: 'POST' })
-  .inputValidator(updateOrganizationInputSchema)
+  .validator(updateOrganizationInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

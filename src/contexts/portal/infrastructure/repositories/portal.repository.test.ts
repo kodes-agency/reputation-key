@@ -3,11 +3,12 @@
 // Tenant isolation test is NON-NEGOTIABLE.
 
 import { beforeEach, describe, it, expect } from 'vitest'
-import { createPortalRepository } from './portal.repository'
+import { createCurrentPortalIdReader, createPortalRepository } from './portal.repository'
 import { getDb } from '#/shared/db'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import { createPostgresPortalFixtureStore } from '../testing/postgres-portal-fixture-store'
 
 const ORG_A = organizationId('org-aaaaaaaaaaaa')
 const ORG_B = organizationId('org-bbbbbbbbbbbb')
@@ -20,6 +21,8 @@ const { getPool } = setupIntegrationDb({
   orgB: ORG_B,
   tables: ['portal_links', 'portal_link_categories', 'portals'],
 })
+
+const fixtures = () => createPostgresPortalFixtureStore(getDb())
 
 beforeEach(async () => {
   const pool = getPool()
@@ -50,7 +53,7 @@ describe('portalRepository (integration)', () => {
         slug: 'test-portal',
       })
 
-      await repo.insert(ORG_A, portal)
+      await fixtures().insert(ORG_A, portal)
 
       const found = await repo.findById(ORG_A, portal.id)
       expect(found).not.toBeNull()
@@ -69,7 +72,7 @@ describe('portalRepository (integration)', () => {
         slug: 'slug-test',
       })
 
-      await repo.insert(ORG_A, portal)
+      await fixtures().insert(ORG_A, portal)
 
       const found = await repo.findBySlug(ORG_A, 'slug-test')
       expect(found).not.toBeNull()
@@ -87,7 +90,7 @@ describe('portalRepository (integration)', () => {
         slug: 'tenant-test',
       })
 
-      await repo.insert(ORG_A, portal)
+      await fixtures().insert(ORG_A, portal)
 
       const foundInA = await repo.findById(ORG_A, portal.id)
       expect(foundInA).not.toBeNull()
@@ -109,7 +112,7 @@ describe('portalRepository (integration)', () => {
         slug: 'shared-slug',
       })
 
-      await repo.insert(ORG_A, portal)
+      await fixtures().insert(ORG_A, portal)
 
       const existsInA = await repo.slugExists(
         ORG_A,
@@ -147,8 +150,8 @@ describe('portalRepository (integration)', () => {
         slug: 'portal-b',
       })
 
-      await repo.insert(ORG_A, portalA)
-      await repo.insert(ORG_B, portalB)
+      await fixtures().insert(ORG_A, portalA)
+      await fixtures().insert(ORG_B, portalB)
 
       const listA = await repo.list(ORG_A)
       expect(listA).toHaveLength(1)
@@ -174,11 +177,67 @@ describe('portalRepository (integration)', () => {
         slug: 'property-portal',
       })
 
-      await repo.insert(ORG_A, portal)
+      await fixtures().insert(ORG_A, portal)
 
       const found = await repo.listByProperty(ORG_A, propId)
       expect(found).toHaveLength(1)
       expect(found[0].propertyId).toBe(propId)
+    })
+  })
+
+  describe('current Portal ID snapshot', () => {
+    it('is tenant/property scoped, excludes archived Portals, and applies the limit in SQL', async () => {
+      const readCurrentIds = createCurrentPortalIdReader(getDb())
+      const firstId = '30000000-0000-4000-8000-000000000001'
+      const secondId = '30000000-0000-4000-8000-000000000002'
+      for (const portal of [
+        buildTestPortal({
+          id: firstId,
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          name: 'Current first',
+          slug: 'current-first',
+          publicationState: 'draft',
+        }),
+        buildTestPortal({
+          id: secondId,
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          name: 'Current second',
+          slug: 'current-second',
+          publicationState: 'disabled',
+        }),
+        buildTestPortal({
+          id: '30000000-0000-4000-8000-000000000003',
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          name: 'Archived',
+          slug: 'archived',
+          publicationState: 'archived',
+        }),
+        buildTestPortal({
+          id: '30000000-0000-4000-8000-000000000004',
+          organizationId: ORG_A,
+          propertyId: PROPERTY_ALT,
+          name: 'Other property',
+          slug: 'other-property',
+        }),
+        buildTestPortal({
+          id: '30000000-0000-4000-8000-000000000005',
+          organizationId: ORG_B,
+          propertyId: PROPERTY_B,
+          name: 'Other tenant',
+          slug: 'other-tenant',
+        }),
+      ]) {
+        await fixtures().insert(portal.organizationId, portal)
+      }
+
+      await expect(readCurrentIds(ORG_A, PROPERTY_A, 1)).resolves.toEqual([firstId])
+      await expect(readCurrentIds(ORG_A, PROPERTY_A, 10)).resolves.toEqual([
+        firstId,
+        secondId,
+      ])
     })
   })
 
@@ -194,8 +253,8 @@ describe('portalRepository (integration)', () => {
         slug: 'to-delete',
       })
 
-      await repo.insert(ORG_A, portal)
-      await repo.softDelete(ORG_A, portal.id)
+      await fixtures().insert(ORG_A, portal)
+      await fixtures().softDelete(ORG_A, portal.id)
 
       const found = await repo.findById(ORG_A, portal.id)
       expect(found).toBeNull()
@@ -215,8 +274,8 @@ describe('portalRepository (integration)', () => {
         slug: 'reuse-slug',
       })
 
-      await repo.insert(ORG_A, portal)
-      await repo.softDelete(ORG_A, portal.id)
+      await fixtures().insert(ORG_A, portal)
+      await fixtures().softDelete(ORG_A, portal.id)
 
       const newPortal = buildTestPortal({
         id: crypto.randomUUID(),
@@ -226,7 +285,7 @@ describe('portalRepository (integration)', () => {
         slug: 'reuse-slug',
       })
 
-      await repo.insert(ORG_A, newPortal)
+      await fixtures().insert(ORG_A, newPortal)
 
       const found = await repo.findBySlug(ORG_A, 'reuse-slug')
       expect(found).not.toBeNull()
@@ -246,12 +305,53 @@ describe('portalRepository (integration)', () => {
         slug: 'original',
       })
 
-      await repo.insert(ORG_A, portal)
-      await repo.update(ORG_A, portal.id, { name: 'Updated' })
+      await fixtures().insert(ORG_A, portal)
+      await fixtures().update(ORG_A, portal.id, { name: 'Updated' })
 
       const found = await repo.findById(ORG_A, portal.id)
       expect(found!.name).toBe('Updated')
       expect(found!.slug).toBe('original')
+    })
+  })
+
+  describe('public configuration', () => {
+    it('uses an ID tie-breaker so equal sort keys have a stable digest order', async () => {
+      const db = getDb()
+      const repo = createPortalRepository(db)
+      const portal = buildTestPortal({
+        id: 'ad000000-0000-4000-8000-000000000001',
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        slug: 'stable-public-order',
+      })
+      await fixtures().insert(ORG_A, portal)
+      const pool = getPool()
+      const categoryA = 'ad000000-0000-4000-8000-000000000010'
+      const categoryB = 'ad000000-0000-4000-8000-000000000020'
+      const linkA = 'ad000000-0000-4000-8000-000000000030'
+      const linkB = 'ad000000-0000-4000-8000-000000000040'
+      await pool.query(
+        `INSERT INTO portal_link_categories
+           (id, portal_id, organization_id, title, sort_key)
+         VALUES ($1, $3, $4, 'A', 'same'), ($2, $3, $4, 'B', 'same')`,
+        [categoryA, categoryB, portal.id, ORG_A],
+      )
+      await pool.query(
+        `INSERT INTO portal_links
+           (id, category_id, portal_id, organization_id, property_id, label, url, sort_key)
+         VALUES
+           ($1, $5, $3, $4, $7, 'A', 'https://example.com/a', 'same'),
+           ($2, $6, $3, $4, $7, 'B', 'https://example.com/b', 'same')`,
+        [linkA, linkB, portal.id, ORG_A, categoryA, categoryB, PROPERTY_A],
+      )
+
+      const publicPortal = await repo.findPublicPortalById(ORG_A, portal.id)
+
+      expect(publicPortal?.categories.map((category) => category.id)).toEqual([
+        categoryA,
+        categoryB,
+      ])
+      expect(publicPortal?.links.map((link) => link.id)).toEqual([linkA, linkB])
     })
   })
 })

@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
 import {
-  GOOGLE_IMPORT_SELECTION_LIMIT,
+  selectAllEligibleCandidates,
   filterLoadedCandidates,
   selectionCheckState,
   toggleLoadedCandidates,
@@ -27,14 +27,36 @@ const candidate = (
 })
 
 describe('Google import loaded-row selection', () => {
-  it('caps selection at 100 while preserving the earliest loaded rows', () => {
+  it('selects every eligible loaded row without a product-level cap', () => {
     const loaded = Array.from({ length: 130 }, (_, index) => candidate(String(index)))
     const result = toggleLoadedCandidates(new Set(), loaded, true)
 
-    expect(result.selectedIds).toHaveLength(GOOGLE_IMPORT_SELECTION_LIMIT)
+    expect(result.selectedIds).toHaveLength(130)
     expect(result.selectedIds[0]).toBe('0')
-    expect(result.selectedIds.at(-1)).toBe('99')
-    expect(result.limitReached).toBe(true)
+    expect(result.selectedIds.at(-1)).toBe('129')
+  })
+
+  it('loads every remaining provider page before selecting all eligible locations', async () => {
+    const first = Array.from({ length: 100 }, (_, index) => candidate(String(index)))
+    const second = Array.from({ length: 100 }, (_, index) =>
+      candidate(String(index + 100)),
+    )
+    const third = [
+      ...Array.from({ length: 5 }, (_, index) => candidate(String(index + 200))),
+      candidate('blocked', { kind: 'active_binding_conflict' }),
+    ]
+    const fetchNext = vi
+      .fn()
+      .mockResolvedValueOnce({ candidates: [...first, ...second], hasNextPage: true })
+      .mockResolvedValueOnce({
+        candidates: [...first, ...second, ...third],
+        hasNextPage: false,
+      })
+
+    await expect(
+      selectAllEligibleCandidates({ candidates: first, hasNextPage: true }, fetchNext),
+    ).resolves.toHaveLength(205)
+    expect(fetchNext).toHaveBeenCalledTimes(2)
   })
 
   it('never selects unavailable rows and reports an indeterminate loaded selection', () => {
@@ -60,15 +82,12 @@ describe('Google import loaded-row selection', () => {
     expect(selectionCheckState(new Set(result.selectedIds), loaded)).toBe(true)
   })
 
-  it('rejects a row toggle at the cap without dropping prior selection', () => {
-    const selected = new Set(
-      Array.from({ length: GOOGLE_IMPORT_SELECTION_LIMIT }, (_, index) => String(index)),
-    )
+  it('adds another eligible row after more than one worker batch is selected', () => {
+    const selected = new Set(Array.from({ length: 130 }, (_, index) => String(index)))
     const result = toggleSelectedCandidate(selected, candidate('overflow'), true)
 
-    expect(result.changed).toBe(false)
-    expect(result.limitReached).toBe(true)
-    expect(result.selectedIds).toEqual([...selected])
+    expect(result.changed).toBe(true)
+    expect(result.selectedIds).toEqual([...selected, 'overflow'])
   })
 
   it('searches only loaded tenant-visible fields without matching references', () => {

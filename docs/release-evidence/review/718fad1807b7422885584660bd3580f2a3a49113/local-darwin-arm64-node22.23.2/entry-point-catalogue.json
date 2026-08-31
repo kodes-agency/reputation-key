@@ -1,0 +1,1067 @@
+[
+  {
+    "file": ".storybook/stubs/portal-links.ts",
+    "kind": "server-function",
+    "line": 3
+  },
+  {
+    "file": "e2e/helpers/cleanup.ts",
+    "kind": "event-consumer",
+    "line": 22
+  },
+  {
+    "file": "e2e/helpers/error-detection.ts",
+    "kind": "event-consumer",
+    "line": 421
+  },
+  {
+    "file": "e2e/helpers/fixtures.ts",
+    "kind": "job-schedule",
+    "line": 994
+  },
+  {
+    "file": "e2e/helpers/property.ts",
+    "kind": "event-consumer",
+    "line": 53
+  },
+  {
+    "file": "e2e/helpers/request-log.ts",
+    "kind": "event-consumer",
+    "line": 5
+  },
+  {
+    "file": "scripts/beta/command-runner.ts",
+    "kind": "event-consumer",
+    "line": 21
+  },
+  {
+    "file": "scripts/check-security-headers.mjs",
+    "kind": "event-consumer",
+    "line": 138
+  },
+  {
+    "file": "scripts/local-doctor.mjs",
+    "kind": "event-consumer",
+    "line": 73
+  },
+  {
+    "file": "scripts/local-stack/fault-operation.ts",
+    "kind": "event-consumer",
+    "line": 35
+  },
+  {
+    "file": "scripts/ops/ai-canary-authorization.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/ai-execution-control.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/ai-reanalyze-reviews.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/disconnect-connection.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/enqueue-purge.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/enqueue-refresh.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/gbp-subscribe.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/google-content-approval-sign.ts",
+    "kind": "event-consumer",
+    "line": 142
+  },
+  {
+    "file": "scripts/ops/google-content-approval-sign.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/google-content-approval.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/google-import-lifecycle.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/inspect-decision.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/operator-command.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/permit-start-deadline-backfill.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/property-capabilities.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/property-suspension.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/quarantine-redrive.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/queue-quarantine.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/rebuild-projection.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/reconcile-people-team.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/reconcile-publication.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/reconcile-regions.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/reconcile-staff-grants.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/reparse-review-translations.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/restore-preflight.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/ops/restore-verify.ts",
+    "kind": "operator-command",
+    "line": 1
+  },
+  {
+    "file": "scripts/perf/cell-stub-server.ts",
+    "kind": "event-consumer",
+    "line": 55
+  },
+  {
+    "file": "scripts/perf/staging-cell.ts",
+    "kind": "event-consumer",
+    "line": 158
+  },
+  {
+    "file": "services/ai-egress-gateway/index.ts",
+    "kind": "sidecar-entry",
+    "line": 1
+  },
+  {
+    "file": "services/ai-execution-admission/index.ts",
+    "kind": "event-consumer",
+    "line": 77
+  },
+  {
+    "file": "services/ai-execution-admission/index.ts",
+    "kind": "sidecar-entry",
+    "line": 1
+  },
+  {
+    "file": "services/google-egress-gateway/index.ts",
+    "kind": "sidecar-entry",
+    "line": 1
+  },
+  {
+    "file": "services/google-egress-gateway/tcp-relay.ts",
+    "kind": "event-consumer",
+    "line": 26
+  },
+  {
+    "file": "services/google-execution-admission/index.ts",
+    "kind": "event-consumer",
+    "line": 40
+  },
+  {
+    "file": "services/google-execution-admission/index.ts",
+    "kind": "sidecar-entry",
+    "line": 1
+  },
+  {
+    "file": "services/internal-mtls.test.ts",
+    "kind": "event-consumer",
+    "line": 300
+  },
+  {
+    "file": "services/internal-mtls.ts",
+    "kind": "event-consumer",
+    "line": 469
+  },
+  {
+    "file": "src/bootstrap.ts",
+    "kind": "event-consumer",
+    "line": 440
+  },
+  {
+    "file": "src/contexts/activity/infrastructure/event-handlers/index.ts",
+    "kind": "event-consumer",
+    "line": 48
+  },
+  {
+    "file": "src/contexts/activity/server/activity.ts",
+    "kind": "server-function",
+    "line": 42
+  },
+  {
+    "file": "src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.integration.test.ts",
+    "kind": "event-consumer",
+    "line": 150
+  },
+  {
+    "file": "src/contexts/ai/server/property-aggregates.ts",
+    "kind": "server-function",
+    "line": 31
+  },
+  {
+    "file": "src/contexts/ai/server/property-trend.ts",
+    "kind": "server-function",
+    "line": 13
+  },
+  {
+    "file": "src/contexts/ai/server/reply-suggestion.ts",
+    "kind": "server-function",
+    "line": 30
+  },
+  {
+    "file": "src/contexts/badge/infrastructure/event-handlers/index.ts",
+    "kind": "event-consumer",
+    "line": 17
+  },
+  {
+    "file": "src/contexts/badge/server/badges.ts",
+    "kind": "server-function",
+    "line": 24
+  },
+  {
+    "file": "src/contexts/dashboard/server/attention-signals.ts",
+    "kind": "server-function",
+    "line": 28
+  },
+  {
+    "file": "src/contexts/dashboard/server/dashboard.ts",
+    "kind": "server-function",
+    "line": 21
+  },
+  {
+    "file": "src/contexts/dashboard/server/fleet-overview.ts",
+    "kind": "server-function",
+    "line": 31
+  },
+  {
+    "file": "src/contexts/dashboard/server/portal-analytics.ts",
+    "kind": "server-function",
+    "line": 21
+  },
+  {
+    "file": "src/contexts/dashboard/server/staff-dashboard.ts",
+    "kind": "server-function",
+    "line": 28
+  },
+  {
+    "file": "src/contexts/goal/infrastructure/event-handlers/index.ts",
+    "kind": "event-consumer",
+    "line": 45
+  },
+  {
+    "file": "src/contexts/goal/server/goals.ts",
+    "kind": "server-function",
+    "line": 76
+  },
+  {
+    "file": "src/contexts/goal/server/governed-goals.ts",
+    "kind": "server-function",
+    "line": 48
+  },
+  {
+    "file": "src/contexts/goal/server/staff-goals.ts",
+    "kind": "server-function",
+    "line": 25
+  },
+  {
+    "file": "src/contexts/guest/server/guest-scans.ts",
+    "kind": "server-function",
+    "line": 55
+  },
+  {
+    "file": "src/contexts/guest/server/public.ts",
+    "kind": "server-function",
+    "line": 217
+  },
+  {
+    "file": "src/contexts/identity/server/auth-settings.org.ts",
+    "kind": "server-function",
+    "line": 34
+  },
+  {
+    "file": "src/contexts/identity/server/auth-settings.ts",
+    "kind": "server-function",
+    "line": 16
+  },
+  {
+    "file": "src/contexts/identity/server/merchant-ai.ts",
+    "kind": "server-function",
+    "line": 55
+  },
+  {
+    "file": "src/contexts/identity/server/organizations.invitations.ts",
+    "kind": "server-function",
+    "line": 26
+  },
+  {
+    "file": "src/contexts/identity/server/organizations.members.ts",
+    "kind": "server-function",
+    "line": 22
+  },
+  {
+    "file": "src/contexts/identity/server/organizations.query.ts",
+    "kind": "server-function",
+    "line": 16
+  },
+  {
+    "file": "src/contexts/identity/server/organizations.registration.ts",
+    "kind": "server-function",
+    "line": 31
+  },
+  {
+    "file": "src/contexts/identity/server/organizations.response-sla.ts",
+    "kind": "server-function",
+    "line": 23
+  },
+  {
+    "file": "src/contexts/identity/server/organizations.roles.ts",
+    "kind": "server-function",
+    "line": 43
+  },
+  {
+    "file": "src/contexts/identity/server/organizations.update.ts",
+    "kind": "server-function",
+    "line": 46
+  },
+  {
+    "file": "src/contexts/identity/server/organizations.upload.ts",
+    "kind": "server-function",
+    "line": 28
+  },
+  {
+    "file": "src/contexts/identity/server/policy-admin.ts",
+    "kind": "server-function",
+    "line": 49
+  },
+  {
+    "file": "src/contexts/inbox/infrastructure/event-handlers/index.ts",
+    "kind": "event-consumer",
+    "line": 46
+  },
+  {
+    "file": "src/contexts/inbox/server/inbox-item-actions.ts",
+    "kind": "server-function",
+    "line": 20
+  },
+  {
+    "file": "src/contexts/inbox/server/inbox-item-queries.ts",
+    "kind": "server-function",
+    "line": 19
+  },
+  {
+    "file": "src/contexts/inbox/server/inbox-queries.ts",
+    "kind": "server-function",
+    "line": 25
+  },
+  {
+    "file": "src/contexts/inbox/server/inbox-status.ts",
+    "kind": "server-function",
+    "line": 24
+  },
+  {
+    "file": "src/contexts/integration/server/gbp-import.ts",
+    "kind": "server-function",
+    "line": 111
+  },
+  {
+    "file": "src/contexts/integration/server/google-auth-url.ts",
+    "kind": "server-function",
+    "line": 22
+  },
+  {
+    "file": "src/contexts/integration/server/google-connections.ts",
+    "kind": "server-function",
+    "line": 21
+  },
+  {
+    "file": "src/contexts/integration/server/google-performance.ts",
+    "kind": "server-function",
+    "line": 20
+  },
+  {
+    "file": "src/contexts/leaderboard/build.ts",
+    "kind": "event-consumer",
+    "line": 57
+  },
+  {
+    "file": "src/contexts/leaderboard/infrastructure/event-handlers/index.ts",
+    "kind": "event-consumer",
+    "line": 22
+  },
+  {
+    "file": "src/contexts/leaderboard/server/leaderboards.ts",
+    "kind": "server-function",
+    "line": 15
+  },
+  {
+    "file": "src/contexts/metric/infrastructure/event-handlers/index.ts",
+    "kind": "event-consumer",
+    "line": 36
+  },
+  {
+    "file": "src/contexts/notification/infrastructure/event-handlers/index.ts",
+    "kind": "event-consumer",
+    "line": 47
+  },
+  {
+    "file": "src/contexts/notification/server/notifications.ts",
+    "kind": "server-function",
+    "line": 34
+  },
+  {
+    "file": "src/contexts/portal/server/portal-groups.ts",
+    "kind": "server-function",
+    "line": 79
+  },
+  {
+    "file": "src/contexts/portal/server/portal-link-categories.ts",
+    "kind": "server-function",
+    "line": 50
+  },
+  {
+    "file": "src/contexts/portal/server/portal-links.ts",
+    "kind": "server-function",
+    "line": 53
+  },
+  {
+    "file": "src/contexts/portal/server/portals.ts",
+    "kind": "server-function",
+    "line": 129
+  },
+  {
+    "file": "src/contexts/property/server/properties.ts",
+    "kind": "server-function",
+    "line": 23
+  },
+  {
+    "file": "src/contexts/property/server/property-read.ts",
+    "kind": "server-function",
+    "line": 22
+  },
+  {
+    "file": "src/contexts/property/server/region-move.ts",
+    "kind": "server-function",
+    "line": 26
+  },
+  {
+    "file": "src/contexts/review/infrastructure/event-handlers/index.ts",
+    "kind": "event-consumer",
+    "line": 12
+  },
+  {
+    "file": "src/contexts/review/server/reply-draft.ts",
+    "kind": "server-function",
+    "line": 17
+  },
+  {
+    "file": "src/contexts/review/server/reply-read.ts",
+    "kind": "server-function",
+    "line": 73
+  },
+  {
+    "file": "src/contexts/review/server/reply.ts",
+    "kind": "server-function",
+    "line": 17
+  },
+  {
+    "file": "src/contexts/review/server/staff-recent-activity.ts",
+    "kind": "server-function",
+    "line": 20
+  },
+  {
+    "file": "src/contexts/staff/server/staff-assignments.ts",
+    "kind": "server-function",
+    "line": 26
+  },
+  {
+    "file": "src/contexts/staff/server/staff-participations.ts",
+    "kind": "server-function",
+    "line": 42
+  },
+  {
+    "file": "src/contexts/staff/server/staff-portals-update.ts",
+    "kind": "server-function",
+    "line": 26
+  },
+  {
+    "file": "src/contexts/staff/server/staff-portals.ts",
+    "kind": "server-function",
+    "line": 19
+  },
+  {
+    "file": "src/contexts/team/server/teams.ts",
+    "kind": "server-function",
+    "line": 141
+  },
+  {
+    "file": "src/routes/-_authenticated.test.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/-notification-fns.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/-queries/route-queries.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/__root.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated.tsx",
+    "kind": "server-function",
+    "line": 2
+  },
+  {
+    "file": "src/routes/_authenticated/-inbox-fns.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/dashboard.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/home.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/inbox/index.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/leaderboard.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/notifications.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/progress.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/goals.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/goals/$goalId.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/goals/index.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/goals/new.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/index.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/people.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/portals/$portalId.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/portals/index.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/portals/new.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/reviews.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/teams/$teamId.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/teams/$teamId/index.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/teams/$teamId/members.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/$propertyId/teams/index.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/import-google/$importId.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/import-google/index.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/properties/index.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/settings.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/settings/ai.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/settings/index.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/settings/integrations.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/settings/members.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/settings/notifications.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/settings/organization.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/settings/preferences.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/settings/profile.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/settings/recognition.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/settings/security.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/_authenticated/team.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/accept-invitation.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/auth/$.ts",
+    "kind": "api-route",
+    "line": 124
+  },
+  {
+    "file": "src/routes/api/auth/$.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/auth/-$.test.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/auth/google/-callback.test.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/auth/google/callback.ts",
+    "kind": "api-route",
+    "line": 149
+  },
+  {
+    "file": "src/routes/api/auth/google/callback.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/health/index.ts",
+    "kind": "api-route",
+    "line": 16
+  },
+  {
+    "file": "src/routes/api/health/index.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/health/live.ts",
+    "kind": "api-route",
+    "line": 5
+  },
+  {
+    "file": "src/routes/api/health/live.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/health/metrics.ts",
+    "kind": "api-route",
+    "line": 20
+  },
+  {
+    "file": "src/routes/api/health/metrics.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/health/ready.ts",
+    "kind": "api-route",
+    "line": 21
+  },
+  {
+    "file": "src/routes/api/health/ready.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/health/started.ts",
+    "kind": "api-route",
+    "line": 21
+  },
+  {
+    "file": "src/routes/api/health/started.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/public/p/$token/click/$linkId.ts",
+    "kind": "api-route",
+    "line": 52
+  },
+  {
+    "file": "src/routes/api/public/p/$token/click/$linkId.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/public/p/$token/click/-$linkId.test.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/webhooks/gbp/-notifications.test.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/webhooks/gbp/notifications.ts",
+    "kind": "api-route",
+    "line": 242
+  },
+  {
+    "file": "src/routes/api/webhooks/gbp/notifications.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/webhooks/resend/-events.test.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/api/webhooks/resend/events.ts",
+    "kind": "api-route",
+    "line": 118
+  },
+  {
+    "file": "src/routes/api/webhooks/resend/events.ts",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/index.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/join.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/login.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/p/$token.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/register.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/reset-password.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/routes/unavailable.tsx",
+    "kind": "route",
+    "line": 1
+  },
+  {
+    "file": "src/shared/ai-review-source-contract.test.ts",
+    "kind": "job-schedule",
+    "line": 11
+  },
+  {
+    "file": "src/shared/architecture/browser-reachability.test.ts",
+    "kind": "server-function",
+    "line": 12
+  },
+  {
+    "file": "src/shared/auth/auth.functions.ts",
+    "kind": "server-function",
+    "line": 14
+  },
+  {
+    "file": "src/shared/auth/capability-set.ts",
+    "kind": "server-function",
+    "line": 51
+  },
+  {
+    "file": "src/shared/auth/controlled-route-check.ts",
+    "kind": "server-function",
+    "line": 13
+  },
+  {
+    "file": "src/shared/cache/redis.ts",
+    "kind": "event-consumer",
+    "line": 27
+  },
+  {
+    "file": "src/shared/db/pool.ts",
+    "kind": "event-consumer",
+    "line": 188
+  },
+  {
+    "file": "src/shared/events/event-bus-gate.test.ts",
+    "kind": "event-consumer",
+    "line": 83
+  },
+  {
+    "file": "src/shared/events/event-bus.test.ts",
+    "kind": "event-consumer",
+    "line": 17
+  },
+  {
+    "file": "src/shared/governance/entry-point-catalogue.test.ts",
+    "kind": "server-function",
+    "line": 10
+  },
+  {
+    "file": "src/shared/governance/event-job-catalogue.test.ts",
+    "kind": "event-consumer",
+    "line": 13
+  },
+  {
+    "file": "src/shared/jobs/infrastructure/repositories/failure-quarantine.integration.test.ts",
+    "kind": "job-schedule",
+    "line": 49
+  },
+  {
+    "file": "src/shared/jobs/infrastructure/repositories/operator-command.test.ts",
+    "kind": "job-schedule",
+    "line": 152
+  },
+  {
+    "file": "src/shared/jobs/infrastructure/repositories/quarantine-ttl-sweep.test.ts",
+    "kind": "job-schedule",
+    "line": 60
+  },
+  {
+    "file": "src/shared/jobs/queue.ts",
+    "kind": "job-schedule",
+    "line": 54
+  },
+  {
+    "file": "src/shared/jobs/runtime.ts",
+    "kind": "job-schedule",
+    "line": 159
+  },
+  {
+    "file": "src/shared/jobs/worker.ts",
+    "kind": "event-consumer",
+    "line": 115
+  },
+  {
+    "file": "src/shared/observability/traced-server-fn.ts",
+    "kind": "server-function",
+    "line": 9
+  },
+  {
+    "file": "src/shared/outbox/infrastructure/repositories/durable-cutover.test.ts",
+    "kind": "event-consumer",
+    "line": 498
+  },
+  {
+    "file": "src/shared/outbox/infrastructure/repositories/durable-cutover.test.ts",
+    "kind": "job-schedule",
+    "line": 469
+  },
+  {
+    "file": "src/shared/routing/infrastructure/repositories/no-fallback-faults.test.ts",
+    "kind": "event-consumer",
+    "line": 327
+  },
+  {
+    "file": "src/shared/routing/infrastructure/repositories/no-fallback-faults.test.ts",
+    "kind": "job-schedule",
+    "line": 192
+  },
+  {
+    "file": "src/shared/testing/redis-test-lease.ts",
+    "kind": "event-consumer",
+    "line": 93
+  },
+  {
+    "file": "src/shared/testing/test-db-setup.ts",
+    "kind": "event-consumer",
+    "line": 183
+  },
+  {
+    "file": "src/worker/index.ts",
+    "kind": "event-consumer",
+    "line": 636
+  },
+  {
+    "file": "src/worker/index.ts",
+    "kind": "job-schedule",
+    "line": 210
+  }
+]

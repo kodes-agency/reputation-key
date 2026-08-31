@@ -66,10 +66,13 @@ function makeProperty(overrides: Partial<Property> = {}): Property {
     timezoneSource: 'legacy',
     timezoneResolvedAt: null,
     processingRegion: 'unresolved',
+    dataCellId: null,
     processingRegionSource: 'country_default',
     routingPolicyVersion: 1,
     processingRegionResolvedAt: null,
     sourceEpoch: 0,
+    responsibleManagerRevision: 1,
+    responsibilityNeededSince: NOW,
     ...overrides,
   }
 }
@@ -97,6 +100,7 @@ function makePropertyRow(overrides: Record<string, unknown> = {}) {
     timezoneSource: 'legacy',
     timezoneResolvedAt: null,
     processingRegion: 'unresolved',
+    dataCellId: null,
     processingRegionSource: 'country_default',
     routingPolicyVersion: 1,
     processingRegionResolvedAt: null,
@@ -262,6 +266,31 @@ describe('createAtomicPropertyCommandStore', () => {
           organizationId: organizationId('org-other-0000-0000-000000000001'),
           property: makeProperty(),
           event: createdEvent(),
+        }),
+      ).rejects.toSatisfy((e: unknown) => isPropertyError(e) && e.code === 'forbidden')
+      expect(insertedRows).toHaveLength(0)
+      expect(outboxRows).toHaveLength(0)
+      expect(events.emit).not.toHaveBeenCalled()
+      expect(order).toEqual(['tx.start', 'tx.rollback'])
+    })
+
+    it('rejects a wrong-cell aggregate before state or outbox insertion', async () => {
+      const order: string[] = []
+      const outboxRows: Array<Record<string, unknown>> = []
+      const insertedRows: Array<Record<string, unknown>> = []
+      const { db } = createMockDb({ order, outboxRows, insertedRows })
+      const events = makeEvents(order)
+      const store = createAtomicPropertyCommandStore(db, events, 'us')
+      const property = makeProperty({
+        processingRegion: 'europe',
+        dataCellId: 'europe',
+      })
+
+      await expect(
+        store.createProperty({
+          organizationId: ORG_ID,
+          property,
+          event: createdEvent(property),
         }),
       ).rejects.toSatisfy((e: unknown) => isPropertyError(e) && e.code === 'forbidden')
       expect(insertedRows).toHaveLength(0)

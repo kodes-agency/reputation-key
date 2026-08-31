@@ -1,21 +1,28 @@
 import { generateKeyPairSync } from 'node:crypto'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   signAiReplyProvenance,
   verifyAiReplyProvenance,
   type AiReplyProvenancePayloadV1,
+  type AiReplyProvenancePayloadV2,
+  type AiReplyProvenancePayloadV3,
 } from './provenance'
+import {
+  AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+} from '../../src/shared/ai-personalized-reply-contract'
 
 const UUIDS = {
   operation: '10000000-0000-4000-8000-000000000001',
   property: '10000000-0000-4000-8000-000000000002',
 } as const
 const SHA = 'a'.repeat(64)
+const LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST =
+  '86bb98cb3b0b1c8561141e2ec30e019725d5f0ba5dd57be4745c7db5bc851769'
 
-function payload(kid = 'reply-v1'): AiReplyProvenancePayloadV1 {
+function commonPayload(kid: string) {
   return {
-    version: 'ai-reply-provenance-v1',
     kid,
     operationId: UUIDS.operation,
     actorId: 'actor_01',
@@ -34,14 +41,41 @@ function payload(kid = 'reply-v1'): AiReplyProvenancePayloadV1 {
     promptVersion: 'reply-suggestion-prompt-v1',
     outputLeakageProfileVersion: 'gbp-reply-output-leakage-v1',
     outputLeakageProfileDigest: SHA,
-    replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
-    replyTemplateCatalogueDigest: SHA,
-    templateId: 'appreciation_positive',
     concreteLanguageTag: 'en-Latn',
     templateGroup: 'en-Latn',
     renderedSuggestionDigest: SHA,
     tokenExpiresAtEpochMillis: 1_780_000_600_000,
     draftExpiresAtEpochMillis: 1_780_001_200_000,
+  } as const
+}
+
+function payload(kid = 'reply-v1'): AiReplyProvenancePayloadV1 {
+  return {
+    ...commonPayload(kid),
+    version: 'ai-reply-provenance-v1',
+    replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',
+    replyTemplateCatalogueDigest: SHA,
+    templateId: 'appreciation_positive',
+  }
+}
+
+function personalizedPayload(kid = 'reply-v1'): AiReplyProvenancePayloadV2 {
+  return {
+    ...commonPayload(kid),
+    version: 'ai-reply-provenance-v2',
+    replyProfileVersion: 'reply-draft-v1',
+    replyProfileDigest: LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST,
+  }
+}
+
+function groundedPersonalizedPayload(kid = 'reply-v1'): AiReplyProvenancePayloadV3 {
+  return {
+    ...commonPayload(kid),
+    version: 'ai-reply-provenance-v3',
+    replyProfileVersion: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+    replyProfileDigest: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+    replyBrandProfileVersion: 7,
+    replyBrandDisplayNameDigest: SHA,
   }
 }
 
@@ -65,6 +99,59 @@ describe('AI reply provenance', () => {
     const zeroed = fill.mock.instances.filter(Buffer.isBuffer)
     expect(zeroed.length).toBeGreaterThanOrEqual(3)
     expect(zeroed.every((buffer) => buffer.every((byte) => byte === 0))).toBe(true)
+  })
+
+  it('round-trips personalized provenance under a distinct domain and rejects cross-version aliases', () => {
+    const keys = generateKeyPairSync('ed25519')
+    const token = signAiReplyProvenance(personalizedPayload(), keys.privateKey)
+    const keyring = new Map([['reply-v1', keys.publicKey]])
+
+    expect(token).toMatch(/^rk_ai_reply_v2\./u)
+    expect(verifyAiReplyProvenance(token, keyring)).toEqual(personalizedPayload())
+    expect(
+      verifyAiReplyProvenance(
+        token.replace(/^rk_ai_reply_v2/u, 'rk_ai_reply_v1'),
+        keyring,
+      ),
+    ).toBeNull()
+  })
+
+  it('round-trips grounded personalized provenance and binds the exact public profile fact', () => {
+    const keys = generateKeyPairSync('ed25519')
+    const token = signAiReplyProvenance(groundedPersonalizedPayload(), keys.privateKey)
+    const keyring = new Map([['reply-v1', keys.publicKey]])
+
+    expect(token).toMatch(/^rk_ai_reply_v3\./u)
+    expect(verifyAiReplyProvenance(token, keyring)).toEqual(groundedPersonalizedPayload())
+    expect(
+      verifyAiReplyProvenance(
+        token.replace(/^rk_ai_reply_v3/u, 'rk_ai_reply_v2'),
+        keyring,
+      ),
+    ).toBeNull()
+    expect(() =>
+      signAiReplyProvenance(
+        {
+          ...groundedPersonalizedPayload(),
+          replyBrandDisplayNameDigest: 'not-a-digest',
+        },
+        keys.privateKey,
+      ),
+    ).toThrow(z.ZodError)
+  })
+
+  it('admits personalized provenance only for the approved English and Bulgarian profiles', () => {
+    const keys = generateKeyPairSync('ed25519')
+    expect(() =>
+      signAiReplyProvenance(
+        {
+          ...groundedPersonalizedPayload(),
+          concreteLanguageTag: 'tr-Latn',
+          templateGroup: 'tr-Latn',
+        },
+        keys.privateKey,
+      ),
+    ).toThrow(z.ZodError)
   })
 
   it.each([

@@ -37,7 +37,7 @@ export type EmailOverrides = Partial<{
   notificationId: string
   userId: string
   organizationId: string
-  propertyId: string
+  propertyId: string | null
   category: NotificationCategory
   cadence: NotificationCadence
   status: NotificationEmail['status']
@@ -55,7 +55,8 @@ export function buildNotificationEmail(
     notificationId: notificationId(rawNotificationId),
     userId: userId(overrides.userId ?? USER),
     organizationId: organizationId(overrides.organizationId ?? ORG),
-    propertyId: propertyId(overrides.propertyId ?? 'prop-a'),
+    propertyId:
+      overrides.propertyId === null ? null : propertyId(overrides.propertyId ?? 'prop-a'),
     category: overrides.category ?? 'urgent_operational',
     cadence: overrides.cadence ?? 'daily',
     status: overrides.status ?? 'pending',
@@ -83,7 +84,7 @@ export type NotificationOverrides = Partial<{
   id: string
   userId: string
   organizationId: string
-  propertyId: string
+  propertyId: string | null
   type: NotificationType
   category: NotificationCategory
   priority: NotificationPriority
@@ -99,7 +100,8 @@ export function buildNotification(overrides: NotificationOverrides = {}): Notifi
     id: notificationId(overrides.id ?? 'notification-1'),
     userId: userId(overrides.userId ?? USER),
     organizationId: organizationId(overrides.organizationId ?? ORG),
-    propertyId: propertyId(overrides.propertyId ?? 'prop-a'),
+    propertyId:
+      overrides.propertyId === null ? null : propertyId(overrides.propertyId ?? 'prop-a'),
     type: overrides.type ?? 'review.created',
     category: overrides.category ?? 'urgent_operational',
     priority: overrides.priority ?? 'normal',
@@ -147,7 +149,7 @@ export type FakeJobLogger = LoggerPort & {
   debug: Mock
 }
 
-export function createFakeJobLogger(): FakeJobLogger {
+export const createFakeJobLogger = (): FakeJobLogger => {
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),

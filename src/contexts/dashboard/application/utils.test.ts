@@ -7,6 +7,7 @@ import {
   timeRangeToDates,
   computeTrend,
   priorPeriodDates,
+  ratingComparison,
   slaCutoff,
   MS_PER_DAY,
 } from './utils'
@@ -47,6 +48,14 @@ describe('timeRangeToDates', () => {
     const b = timeRangeToDates('30d', now)
     expect(a).toEqual(b)
   })
+
+  it('subtracts Property-local calendar days across DST', () => {
+    const dstNow = new Date('2026-03-20T16:00:00.000Z') // noon in New York
+    const { startDate, endDate } = timeRangeToDates('30d', dstNow, 'America/New_York')
+
+    expect(startDate).toEqual(new Date('2026-02-18T17:00:00.000Z'))
+    expect(endDate).toEqual(dstNow)
+  })
 })
 
 describe('computeTrend', () => {
@@ -61,6 +70,17 @@ describe('computeTrend', () => {
 
   it('returns null when result is not finite', () => {
     expect(computeTrend(Infinity, 1)).toBeNull()
+  })
+})
+
+describe('ratingComparison', () => {
+  it('returns an absolute one-decimal star delta with sufficient samples', () => {
+    expect(ratingComparison(4.4, 12, 4, 10)).toBe(0.4)
+  })
+
+  it('withholds a comparison when either period has fewer than ten ratings', () => {
+    expect(ratingComparison(4.4, 9, 4, 10)).toBeNull()
+    expect(ratingComparison(4.4, 10, 4, 9)).toBeNull()
   })
 })
 
@@ -88,15 +108,24 @@ describe('priorPeriodDates', () => {
       const prior = priorPeriodDates(preset, startDate, endDate)
 
       expect(prior).not.toBeNull()
-      // Equal duration immediately before, and 1ms before start so inclusive
-      // bounds on both windows cannot double-count the boundary instant.
+      // Equal duration immediately before. Both readers use [start, end), so
+      // the shared boundary is contiguous without being double-counted.
       expect(prior!.priorStartDate).toEqual(
         new Date(startDate.getTime() - days * MS_PER_DAY),
       )
-      expect(prior!.priorEndDate).toEqual(new Date(startDate.getTime() - 1))
-      expect(prior!.priorEndDate.getTime()).toBeLessThan(startDate.getTime())
+      expect(prior!.priorEndDate).toEqual(startDate)
     },
   )
+
+  it('keeps the preceding period on the same Property-local wall clock', () => {
+    const endDate = new Date('2026-03-20T16:00:00.000Z')
+    const startDate = new Date('2026-02-18T17:00:00.000Z')
+
+    expect(priorPeriodDates('30d', startDate, endDate, 'America/New_York')).toEqual({
+      priorStartDate: new Date('2026-01-19T17:00:00.000Z'),
+      priorEndDate: startDate,
+    })
+  })
 })
 
 describe('slaCutoff', () => {

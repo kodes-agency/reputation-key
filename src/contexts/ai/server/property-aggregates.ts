@@ -29,7 +29,7 @@ const WINDOW_LOCAL_DAYS = 30
  * owns it.
  */
 export const getPropertyAiAggregatesFn = createServerFn({ method: 'GET' })
-  .inputValidator(getPropertyAiAggregatesDto)
+  .validator(getPropertyAiAggregatesDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -42,7 +42,7 @@ export const getPropertyAiAggregatesFn = createServerFn({ method: 'GET' })
           propertyId: id,
         })
         try {
-          return await getContainer().useCases.readPropertyAiAggregates({
+          return await getContainer().aiPublicApi.readPropertyAggregates({
             organizationId: ctx.organizationId,
             propertyId: id,
             actorUserId: ctx.userId,

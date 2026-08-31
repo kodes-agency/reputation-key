@@ -19,23 +19,9 @@ import type {
   GovernedGoalRepository,
   GovernedGoalVersion,
 } from '../ports/governed-goal.repository'
-
-export type GoalActor = Readonly<{
-  organizationId: string
-  userId: string
-  role: 'AccountAdmin' | 'PropertyManager' | 'Staff'
-}>
-
-export type GoalExecutionPolicy = Readonly<{
-  authorize(
-    input: Readonly<{
-      actor: GoalActor | 'system'
-      organizationId: string
-      propertyId: string
-      action: 'goal.read' | 'goal.create' | 'goal.update' | 'goal.cancel'
-    }>,
-  ): Promise<void>
-}>
+import { canForContext } from '#/shared/domain/permissions'
+import type { GoalActor, GoalExecutionPolicy } from '../ports/goal-execution-policy'
+export type { GoalActor, GoalExecutionPolicy } from '../ports/goal-execution-policy'
 
 export type GoalPropertyReader = Readonly<{
   getTimezone(organizationId: string, propertyId: string): Promise<string | null>
@@ -76,12 +62,6 @@ export class GovernedGoalError extends Error {
   }
 }
 
-function requireManager(actor: GoalActor): void {
-  if (actor.role !== 'AccountAdmin' && actor.role !== 'PropertyManager') {
-    throw new GovernedGoalError('forbidden')
-  }
-}
-
 export function createGovernedGoalService(deps: GovernedGoalDependencies) {
   return {
     create: async (
@@ -100,7 +80,6 @@ export function createGovernedGoalService(deps: GovernedGoalDependencies) {
     ): Promise<
       Readonly<{ definition: GovernedGoalDefinition; period: GovernedGoalPeriod }>
     > => {
-      requireManager(actor)
       await deps.policy.authorize({
         actor,
         organizationId: actor.organizationId,
@@ -212,7 +191,9 @@ export function createGovernedGoalService(deps: GovernedGoalDependencies) {
         propertyId: input.propertyId,
         action: 'goal.read',
       })
-      const groups = actor.role === 'Staff' ? (input.visiblePortalGroupIds ?? []) : null
+      const groups = canForContext(actor, 'goal.create')
+        ? null
+        : (input.visiblePortalGroupIds ?? [])
       return deps.repository.listForProperty(
         actor.organizationId,
         input.propertyId,
@@ -275,7 +256,6 @@ export function createGovernedGoalService(deps: GovernedGoalDependencies) {
     ): Promise<
       Readonly<{ version: GovernedGoalVersion; period: GovernedGoalPeriod }>
     > => {
-      requireManager(actor)
       await deps.policy.authorize({
         actor,
         organizationId: actor.organizationId,
@@ -377,7 +357,6 @@ export function createGovernedGoalService(deps: GovernedGoalDependencies) {
       }>,
       actor: GoalActor,
     ): Promise<GovernedGoalDefinition> => {
-      requireManager(actor)
       await deps.policy.authorize({
         actor,
         organizationId: actor.organizationId,

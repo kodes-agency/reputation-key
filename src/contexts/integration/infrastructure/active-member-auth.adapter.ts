@@ -13,7 +13,9 @@ export type ActiveMemberAuthResolver = (
  * Rebuild a delayed worker's current authorization from durable membership.
  * Session cookies are intentionally unavailable in the worker process.
  */
-export function createActiveMemberAuthResolver(db: Database): ActiveMemberAuthResolver {
+export const createActiveMemberAuthResolver = (
+  db: Database,
+): ActiveMemberAuthResolver => {
   return async (organizationId, userId) => {
     const [row] = await db
       .select({ role: member.role })

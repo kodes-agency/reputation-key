@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PortalShare } from './portal-share'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
@@ -8,15 +8,30 @@ import {
   withRole,
 } from '../../../../../.storybook/AuthedRouterDecorator'
 
-type IssueInput = { data: { portalId: string; printBatch?: string } }
-type RotateInput = { data: { portalId: string } }
+type IssueInput = { data: { portalId: string } }
+type RotateInput = {
+  data: {
+    portalId: string
+    replacementKind?: 'planned' | 'security'
+    gracePeriodDays?: number
+  }
+}
 type RevokeInput = { data: { portalId: string; reason: string } }
-type LinkResult = { publicUrl: string }
+type LinkResult = {
+  publicUrl: string
+  publicUrls?: { qr: string; nfc: string }
+}
 
 const publicUrl = 'https://portal.example/p/opaque-token-shown-once'
+const nfcPublicUrl = 'https://portal.example/p/opaque-token-shown-once?nfc'
+const issuedLink = {
+  publicUrl,
+  publicUrls: { qr: publicUrl, nfc: nfcPublicUrl },
+}
 
 const noActiveToken: PortalTokenStatus = {
   hasActiveToken: false,
+  qualifiedScanReady: false,
   version: null,
   issuedAt: null,
   graceExpiresAt: null,
@@ -25,6 +40,7 @@ const noActiveToken: PortalTokenStatus = {
 // What the Share tab sees after a reload: a live token whose URL is gone.
 const activeToken: PortalTokenStatus = {
   hasActiveToken: true,
+  qualifiedScanReady: true,
   version: 3,
   issuedAt: '2026-08-12T09:30:00.000Z',
   graceExpiresAt: null,
@@ -37,13 +53,13 @@ const issueAction = (
   Object.assign(
     async (_input: IssueInput) => {
       if (error) throw error
-      return { publicUrl }
+      return issuedLink
     },
     { isPending: false, error, isSuccess: data !== null, data },
   )
 
 const rotateAction = (data: LinkResult | null = null): Action<RotateInput, LinkResult> =>
-  Object.assign(async (_input: RotateInput) => ({ publicUrl }), {
+  Object.assign(async (_input: RotateInput) => issuedLink, {
     isPending: false,
     error: null,
     isSuccess: data !== null,
@@ -95,11 +111,15 @@ export const GenerateLink: Story = {
 export const NewlyIssued: Story = {
   args: {
     ...baseArgs,
-    issuedLink: { publicUrl },
+    issuedLink,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText(publicUrl)).toBeInTheDocument()
+    await expect(canvas.getByText(nfcPublicUrl)).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('button', { name: /copy nfc address/i }),
+    ).toBeInTheDocument()
     await expect(canvas.getByText(/save this link now/i)).toBeInTheDocument()
     await expect(
       canvas.getByRole('button', { name: /show qr code/i }),
@@ -146,31 +166,52 @@ export const Revoked: Story = {
     await expect(
       canvas.getByRole('button', { name: /generate public link/i }),
     ).toBeInTheDocument()
-    await expect(canvas.queryByRole('button', { name: /rotate link/i })).toBeNull()
+    await expect(
+      canvas.queryByRole('button', { name: /replace access materials/i }),
+    ).toBeNull()
   },
 }
 
-export const RotateConfirmation: Story = {
+export const PlannedReplacement: Story = {
   args: {
     ...baseArgs,
-    issuedLink: { publicUrl },
+    issuedLink,
   },
   play: async ({ canvasElement }) => {
     await userEvent.click(
-      within(canvasElement).getByRole('button', { name: /rotate link/i }),
+      within(canvasElement).getByRole('button', { name: /replace access materials/i }),
+    )
+    const dialog = within(
+      await within(document.body).findByRole('alertdialog', {
+        name: /plan an access replacement/i,
+      }),
+    )
+    await expect(dialog.getByLabelText(/transition period/i)).toHaveValue(30)
+    await expect(dialog.getByText(/between 1 and 90 days/i)).toBeInTheDocument()
+  },
+}
+
+export const ImmediateReplacement: Story = {
+  args: {
+    ...baseArgs,
+    issuedLink,
+  },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: /replace immediately/i }),
     )
     await expect(
       await within(document.body).findByRole('alertdialog', {
-        name: /rotate this public link/i,
+        name: /replace access immediately/i,
       }),
-    ).toBeInTheDocument()
+    ).toHaveTextContent(/stop working now/i)
   },
 }
 
 export const RevokeRequiresReason: Story = {
   args: {
     ...baseArgs,
-    issuedLink: { publicUrl },
+    issuedLink,
   },
   play: async ({ canvasElement }) => {
     await userEvent.click(
@@ -203,9 +244,28 @@ export const ActiveLinkAfterReload: Story = {
     await expect(
       canvas.queryByRole('button', { name: /generate public link/i }),
     ).toBeNull()
-    await expect(canvas.getByRole('button', { name: /rotate link/i })).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('button', { name: /replace access materials/i }),
+    ).toBeInTheDocument()
     await expect(
       canvas.getByRole('button', { name: /revoke links/i }),
+    ).toBeInTheDocument()
+  },
+}
+
+export const LegacyAddressNeedsQrReplacement: Story = {
+  args: {
+    ...baseArgs,
+    tokenStatus: { ...activeToken, qualifiedScanReady: false },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(/qr update available/i)).toBeInTheDocument()
+    await expect(
+      canvas.getByText(/not included in scan-based goals/i),
+    ).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('button', { name: /replace access materials/i }),
     ).toBeInTheDocument()
   },
 }
@@ -223,5 +283,67 @@ export const RotatedWithinGracePeriod: Story = {
     await expect(
       within(canvasElement).getByText(/keeps working until Aug 19, 2026/i),
     ).toBeInTheDocument()
+  },
+}
+
+export const PlannedReplacementUsesSharedDto: Story = {
+  args: {
+    ...baseArgs,
+    issuedLink,
+    rotateMutation: Object.assign(
+      fn(async (_input: RotateInput) => issuedLink),
+      { isPending: false, error: null, isSuccess: false, data: null },
+    ) as unknown as Action<RotateInput, LinkResult>,
+  },
+  play: async ({ canvasElement, args }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: /replace access materials/i }),
+    )
+    const dialog = within(
+      await within(document.body).findByRole('alertdialog', {
+        name: /plan an access replacement/i,
+      }),
+    )
+    const days = dialog.getByLabelText(/transition period/i)
+    await userEvent.clear(days)
+    await userEvent.type(days, '7')
+    await userEvent.click(dialog.getByRole('button', { name: /create replacement/i }))
+    await waitFor(() =>
+      expect(args.rotateMutation).toHaveBeenCalledWith({
+        data: {
+          portalId: 'portal-1',
+          replacementKind: 'planned',
+          gracePeriodDays: 7,
+        },
+      }),
+    )
+  },
+}
+
+export const RevokeUsesSharedDto: Story = {
+  args: {
+    ...baseArgs,
+    issuedLink,
+    revokeMutation: Object.assign(
+      fn(async (_input: RevokeInput) => ({ revoked: true })),
+      { isPending: false, error: null, isSuccess: false, data: null },
+    ) as unknown as Action<RevokeInput>,
+  },
+  play: async ({ canvasElement, args }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: /revoke links/i }),
+    )
+    const dialog = within(
+      await within(document.body).findByRole('alertdialog', {
+        name: /revoke every public link/i,
+      }),
+    )
+    await userEvent.type(dialog.getByLabelText(/reason/i), '  Printed code retired  ')
+    await userEvent.click(dialog.getByRole('button', { name: /revoke links/i }))
+    await waitFor(() =>
+      expect(args.revokeMutation).toHaveBeenCalledWith({
+        data: { portalId: 'portal-1', reason: 'Printed code retired' },
+      }),
+    )
   },
 }

@@ -1,83 +1,143 @@
-// Portal context — image processing job
-// BullMQ job handler for resizing and converting portal hero images.
-// Downloads from R2, resizes via sharp, uploads variants back.
-
 import type { Job } from 'bullmq'
+import { trace } from '#/shared/observability/trace'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { IssuedPortalUploadStoragePort } from '../../application/ports/storage.port'
+import type { PortalUploadIssuanceStore } from '../../application/ports/portal-upload-issuance-store.port'
+import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import type { JobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
+import { portalError } from '../../domain/errors'
 
 export const JOB_NAME = 'process-image' as const
-import { getLogger } from '#/shared/observability/logger'
-import { trace } from '#/shared/observability/trace'
-import type { StoragePort } from '../../application/ports/storage.port'
-import type { PortalRepository } from '../../application/ports/portal.repository'
-import { portalError } from '../../domain/errors'
-import { organizationId, portalId } from '#/shared/domain/ids'
-import type { JobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 
 export type ProcessImageJobData = JobExecutionEnvelope &
   Readonly<{
-    key: string
+    uploadId: string
     portalId: string
+    sourceETag: string
   }>
 
-export type ProcessImageJobDeps = Readonly<{
-  storage: StoragePort
-  portalRepo: PortalRepository
-  clock: () => Date
+export type ProcessIssuedPortalImageInput = Readonly<{
+  organizationId: string
+  propertyId: string
+  portalId: string
+  uploadId: string
+  sourceETag: string
 }>
 
-export const createProcessImageJob = (deps: ProcessImageJobDeps) => {
-  return async function processImageJob(job: Job<ProcessImageJobData>): Promise<void> {
+export type ProcessImageJobDeps = Readonly<{
+  storage: Pick<
+    IssuedPortalUploadStoragePort,
+    'readIssuedPortalUpload' | 'writePortalUploadDerivative' | 'deleteIssuedPortalUpload'
+  >
+  uploadStore: PortalUploadIssuanceStore
+  clock: () => Date
+  logger: Pick<LoggerPort, 'info' | 'warn' | 'error'>
+}>
+
+export const createProcessIssuedPortalImage = (deps: ProcessImageJobDeps) => {
+  return async function processIssuedPortalImage(
+    data: ProcessIssuedPortalImageInput,
+  ): Promise<'processed' | 'stale'> {
     return trace('job.processImage', async () => {
-      const logger = getLogger()
-      const { key, portalId: pid, organizationId: orgId } = job.data
+      if (!data.propertyId) {
+        throw portalError('upload_failed', 'Image job is missing Property scope')
+      }
+      const scope = {
+        organizationId: organizationId(data.organizationId),
+        propertyId: propertyId(data.propertyId),
+        portalId: portalId(data.portalId),
+        issuanceId: data.uploadId,
+      }
+      const issuance = await deps.uploadStore.findProcessable(scope)
+      if (!issuance) {
+        // A retry after publication, or a worker for an upload superseded by a
+        // newer finalization, is a safe no-op. It can never name another key.
+        deps.logger.info('Skipped stale or already processed portal image job')
+        return 'stale'
+      }
 
-      logger.info('Processing portal hero image')
-
+      deps.logger.info('Processing issued portal hero image')
       try {
-        // Dynamically import sharp to avoid loading it in the web bundle
         const sharp = (await import('sharp')).default
+        const originalBuffer = await deps.storage.readIssuedPortalUpload(
+          issuance,
+          data.sourceETag,
+        )
 
-        // 1. Download original from R2
-        const publicUrl = deps.storage.getPublicUrl(key)
-        const response = await fetch(publicUrl)
-        if (!response.ok) {
-          throw portalError(
-            'upload_failed',
-            `Failed to download image: ${response.status} ${response.statusText}`,
-          )
-        }
-        const originalBuffer = Buffer.from(await response.arrayBuffer())
-
-        // 2. Resize and convert to WebP variants
-        const heroBuffer = await sharp(originalBuffer)
+        const heroBuffer = await sharp(originalBuffer, {
+          failOn: 'warning',
+          limitInputPixels: 40_000_000,
+        })
+          .rotate()
           .resize(1200, 630, { fit: 'cover', withoutEnlargement: true })
           .webp({ quality: 85 })
           .toBuffer()
 
-        const thumbBuffer = await sharp(originalBuffer)
+        const thumbnailBuffer = await sharp(originalBuffer, {
+          failOn: 'warning',
+          limitInputPixels: 40_000_000,
+        })
+          .rotate()
           .resize(400, 210, { fit: 'cover', withoutEnlargement: true })
           .webp({ quality: 80 })
           .toBuffer()
 
-        // 3. Upload variants back to R2
-        const heroKey = key.replace(/\/hero\/([^/]+)$/, '/hero/webp/$1.webp')
-        const thumbKey = key.replace(/\/hero\/([^/]+)$/, '/hero/thumb/$1.webp')
+        const hero = await deps.storage.writePortalUploadDerivative(
+          issuance,
+          'hero',
+          heroBuffer,
+          'image/webp',
+        )
+        const thumbnail = await deps.storage.writePortalUploadDerivative(
+          issuance,
+          'thumbnail',
+          thumbnailBuffer,
+          'image/webp',
+        )
+        const published = await deps.uploadStore.publishDerivative(
+          scope,
+          {
+            heroKey: hero.objectKey,
+            thumbnailKey: thumbnail.objectKey,
+            heroImageUrl: hero.publicUrl,
+          },
+          deps.clock(),
+        )
+        if (published.outcome !== 'published') {
+          deps.logger.info('Discarded derivatives from a stale portal image job')
+          return 'stale'
+        }
 
-        await deps.storage.putObject(heroKey, heroBuffer, 'image/webp')
-        await deps.storage.putObject(thumbKey, thumbBuffer, 'image/webp')
-
-        // 4. Update portal.heroImageUrl with the hero variant URL
-        const heroImageUrl = deps.storage.getPublicUrl(heroKey)
-        await deps.portalRepo.update(organizationId(orgId), portalId(pid), {
-          heroImageUrl,
-          updatedAt: deps.clock(),
-        })
-
-        logger.info('Image processing completed')
-      } catch (err) {
-        logger.error({ err }, 'Image processing failed')
-        throw err
+        try {
+          await deps.storage.deleteIssuedPortalUpload(issuance)
+        } catch {
+          deps.logger.warn('Portal image published; private source cleanup is pending')
+        }
+        deps.logger.info('Issued portal hero image processing completed')
+        return 'processed'
+      } catch (error) {
+        deps.logger.error(
+          { errorCode: 'portal_image_processing_failed' },
+          'Issued portal image processing failed',
+        )
+        throw error
       }
+    })
+  }
+}
+
+export const createProcessImageJob = (deps: ProcessImageJobDeps) => {
+  const processIssuedPortalImage = createProcessIssuedPortalImage(deps)
+  return async function processImageJob(job: Job<ProcessImageJobData>): Promise<void> {
+    if (!job.data.propertyId) {
+      throw portalError('upload_failed', 'Image job is missing Property scope')
+    }
+    await processIssuedPortalImage({
+      organizationId: job.data.organizationId,
+      propertyId: job.data.propertyId,
+      portalId: job.data.portalId,
+      uploadId: job.data.uploadId,
+      sourceETag: job.data.sourceETag,
     })
   }
 }

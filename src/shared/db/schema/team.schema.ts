@@ -30,20 +30,16 @@ export const teams = pgTable(
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
   },
-  (t) => ({
-    orgPropertyIdx: index('teams_org_property_idx').on(t.organizationId, t.propertyId),
-    orgPropertyNameUnique: uniqueIndex('teams_org_property_name_unique')
+  (t) => [
+    index('teams_org_property_idx').on(t.organizationId, t.propertyId),
+    uniqueIndex('teams_org_property_name_unique')
       .on(t.organizationId, t.propertyId, t.name)
       .where(sql`deleted_at IS NULL`),
-    tenantKey: uniqueIndex('teams_org_property_id_key').on(
-      t.organizationId,
-      t.propertyId,
-      t.id,
-    ),
-    propertyTenantFk: foreignKey({
+    uniqueIndex('teams_org_property_id_key').on(t.organizationId, t.propertyId, t.id),
+    foreignKey({
       name: 'teams_property_tenant_fk',
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
     }).onDelete('restrict'),
-  }),
+  ],
 )

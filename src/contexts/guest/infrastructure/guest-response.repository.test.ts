@@ -4,6 +4,10 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import type { Database } from '#/shared/db'
 import { createGuestResponseRepository } from './repositories/guest-response.repository'
 
+const REPOSITORY_NOW = new Date('2026-08-16T12:00:00.000Z')
+const repository = (db: Database) =>
+  createGuestResponseRepository(db, () => REPOSITORY_NOW)
+
 const scope = {
   organizationId: 'org-1',
   propertyId: 'property-1',
@@ -14,6 +18,9 @@ function selectDatabase(rows: readonly unknown[]) {
   const chain: Record<string, unknown> = {}
   let whereCondition: unknown
   chain.from = vi.fn(() => chain)
+  chain.innerJoin = vi.fn(() => chain)
+  chain.leftJoin = vi.fn(() => chain)
+  chain.groupBy = vi.fn(async () => rows)
   chain.where = vi.fn((condition: unknown) => {
     whereCondition = condition
     return chain
@@ -31,46 +38,96 @@ function selectDatabase(rows: readonly unknown[]) {
 describe('createGuestResponseRepository', () => {
   it('maps a tenant-scoped response without inventing retained contact data', async () => {
     const submittedAt = new Date('2026-08-16T12:00:00.000Z')
+    const sessionExpiresAt = new Date('2026-08-17T12:00:00.000Z')
     const retentionDeadline = new Date('2026-09-15T12:00:00.000Z')
     const { db, chain } = selectDatabase([
       {
-        id: 'response-1',
-        ...scope,
-        sessionId: 'session-1',
-        status: 'corrected',
-        rating: 5,
-        categoryId: 'service',
-        responseText: 'Helpful staff',
-        responseConsent: true,
-        textConsent: true,
-        mediaConsent: false,
-        correctionCount: 9,
-        submittedAt,
-        correctedAt: submittedAt,
-        moderatedAt: null,
-        deletedAt: null,
-        retentionDeadline,
+        response: {
+          id: 'response-1',
+          ...scope,
+          status: 'corrected',
+          integrityOutcome: 'accepted',
+          integrityReasonCode: 'initial_submission',
+          integrityRevision: 1,
+          integrityAssessedAt: submittedAt,
+          rating: 5,
+          categoryId: 'service',
+          responseConsent: true,
+          textConsent: true,
+          mediaConsent: false,
+          privateFeedbackThreshold: 3,
+          ratingSourceEventId: 'rating-event-1',
+          feedbackSourceEventId: 'feedback-event-1',
+          attributedStaffParticipantId: null,
+          attributedStaffParticipationId: null,
+          attributionResponsibilityId: null,
+          staffAttributionEffectiveFrom: null,
+          staffAttributionEffectiveTo: null,
+          correctionCount: 9,
+          submittedAt,
+          correctedAt: submittedAt,
+          feedbackSubmittedAt: submittedAt,
+          feedbackSubmissionRevision: null,
+          feedbackWithdrawnAt: null,
+          moderatedAt: null,
+          deletedAt: null,
+          retentionDeadline,
+        },
+        binding: { sessionId: 'session-1', expiresAt: sessionExpiresAt },
+        feedback: { body: 'Helpful staff' },
+        experience: {
+          publicationState: 'published',
+          publicationSnapshotId: null,
+          publicationVersion: null,
+          publicationDigest: null,
+          configurationDigest: 'a'.repeat(64),
+          guestLocale: 'en',
+          languagePackVersion: 'guest-ui-en-v1',
+          privateFeedbackThreshold: 3,
+          capturedAt: submittedAt,
+        },
       },
     ])
 
     await expect(
-      createGuestResponseRepository(db).findForSession(scope, 'session-1'),
+      repository(db).findForSession(scope, 'session-1', submittedAt),
     ).resolves.toEqual({
       id: 'response-1',
       ...scope,
       sessionId: 'session-1',
+      sessionExpiresAt,
       status: 'corrected',
+      integrityOutcome: 'accepted',
+      integrityReasonCode: 'initial_submission',
+      integrityRevision: 1,
+      integrityAssessedAt: submittedAt,
       rating: 5,
       category: 'service',
       text: 'Helpful staff',
       responseConsent: true,
       textConsent: true,
       mediaConsent: false,
-      contactConsent: false,
-      contactDetails: null,
+      privateFeedbackThreshold: 3,
+      experienceSnapshot: {
+        portalPublicationState: 'published',
+        portalPublicationSnapshotId: null,
+        portalPublicationVersion: null,
+        portalPublicationDigest: null,
+        portalConfigurationDigest: 'a'.repeat(64),
+        guestLocale: 'en',
+        languagePackVersion: 'guest-ui-en-v1',
+        privateFeedbackThreshold: 3,
+        capturedAt: submittedAt,
+      },
+      staffAttribution: null,
+      ratingSourceEventId: 'rating-event-1',
+      feedbackSourceEventId: 'feedback-event-1',
       correctionCount: 0,
       submittedAt,
       correctedAt: submittedAt,
+      feedbackSubmittedAt: submittedAt,
+      feedbackSubmissionRevision: null,
+      feedbackWithdrawnAt: null,
       moderatedAt: null,
       deletedAt: null,
       retentionDeadline,
@@ -82,7 +139,7 @@ describe('createGuestResponseRepository', () => {
 
   it('returns null when the scoped response is absent', async () => {
     await expect(
-      createGuestResponseRepository(selectDatabase([]).db).findById(scope, 'missing'),
+      repository(selectDatabase([]).db).findById(scope, 'missing'),
     ).resolves.toBeNull()
   })
 
@@ -105,10 +162,7 @@ describe('createGuestResponseRepository', () => {
     ])
 
     await expect(
-      createGuestResponseRepository(db).findSnippetsForOrg('org-1', [
-        'response-1',
-        'response-2',
-      ]),
+      repository(db).findSnippetsForOrg('org-1', ['response-1', 'response-2']),
     ).resolves.toEqual([
       { id: 'response-1', comment: null, ratingValue: 5 },
       { id: 'response-2', comment: 'Shared comment', ratingValue: null },
@@ -129,7 +183,7 @@ describe('createGuestResponseRepository', () => {
     const { db, chain, getWhereCondition } = selectDatabase(rows)
 
     await expect(
-      createGuestResponseRepository(db).findEligibleSnippetIdsForOrg('org-1', {
+      repository(db).findEligibleSnippetIdsForOrg('org-1', {
         ratingMin: 4,
         textQuery: 'breakfast',
       }),
@@ -141,49 +195,39 @@ describe('createGuestResponseRepository', () => {
     expect(compiled.sql).toContain('"guest_responses"."text_consent" =')
   })
 
-  it.each([
-    { returned: [{ id: 'response-1' }], inserted: true },
-    { returned: [], inserted: false },
-  ])(
-    'reports idempotent insert disposition: $inserted',
-    async ({ returned, inserted }) => {
-      const returning = vi.fn(async () => returned)
-      const onConflictDoNothing = vi.fn(() => ({ returning }))
-      const values = vi.fn(() => ({ onConflictDoNothing }))
-      const db = { insert: vi.fn(() => ({ values })) } as unknown as Database
-      const response = {
-        id: 'response-1',
-        ...scope,
-        sessionId: 'session-1',
-        status: 'submitted',
-        rating: 5,
-        category: null,
-        text: null,
-        responseConsent: true,
-        textConsent: false,
-        mediaConsent: false,
-        contactConsent: false,
-        contactDetails: null,
-        correctionCount: 0,
-        submittedAt: new Date('2026-08-16T12:00:00.000Z'),
-        correctedAt: null,
-        moderatedAt: null,
-        deletedAt: null,
-        retentionDeadline: new Date('2026-09-15T12:00:00.000Z'),
-        schemaVersion: 1,
-      } as const
+  it('summarizes current outcomes by rating business time and exact scope', async () => {
+    const { db, chain, getWhereCondition } = selectDatabase([
+      { outcome: 'accepted', count: 7 },
+      { outcome: 'filtered_automatically', count: 1 },
+      { outcome: 'under_review', count: 2 },
+    ])
+    const startAt = new Date('2026-08-01T00:00:00.000Z')
+    const endAt = new Date('2026-09-01T00:00:00.000Z')
 
-      await expect(
-        createGuestResponseRepository(db).insertSubmitted(response),
-      ).resolves.toBe(inserted)
-      expect(values).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'response-1',
-          organizationId: 'org-1',
-          propertyId: 'property-1',
-          portalId: 'portal-1',
-        }),
-      )
-    },
-  )
+    await expect(
+      repository(db).summarizePortalIntegrity(scope, startAt, endAt),
+    ).resolves.toEqual({
+      accepted: 7,
+      filteredAutomatically: 1,
+      underReview: 2,
+      total: 10,
+    })
+    expect(chain.groupBy).toHaveBeenCalledOnce()
+    const compiled = new PgDialect().sqlToQuery(getWhereCondition() as SQL)
+    expect(compiled.sql).toContain('"guest_responses"."organization_id" =')
+    expect(compiled.sql).toContain('"guest_responses"."property_id" =')
+    expect(compiled.sql).toContain('"guest_responses"."portal_id" =')
+    expect(compiled.sql).toContain('COALESCE')
+    expect(compiled.sql).toContain('>=')
+    expect(compiled.sql).toContain('<')
+    expect(compiled.params).toEqual(
+      expect.arrayContaining([
+        scope.organizationId,
+        scope.propertyId,
+        scope.portalId,
+        startAt,
+        endAt,
+      ]),
+    )
+  })
 })

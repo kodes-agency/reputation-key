@@ -32,17 +32,21 @@ const VALID_TYPES: readonly NotificationType[] = NOTIFICATION_TYPES
 const VALID_PRIORITIES: readonly NotificationPriority[] = ['urgent', 'normal']
 const VALID_STATUSES: readonly NotificationStatus[] = ['unread', 'read', 'dismissed']
 const VALID_RESOURCE_TYPES: readonly NotificationResourceType[] = [
+  'organization',
   'inbox_item',
   'reply',
   'goal',
   'badge',
+  'portal',
+  'property',
+  'integration',
 ]
 
 export const notificationFromRow = (row: NotificationRow): Notification => ({
   id: notificationId(row.id),
   userId: toUserId(row.userId),
   organizationId: toOrgId(row.organizationId),
-  propertyId: toPropertyId(row.propertyId),
+  propertyId: row.propertyId === null ? null : toPropertyId(row.propertyId),
   // Fenced like every other enum column: migration 0070 retired the
   // `digest_summary` category, and a bare cast would have let a stale row walk
   // an impossible value into the domain instead of failing loudly.

@@ -19,10 +19,8 @@ export type FleetOverviewProjectionInput = Readonly<{
   portalReadEnabled: boolean
   goalReadEnabled: boolean
   cursor: FleetCursorAnchor | null
-  startDate: Date
-  endDate: Date
-  priorStartDate: Date
-  priorEndDate: Date
+  /** Null means the unbounded All Time period; otherwise local calendar days. */
+  periodDays: number | null
   now: Date
   slaCutoff: Date
 }>
@@ -39,9 +37,11 @@ export type FleetOverviewProjectionRow = Readonly<{
   scanCount: number
   feedbackCount: number
   unanswered: number
-  newFeedback: number
+  itemsToTriage: number
   escalated: number
   goalsBehindPace: number
+  /** Distinct unanswered/Inbox/Goal work anchors, before rating-drop signal. */
+  needsAttention: number
   reviewEvidence: FleetMetricEvidence
   scanEvidence: FleetMetricEvidence | null
   feedbackEvidence: FleetMetricEvidence | null
@@ -51,6 +51,7 @@ export type FleetOverviewProjectionResult = Readonly<{
   rows: readonly FleetOverviewProjectionRow[]
   summary: Readonly<{
     propertyCount: number
+    ratingSampleCount: number
     overallAvgRating: number
     totalAttention: number
   }>

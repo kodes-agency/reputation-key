@@ -3,14 +3,12 @@
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalLinkReordered } from '../../domain/events'
-import type { EventBus } from '#/shared/events/event-bus'
-import { canForContext } from '#/shared/domain/permissions'
-import { portalError } from '../../domain/errors'
 import { portalId, portalLinkId, portalLinkCategoryId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { assertPortalPropertyAccess } from '../assert-property-access'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import { loadPortalOrThrow } from '../load-accessible-portal'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 export type ReorderLinksInput = Readonly<{
   categoryId: string
@@ -22,44 +20,43 @@ export type ReorderLinksDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
   staffPublicApi: StaffPublicApi
-  events: EventBus
+  commandStore: PortalCommandStore
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const reorderLinks =
   (deps: ReorderLinksDeps) =>
   async (input: ReorderLinksInput, ctx: AuthContext): Promise<void> => {
-    // 1. Authorize
-    if (!canForContext(ctx, 'portal.update')) {
-      throw portalError('forbidden', 'this role cannot reorder portal links')
-    }
-    // Enforce property-assignment scoping (D6-001.)
-    await assertPortalPropertyAccess(
-      deps.portalRepo,
-      deps.staffPublicApi,
-      ctx,
-      'portal.update',
-      portalId(input.portalId),
-    )
-
-    await deps.portalLinkRepo.reorderLinks(
-      ctx.organizationId,
-      portalId(input.portalId),
-      portalLinkCategoryId(input.categoryId),
-      input.items.map((item) => ({ id: portalLinkId(item.id), sortKey: item.sortKey })),
-    )
-
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalLinkReordered({
-        portalId: portalId(input.portalId),
-        categoryId: portalLinkCategoryId(input.categoryId),
-        organizationId: ctx.organizationId,
-        occurredAt: deps.clock(),
-      }),
-    )
+    const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
+      permission: 'portal.update',
+      forbiddenMessage: 'this role cannot reorder portal links',
+    })
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
+    const categoryId = portalLinkCategoryId(input.categoryId)
+    const updates = input.items.map((item) => ({
+      id: portalLinkId(item.id),
+      sortKey: item.sortKey,
+    }))
+    const event = portalLinkReordered({
+      portalId: portal.id,
+      categoryId,
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt,
+    })
+    await deps.commandStore.reorderPortalLinks({
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      expectedPortalUpdatedAt: portal.updatedAt,
+      categoryId,
+      updates,
+      revision,
+      occurredAt,
+      event,
+    })
   }
 
 export type ReorderLinks = ReturnType<typeof reorderLinks>

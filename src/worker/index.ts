@@ -4,62 +4,70 @@
 import 'dotenv/config'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
+import {
+  captureObservabilityException,
+  flushObservability,
+  initObservability,
+} from '#/shared/observability/telemetry'
 import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
 import { assertProductionSecrets } from '#/shared/config/production-secrets'
 import { assertReleaseIdentity } from '#/shared/config/release-identity'
+import { getDb } from '#/shared/db'
+import { assertRecoveryCutoverAttestation } from '#/shared/config/recovery-cutover-attestation'
+import { createRecoveryCutoverRunReader } from '#/shared/db/recovery/recovery-cutover-run-reader'
 import {
   assertRestoreModeCompatible,
   isRestoreIsolated,
   RESTORE_ISOLATED_LOG_LINE,
 } from '#/shared/config/restore-mode'
-import { createContainer } from '#/composition'
-import { bootstrap } from '#/bootstrap'
+import { createWorkerContainer } from '#/composition/deployables'
+import { bindProcessPolicies } from '#/shared/auth/process-policy-binding'
+import { bootstrap, createBootstrapRuntimeConfig } from '#/bootstrap'
 import {
   BACKGROUND_QUEUE_CONCURRENCY,
   createJobWorker,
   DEFAULT_QUEUE_CONCURRENCY,
 } from '#/shared/jobs/worker'
-import { createJobQueue, type Queue } from '#/shared/jobs/queue'
+
+import { assertConfiguredJobRedisRuntime } from '#/shared/jobs/redis-runtime'
+import {
+  assertProductionRedisTopology,
+  getJobRedisUrl,
+} from '#/shared/jobs/redis-topology'
 import {
   createGatedJobHandler,
   type JobRoutingGate,
 } from '#/shared/jobs/delayed-execution-gate'
 import { assertJobReadiness } from '#/shared/jobs/readiness'
-import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
+import { reconcileJobSchedulers } from '#/shared/jobs/job-schedulers'
+import {
+  JOB_OPERATIONAL_CONTRACTS,
+  createOperationalSchedulerPlan,
+} from '#/shared/jobs/operational-catalogue'
+import {
+  createJobRuntimeReportReader,
+  createQueueJobRuntimeObservationStore,
+} from '#/shared/jobs/runtime-observations'
 import { drainWorkerResources, namedCloseable } from './drain'
 import {
-  QUARANTINE_QUEUE_NAME,
-  quarantineJobDirect,
-} from '#/shared/jobs/failure-quarantine'
+  createWorkerProcessFailurePolicy,
+  type WorkerTerminationTrigger,
+} from './process-failure'
+import { quarantineJobDirect } from '#/shared/jobs/failure-quarantine'
 import { createPublishReplyScopeResolver } from '#/contexts/review/infrastructure/jobs/publish-reply-scope-resolver'
-import { createProcessingRouter } from '#/shared/routing/processing-router'
-import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
-import { createImportItemRoutingLoader } from '#/contexts/integration/infrastructure/import-item-routing.adapter'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
-import { JOB_NAMES } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
-import { JOB_NAME as HEALTH_CHECK_JOB_NAME } from '#/shared/jobs/health-check.job'
-import { JOB_NAME as REFRESH_EXPIRING_JOB_NAME } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
-import { JOB_NAME as DISCOVER_NEW_REVIEWS_JOB_NAME } from '#/contexts/review/infrastructure/jobs/discover-new-reviews.job'
-import { JOB_NAME as PURGE_EXPIRED_JOB_NAME } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
-import { JOB_NAME as RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } from '#/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job'
-import { JOB_NAME as QUARANTINE_TTL_SWEEP_JOB_NAME } from '#/shared/jobs/quarantine-ttl-sweep.job'
-import { JOB_NAME as PERMIT_START_DEADLINE_SWEEP_JOB_NAME } from '#/shared/jobs/permit-start-deadline-sweep.job'
-import { JOB_NAME as GOOGLE_IMPORT_CLAIM_REAPER_JOB_NAME } from '#/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job'
-import { JOB_NAME as AI_EXECUTION_REAPER_JOB_NAME } from '#/shared/jobs/ai-operation-execution-reaper.job'
-import { JOB_NAME as AI_BACKFILL_ADVANCE_JOB_NAME } from '#/shared/jobs/ai-review-analysis-backfill-advance.job'
-import { JOB_NAME as RECONCILE_AMBIGUOUS_JOB_NAME } from '#/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job'
-import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
-import { SCHEDULE_PROPERTY_TRENDS_JOB_NAME } from '#/contexts/ai/infrastructure/jobs/schedule-property-trends.job'
 import type { Worker } from 'bullmq'
 
 // Worker entry wires 10+ job schedules — complexity is inherent to the
 // registration seam. Owner: BQC-3 (returned by BQC-5.7).
 // fallow-ignore-next-line complexity
 async function main() {
+  const runtimeStartedAt = new Date()
   const env = getEnv()
   assertReleaseIdentity(env)
   const logger = getLogger()
+  initObservability('worker')
 
   logger.info({ env: env.NODE_ENV, releaseSha: getReleaseSha(env) }, 'Worker starting')
 
@@ -79,9 +87,44 @@ async function main() {
     logger.warn(RESTORE_ISOLATED_LOG_LINE)
   }
   assertRestoreModeCompatible(env, 'worker')
+  await assertRecoveryCutoverAttestation(createRecoveryCutoverRunReader(getDb()), env)
 
-  // Build the dependency container
-  const container = createContainer({ enableJobs: true })
+  // DATA-18 / GOV-01: inspect the actual queue Redis before constructing any
+  // BullMQ Queue or Worker. `noeviction` is a correctness requirement, Redis
+  // 6.2 and GETDEL are part of the supported BullMQ Redis command contract.
+  // Production never degrades into a worker that looks started but owns no
+  // queues.
+  assertProductionRedisTopology(env)
+  const jobRedisUrl = getJobRedisUrl(env)
+  if (!jobRedisUrl) {
+    if (env.NODE_ENV === 'production') {
+      throw new Error('[CONFIG] BullMQ Redis runtime is incompatible: url_missing')
+    }
+    logger.warn('No queue Redis configured — BullMQ runtime inspection skipped')
+  } else {
+    const redisReadiness = await assertConfiguredJobRedisRuntime(jobRedisUrl)
+    logger.info(
+      {
+        redisVersion: redisReadiness.redisVersion,
+        maxmemoryPolicy: redisReadiness.maxmemoryPolicy,
+        getdelAvailable: redisReadiness.getdelAvailable,
+      },
+      'BullMQ Redis runtime verified',
+    )
+  }
+
+  // ARC-03-T15: the worker builds the WORKER deployable's container — the one
+  // complete Application Container this process may hold. A second build fails
+  // by name instead of quietly producing a second policy trio, a second
+  // consumer registry and a second set of queue connections.
+  const container = createWorkerContainer()
+
+  // ARC-03-T8: the worker's ONE explicit policy installation. Building the
+  // container no longer installs the ExecutionPolicy / DelayedExecutionPolicy
+  // / CapabilityPolicyStore, so the dispatch gate would otherwise answer from
+  // the capability-boot-guard's env-only store. This must precede the first
+  // refresh and every job.
+  bindProcessPolicies(container)
 
   // BQC-2.2: strong read of persisted policy state before any job runs —
   // worker decisions see DB truth from the start (allowlist/suspension).
@@ -91,9 +134,9 @@ async function main() {
   await container.refreshReviewProviderSubjectKeys()
 
   // Register all event handlers and job handlers BEFORE starting the BullMQ
-  // worker — otherwise early jobs (badge/leaderboard reconciliation fire
-  // immediately) arrive with no handler registered yet.
-  await bootstrap(container)
+  // worker. Blocked/dark families deliberately register no handler; scheduler
+  // reconciliation removes their repeats and any queued remnant quarantines.
+  await bootstrap(container, { runtime: createBootstrapRuntimeConfig(env) })
 
   // BQR-2.2: always register durable consumers when outbox is available so
   // the dispatcher is never started with an empty registry. Registration
@@ -122,8 +165,12 @@ async function main() {
   // failure is a deployment/config error per the failure taxonomy.
   assertJobReadiness(registry, logger, {
     dispatcherEnabled: Boolean(
-      container.outboxRepo && env.REDIS_URL && env.OUTBOX_DISPATCHER_ENABLED,
+      container.outboxRepo && jobRedisUrl && env.OUTBOX_DISPATCHER_ENABLED,
     ),
+    // ARC-03-T7: readiness validates THIS container's registry. The old
+    // process-global default could pass on consumers another container had
+    // registered.
+    listConsumers: container.consumerRegistry.list,
   })
 
   // BQC-3.2: dispatch-time scope resolution for jobs whose envelope lacks the
@@ -131,10 +178,18 @@ async function main() {
   // review → propertyId). Every other job name falls through to the payload.
   const resolveScope = createPublishReplyScopeResolver({ db: container.db })
 
-  // BQC-3.6: the dead-letter quarantine queue — created here (same pattern
-  // as the domain-events queue below), NEVER processed by a worker. Jobs
-  // whose attempt budget is spent land here with a content-safe envelope.
-  const quarantineQueue = createJobQueue(QUARANTINE_QUEUE_NAME)
+  // ARC-03-T15: the dead-letter quarantine barrier queue is CONTAINER-owned.
+  // It is written to and never processed; jobs whose attempt budget is spent
+  // land here with a content-safe envelope.
+  const { quarantineQueue, domainEventsQueue, processingRouter } =
+    container.jobDispatchWorkerRuntime
+  const runtimeObservationQueue = container.backgroundQueue ?? container.jobQueue
+  const runtimeObservationStore = runtimeObservationQueue
+    ? createQueueJobRuntimeObservationStore({
+        queue: runtimeObservationQueue,
+        cell: env.PROCESSING_CELL,
+      })
+    : null
 
   // BQC-4.2: the worker declares its processing cell (PROCESSING_CELL, ADR
   // 0048 — 'us' is the only approved beta cell). The routing gate re-resolves
@@ -142,11 +197,9 @@ async function main() {
   // wrong-cell jobs are quarantined directly (fail closed, no retry burn).
   const processingCell = env.PROCESSING_CELL
   const routingGate: JobRoutingGate = {
-    router: createProcessingRouter({
-      loadPropertyRouting: createPropertyRoutingLoader({ db: container.db }),
-      loadImportItemRouting: createImportItemRoutingLoader({ db: container.db }),
-      cell: processingCell,
-    }),
+    // ARC-03-T15: the container's ONE routing model. The worker used to build a
+    // second ProcessingRouter, so a single process held two routing decisions.
+    router: processingRouter,
     cell: processingCell,
     quarantine: async (job, policyReason) => {
       // Undefined only when Redis is absent — but then no worker starts, so
@@ -171,6 +224,8 @@ async function main() {
       createGatedJobHandler('default', registry, resolveScope, routingGate),
       DEFAULT_QUEUE_CONCURRENCY,
       quarantineQueue,
+      runtimeObservationStore ?? undefined,
+      container.clock,
     )
 
     if (worker) {
@@ -184,14 +239,16 @@ async function main() {
   }
 
   // ── Background queue — cron-scheduled maintenance jobs ────────────
-  // Separate queue so background work (metric refresh, badge/leaderboard
-  // reconciliation) never blocks user-facing jobs. Lower concurrency.
+  // Separate queue so retained background work never blocks user-facing jobs.
+  // Dark Badge/Leaderboard work is absent from this runtime. Lower concurrency.
   if (container.backgroundQueue) {
     backgroundWorker = createJobWorker(
       'background',
       createGatedJobHandler('background', registry, resolveScope, routingGate),
       BACKGROUND_QUEUE_CONCURRENCY,
       quarantineQueue,
+      runtimeObservationStore ?? undefined,
+      container.clock,
     )
 
     if (backgroundWorker) {
@@ -201,353 +258,75 @@ async function main() {
       )
     }
 
-    // Schedule health-check job every 5 minutes
-    container.backgroundQueue
-      .add(
-        HEALTH_CHECK_JOB_NAME,
-        {},
-        {
-          repeat: { every: 5 * 60 * 1000 },
-          jobId: 'health-check-recurring',
-          ...jobEnqueueOptions(HEALTH_CHECK_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Health-check job scheduled (every 5 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule health-check job (may already exist)')
-      })
-
-    // Schedule review retention jobs
-    container.backgroundQueue
-      .add(
-        REFRESH_EXPIRING_JOB_NAME,
-        {},
-        {
-          // BQC-1.5: hourly bounded sweep with cursor resume — keeps pace
-          // with the refresh-due window at target scale (500-row batches,
-          // budget 10/run, resumes when budget is exhausted or a run fails).
-          repeat: { every: 60 * 60 * 1000 },
-          jobId: 'refresh-expiring-reviews-recurring',
-          ...jobEnqueueOptions(REFRESH_EXPIRING_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Refresh expiring reviews job scheduled (hourly, BQC-1.5)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule refresh-expiring-reviews job')
-      })
-
-    // New-review discovery sweep. The refresh sweep above only revisits
-    // reviews ALREADY stored and only inside their 5-day pre-expiry window,
-    // so it can never find a review that does not exist locally yet. 15
-    // minutes is the fixed firing cadence — the granularity at which a
-    // property's own poll interval (REVIEW_DISCOVERY_INTERVAL_MINUTES,
-    // default 15) can come due. Bounded at 200 properties × 10 batches per
-    // firing, so the cadence never becomes the scaling limit.
-    container.backgroundQueue
-      .add(
-        DISCOVER_NEW_REVIEWS_JOB_NAME,
-        {},
-        {
-          repeat: { every: 15 * 60 * 1000 },
-          jobId: 'discover-new-reviews-recurring',
-          ...jobEnqueueOptions(DISCOVER_NEW_REVIEWS_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Discover new reviews job scheduled (every 15 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule discover-new-reviews job')
-      })
-
-    // Notification-gap healing sweep. `emitAfterCommit` is best-effort, so a
-    // throw in the inbox or notification handler leaves a committed review
-    // with no notification and nothing retrying; this is what retries. 10
-    // minutes is the fixed firing cadence — comfortably wider than the job's
-    // 5-minute grace edge, so a firing never races the happy path it is
-    // checking up on. Bounded at 100 items x 5 batches per firing.
-    container.backgroundQueue
-      .add(
-        RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME,
-        {},
-        {
-          repeat: { every: 10 * 60 * 1000 },
-          jobId: 'reconcile-missing-notifications-recurring',
-          ...jobEnqueueOptions(RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Reconcile missing notifications job scheduled (every 10 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule reconcile-missing-notifications job')
-      })
-
-    container.backgroundQueue
-      .add(
-        PURGE_EXPIRED_JOB_NAME,
-        {},
-        {
-          repeat: { every: 24 * 60 * 60 * 1000, offset: 2 * 60 * 60 * 1000 },
-          jobId: 'purge-expired-reviews-recurring',
-          ...jobEnqueueOptions(PURGE_EXPIRED_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Purge expired reviews job scheduled (daily)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule purge-expired-reviews job')
-      })
-
-    // BQC-3.8: reconcile ambiguous reply publications every 30 minutes. A row
-    // becomes due 15 minutes after the final ambiguous send attempt
-    // (reconcile_due_at); the sweep heals provider-confirmed rows to
-    // published and leaves the rest for operator retry.
-    container.backgroundQueue
-      .add(
-        RECONCILE_AMBIGUOUS_JOB_NAME,
-        {},
-        {
-          repeat: { every: 30 * 60 * 1000 },
-          jobId: 'reconcile-ambiguous-publications-recurring',
-          ...jobEnqueueOptions(RECONCILE_AMBIGUOUS_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Reconcile ambiguous publications job scheduled (every 30 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule reconcile-ambiguous-publications job')
-      })
-
-    // BQC-1.6: bounded retention with content-free evidence, daily (offset
-    // from purge so deletion evidence lands after canonical purges).
-    container.backgroundQueue
-      .add(
-        'retention-sweep',
-        {},
-        {
-          repeat: { every: 24 * 60 * 60 * 1000, offset: 3 * 60 * 60 * 1000 },
-          jobId: 'retention-sweep-recurring',
-          ...jobEnqueueOptions('retention-sweep'),
-        },
-      )
-      .then(() => {
-        logger.info('Retention sweep job scheduled (daily)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule retention-sweep job')
-      })
-
-    // BQC-7.8: dead-letter quarantine TTL bound, daily (offset after the
-    // retention sweep). Removes quarantined entries older than
-    // QUARANTINE_TTL_DAYS via job.remove() — never obliterate/clean.
-    container.backgroundQueue
-      .add(
-        QUARANTINE_TTL_SWEEP_JOB_NAME,
-        {},
-        {
-          repeat: { every: 24 * 60 * 60 * 1000, offset: 4 * 60 * 60 * 1000 },
-          jobId: 'quarantine-ttl-sweep-recurring',
-          ...jobEnqueueOptions(QUARANTINE_TTL_SWEEP_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Quarantine TTL sweep job scheduled (daily)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule quarantine-ttl-sweep job')
-      })
-
-    // Execution-permit start-deadline fence, every 5 minutes. `admitted` has
-    // exactly two other exits — a caller actually starting the permit (which
-    // detects `start_deadline_elapsed` lazily) and the emergency-kill drain — so
-    // an abandoned admission otherwise stays `admitted` forever, pinning its
-    // ON DELETE RESTRICT approval binding and inflating the active-permit index.
-    // Cadence is well under the approval-rotation window and each run is
-    // batch-bounded, so a backlog drains across runs.
-    container.backgroundQueue
-      .add(
-        PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
-        {},
-        {
-          repeat: { every: 5 * 60 * 1000 },
-          jobId: 'permit-start-deadline-sweep-recurring',
-          ...jobEnqueueOptions(PERMIT_START_DEADLINE_SWEEP_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Permit start-deadline sweep job scheduled (every 5 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule permit-start-deadline-sweep job')
-      })
-
-    // Google-import claim-lease reaper, every 60 seconds — one claim-lease
-    // width (GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS). A worker killed mid-effect
-    // leaves its item 'processing' with an elapsed lease and nothing else
-    // re-dispatches it: pending-item dispatch is driven only by the outbox
-    // requested event, and the lifecycle sweep reacts to the effect deadline
-    // hours later. This bounds recovery at roughly two lease widths. The run
-    // is a bounded 100-row scan that routes every row through the store's CAS
-    // helpers, so it is a no-op when no claim is stale.
-    container.backgroundQueue
-      .add(
-        GOOGLE_IMPORT_CLAIM_REAPER_JOB_NAME,
-        {},
-        {
-          repeat: { every: 60 * 1000 },
-          jobId: 'google-import-claim-reaper-recurring',
-          ...jobEnqueueOptions(GOOGLE_IMPORT_CLAIM_REAPER_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('Google import claim-lease reaper scheduled (every 60 seconds)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule google-import-claim-reaper job')
-      })
-
-    // ── AI operation abandoned-execution reaper ────────────────────────
-    // An operation whose owner died between `claimExecution` and its terminal
-    // write stays `executing` forever: nothing else writes that transition and
-    // `claim` refuses expired rows, so the row is inert AND permanently counted
-    // as in-flight AI work. The reapable condition is the OPEN ATTEMPT's age
-    // against the domain's own operation horizon (an `expires_at`-only scan hid
-    // every abandonment for 24 hours), so this cadence only bounds how long an
-    // already-dead row keeps claiming to be live. Bounded 100-row scan routed
-    // through the store's `recordFailure` CAS; a no-op when nothing is
-    // abandoned.
-    container.backgroundQueue
-      .add(
-        AI_EXECUTION_REAPER_JOB_NAME,
-        {},
-        {
-          repeat: { every: 5 * 60 * 1000 },
-          jobId: 'ai-operation-execution-reaper-recurring',
-          ...jobEnqueueOptions(AI_EXECUTION_REAPER_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('AI operation abandoned-execution reaper scheduled (every 5 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule ai-operation-execution-reaper job')
-      })
-
-    // ── AI review-analysis backfill advance sweep ──────────────────────
-    // A backfill run emits ONE review at a time — `storeAnalysis` refuses
-    // unless the allocation head still equals the sequence being stored — and
-    // the outbox consumer hands the run its next item as each one settles. This
-    // sweep only covers a hand-off that was lost, so the cadence bounds how long
-    // a BROKEN chain sits idle, not how fast a healthy run goes.
-    container.backgroundQueue
-      .add(
-        AI_BACKFILL_ADVANCE_JOB_NAME,
-        {},
-        {
-          repeat: { every: 5 * 60 * 1000 },
-          jobId: 'ai-review-analysis-backfill-advance-recurring',
-          ...jobEnqueueOptions(AI_BACKFILL_ADVANCE_JOB_NAME),
-        },
-      )
-      .then(() => {
-        logger.info('AI review-analysis backfill advance scheduled (every 5 minutes)')
-      })
-      .catch((err: unknown) => {
-        logger.warn({ err }, 'Failed to schedule ai-review-analysis-backfill-advance job')
-      })
-
-    // ── Metric materialized view refresh jobs ──────────────────────────
-    type MetricSchedule = Readonly<{
-      jobName: string
-      every?: number
-      pattern?: string
-      label: string
-    }>
-    const metricSchedules: MetricSchedule[] = [
-      { jobName: JOB_NAMES.refreshDailyMetrics, pattern: '0 * * * *', label: 'hourly' },
-      {
-        jobName: JOB_NAMES.refreshWeeklyMetrics,
-        every: 24 * 60 * 60 * 1000,
-        label: 'daily',
-      },
-      {
-        jobName: JOB_NAMES.refreshDailyInboxMetrics,
-        pattern: '5 * * * *',
-        label: 'hourly',
-      },
-    ]
-    for (const { jobName, every, pattern, label } of metricSchedules) {
-      const repeat = pattern ? { pattern } : { every: every! }
-      container.backgroundQueue
-        .add(
-          jobName,
-          {},
-          { repeat, jobId: `${jobName}-recurring`, ...jobEnqueueOptions(jobName) },
-        )
-        .then(() => logger.info({ jobName, label }, 'Job scheduled'))
-        .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
+    // The governed job-family catalogue is the single source of cadence and
+    // posture. Every family is managed so a stale/accidental scheduler for
+    // on-demand, dark, or quarantined work is removed.
+    const schedulerPlan = createOperationalSchedulerPlan()
+    const scheduleReconciliation = await reconcileJobSchedulers({
+      queue: container.backgroundQueue,
+      managedJobNames: schedulerPlan.managedJobNames,
+      desired: schedulerPlan.desired,
+    })
+    for (const { schedulerId, jobName } of schedulerPlan.desired) {
+      logger.info({ schedulerId, jobName }, 'Job scheduler reconciled')
     }
-
-    // ── Controlled-beta + outbound-email jobs ──────────────────────
-    // Promoted background work remains capability-gated so the persisted
-    // cohort policy and emergency kill switches apply at schedule time.
-    // Outbound email remains blocked unless notification.send_email is enabled.
-    type CapabilitySchedule = Readonly<{
-      jobName: string
-      every?: number
-      pattern?: string
-      label: string
-      capability: 'leaderboard.use' | 'notification.send_email' | 'ai.detect_trends'
-    }>
-    const capabilitySchedules: CapabilitySchedule[] = [
+    logger.info(
       {
-        jobName: SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
-        every: 60 * 1000,
-        label: 'minutely',
-        capability: 'ai.detect_trends',
+        managed: schedulerPlan.managedJobNames.length,
+        enabled: schedulerPlan.desired.length,
+        removedSchedulerIds: scheduleReconciliation.removedSchedulerIds,
       },
-      // Recognition refresh is staggered from metric rollups.
-      {
-        jobName: 'leaderboard.reconcile',
-        pattern: '30 * * * *',
-        label: 'hourly',
-        capability: 'leaderboard.use',
-      },
-      // Digest sends outbound email at each property's 8am local window (ADR 0011)
-      {
-        jobName: 'digest-notification',
-        pattern: '0 * * * *',
-        label: 'hourly',
-        capability: 'notification.send_email',
-      },
-    ]
-    for (const { jobName, every, pattern, label, capability } of capabilitySchedules) {
-      if (!isCapabilityJobEnabled(capability)) {
-        logger.info(
-          { jobName, capability },
-          'BQR-0: dark/blocked capability job NOT scheduled',
-        )
-        continue
-      }
-      const repeat = pattern ? { pattern } : { every: every! }
-      container.backgroundQueue
-        .add(
-          jobName,
-          {},
-          { repeat, jobId: `${jobName}-recurring`, ...jobEnqueueOptions(jobName) },
-        )
-        .then(() => logger.info({ jobName, label, capability }, 'Job scheduled'))
-        .catch((err: unknown) => logger.warn({ err, jobName }, 'Failed to schedule job'))
-    }
+      'Background job scheduler set reconciled',
+    )
   } else {
     logger.warn('No background queue available — cron jobs not scheduled')
+  }
+
+  if (runtimeObservationStore) {
+    const schedulerNames = new Set(
+      createOperationalSchedulerPlan().desired.map((schedule) => schedule.jobName),
+    )
+    await runtimeObservationStore.recordBoot({
+      contracts: JOB_OPERATIONAL_CONTRACTS,
+      registeredHandlers: new Set(registry.getAll().keys()),
+      registeredSchedulers: container.backgroundQueue ? schedulerNames : new Set(),
+      runtimeStartedAt,
+    })
+    const runtimeReport = await createJobRuntimeReportReader({
+      contracts: JOB_OPERATIONAL_CONTRACTS,
+      store: runtimeObservationStore,
+      queues: {
+        default: container.jobQueue ?? null,
+        background: container.backgroundQueue ?? null,
+      },
+      quarantine: quarantineQueue ?? null,
+      clock: container.clock,
+    }).read()
+    const log = runtimeReport.ready ? logger.info.bind(logger) : logger.warn.bind(logger)
+    log(
+      {
+        total: runtimeReport.total,
+        failing: runtimeReport.failing,
+        missingObservations: runtimeReport.missingObservations,
+        handlerMissing: runtimeReport.handlerMissing,
+        schedulerMissing: runtimeReport.schedulerMissing,
+        forbiddenDarkWork: runtimeReport.forbiddenDarkWork,
+        quarantinedSchedulers: runtimeReport.quarantinedSchedulers,
+        missedObjectives: runtimeReport.missedObjectives,
+        queueAgeMissed: runtimeReport.queueAgeMissed,
+        stalled: runtimeReport.stalled,
+        repairRequired: runtimeReport.repairRequired,
+        deadLetters: runtimeReport.deadLetters,
+        failedJobs: runtimeReport.rows
+          .filter((row) => !row.ready)
+          .map((row) => ({
+            jobName: row.jobName,
+            owner: row.owner,
+            reasons: row.reasons,
+          })),
+      },
+      'job runtime operational report',
+    )
   }
 
   // ── Outbox relay + dispatcher (PRE17A A3/A4) ─────────────────────
@@ -562,15 +341,32 @@ async function main() {
   // handing delivery to durable consumers (see `resolveCutoverState`).
   let domainEventsWorker: Worker | undefined
   let stopRelay: (() => void) | undefined
-  let domainEventsQueue: Queue | undefined
 
-  if (container.outboxRepo && env.REDIS_URL && env.OUTBOX_DISPATCHER_ENABLED) {
-    domainEventsQueue = createJobQueue('domain-events')
-
+  if (container.outboxRepo && jobRedisUrl && env.OUTBOX_DISPATCHER_ENABLED) {
     if (domainEventsQueue) {
-      const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue)
+      const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue, {
+        sourceCell: env.PROCESSING_CELL,
+        // REG-01: a Property-scoped fact is admitted against CURRENT routing
+        // immediately before queue publication. Organization/global facts are
+        // cell-local by database placement and carry no Property to resolve.
+        admitEvent: async (event) => {
+          if (!event.propertyId) return true
+          const decision = await container.dataCellExecutionFence.decideProperty(
+            event.propertyId,
+          )
+          return decision.kind === 'allow'
+            ? {
+                dataCellId: decision.cell,
+                routingPolicyVersion: decision.routingPolicyVersion,
+              }
+            : false
+        },
+      })
       stopRelay = relay.start(5_000)
-      const dispatchHandler = createDispatcherHandler(container.outboxRepo)
+      const dispatchHandler = createDispatcherHandler(container.outboxRepo, {
+        consumers: container.consumerRegistry,
+        localCell: env.PROCESSING_CELL,
+      })
       domainEventsWorker = createJobWorker(
         'domain-events',
         dispatchHandler,
@@ -586,7 +382,7 @@ async function main() {
         )
       }
     }
-  } else if (container.outboxRepo && env.REDIS_URL && !env.OUTBOX_DISPATCHER_ENABLED) {
+  } else if (container.outboxRepo && jobRedisUrl && !env.OUTBOX_DISPATCHER_ENABLED) {
     logger.info(
       'Outbox relay + dispatcher DISABLED (BQR-0 containment). ' +
         'Consumers are registered; events still deliver via in-process bus until BQR-2 exit.',
@@ -600,8 +396,8 @@ async function main() {
   // Railway's 30s drainingSeconds); a hung job previously stalled the deploy
   // window until SIGKILL. Budget expiry exits 1 — an unclean stop the
   // platform records — instead of an unbounded wait.
-  const shutdown = async (signal: string) => {
-    logger.info({ signal }, 'Shutdown signal received, draining workers')
+  const shutdown = async (trigger: WorkerTerminationTrigger, exitCode: 0 | 1) => {
+    logger.info({ exitCode, trigger }, 'Worker termination requested, draining workers')
 
     // Stop the outbox relay first (stop claiming new events)
     stopRelay?.()
@@ -613,6 +409,10 @@ async function main() {
         namedCloseable('background', backgroundWorker),
         namedCloseable('domain-events', domainEventsWorker),
       ],
+      // ARC-03-T6: the worker built this container, so the worker releases
+      // what it started (identity policy poller) — the process no longer
+      // relies on exit() to clean up background work.
+      shutdown: container.shutdown,
       queues: [
         namedCloseable('default', container.jobQueue),
         namedCloseable('background', container.backgroundQueue),
@@ -628,16 +428,70 @@ async function main() {
         { stuck: result.stuck, budgetMs: env.DRAIN_BUDGET_MS },
         'Drain budget exceeded — exiting with unclean shutdown',
       )
+      await flushObservability()
       process.exit(1)
     }
-    process.exit(0)
+    await flushObservability()
+    process.exit(exitCode)
   }
 
-  process.on('SIGTERM', () => void shutdown('SIGTERM'))
-  process.on('SIGINT', () => void shutdown('SIGINT'))
+  const processFailurePolicy = createWorkerProcessFailurePolicy({
+    shutdown,
+    exit: (code) => process.exit(code),
+    logger,
+    captureFatal: (error, trigger) =>
+      captureObservabilityException(error, {
+        source: 'worker-process',
+        trigger,
+      }),
+    flushErrorMonitoring: flushObservability,
+  })
+  process.once('SIGTERM', () => processFailurePolicy.onSignal('SIGTERM'))
+  process.once('SIGINT', () => processFailurePolicy.onSignal('SIGINT'))
+  process.once('unhandledRejection', (reason) =>
+    processFailurePolicy.onUnhandledRejection(reason),
+  )
+  process.once('uncaughtException', (error) =>
+    processFailurePolicy.onUncaughtException(error),
+  )
 }
 
-main().catch((err) => {
-  console.error('Worker failed to start', err)
+/**
+ * Say what the worker died of, on stderr, before anything else runs.
+ *
+ * The structured logger redacts free text, because a message logged during
+ * normal operation can carry tenant content. That is right in general and
+ * wrong here: this handler only ever runs BEFORE the worker has started, so
+ * there is no tenant data to leak, and the redacted form is unusable —
+ * `{"err":{"name":"Error"}}` names no cause at all, which is exactly what a
+ * failing container produced in CI.
+ *
+ * Mirrors `emitStartupFailure` in services/sidecar-operational-runtime.ts,
+ * which exists for the same reason and was added after the same symptom.
+ */
+function emitWorkerStartupFailure(error: unknown): void {
+  const named = error instanceof Error ? error : undefined
+  const code = (error as { code?: unknown } | null)?.code
+  process.stderr.write(
+    `${JSON.stringify({
+      event: 'worker.startup_failed',
+      name: named?.name ?? typeof error,
+      ...(typeof code === 'string' || typeof code === 'number' ? { code } : {}),
+      message: named?.message ?? String(error),
+      stack: named?.stack,
+    })}\n`,
+  )
+}
+
+main().catch(async (err) => {
+  // stderr FIRST: the two calls below both depend on configuration that may be
+  // the very thing that failed, so neither is allowed to swallow the diagnosis.
+  emitWorkerStartupFailure(err)
+  captureObservabilityException(err, {
+    source: 'worker-startup',
+    trigger: 'startup',
+  })
+  getLogger().fatal({ err }, 'Worker failed to start')
+  await flushObservability()
   process.exit(1)
 })

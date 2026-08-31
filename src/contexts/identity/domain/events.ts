@@ -8,6 +8,10 @@ import { assert } from '#/shared/domain/assert'
 import type { OrganizationId, UserId, InvitationId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import type { MerchantAiState } from './merchant-ai-authorization'
+import type { OrganizationLifecycleState } from './organization-lifecycle'
+
+type IdentityEventArgs<T> = Omit<T, '_tag' | 'eventId' | 'correlationId'> &
+  Readonly<{ correlationId?: string | null }>
 
 export type IdentityOrganizationCreated = Readonly<{
   _tag: 'identity.organization.created'
@@ -20,15 +24,15 @@ export type IdentityOrganizationCreated = Readonly<{
   correlationId: string | null
 }>
 export const identityOrganizationCreated = (
-  args: Omit<IdentityOrganizationCreated, '_tag' | 'eventId' | 'correlationId'>,
+  args: IdentityEventArgs<IdentityOrganizationCreated>,
 ): IdentityOrganizationCreated => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.organizationName.length > 0, 'organizationName required')
   return {
     _tag: 'identity.organization.created',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -37,22 +41,21 @@ export type IdentityMemberInvited = Readonly<{
   eventId: string
   organizationId: OrganizationId
   userId: UserId
-  email: string
   role: Role
   invitationId: InvitationId
   occurredAt: Date
   correlationId: string | null
 }>
 export const identityMemberInvited = (
-  args: Omit<IdentityMemberInvited, '_tag' | 'eventId' | 'correlationId'>,
+  args: IdentityEventArgs<IdentityMemberInvited>,
 ): IdentityMemberInvited => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.userId !== '', 'userId required')
   return {
     _tag: 'identity.member.invited',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -67,14 +70,14 @@ export type IdentityInvitationAccepted = Readonly<{
   correlationId: string | null
 }>
 export const identityInvitationAccepted = (
-  args: Omit<IdentityInvitationAccepted, '_tag' | 'eventId' | 'correlationId'>,
+  args: IdentityEventArgs<IdentityInvitationAccepted>,
 ): IdentityInvitationAccepted => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'identity.invitation.accepted',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -91,14 +94,14 @@ export type IdentityInvitationCanceled = Readonly<{
   correlationId: string | null
 }>
 export const identityInvitationCanceled = (
-  args: Omit<IdentityInvitationCanceled, '_tag' | 'eventId' | 'correlationId'>,
+  args: IdentityEventArgs<IdentityInvitationCanceled>,
 ): IdentityInvitationCanceled => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'identity.invitation.canceled',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -112,15 +115,15 @@ export type IdentityMemberRemoved = Readonly<{
   correlationId: string | null
 }>
 export const identityMemberRemoved = (
-  args: Omit<IdentityMemberRemoved, '_tag' | 'eventId' | 'correlationId'>,
+  args: IdentityEventArgs<IdentityMemberRemoved>,
 ): IdentityMemberRemoved => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.userId !== '', 'userId required')
   return {
     _tag: 'identity.member.removed',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -136,7 +139,7 @@ export type IdentityMemberRoleChanged = Readonly<{
   correlationId: string | null
 }>
 export const identityMemberRoleChanged = (
-  args: Omit<IdentityMemberRoleChanged, '_tag' | 'eventId' | 'correlationId'>,
+  args: IdentityEventArgs<IdentityMemberRoleChanged>,
 ): IdentityMemberRoleChanged => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(
@@ -146,8 +149,8 @@ export const identityMemberRoleChanged = (
   return {
     _tag: 'identity.member.role_changed',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -169,7 +172,7 @@ export type IdentityMerchantAiChanged = Readonly<{
 }>
 
 export const identityMerchantAiChanged = (
-  args: Omit<IdentityMerchantAiChanged, '_tag' | 'eventId' | 'correlationId'>,
+  args: IdentityEventArgs<IdentityMerchantAiChanged>,
 ): IdentityMerchantAiChanged => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.authorizationLineageId.length > 0, 'authorizationLineageId required')
@@ -200,8 +203,60 @@ export const identityMerchantAiChanged = (
   return {
     _tag: 'identity.merchant_ai.changed',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
+  }
+}
+
+export type IdentityOrganizationLifecycleChanged = Readonly<{
+  _tag: 'identity.organization_lifecycle.changed'
+  eventId: string
+  organizationId: OrganizationId
+  closureLineageId: string
+  state: OrganizationLifecycleState
+  revision: number
+  reactivationRequired: boolean
+  recoverableUntil: Date
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const identityOrganizationLifecycleChanged = (
+  args: IdentityEventArgs<IdentityOrganizationLifecycleChanged>,
+): IdentityOrganizationLifecycleChanged => {
+  assert(
+    args.occurredAt instanceof Date && !Number.isNaN(args.occurredAt.getTime()),
+    'occurredAt must be a valid Date',
+  )
+  assert(
+    args.recoverableUntil instanceof Date &&
+      !Number.isNaN(args.recoverableUntil.getTime()),
+    'recoverableUntil must be a valid Date',
+  )
+  assert(args.organizationId !== '', 'organizationId required')
+  assert(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      args.closureLineageId,
+    ),
+    'closureLineageId must be UUID',
+  )
+  assert(
+    Number.isSafeInteger(args.revision) && args.revision > 0,
+    'revision must be a positive safe integer',
+  )
+  // Every closure-direction transition raises the fence. LIF-01-T18
+  // reactivation is the ONE fact that lowers it, and it can only be reported
+  // from `active` — a fence cleared from any other state would mean a closing
+  // or purging Organization silently resumed.
+  assert(
+    args.reactivationRequired || args.state === 'active',
+    'lifecycle transition must require reactivation',
+  )
+  return {
+    _tag: 'identity.organization_lifecycle.changed',
+    eventId: newEventId(),
+    ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -213,3 +268,4 @@ export type IdentityEvent =
   | IdentityMemberRemoved
   | IdentityMemberRoleChanged
   | IdentityMerchantAiChanged
+  | IdentityOrganizationLifecycleChanged

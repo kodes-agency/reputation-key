@@ -1,11 +1,30 @@
 import { createHash, sign, verify, type KeyObject } from 'node:crypto'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from '../../src/shared/merchant-ai-notice-contract'
 import { aiInternalSafeIdSchema } from '../../src/shared/ai-internal-transport-contract'
 import { OPENAI_KNOWN_MODEL_SNAPSHOTS, OPENAI_PROMPT_VERSIONS } from './contracts'
+import {
+  AI_PERSONALIZED_REPLY_LANGUAGES,
+  AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+} from '../../src/shared/ai-personalized-reply-contract'
 
-const DOMAIN = 'repkey-ai-reply-provenance-v1\0'
-const TOKEN_PREFIX = 'rk_ai_reply_v1'
+const DOMAINS = Object.freeze({
+  'ai-reply-provenance-v1': 'repkey-ai-reply-provenance-v1\0',
+  'ai-reply-provenance-v2': 'repkey-ai-reply-provenance-v2\0',
+  'ai-reply-provenance-v3': 'repkey-ai-reply-provenance-v3\0',
+})
+const TOKEN_PREFIXES = Object.freeze({
+  'ai-reply-provenance-v1': 'rk_ai_reply_v1',
+  'ai-reply-provenance-v2': 'rk_ai_reply_v2',
+  'ai-reply-provenance-v3': 'rk_ai_reply_v3',
+})
+// V2 tokens were issued before public Property Brand Profile grounding. Keep
+// their exact profile pin forever so already-adoptable drafts remain
+// verifiable even as the active personalized-reply profile advances.
+const LEGACY_PERSONALIZED_REPLY_PROFILE_VERSION = 'reply-draft-v1'
+const LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST =
+  '86bb98cb3b0b1c8561141e2ec30e019725d5f0ba5dd57be4745c7db5bc851769'
 const canonicalUuid = z
   .string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
@@ -14,29 +33,74 @@ const safeId = aiInternalSafeIdSchema
 const positive = z.number().int().positive().safe()
 const nonnegative = z.number().int().nonnegative().safe()
 
-const payloadSchema = z
+const commonPayloadShape = {
+  kid: z.string().regex(/^[a-z][a-z0-9._-]{0,31}$/),
+  operationId: canonicalUuid,
+  actorId: safeId,
+  organizationId: safeId,
+  propertyId: canonicalUuid,
+  reviewId: safeId,
+  requestBindingHmac: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  // 0-based source epoch (drizzle/0060); mirrors src/shared/ai-reply-provenance.ts.
+  sourceEpoch: nonnegative,
+  sourceRevision: positive,
+  baseReplyStateRevision: nonnegative,
+  replyDraftingEpoch: positive,
+  propertyProfileVersion: positive,
+  providerDeploymentProfileVersion: safeId,
+  operationProfileVersion: z.literal('reply-suggestion-v1'),
+  // Known-version set: see OPENAI_KNOWN_MODEL_SNAPSHOTS. Mirrors src/shared/ai-reply-provenance.ts.
+  modelSnapshot: z.enum(OPENAI_KNOWN_MODEL_SNAPSHOTS),
+  promptVersion: z.literal(OPENAI_PROMPT_VERSIONS['reply-suggestion']),
+  outputLeakageProfileVersion: safeId,
+  outputLeakageProfileDigest: digest,
+  concreteLanguageTag: safeId,
+  templateGroup: safeId,
+  renderedSuggestionDigest: digest,
+  tokenExpiresAtEpochMillis: positive,
+  draftExpiresAtEpochMillis: positive,
+} as const
+
+const expiryRefinement = (
+  value: Readonly<{
+    tokenExpiresAtEpochMillis: number
+    draftExpiresAtEpochMillis: number
+  }>,
+  context: z.RefinementCtx,
+): void => {
+  if (value.tokenExpiresAtEpochMillis > value.draftExpiresAtEpochMillis) {
+    context.addIssue({ code: 'custom', message: 'token expiry exceeds draft expiry' })
+  }
+}
+
+const personalizedRefinement = (
+  value: Readonly<{
+    tokenExpiresAtEpochMillis: number
+    draftExpiresAtEpochMillis: number
+    concreteLanguageTag: string
+    templateGroup: string
+  }>,
+  context: z.RefinementCtx,
+): void => {
+  expiryRefinement(value, context)
+  if (
+    !AI_PERSONALIZED_REPLY_LANGUAGES.some(
+      (language) => language === value.templateGroup,
+    ) ||
+    (value.concreteLanguageTag !== value.templateGroup &&
+      !value.concreteLanguageTag.startsWith(`${value.templateGroup}-`))
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: 'personalized reply language is not approved',
+    })
+  }
+}
+
+const legacyPayloadSchema = z
   .object({
     version: z.literal('ai-reply-provenance-v1'),
-    kid: z.string().regex(/^[a-z][a-z0-9._-]{0,31}$/),
-    operationId: canonicalUuid,
-    actorId: safeId,
-    organizationId: safeId,
-    propertyId: canonicalUuid,
-    reviewId: safeId,
-    requestBindingHmac: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
-    // 0-based source epoch (drizzle/0060); mirrors src/shared/ai-reply-provenance.ts.
-    sourceEpoch: nonnegative,
-    sourceRevision: positive,
-    baseReplyStateRevision: nonnegative,
-    replyDraftingEpoch: positive,
-    propertyProfileVersion: positive,
-    providerDeploymentProfileVersion: safeId,
-    operationProfileVersion: z.literal('reply-suggestion-v1'),
-    // Known-version set: see OPENAI_KNOWN_MODEL_SNAPSHOTS. Mirrors src/shared/ai-reply-provenance.ts.
-    modelSnapshot: z.enum(OPENAI_KNOWN_MODEL_SNAPSHOTS),
-    promptVersion: z.literal(OPENAI_PROMPT_VERSIONS['reply-suggestion']),
-    outputLeakageProfileVersion: safeId,
-    outputLeakageProfileDigest: digest,
+    ...commonPayloadShape,
     replyTemplateCatalogueVersion: safeId,
     replyTemplateCatalogueDigest: digest,
     templateId: z.enum([
@@ -45,23 +109,48 @@ const payloadSchema = z
       'recovery_service',
       'acknowledge_concern',
     ]),
-    concreteLanguageTag: safeId,
-    templateGroup: safeId,
-    renderedSuggestionDigest: digest,
-    tokenExpiresAtEpochMillis: positive,
-    draftExpiresAtEpochMillis: positive,
   })
   .strict()
-  .superRefine((value, context) => {
-    if (value.tokenExpiresAtEpochMillis > value.draftExpiresAtEpochMillis) {
-      context.addIssue({ code: 'custom', message: 'token expiry exceeds draft expiry' })
-    }
+  .superRefine(expiryRefinement)
+
+const personalizedPayloadSchema = z
+  .object({
+    version: z.literal('ai-reply-provenance-v2'),
+    ...commonPayloadShape,
+    replyProfileVersion: z.literal(LEGACY_PERSONALIZED_REPLY_PROFILE_VERSION),
+    replyProfileDigest: z.literal(LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST),
   })
+  .strict()
+  .superRefine(personalizedRefinement)
 
-export type AiReplyProvenancePayloadV1 = z.infer<typeof payloadSchema>
+const groundedPersonalizedPayloadSchema = z
+  .object({
+    version: z.literal('ai-reply-provenance-v3'),
+    ...commonPayloadShape,
+    replyProfileVersion: z.literal(AI_PERSONALIZED_REPLY_PROFILE_VERSION),
+    replyProfileDigest: z.literal(AI_PERSONALIZED_REPLY_PROFILE_DIGEST),
+    replyBrandProfileVersion: positive,
+    replyBrandDisplayNameDigest: digest,
+  })
+  .strict()
+  .superRefine(personalizedRefinement)
 
-function signingBytes(canonicalPayload: string): Buffer {
-  return Buffer.from(`${DOMAIN}${canonicalPayload}`, 'utf8')
+const payloadSchema = z.union([
+  legacyPayloadSchema,
+  personalizedPayloadSchema,
+  groundedPersonalizedPayloadSchema,
+])
+
+export type AiReplyProvenancePayloadV1 = z.infer<typeof legacyPayloadSchema>
+export type AiReplyProvenancePayloadV2 = z.infer<typeof personalizedPayloadSchema>
+export type AiReplyProvenancePayloadV3 = z.infer<typeof groundedPersonalizedPayloadSchema>
+export type AiReplyProvenancePayload = z.infer<typeof payloadSchema>
+
+function signingBytes(
+  version: AiReplyProvenancePayload['version'],
+  canonicalPayload: string,
+): Buffer {
+  return Buffer.from(`${DOMAINS[version]}${canonicalPayload}`, 'utf8')
 }
 
 function decodeCanonicalBase64Url(value: string): Buffer {
@@ -87,7 +176,7 @@ export function digestRenderedReply(text: string): string {
 }
 
 export function signAiReplyProvenance(
-  rawPayload: AiReplyProvenancePayloadV1,
+  rawPayload: AiReplyProvenancePayload,
   privateKey: KeyObject,
 ): string {
   const payload = payloadSchema.parse(rawPayload)
@@ -97,12 +186,12 @@ export function signAiReplyProvenance(
   let bytes: Buffer | null = null
   try {
     payloadBytes = Buffer.from(canonicalPayload, 'utf8')
-    bytes = signingBytes(canonicalPayload)
+    bytes = signingBytes(payload.version, canonicalPayload)
     signatureBytes = sign(null, bytes, privateKey)
     if (signatureBytes.byteLength !== 64) {
       throw new TypeError('AI reply provenance signature is invalid')
     }
-    return `${TOKEN_PREFIX}.${payloadBytes.toString('base64url')}.${signatureBytes.toString('base64url')}`
+    return `${TOKEN_PREFIXES[payload.version]}.${payloadBytes.toString('base64url')}.${signatureBytes.toString('base64url')}`
   } finally {
     payloadBytes?.fill(0)
     signatureBytes?.fill(0)
@@ -113,9 +202,15 @@ export function signAiReplyProvenance(
 export function verifyAiReplyProvenance(
   token: string,
   publicKeys: ReadonlyMap<string, KeyObject>,
-): AiReplyProvenancePayloadV1 | null {
+): AiReplyProvenancePayload | null {
   const parts = token.split('.')
-  if (parts.length !== 3 || parts[0] !== TOKEN_PREFIX) return null
+  if (
+    parts.length !== 3 ||
+    (parts[0] !== TOKEN_PREFIXES['ai-reply-provenance-v1'] &&
+      parts[0] !== TOKEN_PREFIXES['ai-reply-provenance-v2'] &&
+      parts[0] !== TOKEN_PREFIXES['ai-reply-provenance-v3'])
+  )
+    return null
   let payloadBytes: Buffer | null = null
   let signatureBytes: Buffer | null = null
   let bytes: Buffer | null = null
@@ -127,12 +222,13 @@ export function verifyAiReplyProvenance(
     const payload = payloadSchema.parse(
       JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(payloadBytes)),
     )
+    if (parts[0] !== TOKEN_PREFIXES[payload.version]) return null
     const canonicalPayload = canonicalizeRfc8785(payload)
     canonicalPayloadBytes = Buffer.from(canonicalPayload, 'utf8')
     if (canonicalPayloadBytes.toString('base64url') !== parts[1]) return null
     const key = publicKeys.get(payload.kid)
     if (!key) return null
-    bytes = signingBytes(canonicalPayload)
+    bytes = signingBytes(payload.version, canonicalPayload)
     return verify(null, bytes, key, signatureBytes) ? payload : null
   } catch {
     return null

@@ -3,9 +3,9 @@ import type { GoogleExecutionAdmissionRequest } from './contracts'
 import {
   createDenyAllGoogleExecutionAdmission,
   createInMemoryGoogleExecutionAdmission,
+  validateGoogleExecutionAdmissionRequest,
 } from './execution-admission'
 import { createInMemoryGoogleQuotaCoordinator } from './quota-coordinator'
-import { createRefreshSingleFlight } from './refresh-single-flight'
 import {
   executeWithSingle401Refresh,
   googleRetryDelayMs,
@@ -50,6 +50,96 @@ const fingerprint = (value: string) =>
   value.charCodeAt(0).toString(16).padStart(2, '0').repeat(32)
 
 describe('Google execution admission', () => {
+  it.each([
+    ['property.import_gbp_v2', 'performance.fetch', 'performance', 'performance'],
+    ['property.read_gbp_performance', 'reviews.list', 'reviews', 'reviews'],
+    [
+      'property.connect_gbp',
+      'account-management.accounts.list',
+      'account-management',
+      'discovery',
+    ],
+    ['property.publish_reply', 'reviews.get', 'reviews', 'reviews'],
+  ] as const)(
+    'rejects a %s permit for the unrelated %s route',
+    (capability, routeKey, endpointClass, requestClass) => {
+      expect(
+        validateGoogleExecutionAdmissionRequest(
+          request({ capability, routeKey, endpointClass, requestClass }),
+          10_000,
+        ),
+      ).toBe('route_mismatch')
+    },
+  )
+
+  it('accepts the system review-sync capability only on read review routes', () => {
+    expect(
+      validateGoogleExecutionAdmissionRequest(
+        request({
+          capability: 'property.connect_gbp',
+          propertyId: 'property-1',
+          routeKey: 'reviews.get',
+          endpointClass: 'reviews',
+          requestClass: 'reviews',
+          maxRequestBytes: 0,
+          maxResponseBytes: 64 * 1024,
+          quotaPolicyId: 'google-reviews-v1',
+          inFlightPolicyId: 'google-reviews-v1',
+        }),
+        10_000,
+      ),
+    ).toBeNull()
+  })
+
+  it.each([
+    ['notifications.get', 0, null, 'google-notifications-read-v1'],
+    ['notifications.subscribe', 128, 'c'.repeat(64), 'google-notifications-write-v1'],
+    ['notifications.unsubscribe', 96, 'd'.repeat(64), 'google-notifications-write-v1'],
+  ] as const)(
+    'accepts property.connect_gbp for the governed %s route',
+    (routeKey, requestBodyBytes, requestBodySha256, quotaPolicyId) => {
+      expect(
+        validateGoogleExecutionAdmissionRequest(
+          request({
+            capability: 'property.connect_gbp',
+            propertyId: 'property-1',
+            routeKey,
+            endpointClass: 'notifications',
+            requestClass: 'notifications',
+            requestBodySha256,
+            requestBodyBytes,
+            maxRequestBytes: requestBodyBytes === 0 ? 0 : 64 * 1024,
+            maxResponseBytes: 64 * 1024,
+            quotaPolicyId,
+            inFlightPolicyId: quotaPolicyId,
+          }),
+          10_000,
+        ),
+      ).toBeNull()
+    },
+  )
+
+  it('accepts the reply-publication capability only on the review write route', () => {
+    expect(
+      validateGoogleExecutionAdmissionRequest(
+        request({
+          capability: 'property.publish_reply',
+          propertyId: 'property-1',
+          routeKey: 'reviews.reply',
+          endpointClass: 'reviews',
+          requestClass: 'reviews',
+          requestBodySha256: 'c'.repeat(64),
+          requestBodyBytes: 24,
+          maxRequestBytes: 64 * 1024,
+          maxResponseBytes: 64 * 1024,
+          quotaPolicyId: 'google-reviews-v1',
+          inFlightPolicyId: 'google-reviews-v1',
+        }),
+        10_000,
+      ),
+    ).toBeNull()
+  })
+
   it('denies by default', async () => {
     await expect(
       createDenyAllGoogleExecutionAdmission().issue(request()),
@@ -159,22 +249,6 @@ describe('Google quota and refresh coordination', () => {
       ok: true,
       remaining: 0,
     })
-  })
-
-  it('coalesces concurrent refreshes and clears the flight after settlement', async () => {
-    const singleFlight = createRefreshSingleFlight()
-    let release!: (value: string) => void
-    const pending = new Promise<string>((resolve) => {
-      release = resolve
-    })
-    const refresh = vi.fn(() => pending)
-    const first = singleFlight.run('connection-1', refresh)
-    const second = singleFlight.run('connection-1', refresh)
-    release('token-2')
-    await expect(Promise.all([first, second])).resolves.toEqual(['token-2', 'token-2'])
-    expect(refresh).toHaveBeenCalledTimes(1)
-    await singleFlight.run('connection-1', async () => 'token-3')
-    expect(refresh).toHaveBeenCalledTimes(1)
   })
 
   it('retries only one 401 after one refresh', async () => {

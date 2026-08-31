@@ -20,10 +20,13 @@ function fakeLogger() {
   return { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }
 
-/** Mirror bootstrap.ts: every catalogued job gets a handler (no-op for dark/blocked). */
+/** Mirror bootstrap.ts: blocked/dark work has no executable handler. */
 function fullyRegisteredRegistry() {
   const registry = createJobRegistry()
   for (const row of JOB_FAMILY_ROWS) {
+    if (row.registration === 'blocked_capability' || row.registration === 'denied_dark') {
+      continue
+    }
     registry.register(row.jobName, async () => {})
   }
   return registry
@@ -45,6 +48,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
         dispatcherEnabled: false,
+        listConsumers: () => [],
       }),
     ).not.toThrow()
 
@@ -62,7 +66,10 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     }
 
     expect(() =>
-      assertJobReadiness(registry, logger, { dispatcherEnabled: false }),
+      assertJobReadiness(registry, logger, {
+        dispatcherEnabled: false,
+        listConsumers: () => [],
+      }),
     ).toThrow(new RegExp(missing.jobName))
   })
 
@@ -72,12 +79,70 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     registry.register('health-chek', async () => {}) // typo'd stale handler
 
     expect(() =>
-      assertJobReadiness(registry, logger, { dispatcherEnabled: false }),
+      assertJobReadiness(registry, logger, {
+        dispatcherEnabled: false,
+        listConsumers: () => [],
+      }),
     ).toThrow(/health-chek/)
   })
 
-  it('contains no stale denied or blocked rows after controlled-beta promotion', () => {
-    expect(JOB_FAMILY_ROWS.filter((row) => row.registration !== 'enabled')).toEqual([])
+  it('throws when a blocked or dark family retains an executable handler', () => {
+    const logger = fakeLogger()
+    const registry = fullyRegisteredRegistry()
+    const blocked = JOB_FAMILY_ROWS.find(
+      (row) =>
+        row.registration === 'blocked_capability' || row.registration === 'denied_dark',
+    )
+    if (!blocked) throw new Error('test precondition: a blocked row exists')
+    registry.register(blocked.jobName, async () => {})
+
+    expect(() =>
+      assertJobReadiness(registry, logger, {
+        dispatcherEnabled: false,
+        listConsumers: () => [],
+      }),
+    ).toThrow(new RegExp(blocked.jobName))
+  })
+
+  it('contains exactly the governed dark and quarantined job registrations', () => {
+    expect(
+      JOB_FAMILY_ROWS.filter((row) => row.registration !== 'enabled').map((row) => ({
+        jobName: row.jobName,
+        capability: row.capability,
+        registration: row.registration,
+      })),
+    ).toEqual([
+      {
+        jobName: 'process-image',
+        capability: 'portal.upload',
+        registration: 'blocked_capability',
+      },
+      {
+        jobName: 'expire-review-provider-source',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+      {
+        jobName: 'purge-expired-reviews',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+      {
+        jobName: 'advance-organization-lifecycle',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+      {
+        jobName: 'generate-organization-export',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+      {
+        jobName: 'purge-expired-organization-exports',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+    ])
   })
 
   it('skips durable-consumer validation when the dispatcher is disabled (logs info)', () => {
@@ -123,6 +188,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
         dispatcherEnabled: false,
+        listConsumers: () => [],
         activeCutoverFamilies: () => [{ family: 'review.created', state: 'shadow' }],
       }),
     ).toThrow(/review\.created=shadow.*OUTBOX_DISPATCHER_ENABLED/)
@@ -130,6 +196,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
         dispatcherEnabled: false,
+        listConsumers: () => [],
         activeCutoverFamilies: () => [
           { family: 'review.created', state: 'switch' },
           { family: 'review.expired', state: 'shadow' },
@@ -159,6 +226,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
         dispatcherEnabled: false,
+        listConsumers: () => [],
         activeCutoverFamilies: () => [],
       }),
     ).not.toThrow()

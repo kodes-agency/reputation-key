@@ -3,35 +3,28 @@
 // hooks in notification-queries receive the relevant fn and wrap it internally.
 // Type-only imports (typeof prop typing) — allowed by the boundary gate.
 import type {
-  getUnreadNotificationCountFn,
+  getNotificationFeedHeadFn,
   getNotificationsFn,
   markNotificationReadFn,
   markNotificationUnreadFn,
   markAllNotificationsReadFn,
   dismissNotificationFn,
   dismissAllNotificationsFn,
-  getNotificationPreferencesFn,
-  updateNotificationPreferenceFn,
+  muteNotificationCategoryFn,
   getNotificationUserSettingsFn,
 } from '#/contexts/notification/server/notifications'
 import type { Notification } from '#/contexts/notification/application/public-api'
 
 export type NotificationServerFns = Readonly<{
-  getUnreadCount: typeof getUnreadNotificationCountFn
+  /** Atomic feed-head authority used by the bell and full feed. */
+  getFeedHead: typeof getNotificationFeedHeadFn
   getList: typeof getNotificationsFn
   markRead: typeof markNotificationReadFn
   markUnread: typeof markNotificationUnreadFn
   markAllRead: typeof markAllNotificationsReadFn
   dismiss: typeof dismissNotificationFn
   dismissAll: typeof dismissAllNotificationsFn
-  /**
-   * Preferences are read only when the user actually picks "Mute …" from a
-   * row's overflow menu (via `ensureQueryData`), so the bell costs no extra
-   * request. Muting needs the whole preference row because the update DTO is
-   * a full replace, not a patch.
-   */
-  getPreferences: typeof getNotificationPreferencesFn
-  updatePreference: typeof updateNotificationPreferenceFn
+  muteCategory: typeof muteNotificationCategoryFn
   /** Supplies the persisted `locale` + `timezone` used to format timestamps. */
   getUserSettings: typeof getNotificationUserSettingsFn
 }>

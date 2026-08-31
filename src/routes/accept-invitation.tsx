@@ -2,9 +2,10 @@
 // Fixed: auto-accept now uses useEffect instead of side-effect-in-render
 
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { getSession } from '#/shared/auth/auth.functions'
-import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { identityKeys } from '#/shared/queries/query-keys'
+import { clearTenantCacheAfterTenantChange } from '#/shared/queries/tenant-cache-transition'
 import {
   listUserInvitations,
   acceptInvitation,
@@ -17,7 +18,7 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 // hit with zero extra fetch. The filter+map lives inside the queryFn so the
 // cached value is the filtered invitation list.
 const invitationsQuery = queryOptions({
-  queryKey: identityKeys.invitations(),
+  queryKey: identityKeys.userInvitations(),
   queryFn: async () => {
     const { invitations } = await listUserInvitations()
     return invitations
@@ -37,15 +38,17 @@ export const Route = createFileRoute('/accept-invitation')({
   beforeLoad: async ({ location }) => {
     const session = await getSession()
     if (!session) {
+      const invitationId = new URL(location.href, 'http://repkey.local').searchParams.get(
+        'id',
+      )
       throw redirect({
         to: '/join',
-        search: { redirect: location.href },
+        search: { invitationId: invitationId ?? undefined },
       })
     }
   },
   loader: async ({ context }) => {
-    const invitations = await context.queryClient.ensureQueryData(invitationsQuery)
-    return { invitations }
+    await context.queryClient.ensureQueryData(invitationsQuery)
   },
   component: AcceptInvitationRoute,
 })
@@ -53,13 +56,10 @@ export const Route = createFileRoute('/accept-invitation')({
 function AcceptInvitationRoute() {
   const search = Route.useSearch() as { id?: string }
   const { data: invitations } = useSuspenseQuery(invitationsQuery)
+  const queryClient = useQueryClient()
   const acceptInvitationFn = useActionMutation(acceptInvitation, {
     successMessage: 'Invitation accepted',
-    invalidateKeys: [
-      identityKeys.organizations(),
-      propertyKeys.list(),
-      identityKeys.invitations(),
-    ],
+    onSuccess: () => clearTenantCacheAfterTenantChange(queryClient),
   })
 
   return (

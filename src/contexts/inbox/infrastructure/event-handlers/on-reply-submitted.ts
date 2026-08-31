@@ -2,13 +2,14 @@
 // Sets the firstReplySubmittedAt milestone on the associated inbox item.
 
 import type { ReviewReplySubmitted } from '#/contexts/review/application/public-api'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
-import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
 
 export type OnReplySubmittedDeps = Readonly<{
   repo: InboxRepository
+  logger: LoggerPort
 }>
 
 export const onReplySubmitted =
@@ -22,7 +23,7 @@ export const onReplySubmitted =
           event.organizationId,
         )
         if (!inboxItem) {
-          getLogger().warn('inbox: reply.submitted but no inbox item found')
+          deps.logger.warn('inbox: reply.submitted but no inbox item found')
           return
         }
 
@@ -31,15 +32,17 @@ export const onReplySubmitted =
           return
         }
 
-        await deps.repo.updateStatus(
+        // Milestone only. This handler used to pass the item's own status back
+        // through the status seam, which made it an unfenced writer of the
+        // `inbox_items.status` compatibility mirror for no benefit.
+        await deps.repo.stampReplyMilestones(
           inboxItem.id,
           inboxItem.organizationId,
-          inboxItem.status,
           { firstReplySubmittedAt: event.occurredAt },
           event.occurredAt,
         )
       } catch (err) {
-        getLogger().error({ err }, 'inbox: failed to handle reply.submitted')
+        deps.logger.error({ err }, 'inbox: failed to handle reply.submitted')
       }
     })
   }

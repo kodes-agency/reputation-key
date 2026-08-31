@@ -14,9 +14,9 @@ return 1
 
 const SAFE_KEY = /^[A-Za-z0-9_-]{32,128}$/
 
-export function createRedisOAuthCallbackQuotaCounter(
+export const createRedisOAuthCallbackQuotaCounter = (
   redis: Redis,
-): OAuthCallbackQuotaCounter {
+): OAuthCallbackQuotaCounter => {
   return Object.freeze({
     consume: async (input) => {
       if (

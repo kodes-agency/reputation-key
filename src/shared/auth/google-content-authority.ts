@@ -58,6 +58,14 @@ export type GoogleContentAuthorizationScope = Readonly<{
   propertyId: string | null
   connectionId: string | null
   initiatorUserId: string | null
+  publication?: Readonly<{
+    reviewId: string
+    replyId: string
+    publicationCycle: number
+    attemptNumber: number
+    sourceEpoch: number
+    materialReviewRevision: number
+  }>
 }>
 
 export type GoogleContentAuthorityStore<Tx> = Readonly<{
@@ -237,7 +245,7 @@ export type GoogleContentApprovalInstaller = Readonly<{
   >
 }>
 
-export function createGoogleContentApprovalInstaller<Tx>(
+function createGoogleContentApprovalInstaller<Tx>(
   deps: Readonly<{
     store: Pick<GoogleContentAuthorityStore<Tx>, 'transaction' | 'appendApproval'>
     clock: Clock
@@ -325,6 +333,8 @@ const PROVIDER_REQUEST_BINDING_KEYS = new Set([
   'requestBodyBytes',
 ])
 const SHA256 = /^[a-f0-9]{64}$/
+const CANONICAL_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 
 function validProviderRequestBinding(
   value: GoogleContentProviderRequestBinding,
@@ -348,6 +358,41 @@ function authorizationDecisionMatches(
     Object.entries(persisted).filter(([key]) => !PROVIDER_REQUEST_BINDING_KEYS.has(key)),
   )
   return sameAuthorizationVector(decision, core)
+}
+
+function publicationScopeFromAuthorizationVector(
+  vector: GoogleContentAuthorizationVector,
+): NonNullable<GoogleContentAuthorizationScope['publication']> | null {
+  const reviewId = vector.reviewId
+  const replyId = vector.replyId
+  const publicationCycle = vector.publicationCycle
+  const attemptNumber = vector.publicationAttemptNumber
+  const sourceEpoch = vector.propertySourceEpoch
+  const materialReviewRevision = vector.materialReviewRevision
+  if (
+    typeof reviewId !== 'string' ||
+    !CANONICAL_UUID.test(reviewId) ||
+    typeof replyId !== 'string' ||
+    !CANONICAL_UUID.test(replyId) ||
+    !Number.isSafeInteger(publicationCycle) ||
+    Number(publicationCycle) < 1 ||
+    !Number.isSafeInteger(attemptNumber) ||
+    Number(attemptNumber) < 1 ||
+    !Number.isSafeInteger(sourceEpoch) ||
+    Number(sourceEpoch) < 0 ||
+    !Number.isSafeInteger(materialReviewRevision) ||
+    Number(materialReviewRevision) < 1
+  ) {
+    return null
+  }
+  return {
+    reviewId,
+    replyId,
+    publicationCycle: Number(publicationCycle),
+    attemptNumber: Number(attemptNumber),
+    sourceEpoch: Number(sourceEpoch),
+    materialReviewRevision: Number(materialReviewRevision),
+  }
 }
 
 function validationCode(
@@ -455,6 +500,15 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
       return 'authorization_denied'
     }
 
+    const publication =
+      record.permit.capability === 'property.publish_reply'
+        ? publicationScopeFromAuthorizationVector(record.authorizationVector)
+        : undefined
+    if (record.permit.capability === 'property.publish_reply' && !publication) {
+      await fenceAndPersist(tx, record.permit, now)
+      return 'authorization_denied'
+    }
+
     const decision = await deps.authorize(tx, {
       capability: record.permit.capability,
       scope: {
@@ -462,6 +516,7 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
         propertyId: record.permit.propertyId,
         connectionId: record.permit.connectionId,
         initiatorUserId: record.permit.initiatorUserId,
+        ...(publication ? { publication } : {}),
       },
       operationKey: record.permit.operationKey,
       vectorMode: record.permit.commitVectorMode,

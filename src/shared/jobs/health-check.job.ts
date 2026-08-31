@@ -51,7 +51,7 @@ export type HealthCheckDeps = Readonly<{
   readQueueDepths?: () => Promise<ReadonlyArray<QueueDepth>>
   /** BQC-7.4: the full operations snapshot read (container-owned reader). */
   readOperationsSnapshot?: () => Promise<OperationsSnapshot>
-  /** BQC-7.4: aux alert reads (retention / policy denials / region attempts). */
+  /** BQC-7.4: aux alert reads (retention / policy / routing / feedback triage). */
   readAlertAux?: () => Promise<AlertAuxReads>
   /** BQC-7.4: firing-state store (edge-trigger + 24h re-notify hysteresis). */
   alertState?: AlertStateStore
@@ -64,14 +64,16 @@ export type HealthCheckDeps = Readonly<{
  * against the snapshot + aux reads, dispatch the newly-firing edges, then
  * reconcile the firing-state store (mark dispatched, clear recovered).
  * Dispatch and state writes never throw into the job — the health check's
- * own result is never hostage to the alerting path.
+ * own result is never hostage to the alerting path. Hysteresis-store loss
+ * evaluates with an empty prior set and still dispatches: duplicate pages are
+ * safer than making the Redis-unavailable condition itself invisible.
  */
 async function evaluateAndDispatch(
   deps: Readonly<{
     logger: pino.Logger
     readOperationsSnapshot: () => Promise<OperationsSnapshot>
     readAlertAux: () => Promise<AlertAuxReads>
-    alertState: AlertStateStore
+    alertState?: AlertStateStore
     alertDispatcher: AlertDispatcher
   }>,
 ): Promise<HealthCheckResult['alerts']> {
@@ -86,11 +88,22 @@ async function evaluateAndDispatch(
     {
       policyDenialsByReason: aux.policyDenialsByReason,
       routingBlockedByReason: aux.routingBlockedByReason,
+      betaFeedbackTriage: aux.betaFeedbackTriage,
     },
-    '[health-check] policy/routing denial split',
+    '[health-check] content-free auxiliary alert readings',
   )
 
-  const previouslyFiring = await deps.alertState.currentlyFiring(implementedAlertNames())
+  let previouslyFiring: ReadonlySet<string>
+  try {
+    previouslyFiring = deps.alertState
+      ? await deps.alertState.currentlyFiring(implementedAlertNames())
+      : new Set()
+  } catch {
+    previouslyFiring = new Set()
+    deps.logger.warn(
+      '[health-check] alert hysteresis state unavailable — evaluating fail-visible',
+    )
+  }
   const { toDispatch, firing } = evaluateAlerts(snapshot, aux, previouslyFiring)
 
   const dispatched: string[] = []
@@ -103,13 +116,31 @@ async function evaluateAndDispatch(
       // edge (no 5-min re-page loop while a webhook is down).
       deps.logger.warn({ err, alert: event.name }, '[health-check] alert dispatch failed')
     }
-    await deps.alertState.markFiring(event.name)
+    if (deps.alertState) {
+      try {
+        await deps.alertState.markFiring(event.name)
+      } catch {
+        deps.logger.warn(
+          { alert: event.name },
+          '[health-check] alert hysteresis state write unavailable',
+        )
+      }
+    }
     dispatched.push(event.name)
   }
 
   const firingSet = new Set(firing)
   for (const name of previouslyFiring) {
-    if (!firingSet.has(name)) await deps.alertState.clearFiring(name)
+    if (!firingSet.has(name) && deps.alertState) {
+      try {
+        await deps.alertState.clearFiring(name)
+      } catch {
+        deps.logger.warn(
+          { alert: name },
+          '[health-check] alert hysteresis state clear unavailable',
+        )
+      }
+    }
   }
 
   return { firing, dispatched }
@@ -137,11 +168,12 @@ export function createHealthCheckHandler(deps: HealthCheckDeps) {
     }
 
     // BQC-7.4: alert evaluation (supersedes the 3.7 warn-only thresholds).
-    // Runs only when the worker wired all four deps (snapshot reader, aux
-    // reader, state store, dispatcher).
+    // Runs when the worker wired the snapshot, aux reader, and dispatcher.
+    // Hysteresis state is optional so absent Cache Redis cannot disable the
+    // alert that reports its own monitoring degradation.
     let alerts: HealthCheckResult['alerts']
     const { readOperationsSnapshot, readAlertAux, alertState, alertDispatcher } = deps
-    if (readOperationsSnapshot && readAlertAux && alertState && alertDispatcher) {
+    if (readOperationsSnapshot && readAlertAux && alertDispatcher) {
       try {
         alerts = await evaluateAndDispatch({
           logger: deps.logger,

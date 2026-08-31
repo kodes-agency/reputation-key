@@ -20,11 +20,25 @@ export const inboxKeys = {
   detail: (id: string) => [...inboxKeys.details(), id] as const,
   notes: (id: string) => [...inboxKeys.detail(id), 'notes'] as const,
   activity: (id: string) => [...inboxKeys.detail(id), 'activity'] as const,
+  responseTargetPolicies: (propertyId?: string) =>
+    [...inboxKeys.all, 'response-target-policies', propertyId ?? 'organization'] as const,
+  privateFeedbackTargetAnalytics: (propertyId?: string) =>
+    [
+      ...inboxKeys.all,
+      'private-feedback-target-analytics',
+      propertyId ?? 'organization',
+    ] as const,
+  googleReviewTargetAnalytics: (propertyId?: string) =>
+    [
+      ...inboxKeys.all,
+      'google-review-target-analytics',
+      propertyId ?? 'organization',
+    ] as const,
 }
 
 // Two deliberately DISJOINT subtrees under `all`:
 //
-//   notifications → feed     → count | list   (the bell + /notifications)
+//   notifications → feed     → list → head   (the bell + /notifications)
 //   notifications → settings → preferences | user-settings | email-capability
 //
 // They are siblings, not ancestor/descendant, because the feed is invalidated on
@@ -39,12 +53,16 @@ export const notificationKeys = {
   // ── Feed (bell popover + /notifications page) ────────────────────────
   feed: (organizationId: string) =>
     [...notificationKeys.all, 'feed', organizationId] as const,
-  count: (organizationId: string) =>
-    [...notificationKeys.feed(organizationId), 'count'] as const,
   lists: (organizationId: string) =>
     [...notificationKeys.feed(organizationId), 'list'] as const,
-  list: (organizationId: string, limit: number) =>
-    [...notificationKeys.lists(organizationId), { limit }] as const,
+  list: (organizationId: string, limit: number, filter = 'all') =>
+    [...notificationKeys.lists(organizationId), { limit, filter }] as const,
+  /**
+   * Periodically refreshed first page. Older pages stay under `list(...)` so
+   * an interval refresh never asks the server for the whole loaded history.
+   */
+  head: (organizationId: string, limit: number, filter = 'all') =>
+    [...notificationKeys.list(organizationId, limit, filter), 'head'] as const,
 
   // ── Settings (/settings/notifications) ──────────────────────────────
   settings: (organizationId: string) =>
@@ -69,11 +87,17 @@ export const notificationKeys = {
 // ── Identity / organization context ────────────────────────────────────
 export const identityKeys = {
   all: ['identity'] as const,
-  organizations: () => [...identityKeys.all, 'organizations'] as const,
   activeOrg: () => [...identityKeys.all, 'active-org'] as const,
   responseSla: () => [...identityKeys.all, 'response-sla'] as const,
   members: () => [...identityKeys.all, 'members'] as const,
   invitations: () => [...identityKeys.all, 'invitations'] as const,
+  userInvitations: () => [...identityKeys.invitations(), 'user'] as const,
+  organizationInvitations: () => [...identityKeys.invitations(), 'organization'] as const,
+  /** LIF-01-T17 Closure Center status + export view. */
+  closureCenter: () => [...identityKeys.all, 'closure-center'] as const,
+  /** LIF-01-T21 transfer worklist a departing member must clear. */
+  outstandingResponsibilities: () =>
+    [...identityKeys.all, 'outstanding-responsibilities'] as const,
 }
 
 // ── Properties ──────────────────────────────────────────────────────────
@@ -81,21 +105,22 @@ export const propertyKeys = {
   all: ['properties'] as const,
   list: () => [...propertyKeys.all, 'list'] as const,
   detail: (propertyId: string) => [...propertyKeys.all, 'detail', propertyId] as const,
+  responsibleManagers: (propertyId: string) =>
+    [...propertyKeys.detail(propertyId), 'responsible-managers'] as const,
 }
 
 // ── Dashboard (fleet + per-property + staff) ─────────────────────────────
 export const dashboardKeys = {
   all: ['dashboard'] as const,
-  // Takes the range so an infinite cache entry exists per range. Existing
-  // `invalidateQueries({ queryKey: dashboardKeys.fleet() })` calls still match
-  // as a prefix.
-  fleet: (timeRange = '30d') => [...dashboardKeys.all, 'fleet', timeRange] as const,
+  setup: () => [...dashboardKeys.all, 'setup-checklist'] as const,
+  fleets: () => [...dashboardKeys.all, 'fleet'] as const,
+  // Each range has its own infinite cache entry. Use `fleets()` when an
+  // operation genuinely invalidates every range rather than the visible one.
+  fleet: (timeRange = '30d') => [...dashboardKeys.fleets(), timeRange] as const,
   staff: (args: Readonly<Record<string, unknown>>) =>
     [...dashboardKeys.all, 'staff', args] as const,
   property: (args: Readonly<Record<string, unknown>>) =>
     [...dashboardKeys.all, 'property', args] as const,
-  signals: (args: Readonly<Record<string, unknown>>) =>
-    [...dashboardKeys.all, 'signals', args] as const,
   googlePerformance: (
     propertyId: string,
     preset: string,
@@ -110,6 +135,18 @@ export const dashboardKeys = {
       preset,
       catalogVersion,
       viewEpoch,
+    ] as const,
+  googlePerformanceLease: (
+    propertyId: string,
+    preset: string,
+    catalogVersion: string,
+    viewEpoch: number,
+    leaseRef: string,
+  ) =>
+    [
+      ...dashboardKeys.googlePerformance(propertyId, preset, catalogVersion, viewEpoch),
+      'authorization-lease',
+      leaseRef,
     ] as const,
 }
 export const aiKeys = {
@@ -126,7 +163,8 @@ export const goalKeys = {
   staff: (propertyId: string) => [...goalKeys.all, 'staff', propertyId] as const,
   list: (args: Readonly<Record<string, unknown>>) =>
     [...goalKeys.all, 'list', args] as const,
-  detail: (goalId: string) => [...goalKeys.all, 'detail', goalId] as const,
+  detail: (propertyId: string, goalId: string) =>
+    [...goalKeys.all, 'detail', propertyId, goalId] as const,
 }
 
 // ── Staff participation and portal responsibility ────────────────────────
@@ -144,29 +182,33 @@ export const reviewKeys = {
     [...reviewKeys.all, 'staff-activity', propertyId] as const,
 }
 
-// ── Teams ─────────────────────────────────────────────────────────────────
-export const teamKeys = {
-  all: ['teams'] as const,
-  list: (propertyId: string) => [...teamKeys.all, 'list', propertyId] as const,
-}
-
 // ── Portals (detail + links + groups) ────────────────────────────────────
 export const portalKeys = {
   all: ['portals'] as const,
   list: (propertyId: string) => [...portalKeys.all, 'list', propertyId] as const,
   detail: (portalId: string) => [...portalKeys.all, 'detail', portalId] as const,
   links: (portalId: string) => [...portalKeys.detail(portalId), 'links'] as const,
+  responsibleManagers: (portalId: string) =>
+    [...portalKeys.detail(portalId), 'responsible-managers'] as const,
+  publicationHistory: (portalId: string) =>
+    [...portalKeys.detail(portalId), 'publication-history'] as const,
+  experience: (propertyId: string, portalId: string) =>
+    [...portalKeys.detail(portalId), 'experience', propertyId] as const,
+  approvedDestinations: (portalId: string) =>
+    [...portalKeys.detail(portalId), 'approved-destinations'] as const,
   groups: (propertyId: string) => [...portalKeys.all, 'groups', propertyId] as const,
-}
-
-// ── Badges / recognition ─────────────────────────────────────────────────
-export const badgeKeys = {
-  all: ['badges'] as const,
-  staffVisible: (propertyId: string) =>
-    [...badgeKeys.all, 'staff-visible', propertyId] as const,
-  target: (args: Readonly<Record<string, unknown>>) =>
-    [...badgeKeys.all, 'target', args] as const,
-  orgDefinitions: () => [...badgeKeys.all, 'org-definitions'] as const,
+  goalSubjects: (propertyId: string) =>
+    [...portalKeys.all, 'goal-subjects', propertyId] as const,
+  goalSubjectNames: (propertyId: string) =>
+    [...portalKeys.goalSubjects(propertyId), 'names'] as const,
+  forProperty: (propertyId: string) =>
+    [...portalKeys.all, 'property', propertyId] as const,
+  forPropertyPortal: (propertyId: string, portalId: string) =>
+    [...portalKeys.forProperty(propertyId), 'portal', portalId] as const,
+  analyticsRoot: (propertyId: string, portalId: string) =>
+    [...portalKeys.forPropertyPortal(propertyId, portalId), 'analytics'] as const,
+  analytics: (propertyId: string, portalId: string, timeRange: string) =>
+    [...portalKeys.analyticsRoot(propertyId, portalId), timeRange] as const,
 }
 
 // ── Integrations (Google connections + bounded import content) ───────────
@@ -174,17 +216,23 @@ export const integrationKeys = {
   all: ['integrations'] as const,
   connections: () => [...integrationKeys.all, 'connections'] as const,
   googleImportContent: () => [...integrationKeys.all, 'google-import-content'] as const,
-  googleImportAccounts: (organizationId: string, connectionId: string) =>
+  googleImportAccounts: (
+    organizationId: string,
+    connectionId: string,
+    viewEpoch: number,
+  ) =>
     [
       ...integrationKeys.googleImportContent(),
       organizationId,
       connectionId,
       'accounts',
+      viewEpoch,
     ] as const,
   googleImportCandidates: (
     organizationId: string,
     connectionId: string,
     accountRef: string | null,
+    viewEpoch: number,
   ) =>
     [
       ...integrationKeys.googleImportContent(),
@@ -192,13 +240,21 @@ export const integrationKeys = {
       connectionId,
       'candidates',
       accountRef,
+      viewEpoch,
     ] as const,
-  googleImportLease: (organizationId: string, connectionId: string) =>
+  googleImportLease: (
+    organizationId: string,
+    connectionId: string,
+    leaseRef: string,
+    viewEpoch: number,
+  ) =>
     [
       ...integrationKeys.googleImportContent(),
       organizationId,
       connectionId,
       'lease',
+      leaseRef,
+      viewEpoch,
     ] as const,
   import: (importId: string) => [...integrationKeys.all, 'import', importId] as const,
 }

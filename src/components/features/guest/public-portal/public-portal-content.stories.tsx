@@ -1,53 +1,46 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
-import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
+import { expect, within } from 'storybook/test'
 import { PublicPortalContent } from './public-portal-content'
 import type { PublicPortalContentProps } from './public-portal-content'
+import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 
 const portal = {
   id: '00000000-0000-4000-8000-000000000001',
   name: 'The Harbor Hotel',
-  description: 'Thank you for visiting. Choose any destination below.',
+  description: 'Thank you for visiting.',
   organizationName: 'Harbor Hospitality',
   heroImageUrl: null,
   theme: { primaryColor: '#4f46e5', backgroundColor: '#ffffff', textColor: '#111827' },
 }
-const categories = [
-  { id: '00000000-0000-4000-8000-000000000010', title: 'Share your experience' },
-]
+const categories = [{ id: '00000000-0000-4000-8000-000000000010', title: 'Useful links' }]
 const links = [
   {
-    id: '00000000-0000-4000-8000-000000000020',
-    label: 'Google',
-    url: 'https://www.google.com/',
-    categoryId: categories[0].id,
-  },
-  {
     id: '00000000-0000-4000-8000-000000000021',
-    label: 'Tripadvisor',
-    url: 'https://www.tripadvisor.com/',
+    label: 'Hotel website',
+    url: 'https://example.com/',
     categoryId: categories[0].id,
   },
 ]
+const reviewGateway = {
+  privateFeedbackThreshold: 3,
+  googleReview: { status: 'available' as const, uri: 'https://www.google.com/' },
+}
 const submitted: GuestResponseView = {
-  id: '00000000-0000-4000-8000-000000000030',
-  responseConsent: true,
-  textConsent: false,
   status: 'submitted',
-  rating: 5,
-  category: null,
-  text: null,
-  mediaConsent: false,
+  rating: 2,
+  hasPrivateFeedback: false,
+  privateFeedbackEligible: true,
   submittedAt: '2026-08-09T12:00:00.000Z',
   correctedAt: null,
   correctionDeadline: '2026-08-09T13:00:00.000Z',
+  correctionAvailable: true,
+  responseWithdrawalDeadline: '2026-08-10T12:00:00.000Z',
+  responseWithdrawalAvailable: true,
+  feedbackSubmittedAt: null,
+  feedbackWithdrawalDeadline: null,
+  feedbackWithdrawalAvailable: false,
+  feedbackWithdrawnAt: null,
   deletedAt: null,
-}
-const deleted: GuestResponseView = {
-  ...submitted,
-  status: 'deleted',
-  rating: null,
-  deletedAt: '2026-08-09T12:30:00.000Z',
 }
 
 const responseForm: NonNullable<PublicPortalContentProps['responseForm']> = {
@@ -56,25 +49,43 @@ const responseForm: NonNullable<PublicPortalContentProps['responseForm']> = {
   submitResponse: async ({ data }) => ({
     ...submitted,
     rating: data.rating,
-    text: data.text,
-    mediaConsent: data.mediaConsent,
+    privateFeedbackEligible: data.rating <= 3,
   }),
   correctResponse: async ({ data }) => ({
     ...submitted,
     status: 'corrected',
     rating: data.rating,
-    text: data.text,
-    mediaConsent: data.mediaConsent,
     correctedAt: '2026-08-09T12:15:00.000Z',
+    correctionAvailable: false,
   }),
-  withdrawResponse: async () => deleted,
-  issueMedia: async ({ data }) => ({
-    mediaId: '00000000-0000-4000-8000-000000000050',
-    objectKey: 'guest/example.webp',
-    uploadUrl: 'https://uploads.invalid/example',
-    contentType: data.contentType,
+  startNewResponse: async () => ({
+    csrfNonce: '00000000-0000-4000-8000-000000000099',
   }),
-  confirmMedia: async ({ data }) => ({ mediaId: data.mediaId, status: 'ready' }),
+  submitPrivateFeedback: async () => ({
+    ...submitted,
+    hasPrivateFeedback: true,
+    privateFeedbackEligible: false,
+    feedbackSubmittedAt: '2026-08-09T12:05:00.000Z',
+    feedbackWithdrawalDeadline: '2026-08-10T12:05:00.000Z',
+    feedbackWithdrawalAvailable: true,
+  }),
+  selectGoogleReview: async () => ({ url: reviewGateway.googleReview.uri }),
+  withdrawResponse: async () => ({
+    ...submitted,
+    status: 'deleted',
+    rating: null,
+    responseWithdrawalAvailable: false,
+    deletedAt: '2026-08-09T12:30:00.000Z',
+  }),
+  withdrawPrivateFeedback: async () => ({
+    ...submitted,
+    hasPrivateFeedback: false,
+    privateFeedbackEligible: false,
+    feedbackSubmittedAt: '2026-08-09T12:05:00.000Z',
+    feedbackWithdrawalDeadline: '2026-08-10T12:05:00.000Z',
+    feedbackWithdrawalAvailable: false,
+    feedbackWithdrawnAt: '2026-08-09T12:30:00.000Z',
+  }),
 }
 
 const baseArgs: PublicPortalContentProps = {
@@ -82,6 +93,7 @@ const baseArgs: PublicPortalContentProps = {
   portal,
   categories,
   links,
+  reviewGateway,
   responseForm,
 }
 
@@ -94,10 +106,84 @@ export default meta
 
 type Story = StoryObj<typeof PublicPortalContent>
 
-export const Empty: Story = {}
-
-// The Dark palette has to actually render dark. All three saved colours reach
-// the page, so background, text and accent all change together.
+export const RatingFirstWithSecondaryLinks: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('button', { name: 'Submit private rating' }),
+    ).toBeVisible()
+    expect(canvas.queryByRole('navigation', { name: 'More links' })).toBeNull()
+  },
+}
+export const GoogleBeforeEligibleFeedback: Story = {
+  args: { responseForm: { ...responseForm, initialResponse: submitted } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const google = canvas.getByRole('button', { name: 'Continue to Google' })
+    const feedback = canvas.getByLabelText('Private feedback')
+    const links = canvas.getByRole('navigation', { name: 'More links' })
+    await expect(google).toBeVisible()
+    await expect(feedback).toBeVisible()
+    await expect(links).toBeVisible()
+    expect(
+      google.compareDocumentPosition(feedback) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      feedback.compareDocumentPosition(links) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  },
+}
+export const DegradedGoogleKeepsGatewayAndSecondaryLinks: Story = {
+  args: {
+    reviewGateway: {
+      privateFeedbackThreshold: 3,
+      googleReview: { status: 'unavailable' },
+    },
+    responseForm: { ...responseForm, initialResponse: submitted },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Google review link unavailable')).toBeVisible()
+    await expect(canvas.getByLabelText('Private feedback')).toBeVisible()
+    await expect(canvas.getByRole('navigation', { name: 'More links' })).toBeVisible()
+    expect(canvas.queryByRole('button', { name: 'Continue to Google' })).toBeNull()
+  },
+}
+export const NoSecondaryLinks: Story = { args: { categories: [], links: [] } }
+export const ManagerPreview: Story = {
+  args: { token: undefined, responseForm: undefined },
+}
+export const MissingPublicGatewayFailsClosed: Story = {
+  args: { reviewGateway: undefined },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Review gateway temporarily unavailable')).toBeVisible()
+    expect(canvas.queryByRole('navigation', { name: 'More links' })).toBeNull()
+  },
+}
+export const BulgarianRatingFirst: Story = {
+  args: {
+    portal: {
+      ...portal,
+      name: 'Разкажете ни за престоя си',
+      description: 'Вашето мнение е важно.',
+      organizationName: 'Хотел Пристанище',
+    },
+    localization: {
+      selectedLocale: 'bg',
+      primaryLocale: 'en',
+      availableLocales: ['en', 'bg'],
+      languagePackVersion: 'guest-ui-bg-v1',
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('button', { name: 'Изпрати непубличната оценка' }),
+    ).toBeVisible()
+    await expect(canvas.getByRole('navigation', { name: 'Език' })).toBeVisible()
+  },
+}
 export const DarkPalette: Story = {
   args: {
     portal: {
@@ -108,72 +194,5 @@ export const DarkPalette: Story = {
         textColor: '#f9fafb',
       },
     },
-  },
-}
-
-// The Brand palette — a third genuinely distinct accent, not a copy of Light.
-export const BrandPalette: Story = {
-  args: {
-    portal: {
-      ...portal,
-      theme: {
-        primaryColor: '#b45309',
-        backgroundColor: '#fffbeb',
-        textColor: '#1c1917',
-      },
-    },
-  },
-}
-
-// --portal-primary used to be assigned and never read, so a manager's accent
-// was invisible. Category headings and destination rules consume it now.
-export const AccentIsConsumed: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      canvas.getByRole('heading', { name: 'Share your experience' }),
-    ).toHaveAttribute('style', expect.stringContaining('--portal-primary'))
-    await expect(canvas.getByRole('link', { name: 'Google' })).toHaveAttribute(
-      'style',
-      expect.stringContaining('--portal-primary'),
-    )
-  },
-}
-
-// Every category used to render null when it had no links, leaving a published
-// portal with removed destinations as a bare title and nothing else.
-export const NoDestinations: Story = {
-  args: { categories: [], links: [] },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByText(/no review destinations yet/i)).toBeVisible()
-    await expect(
-      canvas.queryByRole('navigation', { name: 'Review destinations' }),
-    ).toBeNull()
-  },
-}
-
-export const CorrectionAvailable: Story = {
-  args: {
-    responseForm: { ...responseForm, initialResponse: submitted },
-  },
-}
-
-export const Withdrawn: Story = {
-  args: {
-    responseForm: { ...responseForm, initialResponse: deleted },
-  },
-}
-
-export const DestinationsRemainInvariant: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const before = canvas.getAllByRole('link').map((link) => link.textContent)
-    await userEvent.click(canvas.getByRole('radio', { name: '5 stars' }))
-    await userEvent.click(canvas.getByRole('checkbox', { name: /share this rating/i }))
-    const after = canvas.getAllByRole('link').map((link) => link.textContent)
-    await expect(after).toEqual(before)
-    await expect(canvas.getByRole('link', { name: 'Google' })).toBeVisible()
-    await expect(canvas.getByRole('link', { name: 'Tripadvisor' })).toBeVisible()
   },
 }

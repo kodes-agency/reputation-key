@@ -2,8 +2,10 @@ import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
+import { Button } from '#/components/ui/button'
 import { GoogleImportReviewForm } from './google-import-review-form'
 import { createImportReviewDraft } from './google-import-review-model'
+import { useGoogleImportReviewForm } from './use-google-import-review-form'
 
 const candidates: readonly ImportCandidateDto[] = [
   {
@@ -47,20 +49,29 @@ function ReviewHarness({
   pending?: boolean
   submitError?: string | null
 }) {
-  const [draft, setDraft] = useState(() =>
+  const [draft] = useState(() =>
     createImportReviewDraft(candidates, 'America/Los_Angeles'),
   )
   const [submitted, setSubmitted] = useState(false)
+  const [reviewing, setReviewing] = useState(true)
+  const form = useGoogleImportReviewForm({
+    initialDraft: draft,
+    onSubmit: () => setSubmitted(true),
+  })
   return (
     <>
-      <GoogleImportReviewForm
-        draft={draft}
-        onChange={setDraft}
-        onBack={() => {}}
-        onSubmit={() => setSubmitted(true)}
-        isSubmitting={pending}
-        submitError={submitError}
-      />
+      {reviewing ? (
+        <GoogleImportReviewForm
+          form={form}
+          onBack={() => setReviewing(false)}
+          isSubmitting={pending}
+          submitError={submitError}
+        />
+      ) : (
+        <Button type="button" onClick={() => setReviewing(true)}>
+          Return to current review
+        </Button>
+      )}
       {submitted ? <p role="status">Import submitted</p> : null}
     </>
   )
@@ -92,6 +103,45 @@ export const Starting: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: /starting import/i })).toBeDisabled()
+  },
+}
+
+export const ConfirmedSubmissionUsesFormValues: Story = {
+  render: () => <ReviewHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('checkbox', { name: /confirm us/i }))
+    await userEvent.click(
+      canvas.getByRole('checkbox', { name: /confirm america\/los_angeles/i }),
+    )
+    await userEvent.click(
+      canvas.getByRole('checkbox', { name: /confirm europe\/london/i }),
+    )
+    await userEvent.click(canvas.getByRole('button', { name: /start import/i }))
+    await expect(canvas.getByRole('status')).toHaveTextContent(/import submitted/i)
+  },
+}
+
+export const DraftSurvivesBackNavigation: Story = {
+  render: () => <ReviewHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const name = canvas.getAllByRole('textbox', { name: /property name/i })[0]!
+    await userEvent.clear(name)
+    // `delay: null` types synchronously. The default awaits a macrotask between
+    // keystrokes, and this field is controlled — 22 characters means 22 awaited
+    // re-renders of the whole review form. Under CI load that is what pushed
+    // this story past the 15s budget while the assertion below never changed.
+    // Every keystroke event is still dispatched, which is the part the draft
+    // retention under test actually depends on.
+    await userEvent.type(name, 'Meridian Airport Hotel', { delay: null })
+    await userEvent.click(canvas.getByRole('button', { name: /back to locations/i }))
+    await userEvent.click(
+      canvas.getByRole('button', { name: /return to current review/i }),
+    )
+    await expect(
+      canvas.getAllByRole('textbox', { name: /property name/i })[0],
+    ).toHaveValue('Meridian Airport Hotel')
   },
 }
 

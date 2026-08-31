@@ -4,6 +4,16 @@ function errorCode(error: unknown): string | null {
   return error.message.match(/(?:code|reason)["':\s]+([a-z_]+)/iu)?.[1] ?? null
 }
 
+export function connectionCallbackErrorMessage(
+  error: 'connection_failed' | 'denied' | 'account_already_connected' | undefined,
+): string | null {
+  if (error === 'account_already_connected') {
+    return 'That Google account is already connected. Select it above instead of authorizing again.'
+  }
+  if (error === 'denied') return 'Google authorization was cancelled.'
+  return error ? 'Google Account connection failed. Try connecting again.' : null
+}
+
 export function discoveryErrorMessage(error: unknown): string {
   switch (errorCode(error)) {
     case 'reference_invalid':

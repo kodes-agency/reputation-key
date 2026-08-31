@@ -30,6 +30,7 @@ import type {
   UpdatePropertyCommand,
 } from '../application/ports/property-command-store.port'
 import type { PropertySetValues } from './repositories/property.repository'
+import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 /** Same field-picking as PropertyRepository.update — never sets identity columns. */
 function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySetValues {
@@ -59,6 +60,7 @@ function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySet
   if (patch.timezoneResolvedAt !== undefined)
     set.timezoneResolvedAt = patch.timezoneResolvedAt
   if (patch.processingRegion !== undefined) set.processingRegion = patch.processingRegion
+  if (patch.dataCellId !== undefined) set.dataCellId = patch.dataCellId
   if (patch.processingRegionSource !== undefined)
     set.processingRegionSource = patch.processingRegionSource
   if (patch.routingPolicyVersion !== undefined)
@@ -69,10 +71,11 @@ function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySet
   return set
 }
 
-export function createAtomicPropertyCommandStore(
+export const createAtomicPropertyCommandStore = (
   db: Database,
   events: EventBus,
-): PropertyCommandStore {
+  localCell?: DataCellId,
+): PropertyCommandStore => {
   return {
     createProperty: async (command: CreatePropertyCommand) => {
       return trace('property.commandStore.createProperty', async () => {
@@ -81,6 +84,12 @@ export function createAtomicPropertyCommandStore(
           // (same contract as PropertyRepository.insert/insertAndReturn).
           if (command.property.organizationId !== command.organizationId) {
             throw propertyError('forbidden', 'Tenant mismatch on property insert')
+          }
+          if (localCell && command.property.dataCellId !== localCell) {
+            throw propertyError(
+              'forbidden',
+              'Property Data Cell does not match command store',
+            )
           }
           const rows = await tx
             .insert(properties)
@@ -110,6 +119,7 @@ export function createAtomicPropertyCommandStore(
               and(
                 eq(properties.organizationId, command.organizationId as string),
                 eq(properties.id, command.propertyId as string),
+                ...(localCell ? [eq(properties.dataCellId, localCell)] : []),
                 isNull(properties.deletedAt),
                 eq(properties.sourceEpoch, command.expectedSourceEpoch),
                 eq(properties.profileVersion, command.expectedProfileVersion),
@@ -142,6 +152,7 @@ export function createAtomicPropertyCommandStore(
               and(
                 eq(properties.organizationId, command.organizationId as string),
                 eq(properties.id, command.propertyId as string),
+                ...(localCell ? [eq(properties.dataCellId, localCell)] : []),
                 isNull(properties.deletedAt),
               ),
             )
@@ -187,6 +198,7 @@ export function createAtomicPropertyCommandStore(
               and(
                 eq(properties.organizationId, command.organizationId as string),
                 eq(properties.id, command.propertyId as string),
+                ...(localCell ? [eq(properties.dataCellId, localCell)] : []),
                 isNull(properties.deletedAt),
               ),
             )

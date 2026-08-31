@@ -2,8 +2,9 @@
 //
 // Replaces soft-delete with an explicit state machine:
 //
-//   active -> suspended -> archived -> disconnecting -> purge_pending -> purging -> purged
-//                       \-> active (recovery, only before irreversible purge)
+//   active -> archived -> disconnecting -> purge_pending -> purging -> purged
+//      |         \-> active (ordinary recovery inside the recovery window)
+//      \-> suspended -> archived
 //
 // Invariants:
 // - Only 'active' properties can sync, publish replies, or accept new assignments.
@@ -43,7 +44,7 @@ const LIFECYCLE_STATES: readonly PropertyLifecycleState[] = [
 const VALID_TRANSITIONS: Readonly<
   Record<PropertyLifecycleState, readonly PropertyLifecycleState[]>
 > = {
-  active: ['suspended'],
+  active: ['suspended', 'archived'],
   suspended: ['active', 'archived'],
   archived: ['active', 'disconnecting'],
   disconnecting: ['archived', 'purge_pending'],
@@ -51,6 +52,12 @@ const VALID_TRANSITIONS: Readonly<
   purging: ['purged'], // irreversible — no backward
   purged: [], // terminal
 }
+
+/** Ordinary beta Archive remains self-service recoverable for 30 days. */
+export const PROPERTY_ARCHIVE_RECOVERY_WINDOW_MS = 30 * 24 * 60 * 60 * 1_000
+
+export const archiveRecoveryDeadline = (archivedAt: Date): Date =>
+  new Date(archivedAt.getTime() + PROPERTY_ARCHIVE_RECOVERY_WINDOW_MS)
 
 /** States that allow external effects (sync, publish, notifications). */
 const ACTIVE_STATES: ReadonlySet<PropertyLifecycleState> = new Set(['active'])

@@ -1,20 +1,19 @@
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import {
   AI_INTERNAL_RESPONSE_MAX_BYTES,
   AI_SETTLE_MAX_BYTES,
   aiSettlementReceiptSchema,
   parseAiExecutionGrant,
   parseAiInternalJsonBytes,
-  type AiAdmissionRequestV1,
   type AiExecutionGrantV1,
   type AiSettlementReceiptV1,
-  type AiSettlementRequestV1,
 } from '../../src/shared/ai-internal-transport-contract'
 import { canonicalizeRfc8785 } from '../../src/shared/merchant-ai-notice-contract'
 import type {
   InternalMtlsRawResponse,
   InternalMtlsRequestOptions,
 } from '../internal-mtls'
+import type { AiAdmissionClient } from './contracts'
 
 const authorizationDenialSchema = z.enum([
   'malformed_request',
@@ -63,17 +62,6 @@ export type AiAdmissionAuthorizationResult =
 export type AiAdmissionSettlementResult =
   | Readonly<{ status: 'settled'; receipt: AiSettlementReceiptV1 }>
   | Readonly<{ status: 'denied'; code: z.infer<typeof settlementDenialSchema> }>
-export type AiAdmissionClient = Readonly<{
-  authorize(
-    request: AiAdmissionRequestV1,
-    signal: AbortSignal,
-  ): Promise<AiAdmissionAuthorizationResult>
-  settle(
-    request: AiSettlementRequestV1,
-    signal: AbortSignal,
-  ): Promise<AiAdmissionSettlementResult>
-  readiness(signal: AbortSignal): Promise<boolean>
-}>
 
 function requestBytes(value: unknown): Uint8Array {
   const bytes = Buffer.from(canonicalizeRfc8785(value), 'utf8')

@@ -139,6 +139,64 @@ describe('drainWorkerResources', () => {
   })
 })
 
+// ARC-03-T6 — the worker built the container, so the worker releases it.
+describe('drainWorkerResources container release', () => {
+  it('releases the container after the workers and before the queues', async () => {
+    const order: string[] = []
+    const logger = makeLogger()
+    const result = await drainWorkerResources({
+      workers: [closeable('default', async () => void order.push('worker'))],
+      shutdown: { run: async () => void order.push('container') },
+      queues: [closeable('default', async () => void order.push('queue'))],
+      budgetMs: 5_000,
+      logger,
+    })
+
+    expect(result).toEqual({ timedOut: false, stuck: [] })
+    expect(order).toEqual(['worker', 'container', 'queue'])
+    expect(logger.info).toHaveBeenCalledWith(
+      { queue: 'container' },
+      'Container resources released',
+    )
+  })
+
+  it('logs a failing release and still closes the queues', async () => {
+    const logger = makeLogger()
+    const failure = new Error('poller refused to stop')
+    const result = await drainWorkerResources({
+      workers: [],
+      shutdown: { run: () => Promise.reject(failure) },
+      queues: [closeable('quarantine')],
+      budgetMs: 5_000,
+      logger,
+    })
+
+    expect(result).toEqual({ timedOut: false, stuck: [] })
+    expect(logger.error).toHaveBeenCalledWith(
+      { err: failure, queue: 'container' },
+      'Error releasing container resources',
+    )
+    expect(logger.info).toHaveBeenCalledWith(
+      { queue: 'quarantine' },
+      'Queue closed successfully',
+    )
+  })
+
+  it('reports the container label as stuck when the release hangs', async () => {
+    const logger = makeLogger()
+    const result = await drainWorkerResources({
+      workers: [],
+      shutdown: { run: never },
+      queues: [closeable('default')],
+      budgetMs: 50,
+      logger,
+    })
+
+    expect(result.timedOut).toBe(true)
+    expect(result.stuck).toEqual(['container', 'default'])
+  })
+})
+
 describe('namedCloseable', () => {
   it('maps a present resource to a labeled closeable', async () => {
     const close = vi.fn(() => Promise.resolve())

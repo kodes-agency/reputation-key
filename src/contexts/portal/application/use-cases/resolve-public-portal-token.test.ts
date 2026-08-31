@@ -1,33 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
-import { organizationId, portalId } from '#/shared/domain/ids'
-import type { PortalToken } from '../../domain/portal-token'
 import {
   resolvePublicPortalToken,
   type ResolvePublicPortalTokenDeps,
 } from './resolve-public-portal-token'
+import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
+import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 
 const NOW = new Date('2026-08-08T12:00:00.000Z')
-const ORG = organizationId('org-1')
-const PORTAL = portalId('portal-1')
+const GOOGLE_REVIEW_URI = 'https://search.google.com/local/writereview?placeid=property-1'
 
-const token: PortalToken = {
-  id: 'token-1',
+const token = {
   organizationId: 'org-1',
   propertyId: 'property-1',
   portalId: 'portal-1',
-  tokenIdentifier: 'token-key',
-  tokenHash: 'digest',
-  tokenKeyVersion: 1,
   version: 1,
-  printBatch: null,
-  status: 'active',
-  issuedAt: NOW,
-  gracePeriodEnds: null,
-  retiredAt: null,
-  revokedAt: null,
-  revokedBy: null,
-  revokedReason: null,
-}
+} as const
 
 const publicPortal = {
   portal: {
@@ -41,16 +28,89 @@ const publicPortal = {
   },
   categories: [],
   links: [],
+  privateFeedbackThreshold: 3,
   organizationId: 'org-1',
   propertyId: 'property-1',
 } as const
 
+const snapshot = buildPortalPublicationSnapshot({
+  id: 'snapshot-1',
+  portalId: 'portal-1',
+  organizationId: 'org-1',
+  propertyId: 'property-1',
+  version: 4,
+  source: publicPortal,
+  destination: {
+    state: 'verified',
+    uri: GOOGLE_REVIEW_URI,
+    retrievedAt: NOW,
+    sourceEpoch: 1,
+    profileVersion: 2,
+  },
+  createdBy: 'manager-1',
+  createdAt: NOW,
+})
+
+const buildLocalizedSnapshot = () =>
+  buildPortalPublicationSnapshot({
+    id: 'snapshot-bg',
+    portalId: 'portal-1',
+    organizationId: 'org-1',
+    propertyId: 'property-1',
+    version: 5,
+    source: {
+      ...publicPortal,
+      experience: {
+        primaryGuestLocale: 'en',
+        localeSet: ['en', 'bg'],
+        languagePackVersions: {
+          en: 'guest-ui-en-v1',
+          bg: 'guest-ui-bg-v1',
+        },
+        localizedContent: {
+          en: {
+            title: 'Tell us about your stay',
+            shortDescription: 'Your view matters.',
+            heroImageUrl: null,
+          },
+          bg: {
+            title: 'Разкажете ни за престоя си',
+            shortDescription: 'Вашето мнение е важно.',
+            heroImageUrl: null,
+          },
+        },
+        brandProfile: {
+          displayName: 'Хотел Пример',
+          logoUrl: null,
+          defaultHeroImageUrl: null,
+          primaryColor: '#1D4ED8',
+          backgroundColor: '#FFFFFF',
+          textColor: '#111827',
+          version: 1,
+        },
+      },
+    },
+    destination: {
+      state: 'verified',
+      uri: GOOGLE_REVIEW_URI,
+      retrievedAt: NOW,
+      sourceEpoch: 1,
+      profileVersion: 2,
+    },
+    createdBy: 'manager-1',
+    createdAt: NOW,
+  })
+
 function setup(
   overrides: {
     digest?: ResolvePublicPortalTokenDeps['tokenCodec']['digest']
-    findToken?: ResolvePublicPortalTokenDeps['portalTokenRepo']['findResolvableByDigest']
-    findPortal?: ResolvePublicPortalTokenDeps['portalRepo']['findPublicPortalById']
+    resolvePublication?: ResolvePublicPortalTokenDeps['portalPublicationRepo']['resolveActiveByTokenDigest']
+    getDestination?: ResolvePublicPortalTokenDeps['getGoogleReviewDestination']
+    isPropertyActive?: ResolvePublicPortalTokenDeps['isPropertyActive']
+    getHealth?: ResolvePublicPortalTokenDeps['portalHealthRepo']['getCurrent']
+    listApprovedSecondaryDestinationUris?: ResolvePublicPortalTokenDeps['listApprovedSecondaryDestinationUris']
     decide?: ResolvePublicPortalTokenDeps['decidePublic']
+    reportDestinationFailure?: ResolvePublicPortalTokenDeps['reportGoogleDestinationFailure']
   } = {},
 ) {
   const digest = vi.fn(
@@ -61,8 +121,39 @@ function setup(
         tokenKeyVersion: 1,
       })),
   )
-  const findToken = vi.fn(overrides.findToken ?? (async () => token))
-  const findPortal = vi.fn(overrides.findPortal ?? (async () => publicPortal))
+  const resolvePublication = vi.fn(
+    overrides.resolvePublication ?? (async () => ({ token, snapshot })),
+  )
+  const getDestination = vi.fn(
+    overrides.getDestination ??
+      (async () => ({
+        state: 'verified' as const,
+        uri: GOOGLE_REVIEW_URI,
+        retrievedAt: NOW,
+        sourceEpoch: 1,
+        profileVersion: 2,
+      })),
+  )
+  const isPropertyActive = vi.fn(overrides.isPropertyActive ?? (async () => true))
+  const getHealth = vi.fn(
+    overrides.getHealth ??
+      (async () => ({
+        id: 'health-1',
+        organizationId: organizationId('org-1'),
+        propertyId: propertyId('property-1'),
+        portalId: portalId('portal-1'),
+        status: 'healthy' as const,
+        reason: 'operational' as const,
+        sourceVersion: '1',
+        effectiveFrom: NOW,
+        effectiveTo: null,
+        observedAt: NOW,
+      })),
+  )
+  const listApprovedSecondaryDestinationUris = vi.fn(
+    overrides.listApprovedSecondaryDestinationUris ??
+      (async (_organizationId, _propertyId, uris) => uris),
+  )
   const decide = vi.fn(
     overrides.decide ??
       (async () => ({
@@ -75,27 +166,67 @@ function setup(
   return {
     resolve: resolvePublicPortalToken({
       tokenCodec: { digest },
-      portalTokenRepo: { findResolvableByDigest: findToken },
-      portalRepo: { findPublicPortalById: findPortal },
+      portalPublicationRepo: { resolveActiveByTokenDigest: resolvePublication },
+      portalHealthRepo: { getCurrent: getHealth },
+      listApprovedSecondaryDestinationUris,
+      isPropertyActive,
+      getGoogleReviewDestination: getDestination,
       decidePublic: decide,
+      reportGoogleDestinationFailure: overrides.reportDestinationFailure,
       clock: () => NOW,
     }),
     digest,
-    findToken,
-    findPortal,
+    resolvePublication,
+    getDestination,
+    isPropertyActive,
+    getHealth,
+    listApprovedSecondaryDestinationUris,
     decide,
   }
 }
 
 describe('resolvePublicPortalToken', () => {
   it('loads a published portal through an active scoped token', async () => {
-    const { resolve, findPortal, decide } = setup()
+    const { resolve, resolvePublication, decide } = setup()
 
     await expect(resolve('pt_key_secret')).resolves.toEqual({
       status: 'found',
-      data: publicPortal,
+      data: {
+        portal: publicPortal.portal,
+        categories: [],
+        links: [],
+        reviewGateway: {
+          privateFeedbackThreshold: 3,
+          googleReview: { status: 'available', uri: GOOGLE_REVIEW_URI },
+        },
+        localization: {
+          selectedLocale: 'en',
+          primaryLocale: 'en',
+          availableLocales: ['en'],
+          languagePackVersion: 'guest-ui-en-v1',
+        },
+        responseConfiguration: {
+          publicationState: 'published',
+          publicationSnapshotId: 'snapshot-1',
+          publicationVersion: 4,
+          publicationDigest: snapshot.configurationDigest,
+          configurationDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+          guestLocale: 'en',
+          languagePackVersion: 'guest-ui-en-v1',
+          privateFeedbackThreshold: 3,
+        },
+        organizationId: 'org-1',
+        propertyId: 'property-1',
+      },
     })
-    expect(findPortal).toHaveBeenCalledWith(ORG, PORTAL)
+    expect(resolvePublication).toHaveBeenCalledWith(
+      {
+        tokenIdentifier: 'token-key',
+        tokenHash: 'digest',
+        tokenKeyVersion: 1,
+      },
+      NOW,
+    )
     expect(decide).toHaveBeenCalledWith({
       action: 'portal.public_read',
       capability: 'portal.public_read',
@@ -105,12 +236,184 @@ describe('resolvePublicPortalToken', () => {
     })
   })
 
+  it('suppresses a published secondary link when its current approval is absent', async () => {
+    const approvedUri = 'https://www.tripadvisor.com/Hotel_Review'
+    const quarantinedUri = 'https://example.com/guest'
+    const linkedSnapshot = buildPortalPublicationSnapshot({
+      id: 'snapshot-with-links',
+      portalId: 'portal-1',
+      organizationId: 'org-1',
+      propertyId: 'property-1',
+      version: 5,
+      source: {
+        ...publicPortal,
+        links: [
+          {
+            id: 'link-approved',
+            label: 'Tripadvisor',
+            url: approvedUri,
+            categoryId: null,
+            sortKey: 'a0',
+          },
+          {
+            id: 'link-quarantined',
+            label: 'Other',
+            url: quarantinedUri,
+            categoryId: null,
+            sortKey: 'a1',
+          },
+        ],
+      },
+      destination: {
+        state: 'verified',
+        uri: GOOGLE_REVIEW_URI,
+        retrievedAt: NOW,
+        sourceEpoch: 1,
+        profileVersion: 2,
+      },
+      createdBy: 'manager-1',
+      createdAt: NOW,
+    })
+    const { resolve, listApprovedSecondaryDestinationUris } = setup({
+      resolvePublication: async () => ({ token, snapshot: linkedSnapshot }),
+      listApprovedSecondaryDestinationUris: async () => [approvedUri],
+    })
+
+    const outcome = await resolve('pt_key_secret')
+
+    expect(outcome).toMatchObject({
+      status: 'found',
+      data: { links: [{ id: 'link-approved', url: approvedUri }] },
+    })
+    if (outcome.status === 'found') {
+      expect(outcome.data.links).toHaveLength(1)
+    }
+    expect(listApprovedSecondaryDestinationUris).toHaveBeenCalledWith(
+      organizationId('org-1'),
+      propertyId('property-1'),
+      [approvedUri, quarantinedUri],
+      new Date('2026-08-08T11:30:00.000Z'),
+    )
+  })
+
+  it('keeps the private gateway available but hides every secondary link when approval lookup fails', async () => {
+    const linkedSnapshot = buildPortalPublicationSnapshot({
+      id: 'snapshot-with-link',
+      portalId: 'portal-1',
+      organizationId: 'org-1',
+      propertyId: 'property-1',
+      version: 5,
+      source: {
+        ...publicPortal,
+        links: [
+          {
+            id: 'link-1',
+            label: 'Other',
+            url: 'https://example.com/guest',
+            categoryId: null,
+            sortKey: 'a0',
+          },
+        ],
+      },
+      destination: {
+        state: 'verified',
+        uri: GOOGLE_REVIEW_URI,
+        retrievedAt: NOW,
+        sourceEpoch: 1,
+        profileVersion: 2,
+      },
+      createdBy: 'manager-1',
+      createdAt: NOW,
+    })
+    const { resolve } = setup({
+      resolvePublication: async () => ({ token, snapshot: linkedSnapshot }),
+      listApprovedSecondaryDestinationUris: async () => {
+        throw new Error('approval authority unavailable')
+      },
+    })
+
+    await expect(resolve('pt_key_secret')).resolves.toMatchObject({
+      status: 'found',
+      data: {
+        links: [],
+        reviewGateway: { privateFeedbackThreshold: 3 },
+      },
+    })
+  })
+
+  it('renders an explicitly selected Bulgarian snapshot without changing its stable address', async () => {
+    const localizedSnapshot = buildLocalizedSnapshot()
+    const harness = setup({
+      resolvePublication: vi.fn(async () => ({ token, snapshot: localizedSnapshot })),
+    })
+
+    await expect(
+      harness.resolve('pt_key_secret', { requestedLocale: 'bg' }),
+    ).resolves.toMatchObject({
+      status: 'found',
+      data: {
+        portal: {
+          name: 'Разкажете ни за престоя си',
+          organizationName: 'Хотел Пример',
+        },
+        localization: {
+          selectedLocale: 'bg',
+          primaryLocale: 'en',
+          availableLocales: ['en', 'bg'],
+          languagePackVersion: 'guest-ui-bg-v1',
+        },
+        responseConfiguration: {
+          guestLocale: 'bg',
+          languagePackVersion: 'guest-ui-bg-v1',
+        },
+      },
+    })
+    expect(harness.getHealth).toHaveBeenCalledWith(
+      organizationId('org-1'),
+      propertyId('property-1'),
+      portalId('portal-1'),
+    )
+  })
+
+  it.each([
+    null,
+    {
+      id: 'health-unavailable',
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('property-1'),
+      portalId: portalId('portal-1'),
+      status: 'unavailable' as const,
+      reason: 'publication_disabled' as const,
+      sourceVersion: '2',
+      effectiveFrom: NOW,
+      effectiveTo: null,
+      observedAt: NOW,
+    },
+  ])(
+    'fails closed for a v2 publication without available Portal Health',
+    async (health) => {
+      const harness = setup({
+        resolvePublication: vi.fn(async () => ({
+          token,
+          snapshot: buildLocalizedSnapshot(),
+        })),
+        getHealth: vi.fn(async () => health),
+      })
+
+      await expect(harness.resolve('pt_key_secret')).resolves.toEqual({
+        status: 'unavailable',
+      })
+      expect(harness.decide).not.toHaveBeenCalled()
+      expect(harness.getDestination).not.toHaveBeenCalled()
+    },
+  )
+
   it('returns one unavailable outcome for malformed, unknown, or denied tokens', async () => {
     const malformed = setup({ digest: vi.fn(() => null) })
     await expect(malformed.resolve('bad')).resolves.toEqual({ status: 'unavailable' })
-    expect(malformed.findToken).not.toHaveBeenCalled()
+    expect(malformed.resolvePublication).not.toHaveBeenCalled()
 
-    const unknown = setup({ findToken: vi.fn(async () => null) })
+    const unknown = setup({ resolvePublication: vi.fn(async () => null) })
     await expect(unknown.resolve('pt_key_unknown')).resolves.toEqual({
       status: 'unavailable',
     })
@@ -126,16 +429,96 @@ describe('resolvePublicPortalToken', () => {
     await expect(denied.resolve('pt_key_denied')).resolves.toEqual({
       status: 'unavailable',
     })
-    expect(denied.findPortal).not.toHaveBeenCalled()
+    expect(denied.getDestination).not.toHaveBeenCalled()
   })
 
   it('fails closed when token and portal tenant/property scopes disagree', async () => {
     const mismatch = setup({
-      findPortal: vi.fn(async () => ({ ...publicPortal, propertyId: 'property-2' })),
+      resolvePublication: vi.fn(async () => ({
+        token,
+        snapshot: { ...snapshot, propertyId: 'property-2' },
+      })),
     })
 
     await expect(mismatch.resolve('pt_key_secret')).resolves.toEqual({
       status: 'unavailable',
     })
+  })
+
+  it('fails closed immediately when the owning Property is archived even if Portal Health is stale', async () => {
+    const archived = setup({ isPropertyActive: vi.fn(async () => false) })
+
+    await expect(archived.resolve('pt_key_secret')).resolves.toEqual({
+      status: 'unavailable',
+    })
+    expect(archived.getHealth).not.toHaveBeenCalled()
+    expect(archived.decide).not.toHaveBeenCalled()
+    expect(archived.getDestination).not.toHaveBeenCalled()
+  })
+
+  it.each(['awaiting_refresh', 'unavailable'] as const)(
+    'keeps the private gateway available without a stale URI when the Property destination is %s',
+    async (state) => {
+      const harness = setup({
+        getDestination: vi.fn(async () => ({
+          state,
+          uri: state === 'awaiting_refresh' ? GOOGLE_REVIEW_URI : null,
+          retrievedAt: state === 'awaiting_refresh' ? NOW : null,
+          sourceEpoch: state === 'awaiting_refresh' ? 1 : null,
+          profileVersion: state === 'awaiting_refresh' ? 2 : null,
+        })),
+      })
+
+      const outcome = await harness.resolve('pt_key_secret')
+      expect(outcome).toMatchObject({
+        status: 'found',
+        data: {
+          reviewGateway: {
+            privateFeedbackThreshold: 3,
+            googleReview: { status: 'unavailable' },
+          },
+        },
+      })
+      expect(JSON.stringify(outcome)).not.toContain(GOOGLE_REVIEW_URI)
+    },
+  )
+
+  it('degrades and reports when the Property destination lookup is unavailable', async () => {
+    const reportDestinationFailure = vi.fn()
+    const failure = new Error('database unavailable')
+    const harness = setup({
+      getDestination: vi.fn(async () => {
+        throw failure
+      }),
+      reportDestinationFailure,
+    })
+
+    await expect(harness.resolve('pt_key_secret')).resolves.toMatchObject({
+      status: 'found',
+      data: {
+        reviewGateway: { googleReview: { status: 'unavailable' } },
+      },
+    })
+    expect(reportDestinationFailure).toHaveBeenCalledWith(failure)
+  })
+
+  it('content-addresses the exact rendered configuration', async () => {
+    const available = await setup().resolve('pt_key_secret')
+    const unavailable = await setup({
+      getDestination: vi.fn(async () => ({
+        state: 'unavailable' as const,
+        uri: null,
+        retrievedAt: null,
+        sourceEpoch: null,
+        profileVersion: null,
+      })),
+    }).resolve('pt_key_secret')
+
+    expect(available.status).toBe('found')
+    expect(unavailable.status).toBe('found')
+    if (available.status !== 'found' || unavailable.status !== 'found') return
+    expect(available.data.responseConfiguration.configurationDigest).not.toBe(
+      unavailable.data.responseConfiguration.configurationDigest,
+    )
   })
 })

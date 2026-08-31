@@ -10,9 +10,11 @@ import {
 } from '#/components/ui/select'
 import { Switch } from '#/components/ui/switch'
 import {
+  getDefaultCadence,
   getDefaultEnabled,
+  isPreferenceDisableable,
+  type ConfigurableNotificationCategory,
   type NotificationCadence,
-  type NotificationCategory,
   type NotificationPreference,
 } from '#/contexts/notification/application/public-api'
 import { QuietHoursEditor } from './quiet-hours-editor'
@@ -27,20 +29,21 @@ export function NotificationsCategoryRow({
   emailAllowed,
   savePreference,
 }: Readonly<{
-  category: NotificationCategory
+  category: ConfigurableNotificationCategory
   label: string
   description: string
   inApp: NotificationPreference | undefined
   email: NotificationPreference | undefined
   emailAllowed: boolean
   savePreference: (
-    category: NotificationCategory,
+    category: ConfigurableNotificationCategory,
     channel: 'in_app' | 'email',
     patch: NotificationPreferencePatch,
   ) => Promise<void>
 }>) {
-  const mandatory = category === 'mandatory'
-  const emailDisabled = mandatory || !emailAllowed
+  const inAppLocked = !isPreferenceDisableable(category, 'in_app')
+  const emailLocked = !isPreferenceDisableable(category, 'email')
+  const emailControlsDisabled = emailLocked || !emailAllowed
   // The title track carries an explicit floor and the controls row spans the
   // whole grid. With `1fr auto auto` and the controls row spanning only columns
   // 2-3, that 670px row sized both `auto` tracks to the full width of the
@@ -64,7 +67,7 @@ export function NotificationsCategoryRow({
         <Switch
           id={`${category}-in_app`}
           checked={inApp?.enabled ?? getDefaultEnabled(category, 'in_app')}
-          disabled={mandatory}
+          disabled={inAppLocked}
           onCheckedChange={(enabled) =>
             void savePreference(category, 'in_app', { enabled })
           }
@@ -75,7 +78,7 @@ export function NotificationsCategoryRow({
         <Switch
           id={`${category}-email`}
           checked={email?.enabled ?? getDefaultEnabled(category, 'email')}
-          disabled={emailDisabled}
+          disabled={emailControlsDisabled}
           onCheckedChange={(enabled) =>
             void savePreference(category, 'email', { enabled })
           }
@@ -86,11 +89,8 @@ export function NotificationsCategoryRow({
         <Field className="w-auto">
           <FieldLabel htmlFor={`${category}-cadence`}>Cadence</FieldLabel>
           <Select
-            value={
-              email?.cadence ??
-              (category === 'urgent_operational' ? 'immediate' : 'daily')
-            }
-            disabled={emailDisabled}
+            value={email?.cadence ?? getDefaultCadence(category)}
+            disabled={emailControlsDisabled}
             onValueChange={(value) =>
               void savePreference(category, 'email', {
                 cadence: value as NotificationCadence,
@@ -115,7 +115,7 @@ export function NotificationsCategoryRow({
           key={`${category}:${email?.quietHoursStart}:${email?.quietHoursEnd}`}
           start={email?.quietHoursStart ?? null}
           end={email?.quietHoursEnd ?? null}
-          disabled={emailDisabled}
+          disabled={emailControlsDisabled}
           onSave={(quietHoursStart, quietHoursEnd) =>
             void savePreference(category, 'email', { quietHoursStart, quietHoursEnd })
           }
@@ -125,7 +125,7 @@ export function NotificationsCategoryRow({
             <Switch
               id={`${category}-urgent-bypass`}
               checked={email?.urgentBypassEnabled ?? false}
-              disabled={emailDisabled}
+              disabled={emailControlsDisabled}
               onCheckedChange={(urgentBypassEnabled) =>
                 void savePreference(category, 'email', { urgentBypassEnabled })
               }

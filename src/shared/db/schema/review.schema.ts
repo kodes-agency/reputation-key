@@ -7,10 +7,12 @@ import {
   boolean,
   check,
   customType,
+  doublePrecision,
   foreignKey,
   index,
   integer,
   pgEnum,
+  pgSequence,
   pgTable,
   primaryKey,
   real,
@@ -19,6 +21,7 @@ import {
   uniqueIndex,
   uuid,
   varchar,
+  type PgTableExtraConfigValue,
 } from 'drizzle-orm/pg-core'
 import { properties } from './property.schema'
 import { googleConnections } from './google-connection.schema'
@@ -41,6 +44,13 @@ export const replyStatusEnum = pgEnum('reply_status', [
 export const replySourceEnum = pgEnum('reply_source', ['google_sync', 'internal'])
 export const replyAuthorshipEnum = pgEnum('reply_authorship', ['human', 'ai_assisted'])
 
+/** Allocated before each provider read. A later response from an earlier read
+ * cannot replace a newer Google-reply observation head. */
+export const googleReplyObservationReadGeneration = pgSequence(
+  'google_reply_observation_read_generation_seq',
+  { minValue: 1, maxValue: '9007199254740991', startWith: 1 },
+)
+
 export const reviews = pgTable(
   'reviews',
   {
@@ -50,15 +60,18 @@ export const reviews = pgTable(
       .notNull()
       .references(() => properties.id, { onDelete: 'cascade' }),
     platform: reviewPlatformEnum('platform').notNull(),
-    externalId: varchar('external_id', { length: 500 }).notNull(),
-    externalLocationId: varchar('external_location_id', { length: 500 }).notNull(),
+    // Expand-phase compatibility cache. REV-01 keeps these columns until every
+    // reader has cut over to review_source_contents, but lifecycle erasure can
+    // now null them without deleting the stable Review identity.
+    externalId: varchar('external_id', { length: 500 }),
+    externalLocationId: varchar('external_location_id', { length: 500 }),
     googleConnectionId: uuid('google_connection_id').references(
       () => googleConnections.id,
       { onDelete: 'set null' },
     ),
     reviewerName: varchar('reviewer_name', { length: 255 }),
     reviewerProfilePhotoUrl: varchar('reviewer_profile_photo_url', { length: 1000 }),
-    rating: integer('rating').notNull(),
+    rating: integer('rating'),
     // Google concatenates its machine translation and the guest's original into
     // one `comment` field: "(Translated by Google) <en>\n\n(Original) <src>".
     // `text` holds the ORIGINAL — the AI language verifier must detect the
@@ -67,8 +80,8 @@ export const reviews = pgTable(
     text: text('text'),
     translatedText: text('translated_text'),
     languageCode: varchar('language_code', { length: 10 }),
-    reviewedAt: timestamp('reviewed_at', { withTimezone: true }).notNull(),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
     sentimentLabel: varchar('sentiment_label', { length: 20 }),
     sentimentScore: real('sentiment_score'),
     // PRE17B / BQR-1.1: Review source lifecycle (migration 0006)
@@ -81,9 +94,25 @@ export const reviews = pgTable(
     sourceSeenGeneration: uuid('source_seen_generation'),
     sourceEpoch: integer('source_epoch').notNull(),
     sourceRevision: bigint('source_revision', { mode: 'number' }).notNull(),
+    sourceObservationSequence: bigint('source_observation_sequence', {
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    materialNormalizationVersion: varchar('material_normalization_version', {
+      length: 64,
+    }),
+    materialSourceDigest: varchar('material_source_digest', { length: 64 }),
+    materialNormalizedDigest: varchar('material_normalized_digest', { length: 64 }),
     analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
-    aiSourceByteLength: integer('ai_source_byte_length').notNull(),
-    aiSourceDigest: varchar('ai_source_digest', { length: 64 }).notNull(),
+    aiSourceByteLength: integer('ai_source_byte_length'),
+    aiSourceDigest: varchar('ai_source_digest', { length: 64 }),
+    sourceContentState: varchar('source_content_state', { length: 24 })
+      .notNull()
+      .default('active'),
+    sourceContentErasedAt: timestamp('source_content_erased_at', {
+      withTimezone: true,
+    }),
     replyStateRevision: bigint('reply_state_revision', { mode: 'number' })
       .notNull()
       .default(0),
@@ -122,6 +151,10 @@ export const reviews = pgTable(
       t.sourceCreatedAt.desc(),
       t.id.desc(),
     ),
+    // REV-01: global stable-identity lifecycle pages freeze by created_at and
+    // resume by UUID. Without this exact keyset index, every bounded page
+    // re-sorts the indefinitely retained Review identity table.
+    index('reviews_lifecycle_cursor_idx').on(t.createdAt, t.id),
     index('reviews_content_expires_idx')
       .on(t.contentExpiresAt, t.id)
       .where(sql`content_expires_at IS NOT NULL`),
@@ -129,6 +162,28 @@ export const reviews = pgTable(
     check(
       'reviews_source_revision_safe',
       sql`${t.sourceRevision} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'reviews_source_observation_sequence_safe',
+      sql`${t.sourceObservationSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'reviews_material_comparison_head_valid',
+      sql`(
+        ${t.materialNormalizationVersion} IS NULL
+        AND ${t.materialSourceDigest} IS NULL
+        AND ${t.materialNormalizedDigest} IS NULL
+      ) OR (
+        ${t.materialNormalizationVersion} = 'legacy-unverified-v0'
+        AND ${t.materialSourceDigest} IS NULL
+        AND ${t.materialNormalizedDigest} IS NULL
+      ) OR (
+        ${t.materialNormalizationVersion} = 'review-material-v1'
+        AND ${t.materialSourceDigest} IS NOT NULL
+        AND ${t.materialSourceDigest} ~ '^[0-9a-f]{64}$'
+        AND ${t.materialNormalizedDigest} IS NOT NULL
+        AND ${t.materialNormalizedDigest} ~ '^[0-9a-f]{64}$'
+      )`,
     ),
     check(
       'reviews_analysis_sequence_safe',
@@ -142,6 +197,333 @@ export const reviews = pgTable(
     check(
       'reviews_reply_state_revision_safe',
       sql`${t.replyStateRevision} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'reviews_source_content_state_valid',
+      sql`(
+        ${t.sourceContentState} = 'active'
+        AND ${t.sourceContentErasedAt} IS NULL
+      ) OR (
+        ${t.sourceContentState} IN ('source_expired', 'provider_deleted')
+        AND ${t.sourceContentErasedAt} IS NOT NULL
+        AND ${t.externalId} IS NULL
+        AND ${t.externalLocationId} IS NULL
+        AND ${t.googleConnectionId} IS NULL
+        AND ${t.reviewerName} IS NULL
+        AND ${t.reviewerProfilePhotoUrl} IS NULL
+        AND ${t.rating} IS NULL
+        AND ${t.text} IS NULL
+        AND ${t.translatedText} IS NULL
+        AND ${t.languageCode} IS NULL
+        AND ${t.reviewedAt} IS NULL
+        AND ${t.sourceCreatedAt} IS NULL
+        AND ${t.sourceUpdatedAt} IS NULL
+        AND ${t.contentHash} IS NULL
+        AND ${t.aiSourceByteLength} IS NULL
+        AND ${t.aiSourceDigest} IS NULL
+      )`,
+    ),
+  ],
+)
+
+/**
+ * The independently erasable provider-content cache for a stable Review.
+ *
+ * During the REV-01 expand phase writers dual-write this row and the nullable
+ * compatibility columns on `reviews`. Readers remain on the compatibility
+ * columns until shadow parity is sealed. Expiry/provider deletion removes this
+ * row and scrubs those columns atomically; the Review, RepKey Reply, Inbox, and
+ * audit identities remain.
+ */
+export const reviewSourceContents = pgTable(
+  'review_source_contents',
+  {
+    reviewId: uuid('review_id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    platform: reviewPlatformEnum('platform').notNull(),
+    externalId: varchar('external_id', { length: 500 }).notNull(),
+    externalLocationId: varchar('external_location_id', { length: 500 }).notNull(),
+    googleConnectionId: uuid('google_connection_id').references(
+      () => googleConnections.id,
+      { onDelete: 'set null' },
+    ),
+    reviewerName: varchar('reviewer_name', { length: 255 }),
+    reviewerProfilePhotoUrl: varchar('reviewer_profile_photo_url', { length: 1000 }),
+    rating: integer('rating').notNull(),
+    text: text('text'),
+    translatedText: text('translated_text'),
+    languageCode: varchar('language_code', { length: 10 }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }).notNull(),
+    sourceCreatedAt: timestamp('source_created_at', { withTimezone: true }),
+    sourceUpdatedAt: timestamp('source_updated_at', { withTimezone: true }),
+    firstFetchedAt: timestamp('first_fetched_at', { withTimezone: true }),
+    lastFetchedAt: timestamp('last_fetched_at', { withTimezone: true }).notNull(),
+    contentExpiresAt: timestamp('content_expires_at', { withTimezone: true }).notNull(),
+    contentHash: text('content_hash'),
+    sourceEpoch: integer('source_epoch').notNull(),
+    sourceRevision: bigint('source_revision', { mode: 'number' }).notNull(),
+    aiSourceByteLength: integer('ai_source_byte_length').notNull(),
+    aiSourceDigest: varchar('ai_source_digest', { length: 64 }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'review_source_contents_review_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.reviewId],
+      foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
+    }).onDelete('cascade'),
+    uniqueIndex('review_source_contents_provider_identity_unique').on(
+      t.platform,
+      t.externalId,
+      t.organizationId,
+    ),
+    index('review_source_contents_expiry_idx').on(t.contentExpiresAt, t.reviewId),
+    index('review_source_contents_connection_idx').on(t.googleConnectionId),
+    check('review_source_contents_rating_valid', sql`${t.rating} BETWEEN 1 AND 5`),
+    check(
+      'review_source_contents_epoch_revision_safe',
+      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.sourceRevision} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'review_source_contents_ai_source_valid',
+      sql`${t.aiSourceByteLength} BETWEEN 1 AND '4294967295'::bigint
+        AND ${t.aiSourceDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+  ],
+)
+
+/**
+ * Stable, numbered business revisions. Provider content can be erased from a
+ * revision while its identity and comparison evidence remain available to
+ * RepKey-owned workflow records.
+ */
+export const materialReviewRevisions = pgTable(
+  'material_review_revisions',
+  {
+    reviewId: uuid('review_id').notNull(),
+    revision: bigint('revision', { mode: 'number' }).notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    normalizationVersion: varchar('normalization_version', { length: 64 }).notNull(),
+    sourceDigest: varchar('source_digest', { length: 64 }),
+    normalizedDigest: varchar('normalized_digest', { length: 64 }),
+    rating: integer('rating'),
+    normalizedText: text('normalized_text'),
+    /**
+     * Content-free provenance for Inbox's Google Review Response Target.
+     * Existing rows intentionally remain `legacy_unknown`; target eligibility
+     * is never reconstructed from fetch or migration timestamps.
+     */
+    responseTargetEligibility: varchar('response_target_eligibility', {
+      length: 32,
+    })
+      .notNull()
+      .default('legacy_unknown'),
+    responseTargetStartAt: timestamp('response_target_start_at', {
+      withTimezone: true,
+    }),
+    contentState: varchar('content_state', { length: 24 }).notNull().default('active'),
+    contentErasedAt: timestamp('content_erased_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    primaryKey({
+      name: 'material_review_revisions_pk',
+      columns: [t.reviewId, t.revision],
+    }),
+    uniqueIndex('material_review_revisions_exact_binding_unique').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+      t.sourceEpoch,
+      t.revision,
+    ),
+    foreignKey({
+      name: 'material_review_revisions_review_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.reviewId],
+      foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
+    }).onDelete('cascade'),
+    index('material_review_revisions_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+      t.revision,
+    ),
+    check(
+      'material_review_revisions_controls_safe',
+      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.revision} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'material_review_revisions_comparison_valid',
+      sql`(
+        ${t.normalizationVersion} = 'legacy-unverified-v0'
+        AND ${t.sourceDigest} IS NULL
+        AND ${t.normalizedDigest} IS NULL
+      ) OR (
+        ${t.normalizationVersion} = 'review-material-v1'
+        AND ${t.sourceDigest} IS NOT NULL
+        AND ${t.sourceDigest} ~ '^[0-9a-f]{64}$'
+        AND ${t.normalizedDigest} IS NOT NULL
+        AND ${t.normalizedDigest} ~ '^[0-9a-f]{64}$'
+      )`,
+    ),
+    check(
+      'material_review_revisions_content_state_valid',
+      sql`(
+        ${t.contentState} = 'active'
+        AND ${t.contentErasedAt} IS NULL
+        AND ${t.rating} IS NOT NULL
+        AND ${t.rating} BETWEEN 1 AND 5
+      ) OR (
+        ${t.contentState} IN ('source_expired', 'provider_deleted')
+        AND ${t.contentErasedAt} IS NOT NULL
+        AND ${t.rating} IS NULL
+        AND ${t.normalizedText} IS NULL
+      )`,
+    ),
+    check(
+      'material_review_revisions_response_target_valid',
+      sql`${t.responseTargetEligibility} IN ('measured', 'legacy_unknown', 'historical_onboarding')
+        AND (
+          (${t.responseTargetEligibility} = 'measured' AND ${t.responseTargetStartAt} IS NOT NULL)
+          OR
+          (${t.responseTargetEligibility} <> 'measured' AND ${t.responseTargetStartAt} IS NULL)
+        )`,
+    ),
+  ],
+)
+
+/**
+ * Versioned provider observations. An observation records both the exact and
+ * normalized comparison digests; its material revision link changes only when
+ * rating or normalized original guest text changes.
+ */
+export const reviewSourceObservations = pgTable(
+  'review_source_observations',
+  {
+    reviewId: uuid('review_id').notNull(),
+    observationSequence: bigint('observation_sequence', { mode: 'number' }).notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    observationKey: varchar('observation_key', { length: 64 }).notNull(),
+    observationDigest: varchar('observation_digest', { length: 64 }).notNull(),
+    materialRevision: bigint('material_revision', { mode: 'number' }).notNull(),
+    observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
+    contentExpiresAt: timestamp('content_expires_at', { withTimezone: true }).notNull(),
+    sourceCreatedAt: timestamp('source_created_at', { withTimezone: true }),
+    sourceUpdatedAt: timestamp('source_updated_at', { withTimezone: true }),
+    sourceDigest: varchar('source_digest', { length: 64 }),
+    normalizationVersion: varchar('normalization_version', { length: 64 }).notNull(),
+    normalizedDigest: varchar('normalized_digest', { length: 64 }),
+    comparisonResult: varchar('comparison_result', { length: 40 }).notNull(),
+    rating: integer('rating'),
+    originalText: text('original_text'),
+    translatedText: text('translated_text'),
+    languageCode: varchar('language_code', { length: 10 }),
+    reviewerName: varchar('reviewer_name', { length: 255 }),
+    reviewerProfilePhotoUrl: varchar('reviewer_profile_photo_url', { length: 1000 }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    contentState: varchar('content_state', { length: 24 }).notNull().default('active'),
+    contentErasedAt: timestamp('content_erased_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    primaryKey({
+      name: 'review_source_observations_pk',
+      columns: [t.reviewId, t.observationSequence],
+    }),
+    foreignKey({
+      name: 'review_source_observations_review_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.reviewId],
+      foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'review_source_observations_material_revision_fk',
+      columns: [t.reviewId, t.materialRevision],
+      foreignColumns: [
+        materialReviewRevisions.reviewId,
+        materialReviewRevisions.revision,
+      ],
+    }).onDelete('restrict'),
+    uniqueIndex('review_source_observations_key_unique').on(
+      t.reviewId,
+      t.sourceEpoch,
+      t.observationKey,
+    ),
+    index('review_source_observations_digest_idx').on(
+      t.reviewId,
+      t.sourceEpoch,
+      t.observationDigest,
+    ),
+    index('review_source_observations_expiry_idx').on(
+      t.contentState,
+      t.contentExpiresAt,
+      t.reviewId,
+      t.observationSequence,
+    ),
+    check(
+      'review_source_observations_controls_safe',
+      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.observationSequence} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.materialRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'review_source_observations_digest_valid',
+      sql`${t.observationKey} ~ '^[0-9a-f]{64}$'
+        AND ${t.observationDigest} ~ '^[0-9a-f]{64}$'
+        AND (
+          (${t.normalizationVersion} = 'legacy-unverified-v0'
+            AND ${t.sourceDigest} IS NULL
+            AND ${t.normalizedDigest} IS NULL)
+          OR
+          (${t.normalizationVersion} = 'review-material-v1'
+            AND ${t.sourceDigest} IS NOT NULL
+            AND ${t.sourceDigest} ~ '^[0-9a-f]{64}$'
+            AND ${t.normalizedDigest} IS NOT NULL
+            AND ${t.normalizedDigest} ~ '^[0-9a-f]{64}$')
+        )`,
+    ),
+    check(
+      'review_source_observations_comparison_valid',
+      sql`${t.comparisonResult} IN (
+        'backfilled_unverified',
+        'initial_material_revision',
+        'unchanged',
+        'material_change',
+        'normalization_shadow_match',
+        'baseline_unavailable',
+        'out_of_order_ignored'
+      )`,
+    ),
+    check(
+      'review_source_observations_content_state_valid',
+      sql`(
+        ${t.contentState} = 'active'
+        AND ${t.contentErasedAt} IS NULL
+        AND ${t.rating} IS NOT NULL
+        AND ${t.rating} BETWEEN 1 AND 5
+        AND ${t.reviewedAt} IS NOT NULL
+      ) OR (
+        ${t.contentState} IN ('source_expired', 'provider_deleted')
+        AND ${t.contentErasedAt} IS NOT NULL
+        AND ${t.rating} IS NULL
+        AND ${t.originalText} IS NULL
+        AND ${t.translatedText} IS NULL
+        AND ${t.languageCode} IS NULL
+        AND ${t.reviewerName} IS NULL
+        AND ${t.reviewerProfilePhotoUrl} IS NULL
+        AND ${t.reviewedAt} IS NULL
+        AND ${t.sourceCreatedAt} IS NULL
+        AND ${t.sourceUpdatedAt} IS NULL
+      )`,
     ),
   ],
 )
@@ -241,9 +623,14 @@ export const reviewProviderSnapshotRuns = pgTable(
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     propertyId: uuid('property_id').notNull(),
     sourceEpoch: integer('source_epoch').notNull(),
+    /** Governs target eligibility for material revisions first seen by this run. */
+    observationOrigin: varchar('observation_origin', { length: 32 })
+      .notNull()
+      .default('legacy_unknown'),
     state: varchar('state', { length: 16 }).notNull(),
     phase: varchar('phase', { length: 16 }).notNull(),
     expectedTotal: integer('expected_total'),
+    expectedAverageRating: doublePrecision('expected_average_rating'),
     mainCursorRef: varchar('main_cursor_ref', { length: 76 }),
     confirmationCursorRef: varchar('confirmation_cursor_ref', { length: 76 }),
     mainPageCount: integer('main_page_count').notNull().default(0),
@@ -274,6 +661,10 @@ export const reviewProviderSnapshotRuns = pgTable(
       sql`${t.state} IN ('scanning', 'confirming', 'deleting', 'completed', 'failed')`,
     ),
     check(
+      'review_provider_snapshot_runs_observation_origin_valid',
+      sql`${t.observationOrigin} IN ('ongoing', 'historical_onboarding', 'legacy_unknown')`,
+    ),
+    check(
       'review_provider_snapshot_runs_phase_valid',
       sql`${t.phase} IN ('main', 'confirmation', 'apply', 'terminal')`,
     ),
@@ -281,6 +672,12 @@ export const reviewProviderSnapshotRuns = pgTable(
       'review_provider_snapshot_runs_counts_valid',
       sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647
         AND (${t.expectedTotal} IS NULL OR ${t.expectedTotal} BETWEEN 0 AND 10000)
+        AND (${t.expectedAverageRating} IS NULL OR ${t.expectedAverageRating} BETWEEN 0 AND 5)
+        AND (
+          (${t.expectedTotal} IS NULL AND ${t.expectedAverageRating} IS NULL)
+          OR (${t.expectedTotal} = 0 AND ${t.expectedAverageRating} IS NULL)
+          OR (${t.expectedTotal} > 0 AND ${t.expectedAverageRating} IS NOT NULL)
+        )
         AND ${t.mainPageCount} BETWEEN 0 AND 200
         AND ${t.confirmationPageCount} BETWEEN 0 AND 200
         AND ${t.mainUniqueCount} BETWEEN 0 AND 10000
@@ -297,6 +694,47 @@ export const reviewProviderSnapshotRuns = pgTable(
           AND ${t.terminalAt} IS NULL
           AND ${t.recordExpiresAt} IS NULL)
       )`,
+    ),
+  ],
+)
+
+/** Append-only, content-minimal proof emitted only when one Google provider
+ * snapshot has completed both scans and its bounded deletion reconciliation. */
+export const reviewGoogleReputationSnapshotFacts = pgTable(
+  'review_google_reputation_snapshot_facts',
+  {
+    runId: uuid('run_id').primaryKey(),
+    eventId: uuid('event_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    reviewCount: integer('review_count').notNull(),
+    averageRating: doublePrecision('average_rating'),
+    evaluatedAt: timestamp('evaluated_at', { withTimezone: true }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('review_google_reputation_snapshot_event_unique').on(t.eventId),
+    index('review_google_reputation_snapshot_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.sourceEpoch,
+      t.evaluatedAt.desc(),
+    ),
+    foreignKey({
+      name: 'review_google_reputation_snapshot_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('cascade'),
+    check(
+      'review_google_reputation_snapshot_source_epoch_valid',
+      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647`,
+    ),
+    check(
+      'review_google_reputation_snapshot_value_valid',
+      sql`(${t.reviewCount} = 0 AND ${t.averageRating} IS NULL)
+        OR (${t.reviewCount} BETWEEN 1 AND 10000
+          AND ${t.averageRating} BETWEEN 0 AND 5)`,
     ),
   ],
 )
@@ -448,7 +886,7 @@ export const replies = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     reviewId: uuid('review_id')
       .notNull()
-      .references(() => reviews.id, { onDelete: 'cascade' }),
+      .references(() => reviews.id, { onDelete: 'restrict' }),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     text: text('text').notNull(),
     // Canonical language selected for this reply's public text. Nullable for
@@ -495,9 +933,18 @@ export const replies = pgTable(
     // migration idiom — the allowed values are pinned by
     // PersistedPublicationState / PublicationFailureClass in the domain.
     publicationState: text('publication_state'),
+    // RPL-01: monotonic authorization generation. Every approval,
+    // edit-and-republish, or explicit retry advances it exactly once; durable
+    // intents and publish jobs carry the generation as their stale-work fence.
+    publicationCycle: bigint('publication_cycle', { mode: 'number' })
+      .notNull()
+      .default(0),
     publicationAttempts: integer('publication_attempts').notNull().default(0),
     publicationLastErrorClass: text('publication_last_error_class'),
-    reconcileDueAt: timestamp('reconcile_due_at', { withTimezone: true }),
+    reconcileDueAt: timestamp('reconcile_due_at', {
+      withTimezone: true,
+      precision: 3,
+    }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
@@ -511,6 +958,7 @@ export const replies = pgTable(
       t.source,
       t.organizationId,
     ),
+    uniqueIndex('replies_attempt_binding_unique').on(t.organizationId, t.reviewId, t.id),
     index('replies_review_idx').on(t.reviewId),
     index('replies_org_idx').on(t.organizationId),
     check(
@@ -549,15 +997,26 @@ export const replies = pgTable(
           AND ${t.originBaseReplyStateRevision} BETWEEN 0 AND '9007199254740991'::bigint
           AND ${t.originReplyDraftingEpoch} >= 1
           AND ${t.originPropertyProfileVersion} >= 1
-          AND ${t.originAiProfileVersion} = 'reply-suggestion-v1'
-          AND ${t.originReplyTemplateId} IN (
-            'appreciation_positive',
-            'appreciation_neutral',
-            'recovery_service',
-            'acknowledge_concern'
+          AND (
+            (
+              ${t.originAiProfileVersion} = 'reply-suggestion-v1'
+              AND ${t.originReplyTemplateId} IN (
+                'appreciation_positive',
+                'appreciation_neutral',
+                'recovery_service',
+                'acknowledge_concern'
+              )
+              AND ${t.originReplyTemplateCatalogueVersion} = 'gbp-reply-template-catalogue-v1'
+              AND ${t.originReplyTemplateCatalogueDigest} = 'ff5f572e9c8ce06fc384bdc4cdd911457510fdd0daed571a53d2348faa8bd89f'
+            )
+            OR (
+              ${t.originAiProfileVersion} IN ('reply-draft-v1', 'reply-draft-v2')
+              AND ${t.originReplyTemplateId} IS NULL
+              AND ${t.originReplyTemplateCatalogueVersion} IS NULL
+              AND ${t.originReplyTemplateCatalogueDigest} IS NULL
+              AND ${t.originTemplateGroup} IN ('en-Latn', 'bg-Cyrl')
+            )
           )
-          AND ${t.originReplyTemplateCatalogueVersion} = 'gbp-reply-template-catalogue-v1'
-          AND ${t.originReplyTemplateCatalogueDigest} = 'ff5f572e9c8ce06fc384bdc4cdd911457510fdd0daed571a53d2348faa8bd89f'
           AND ${t.originTemplateGroup} IN (
             'en-Latn', 'es-Latn', 'fr-Latn', 'de-Latn', 'pt-Latn',
             'it-Latn', 'nl-Latn', 'pl-Latn', 'tr-Latn', 'uk-Cyrl',
@@ -591,15 +1050,582 @@ export const replies = pgTable(
     // Migration 0015: publication state machine overlays (DO-block guarded).
     check(
       'replies_publication_state_check',
-      sql`${t.publicationState} IN ('requested', 'authorized', 'sending', 'published', 'terminal', 'ambiguous', 'cancelled')`,
+      sql`${t.publicationState} IN ('requested', 'authorized', 'sending', 'pending_observation', 'published', 'terminal', 'ambiguous', 'cancelled')`,
     ),
     check(
       'replies_publication_last_error_class_check',
       sql`${t.publicationLastErrorClass} IN ('terminal_rejection', 'retryable', 'ambiguous')`,
     ),
+    check(
+      'replies_publication_cycle_safe',
+      sql`${t.publicationCycle} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
     // Migration 0015: ambiguous-outcome reconciliation sweep lookup.
     index('replies_publication_reconcile_idx')
-      .on(t.organizationId, t.reconcileDueAt)
-      .where(sql`publication_state = 'ambiguous' AND reconcile_due_at IS NOT NULL`),
+      .on(t.reconcileDueAt, t.id)
+      .where(
+        sql`publication_state IN ('pending_observation', 'ambiguous') AND reconcile_due_at IS NOT NULL`,
+      ),
+  ],
+)
+
+/** Immutable manager authorization for one publication cycle. The worker may
+ * execute only this exact Review source/head and Reply state tuple. */
+export const replyPublicationAuthorizations = pgTable(
+  'reply_publication_authorizations',
+  {
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    reviewId: uuid('review_id').notNull(),
+    replyId: uuid('reply_id').notNull(),
+    publicationCycle: bigint('publication_cycle', { mode: 'number' }).notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    materialReviewRevision: bigint('material_review_revision', {
+      mode: 'number',
+    }).notNull(),
+    baseObservationRevision: bigint('base_observation_revision', {
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    /** Named manager whose current authority must still hold at dispatch. */
+    authorizedByUserId: varchar('authorized_by_user_id', { length: 255 }).notNull(),
+    replyStateRevision: bigint('reply_state_revision', { mode: 'number' }).notNull(),
+    normalizationVersion: varchar('normalization_version', { length: 64 }).notNull(),
+    expectedReplyDigest: varchar('expected_reply_digest', { length: 64 }).notNull(),
+    authorizedAt: timestamp('authorized_at', { withTimezone: true }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    primaryKey({
+      name: 'reply_publication_authorizations_pk',
+      columns: [t.replyId, t.publicationCycle],
+    }),
+    foreignKey({
+      name: 'reply_publication_authorizations_review_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.reviewId],
+      foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'reply_publication_authorizations_reply_binding_fk',
+      columns: [t.organizationId, t.reviewId, t.replyId],
+      foreignColumns: [replies.organizationId, replies.reviewId, replies.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'reply_publication_authorizations_material_revision_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.sourceEpoch,
+        t.materialReviewRevision,
+      ],
+      foreignColumns: [
+        materialReviewRevisions.organizationId,
+        materialReviewRevisions.propertyId,
+        materialReviewRevisions.reviewId,
+        materialReviewRevisions.sourceEpoch,
+        materialReviewRevisions.revision,
+      ],
+    }).onDelete('restrict'),
+    uniqueIndex('reply_publication_authorizations_attempt_binding_unique').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+      t.replyId,
+      t.publicationCycle,
+      t.sourceEpoch,
+      t.materialReviewRevision,
+      t.replyStateRevision,
+      t.normalizationVersion,
+      t.expectedReplyDigest,
+    ),
+    index('reply_publication_authorizations_review_idx').on(
+      t.organizationId,
+      t.reviewId,
+      t.authorizedAt,
+    ),
+    check(
+      'reply_publication_authorizations_revisions_safe',
+      sql`${t.publicationCycle} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.materialReviewRevision} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.baseObservationRevision} BETWEEN 0 AND '9007199254740991'::bigint
+        AND ${t.replyStateRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'reply_publication_authorizations_digest_valid',
+      sql`${t.normalizationVersion} = 'google-reply-v1'
+        AND ${t.expectedReplyDigest} ~ '^[0-9a-f]{64}$'
+        AND length(btrim(${t.authorizedByUserId})) BETWEEN 1 AND 255`,
+    ),
+  ],
+)
+
+/** One durable row per provider-write attempt. Provider acceptance is not
+ * publication proof; confirmation links the attempt to an observation. */
+export const replyPublicationAttempts = pgTable(
+  'reply_publication_attempts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    reviewId: uuid('review_id').notNull(),
+    replyId: uuid('reply_id').notNull(),
+    publicationCycle: bigint('publication_cycle', { mode: 'number' }).notNull(),
+    attemptNumber: integer('attempt_number').notNull(),
+    providerOperationKey: varchar('provider_operation_key', { length: 255 }).notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    materialReviewRevision: bigint('material_review_revision', {
+      mode: 'number',
+    }).notNull(),
+    replyStateRevision: bigint('reply_state_revision', { mode: 'number' }).notNull(),
+    baseObservationRevision: bigint('base_observation_revision', { mode: 'number' })
+      .notNull()
+      .default(0),
+    normalizationVersion: varchar('normalization_version', { length: 64 }).notNull(),
+    expectedReplyDigest: varchar('expected_reply_digest', { length: 64 }).notNull(),
+    outcome: varchar('outcome', { length: 48 }).notNull().default('sending'),
+    providerCorrelationId: varchar('provider_correlation_id', { length: 255 }),
+    providerRespondedAt: timestamp('provider_responded_at', { withTimezone: true }),
+    confirmedObservationRevision: bigint('confirmed_observation_revision', {
+      mode: 'number',
+    }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    foreignKey({
+      name: 'reply_publication_attempts_review_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.reviewId],
+      foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'reply_publication_attempts_reply_binding_fk',
+      columns: [t.organizationId, t.reviewId, t.replyId],
+      foreignColumns: [replies.organizationId, replies.reviewId, replies.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'reply_publication_attempts_material_revision_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.sourceEpoch,
+        t.materialReviewRevision,
+      ],
+      foreignColumns: [
+        materialReviewRevisions.organizationId,
+        materialReviewRevisions.propertyId,
+        materialReviewRevisions.reviewId,
+        materialReviewRevisions.sourceEpoch,
+        materialReviewRevisions.revision,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'reply_publication_attempts_authorization_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.replyId,
+        t.publicationCycle,
+        t.sourceEpoch,
+        t.materialReviewRevision,
+        t.replyStateRevision,
+        t.normalizationVersion,
+        t.expectedReplyDigest,
+      ],
+      foreignColumns: [
+        replyPublicationAuthorizations.organizationId,
+        replyPublicationAuthorizations.propertyId,
+        replyPublicationAuthorizations.reviewId,
+        replyPublicationAuthorizations.replyId,
+        replyPublicationAuthorizations.publicationCycle,
+        replyPublicationAuthorizations.sourceEpoch,
+        replyPublicationAuthorizations.materialReviewRevision,
+        replyPublicationAuthorizations.replyStateRevision,
+        replyPublicationAuthorizations.normalizationVersion,
+        replyPublicationAuthorizations.expectedReplyDigest,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'reply_publication_attempts_exact_confirmation_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.confirmedObservationRevision,
+        t.replyId,
+        t.publicationCycle,
+        t.attemptNumber,
+        t.sourceEpoch,
+        t.materialReviewRevision,
+      ],
+      foreignColumns: [
+        googleReplyObservations.organizationId,
+        googleReplyObservations.propertyId,
+        googleReplyObservations.reviewId,
+        googleReplyObservations.observationRevision,
+        googleReplyObservations.matchedReplyId,
+        googleReplyObservations.matchedPublicationCycle,
+        googleReplyObservations.matchedAttemptNumber,
+        googleReplyObservations.sourceEpoch,
+        googleReplyObservations.materialReviewRevision,
+      ],
+    }).onDelete('restrict'),
+    uniqueIndex('reply_publication_attempts_cycle_attempt_key').on(
+      t.replyId,
+      t.publicationCycle,
+      t.attemptNumber,
+    ),
+    uniqueIndex('reply_publication_attempts_observation_binding_unique').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+      t.replyId,
+      t.publicationCycle,
+      t.attemptNumber,
+      t.sourceEpoch,
+      t.materialReviewRevision,
+    ),
+    uniqueIndex('reply_publication_attempts_operation_key').on(
+      t.organizationId,
+      t.providerOperationKey,
+    ),
+    index('reply_publication_attempts_review_idx').on(
+      t.organizationId,
+      t.reviewId,
+      t.createdAt,
+    ),
+    check(
+      'reply_publication_attempts_revisions_safe',
+      sql`${t.publicationCycle} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.attemptNumber} BETWEEN 1 AND 2147483647
+        AND ${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.materialReviewRevision} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.replyStateRevision} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.baseObservationRevision} BETWEEN 0 AND '9007199254740991'::bigint
+        AND (${t.confirmedObservationRevision} IS NULL OR ${t.confirmedObservationRevision} BETWEEN 1 AND '9007199254740991'::bigint)`,
+    ),
+    check(
+      'reply_publication_attempts_digest_valid',
+      sql`${t.normalizationVersion} = 'google-reply-v1'
+        AND ${t.expectedReplyDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'reply_publication_attempts_outcome_valid',
+      sql`${t.outcome} IN (
+        'sending', 'provider_outcome_pending', 'retryable_failure',
+        'ambiguous', 'terminal_rejection', 'confirmed', 'superseded'
+      )`,
+    ),
+    check(
+      'reply_publication_attempts_confirmation_valid',
+      sql`(${t.outcome} = 'confirmed') = (${t.confirmedObservationRevision} IS NOT NULL)`,
+    ),
+  ],
+)
+
+/** Append-only Google reply observations. Provider-controlled text is kept in
+ * the Review source-content lifecycle and is erased without deleting facts. */
+export const googleReplyObservations = pgTable(
+  'google_reply_observations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    reviewId: uuid('review_id').notNull(),
+    observationRevision: bigint('observation_revision', { mode: 'number' }).notNull(),
+    observationKey: varchar('observation_key', { length: 64 }).notNull(),
+    inputDigest: varchar('input_digest', { length: 64 }).notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    materialReviewRevision: bigint('material_review_revision', {
+      mode: 'number',
+    }).notNull(),
+    readGeneration: bigint('read_generation', { mode: 'number' }).notNull(),
+    state: varchar('state', { length: 16 }).notNull(),
+    change: varchar('change', { length: 16 }).notNull(),
+    resolution: varchar('resolution', { length: 32 }).notNull(),
+    source: varchar('source', { length: 32 }).notNull(),
+    provenance: varchar('provenance', { length: 32 }).notNull(),
+    normalizedText: text('normalized_text'),
+    normalizationVersion: varchar('normalization_version', { length: 64 }).notNull(),
+    normalizedDigest: varchar('normalized_digest', { length: 64 }),
+    matchedReplyId: uuid('matched_reply_id'),
+    matchedPublicationCycle: bigint('matched_publication_cycle', { mode: 'number' }),
+    matchedAttemptNumber: integer('matched_attempt_number'),
+    providerUpdatedAt: timestamp('provider_updated_at', { withTimezone: true }),
+    observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
+    contentExpiresAt: timestamp('content_expires_at', { withTimezone: true }).notNull(),
+    contentState: varchar('content_state', { length: 24 }).notNull().default('active'),
+    contentErasedAt: timestamp('content_erased_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t): PgTableExtraConfigValue[] => [
+    foreignKey({
+      name: 'google_reply_observations_review_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.reviewId],
+      foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'google_reply_observations_material_revision_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.sourceEpoch,
+        t.materialReviewRevision,
+      ],
+      foreignColumns: [
+        materialReviewRevisions.organizationId,
+        materialReviewRevisions.propertyId,
+        materialReviewRevisions.reviewId,
+        materialReviewRevisions.sourceEpoch,
+        materialReviewRevisions.revision,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'google_reply_observations_matched_attempt_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.matchedReplyId,
+        t.matchedPublicationCycle,
+        t.matchedAttemptNumber,
+        t.sourceEpoch,
+        t.materialReviewRevision,
+      ],
+      foreignColumns: [
+        replyPublicationAttempts.organizationId,
+        replyPublicationAttempts.propertyId,
+        replyPublicationAttempts.reviewId,
+        replyPublicationAttempts.replyId,
+        replyPublicationAttempts.publicationCycle,
+        replyPublicationAttempts.attemptNumber,
+        replyPublicationAttempts.sourceEpoch,
+        replyPublicationAttempts.materialReviewRevision,
+      ],
+    }).onDelete('restrict'),
+    uniqueIndex('google_reply_observations_revision_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+      t.observationRevision,
+    ),
+    uniqueIndex('google_reply_observations_head_binding_unique').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+      t.id,
+      t.observationRevision,
+      t.sourceEpoch,
+      t.materialReviewRevision,
+      t.state,
+      t.provenance,
+    ),
+    uniqueIndex('google_reply_observations_confirmation_binding_unique').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+      t.observationRevision,
+      t.matchedReplyId,
+      t.matchedPublicationCycle,
+      t.matchedAttemptNumber,
+      t.sourceEpoch,
+      t.materialReviewRevision,
+    ),
+    uniqueIndex('google_reply_observations_idempotency_key').on(
+      t.organizationId,
+      t.reviewId,
+      t.observationKey,
+    ),
+    index('google_reply_observations_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+      t.observationRevision,
+    ),
+    check(
+      'google_reply_observations_revisions_safe',
+      sql`${t.observationRevision} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.materialReviewRevision} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.readGeneration} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'google_reply_observations_identity_valid',
+      sql`${t.observationKey} ~ '^[0-9a-f]{64}$'
+        AND ${t.inputDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check('google_reply_observations_state_valid', sql`${t.state} IN ('live', 'absent')`),
+    check(
+      'google_reply_observations_change_valid',
+      sql`${t.change} IN ('added', 'edited', 'deleted', 'unchanged')`,
+    ),
+    check(
+      'google_reply_observations_resolution_valid',
+      sql`${t.resolution} IN (
+        'confirmed_on_google', 'external_current_live', 'diverged',
+        'absent', 'unchanged'
+      )`,
+    ),
+    check(
+      'google_reply_observations_source_valid',
+      sql`${t.source} IN ('provider_snapshot', 'targeted_reconciliation')`,
+    ),
+    check(
+      'google_reply_observations_provenance_valid',
+      sql`${t.provenance} IN ('repkey_confirmed', 'external_or_unknown', 'none')`,
+    ),
+    check(
+      'google_reply_observations_content_valid',
+      sql`(
+        ${t.contentState} = 'active'
+        AND ${t.contentErasedAt} IS NULL
+        AND ${t.normalizationVersion} = 'google-reply-v1'
+        AND (
+          (${t.state} = 'live' AND ${t.normalizedText} IS NOT NULL
+            AND ${t.normalizedDigest} ~ '^[0-9a-f]{64}$')
+          OR (${t.state} = 'absent' AND ${t.normalizedText} IS NULL
+            AND ${t.normalizedDigest} IS NULL)
+        )
+      ) OR (
+        ${t.contentState} IN ('source_expired', 'provider_deleted')
+        AND ${t.contentErasedAt} IS NOT NULL
+        AND ${t.normalizedText} IS NULL
+        AND ${t.normalizedDigest} IS NULL
+      )`,
+    ),
+    check(
+      'google_reply_observations_match_valid',
+      sql`(
+        ${t.resolution} = 'confirmed_on_google'
+        AND ${t.provenance} = 'repkey_confirmed'
+        AND ${t.matchedReplyId} IS NOT NULL
+        AND ${t.matchedPublicationCycle} IS NOT NULL
+        AND ${t.matchedAttemptNumber} IS NOT NULL
+      ) OR (
+        ${t.resolution} <> 'confirmed_on_google'
+        AND ${t.provenance} <> 'repkey_confirmed'
+        AND ${t.matchedReplyId} IS NULL
+        AND ${t.matchedPublicationCycle} IS NULL
+        AND ${t.matchedAttemptNumber} IS NULL
+      )`,
+    ),
+    check(
+      'google_reply_observations_semantics_valid',
+      sql`(
+        ${t.resolution} = 'confirmed_on_google'
+        AND ${t.state} = 'live'
+        AND ${t.change} <> 'deleted'
+        AND ${t.provenance} = 'repkey_confirmed'
+        AND ${t.matchedReplyId} IS NOT NULL
+        AND ${t.matchedPublicationCycle} IS NOT NULL
+        AND ${t.matchedAttemptNumber} IS NOT NULL
+      ) OR (
+        ${t.resolution} = 'external_current_live'
+        AND ${t.state} = 'live'
+        AND ${t.change} <> 'deleted'
+        AND ${t.provenance} = 'external_or_unknown'
+        AND ${t.matchedReplyId} IS NULL
+        AND ${t.matchedPublicationCycle} IS NULL
+        AND ${t.matchedAttemptNumber} IS NULL
+      ) OR (
+        ${t.resolution} = 'diverged'
+        AND ${t.state} = 'live'
+        AND ${t.change} <> 'deleted'
+        AND ${t.provenance} = 'external_or_unknown'
+        AND ${t.matchedReplyId} IS NULL
+        AND ${t.matchedPublicationCycle} IS NULL
+        AND ${t.matchedAttemptNumber} IS NULL
+      ) OR (
+        ${t.resolution} = 'absent'
+        AND ${t.state} = 'absent'
+        AND ${t.change} = 'deleted'
+        AND ${t.provenance} = 'none'
+        AND ${t.matchedReplyId} IS NULL
+        AND ${t.matchedPublicationCycle} IS NULL
+        AND ${t.matchedAttemptNumber} IS NULL
+      ) OR (
+        ${t.resolution} = 'unchanged'
+        AND ${t.change} = 'unchanged'
+        AND (
+          (${t.state} = 'absent' AND ${t.provenance} = 'none')
+          OR (${t.state} = 'live' AND ${t.provenance} = 'external_or_unknown')
+        )
+        AND ${t.matchedReplyId} IS NULL
+        AND ${t.matchedPublicationCycle} IS NULL
+        AND ${t.matchedAttemptNumber} IS NULL
+      )`,
+    ),
+  ],
+)
+
+/** CAS head for the current Google reply observation. */
+export const googleReplyObservationHeads = pgTable(
+  'google_reply_observation_heads',
+  {
+    reviewId: uuid('review_id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    observationId: uuid('observation_id').notNull(),
+    observationRevision: bigint('observation_revision', { mode: 'number' }).notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    materialReviewRevision: bigint('material_review_revision', {
+      mode: 'number',
+    }).notNull(),
+    state: varchar('state', { length: 16 }).notNull(),
+    provenance: varchar('provenance', { length: 32 }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'google_reply_observation_heads_exact_observation_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.observationId,
+        t.observationRevision,
+        t.sourceEpoch,
+        t.materialReviewRevision,
+        t.state,
+        t.provenance,
+      ],
+      foreignColumns: [
+        googleReplyObservations.organizationId,
+        googleReplyObservations.propertyId,
+        googleReplyObservations.reviewId,
+        googleReplyObservations.id,
+        googleReplyObservations.observationRevision,
+        googleReplyObservations.sourceEpoch,
+        googleReplyObservations.materialReviewRevision,
+        googleReplyObservations.state,
+        googleReplyObservations.provenance,
+      ],
+    }).onDelete('restrict'),
+    index('google_reply_observation_heads_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.state,
+    ),
+    check(
+      'google_reply_observation_heads_revisions_safe',
+      sql`${t.observationRevision} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.materialReviewRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'google_reply_observation_heads_state_valid',
+      sql`${t.state} IN ('live', 'absent')`,
+    ),
+    check(
+      'google_reply_observation_heads_provenance_valid',
+      sql`${t.provenance} IN ('repkey_confirmed', 'external_or_unknown', 'none')`,
+    ),
   ],
 )

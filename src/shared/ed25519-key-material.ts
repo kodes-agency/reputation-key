@@ -1,5 +1,5 @@
 import { createPublicKey, timingSafeEqual, type KeyObject } from 'node:crypto'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { parseAiInternalJsonBytes } from './ai-internal-transport-contract'
 
 const KEY_ID = /^[a-z][a-z0-9_-]{0,31}$/

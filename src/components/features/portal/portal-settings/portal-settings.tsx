@@ -7,7 +7,9 @@ import { EditPortalForm } from '../portal-form/edit-portal-form'
 import { ThemePresetSelector } from './theme-preset-selector'
 import { ContentReviewCard } from './content-review-card'
 import { PortalPublicationRow } from './portal-publication-row'
+import { PortalPublicationHistoryCard } from './portal-publication-history-card'
 import { saveStatusMessage } from './portal-settings-rules'
+import { ResponsibleManagersCard } from './responsible-managers-card'
 import { Button } from '#/components/ui/button'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { Action } from '#/components/hooks/use-action'
@@ -19,24 +21,66 @@ import type {
   PortalThemeDraft,
   UpdatePortalVariables,
 } from '../shared/types'
+import type {
+  PortalResponsibleManagerState,
+  ResponsibleManagerMember,
+} from '../portal-detail/portal-detail-types'
+import { GoogleReviewDestinationCard } from './google-review-destination-card'
+import type { GoogleReviewDestinationStatus } from './google-review-destination-status'
+import type { PortalPublicationHistory } from '#/contexts/portal/application/public-api'
+import {
+  PortalExperienceSettingsCard,
+  type PortalApprovedDestinationList,
+  type PortalExperienceActions,
+} from './portal-experience-settings-card'
 
 type Props = Readonly<{
   portal: PortalData
+  propertyId?: string
+  googleReviewDestination: GoogleReviewDestinationStatus
+  publicationHistory: PortalPublicationHistory
+  loadMorePublicationHistory?: Action<
+    { data: { portalId: string; cursor?: number; limit?: number } },
+    PortalPublicationHistory
+  >
   mutation: Action<UpdatePortalVariables>
   completeReviewMutation: Action<CompleteReviewVariables, CompleteReviewResult>
   theme: PortalThemeDraft
   onThemeChange: (theme: PortalThemeDraft) => void
   requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
-  }) => Promise<{ uploadUrl: string; key: string }>
-  finalizeUpload: (input: { data: { portalId: string; key: string } }) => Promise<{
-    heroImageUrl: string
+  }) => Promise<{
+    uploadUrl: string
+    uploadId: string
+    requiredHeaders: Readonly<Record<string, string>>
+  }>
+  finalizeUpload: (input: { data: { portalId: string; uploadId: string } }) => Promise<{
+    heroImageUrl: string | null
+    processing: boolean
   }>
   formRef: React.RefObject<FormLike | null>
+  responsibleManagers?: PortalResponsibleManagerState
+  responsibleManagerMembers?: readonly ResponsibleManagerMember[]
+  updateResponsibleManagersMutation?: Action<{
+    data: {
+      portalId: string
+      managerUserIds: string[]
+      expectedRevision: number
+    }
+  }>
+  portalExperience?: React.ComponentProps<
+    typeof PortalExperienceSettingsCard
+  >['experience']
+  approvedDestinations?: PortalApprovedDestinationList
+  portalExperienceActions?: PortalExperienceActions
 }>
 
 export function PortalSettings({
   portal,
+  propertyId,
+  googleReviewDestination,
+  publicationHistory,
+  loadMorePublicationHistory,
   mutation,
   completeReviewMutation,
   theme,
@@ -44,6 +88,12 @@ export function PortalSettings({
   requestUploadUrl,
   finalizeUpload,
   formRef,
+  responsibleManagers,
+  responsibleManagerMembers,
+  updateResponsibleManagersMutation,
+  portalExperience,
+  approvedDestinations,
+  portalExperienceActions,
 }: Props) {
   const { can } = usePermissions()
   const canManage = can('portal.update')
@@ -67,6 +117,41 @@ export function PortalSettings({
       </div>
 
       <PortalPublicationRow portal={portal} mutation={mutation} canManage={canManage} />
+
+      <PortalPublicationHistoryCard
+        history={publicationHistory}
+        portalId={portal.id}
+        loadMoreAction={loadMorePublicationHistory}
+      />
+
+      <GoogleReviewDestinationCard destination={googleReviewDestination} />
+
+      {propertyId &&
+      portalExperience &&
+      approvedDestinations &&
+      portalExperienceActions ? (
+        <PortalExperienceSettingsCard
+          portal={portal}
+          propertyId={propertyId}
+          experience={portalExperience}
+          destinations={approvedDestinations}
+          updatePortal={mutation}
+          actions={portalExperienceActions}
+          disabled={!canEdit}
+        />
+      ) : null}
+
+      {responsibleManagers &&
+        responsibleManagerMembers &&
+        updateResponsibleManagersMutation && (
+          <ResponsibleManagersCard
+            portalId={portal.id}
+            state={responsibleManagers}
+            members={responsibleManagerMembers}
+            updateAction={updateResponsibleManagersMutation}
+            disabled={!canEdit}
+          />
+        )}
 
       <EditPortalForm
         portal={portal}

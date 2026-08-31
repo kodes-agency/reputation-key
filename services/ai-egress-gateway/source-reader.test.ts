@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import {
   AI_REVIEW_ROUTE_MAX_BYTES,
   AI_TREND_ROUTE_MAX_BYTES,

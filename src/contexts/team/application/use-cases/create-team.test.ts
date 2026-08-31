@@ -13,6 +13,11 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 const FIXED_ID = teamId('team-00000000-0000-0000-0000-000000000001') as TeamId
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
+const teamCreateContext = () =>
+  buildTestAuthContext({
+    role: 'PropertyManager',
+    effectivePermissions: new Set(['team.create']),
+  })
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const teamRepo = createInMemoryTeamRepo()
@@ -30,6 +35,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     findBySlug: async () => null,
     getProcessingRegion: async () => 'us',
     findIdsByGoogleConnection: async () => [],
+    findGoogleNotificationAnchor: async () => null,
     clearGoogleConnectionRef: async () => {},
   }
 
@@ -37,7 +43,6 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const staffApi: StaffPublicApi = {
     getAccessiblePropertyIds: async () => accessible,
     getAssignedPortals: async () => [],
-    countAssignmentsByTeam: async () => 0,
   }
 
   const deps = {
@@ -56,7 +61,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
 describe('createTeam', () => {
   it('creates a team with required fields', async () => {
     const { useCase, propertyRepo, teamRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamCreateContext()
     const property = buildTestProperty({ organizationId: ctx.organizationId })
     propertyRepo.seed([property])
 
@@ -69,7 +74,7 @@ describe('createTeam', () => {
 
   it('creates a team with an optional description', async () => {
     const { useCase, propertyRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamCreateContext()
     const property = buildTestProperty({ organizationId: ctx.organizationId })
     propertyRepo.seed([property])
 
@@ -95,10 +100,10 @@ describe('createTeam', () => {
   })
 
   it('rejects PropertyManager without assignment to the target property (D6-001)', async () => {
-    // PM passes can('team.create') but isPropertyAccessible must still reject:
+    // An explicitly authorized dormant caller must still pass property scope:
     // removing the guard would fall through to propertyExists → a different error.
     const { useCase } = setup([])
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamCreateContext()
 
     await expect(
       useCase({ propertyId: 'any-property-id', name: 'Restricted Team' }, ctx),
@@ -107,7 +112,7 @@ describe('createTeam', () => {
 
   it('rejects when property does not exist', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamCreateContext()
 
     await expect(
       useCase({ propertyId: 'nonexistent', name: 'Test' }, ctx),
@@ -116,7 +121,7 @@ describe('createTeam', () => {
 
   it('rejects duplicate team name in same property', async () => {
     const { useCase, propertyRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamCreateContext()
     const property = buildTestProperty({ organizationId: ctx.organizationId })
     propertyRepo.seed([property])
 
@@ -129,7 +134,7 @@ describe('createTeam', () => {
 
   it('emits team.created event on success', async () => {
     const { useCase, propertyRepo, events } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const ctx = teamCreateContext()
     const property = buildTestProperty({ organizationId: ctx.organizationId })
     propertyRepo.seed([property])
 

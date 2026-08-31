@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import type { Redis } from 'ioredis'
 import type { AiQuotaPort } from '../../application/ports/ai-quota.port'
 import type { MerchantAiCapability } from '#/shared/domain/merchant-ai-capability'
@@ -73,14 +72,17 @@ function keys(capability: MerchantAiCapability, propertyId: string, token: strin
   }
 }
 
-export function createRedisAiQuotaAdapter(redis: Redis): AiQuotaPort {
+export const createRedisAiQuotaAdapter = (
+  redis: Redis,
+  idGen: () => string,
+): AiQuotaPort => {
   return {
     async acquire(input) {
       if (!UUID.test(input.propertyId) || !Number.isSafeInteger(input.nowEpochMillis)) {
         return { ok: false, code: 'provider_unavailable' }
       }
       const expiresAtEpochMillis = input.nowEpochMillis + LEASE_MILLIS
-      const token = `${input.capability}.${input.propertyId}.${randomUUID()}`
+      const token = `${input.capability}.${input.propertyId}.${idGen()}`
       const quotaKeys = keys(input.capability, input.propertyId, token)
       try {
         const raw = await redis.eval(

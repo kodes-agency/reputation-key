@@ -6,6 +6,7 @@ import {
   capabilityExecutionControl,
   credentialRevokePermits,
   googleContentApprovalTargetPhaseEnum,
+  googleContentCapabilityEnum,
   googleContentEnvironmentProfileEnum,
   googleCredentialSourceOperations,
   googleSubjectAuthorityGuards,
@@ -17,6 +18,32 @@ const columnNames = (table: Parameters<typeof getTableConfig>[0]) =>
   getTableConfig(table).columns.map((column) => column.name)
 
 describe('Google Content control schema', () => {
+  it('models every Google connection as Organization-owned', () => {
+    const config = getTableConfig(googleConnections)
+    expect(config.checks.map((constraint) => constraint.name)).toContain(
+      'google_connections_organization_owned_check',
+    )
+    expect(config.columns.find((column) => column.name === 'visibility')?.default).toBe(
+      'organization',
+    )
+  })
+
+  it('stores a constrained expand-phase credential home pair', () => {
+    const config = getTableConfig(googleConnections)
+    expect(columnNames(googleConnections)).toEqual(
+      expect.arrayContaining([
+        'credential_home_cell_id',
+        'credential_home_policy_version',
+      ]),
+    )
+    expect(config.checks.map((constraint) => constraint.name)).toEqual(
+      expect.arrayContaining([
+        'google_connections_credential_home_pair_check',
+        'google_connections_credential_home_value_check',
+      ]),
+    )
+  })
+
   it('stores the exact approval and five-image binding identity', () => {
     expect(columnNames(capabilityComplianceApprovals)).toEqual(
       expect.arrayContaining([
@@ -57,6 +84,12 @@ describe('Google Content control schema', () => {
   })
 
   it('persists monotonic kill/drain and bounded permit state', () => {
+    expect(googleContentCapabilityEnum.enumValues).toEqual([
+      'property.import_gbp_v2',
+      'property.read_gbp_performance',
+      'property.connect_gbp',
+      'property.publish_reply',
+    ])
     expect(columnNames(policyVersion)).toContain('emergency_kill_version')
     expect(columnNames(capabilityExecutionControl)).toEqual(
       expect.arrayContaining([

@@ -11,7 +11,7 @@
 ## Preconditions
 
 - [ ] Staging Postgres + Redis available (not production)
-- [ ] `DATABASE_URL` / `REDIS_URL` point at staging
+- [ ] `DATABASE_URL`, `REDIS_URL`, and `QUEUE_REDIS_URL` point at distinct staging resources
 - [ ] Web + worker deployed from the **same release candidate SHA**
 - [ ] `OUTBOX_DISPATCHER_ENABLED` still **default-off** unless this exercise explicitly enables it under a ticketed window
 - [ ] Synthetic data only (`pnpm exec tsx scripts/perf/seed-scale.ts …`)

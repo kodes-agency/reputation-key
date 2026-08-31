@@ -71,8 +71,7 @@ describe('listGoogleConnections', () => {
     expect(result).toHaveLength(2)
   })
 
-  it('returns all connections for PropertyManager (integration.manage grants admin-level access)', async () => {
-    // PropertyManager has integration.manage, so can() passes and filter is { showAll: true }
+  it('reserves Organization connection management for AccountAdmin', async () => {
     const { useCase, connectionRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const ownPrivateConn = buildTestGoogleConnection({
@@ -94,9 +93,6 @@ describe('listGoogleConnections', () => {
     })
     connectionRepo.seed([ownPrivateConn, someoneElsesPrivateConn, orgVisibleConn])
 
-    const result = await useCase(ctx)
-
-    // PropertyManager has integration.manage — sees all 3 (same as AccountAdmin)
-    expect(result).toHaveLength(3)
+    await expect(useCase(ctx)).rejects.toMatchObject({ code: 'forbidden' })
   })
 })

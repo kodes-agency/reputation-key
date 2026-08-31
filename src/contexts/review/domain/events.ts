@@ -12,12 +12,21 @@ import type {
 } from '#/shared/domain/ids'
 import type { ReviewPlatform } from './types'
 
+const DATABASE_UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
+const PUBLICATION_CANCELLATION_CAUSES = new Set([
+  'disconnect',
+  'policy',
+  'source_changed',
+  'provider_truth',
+])
+
 export type ReviewCreated = Readonly<{
   _tag: 'review.created'
   eventId: string
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   platform: ReviewPlatform
   sourceEpoch: number
   sourceRevision: number
@@ -57,8 +66,8 @@ export type ReviewUpdated = Readonly<{
   _tag: 'review.updated'
   eventId: string
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   platform: ReviewPlatform
   sourceEpoch: number
   sourceRevision: number
@@ -98,8 +107,8 @@ export type ReviewExpired = Readonly<{
   _tag: 'review.expired'
   eventId: string
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   occurredAt: Date
   correlationId: string | null
 }>
@@ -121,8 +130,8 @@ export type ReviewSourceTransitioned = Readonly<{
   _tag: 'review.source_transitioned'
   eventId: string
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   sourceEpoch: number
   sourceRevision: number
   analysisSequence: number
@@ -161,8 +170,8 @@ export type ReviewReplyPublished = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   userId: UserId | null
   authorId: UserId | null
   source: 'web' | 'import'
@@ -190,8 +199,8 @@ export type ReviewReplySubmitted = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   userId: UserId
   source: 'web' | 'import'
   occurredAt: Date
@@ -218,8 +227,8 @@ export type ReviewReplyApproved = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   userId: UserId
   authorId: UserId | null
   source: 'web' | 'import'
@@ -242,13 +251,82 @@ export const reviewReplyApproved = (
   }
 }
 
+/**
+ * Identifier-only durable command intent for one manager-authorized
+ * publication cycle. This is deliberately separate from lifecycle/audit
+ * facts: approval, edit-and-republish, and retry all produce the same worker
+ * recovery contract without carrying reply text (ADR 0030).
+ */
+export type ReviewReplyPublicationRequested = Readonly<{
+  _tag: 'review.reply.publication_requested'
+  eventId: string
+  replyId: ReplyId
+  reviewId: ReviewId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  userId: UserId
+  publicationCycle: number
+  sourceEpoch: number
+  materialReviewRevision: number
+  /** Google reply observation-head revision visible at authorization; zero
+   * means no head existed. */
+  baseObservationRevision: number
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const reviewReplyPublicationRequested = (
+  args: Omit<ReviewReplyPublicationRequested, '_tag' | 'eventId' | 'correlationId'> & {
+    correlationId?: string | null
+  },
+): ReviewReplyPublicationRequested => {
+  assert(
+    args.occurredAt instanceof Date && !Number.isNaN(args.occurredAt.getTime()),
+    'occurredAt must be a valid Date',
+  )
+  assert(
+    typeof args.organizationId === 'string' && args.organizationId.trim().length > 0,
+    'organizationId must be nonempty',
+  )
+  assert(
+    typeof args.userId === 'string' && args.userId.trim().length > 0,
+    'userId must be nonempty',
+  )
+  assert(DATABASE_UUID_PATTERN.test(args.replyId), 'replyId must be a UUID')
+  assert(DATABASE_UUID_PATTERN.test(args.reviewId), 'reviewId must be a UUID')
+  assert(DATABASE_UUID_PATTERN.test(args.propertyId), 'propertyId must be a UUID')
+  assert(
+    Number.isSafeInteger(args.publicationCycle) && args.publicationCycle > 0,
+    'publicationCycle must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.materialReviewRevision) && args.materialReviewRevision > 0,
+    'materialReviewRevision must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.baseObservationRevision) &&
+      args.baseObservationRevision >= 0,
+    'baseObservationRevision must be a nonnegative safe integer',
+  )
+  return {
+    ...args,
+    _tag: 'review.reply.publication_requested',
+    eventId: newEventId(),
+    correlationId: args.correlationId ?? null,
+  }
+}
+
 export type ReviewReplyRejected = Readonly<{
   _tag: 'review.reply.rejected'
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   userId: UserId
   authorId: UserId | null
   reason: string | null
@@ -277,8 +355,8 @@ export type ReviewReplyPublishFailed = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   authorId: UserId | null
   occurredAt: Date
   correlationId: string | null
@@ -305,8 +383,8 @@ export type ReviewReplyUpdated = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   /** The user who edited the published reply text. */
   userId: UserId | null
   occurredAt: Date
@@ -331,9 +409,9 @@ export type ReviewReplyPublicationCancelled = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
-  cause: 'disconnect' | 'policy'
+  propertyId: PropertyId
+  cause: 'disconnect' | 'policy' | 'source_changed' | 'provider_truth'
   occurredAt: Date
   correlationId: string | null
 }>
@@ -342,11 +420,205 @@ export const reviewReplyPublicationCancelled = (
     correlationId?: string | null
   },
 ): ReviewReplyPublicationCancelled => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
+  assert(
+    args.occurredAt instanceof Date && !Number.isNaN(args.occurredAt.getTime()),
+    'occurredAt must be a valid Date',
+  )
+  assert(
+    typeof args.organizationId === 'string' && args.organizationId.trim().length > 0,
+    'organizationId must be nonempty',
+  )
+  assert(DATABASE_UUID_PATTERN.test(args.replyId), 'replyId must be a UUID')
+  assert(DATABASE_UUID_PATTERN.test(args.reviewId), 'reviewId must be a UUID')
+  assert(DATABASE_UUID_PATTERN.test(args.propertyId), 'propertyId must be a UUID')
+  assert(
+    PUBLICATION_CANCELLATION_CAUSES.has(args.cause),
+    'cause must be a valid publication cancellation cause',
+  )
   return {
     ...args,
     _tag: 'review.reply.publication_cancelled',
     eventId: newEventId(),
+    correlationId: args.correlationId ?? null,
+  }
+}
+
+/** Identifier-only fact for one material Google reply observation. Provider
+ * text remains in the Review-owned source-content lifecycle, never the bus. */
+export type ReviewReplyObserved = Readonly<{
+  _tag: 'review.reply.observed'
+  eventId: string
+  reviewId: ReviewId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  observationRevision: number
+  sourceEpoch: number
+  materialReviewRevision: number
+  change: 'added' | 'edited' | 'deleted' | 'unchanged'
+  resolution: 'confirmed_on_google' | 'external_current_live' | 'diverged' | 'absent'
+  provenance: 'repkey_confirmed' | 'external_or_unknown' | 'none'
+  matchedReplyId: ReplyId | null
+  matchedPublicationCycle: number | null
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+function hasValidReviewReplyObservationSemantics(
+  observation: Pick<
+    ReviewReplyObserved,
+    'change' | 'resolution' | 'provenance' | 'matchedReplyId' | 'matchedPublicationCycle'
+  >,
+): boolean {
+  const hasMatch =
+    observation.matchedReplyId !== null && observation.matchedPublicationCycle !== null
+  const hasNoMatch =
+    observation.matchedReplyId === null && observation.matchedPublicationCycle === null
+
+  switch (observation.resolution) {
+    case 'confirmed_on_google':
+      return (
+        observation.change !== 'deleted' &&
+        observation.provenance === 'repkey_confirmed' &&
+        hasMatch
+      )
+    case 'external_current_live':
+      return (
+        observation.change !== 'deleted' &&
+        observation.provenance === 'external_or_unknown' &&
+        hasNoMatch
+      )
+    case 'diverged':
+      return (
+        observation.change !== 'deleted' &&
+        observation.provenance === 'external_or_unknown' &&
+        hasNoMatch
+      )
+    case 'absent':
+      return (
+        observation.change === 'deleted' &&
+        observation.provenance === 'none' &&
+        hasNoMatch
+      )
+  }
+}
+
+export const reviewReplyObserved = (
+  args: Omit<ReviewReplyObserved, '_tag' | 'eventId' | 'correlationId'> & {
+    correlationId?: string | null
+  },
+): ReviewReplyObserved => {
+  assert(
+    args.occurredAt instanceof Date && !Number.isNaN(args.occurredAt.getTime()),
+    'occurredAt must be a valid Date',
+  )
+  assert(
+    typeof args.organizationId === 'string' && args.organizationId.trim().length > 0,
+    'organizationId must be nonempty',
+  )
+  assert(DATABASE_UUID_PATTERN.test(args.reviewId), 'reviewId must be a UUID')
+  assert(DATABASE_UUID_PATTERN.test(args.propertyId), 'propertyId must be a UUID')
+  if (args.matchedReplyId !== null) {
+    assert(
+      DATABASE_UUID_PATTERN.test(args.matchedReplyId),
+      'matchedReplyId must be a UUID',
+    )
+  }
+  assert(
+    Number.isSafeInteger(args.observationRevision) && args.observationRevision > 0,
+    'observationRevision must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.materialReviewRevision) && args.materialReviewRevision > 0,
+    'materialReviewRevision must be a positive safe integer',
+  )
+  assert(
+    (args.matchedReplyId === null) === (args.matchedPublicationCycle === null),
+    'matched Reply and publication cycle must be present together',
+  )
+  if (args.matchedPublicationCycle !== null) {
+    assert(
+      Number.isSafeInteger(args.matchedPublicationCycle) &&
+        args.matchedPublicationCycle > 0,
+      'matchedPublicationCycle must be a positive safe integer',
+    )
+  }
+  assert(
+    hasValidReviewReplyObservationSemantics(args),
+    'review reply observation semantics are invalid',
+  )
+  return {
+    ...args,
+    _tag: 'review.reply.observed',
+    eventId: newEventId(),
+    correlationId: args.correlationId ?? null,
+  }
+}
+
+/** Content-minimal provider aggregate proven by a completed main scan,
+ * confirmation scan, and bounded Review reconciliation. */
+export type ReviewGoogleReputationSnapshotVerified = Readonly<{
+  _tag: 'review.google_reputation_snapshot.verified'
+  eventId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceEpoch: number
+  runId: string
+  reviewCount: number
+  averageRating: number | null
+  evaluatedAt: Date
+  sourceAggregateVersion: string
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const reviewGoogleReputationSnapshotVerified = (
+  args: Omit<
+    ReviewGoogleReputationSnapshotVerified,
+    '_tag' | 'eventId' | 'sourceAggregateVersion' | 'correlationId'
+  > & { correlationId?: string | null },
+): ReviewGoogleReputationSnapshotVerified => {
+  assert(DATABASE_UUID_PATTERN.test(args.runId), 'runId must be a UUID')
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.reviewCount) &&
+      args.reviewCount >= 0 &&
+      args.reviewCount <= 10_000,
+    'reviewCount must be a bounded nonnegative safe integer',
+  )
+  assert(
+    (args.reviewCount === 0 && args.averageRating === null) ||
+      (args.reviewCount > 0 &&
+        args.averageRating !== null &&
+        Number.isFinite(args.averageRating) &&
+        args.averageRating >= 0 &&
+        args.averageRating <= 5),
+    'averageRating must match the provider review count',
+  )
+  assert(
+    args.evaluatedAt instanceof Date && Number.isFinite(args.evaluatedAt.getTime()),
+    'evaluatedAt must be a valid Date',
+  )
+  assert(
+    args.occurredAt instanceof Date && Number.isFinite(args.occurredAt.getTime()),
+    'occurredAt must be a valid Date',
+  )
+  assert(
+    args.occurredAt.getTime() === args.evaluatedAt.getTime(),
+    'occurredAt must equal evaluatedAt',
+  )
+  return {
+    ...args,
+    _tag: 'review.google_reputation_snapshot.verified',
+    eventId: newEventId(),
+    sourceAggregateVersion: args.evaluatedAt.toISOString(),
+    occurredAt: args.occurredAt,
     correlationId: args.correlationId ?? null,
   }
 }
@@ -359,7 +631,10 @@ export type ReviewEvent =
   | ReviewReplyPublished
   | ReviewReplySubmitted
   | ReviewReplyApproved
+  | ReviewReplyPublicationRequested
   | ReviewReplyRejected
   | ReviewReplyPublishFailed
   | ReviewReplyUpdated
   | ReviewReplyPublicationCancelled
+  | ReviewReplyObserved
+  | ReviewGoogleReputationSnapshotVerified

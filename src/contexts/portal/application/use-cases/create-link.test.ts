@@ -5,6 +5,7 @@ import { createLink } from './create-link'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import {
   buildTestAuthContext,
   buildTestPortal,
@@ -12,14 +13,14 @@ import {
 } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import { portalId, propertyId, type PropertyId } from '#/shared/domain/ids'
+import { portalId, propertyId, type PropertyId, userId } from '#/shared/domain/ids'
+import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
@@ -30,7 +31,43 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     portalRepo,
     portalLinkRepo,
     staffPublicApi: staffApiMock(accessible),
-    events,
+    commandStore: createInMemoryPortalCommandStore({
+      portalRepo,
+      portalLinkRepo,
+      events,
+    }),
+    destinationRepo: {
+      request: async (
+        input: Parameters<
+          import('../ports/portal-approved-destination.repository').PortalApprovedDestinationRepository['request']
+        >[0],
+      ) => ({
+        id: input.id,
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        normalizedUri: input.destination.normalizedUri,
+        hostname: input.destination.hostname,
+        sourceType: input.destination.sourceType,
+        approvalState: 'approved' as const,
+        validationVersion: PORTAL_DESTINATION_VALIDATION_VERSION,
+        requestedBy: input.requestedBy,
+        approvedBy: userId('admin-1'),
+        approvedAt: input.at,
+        disabledAt: null,
+        disabledReason: null,
+        lastValidatedAt: input.at,
+        createdAt: input.at,
+        updatedAt: input.at,
+      }),
+    },
+    destinationNetworkValidator: {
+      validate: async (uri: string) => ({
+        outcome: 'safe' as const,
+        validatedAt: FIXED_TIME,
+        finalUri: uri,
+        redirectCount: 0,
+      }),
+    },
     idGen: () => '10000000-0000-0000-0000-000000000001',
     clock: () => FIXED_TIME,
   }
@@ -58,6 +95,8 @@ describe('createLink', () => {
     )
 
     expect(link.label).toBe('Google Review')
+    expect(link.destinationId).not.toBeNull()
+    expect(link.legacyDestinationState).toBe('migrated')
     expect(portalLinkRepo.allLinks()).toHaveLength(1)
   })
 

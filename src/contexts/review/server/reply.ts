@@ -15,16 +15,16 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 // ── rejectReply ──────────────────────────────────────────────────────
 
 export const rejectReplyFn = createServerFn({ method: 'POST' })
-  .inputValidator(rejectReplyDto)
+  .validator(rejectReplyDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { useCases } = getContainer()
+        const { reviewPublicApi } = getContainer()
         try {
-          return await useCases.rejectReply(
+          return await reviewPublicApi.reply.reject(
             { reviewId: reviewId(data.reviewId), reason: data.reason },
             ctx,
           )
@@ -42,16 +42,16 @@ export const rejectReplyFn = createServerFn({ method: 'POST' })
 // ── deleteReply ──────────────────────────────────────────────────────
 
 export const deleteReplyFn = createServerFn({ method: 'POST' })
-  .inputValidator(reviewIdDto)
+  .validator(reviewIdDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { useCases } = getContainer()
+        const { reviewPublicApi } = getContainer()
         try {
-          await useCases.deleteReply({ reviewId: reviewId(data.reviewId) }, ctx)
+          await reviewPublicApi.reply.delete({ reviewId: reviewId(data.reviewId) }, ctx)
           return { success: true }
         } catch (e) {
           if (isReviewError(e))
@@ -67,16 +67,19 @@ export const deleteReplyFn = createServerFn({ method: 'POST' })
 // ── retryPublish ─────────────────────────────────────────────────────
 
 export const retryPublishFn = createServerFn({ method: 'POST' })
-  .inputValidator(reviewIdDto)
+  .validator(reviewIdDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { useCases } = getContainer()
+        const { reviewPublicApi } = getContainer()
         try {
-          return await useCases.retryPublish({ reviewId: reviewId(data.reviewId) }, ctx)
+          return await reviewPublicApi.reply.retryPublish(
+            { reviewId: reviewId(data.reviewId) },
+            ctx,
+          )
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))

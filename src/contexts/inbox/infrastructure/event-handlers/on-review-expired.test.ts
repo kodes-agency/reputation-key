@@ -4,15 +4,7 @@ import type { ReviewExpired } from '#/contexts/review/application/public-api'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
 import type { InboxItem } from '../../domain/types'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: () => ({
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    debug: () => {},
-  }),
-}))
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const NOW = new Date('2026-06-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -41,6 +33,7 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
     closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
+    commandRevision: 1,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -61,68 +54,58 @@ function makeEvent(overrides: Partial<ReviewExpired> = {}): ReviewExpired {
 }
 
 describe('onReviewExpired', () => {
-  it('closes the open inbox item when its source review is purged', async () => {
+  it('scrubs legacy provider copies without changing workflow status', async () => {
     const item = makeItem()
-    const updateStatus = vi.fn(async () => item)
+    const clearReviewSourceContent = vi.fn(async () => item)
 
     const deps = {
       repo: {
         findBySource: vi.fn(async () => item),
-        updateStatus,
+        clearReviewSourceContent,
       } as unknown as InboxRepository,
-      events: {
-        emit: vi.fn(async () => {}),
-      } as unknown as import('#/shared/events/event-bus').EventBus,
+      logger: createMockLogger(),
     }
 
     await onReviewExpired(deps)(makeEvent())
 
     expect(deps.repo.findBySource).toHaveBeenCalledWith('review', 'rev-1', ORG_ID)
-    expect(updateStatus).toHaveBeenCalledWith(
+    expect(clearReviewSourceContent).toHaveBeenCalledWith(
       inboxItemId('inbox-1'),
       ORG_ID,
-      'closed',
-      { closedAt: NOW },
       NOW,
     )
-    expect(deps.events.emit).toHaveBeenCalled()
   })
 
-  it('does nothing when the item is already closed', async () => {
+  it('also scrubs an already-closed item', async () => {
     const item = makeItem({ status: 'closed', closedAt: NOW })
-    const updateStatus = vi.fn()
+    const clearReviewSourceContent = vi.fn(async () => item)
 
     const deps = {
       repo: {
         findBySource: vi.fn(async () => item),
-        updateStatus,
+        clearReviewSourceContent,
       } as unknown as InboxRepository,
-      events: {
-        emit: vi.fn(async () => {}),
-      } as unknown as import('#/shared/events/event-bus').EventBus,
+      logger: createMockLogger(),
     }
 
     await onReviewExpired(deps)(makeEvent())
 
-    expect(updateStatus).not.toHaveBeenCalled()
-    expect(deps.events.emit).not.toHaveBeenCalled()
+    expect(clearReviewSourceContent).toHaveBeenCalledWith(item.id, ORG_ID, NOW)
   })
 
   it('skips silently when no inbox item exists for the review', async () => {
-    const updateStatus = vi.fn()
+    const clearReviewSourceContent = vi.fn()
 
     const deps = {
       repo: {
         findBySource: vi.fn(async () => null),
-        updateStatus,
+        clearReviewSourceContent,
       } as unknown as InboxRepository,
-      events: {
-        emit: vi.fn(async () => {}),
-      } as unknown as import('#/shared/events/event-bus').EventBus,
+      logger: createMockLogger(),
     }
 
     await expect(onReviewExpired(deps)(makeEvent())).resolves.toBeUndefined()
-    expect(updateStatus).not.toHaveBeenCalled()
+    expect(clearReviewSourceContent).not.toHaveBeenCalled()
   })
 
   it('does not throw on repo error', async () => {
@@ -132,9 +115,7 @@ describe('onReviewExpired', () => {
           throw new Error('DB down')
         }),
       } as unknown as InboxRepository,
-      events: {
-        emit: vi.fn(async () => {}),
-      } as unknown as import('#/shared/events/event-bus').EventBus,
+      logger: createMockLogger(),
     }
 
     await expect(onReviewExpired(deps)(makeEvent())).resolves.toBeUndefined()

@@ -120,6 +120,7 @@ const roleSchema = z.enum([
 ])
 const displayStringSchema = z.string().min(1).max(4_096)
 const optionalDisplayStringSchema = z.string().min(1).max(4_096).nullable()
+const googleReviewUriSchema = z.url().max(2_048).startsWith('https://')
 const providerSuffixSchema = z.string().min(1).max(255).refine(isProviderSuffix)
 const profileSchema = z.object({
   name: displayStringSchema,
@@ -191,6 +192,7 @@ const candidateRecordSchema = recordBaseSchema
       .string()
       .regex(/^[A-Z]{2}$/)
       .nullable(),
+    googleReviewUri: googleReviewUriSchema.nullable().default(null),
     eligibility: eligibilitySchema,
     expectedSourceEpoch: z.number().int().safe().nonnegative().nullable(),
     expectedProfileVersion: z.number().int().safe().positive().nullable(),
@@ -347,7 +349,7 @@ function cursorBudget(value: number | undefined): number | null {
     : null
 }
 
-export function createOpaqueImportReferenceStore(
+export const createOpaqueImportReferenceStore = (
   deps: Readonly<{
     store: ProviderEphemeralStore
     handleKeys: VersionedHmacKeyring
@@ -356,7 +358,7 @@ export function createOpaqueImportReferenceStore(
     random?: (bytes: number) => Buffer
     nowMs?: () => number
   }>,
-): GoogleImportReferenceStore {
+): GoogleImportReferenceStore => {
   const random = deps.random ?? randomBytes
   const nowMs = deps.nowMs ?? Date.now
   const keyVersions = Object.freeze([

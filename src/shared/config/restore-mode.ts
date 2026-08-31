@@ -19,17 +19,31 @@
 //     by construction.
 //   - Ops commands: ops:restore-preflight / ops:restore-verify run the
 //     source-policy purge against the restored data and only ever touch an
-//     ISOLATED target (isIsolatedRestoreTarget).
+//     attested local target or the exact private hostname of a Railway PITR
+//     sibling (isIsolatedRestoreTarget).
 //
-// Cutover back to serving = UNSET RESTORE_MODE (and redeploy); the web
-// process then evaluates capabilities from the normal policy stores again.
+// Cutover back to serving = configure the verified recovery run/generation,
+// UNSET RESTORE_MODE, and redeploy. A Railway PITR sibling then refuses web
+// and worker boot unless that tuple is its latest durable recovery run.
 //
 // RESTORE_MODE is parsed by the env schema (src/shared/config/env.ts): the
 // only accepted non-empty value is 'isolated' — anything else fails boot.
 
+import {
+  DATA_CELL_CATALOGUE,
+  isBetaDeploymentDataCellId,
+} from '#/shared/domain/data-cell-catalogue'
+
 /** Structural env shape the restore-mode checks read (parsed Env fits). */
 export type RestoreModeEnv = Readonly<{
   RESTORE_MODE?: string
+  DATABASE_URL?: string
+  PROCESSING_CELL?: string
+  RESTORE_SOURCE_CELL?: string
+  RESTORE_DATABASE_SERVICE_NAME?: string
+  RAILWAY_PROJECT_ID?: string
+  RAILWAY_ENVIRONMENT_ID?: string
+  RAILWAY_ENVIRONMENT_NAME?: string
 }>
 
 /**
@@ -46,6 +60,15 @@ export function isRestoreIsolated(env: RestoreModeEnv): boolean {
 
 export type RestoreProcessKind = 'web' | 'worker'
 
+/** Exact backup/source-to-target cell binding; absent is denied in restore mode. */
+export function isRestoreCellCompatible(env: RestoreModeEnv): boolean {
+  return (
+    typeof env.PROCESSING_CELL === 'string' &&
+    typeof env.RESTORE_SOURCE_CELL === 'string' &&
+    env.PROCESSING_CELL === env.RESTORE_SOURCE_CELL
+  )
+}
+
 /**
  * Refuse an incompatible process boot. No-op outside restore-isolated mode.
  * The web process is the supported drill shape (capabilities deny at the
@@ -57,27 +80,118 @@ export function assertRestoreModeCompatible(
   processKind: RestoreProcessKind,
 ): void {
   if (!isRestoreIsolated(env)) return
+  if (!isRestoreCellCompatible(env)) {
+    throw new Error(
+      '[RESTORE MODE] backup Data Cell does not match PROCESSING_CELL — restore refused',
+    )
+  }
+  if (
+    typeof env.DATABASE_URL !== 'string' ||
+    !isIsolatedRestoreTarget(env.DATABASE_URL, env)
+  ) {
+    throw new Error(
+      '[RESTORE MODE] DATABASE_URL is not an attested local or Railway PITR sibling target — restore refused',
+    )
+  }
   if (processKind === 'worker') {
     throw new Error(
       `[RESTORE MODE] ${RESTORE_ISOLATED_LOG_LINE} — worker refuses to boot: ` +
         'the restore drill is web + ops commands only (no schedules, no BullMQ ' +
-        'consumers, no outbox relay, no external effects). Unset RESTORE_MODE ' +
-        'to resume normal service.',
+        'consumers, no outbox relay, no external effects). Configure the verified ' +
+        'recovery cutover run/generation, then unset RESTORE_MODE to resume.',
     )
   }
 }
 
+const RAILWAY_PITR_SERVICE_NAME = /^[a-z0-9][a-z0-9-]*-restored-[0-9]{8}-[0-9]{4}$/iu
+
+function nonEmpty(value: string | undefined): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+/** True only for Railway's generated PITR sibling service-name shape. */
+function isRailwayPitrServiceName(value: string | undefined): value is string {
+  return nonEmpty(value) && RAILWAY_PITR_SERVICE_NAME.test(value)
+}
+
 /**
- * True when a DATABASE_URL points at an isolated/local restore target
- * (loopback only). The restore drill never runs against a live or shared
- * database; the ops restore commands refuse anything else (fail closed on
- * malformed URLs and localhost look-alikes — exact hostname match).
+ * Detect a runtime connected to a Railway PITR sibling by its private DNS.
+ * This remains true after RESTORE_MODE is removed for cutover, allowing boot
+ * to require the durable recovery-run attestation before effects can resume.
  */
-export function isIsolatedRestoreTarget(databaseUrl: string): boolean {
+export function isRailwayPitrDatabaseUrl(databaseUrl: string | undefined): boolean {
+  if (!nonEmpty(databaseUrl)) return false
+  try {
+    const parsed = new URL(databaseUrl)
+    if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+      return false
+    }
+    const suffix = '.railway.internal'
+    const host = parsed.hostname.toLowerCase()
+    if (!host.endsWith(suffix)) return false
+    return isRailwayPitrServiceName(host.slice(0, -suffix.length))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * True when DATABASE_URL identifies an isolated restore target.
+ *
+ * Local drills are restricted to exact loopback hostnames. Railway PITR is
+ * different: the platform creates a new `<source>-restored-YYYYMMDD-HHMM`
+ * sibling in the source environment. A Railway target is accepted only when
+ * all platform identity variables exist, the environment is the authoritative
+ * `cell-<PROCESSING_CELL>` environment, the operator names a PITR-shaped
+ * service, and DATABASE_URL uses that exact service's private Railway DNS.
+ * Public proxies, the source database, malformed URLs, and partial attestations
+ * all fail closed.
+ */
+export function isIsolatedRestoreTarget(
+  databaseUrl: string,
+  env: RestoreModeEnv = {},
+): boolean {
   try {
     // WHATWG URL keeps the IPv6 brackets ('[::1]') — normalize them away.
-    const host = new URL(databaseUrl).hostname.replace(/^\[|\]$/g, '')
-    return host === 'localhost' || host === '127.0.0.1' || host === '::1'
+    const parsed = new URL(databaseUrl)
+    if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+      return false
+    }
+    // A loopback tunnel is not a separate deployment identity. Bind local and
+    // Railway restore verification to the same deployable beta-cell allowlist
+    // before either hostname shape is considered.
+    if (
+      !nonEmpty(env.PROCESSING_CELL) ||
+      !isBetaDeploymentDataCellId(env.PROCESSING_CELL)
+    ) {
+      return false
+    }
+    const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+      // Loopback proves only where the TCP tunnel terminates, not which
+      // database is on its far side. Bind local/tunnel drills to the exact
+      // PITR sibling name too; otherwise a tunnel to live Postgres would pass.
+      return isRailwayPitrServiceName(env.RESTORE_DATABASE_SERVICE_NAME)
+    }
+
+    if (
+      !nonEmpty(env.RAILWAY_PROJECT_ID) ||
+      !nonEmpty(env.RAILWAY_ENVIRONMENT_ID) ||
+      !nonEmpty(env.RAILWAY_ENVIRONMENT_NAME) ||
+      !nonEmpty(env.RESTORE_DATABASE_SERVICE_NAME)
+    ) {
+      return false
+    }
+    const placement = DATA_CELL_CATALOGUE[env.PROCESSING_CELL].railway
+    if (env.RAILWAY_ENVIRONMENT_NAME !== placement.environment) {
+      return false
+    }
+    if (!isRailwayPitrServiceName(env.RESTORE_DATABASE_SERVICE_NAME)) {
+      return false
+    }
+
+    const expectedPrivateHost = `${env.RESTORE_DATABASE_SERVICE_NAME.toLowerCase()}.railway.internal`
+    return host === expectedPrivateHost
   } catch {
     return false
   }

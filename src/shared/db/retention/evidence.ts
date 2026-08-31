@@ -10,8 +10,14 @@ import type { Database } from '#/shared/db'
  *   2 (BQC-7.8): + policy_decision_audit / audit_logs at the 365d audit
  *      horizon; + quarantine.ttl sweep subject; retention_runs documented
  *      indefinite-by-design (docs/operations/backup-and-lifecycle.md).
+ *   3: + separately counted, seven-day guest abuse-pseudonym redaction.
+ *   4: + 90-day terminal notification-digest batch evidence.
+ *   5: + class-separated Guest recovery, private-text, and 24-month fact expiry.
+ *   6: + canonical seven-day Guest network-pressure record deletion.
+ *   7: + exact retired-generation local AI derivative erasure evidence.
+ *   8: + scheduled, bounded Contact Request encrypted-material expiry evidence.
  */
-const RETENTION_POLICY_VERSION = 2
+const RETENTION_POLICY_VERSION = 8
 
 export async function openRetentionRun(
   db: Database,
@@ -34,6 +40,7 @@ export async function closeRetentionRun(
     finishedAt: Date
     batches?: number
     rowsDeleted?: number
+    rowsRedacted?: number
     outcome: 'completed' | 'failed'
     errorCode?: string
   }>,
@@ -43,6 +50,7 @@ export async function closeRetentionRun(
       finished_at = ${patch.finishedAt},
       batches = ${patch.batches ?? 0},
       rows_deleted = ${patch.rowsDeleted ?? 0},
+      rows_redacted = ${patch.rowsRedacted ?? 0},
       outcome = ${patch.outcome},
       error_code = ${patch.errorCode ?? null},
       policy_version = ${RETENTION_POLICY_VERSION}

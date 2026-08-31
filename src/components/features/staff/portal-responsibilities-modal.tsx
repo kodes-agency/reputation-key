@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Button } from '#/components/ui/button'
@@ -19,16 +19,16 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import { PortalSelector, type PortalOption } from './portal-selector'
-import type { UpdatePortalResponsibilitiesMutationInput } from '#/components/features/team/shared/types'
+import type { UpdatePortalResponsibilitiesMutationInput } from '#/components/features/staff/types'
 
 type Props = Readonly<{
   staffParticipationId: string
   displayName: string
   currentPrimaryPortalId: string | null
   currentSupportingPortalIds: ReadonlyArray<string>
+  expectedRevision: number
   allPortals: ReadonlyArray<PortalOption>
   updateAction: Action<{ data: UpdatePortalResponsibilitiesMutationInput }>
-  open: boolean
   onOpenChange: (open: boolean) => void
 }>
 
@@ -37,21 +37,15 @@ export function PortalResponsibilitiesModal({
   displayName,
   currentPrimaryPortalId,
   currentSupportingPortalIds,
+  expectedRevision,
   allPortals,
   updateAction,
-  open,
   onOpenChange,
 }: Props) {
   const [primaryPortalId, setPrimaryPortalId] = useState(currentPrimaryPortalId ?? '')
   const [supportingPortalIds, setSupportingPortalIds] = useState<string[]>([
     ...currentSupportingPortalIds,
   ])
-
-  useEffect(() => {
-    if (!open) return
-    setPrimaryPortalId(currentPrimaryPortalId ?? '')
-    setSupportingPortalIds([...currentSupportingPortalIds])
-  }, [currentPrimaryPortalId, currentSupportingPortalIds, open])
 
   const supportingOptions = allPortals.filter((portal) => portal.id !== primaryPortalId)
   const supportingField = useMemo(
@@ -72,13 +66,18 @@ export function PortalResponsibilitiesModal({
   const handleSave = async () => {
     if (!primaryPortalId) return
     await updateAction({
-      data: { staffParticipationId, primaryPortalId, supportingPortalIds },
+      data: {
+        staffParticipationId,
+        primaryPortalId,
+        supportingPortalIds,
+        expectedRevision,
+      },
     })
     onOpenChange(false)
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Portal responsibilities — {displayName}</DialogTitle>

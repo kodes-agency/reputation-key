@@ -23,8 +23,8 @@
 // run recomputes its partition.
 
 import { sql } from 'drizzle-orm'
-import { getLogger } from '#/shared/observability/logger'
 import type { Database } from '#/shared/db'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 
 const NULL_PORTAL = sql`'00000000-0000-0000-0000-000000000000'`
@@ -96,10 +96,9 @@ async function advanceWatermark(db: Database, name: string, to: Date): Promise<v
  */
 export async function refreshDailyMetricsIncrementally(
   db: Database,
+  logger: Pick<LoggerPort, 'debug' | 'info'>,
 ): Promise<{ partitionsRecomputed: number }> {
   return trace('rollup.dailyMetrics.incremental', async () => {
-    const logger = getLogger()
-
     const { capturedAt, boundary: affectedDate } = await readWatermarkBoundary(db, {
       name: 'daily_metrics',
       partitionUnit: 'day',
@@ -147,10 +146,9 @@ export async function refreshDailyMetricsIncrementally(
  */
 export async function refreshWeeklyMetricsIncrementally(
   db: Database,
+  logger: Pick<LoggerPort, 'debug' | 'info'>,
 ): Promise<{ partitionsRecomputed: number }> {
   return trace('rollup.weeklyMetrics.incremental', async () => {
-    const logger = getLogger()
-
     const { capturedAt, boundary: affectedWeek } = await readWatermarkBoundary(db, {
       name: 'weekly_metrics',
       partitionUnit: 'week',
@@ -198,10 +196,9 @@ export async function refreshWeeklyMetricsIncrementally(
  */
 export async function refreshDailyInboxMetricsIncrementally(
   db: Database,
+  logger: Pick<LoggerPort, 'debug' | 'info'>,
 ): Promise<{ partitionsRecomputed: number }> {
   return trace('rollup.dailyInboxMetrics.incremental', async () => {
-    const logger = getLogger()
-
     const { capturedAt, boundary: affectedDate } = await readWatermarkBoundary(db, {
       name: 'daily_inbox_metrics',
       partitionUnit: 'day',

@@ -3,7 +3,6 @@
 
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { Portal, PortalId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePortalInput } from '../dto/create-portal.dto'
@@ -11,20 +10,23 @@ export type { CreatePortalInput }
 import { normalizeSlug } from '../../domain/rules'
 import { buildPortal } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'
-import { portalCreated } from '../../domain/events'
+import { portalCreated, portalResponsibilityNeeded } from '../../domain/events'
 import { propertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
 import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import { isEligiblePortalManager } from '../portal-manager-eligibility'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { derivePortalHealth } from '../../domain/portal-health'
 
 export type CreatePortalDeps = Readonly<{
   portalRepo: PortalRepository
   propertyApi: PropertyPublicApi
   staffPublicApi: StaffPublicApi
-  events: EventBus
+  identityPublicApi: IdentityManagerFactsPublicApi
+  commandStore: PortalCommandStore
   idGen: () => PortalId
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const createPortal =
@@ -50,17 +52,25 @@ export const createPortal =
       throw portalError('slug_taken', 'a portal with this slug already exists')
     }
 
+    const creatorIsEligible = await isEligiblePortalManager(
+      deps,
+      ctx.organizationId,
+      propertyId(input.propertyId),
+      ctx.userId,
+    )
+
     // 4. Build domain object
     const portalResult = buildPortal({
       id: deps.idGen(),
       organizationId: ctx.organizationId,
       propertyId: propertyId(input.propertyId),
-      entityType: input.entityType,
-      entityId: input.entityId,
       name: input.name,
       providedSlug: input.slug,
       description: input.description,
       theme: input.theme,
+      privateFeedbackThreshold: input.privateFeedbackThreshold,
+      createdBy: ctx.userId,
+      hasInitialResponsibleManager: creatorIsEligible,
       now: deps.clock(),
     })
 
@@ -70,21 +80,46 @@ export const createPortal =
 
     const portal = portalResult.value
 
-    // 5. Persist
-    await deps.portalRepo.insert(ctx.organizationId, portal)
+    const createdEvent = portalCreated({
+      portalId: portal.id,
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      publicationState: portal.publicationState,
+      sourceAggregateVersion: portal.updatedAt.toISOString(),
+      occurredAt: portal.createdAt,
+    })
+    const responsibilityNeededEvent = creatorIsEligible
+      ? null
+      : portalResponsibilityNeeded({
+          portalId: portal.id,
+          organizationId: portal.organizationId,
+          propertyId: portal.propertyId,
+          sourceAggregateVersion: portal.updatedAt.toISOString(),
+          occurredAt: portal.createdAt,
+        })
 
-    // 6. Emit event
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalCreated({
-        portalId: portal.id,
-        organizationId: portal.organizationId,
-        name: portal.name,
-        slug: portal.slug,
-        occurredAt: portal.createdAt,
-      }),
-    )
+    // 5 + 6. Commit authoritative state and every required durable fact.
+    await deps.commandStore.createPortal({
+      organizationId: ctx.organizationId,
+      portal,
+      initialResponsibleManagerId: creatorIsEligible ? ctx.userId : null,
+      event: createdEvent,
+      ...(responsibilityNeededEvent ? { responsibilityNeededEvent } : {}),
+      health: {
+        id: deps.idGen(),
+        value: derivePortalHealth({
+          publicationState: portal.publicationState,
+          propertyAvailable: true,
+          hasActivePublicationSnapshot: false,
+          hasResolvablePublicAddress: false,
+          hasResponsibleManager: creatorIsEligible,
+          googleDestinationState: 'unavailable',
+        }),
+        sourceVersion: portal.updatedAt.toISOString(),
+        effectiveAt: portal.createdAt,
+        observedAt: portal.createdAt,
+      },
+    })
 
     // 7. Return
     return portal

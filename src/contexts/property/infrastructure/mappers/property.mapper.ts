@@ -6,9 +6,33 @@ import type { Property } from '../../domain/types'
 import type { PropertyLifecycleState } from '../../domain/property-lifecycle'
 import { unbrand } from '#/shared/domain/ids'
 import { propertyId, organizationId, googleConnectionId } from '#/shared/domain/ids'
+import { resolvePersistedDataCellId } from '#/shared/domain/data-cell-catalogue'
 
-type PropertyRow = Omit<typeof properties.$inferSelect, 'defaultReplyLanguage'> &
-  Readonly<{ defaultReplyLanguage?: string | null }>
+type PropertyRow = Omit<
+  typeof properties.$inferSelect,
+  | 'defaultReplyLanguage'
+  | 'dataCellId'
+  | 'responsibleManagerRevision'
+  | 'responsibilityNeededSince'
+  | 'googleReviewUri'
+  | 'googleReviewDestinationState'
+  | 'googleReviewDestinationRetrievedAt'
+  | 'googleReviewDestinationSourceEpoch'
+  | 'googleReviewDestinationProfileVersion'
+> &
+  Readonly<{
+    defaultReplyLanguage?: string | null
+    /** Optional only for tests and expand-phase row fixtures. */
+    dataCellId?: string | null
+    /** Optional only for pre-expand fixtures. */
+    responsibleManagerRevision?: number
+    responsibilityNeededSince?: Date | null
+    googleReviewUri?: string | null
+    googleReviewDestinationState?: string
+    googleReviewDestinationRetrievedAt?: Date | null
+    googleReviewDestinationSourceEpoch?: number | null
+    googleReviewDestinationProfileVersion?: number | null
+  }>
 type PropertyInsertRow = typeof properties.$inferInsert
 
 export const propertyFromRow = (row: PropertyRow): Property => ({
@@ -26,6 +50,15 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
     : null,
   profileVersion: row.profileVersion,
   googleBindingState: row.googleBindingState as Property['googleBindingState'],
+  googleReviewDestination: {
+    state: (row.googleReviewDestinationState ?? 'unavailable') as NonNullable<
+      Property['googleReviewDestination']
+    >['state'],
+    uri: row.googleReviewUri ?? null,
+    retrievedAt: row.googleReviewDestinationRetrievedAt ?? null,
+    sourceEpoch: row.googleReviewDestinationSourceEpoch ?? null,
+    profileVersion: row.googleReviewDestinationProfileVersion ?? null,
+  },
   profileSource: row.profileSource as Property['profileSource'],
   profileConfirmedAt: row.profileConfirmedAt,
   profileConfirmedBy: row.profileConfirmedBy,
@@ -42,10 +75,13 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
   timezoneSource: row.timezoneSource ?? null,
   timezoneResolvedAt: row.timezoneResolvedAt ?? null,
   processingRegion: row.processingRegion ?? null,
+  dataCellId: resolvePersistedDataCellId(row.dataCellId, row.processingRegion),
   processingRegionSource: row.processingRegionSource ?? null,
   routingPolicyVersion: row.routingPolicyVersion ?? 1,
   processingRegionResolvedAt: row.processingRegionResolvedAt ?? null,
   sourceEpoch: row.sourceEpoch ?? 0,
+  responsibleManagerRevision: row.responsibleManagerRevision ?? 1,
+  responsibilityNeededSince: row.responsibilityNeededSince ?? null,
 })
 
 export const propertyToRow = (property: Property): PropertyInsertRow => ({
@@ -62,6 +98,14 @@ export const propertyToRow = (property: Property): PropertyInsertRow => ({
     property.googleConnectionId != null ? unbrand(property.googleConnectionId) : null,
   profileVersion: property.profileVersion,
   googleBindingState: property.googleBindingState,
+  googleReviewUri: property.googleReviewDestination?.uri ?? null,
+  googleReviewDestinationState: property.googleReviewDestination?.state ?? 'unavailable',
+  googleReviewDestinationRetrievedAt:
+    property.googleReviewDestination?.retrievedAt ?? null,
+  googleReviewDestinationSourceEpoch:
+    property.googleReviewDestination?.sourceEpoch ?? null,
+  googleReviewDestinationProfileVersion:
+    property.googleReviewDestination?.profileVersion ?? null,
   profileSource: property.profileSource,
   profileConfirmedAt: property.profileConfirmedAt,
   profileConfirmedBy: property.profileConfirmedBy,
@@ -78,8 +122,11 @@ export const propertyToRow = (property: Property): PropertyInsertRow => ({
   timezoneSource: property.timezoneSource,
   timezoneResolvedAt: property.timezoneResolvedAt,
   processingRegion: property.processingRegion,
+  dataCellId: property.dataCellId,
   processingRegionSource: property.processingRegionSource,
   routingPolicyVersion: property.routingPolicyVersion,
   processingRegionResolvedAt: property.processingRegionResolvedAt,
   sourceEpoch: property.sourceEpoch,
+  responsibleManagerRevision: property.responsibleManagerRevision,
+  responsibilityNeededSince: property.responsibilityNeededSince,
 })

@@ -3,54 +3,156 @@
 import { describe, it, expect } from 'vitest'
 import { updatePortal, resolvePortalContentFields } from './update-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
-import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
-import {
-  buildTestAuthContext,
-  buildTestPortal,
-  buildTestPortalLink,
-} from '#/shared/testing/fixtures'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
+import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
-import type { PortalLinkRepository } from '../ports/portal-link.repository'
+import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
+import type { UpdatePortalCommand } from '../ports/portal-command-store.port'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
+const NEXT_TIME = new Date(FIXED_TIME.getTime() + 1)
 
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
-const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
+const setup = (
+  accessible: ReadonlyArray<PropertyId> | null = null,
+  destinationState: 'verified' | 'unavailable' = 'verified',
+  propertyLifecycle: 'active' | 'inactive' | 'error' = 'active',
+) => {
   const portalRepo = createInMemoryPortalRepo()
-  const portalLinkRepo = createInMemoryPortalLinkRepo()
   const events = createCapturingEventBus()
-  // Counted so a test can prove the publish precondition is consulted ONLY on a
-  // real transition into `published` — an unconditional lookup would also make
-  // every unrelated edit to a link-less portal fail.
-  let linkLookups = 0
-  const countingLinkRepo: PortalLinkRepository = {
-    ...portalLinkRepo,
-    listAllLinks: async (orgId, pid) => {
-      linkLookups += 1
-      return portalLinkRepo.listAllLinks(orgId, pid)
+  let destinationLookups = 0
+  let propertyLifecycleLookups = 0
+  let commandWrites = 0
+  let lastUpdateCommand: UpdatePortalCommand | null = null
+  let generatedId = 0
+  const baseCommandStore = createInMemoryPortalCommandStore({ portalRepo, events })
+  const publicationRepo: PortalPublicationRepository = {
+    loadWorkingCopy: async (organizationId, portalId) => {
+      const portal = await portalRepo.findById(organizationId, portalId)
+      return portal
+        ? {
+            portal: {
+              id: portal.id,
+              name: portal.name,
+              slug: portal.slug,
+              description: portal.description,
+              heroImageUrl: portal.heroImageUrl,
+              theme: portal.theme,
+              organizationName: 'Example Organization',
+            },
+            categories: [],
+            links: [],
+            privateFeedbackThreshold: portal.privateFeedbackThreshold,
+            organizationId: portal.organizationId,
+            propertyId: portal.propertyId,
+            experience: {
+              primaryGuestLocale: 'en' as const,
+              localeSet: ['en'] as const,
+              languagePackVersions: {
+                en: 'guest-ui-en-v1',
+                bg: 'guest-ui-bg-v1',
+              } as const,
+              localizedContent: {
+                en: {
+                  title: portal.name,
+                  shortDescription: portal.description ?? 'Tell us about your visit.',
+                  heroImageUrl: portal.heroImageUrl,
+                },
+              },
+              brandProfile: {
+                displayName: 'Example Organization',
+                logoUrl: null,
+                defaultHeroImageUrl: null,
+                primaryColor: '#1D4ED8',
+                backgroundColor: '#FFFFFF',
+                textColor: '#111827',
+                version: 1,
+              },
+            },
+          }
+        : null
     },
+    getCursor: async () => ({
+      nextSnapshotVersion: 1,
+      nextActivationSequence: 1,
+    }),
+    findSnapshotByVersion: async () => null,
+    findActiveForPortal: async () => null,
+    listActivationHistoryPage: async () => ({
+      records: [],
+      latest: null,
+      current: null,
+      nextCursor: null,
+    }),
+    resolveActiveByTokenDigest: async () => null,
   }
   const deps = {
     portalRepo,
-    portalLinkRepo: countingLinkRepo,
+    commandStore: {
+      ...baseCommandStore,
+      updatePortal: async (command: UpdatePortalCommand) => {
+        commandWrites += 1
+        lastUpdateCommand = command
+        await baseCommandStore.updatePortal(command)
+      },
+    },
+    publicationRepo,
+    portalTokenRepo: {
+      findResolvableSummaryForPortal: async () => ({
+        version: 1,
+        issuedAt: FIXED_TIME,
+        gracePeriodEnds: null,
+        hasPublishedAccessArtifact: true,
+      }),
+    },
+    propertyGoogleReviewDestinationApi: {
+      getGoogleReviewDestination: async () => {
+        destinationLookups += 1
+        return destinationState === 'verified'
+          ? {
+              state: 'verified' as const,
+              uri: 'https://search.google.com/local/writereview?placeid=test',
+              retrievedAt: FIXED_TIME,
+              sourceEpoch: 1,
+              profileVersion: 1,
+            }
+          : {
+              state: 'unavailable' as const,
+              uri: null,
+              retrievedAt: null,
+              sourceEpoch: null,
+              profileVersion: null,
+            }
+      },
+    },
+    propertyLifecycleApi: {
+      isPropertyActive: async () => {
+        propertyLifecycleLookups += 1
+        if (propertyLifecycle === 'error') {
+          throw new Error('Property lifecycle authority unavailable')
+        }
+        return propertyLifecycle === 'active'
+      },
+    },
     staffPublicApi: staffApiMock(accessible),
-    events,
+    idGen: () => `publication-id-${(generatedId += 1)}`,
     clock: () => FIXED_TIME,
   }
   const useCase = updatePortal(deps)
   return {
     useCase,
     portalRepo,
-    portalLinkRepo,
     events,
-    linkLookups: () => linkLookups,
+    destinationLookups: () => destinationLookups,
+    propertyLifecycleLookups: () => propertyLifecycleLookups,
+    commandWrites: () => commandWrites,
+    lastUpdateCommand: () => lastUpdateCommand,
   }
 }
 
@@ -135,8 +237,96 @@ describe('updatePortal', () => {
     )
   })
 
-  it('emits portal.updated event', async () => {
-    const { useCase, portalRepo, events } = setup()
+  it('restores an archived Portal to Disabled without a destination or publication activation', async () => {
+    const { useCase, portalRepo, destinationLookups, lastUpdateCommand } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const archived = buildTestPortal({ publicationState: 'archived' })
+    portalRepo.seed([archived])
+
+    const restored = await useCase(
+      { portalId: archived.id, publicationState: 'disabled' },
+      ctx,
+    )
+
+    expect(restored.publicationState).toBe('disabled')
+    expect(destinationLookups()).toBe(0)
+    expect(lastUpdateCommand()?.publication).toBeUndefined()
+    expect(lastUpdateCommand()?.lifecycleEvent).toMatchObject({
+      _tag: 'portal.restored',
+      organizationId: archived.organizationId,
+      propertyId: archived.propertyId,
+      portalId: archived.id,
+      userId: ctx.userId,
+      sourceAggregateVersion: NEXT_TIME.toISOString(),
+      occurredAt: FIXED_TIME,
+    })
+  })
+
+  it('archives a Portal with a dedicated actor-attributed lifecycle fact', async () => {
+    const { useCase, portalRepo, lastUpdateCommand } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const disabled = buildTestPortal({ publicationState: 'disabled' })
+    portalRepo.seed([disabled])
+
+    const archived = await useCase(
+      { portalId: disabled.id, publicationState: 'archived' },
+      ctx,
+    )
+
+    expect(archived.publicationState).toBe('archived')
+    expect(lastUpdateCommand()?.lifecycleEvent).toMatchObject({
+      _tag: 'portal.archived',
+      organizationId: disabled.organizationId,
+      propertyId: disabled.propertyId,
+      portalId: disabled.id,
+      userId: ctx.userId,
+      sourceAggregateVersion: NEXT_TIME.toISOString(),
+      occurredAt: FIXED_TIME,
+    })
+  })
+
+  it('keeps an archived Portal read-only until it is restored', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const archived = buildTestPortal({
+      publicationState: 'archived',
+      name: 'Archived Reception',
+    })
+    portalRepo.seed([archived])
+
+    await expect(
+      useCase({ portalId: archived.id, name: 'Edited while archived' }, ctx),
+    ).rejects.toMatchObject({ code: 'portal_inactive' })
+    expect(portalRepo.all()[0]).toMatchObject({
+      name: 'Archived Reception',
+      publicationState: 'archived',
+    })
+  })
+
+  it('does not bundle content changes into restore', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const archived = buildTestPortal({
+      publicationState: 'archived',
+      description: 'Retained configuration',
+    })
+    portalRepo.seed([archived])
+
+    await expect(
+      useCase(
+        {
+          portalId: archived.id,
+          publicationState: 'disabled',
+          description: 'Changed during restore',
+        },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: 'portal_inactive' })
+    expect(portalRepo.all()[0]?.description).toBe('Retained configuration')
+  })
+
+  it('keeps occurrence time from the clock while allocating a later revision', async () => {
+    const { useCase, portalRepo, events, lastUpdateCommand } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({})
     portalRepo.seed([portal])
@@ -145,7 +335,20 @@ describe('updatePortal', () => {
 
     const emitted = events.capturedByTag('portal.updated')
     expect(emitted).toHaveLength(1)
-    expect(emitted[0].name).toBe('Updated')
+    expect(emitted[0]).toMatchObject({
+      propertyId: portal.propertyId,
+      previousPublicationState: portal.publicationState,
+      publicationState: portal.publicationState,
+      sourceAggregateVersion: NEXT_TIME.toISOString(),
+      occurredAt: FIXED_TIME,
+    })
+    expect(lastUpdateCommand()).toMatchObject({
+      occurredAt: FIXED_TIME,
+      revision: NEXT_TIME,
+    })
+    expect(lastUpdateCommand()?.lifecycleEvent).toBeUndefined()
+    expect(emitted[0]).not.toHaveProperty('name')
+    expect(emitted[0]).not.toHaveProperty('slug')
   })
 
   it('rejects update with empty name', async () => {
@@ -223,19 +426,24 @@ describe('updatePortal', () => {
     expect(portalRepo.all()[0].heroImageUrl).toBeNull()
   })
 
-  it('replaces the hero image when heroImageUrl is a new url', async () => {
+  it('rejects a caller-supplied hero image URL', async () => {
     const { useCase, portalRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ heroImageUrl: 'https://cdn.example.com/old.jpg' })
     portalRepo.seed([portal])
 
-    const updated = await useCase(
-      { portalId: portal.id, heroImageUrl: 'https://cdn.example.com/new.jpg' },
-      ctx,
+    await expect(
+      useCase(
+        {
+          portalId: portal.id,
+          heroImageUrl: 'https://cdn.example.com/new.jpg',
+        } as unknown as Parameters<typeof useCase>[0],
+        ctx,
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isPortalError(error) && error.code === 'invalid_url',
     )
-
-    expect(updated.heroImageUrl).toBe('https://cdn.example.com/new.jpg')
-    expect(portalRepo.all()[0].heroImageUrl).toBe('https://cdn.example.com/new.jpg')
+    expect(portalRepo.all()[0].heroImageUrl).toBe('https://cdn.example.com/old.jpg')
   })
 
   it('leaves the hero image untouched when heroImageUrl is absent', async () => {
@@ -249,8 +457,8 @@ describe('updatePortal', () => {
     expect(updated.heroImageUrl).toBe('https://cdn.example.com/hero.jpg')
   })
 
-  it('rejects publishing a portal that has no links', async () => {
-    const { useCase, portalRepo } = setup()
+  it('rejects publishing when the Property has no verified Google destination', async () => {
+    const { useCase, portalRepo } = setup(null, 'unavailable')
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ publicationState: 'draft' })
     portalRepo.seed([portal])
@@ -258,33 +466,104 @@ describe('updatePortal', () => {
     await expect(
       useCase({ portalId: portal.id, publicationState: 'published' }, ctx),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && e.code === 'portal_has_no_links',
+      (e: unknown) =>
+        isPortalError(e) && e.code === 'google_review_destination_unavailable',
     )
     expect(portalRepo.all()[0].publicationState).toBe('draft')
   })
 
-  it('publishes a portal that has at least one link', async () => {
-    const { useCase, portalRepo, portalLinkRepo } = setup()
+  it('publishes a rating-first gateway without requiring secondary links', async () => {
+    const { useCase, portalRepo, lastUpdateCommand } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ publicationState: 'draft' })
     portalRepo.seed([portal])
-    portalLinkRepo.seedLinks([
-      buildTestPortalLink({
-        portalId: portal.id,
-        organizationId: portal.organizationId,
-      }),
-    ])
-
     const updated = await useCase(
       { portalId: portal.id, publicationState: 'published' },
       ctx,
     )
 
     expect(updated.publicationState).toBe('published')
+    expect(lastUpdateCommand()?.publication).toMatchObject({
+      kind: 'publish',
+      snapshot: {
+        version: 1,
+        configuration: {
+          reviewGateway: { privateFeedbackThreshold: 3 },
+          links: [],
+        },
+      },
+      activation: { activationSequence: 1, kind: 'publish' },
+    })
+    expect(lastUpdateCommand()?.lifecycleEvent).toMatchObject({
+      _tag: 'portal.publication.published',
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      publicationSnapshotId: 'publication-id-1',
+      publicationVersion: 1,
+      publicationDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      userId: ctx.userId,
+      sourceAggregateVersion: NEXT_TIME.toISOString(),
+      occurredAt: FIXED_TIME,
+    })
   })
 
-  it('does not require links to transition out of published', async () => {
-    const { useCase, portalRepo } = setup()
+  it('fails closed before destination lookup or persistence when the Property is inactive', async () => {
+    const {
+      useCase,
+      portalRepo,
+      propertyLifecycleLookups,
+      destinationLookups,
+      commandWrites,
+    } = setup(null, 'verified', 'inactive')
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase({ portalId: portal.id, publicationState: 'published' }, ctx),
+    ).rejects.toMatchObject({ code: 'portal_inactive' })
+
+    expect(propertyLifecycleLookups()).toBe(1)
+    expect(destinationLookups()).toBe(0)
+    expect(commandWrites()).toBe(0)
+    expect(portalRepo.all()[0]?.publicationState).toBe('draft')
+  })
+
+  it('fails closed without leaking a lifecycle lookup error or causing downstream effects', async () => {
+    const {
+      useCase,
+      portalRepo,
+      propertyLifecycleLookups,
+      destinationLookups,
+      commandWrites,
+    } = setup(null, 'verified', 'error')
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase({ portalId: portal.id, publicationState: 'published' }, ctx),
+    ).rejects.toMatchObject({
+      _tag: 'PortalError',
+      code: 'portal_inactive',
+      message: 'This Portal cannot be published while its Property is unavailable',
+    })
+
+    expect(propertyLifecycleLookups()).toBe(1)
+    expect(destinationLookups()).toBe(0)
+    expect(commandWrites()).toBe(0)
+    expect(portalRepo.all()[0]?.publicationState).toBe('draft')
+  })
+
+  it('keeps deactivation available without lifecycle or destination authority', async () => {
+    const {
+      useCase,
+      portalRepo,
+      lastUpdateCommand,
+      propertyLifecycleLookups,
+      destinationLookups,
+    } = setup(null, 'unavailable', 'error')
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ publicationState: 'published' })
     portalRepo.seed([portal])
@@ -295,13 +574,20 @@ describe('updatePortal', () => {
     )
 
     expect(updated.publicationState).toBe('disabled')
+    expect(lastUpdateCommand()?.publication).toEqual({
+      kind: 'deactivate',
+      reason: 'disabled',
+      at: FIXED_TIME,
+    })
+    expect(propertyLifecycleLookups()).toBe(0)
+    expect(destinationLookups()).toBe(0)
   })
 
   // The shape the beta journey actually sends: publish bundled with a content
   // edit. The precondition has to run BEFORE the write, or a refused publish
   // still leaks the other fields.
   it('refuses a publish bundled with other edits and persists none of them', async () => {
-    const { useCase, portalRepo } = setup()
+    const { useCase, portalRepo } = setup(null, 'unavailable')
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ publicationState: 'draft', description: 'Before' })
     portalRepo.seed([portal])
@@ -312,14 +598,15 @@ describe('updatePortal', () => {
         ctx,
       ),
     ).rejects.toSatisfy(
-      (e: unknown) => isPortalError(e) && e.code === 'portal_has_no_links',
+      (e: unknown) =>
+        isPortalError(e) && e.code === 'google_review_destination_unavailable',
     )
     expect(portalRepo.all()[0].publicationState).toBe('draft')
     expect(portalRepo.all()[0].description).toBe('Before')
   })
 
-  it('never consults links when the update leaves publication state alone', async () => {
-    const { useCase, portalRepo, linkLookups } = setup()
+  it('never consults the destination when the update leaves publication state alone', async () => {
+    const { useCase, portalRepo, destinationLookups } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ publicationState: 'draft', description: 'Before' })
     portalRepo.seed([portal])
@@ -328,13 +615,13 @@ describe('updatePortal', () => {
 
     expect(updated.description).toBe('After')
     expect(updated.publicationState).toBe('draft')
-    expect(linkLookups()).toBe(0)
+    expect(destinationLookups()).toBe(0)
   })
 
-  // A link-less portal that is ALREADY published (pre-precondition data) must
+  // A portal that is ALREADY published (pre-precondition data) must
   // stay editable: re-asserting the current state is not a transition.
-  it('never consults links when the requested state is the current state', async () => {
-    const { useCase, portalRepo, linkLookups } = setup()
+  it('never consults the destination when the requested state is current', async () => {
+    const { useCase, portalRepo, destinationLookups } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ publicationState: 'published' })
     portalRepo.seed([portal])
@@ -346,7 +633,7 @@ describe('updatePortal', () => {
 
     expect(updated.name).toBe('Renamed')
     expect(updated.publicationState).toBe('published')
-    expect(linkLookups()).toBe(0)
+    expect(destinationLookups()).toBe(0)
   })
 })
 
@@ -366,6 +653,9 @@ describe('resolvePortalContentFields', () => {
       description: 'Existing description',
       heroImageUrl: 'https://cdn.example.com/hero.png',
       theme: { primaryColor: '#112233' },
+      privateFeedbackThreshold: 3,
+      primaryGuestLocale: 'en',
+      additionalGuestLocales: [],
     })
   })
 
@@ -379,6 +669,21 @@ describe('resolvePortalContentFields', () => {
     expect(fields.heroImageUrl).toBeNull()
     // Untouched keys still fall back.
     expect(fields.name).toBe('Existing')
+  })
+
+  it('validates and updates the inclusive private-feedback threshold', () => {
+    expect(
+      resolvePortalContentFields(
+        { portalId: existing.id, privateFeedbackThreshold: 4 },
+        existing,
+      ).privateFeedbackThreshold,
+    ).toBe(4)
+    expect(() =>
+      resolvePortalContentFields(
+        { portalId: existing.id, privateFeedbackThreshold: 0 },
+        existing,
+      ),
+    ).toThrow(expect.objectContaining({ code: 'invalid_threshold' }))
   })
 
   it('validates values that are present', () => {

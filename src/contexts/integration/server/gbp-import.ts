@@ -17,6 +17,7 @@ import {
   renewImportAuthorizationLeaseInputSchema,
 } from '../application/dto/google-import-discovery.dto'
 import {
+  cancelPropertyImportInputSchema,
   getPropertyImportStatusInputSchema,
   recoverPropertyImportInputSchema,
   retryPropertyImportItemInputSchema,
@@ -57,14 +58,14 @@ function discoveryErrorStatus(code: GoogleImportDiscoveryErrorCode): number {
 }
 
 function requireGoogleImportDiscovery() {
-  const discovery = getContainer().useCases.googleImportDiscovery
+  const discovery = getContainer().integrationPublicApi.imports.discover
   if (!discovery) {
     throw new GoogleImportDiscoveryError('temporarily_unavailable')
   }
   return discovery
 }
 function requireGoogleImportTransaction() {
-  const transaction = getContainer().useCases.googleImportTransaction
+  const transaction = getContainer().integrationPublicApi.imports.transact
   if (!transaction) {
     throw new GoogleImportTransactionError('temporarily_unavailable')
   }
@@ -109,7 +110,7 @@ function translateDiscoveryError(error: unknown): never {
 // ── bounded Google import discovery ────────────────────────────────
 
 export const listImportAccounts = createServerFn({ method: 'POST' })
-  .inputValidator(listImportAccountsInputSchema)
+  .validator(listImportAccountsInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -138,7 +139,7 @@ export const listImportAccounts = createServerFn({ method: 'POST' })
   )
 
 export const listImportCandidates = createServerFn({ method: 'POST' })
-  .inputValidator(listImportCandidatesInputSchema)
+  .validator(listImportCandidatesInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -170,7 +171,7 @@ export const listImportCandidates = createServerFn({ method: 'POST' })
   )
 
 export const renewImportAuthorizationLease = createServerFn({ method: 'POST' })
-  .inputValidator(renewImportAuthorizationLeaseInputSchema)
+  .validator(renewImportAuthorizationLeaseInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -200,7 +201,7 @@ export const renewImportAuthorizationLease = createServerFn({ method: 'POST' })
 // ── atomic v2 import intent ────────────────────────────────────────
 
 export const startPropertyImportV2 = createServerFn({ method: 'POST' })
-  .inputValidator(startPropertyImportInputSchema)
+  .validator(startPropertyImportInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -224,7 +225,7 @@ export const startPropertyImportV2 = createServerFn({ method: 'POST' })
   )
 
 export const recoverPropertyImportV2 = createServerFn({ method: 'POST' })
-  .inputValidator(recoverPropertyImportInputSchema)
+  .validator(recoverPropertyImportInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -251,7 +252,7 @@ export const recoverPropertyImportV2 = createServerFn({ method: 'POST' })
   )
 
 export const retryPropertyImportItem = createServerFn({ method: 'POST' })
-  .inputValidator(retryPropertyImportItemInputSchema)
+  .validator(retryPropertyImportItemInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -273,8 +274,31 @@ export const retryPropertyImportItem = createServerFn({ method: 'POST' })
     ),
   )
 
+export const cancelPropertyImportV2 = createServerFn({ method: 'POST' })
+  .validator(cancelPropertyImportInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        disableProviderContentCaching()
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'integration.manage',
+          capability: 'property.import_gbp_v2',
+        })
+        try {
+          return await requireGoogleImportTransaction().cancel(data.importJobId, ctx)
+        } catch (error) {
+          return translateTransactionError(error)
+        }
+      },
+      'POST',
+      'integration.cancelPropertyImportV2',
+    ),
+  )
+
 export const getPropertyImportV2Status = createServerFn({ method: 'GET' })
-  .inputValidator(getPropertyImportStatusInputSchema)
+  .validator(getPropertyImportStatusInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

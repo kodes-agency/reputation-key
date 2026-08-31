@@ -1,6 +1,6 @@
 // Dashboard context — DTO validation tests
 import { describe, it, expect } from 'vitest'
-import { ZodError } from 'zod'
+import { ZodError } from 'zod/v4'
 import {
   getDashboardDataDto,
   getPortalAnalyticsDto,

@@ -554,6 +554,692 @@
       "when": 1787560928000,
       "tag": "0078_ai-language-catalogue-repin",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1787634000000,
+      "tag": "0079_google-admission-database-authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1787634000001,
+      "tag": "0080_guest-abuse-pseudonym-redaction",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1787634000002,
+      "tag": "0081_immutable_notification_digest_batches",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1787634000003,
+      "tag": "0082_user_organization_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1787634000004,
+      "tag": "0083_beta_interactive_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1787634000005,
+      "tag": "0084_governed-guest-goal-metrics",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1787634000006,
+      "tag": "0085_guest-response-fact-lineage",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1787635671523,
+      "tag": "0086_canonical-goal-programs",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1787635719886,
+      "tag": "0087_harden-canonical-goal-programs",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1787639237210,
+      "tag": "0088_allow-ending-scheduled-goal-programs",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1787642946393,
+      "tag": "0089_property-data-cell-expand",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1787647088158,
+      "tag": "0090_recovery-fence-generations",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1787651030739,
+      "tag": "0091_property-data-cell-rolling-writes",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1787659321491,
+      "tag": "0092_staff-participant-authority-expand",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1787660576803,
+      "tag": "0093_portal-responsible-managers",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1787663458053,
+      "tag": "0094_property-responsible-managers",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1787670000000,
+      "tag": "0095_property-google-review-destination",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1787671800000,
+      "tag": "0096_portal-review-gateway",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1787672700000,
+      "tag": "0097_guest-staged-response",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1787673600000,
+      "tag": "0098_guest-destination-action-receipts",
+      "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1787760000000,
+      "tag": "0099_guest_feedback_withdrawal",
+      "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1787846400000,
+      "tag": "0100_guest_feedback_submission_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1787932800000,
+      "tag": "0101_guest_response_retention_classes",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1788019200000,
+      "tag": "0102_guest_response_experience_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1788105600000,
+      "tag": "0103_guest_response_integrity_outcomes",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1788192000000,
+      "tag": "0104_notification_one_click_unsubscribe",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1788278400000,
+      "tag": "0105_identity_invitation_pii_scrub",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1788364800000,
+      "tag": "0106_identity_invitation_fact_expand",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1788451200000,
+      "tag": "0107_ai_deterministic_property_trends",
+      "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1788537600000,
+      "tag": "0108_review_source_content_separation",
+      "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 1788624000000,
+      "tag": "0109_notification_required_channels",
+      "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1788710400000,
+      "tag": "0110_portal_upload_issuances",
+      "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1788796800000,
+      "tag": "0111_google_import_parent_saga",
+      "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1788883200000,
+      "tag": "0112_ai_property_trend_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1788969600000,
+      "tag": "0113_portal_publication_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1789056000000,
+      "tag": "0114_portal_publication_evidence_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1789142400000,
+      "tag": "0115_portal_publication_immutability",
+      "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1789228800000,
+      "tag": "0116_stable_review_observations_and_material_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1789315200000,
+      "tag": "0117_inbox_handling_cycles_expand",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1789401600000,
+      "tag": "0118_reply_publication_cycles",
+      "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1789488000000,
+      "tag": "0119_ai_review_backfill_relational_membership",
+      "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1789574400000,
+      "tag": "0120_guest_contact_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1789660800000,
+      "tag": "0121_guest_contact_request_corrections",
+      "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1789747200000,
+      "tag": "0122_reply_google_observation_truth",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1789833600000,
+      "tag": "0123_inbox_command_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 124,
+      "version": "7",
+      "when": 1789920000000,
+      "tag": "0124_google_organization_ownership",
+      "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1790006400000,
+      "tag": "0125_access_artifact_qualified_scans",
+      "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1790092800000,
+      "tag": "0126_inbox_review_source_content_free",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1790179200000,
+      "tag": "0127_review_lifecycle_cursor",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1790265600000,
+      "tag": "0128_notification_source_content_free",
+      "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1790352000000,
+      "tag": "0129_inbox_governed_manual_reopen",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1790352000001,
+      "tag": "0130_primary_staff_event_attribution",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1790352000002,
+      "tag": "0131_google_credential_home",
+      "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1790352000003,
+      "tag": "0132_unified_source_handling_cycles",
+      "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1790352000004,
+      "tag": "0133_google_credential_routing_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1790352000005,
+      "tag": "0134_goal_program_end_intervals",
+      "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1790352000006,
+      "tag": "0135_portal_beta_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1790352000007,
+      "tag": "0136_google_import_discovery_checkpoint",
+      "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1790352000008,
+      "tag": "0137_ai_review_analysis_enrollment",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1790352000009,
+      "tag": "0138_invited_registration_recovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1790352000010,
+      "tag": "0139_portal_metric_beta_closure",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1790352000011,
+      "tag": "0140_single_us_beta_data_cell",
+      "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1790352000012,
+      "tag": "0141_private_feedback_handling_outcomes",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1790352000013,
+      "tag": "0142_guest_network_pressure",
+      "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1790352000014,
+      "tag": "0143_portal_upload_source_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1790352000015,
+      "tag": "0144_portal_upload_orphan_derivative_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1790352000016,
+      "tag": "0145_ai_authorization_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1790352000017,
+      "tag": "0146_activity_recent_activity_replay",
+      "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1790352000018,
+      "tag": "0147_region_move_active_authority_cas",
+      "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1790352000019,
+      "tag": "0148_region_move_state_revision_cas",
+      "breakpoints": true
+    },
+    {
+      "idx": 149,
+      "version": "7",
+      "when": 1790352000020,
+      "tag": "0149_operational_action_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 150,
+      "version": "7",
+      "when": 1790352000021,
+      "tag": "0150_review_lifecycle_recovery_execution",
+      "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1790352000022,
+      "tag": "0151_notification_organization_mandatory",
+      "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1790352000023,
+      "tag": "0152_setup_checklist_milestones",
+      "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1790352000024,
+      "tag": "0153_ai-personalized-reply-draft",
+      "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1790352000025,
+      "tag": "0154_review_google_reputation_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1790352000026,
+      "tag": "0155_recent_activity_actor_redaction",
+      "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1790352000027,
+      "tag": "0156_ai_review_analysis_material_revision",
+      "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1790352000028,
+      "tag": "0157_ai_review_analysis_assisted_approval",
+      "breakpoints": true
+    },
+    {
+      "idx": 158,
+      "version": "7",
+      "when": 1790352000029,
+      "tag": "0158_inbox_response_targets",
+      "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1790352000030,
+      "tag": "0159_organization_lifecycle_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1790352000031,
+      "tag": "0160_recent_activity_identifiers",
+      "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1790352000032,
+      "tag": "0161_notification_provider_acceptance_health_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1790352000033,
+      "tag": "0162_google_oauth_gateway_admission",
+      "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1790352000034,
+      "tag": "0163_ai_reply_brand_profile_grounding",
+      "breakpoints": true
+    },
+    {
+      "idx": 164,
+      "version": "7",
+      "when": 1790352000035,
+      "tag": "0164_google_provider_recovery_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1790352000036,
+      "tag": "0165_beta_feedback_triage",
+      "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1790352000037,
+      "tag": "0166_review_response_target_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1790352000038,
+      "tag": "0167_inbox_response_target_terminal_outcomes",
+      "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1790352000039,
+      "tag": "0168_identity_organization_lifecycle_receipts",
+      "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1790352000040,
+      "tag": "0169_inbox_escalation_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1790352000041,
+      "tag": "0170_organization_export_pre_egress_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1790352000042,
+      "tag": "0171_context_organization_lifecycle_receipts",
+      "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1790352000043,
+      "tag": "0172_backup_erasure_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1790352000044,
+      "tag": "0173_property_erase_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1790352000045,
+      "tag": "0174_privacy_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1790352000046,
+      "tag": "0175_google_core_capability_start_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 176,
+      "version": "7",
+      "when": 1790438400046,
+      "tag": "0176_import_frozen_principal_vector",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,81 @@
+{
+  "documents": [
+    {
+      "approvalEvidenceRef": null,
+      "approvedAt": null,
+      "approver": null,
+      "effectiveFrom": null,
+      "expiresOn": null,
+      "id": "google-access-disclosure",
+      "kind": "operator_acknowledged",
+      "path": "docs/legal/google-access-disclosure.md",
+      "reviewDueOn": null,
+      "sha256": "a5a47c263b50c322f7583a4ab47567a821ec68555ff5b106ab0a1fe6b44a6cd3",
+      "status": "draft",
+      "title": "Google Business Profile Access Disclosure",
+      "version": "2.0-draft"
+    },
+    {
+      "approvalEvidenceRef": null,
+      "approvedAt": null,
+      "approver": null,
+      "effectiveFrom": null,
+      "expiresOn": null,
+      "id": "implementation-facts",
+      "kind": "engineering_fact_map",
+      "path": "docs/legal/implementation-facts-2026-08-26.md",
+      "reviewDueOn": null,
+      "sha256": "bff0a58b6d7e380ccf4e6cd2f3ced5eca12d1b526684e440471d57b69a30fb76",
+      "status": "draft",
+      "title": "Engineering implementation facts for legal and release review",
+      "version": "2026-08-28"
+    },
+    {
+      "approvalEvidenceRef": null,
+      "approvedAt": null,
+      "approver": null,
+      "effectiveFrom": null,
+      "expiresOn": null,
+      "id": "internal-beta-agreement",
+      "kind": "operator_acknowledged",
+      "path": "docs/legal/internal-beta-agreement.md",
+      "reviewDueOn": null,
+      "sha256": "4a5de42eef4bcca86bcd7ba5d2a878dc7105b92d04055ac736095e3d0e61b9b5",
+      "status": "draft",
+      "title": "Closed Beta Participation Agreement — Reputation Key",
+      "version": "2.0-draft"
+    },
+    {
+      "approvalEvidenceRef": null,
+      "approvedAt": null,
+      "approver": null,
+      "effectiveFrom": null,
+      "expiresOn": null,
+      "id": "legal-revision-set-schema",
+      "kind": "engineering_fact_map",
+      "path": "docs/legal/revision-set.schema.md",
+      "reviewDueOn": null,
+      "sha256": "a2d6ee3509d6e72f8d3ef637468ca5535aabaebc4b260e70a1e9d915d7b39bb0",
+      "status": "draft",
+      "title": "Release legal artifacts — schema reference",
+      "version": "2026-08-28"
+    },
+    {
+      "approvalEvidenceRef": null,
+      "approvedAt": null,
+      "approver": null,
+      "effectiveFrom": null,
+      "expiresOn": null,
+      "id": "privacy-notice",
+      "kind": "operator_acknowledged",
+      "path": "docs/legal/privacy-notice.md",
+      "reviewDueOn": null,
+      "sha256": "26eabaadb01a32a0ce1c0e0baa4056fd70e6795fdc628978770ca922352a2c41",
+      "status": "draft",
+      "title": "Privacy Notice — Reputation Key Closed Beta",
+      "version": "2.0-draft"
+    }
+  ],
+  "updatedAt": "2026-08-28",
+  "version": "repkey-legal-document-registry-1"
+}

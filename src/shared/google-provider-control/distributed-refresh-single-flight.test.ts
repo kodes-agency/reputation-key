@@ -237,7 +237,10 @@ describe('distributed Google refresh single-flight', () => {
         loadLatest: async () => null,
         refresh: async () => 'unreachable',
       }),
-    ).rejects.toThrow('refresh coordination unavailable')
+    ).rejects.toMatchObject({
+      _tag: 'RefreshCoordinationError',
+      code: 'coordination_unavailable',
+    })
     const backoff = createRedisGoogleRefreshBackoffCoordinator({
       redis,
       nowMs: () => 1_000,

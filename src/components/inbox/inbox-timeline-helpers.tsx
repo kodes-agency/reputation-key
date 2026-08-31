@@ -1,7 +1,7 @@
 // Inbox activity timeline helpers — icon mapping, label formatting, date/time utils.
 // Extracted from inbox-activity-timeline.tsx for max-lines compliance.
 
-import type { ActivityLog } from '#/contexts/activity/application/public-api'
+import type { RecentActivityEntry } from '#/contexts/activity/application/public-api'
 import {
   MessageSquarePlus,
   UserPlus,
@@ -44,7 +44,7 @@ export function actionIcon(action: string) {
   }
 }
 
-export function actionLabel(entry: ActivityLog): string {
+export function actionLabel(entry: RecentActivityEntry): string {
   const { action, payload } = entry
   switch (action) {
     case 'created':

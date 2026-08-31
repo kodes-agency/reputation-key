@@ -1,4 +1,4 @@
-// Rate limiting middleware — uses Redis for sliding window counting.
+// Rate limiting middleware — uses Redis for fixed-window counting.
 // Per architecture: shared rate-limit middleware for public and API endpoints.
 //
 // Unavailability posture (BQC-7.6): when Redis is absent or erroring the
@@ -31,6 +31,8 @@ export type RateLimitResult = Readonly<{
   remaining: number
   /** When the window resets */
   resetAt: Date
+  /** Distinguishes legitimate quota exhaustion from an infrastructure denial. */
+  backendStatus: 'available' | 'unavailable'
 }>
 export type RateLimitCheckOptions = Readonly<{
   maxRequests: number
@@ -42,11 +44,13 @@ export type RateLimiter = Readonly<{
   check(key: string, override?: RateLimitCheckOptions): Promise<RateLimitResult>
 }>
 
-// Atomic Lua script: increment counter and set TTL on first request.
-// This eliminates the race condition between INCR and EXPIRE.
+// Atomic Lua script: increment the counter and ensure it has a TTL. The
+// negative-TTL branch also repairs keys left behind by older implementations
+// or interrupted/manual operations, avoiding a permanent denial window.
 const INCR_WITH_EXPIRE_SCRIPT = `
 local count = redis.call('INCR', KEYS[1])
-if count == 1 then
+local ttl = redis.call('TTL', KEYS[1])
+if count == 1 or ttl < 0 then
   redis.call('EXPIRE', KEYS[1], ARGV[1])
 end
 return count
@@ -64,6 +68,7 @@ export function createRateLimiter(
   const degraded = (limits: RateLimitCheckOptions): RateLimitResult => {
     const base = {
       resetAt: new Date(Date.now() + limits.windowSeconds * 1000),
+      backendStatus: 'unavailable' as const,
     }
     return failClosed
       ? { allowed: false, remaining: 0, ...base }
@@ -107,13 +112,14 @@ export function createRateLimiter(
           allowed: count <= limits.maxRequests,
           remaining,
           resetAt,
+          backendStatus: 'available',
         }
-      } catch (err) {
+      } catch {
         if (failClosed) {
-          getLogger().error({ err }, '[rate-limit] Redis error — failing CLOSED')
+          getLogger().error('[rate-limit] Redis error — failing CLOSED')
         } else {
           // Fail open on Redis errors, but log for monitoring
-          getLogger().warn({ err }, '[rate-limit] Redis error — failing open')
+          getLogger().warn('[rate-limit] Redis error — failing open')
         }
         return degraded(limits)
       }

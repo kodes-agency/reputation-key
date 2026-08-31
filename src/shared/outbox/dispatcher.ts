@@ -28,41 +28,15 @@ import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
 import type { OutboxRepository } from './infrastructure/outbox-repository'
 import { parseConsumerEvent, type ConsumerEvent } from './envelope'
+import type { ConsumerRegistration, ConsumerRegistry } from './consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { gateDispatcherConsumer } from '#/shared/jobs/delayed-execution-gate'
 import { durableConsumersFor } from '#/shared/governance/event-job-catalogue'
-
-// ── Consumer registration ───────────────────────────────────────────
-
-export type { ConsumerEvent }
-
-export type ConsumerHandler = (event: ConsumerEvent) => Promise<ConsumerResult>
-
-export type ConsumerResult = Readonly<{
-  /** 'applied' — consumer processed the event and committed state + receipt. */
-  status: 'applied' | 'duplicate' | 'obsolete'
-}>
-
-export type ConsumerRegistration = Readonly<{
-  /** Event type this consumer handles (e.g., 'review.received'). */
-  eventType: string
-  /** Consumer name — must be unique per event type. Used in receipts. */
-  consumerName: string
-  /**
-   * The catalogue consumer-module row this consumer is authorized under.
-   * Required — a default would silently authorize every context under one
-   * row, which is exactly the mis-attribution this field exists to prevent.
-   */
-  module: string
-  /** Handler function. Must commit state + receipt atomically. */
-  handler: ConsumerHandler
-}>
+import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 // ── Dispatcher ──────────────────────────────────────────────────────
-
-const consumersByType = new Map<string, ConsumerRegistration[]>()
 
 /**
  * BQC-3.2: thrown when the delayed execution policy is unavailable so the
@@ -73,41 +47,6 @@ class PolicyUnavailableError extends Error {
     super(reason)
     this.name = 'PolicyUnavailableError'
   }
-}
-
-/**
- * Register a consumer for an event type.
- * Multiple consumers can register for the same event type — each is
- * invoked independently when the event is dispatched.
- */
-export function registerConsumer(reg: ConsumerRegistration): void {
-  const list = consumersByType.get(reg.eventType) ?? []
-  // Check for duplicate consumer name within the same event type
-  if (list.some((c) => c.consumerName === reg.consumerName)) {
-    throw new Error(
-      `Duplicate consumer "${reg.consumerName}" for event type "${reg.eventType}"`,
-    )
-  }
-  list.push(reg)
-  consumersByType.set(reg.eventType, list)
-}
-
-/** Clear all consumers — useful for tests. */
-export function clearConsumers(): void {
-  consumersByType.clear()
-}
-
-/** List registered consumers (event type + name). Tests / operator diagnostics. */
-export function listRegisteredConsumers(): ReadonlyArray<
-  Readonly<{ eventType: string; consumerName: string }>
-> {
-  const out: Array<{ eventType: string; consumerName: string }> = []
-  for (const [eventType, regs] of consumersByType) {
-    for (const reg of regs) {
-      out.push({ eventType, consumerName: reg.consumerName })
-    }
-  }
-  return out
 }
 
 /** Per-consumer outcome — the loop aggregates failures after invoking all. */
@@ -215,7 +154,18 @@ async function invokeConsumer(
  * Create a dispatcher handler for the BullMQ 'domain-events' worker.
  * This function is passed to createJobWorker as the handler.
  */
-export function createDispatcherHandler(repo: OutboxRepository) {
+export function createDispatcherHandler(
+  repo: OutboxRepository,
+  options: Readonly<{
+    /**
+     * ARC-03-T7: the container-owned consumer registry. Required — an ambient
+     * default would let a dispatcher silently run against another container's
+     * consumers, which is precisely the process-global coupling this replaced.
+     */
+    consumers: ConsumerRegistry
+    localCell?: DataCellId
+  }>,
+) {
   const logger = getLogger()
 
   return async (job: Job) => {
@@ -251,6 +201,30 @@ export function createDispatcherHandler(repo: OutboxRepository) {
       const eventId = event.eventId || jobId
       const eventType = event.eventType
 
+      // REG-01 / ARC-02: newly relayed envelopes carry their source cell and,
+      // for Property work, the freshly resolved target cell. A job injected
+      // or delivered to another cell is terminally quarantined
+      // before schema reads, receipts, or consumer effects. Missing is
+      // accepted only for the documented pre-REG-01 in-flight shape.
+      const targetCell = event.dataCellId ?? event.sourceCellId
+      if (
+        options.localCell &&
+        targetCell !== undefined &&
+        targetCell !== options.localCell
+      ) {
+        logger.error(
+          {
+            eventType,
+            localCell: options.localCell,
+            targetCell,
+          },
+          'Outbox envelope delivered to the wrong Data Cell — unrecoverable',
+        )
+        throw new UnrecoverableError(
+          `outbox wrong_cell (${eventType}): target=${targetCell}, local=${options.localCell}`,
+        )
+      }
+
       // Validate payload against the schema registry
       try {
         validateEventPayload(event.eventType, event.eventVersion, event.payload)
@@ -267,7 +241,7 @@ export function createDispatcherHandler(repo: OutboxRepository) {
       }
 
       // Resolve consumers for this event type
-      const consumers = consumersByType.get(eventType) ?? []
+      const consumers = options.consumers.listFor(eventType)
 
       if (consumers.length === 0) {
         // BQC-3.6: the catalogue decides whether this is a misconfigured

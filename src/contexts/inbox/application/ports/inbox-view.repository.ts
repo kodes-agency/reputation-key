@@ -11,6 +11,6 @@ import type { OrganizationId, UserId } from '#/shared/domain/ids'
 export type InboxViewRepository = Readonly<{
   /** Returns the user's last inbox-view timestamp, or null if never visited. */
   getLastInboxView(orgId: OrganizationId, userId: UserId): Promise<Date | null>
-  /** Stamps the user's last inbox-view to `now` (upsert). */
+  /** Monotonically advances the user's last Inbox-view cutoff (upsert). */
   stampLastInboxView(orgId: OrganizationId, userId: UserId, now?: Date): Promise<Date>
 }>

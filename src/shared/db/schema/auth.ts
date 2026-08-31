@@ -2,14 +2,15 @@ import { boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 // ─── Better Auth tables ────────────────────────────────────────────
 // Column names must be camelCase to match Better Auth's defaults.
-// Use `pnpm auth:migrate` to manage auth tables (wraps @better-auth/cli).
+// Use `pnpm auth:migrate` to manage auth tables through the pinned Better Auth
+// runtime.
 //
-// This file is a READ-ONLY mirror: the better-auth CLI migration track is the
+// This file is a READ-ONLY mirror: the Better Auth schema track is the
 // authority for these tables, and the semantic drift test
 // (src/shared/db/migration-verification.test.ts) verifies this mirror
 // column-by-column against the migrated database. Column types, nullability,
-// and defaults below must match what the CLI actually creates (timestamptz;
-// defaults only where the CLI sets them).
+// and defaults below must match what the pinned runtime actually creates
+// (timestamptz; defaults only where Better Auth sets them).
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
 
@@ -66,7 +67,7 @@ export const verification = pgTable('verification', {
 
 // ─── Organization plugin tables ────────────────────────────────────
 // Read-only Drizzle definitions for querying. Migrations are managed by
-// `pnpm auth:migrate` (Better Auth CLI) — NOT by drizzle-kit.
+// `pnpm auth:migrate` (Better Auth schema API) — NOT by drizzle-kit.
 // Column names are camelCase to match Better Auth's defaults.
 // These tables are excluded from drizzle.config.ts (see schema/migratable.ts).
 
@@ -85,7 +86,7 @@ export const organization = pgTable('organization', {
   logo: text('logo'),
   createdAt: timestamptz('createdAt').notNull(),
   metadata: text('metadata'),
-  // Additional fields from org-schema.ts (managed by Better Auth CLI)
+  // Additional fields from org-schema.ts (managed by Better Auth)
   contactEmail: text('contactEmail'),
   billingCompanyName: text('billingCompanyName'),
   billingAddress: text('billingAddress'),

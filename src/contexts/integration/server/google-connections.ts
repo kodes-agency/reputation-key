@@ -9,38 +9,11 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
-import { connectGoogleInputSchema } from '../application/dto/connect-google.dto'
 import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
 import { updateConnectionVisibilityInputSchema } from '../application/dto/update-connection-visibility.dto'
 import { isIntegrationError } from '../domain/errors'
 import { toGoogleConnectionDto } from '../application/dto/google-connection.dto'
 import { integrationErrorStatus } from './error-helpers'
-
-// ── connectGoogle ───────────────────────────────────────────────────
-
-export const connectGoogle = createServerFn({ method: 'POST' })
-  .inputValidator(connectGoogleInputSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
-
-        try {
-          const { useCases } = getContainer()
-          const connection = await useCases.connectGoogleAccount(data, ctx)
-          return { connection: toGoogleConnectionDto(connection) }
-        } catch (e) {
-          if (isIntegrationError(e))
-            throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'POST',
-      'integration.connectGoogle',
-    ),
-  )
 
 // ── listGoogleConnections ───────────────────────────────────────────
 
@@ -52,8 +25,8 @@ export const listGoogleConnections = createServerFn({ method: 'GET' }).handler(
       await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
       try {
-        const { useCases } = getContainer()
-        const connections = await useCases.listGoogleConnections(ctx)
+        const { integrationPublicApi } = getContainer()
+        const connections = await integrationPublicApi.connections.list(ctx)
         return { connections: connections.map(toGoogleConnectionDto) }
       } catch (e) {
         if (isIntegrationError(e))
@@ -69,7 +42,7 @@ export const listGoogleConnections = createServerFn({ method: 'GET' }).handler(
 // ── disconnectGoogle ────────────────────────────────────────────────
 
 export const disconnectGoogle = createServerFn({ method: 'POST' })
-  .inputValidator(disconnectGoogleInputSchema)
+  .validator(disconnectGoogleInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -78,8 +51,8 @@ export const disconnectGoogle = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
         try {
-          const { useCases } = getContainer()
-          const connection = await useCases.disconnectGoogleAccount(data, ctx)
+          const { integrationPublicApi } = getContainer()
+          const connection = await integrationPublicApi.connections.disconnect(data, ctx)
           return { connection: toGoogleConnectionDto(connection) }
         } catch (e) {
           if (isIntegrationError(e))
@@ -95,7 +68,7 @@ export const disconnectGoogle = createServerFn({ method: 'POST' })
 // ── updateConnectionVisibility ──────────────────────────────────────
 
 export const updateConnectionVisibility = createServerFn({ method: 'POST' })
-  .inputValidator(updateConnectionVisibilityInputSchema)
+  .validator(updateConnectionVisibilityInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -104,8 +77,11 @@ export const updateConnectionVisibility = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
         try {
-          const { useCases } = getContainer()
-          const connection = await useCases.updateConnectionVisibility(data, ctx)
+          const { integrationPublicApi } = getContainer()
+          const connection = await integrationPublicApi.connections.updateVisibility(
+            data,
+            ctx,
+          )
           return { connection: toGoogleConnectionDto(connection) }
         } catch (e) {
           if (isIntegrationError(e))

@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { writePolicyDecision } from './policy-decision-audit.repository'
 
 const db = getDb()
@@ -15,7 +16,7 @@ const ORG = 'org-audit'
 
 beforeAll(async () => {
   await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Audit Org', ${ORG}, now())`,
   )
@@ -23,7 +24,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 describe('policy decision audit (BQC-2.2)', () => {

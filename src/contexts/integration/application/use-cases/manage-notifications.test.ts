@@ -1,175 +1,209 @@
-// Integration context — manage-notifications use case tests (Pub/Sub lifecycle step 3).
-
+import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import { describe, expect, it, vi } from 'vitest'
 import {
-  GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
-  GOOGLE_PROVIDER_FIXTURES_V1,
-} from '#/test-fixtures/generated/google-provider-identifiers-v1'
-import { describe, it, expect, vi } from 'vitest'
-import { manageNotifications } from './manage-notifications'
-import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
-import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
-import { createInMemoryGbpApiPort } from '#/shared/testing/in-memory-gbp-api-port'
+  manageNotifications,
+  type NotificationProviderAuthorizationResult,
+} from './manage-notifications'
 import { createInMemoryMyBusinessNotificationsPort } from '#/shared/testing/in-memory-mybusiness-notifications-port'
 import { createMockLogger } from '#/shared/testing/mock-logger'
-import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
-import { organizationId } from '#/shared/domain/ids'
-import type { GoogleConnection } from '../../domain/types'
+import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
+import type { GoogleReviewSyncProviderCallAuthorization } from '../google-provider-contract'
 
-const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
-const CONN = 'e0000000-0000-0000-0000-000000000001'
+const CONN = googleConnectionId('e0000000-0000-0000-0000-000000000001')
+const PROPERTY = propertyId('10000000-0000-4000-8000-000000000001')
+const PROPERTY_2 = propertyId('10000000-0000-4000-8000-000000000002')
 const ACCOUNT_ID =
   GOOGLE_PROVIDER_FIXTURES_V1['google-account-primary'].expectedSegments.accountId
+const ACCOUNT_ID_2 = 'repkey-synthetic-do-not-use-account-0002'
 
-const setup = (overrides?: {
-  connection?: Partial<GoogleConnection>
+const authorization: GoogleReviewSyncProviderCallAuthorization = Object.freeze({
+  capability: 'property.connect_gbp',
+  organizationId: ORG,
+  propertyId: PROPERTY,
+  connectionId: CONN,
+  initiatorUserId: null,
+  approvalBindingId: 'approval-binding-v1',
+  expectedCredentialGeneration: 7,
+  authorizationVector: Object.freeze({
+    principalKind: 'system',
+    propertySourceEpoch: 3,
+    credentialGeneration: 7,
+  }),
+})
+const authorization2: GoogleReviewSyncProviderCallAuthorization = Object.freeze({
+  ...authorization,
+  propertyId: PROPERTY_2,
+  approvalBindingId: 'approval-binding-v2',
+  authorizationVector: Object.freeze({
+    ...authorization.authorizationVector,
+    propertySourceEpoch: 4,
+  }),
+})
+
+const setup = (input?: {
   pubsubTopic?: string
+  authorizationResult?: NotificationProviderAuthorizationResult
 }) => {
-  const connectionRepo = createInMemoryGoogleConnectionRepo()
-  const encryption = createInMemoryTokenEncryption()
-  const gbpApi = createInMemoryGbpApiPort()
   const notifications = createInMemoryMyBusinessNotificationsPort()
-  const refreshGoogleToken = vi.fn(
-    async (_org: typeof ORG, _id: string): Promise<GoogleConnection> =>
-      buildTestGoogleConnection({
-        id: CONN,
-        organizationId: ORG,
-        encryptedAccessToken: 'enc:new-access-token',
-        tokenExpiresAt: new Date('2026-12-31T23:59:59Z'),
-        status: 'active',
-      }),
+  const authorizeProviderCall = vi.fn(async () =>
+    input?.authorizationResult
+      ? input.authorizationResult
+      : ({
+          ok: true,
+          targets: [
+            {
+              accessToken: 'access-token',
+              authorization,
+              gbpAccountId: ACCOUNT_ID,
+            },
+          ],
+        } as const),
   )
-
-  gbpApi.setAccounts([
-    {
-      name: GOOGLE_ACCOUNT_PRIMARY_RESOURCE,
-      accountName: 'Biz',
-      type: 'BUSINESS',
-      role: 'OWNER',
-    },
-  ])
-
-  const connection = buildTestGoogleConnection({
-    id: CONN,
-    organizationId: ORG,
-    encryptedAccessToken: 'enc:access-token',
-    tokenExpiresAt: new Date('2026-12-31T23:59:59Z'),
-    status: 'active',
-    ...overrides?.connection,
-  })
-  connectionRepo.seed([connection])
-
   const warn = vi.fn()
   const logger = { ...createMockLogger(), warn }
   const useCase = manageNotifications({
-    connectionRepo,
-    gbpApi,
-    encryption,
-    refreshGoogleToken,
+    authorizeProviderCall,
     notifications,
-    pubsubTopic: overrides?.pubsubTopic ?? 'projects/test/topics/gbp-reviews',
+    pubsubTopic: input?.pubsubTopic ?? 'projects/test/topics/gbp-reviews',
     notificationTypes: ['NEW_REVIEW'],
-    clock: () => FIXED_TIME,
     logger,
   })
 
   return {
     useCase,
-    connectionRepo,
-    gbpApi,
     notifications,
-    refreshGoogleToken,
-    connection,
+    authorizeProviderCall,
     warn,
   }
 }
 
 describe('manageNotifications', () => {
   describe('subscribe', () => {
-    it('resolves the GBP account via listAccounts and subscribes', async () => {
-      const { useCase, notifications } = setup()
+    it('uses the exact governed Property binding target for the notification write', async () => {
+      const { useCase, notifications, authorizeProviderCall } = setup()
 
       await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('subscribed')
 
-      expect(notifications.subscribeCalls).toHaveLength(1)
-      expect(notifications.subscribeCalls[0]).toMatchObject({
-        accessToken: 'access-token',
-        gbpAccountId: ACCOUNT_ID,
-        pubsubTopic: 'projects/test/topics/gbp-reviews',
-        notificationTypes: ['NEW_REVIEW'],
-      })
+      expect(authorizeProviderCall).toHaveBeenCalledWith(ORG, CONN)
+      expect(notifications.subscribeCalls).toEqual([
+        {
+          accessToken: 'access-token',
+          authorization,
+          gbpAccountId: ACCOUNT_ID,
+          pubsubTopic: 'projects/test/topics/gbp-reviews',
+          notificationTypes: ['NEW_REVIEW'],
+        },
+      ])
     })
 
-    // The ops backfill re-runs this over every active connection; Google's
-    // updateNotificationSetting is a PATCH of one resource, so the second run
-    // must be a no-change re-assertion, not an error.
-    it('is idempotent — a second subscribe re-asserts the same topic', async () => {
+    it('subscribes every distinct bound account with its own Property authorization', async () => {
+      const { useCase, notifications } = setup({
+        authorizationResult: {
+          ok: true,
+          targets: [
+            {
+              accessToken: 'access-token',
+              authorization,
+              gbpAccountId: ACCOUNT_ID,
+            },
+            {
+              accessToken: 'access-token-2',
+              authorization: authorization2,
+              gbpAccountId: ACCOUNT_ID_2,
+            },
+          ],
+        },
+      })
+
+      await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('subscribed')
+
+      expect(notifications.subscribeCalls).toEqual([
+        expect.objectContaining({
+          authorization,
+          gbpAccountId: ACCOUNT_ID,
+        }),
+        expect.objectContaining({
+          authorization: authorization2,
+          gbpAccountId: ACCOUNT_ID_2,
+        }),
+      ])
+    })
+
+    it('does not repeat an account shared by multiple bound Properties', async () => {
+      const { useCase, notifications } = setup({
+        authorizationResult: {
+          ok: true,
+          targets: [
+            {
+              accessToken: 'access-token',
+              authorization,
+              gbpAccountId: ACCOUNT_ID,
+            },
+            {
+              accessToken: 'access-token-2',
+              authorization: authorization2,
+              gbpAccountId: ACCOUNT_ID,
+            },
+          ],
+        },
+      })
+
+      await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('subscribed')
+      expect(notifications.subscribeCalls).toHaveLength(1)
+      expect(notifications.subscribeCalls[0]?.authorization).toBe(authorization)
+    })
+
+    it('is idempotent — a second subscribe re-asserts the same desired state', async () => {
       const { useCase, notifications } = setup()
 
       await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('subscribed')
       await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('subscribed')
 
       expect(notifications.subscribeCalls).toHaveLength(2)
-      expect(notifications.subscribeCalls[1]).toMatchObject({
-        gbpAccountId: ACCOUNT_ID,
-        pubsubTopic: 'projects/test/topics/gbp-reviews',
-      })
     })
 
-    it('refreshes the access token before subscribing when it is expired', async () => {
-      const { useCase, notifications, refreshGoogleToken } = setup({
-        connection: { tokenExpiresAt: new Date('2020-01-01T00:00:00Z') },
+    it('warns instead of authorizing when the Pub/Sub topic is unset', async () => {
+      const { useCase, notifications, authorizeProviderCall, warn } = setup({
+        pubsubTopic: '',
       })
-
-      await useCase.subscribe(ORG, CONN)
-
-      expect(refreshGoogleToken).toHaveBeenCalledWith(ORG, CONN)
-      expect(notifications.subscribeCalls[0]?.accessToken).toBe('new-access-token')
-    })
-
-    it('warns loudly instead of silently no-opping when pubsubTopic is empty', async () => {
-      const { useCase, notifications, warn } = setup({ pubsubTopic: '' })
 
       await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('topic_unset')
 
+      expect(authorizeProviderCall).not.toHaveBeenCalled()
       expect(notifications.subscribeCalls).toHaveLength(0)
-      // A silent return left operators with no signal that GBP push was dark.
       expect(warn).toHaveBeenCalledWith(
         { envVar: 'GBP_PUBSUB_TOPIC' },
         expect.stringContaining('GBP push notifications disabled'),
       )
     })
 
-    it('is a no-op when the connection is not active', async () => {
+    it.each([
+      'connection_missing',
+      'connection_inactive',
+      'token_unavailable',
+      'authorization_unavailable',
+    ] as const)('fails closed when authorization reports %s', async (code) => {
       const { useCase, notifications } = setup({
-        connection: { status: 'disconnected' },
+        authorizationResult: { ok: false, code },
       })
 
-      await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('connection_inactive')
-
+      await expect(useCase.subscribe(ORG, CONN)).resolves.toBe(code)
       expect(notifications.subscribeCalls).toHaveLength(0)
     })
 
-    it('is a no-op when the connection cannot be found', async () => {
-      const { useCase, notifications } = setup()
-      await expect(useCase.subscribe(ORG, 'unknown-connection-id')).resolves.toBe(
-        'connection_missing',
-      )
-
-      expect(notifications.subscribeCalls).toHaveLength(0)
-    })
-
-    it('reports account_unresolved instead of throwing when listAccounts fails', async () => {
-      const { useCase, notifications, gbpApi } = setup()
-      gbpApi.setError('listAccounts', new Error('boom'))
+    it('reports account_unresolved when no active bound account can be authorized', async () => {
+      const { useCase, notifications } = setup({
+        authorizationResult: { ok: true, targets: [] },
+      })
 
       await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('account_unresolved')
       expect(notifications.subscribeCalls).toHaveLength(0)
     })
 
-    it('reports provider_failed instead of throwing when the PATCH fails', async () => {
+    it('reports provider_failed when the desired-state write cannot be confirmed', async () => {
       const { useCase, notifications } = setup()
-      notifications.setError('subscribe', new Error('boom'))
+      notifications.setError('subscribe', new Error('ambiguous'))
 
       await expect(useCase.subscribe(ORG, CONN)).resolves.toBe('provider_failed')
       expect(notifications.subscribeCalls).toHaveLength(0)
@@ -177,19 +211,48 @@ describe('manageNotifications', () => {
   })
 
   describe('unsubscribe', () => {
-    it('resolves the GBP account and unsubscribes', async () => {
+    it('uses the exact bound account and authorization to unsubscribe', async () => {
       const { useCase, notifications } = setup()
 
       await useCase.unsubscribe(ORG, CONN)
 
-      expect(notifications.unsubscribeCalls).toHaveLength(1)
-      expect(notifications.unsubscribeCalls[0]).toMatchObject({
-        accessToken: 'access-token',
-        gbpAccountId: ACCOUNT_ID,
-      })
+      expect(notifications.unsubscribeCalls).toEqual([
+        {
+          accessToken: 'access-token',
+          authorization,
+          gbpAccountId: ACCOUNT_ID,
+        },
+      ])
     })
 
-    it('swallows failures (best-effort) and never throws', async () => {
+    it('unsubscribes every distinct bound account before credential revocation', async () => {
+      const { useCase, notifications } = setup({
+        authorizationResult: {
+          ok: true,
+          targets: [
+            {
+              accessToken: 'access-token',
+              authorization,
+              gbpAccountId: ACCOUNT_ID,
+            },
+            {
+              accessToken: 'access-token-2',
+              authorization: authorization2,
+              gbpAccountId: ACCOUNT_ID_2,
+            },
+          ],
+        },
+      })
+
+      await useCase.unsubscribe(ORG, CONN)
+
+      expect(notifications.unsubscribeCalls.map((call) => call.gbpAccountId)).toEqual([
+        ACCOUNT_ID,
+        ACCOUNT_ID_2,
+      ])
+    })
+
+    it('swallows provider failures because disconnect remains best-effort', async () => {
       const { useCase, notifications } = setup()
       notifications.setError('unsubscribe', new Error('boom'))
 

@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
+import type {
+  bulkAssignInboxItemsFn,
+  bulkUpdateInboxStatusFn,
+} from '#/contexts/inbox/server/inbox'
 import { expect, fn, userEvent, within, waitFor } from 'storybook/test'
 import { InboxBulkActions } from './inbox-bulk-actions'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
@@ -12,20 +15,74 @@ const items = [
 ]
 
 const feedbackItems = [
-  makeInboxItem({ id: 'fb-1', sourceType: 'feedback', status: 'open' }),
-  makeInboxItem({ id: 'fb-2', sourceType: 'feedback', status: 'open' }),
+  makeInboxItem({ id: 'fb-1', sourceType: 'feedback', status: 'closed' }),
+  makeInboxItem({ id: 'fb-2', sourceType: 'feedback', status: 'closed' }),
 ]
 
-type BulkInput = { data: { inboxItemIds: string[]; status: string } }
-type BulkResult = { success: true; updatedIds: string[] }
+type BulkInput = {
+  data: {
+    items: Array<{ inboxItemId: string; expectedCommandRevision: number }>
+    status: string
+    reopenReason: string
+    reopenExplanation?: string | null
+  }
+}
+type BulkResult = {
+  updated: number
+  results: Array<{
+    inboxItemId: string
+    outcome: 'reopened' | 'already_open' | 'revision_conflict' | 'unavailable'
+  }>
+}
 
 // mockServerFn returns a plain callable; the prop type is `typeof serverFn`
 // (carries createServerFn metadata the component never reads). The cast bridges
 // that unexpressible server-fn brand.
-const bulkUpdateFn = mockServerFn(async (input: BulkInput): Promise<BulkResult> => ({
-  success: true,
-  updatedIds: input.data.inboxItemIds,
-})) as unknown as typeof bulkUpdateInboxStatusFn
+const reopenedResult = (input: BulkInput): BulkResult => ({
+  updated: input.data.items.length,
+  results: input.data.items.map((item) => ({
+    inboxItemId: item.inboxItemId,
+    outcome: 'reopened',
+  })),
+})
+
+const bulkUpdateFn = mockServerFn(async (input: BulkInput): Promise<BulkResult> =>
+  reopenedResult(input),
+) as unknown as typeof bulkUpdateInboxStatusFn
+
+type BulkAssignmentInput = {
+  data: {
+    items: Array<{ inboxItemId: string; expectedCommandRevision: number }>
+    assignedToUserId: string | null
+  }
+}
+type BulkAssignmentResult = {
+  updated: number
+  bulkId: string | null
+  results: Array<{
+    inboxItemId: string
+    outcome: 'assigned' | 'reassigned' | 'released' | 'unchanged'
+  }>
+}
+
+const assignedResult = (input: BulkAssignmentInput): BulkAssignmentResult => ({
+  updated: input.data.items.length,
+  bulkId: '11111111-1111-4111-8111-111111111111',
+  results: input.data.items.map((item) => ({
+    inboxItemId: item.inboxItemId,
+    outcome: input.data.assignedToUserId === null ? 'released' : 'assigned',
+  })),
+})
+
+const bulkAssignFn = mockServerFn(
+  async (input: BulkAssignmentInput): Promise<BulkAssignmentResult> =>
+    assignedResult(input),
+) as unknown as typeof bulkAssignInboxItemsFn
+
+const assignmentOptions = [
+  { userId: 'manager-1', name: 'Morgan Manager' },
+  { userId: 'manager-2', name: 'Riley Reviewer' },
+]
 
 const meta: Meta<typeof InboxBulkActions> = {
   title: 'Inbox/Bulk Actions',
@@ -45,6 +102,13 @@ export const ThreeSelected: Story = {
     onSelectAll: fn(),
     onClearSelection: fn(),
     bulkUpdateFn,
+    bulkAssignFn,
+    assignmentOptions,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('button', { name: /^close$/i })).toBeNull()
+    expect(canvas.getByRole('button', { name: /^reopen$/i })).toBeDisabled()
   },
 }
 
@@ -55,7 +119,7 @@ export const OnlyReviewsSelected: Story = {
   },
 }
 
-// All selected items are feedback; the same open → closed transition applies.
+// Closed feedback remains eligible for the one beta bulk transition: reopen.
 export const AllFeedback: Story = {
   args: {
     selectedIds: ['fb-1', 'fb-2'],
@@ -64,6 +128,8 @@ export const AllFeedback: Story = {
     onSelectAll: fn(),
     onClearSelection: fn(),
     bulkUpdateFn,
+    bulkAssignFn,
+    assignmentOptions,
   },
 }
 
@@ -75,49 +141,146 @@ export const Empty: Story = {
     onSelectAll: fn(),
     onClearSelection: fn(),
     bulkUpdateFn,
+    bulkAssignFn,
+    assignmentOptions,
   },
 }
 
 // never-settling impl → after a click the mutation stays pending and the
-// toolbar's action buttons lock (disabled) until it resolves.
+// reopen action locks until it resolves.
 const pendingBulkFn = mockServerFn(
   async (): Promise<BulkResult> => Promise.withResolvers<BulkResult>().promise,
 ) as unknown as typeof bulkUpdateInboxStatusFn
 
 export const Pending: Story = {
   args: {
-    ...ThreeSelected.args,
+    ...AllFeedback.args,
     bulkUpdateFn: pendingBulkFn,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // Bulk toolbar is open ⇄ closed only (ADR 0023); no bulk escalate.
-    await userEvent.click(canvas.getByRole('button', { name: /^close$/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /^reopen$/i }))
+    const body = within(document.body)
+    await userEvent.click(
+      await body.findByRole('combobox', { name: /reason for reopening/i }),
+    )
+    await userEvent.click(await body.findByRole('option', { name: /new information/i }))
+    const dialog = await body.findByRole('dialog')
+    const confirmButton = within(dialog).getByRole('button', { name: /^reopen$/i })
+    await userEvent.click(confirmButton)
     await waitFor(() => {
-      expect(canvas.getByRole('button', { name: /^close$/i })).toBeDisabled()
+      expect(confirmButton).toBeDisabled()
     })
   },
 }
 
-// Close invokes the bulk fn with status 'closed'.
-const closeSpy = fn(async (input: BulkInput): Promise<BulkResult> => ({
-  success: true,
-  updatedIds: input.data.inboxItemIds,
+// Reopen invokes the bulk fn with the only accepted beta target, `open`.
+const reopenSpy = fn(async (input: BulkInput): Promise<BulkResult> => ({
+  ...reopenedResult(input),
 }))
-const closeBulkFn = mockServerFn(closeSpy) as unknown as typeof bulkUpdateInboxStatusFn
+const reopenBulkFn = mockServerFn(reopenSpy) as unknown as typeof bulkUpdateInboxStatusFn
 
-export const MarkClosed: Story = {
+export const ReopenClosed: Story = {
   args: {
-    ...ThreeSelected.args,
-    bulkUpdateFn: closeBulkFn,
+    ...AllFeedback.args,
+    bulkUpdateFn: reopenBulkFn,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^close$/i }))
+    expect(canvas.queryByRole('button', { name: /^close$/i })).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: /^reopen$/i }))
+    const body = within(document.body)
+    await userEvent.click(
+      await body.findByRole('combobox', { name: /reason for reopening/i }),
+    )
+    await userEvent.click(await body.findByRole('option', { name: /new information/i }))
+    await userEvent.click(
+      within(await body.findByRole('dialog')).getByRole('button', { name: /^reopen$/i }),
+    )
     await waitFor(() => {
-      expect(closeSpy).toHaveBeenCalledWith(
+      expect(reopenSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: 'closed' }),
+          data: expect.objectContaining({
+            status: 'open',
+            reopenReason: 'new_information',
+            reopenExplanation: null,
+          }),
+        }),
+      )
+      expect(reopenSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            items: feedbackItems.map((item) => ({
+              inboxItemId: item.id,
+              expectedCommandRevision: item.commandRevision,
+            })),
+          }),
+        }),
+      )
+    })
+  },
+}
+
+const failingBulkFn = mockServerFn(async (): Promise<BulkResult> => {
+  throw new Error('The selected items changed. Reload and try again.')
+}) as unknown as typeof bulkUpdateInboxStatusFn
+
+export const ReopenError: Story = {
+  args: {
+    ...AllFeedback.args,
+    bulkUpdateFn: failingBulkFn,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^reopen$/i }))
+    const body = within(document.body)
+    await userEvent.click(
+      await body.findByRole('combobox', { name: /reason for reopening/i }),
+    )
+    await userEvent.click(await body.findByRole('option', { name: /new information/i }))
+    await userEvent.click(
+      within(await body.findByRole('dialog')).getByRole('button', { name: /^reopen$/i }),
+    )
+    expect(
+      await canvas.findByText(/selected items changed\. reload and try again/i),
+    ).toBeVisible()
+  },
+}
+
+const assignmentSpy = fn(
+  async (input: BulkAssignmentInput): Promise<BulkAssignmentResult> =>
+    assignedResult(input),
+)
+const assignmentBulkFn = mockServerFn(
+  assignmentSpy,
+) as unknown as typeof bulkAssignInboxItemsFn
+
+export const AssignSelected: Story = {
+  args: {
+    ...ThreeSelected.args,
+    bulkAssignFn: assignmentBulkFn,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^assign$/i }))
+    const body = within(document.body)
+    await userEvent.click(await body.findByRole('combobox', { name: /^assignment$/i }))
+    await userEvent.click(await body.findByRole('option', { name: /morgan manager/i }))
+    await userEvent.click(
+      within(await body.findByRole('dialog')).getByRole('button', {
+        name: /apply to all/i,
+      }),
+    )
+    await waitFor(() => {
+      expect(assignmentSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: {
+            items: items.map((item) => ({
+              inboxItemId: item.id,
+              expectedCommandRevision: item.commandRevision,
+            })),
+            assignedToUserId: 'manager-1',
+          },
         }),
       )
     })

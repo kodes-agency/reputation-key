@@ -8,6 +8,8 @@ import type { FeedbackId, OrganizationId } from '#/shared/domain/ids'
 export type FeedbackSnippet = Readonly<{
   comment: string | null
   ratingValue: number | null
+  /** Exact Guest Response Revision that submitted the current private feedback. */
+  responseRevision?: number | null
 }>
 
 export type FeedbackContentFilter = Readonly<{

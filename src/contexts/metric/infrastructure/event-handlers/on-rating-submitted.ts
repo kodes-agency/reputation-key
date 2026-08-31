@@ -1,12 +1,36 @@
 // Metric context — records portal.rating metric on rating submission events
 import type { GuestRatingSubmitted } from '#/contexts/guest/application/public-api'
-import { makeRecordMetricHandler } from './record-portal-metric'
+import {
+  makeDurableRecordMetricFanoutHandler,
+  makeRecordMetricFanoutHandler,
+} from './record-portal-metric'
 import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
 
-export const onRatingSubmitted = makeRecordMetricHandler<GuestRatingSubmitted>({
-  metricKey: 'portal.rating',
-  definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
-  sourcePolicy: 'first_party_guest_private',
-  span: 'metric.event.onRatingSubmitted',
-  value: (event) => event.value,
-})
+const options = [
+  {
+    metricKey: 'portal.rating',
+    definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
+    sourcePolicy: 'first_party_guest_private',
+    span: 'metric.event.onRatingSubmitted',
+    value: (event: GuestRatingSubmitted) => event.value,
+  },
+  {
+    metricKey: 'portal.rating_count',
+    definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+    sourcePolicy: 'first_party_guest_gateway_metric',
+    span: 'metric.event.onRatingSubmitted',
+    value: () => 1,
+  },
+  {
+    metricKey: 'portal.rating_average',
+    definitionVersionId: METRIC_VERSION_IDS.portalRatingAverageGoal,
+    sourcePolicy: 'first_party_guest_gateway_metric',
+    span: 'metric.event.onRatingSubmitted',
+    value: (event: GuestRatingSubmitted) => event.value,
+  },
+] as const
+
+export const onRatingSubmitted =
+  makeRecordMetricFanoutHandler<GuestRatingSubmitted>(options)
+export const onRatingSubmittedDurably =
+  makeDurableRecordMetricFanoutHandler<GuestRatingSubmitted>(options)

@@ -1,8 +1,7 @@
-// Organization settings form — edit organization identity + billing.
+// Organization settings form — edit the beta organization identity.
 // The form is fully prop-driven (organization data + onSubmit callback + pending/error flags),
-// so it renders without any server/RPC. The sibling `organization-settings-page.tsx` is
-// UN-STORYABLE: it value-imports `setActiveOrganization` from `#/contexts/identity/server/...`
-// and cannot be mocked within the boundary gate — story the form directly instead.
+// so it renders without any server/RPC. Story the form directly to keep this
+// interaction contract independent from the route's server-function wiring.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { OrganizationSettingsForm } from './organization-settings-form'
@@ -12,11 +11,6 @@ const organization = {
   name: 'Acme Hotels',
   slug: 'acme-hotels',
   contactEmail: 'ops@acme.example',
-  billingCompanyName: 'Acme Hospitality LLC',
-  billingAddress: '100 Market St',
-  billingCity: 'San Francisco',
-  billingPostalCode: '94105',
-  billingCountry: 'USA',
 }
 
 const meta: Meta<typeof OrganizationSettingsForm> = {
@@ -34,6 +28,11 @@ export const Default: Story = {
     onSubmit: async (_values: UpdateOrgSettingsInput) => {},
     isPending: false,
     error: null,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByText(/^billing$/i)).toBeNull()
+    expect(canvas.queryByLabelText(/billing|postal/i)).toBeNull()
   },
 }
 

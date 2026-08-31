@@ -8,11 +8,14 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import {
+  createPolicyAdminOps,
   createPropertyCapabilityOperatorAction,
   createPropertyCapabilityProvisioning,
   parsePropertyCapabilityCommand,
+  type PolicyAdminDeps,
   type PropertyCapabilityProvisioningDeps,
 } from './policy-admin'
+import type { PolicyAdminCommandStore } from '../ports/policy-admin-command-store.port'
 
 const ORG_ID = 'org-1'
 const OTHER_ORG_ID = 'org-2'
@@ -20,6 +23,177 @@ const OPERATOR_ID = 'operator-1'
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
 const OTHER_PROPERTY_ID = '00000000-0000-4000-8000-000000000002'
 const ORG_CAPABILITIES = ['inbox.use', 'reply.publish', 'review.sync'] as const
+
+function stubPolicyAdminCommandStore(): PolicyAdminCommandStore {
+  return {
+    setOrganizationCapability: vi.fn(async () => undefined),
+    setPropertyCapability: vi.fn(async () => undefined),
+    setOrganizationSuspension: vi.fn(async () => undefined),
+    setPropertySuspension: vi.fn(async () => undefined),
+    grantPropertyAccess: vi.fn(async () => undefined),
+    revokePropertyAccess: vi.fn(async () => undefined),
+  }
+}
+
+function policyAdminHarness(
+  overrides: Partial<
+    Pick<
+      PolicyAdminDeps,
+      'commandStore' | 'refreshPolicy' | 'reconcileResponsibleManagerEligibility'
+    >
+  > = {},
+) {
+  const commandStore: PolicyAdminCommandStore =
+    overrides.commandStore ?? stubPolicyAdminCommandStore()
+  const refreshPolicy = overrides.refreshPolicy ?? vi.fn(async () => undefined)
+  const reconcileResponsibleManagerEligibility =
+    overrides.reconcileResponsibleManagerEligibility ?? vi.fn(async () => undefined)
+  const deps: PolicyAdminDeps = {
+    clock: () => new Date('2026-08-27T10:00:00.000Z'),
+    isCoreCapability: () => false,
+    isBlockedCapability: () => false,
+    listAllCapabilities: () => ['portal.read'],
+    policyVersion: 'policy-test-v1',
+    explainPolicyDecision: async () => {
+      throw new Error('not used')
+    },
+    getRegionDiagnostic: async () => {
+      throw new Error('not used')
+    },
+    refreshPolicy,
+    commandStore,
+    loadOrgPolicyState: async () => ({
+      policy: null,
+      capabilities: [],
+      propertyPolicies: [],
+    }),
+    reconcileResponsibleManagerEligibility,
+    listActiveGrantsForOrg: async () => [],
+    writePolicyDecision: async () => undefined,
+  }
+  return {
+    ops: createPolicyAdminOps(deps),
+    commandStore,
+    refreshPolicy,
+    reconcileResponsibleManagerEligibility,
+  }
+}
+
+describe('atomic policy-admin orchestration', () => {
+  it('passes mutation and audit through the command store before refreshing', async () => {
+    const order: string[] = []
+    const setOrganizationCapability = vi.fn(async () => {
+      order.push('atomic-command')
+    })
+    const harness = policyAdminHarness({
+      commandStore: {
+        ...stubPolicyAdminCommandStore(),
+        setOrganizationCapability,
+      },
+      refreshPolicy: vi.fn(async () => {
+        order.push('refresh')
+      }),
+    })
+
+    await harness.ops.setOrgCapability({
+      organizationId: ORG_ID,
+      capability: 'portal.read',
+      enabled: true,
+      reason: 'approved beta access',
+      actorUserId: OPERATOR_ID,
+      now: new Date('2026-08-27T10:00:00.000Z'),
+    })
+
+    expect(order).toEqual(['atomic-command', 'refresh'])
+    expect(setOrganizationCapability).toHaveBeenCalledWith({
+      organizationId: ORG_ID,
+      capability: 'portal.read',
+      enabled: true,
+      createdBy: OPERATOR_ID,
+      audit: {
+        actorType: 'operator',
+        actorId: OPERATOR_ID,
+        organizationId: ORG_ID,
+        propertyId: null,
+        action: 'policy.allowlist.set',
+        capability: 'portal.read',
+        executionKind: 'operator',
+        decision: 'allow',
+        reason: 'approved beta access',
+        policyVersion: 'policy-test-v1',
+        correlationId: null,
+      },
+    })
+  })
+
+  it('does not refresh when the atomic command rolls back', async () => {
+    const harness = policyAdminHarness({
+      commandStore: {
+        ...stubPolicyAdminCommandStore(),
+        setOrganizationCapability: vi.fn(async () => {
+          throw new Error('transaction rolled back')
+        }),
+      },
+    })
+
+    await expect(
+      harness.ops.setOrgCapability({
+        organizationId: ORG_ID,
+        capability: 'portal.read',
+        enabled: true,
+        reason: 'approved beta access',
+        actorUserId: OPERATOR_ID,
+        now: new Date('2026-08-27T10:00:00.000Z'),
+      }),
+    ).rejects.toThrow('transaction rolled back')
+    expect(harness.refreshPolicy).not.toHaveBeenCalled()
+  })
+
+  it('retries the idempotent revoke path and reconciles managers only post-commit', async () => {
+    const order: string[] = []
+    let firstReconciliation = true
+    const harness = policyAdminHarness({
+      commandStore: {
+        ...stubPolicyAdminCommandStore(),
+        revokePropertyAccess: vi.fn(async () => {
+          order.push('atomic-command')
+        }),
+      },
+      refreshPolicy: vi.fn(async () => {
+        order.push('refresh')
+      }),
+      reconcileResponsibleManagerEligibility: vi.fn(async () => {
+        order.push('reconcile')
+        if (firstReconciliation) {
+          firstReconciliation = false
+          throw new Error('temporary reconciliation failure')
+        }
+      }),
+    })
+    const command = {
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      userId: 'manager-1',
+      reason: 'manager scope changed',
+      actorUserId: OPERATOR_ID,
+      now: new Date('2026-08-27T10:00:00.000Z'),
+    }
+
+    await expect(harness.ops.revokePropertyAccessOp(command)).rejects.toThrow(
+      'temporary reconciliation failure',
+    )
+    await expect(harness.ops.revokePropertyAccessOp(command)).resolves.toBeUndefined()
+
+    expect(order).toEqual([
+      'atomic-command',
+      'refresh',
+      'reconcile',
+      'atomic-command',
+      'refresh',
+      'reconcile',
+    ])
+  })
+})
 
 function deps(
   over: Partial<{

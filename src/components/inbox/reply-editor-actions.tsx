@@ -4,6 +4,17 @@ import { useState } from 'react'
 import { Textarea } from '#/components/ui/textarea'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '#/components/ui/alert-dialog'
 
 type ReplyView = Readonly<{
   text: string
@@ -37,9 +48,32 @@ export function ReplyPendingApproval({
         <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" disabled={isSaving} onClick={() => onApprove()}>
-          Approve
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button size="sm" disabled={isSaving}>
+              Confirm &amp; Publish
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirm and publish this reply?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This records your confirmation and starts publishing the exact reply shown
+                here to Google. RepKey keeps it pending until Google confirms that it is
+                live.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep reviewing</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isSaving}
+                onClick={() => void onApprove().catch(() => undefined)}
+              >
+                {isSaving ? 'Confirming…' : 'Confirm & Publish'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         <Button
           size="sm"
           variant="destructive"
@@ -87,16 +121,17 @@ export function ReplyPublishFailed({ reply, isSaving, onRetry }: FailedProps) {
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
         <h2 className="text-sm font-medium">Reply</h2>
-        <Badge variant="destructive">Publish Failed</Badge>
+        <Badge variant="outline">Needs a check</Badge>
       </div>
       <div className="rounded-md border bg-muted/30 p-3">
         <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
       </div>
-      <p className="text-xs text-destructive">
-        Failed to publish to Google. You can retry.
+      <p className="text-xs text-muted-foreground">
+        Google has not confirmed this reply yet. RepKey checks the current Google reply
+        before trying the update again.
       </p>
       <Button size="sm" disabled={isSaving} onClick={() => onRetry()}>
-        Retry Publish
+        Check and retry
       </Button>
     </div>
   )

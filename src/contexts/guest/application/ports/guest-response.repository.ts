@@ -11,6 +11,7 @@ export type GuestResponseSnippet = Readonly<{
   id: string
   comment: string | null
   ratingValue: number | null
+  feedbackSubmissionRevision?: number | null
 }>
 
 export type GuestResponseContentFilter = Readonly<{
@@ -19,10 +20,18 @@ export type GuestResponseContentFilter = Readonly<{
   textQuery?: string
 }>
 
+export type PortalResponseIntegritySummary = Readonly<{
+  accepted: number
+  filteredAutomatically: number
+  underReview: number
+  total: number
+}>
+
 export type GuestResponseRepository = Readonly<{
   findForSession(
     scope: GuestResponseScope,
     sessionId: string,
+    asOf: Date,
   ): Promise<GuestResponse | null>
   findById(scope: GuestResponseScope, responseId: string): Promise<GuestResponse | null>
   /**
@@ -39,7 +48,11 @@ export type GuestResponseRepository = Readonly<{
   findSnippetForOrg(
     organizationId: string,
     responseId: string,
-  ): Promise<Readonly<{ comment: string | null; ratingValue: number | null }> | null>
+  ): Promise<Readonly<{
+    comment: string | null
+    ratingValue: number | null
+    feedbackSubmissionRevision?: number | null
+  }> | null>
   /** Batched equivalent used by inbox list enrichment. */
   findSnippetsForOrg(
     organizationId: string,
@@ -53,10 +66,13 @@ export type GuestResponseRepository = Readonly<{
     organizationId: string,
     filter: GuestResponseContentFilter,
   ): Promise<ReadonlyArray<string>>
-  insertSubmitted(response: GuestResponse): Promise<boolean>
-  saveCorrection(response: GuestResponse): Promise<boolean>
+  /** Current integrity outcomes for rating responses in a half-open business period. */
+  summarizePortalIntegrity(
+    scope: GuestResponseScope,
+    startAt: Date,
+    endAt: Date,
+  ): Promise<PortalResponseIntegritySummary>
   saveModeration(response: GuestResponse): Promise<boolean>
-  deleteAndQueueMediaPurge(response: GuestResponse): Promise<ReadonlyArray<string>>
   insertMedia(media: GuestMedia): Promise<boolean>
   findMediaForSession(
     scope: GuestResponseScope,

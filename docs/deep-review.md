@@ -95,11 +95,19 @@ Hard constraints on the reviewer:
 
 **When to run:** when adding a new feature that touches more than one context, or when introducing a new context.
 
-**Pre-read:** root `CONTEXT.md` (bounded contexts table + glossary), `docs/adr/0003-review-as-bc.md`, `docs/adr/0004-inbox-as-bc.md`.
+**Pre-read:** root `CONTEXT.md` (bounded contexts table + glossary),
+`docs/adr/README.md`, `docs/adr/0003-review-bounded-context.md`, and
+`docs/adr/0004-inbox-bounded-context.md`.
 
 **Prompt:**
 
-> You are reviewing inter-context coupling. The known contexts are Identity, Property, Portal, Guest, Team, Integration, Review, Inbox, Dashboard. Each owns the entities listed in the root `CONTEXT.md`. Review `<SCOPE>` and flag:
+> You are reviewing inter-context coupling. The retained packages are Activity,
+> AI, Badge, Dashboard, Goal, Guest, Identity, Inbox, Integration, Leaderboard,
+> Metric, Notification, Portal, Property, Review, Staff, and Team. Their product
+> posture is not uniform: Team is quarantined, Badge/Leaderboard are legacy and
+> denied, and controlled capabilities remain subject to the executable fate
+> authority. Each package owns the entities listed in root `CONTEXT.md`. Review
+> `<SCOPE>` and flag:
 >
 > **BLOCKER:**
 >
@@ -375,47 +383,67 @@ Hard constraints on the reviewer:
 
 ---
 
-# 9. Permissions & Authorization (CRITICAL)
+# 9. Permissions & Effective Access Decisions (CRITICAL)
 
 **When to run:** every PR touching `shared/auth/`, `shared/domain/permissions.ts`, `shared/domain/roles.ts`, any `server/` file, or `_authenticated.tsx`. Run monthly as a sweep across the repo.
 
-**Pre-read:** root `CONTEXT.md` (Glossary, Permission Patterns, Forbidden patterns), `src/shared/auth/permissions.ts`, `src/shared/domain/permissions.ts`, `src/shared/domain/roles.ts`, `src/shared/hooks/usePermissions.ts`, `docs/adr/0001-dynamic-access-control.md`.
+**Pre-read:** root `CONTEXT.md` (Glossary, Permission Patterns, Forbidden
+patterns), `src/shared/auth/execution-policy.ts`,
+`src/shared/auth/beta-capabilities.ts`, `src/shared/domain/permissions.ts`,
+`src/shared/domain/roles.ts`, `src/shared/hooks/usePermissions.ts`,
+`docs/adr/0033-authorization-policy.md`, and
+`docs/adr/0052-beta-people-access-attribution-and-manager-responsibility.md`.
 
 **Prompt:**
 
-> You are auditing authorization. The project's rules are explicit and non-negotiable. Quote the violated rule verbatim from `CONTEXT.md` in every finding.
+> You are reviewing effective access decisions. The project's rules are
+> explicit and non-negotiable. Quote the violated rule verbatim from the current
+> authority in every finding.
 >
-> **The three APIs and where each is allowed:**
+> **The decision APIs and where each is allowed:**
 >
-> | API                           | Allowed only in                             |
-> | ----------------------------- | ------------------------------------------- |
-> | `can(role, permission)`       | Server functions, route `beforeLoad` guards |
-> | `usePermissions()`            | React components                            |
-> | `hasRole(role, requiredRole)` | Sidebar visibility, domain hierarchy rules  |
+> | API                                      | Purpose                                                                                                                              |
+> | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+> | `requireExecutionAllowed(...)`           | Effective server/public/operator decision including permission, capability, current Property grant, tenant state, and cell readiness |
+> | `can(role, permission)`                  | Pure role-permission check inside a use case or presentation helper; never sufficient for a Property-scoped effect                   |
+> | `usePermissions()` / `useCapabilities()` | Client affordances only; never an execution boundary                                                                                 |
+> | `hasRole(role, requiredRole)`            | Display hierarchy only; never permission or Property scope                                                                           |
 >
 > **Forbidden, per CONTEXT.md:**
 >
-> 1. Passing `canEdit` / `canCreate` / `canDelete` boolean props — use `usePermissions()` in the component.
-> 2. Using `hasRole()` for permission checks — only for hierarchy.
-> 3. Calling `toDomainRole()` on an already-mapped domain role — `resolveTenantContext()` already returns domain roles.
+> 1. Passing `canEdit` / `canCreate` / `canDelete` boolean props as if they were
+>    an execution decision — use the shared client hooks for affordances and
+>    retain the server decision.
+> 2. Using `hasRole()` for permission or Property scope — it is hierarchy only.
+> 3. Calling `toDomainRole()` on an already-mapped domain role —
+>    `resolveTenantContext()` already returns domain roles.
+> 4. Branching on a raw stored role when an effective permission/grant decision
+>    is required.
 >
 > Review `<SCOPE>`. The three forbidden API misuses above (boolean perm props, `hasRole()` for gating, `toDomainRole()` on a mapped role) are **MAJOR** convention drift — **BLOCKER** only when the misuse is the sole authorization on a path (i.e. no effective server-side check exists behind it).
 >
-> **BLOCKER (authz bypass / data exposure — these are security bugs):**
+> **BLOCKER (data-boundary or access-control failure):**
 >
-> - PropertyManager actions on a property that do not verify a `staff_assignment` for that property. Per CONTEXT.md: "PropertyManagers only manage assigned properties." Quote the file/line and confirm an assignment lookup precedes the mutation.
-> - Replies surfaced to Staff role anywhere in the UI or API. CONTEXT.md: "Only PM+ roles can manage replies; Staff cannot view or manage them."
+> - PropertyManager actions on a Property that do not require a current
+>   Identity-owned `PropertyAccessGrant` through the effective decision path.
+>   Staff participation, Portal responsibility, and legacy `staff_assignments`
+>   are not access grants.
+> - Treating a Staff Participant as an authenticated Staff User. Staff User
+>   activation/login is deferred for beta and requires a separate accepted
+>   decision.
 > - AccountAdmin-only operations (anything under `ac.*`, including role management) accessible by lower roles.
-> - Permission check on the client without a matching server-side check. The client-side check is an affordance, never a guard.
+> - A client affordance without the matching effective server-side decision.
 >
 > **MAJOR (convention / hygiene — fix fast, not a vuln):**
 >
 > - Permission strings hard-coded as bare literals (`'portal.create'`) instead of referencing the permission constant/enum in `shared/auth/permissions.ts`.
 > - A role check that uses string equality (`role === 'AccountAdmin'`) when a permission would express intent (`can(role, 'role.manage')`). Roles are who you are; permissions are what you can do.
-> - The three forbidden API misuses (boolean perm props / `hasRole()` for gating / `toDomainRole()` on a mapped role) when a server-side check does backstop them.
+> - The forbidden API misuses above when an effective server-side decision does
+>   backstop them.
 > - Permission added in `shared/auth/permissions.ts` but no role grants it (dead permission), or granted to a role with no use case enforcing it.
 > - New permission introduced without an ADR note when it crosses an existing role boundary (e.g. giving Staff a write permission).
-> - `AuthContext` constructed anywhere outside `resolveTenantContext()`.
+> - Interactive `AuthContext` constructed anywhere outside the Identity-owned
+>   resolver path.
 > - Permission cached longer than the tenant cache TTL (`shared/auth/middleware.ts`) — risks stale role after role change.
 >
 > End with: a permission matrix table — rows = permissions used in scope, columns = `AccountAdmin | PropertyManager | Staff`, cells = `granted? / enforced where?`. Highlight any row with "granted but not enforced" or "enforced but not granted to any role."

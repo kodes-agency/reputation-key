@@ -8,7 +8,10 @@ import { requireAuth } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
 import { getAuth } from '#/shared/auth/auth'
+import { checkUserOrganizationBinding } from '#/shared/auth/user-organization-binding-authority'
+import { throwAuthError } from '#/shared/auth/auth-errors'
 import { getContainer } from '#/composition'
+import { invitationId } from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
 import {
   assertGlobalCapability,
@@ -24,7 +27,7 @@ import {
 
 // ── Registration gate (B0.6 capability check) ───────────────────────
 // BQC-5.3: the /register route's beforeLoad must not import beta-capabilities
-// directly — its lazy policy store reads process.env, which does not exist in
+// directly — its lazy policy store reads process configuration, which does not exist in
 // the browser module graph (client-side navigation to /register crashed on
 // `process`). The gate runs server-side and returns a typed signal that the
 // route maps to a redirect.
@@ -49,13 +52,13 @@ export const getRegistrationGate = createServerFn({ method: 'GET' }).handler(
 // ── Register user only (no organization) ────────────────────────────
 // Used by invited members joining an existing org via /join.
 export const registerMember = createServerFn({ method: 'POST' })
-  .inputValidator(registerMemberInputSchema)
+  .validator(registerMemberInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
-        // B0.6: Public registration is a non-core capability — disabled by
-        // default in beta. Operators enable it via BETA_ALLOWLIST_ORGS.
-        assertGlobalCapability('identity.register')
+        // This is the sole beta account-creation route. The use case requires
+        // and consumes an exact email-bound manager invitation; the separate
+        // public-registration capability remains permanently blocked.
         const reqHeaders = await headersFromContext()
         const ip = clientIpFromHeaders(reqHeaders)
         const { rateLimiter: rl } = getContainer()
@@ -68,8 +71,10 @@ export const registerMember = createServerFn({ method: 'POST' })
           )
         }
         try {
-          const { useCases } = getContainer()
-          await useCases.registerUser(data)
+          await getContainer().identityPublicApi.requests.registerInvitedUser({
+            ...data,
+            invitationId: invitationId(data.invitationId),
+          })
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
@@ -82,12 +87,12 @@ export const registerMember = createServerFn({ method: 'POST' })
 
 // ── Register user + create organization ────────────────────────────
 export const registerUserAndOrg = createServerFn({ method: 'POST' })
-  .inputValidator(registerUserInputSchema)
+  .validator(registerUserInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
-        // B0.6: Self-service org creation is a non-core capability — disabled
-        // by default in beta. Operators enable it via BETA_ALLOWLIST_ORGS.
+        // Self-service org creation is a permanently blocked beta capability.
+        // The dormant implementation stays behind this server-side boundary.
         assertGlobalCapability('organization.create')
         const reqHeaders = await headersFromContext()
         const ip = clientIpFromHeaders(reqHeaders)
@@ -101,8 +106,7 @@ export const registerUserAndOrg = createServerFn({ method: 'POST' })
           )
         }
         try {
-          const { useCases } = getContainer()
-          await useCases.registerUserAndOrg(data)
+          await getContainer().identityPublicApi.requests.registerUserAndOrg(data)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
@@ -117,13 +121,13 @@ export const registerUserAndOrg = createServerFn({ method: 'POST' })
 // Direct delegation: no use case because this is pure delegation to better-auth.
 
 export const signInUser = createServerFn({ method: 'POST' })
-  .inputValidator(signInInputSchema)
+  .validator(signInInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const reqHeaders = await headersFromContext()
         const ip = clientIpFromHeaders(reqHeaders)
-        const { rateLimiter: rl } = getContainer()
+        const { rateLimiter: rl, logger } = getContainer()
         const rlResult = await rl.check(`auth:signin:${ip}`)
         if (!rlResult.allowed) {
           throwContextError(
@@ -160,12 +164,8 @@ export const signInUser = createServerFn({ method: 'POST' })
             setResponseHeader('Set-Cookie', setCookies)
           }
         } catch (e) {
-          const { getLogger } = await import('#/shared/observability/logger')
           const { maskEmail } = await import('#/shared/observability/pii')
-          getLogger().warn(
-            { emailPrefix: maskEmail(data.email), err: e },
-            'Sign-in failed',
-          )
+          logger.warn({ emailPrefix: maskEmail(data.email), err: e }, 'Sign-in failed')
           // Distinguish infrastructure errors (5xx) from auth errors (401).
           // better-auth APIError carries a statusCode property.
           const statusCode = (e as { statusCode?: number }).statusCode
@@ -194,13 +194,20 @@ export const signInUser = createServerFn({ method: 'POST' })
 // ── Set active organization ────────────────────────────────────────
 
 export const setActiveOrganization = createServerFn({ method: 'POST' })
-  .inputValidator(setActiveOrgInputSchema)
+  .validator(setActiveOrgInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         try {
           const headers = await headersFromContext()
-          await requireAuth(headers)
+          const user = await requireAuth(headers)
+          const binding = await checkUserOrganizationBinding(user.id, data.organizationId)
+          if (binding.kind === 'deny') {
+            throwAuthError(
+              'organization_binding_conflict',
+              'This account is bound to a different Organization',
+            )
+          }
           const auth = getAuth()
 
           await auth.api.setActiveOrganization({

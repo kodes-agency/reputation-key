@@ -21,7 +21,7 @@ type Props = Readonly<{
 export function NotificationRowMeta({ payload, coalescedCount }: Props) {
   const waiting = formatWaitingAge(payload.waitingHours)
   const hasProperty = payload.propertyName !== undefined
-  const hasRating = payload.rating !== undefined
+  const hasRating = payload.guestRating !== undefined
   const hasRepeats = coalescedCount > 1
 
   if (!hasProperty && !hasRating && waiting === '' && !hasRepeats) return null
@@ -40,10 +40,10 @@ export function NotificationRowMeta({ payload, coalescedCount }: Props) {
           <span className="truncate">{payload.propertyName}</span>
         </Badge>
       )}
-      {hasRating && payload.rating !== undefined && (
+      {hasRating && payload.guestRating !== undefined && (
         <StarRating
-          value={payload.rating}
-          label={`Rated ${payload.rating} out of 5 stars`}
+          value={payload.guestRating}
+          label={`Rated ${payload.guestRating} out of 5 stars`}
         />
       )}
       {waiting !== '' && (

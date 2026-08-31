@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs'
+import { closeSync, constants, fstatSync, openSync, readFileSync } from 'node:fs'
 import {
   Agent as HttpsAgent,
   createServer,
@@ -12,7 +12,7 @@ import {
   type DetailedPeerCertificate,
   type TLSSocket,
 } from 'node:tls'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 import {
   isApplicationJsonUtf8,
@@ -29,18 +29,36 @@ export type InternalPeerIdentityResolver = (
   certificate: DetailedPeerCertificate,
 ) => string | null
 
+// Stat the descriptor, not the path. A `statSync(path)` followed by a
+// `readFileSync(path)` checks one inode and reads another if the path is
+// swapped in between — a mount or secret-rotation symlink flip is enough — so
+// the size bound that was checked is not the size bound that was read. Opening
+// once and validating the open descriptor makes the checked object and the read
+// object the same by construction.
+//
+// O_NONBLOCK is what keeps that safe. The `isFile()` guard can only run AFTER
+// the open, and a plain `O_RDONLY` open of a FIFO blocks until a writer
+// appears — so the same swapped path that motivates this fix could point at a
+// FIFO and hang the process forever, where the old path-stat rejected it
+// immediately. With O_NONBLOCK the open returns, `fstat` reports the FIFO, and
+// the guard refuses it. It has no effect on a regular file.
 function readTlsFile(path: string): Buffer {
-  const stat = statSync(path)
-  if (!stat.isFile() || stat.size < 1 || stat.size > 1024 * 1024) {
-    throw new Error('internal mTLS material is invalid')
+  const descriptor = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK)
+  try {
+    const stat = fstatSync(descriptor)
+    if (!stat.isFile() || stat.size < 1 || stat.size > 1024 * 1024) {
+      throw new Error('internal mTLS material is invalid')
+    }
+    return readFileSync(descriptor)
+  } finally {
+    closeSync(descriptor)
   }
-  return readFileSync(path)
 }
 
 class InternalRequestRejectedError extends Error {}
 class InternalPeerRejectedError extends Error {}
 
-export function loadInternalMtlsMaterial(
+function loadInternalMtlsMaterial(
   input: Readonly<{
     caPath: string
     certPath: string
@@ -107,6 +125,47 @@ export function loadInternalMtlsMaterialFromBase64(
     for (const material of decoded) material.fill(0)
     throw new Error('internal mTLS material is invalid')
   }
+}
+
+/**
+ * Expand/cutover resolver for platforms that supply secrets either as mounted
+ * files or variables. Exactly one complete representation is accepted; a
+ * partial or mixed triplet fails before any protected listener is opened.
+ */
+export function loadInternalMtlsMaterialFromOneSource(
+  input: Readonly<{
+    path: Readonly<{
+      ca?: string
+      cert?: string
+      key?: string
+    }>
+    base64: Readonly<{
+      ca?: string
+      cert?: string
+      key?: string
+    }>
+  }>,
+): InternalMtlsMaterial {
+  const path = [input.path.ca, input.path.cert, input.path.key]
+  const base64 = [input.base64.ca, input.base64.cert, input.base64.key]
+  const configuredPaths = path.filter((value): value is string => !!value)
+  const configuredBase64 = base64.filter((value): value is string => !!value)
+
+  if (configuredBase64.length === 3 && configuredPaths.length === 0) {
+    return loadInternalMtlsMaterialFromBase64({
+      ca: configuredBase64[0]!,
+      cert: configuredBase64[1]!,
+      key: configuredBase64[2]!,
+    })
+  }
+  if (configuredPaths.length === 3 && configuredBase64.length === 0) {
+    return loadInternalMtlsMaterial({
+      caPath: configuredPaths[0]!,
+      certPath: configuredPaths[1]!,
+      keyPath: configuredPaths[2]!,
+    })
+  }
+  throw new Error('internal mTLS material must use exactly one complete source')
 }
 
 export function createExactSpiffePeerIdentityResolver(

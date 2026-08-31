@@ -5,4 +5,4 @@ export type {
   PortalLinkItem,
 } from './public-portal/public-portal-content'
 export { PortalUnavailable } from './portal-unavailable'
-export { CookieConsentBanner } from './cookie-consent-banner'
+export { GuestAnalyticsNotice } from './guest-analytics-notice'

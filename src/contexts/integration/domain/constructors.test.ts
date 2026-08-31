@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { buildGoogleConnection } from './constructors'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 const now = new Date('2025-06-01T00:00:00Z')
 
@@ -21,6 +22,11 @@ describe('buildGoogleConnection', () => {
     tokenExpiresAt: new Date('2025-12-01T00:00:00Z'),
     scopes: ['https://www.googleapis.com/auth/business.manage'],
     connectedBy: userId('user-1'),
+    credentialHome: {
+      homeCellId: 'us' as const,
+      cataloguePolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+      authorityGeneration: 1,
+    },
     now,
   }
 

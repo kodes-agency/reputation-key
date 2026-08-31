@@ -1,97 +1,121 @@
-import { GuestResponseForm, type GuestResponseFormProps } from './guest-response-form'
+import {
+  GuestResponseForm,
+  type GuestResponseAction,
+  type GuestResponseFormProps,
+} from './guest-response-form'
+import {
+  PortalSecondaryLinks,
+  type PortalCategory,
+  type PortalLinkItem,
+} from './portal-secondary-links'
+import type { PublicGoogleReviewDestination } from '#/contexts/portal/application/public-api'
+import { getGuestPortalCopy } from './guest-language-pack'
+import { PortalLanguageNav } from './portal-language-nav'
+import { resolvePortalLocale, type PortalLocalization } from './portal-localization'
+import { resolvePortalThemeStyle } from './portal-theme-style'
 
-export type PortalCategory = {
-  id: string
-  title: string
-}
-
-export type PortalLinkItem = {
-  id: string
-  label: string
-  url: string
-  categoryId: string | null
-}
+export type { PortalCategory, PortalLinkItem } from './portal-secondary-links'
 
 export type PublicPortalContentProps = Readonly<{
   /** Omitted only by authenticated manager previews. Public pages must supply it. */
   token?: string
+  /** Public channel marker preserved when the guest switches language. */
+  accessArtifactId?: string
   portal: {
-    id: string
     name: string
     description: string | null
     organizationName: string
     heroImageUrl: string | null
     theme: Record<string, string | number | boolean | null> | null
+    logoUrl?: string | null
   }
   categories: ReadonlyArray<PortalCategory>
   links: ReadonlyArray<PortalLinkItem>
-  responseForm?: Omit<GuestResponseFormProps, 'token'>
+  reviewGateway?: Readonly<{
+    privateFeedbackThreshold: number
+    googleReview: Readonly<{ status: PublicGoogleReviewDestination['status'] }>
+  }>
+  localization?: PortalLocalization
+  selectSecondaryLink?: GuestResponseAction<
+    { token: string; csrfNonce: string; linkId: string },
+    { url: string }
+  >
+  responseForm?: Omit<
+    GuestResponseFormProps,
+    'token' | 'googleReview' | 'locale' | 'languagePackVersion'
+  >
 }>
 
-// `--portal-primary` is the manager's accent: it is the only colour the settings
-// UI has ever let them change, and until now nothing on this page read it. It
-// drives the section headings, the destination rules and the focus ring below.
-const DESTINATION_CLASS =
-  'block rounded-lg border border-l-4 p-3 transition-colors hover:[background-color:var(--portal-accent-soft)] focus-visible:ring-2 focus-visible:ring-[color:var(--portal-primary)] focus-visible:outline-none'
-
-const DESTINATION_STYLE = {
-  borderColor: 'var(--portal-accent-border)',
-  borderLeftColor: 'var(--portal-primary)',
-  color: 'inherit',
-}
-
-const HEADING_STYLE = { color: 'var(--portal-primary)' }
-
-/** Secondary text. See `--portal-text-muted` for why this is not `opacity-*`. */
+/**
+ * Secondary text. See `resolvePortalThemeStyle` for why `--portal-text-muted`
+ * is an opaque mixed colour rather than an `opacity-*` utility.
+ */
 const MUTED_STYLE = { color: 'var(--portal-text-muted)' }
 
 export function PublicPortalContent({
   token,
+  accessArtifactId,
   portal,
   categories,
   links,
+  reviewGateway,
+  localization,
+  selectSecondaryLink,
   responseForm,
 }: PublicPortalContentProps) {
-  // The stored theme is an open JSON record, so each colour is narrowed rather
-  // than asserted; the fallbacks match the domain default theme (#6366F1).
-  const primaryColor =
-    typeof portal.theme?.primaryColor === 'string' ? portal.theme.primaryColor : '#6366F1'
-  const backgroundColor =
-    typeof portal.theme?.backgroundColor === 'string'
-      ? portal.theme.backgroundColor
-      : '#ffffff'
-  const textColor =
-    typeof portal.theme?.textColor === 'string' ? portal.theme.textColor : '#111827'
+  const { selectedLocale, languagePackVersion } = resolvePortalLocale(localization)
+  const copy = getGuestPortalCopy(selectedLocale, languagePackVersion)
+  const themeStyle = resolvePortalThemeStyle(portal.theme)
 
-  const themeStyle = {
-    '--portal-primary': primaryColor,
-    '--portal-bg': backgroundColor,
-    '--portal-text': textColor,
-    // Derived tints so surfaces and rules track the accent instead of the
-    // hardcoded grays that used to make the Dark palette unreadable.
-    '--portal-accent-soft': `color-mix(in srgb, ${primaryColor} 12%, transparent)`,
-    '--portal-accent-border': `color-mix(in srgb, ${primaryColor} 40%, transparent)`,
-    // Secondary text is mixed toward the portal's OWN background rather than
-    // dimmed with `opacity-*`. Opacity composites against whatever happens to
-    // be painted behind the element, so a preview rendered on a dark surface
-    // produced dark-on-dark text (axe measured 1.08:1). Mixing on the
-    // text→background axis yields an opaque colour whose contrast is a property
-    // of the palette, not of the container.
-    '--portal-text-muted': `color-mix(in srgb, ${textColor} 72%, ${backgroundColor})`,
-  }
+  const secondaryLinks =
+    links.length > 0
+      ? (activeCsrfNonce: string) => (
+          <PortalSecondaryLinks
+            token={token}
+            csrfNonce={activeCsrfNonce}
+            organizationName={portal.organizationName}
+            categories={categories}
+            links={links}
+            selectSecondaryLink={selectSecondaryLink}
+            locale={selectedLocale}
+            languagePackVersion={languagePackVersion}
+          />
+        )
+      : undefined
 
-  const uncategorizedLinks = links.filter((link) => link.categoryId === null)
+  const isPublicPortal = token !== undefined
+  const publicGatewayReady =
+    isPublicPortal && responseForm !== undefined && reviewGateway !== undefined
 
   return (
     <div
       className="min-h-screen"
+      lang={selectedLocale}
+      dir="ltr"
       style={{
         backgroundColor: 'var(--portal-bg, #ffffff)',
         color: 'var(--portal-text, #111827)',
         ...themeStyle,
       }}
     >
-      <div className="mx-auto max-w-lg space-y-8 px-4 py-8">
+      {/* `main` is the landmark every word below belongs to. Without it a
+          screen-reader user navigating by landmark finds nothing on the guest
+          surface — axe reports it as landmark-one-main plus a region
+          violation for the heading. */}
+      <main className="mx-auto max-w-lg space-y-8 px-4 py-8">
+        <PortalLanguageNav
+          token={token}
+          accessArtifactId={accessArtifactId}
+          localization={localization}
+          navigationLabel={copy.languageNavigationLabel}
+        />
+        {portal.logoUrl && (
+          <img
+            src={portal.logoUrl}
+            alt={copy.portalLogoAlt(portal.organizationName)}
+            className="mx-auto h-16 max-w-48 object-contain"
+          />
+        )}
         {portal.heroImageUrl && (
           <img
             src={portal.heroImageUrl}
@@ -118,86 +142,32 @@ export function PublicPortalContent({
           </p>
         )}
 
-        {links.length === 0 ? (
-          // A published portal with no destinations used to render a bare title
-          // and nothing else: every category mapped to null and there was no
-          // fallback. The server now refuses to publish an empty portal, so this
-          // covers the residual case — links removed after publication.
-          <div
-            role="status"
-            className="rounded-lg border border-dashed p-6 text-center"
-            style={{ borderColor: 'var(--portal-accent-border)' }}
-          >
-            <p className="font-medium">No review destinations yet</p>
-            <p className="mt-1 text-sm" style={MUTED_STYLE}>
-              {portal.organizationName} has not added anywhere to leave a review on this
-              page yet.
-              {token && responseForm
-                ? ' You can still send your feedback directly below.'
-                : ''}
-            </p>
-          </div>
+        {publicGatewayReady ? (
+          <GuestResponseForm
+            token={token}
+            googleReview={reviewGateway.googleReview}
+            locale={selectedLocale}
+            languagePackVersion={languagePackVersion}
+            secondaryLinks={secondaryLinks}
+            {...responseForm}
+          />
+        ) : isPublicPortal ? (
+          <section role="status" className="rounded-lg border p-5 text-center">
+            <h2 className="font-semibold">{copy.gatewayUnavailableTitle}</h2>
+            <p className="mt-2 text-sm">{copy.gatewayUnavailableBody}</p>
+          </section>
         ) : (
-          <nav aria-label="Review destinations" className="space-y-6">
-            {categories.map((category) => {
-              const categoryLinks = links.filter(
-                (link) => link.categoryId === category.id,
-              )
-              if (categoryLinks.length === 0) return null
-              return (
-                <section key={category.id} className="space-y-2">
-                  <h2 className="text-lg font-semibold" style={HEADING_STYLE}>
-                    {category.title}
-                  </h2>
-                  <div className="space-y-2">
-                    {categoryLinks.map((link) => (
-                      <a
-                        key={link.id}
-                        href={
-                          token
-                            ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
-                            : link.url
-                        }
-                        rel="noreferrer"
-                        className={DESTINATION_CLASS}
-                        style={DESTINATION_STYLE}
-                      >
-                        {link.label}
-                      </a>
-                    ))}
-                  </div>
-                </section>
-              )
-            })}
-            {uncategorizedLinks.length > 0 && (
-              <section className="space-y-2">
-                <h2 className="text-lg font-semibold" style={HEADING_STYLE}>
-                  More destinations
-                </h2>
-                <div className="space-y-2">
-                  {uncategorizedLinks.map((link) => (
-                    <a
-                      key={link.id}
-                      href={
-                        token
-                          ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
-                          : link.url
-                      }
-                      rel="noreferrer"
-                      className={DESTINATION_CLASS}
-                      style={DESTINATION_STYLE}
-                    >
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              </section>
-            )}
-          </nav>
+          <>
+            <section className="rounded-lg border p-5 text-center">
+              <h2 className="text-lg font-semibold">{copy.previewRatingTitle}</h2>
+              <p className="mt-1 text-sm" style={MUTED_STYLE}>
+                {copy.previewRatingBody}
+              </p>
+            </section>
+            {secondaryLinks?.(responseForm?.csrfNonce ?? '')}
+          </>
         )}
-
-        {token && responseForm && <GuestResponseForm token={token} {...responseForm} />}
-      </div>
+      </main>
     </div>
   )
 }

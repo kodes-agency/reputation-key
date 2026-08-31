@@ -11,6 +11,7 @@ import type { GoogleConnection } from '../domain/types'
 import { integrationError } from '../domain/errors'
 import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { TOKEN_EXPIRY_BUFFER_MS } from './constants'
+import type { AssertDirectGoogleCredentialUse } from './google-credential-execution-gate'
 
 export type ActiveConnectionTokenProviderDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -24,6 +25,7 @@ export type ActiveConnectionTokenProviderDeps = Readonly<{
       expectedCredentialGeneration?: number
     }>,
   ) => Promise<GoogleConnection>
+  assertDirectCredentialUse: AssertDirectGoogleCredentialUse
 }>
 
 // ── Token expiry decision table (pure) ──────────────────────────
@@ -41,12 +43,17 @@ export function decideTokenFreshness(expiresAtMs: number, nowMs: number): TokenF
 
 export type ActiveConnectionTokenProvider = Readonly<{
   /** Access token for the org's active connection — refreshing it first when stale. */
-  getAccessToken: (orgId: OrganizationId, connectionId: string) => Promise<string>
+  getAccessToken: (
+    orgId: OrganizationId,
+    connectionId: string,
+    propertyIds?: readonly string[],
+  ) => Promise<string>
   /** Force a provider refresh after a 401, fenced to the credential that failed. */
   forceRefreshAccessToken: (
     orgId: OrganizationId,
     connectionId: string,
     expectedCredentialGeneration: number,
+    propertyIds?: readonly string[],
   ) => Promise<string>
 }>
 
@@ -72,8 +79,9 @@ export const createActiveConnectionTokenProvider = (
   }
 
   return {
-    getAccessToken: async (orgId, connectionId) => {
+    getAccessToken: async (orgId, connectionId, propertyIds) => {
       const connection = await getActiveConnection(orgId, connectionId)
+      await deps.assertDirectCredentialUse(connection, propertyIds)
       const freshness = decideTokenFreshness(
         connection.tokenExpiresAt.getTime(),
         deps.clock().getTime(),
@@ -82,6 +90,7 @@ export const createActiveConnectionTokenProvider = (
         const refreshed = await deps.refreshGoogleToken(orgId, connectionId, {
           expectedCredentialGeneration: connection.credentialGeneration,
         })
+        await deps.assertDirectCredentialUse(refreshed, propertyIds)
         return deps.encryption.decrypt(refreshed.encryptedAccessToken)
       }
       return deps.encryption.decrypt(connection.encryptedAccessToken)
@@ -90,8 +99,10 @@ export const createActiveConnectionTokenProvider = (
       orgId,
       connectionId,
       expectedCredentialGeneration,
+      propertyIds,
     ) => {
       const connection = await getActiveConnection(orgId, connectionId)
+      await deps.assertDirectCredentialUse(connection, propertyIds)
       if (connection.credentialGeneration !== expectedCredentialGeneration) {
         return deps.encryption.decrypt(connection.encryptedAccessToken)
       }
@@ -99,6 +110,7 @@ export const createActiveConnectionTokenProvider = (
         force: true,
         expectedCredentialGeneration,
       })
+      await deps.assertDirectCredentialUse(refreshed, propertyIds)
       return deps.encryption.decrypt(refreshed.encryptedAccessToken)
     },
   }

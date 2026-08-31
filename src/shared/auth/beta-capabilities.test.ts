@@ -12,6 +12,7 @@ import {
   isCoreCapability,
   isBlockedCapability,
   isCapabilityJobEnabled,
+  listAllCapabilities,
   checkGlobalCapability,
   type CapabilityPolicyStore,
 } from './beta-capabilities'
@@ -109,7 +110,7 @@ describe('BetaCapabilities', () => {
       expect(decision.allowed).toBe(false)
       expect(decision.reason).toBe('capability_blocked')
     })
-    it('promotes Portal write, upload, guest, and email through scoped allowlists', () => {
+    it('promotes safe Portal, guest, and email capabilities through scoped allowlists', () => {
       const ctx = buildTestAuthContext()
       initCapabilityPolicyStore(
         makeStore({
@@ -121,12 +122,9 @@ describe('BetaCapabilities', () => {
 
       for (const capability of [
         'portal.write',
-        'portal.upload',
         'portal.public_read',
         'portal.guest_response',
         'portal.guest_text',
-        'portal.guest_contact',
-        'portal.guest_media',
         'notification.send_email',
       ] as const) {
         expect(
@@ -146,6 +144,50 @@ describe('BetaCapabilities', () => {
           ).reason,
         ).toBe('property_not_allowlisted')
       }
+    })
+
+    it('keeps Contact Request activation dark even when every scoped policy seam allows it', () => {
+      const ctx = buildTestAuthContext()
+      initCapabilityPolicyStore(
+        makeStore({
+          isCapabilityGloballyEnabled: () => true,
+          isOrgAllowlisted: () => true,
+          isPropertyAllowlisted: () => true,
+        }),
+      )
+
+      expect(
+        checkScopedCapability(
+          { organizationId: ctx.organizationId, propertyId: 'p1' },
+          'portal.guest_contact',
+        ),
+      ).toEqual({
+        allowed: false,
+        reason: 'capability_blocked',
+        capability: 'portal.guest_contact',
+      })
+    })
+
+    it('denies Portal upload even when every scoped policy seam allows it', () => {
+      const ctx = buildTestAuthContext()
+      initCapabilityPolicyStore(
+        makeStore({
+          isCapabilityGloballyEnabled: () => true,
+          isOrgAllowlisted: () => true,
+          isPropertyAllowlisted: () => true,
+        }),
+      )
+
+      expect(
+        checkScopedCapability(
+          { organizationId: ctx.organizationId, propertyId: 'p1' },
+          'portal.upload',
+        ),
+      ).toEqual({
+        allowed: false,
+        reason: 'capability_blocked',
+        capability: 'portal.upload',
+      })
     })
 
     it('denies all capabilities when org is suspended', () => {
@@ -262,15 +304,15 @@ describe('BetaCapabilities', () => {
       expect(store.isOrgAllowlisted('org-1', 'goal.use')).toBe(false)
     })
 
-    it('enables listed non-core capabilities via BETA_E2E_GLOBAL_CAPABILITIES', () => {
+    it('enables listed promotable capabilities but never legacy recognition via E2E override', () => {
       const store = createEnvCapabilityPolicyStore({
-        BETA_E2E_GLOBAL_CAPABILITIES: 'identity.register,organization.create,team.use',
+        BETA_E2E_GLOBAL_CAPABILITIES: 'goal.use,badge.use,identity.register',
       })
-      expect(store.isCapabilityGloballyEnabled('identity.register')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('organization.create')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('team.use')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('goal.use')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('badge.use')).toBe(false)
+      expect(store.isCapabilityGloballyEnabled('identity.register')).toBe(false)
       // Unlisted non-core stay off
-      expect(store.isCapabilityGloballyEnabled('goal.use')).toBe(false)
+      expect(store.isCapabilityGloballyEnabled('leaderboard.use')).toBe(false)
     })
 
     it('enables promotable email but never permanent prohibitions via E2E override', () => {
@@ -314,18 +356,29 @@ describe('BetaCapabilities', () => {
   })
 
   describe('capability metadata', () => {
+    it('publishes each capability exactly once', () => {
+      const capabilities = listAllCapabilities()
+      expect(new Set(capabilities).size).toBe(capabilities.length)
+    })
+
     it('identifies core capabilities', () => {
       expect(isCoreCapability('identity.invite')).toBe(true)
       expect(isCoreCapability('goal.use')).toBe(false)
       expect(isCoreCapability('portal.read')).toBe(false)
     })
 
-    it('identifies only permanent Google prohibitions as blocked', () => {
+    it('identifies permanent prohibitions and the temporary upload containment', () => {
       expect(isBlockedCapability('gbp.reply.auto_publish')).toBe(true)
       expect(isBlockedCapability('gbp.ai.cross_property_summary')).toBe(true)
       expect(isBlockedCapability('gbp.review_solicitation_gamification')).toBe(true)
       expect(isBlockedCapability('portal.write')).toBe(false)
-      expect(isBlockedCapability('portal.upload')).toBe(false)
+      expect(isBlockedCapability('portal.upload')).toBe(true)
+      expect(isBlockedCapability('identity.custom_roles')).toBe(true)
+      expect(isBlockedCapability('identity.register')).toBe(true)
+      expect(isBlockedCapability('organization.create')).toBe(true)
+      expect(isBlockedCapability('team.use')).toBe(true)
+      expect(isBlockedCapability('badge.use')).toBe(true)
+      expect(isBlockedCapability('leaderboard.use')).toBe(true)
       expect(isBlockedCapability('notification.send_email')).toBe(false)
     })
   })
@@ -336,19 +389,23 @@ describe('BetaCapabilities', () => {
       expect(isCapabilityJobEnabled('identity.invite')).toBe(true)
     })
 
-    it('registers every promotable capability job', () => {
+    it('registers promotable jobs but not beta-blocked legacy recognition jobs', () => {
       expect(isCapabilityJobEnabled('goal.use')).toBe(true)
-      expect(isCapabilityJobEnabled('badge.use')).toBe(true)
-      expect(isCapabilityJobEnabled('leaderboard.use')).toBe(true)
-      expect(isCapabilityJobEnabled('team.use')).toBe(true)
+      expect(isCapabilityJobEnabled('badge.use')).toBe(false)
+      expect(isCapabilityJobEnabled('leaderboard.use')).toBe(false)
+      expect(isCapabilityJobEnabled('team.use')).toBe(false)
       expect(isCapabilityJobEnabled('portal.read')).toBe(true)
     })
 
     it('keeps promotable jobs registered while scoped execution remains policy-gated', () => {
       expect(isCapabilityJobEnabled('notification.send_email')).toBe(true)
       expect(isCapabilityJobEnabled('goal.use')).toBe(true)
-      expect(isCapabilityJobEnabled('portal.guest_media')).toBe(true)
+      expect(isCapabilityJobEnabled('portal.guest_media')).toBe(false)
       expect(checkGlobalCapability('notification.send_email').allowed).toBe(false)
+    })
+
+    it('does not register the temporarily blocked Portal image job', () => {
+      expect(isCapabilityJobEnabled('portal.upload')).toBe(false)
     })
   })
 

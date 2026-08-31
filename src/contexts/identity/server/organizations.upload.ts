@@ -26,17 +26,17 @@ const requestOrgLogoUploadSchema = z.object({
 })
 
 export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
-  .inputValidator(requestOrgLogoUploadSchema)
+  .validator(requestOrgLogoUploadSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'identity.logo_upload' })
-        const { storage } = getContainer()
+        const { assetStorage: storage, idGen } = getContainer()
         const useCase = requestOrgLogoUploadUseCase({
           storage,
-          idGen: () => globalThis.crypto.randomUUID(),
+          idGen,
         })
         try {
           return await useCase(data, ctx)
@@ -55,14 +55,14 @@ const finalizeOrgLogoUploadSchema = z.object({
 })
 
 export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
-  .inputValidator(finalizeOrgLogoUploadSchema)
+  .validator(finalizeOrgLogoUploadSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'identity.logo_upload' })
-        const { storage } = getContainer()
+        const { assetStorage: storage } = getContainer()
         const useCase = finalizeOrgLogoUploadUseCase({
           storage,
           // Persist the logo via the auth provider — injected as a closure so the
@@ -94,17 +94,17 @@ const requestAvatarUploadSchema = z.object({
 })
 
 export const requestAvatarUpload = createServerFn({ method: 'POST' })
-  .inputValidator(requestAvatarUploadSchema)
+  .validator(requestAvatarUploadSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'identity.avatar_upload' })
-        const { storage } = getContainer()
+        const { assetStorage: storage, idGen } = getContainer()
         const useCase = requestAvatarUploadUseCase({
           storage,
-          idGen: () => globalThis.crypto.randomUUID(),
+          idGen,
         })
         try {
           return await useCase(data, ctx)
@@ -123,14 +123,14 @@ const finalizeAvatarUploadSchema = z.object({
 })
 
 export const finalizeAvatarUpload = createServerFn({ method: 'POST' })
-  .inputValidator(finalizeAvatarUploadSchema)
+  .validator(finalizeAvatarUploadSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'identity.avatar_upload' })
-        const { storage } = getContainer()
+        const { assetStorage: storage } = getContainer()
         const useCase = finalizeAvatarUploadUseCase({ storage })
         try {
           return await useCase(data, ctx)

@@ -15,28 +15,33 @@ export type GetDashboardDataInput = Readonly<{
   startDate: Date
   endDate: Date
   timeRange: TimeRangePreset
+  propertyTimezone: string
 }>
 
 export type GetDashboardDataDeps = Readonly<{
   repo: DashboardRepository
-  clock: () => Date
 }>
-export type GetDashboardData = ReturnType<typeof getDashboardData>
+export type GetDashboardData = (input: GetDashboardDataInput) => Promise<DashboardData>
 
 export const getDashboardData =
   (deps: GetDashboardDataDeps) =>
   async (input: GetDashboardDataInput): Promise<DashboardData> => {
-    const { organizationId, propertyId, portalId, startDate, endDate, timeRange } = input
+    const {
+      organizationId,
+      propertyId,
+      portalId,
+      startDate,
+      endDate,
+      timeRange,
+      propertyTimezone,
+    } = input
 
-    // priorPeriodDates returns null for 'all' (no prior window). repo.getKPIs
-    // still requires concrete bounds, so this path keeps the historical
-    // self-comparison until DashboardKPIQuery admits an absent prior period —
-    // same defect class as the portal-analytics fix, tracked separately.
-    const { priorStartDate, priorEndDate } = priorPeriodDates(
+    const comparisonPeriod = priorPeriodDates(
       timeRange,
       startDate,
       endDate,
-    ) ?? { priorStartDate: startDate, priorEndDate: endDate }
+      propertyTimezone,
+    )
 
     const { repo } = deps
 
@@ -57,8 +62,7 @@ export const getDashboardData =
         portalId: portalId ?? undefined,
         startDate,
         endDate,
-        priorStartDate,
-        priorEndDate,
+        comparisonPeriod,
       }),
       repo.getRatingDistribution({ organizationId, propertyId, startDate, endDate }),
       repo.getRatingTrend({ organizationId, propertyId, startDate, endDate }),

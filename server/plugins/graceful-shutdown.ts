@@ -24,6 +24,7 @@ import { closeRedis } from '#/shared/cache/redis'
 import { closePool } from '#/shared/db/pool'
 import { closeWebResources } from '#/shared/lifecycle/graceful-shutdown'
 import { getLogger } from '#/shared/observability/logger'
+import { flushObservability } from '#/shared/observability/telemetry'
 
 const CLOSE_BUDGET_MS = 3_000
 
@@ -33,9 +34,21 @@ export default definePlugin(() => {
     logger.info({ signal }, 'Shutdown signal received, closing app resources')
     void closeWebResources(
       [
-        { name: 'container-queues', close: closeContainer },
+        // ARC-03-T6: closeContainer runs the container's own shutdown seam
+        // (identity policy poller and any future container-owned background
+        // work) BEFORE detaching the BullMQ queues, so the web process no
+        // longer leaves a live policy-refresh interval behind on SIGTERM.
+        { name: 'container-shutdown', close: closeContainer },
         { name: 'redis', close: closeRedis },
         { name: 'pg-pool', close: closePool },
+        {
+          name: 'error-monitoring',
+          close: async () => {
+            if (!(await flushObservability())) {
+              throw new Error('Error monitoring flush incomplete')
+            }
+          },
+        },
       ],
       { budgetMs: CLOSE_BUDGET_MS, logger },
     ).then((failures) => {

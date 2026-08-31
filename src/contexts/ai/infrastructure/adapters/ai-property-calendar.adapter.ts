@@ -4,7 +4,7 @@ import type { AiPropertyCalendarPort } from '../../application/ports/ai-property
 
 const LOCAL_DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/
 
-export function createAiPropertyCalendarAdapter(db: Database): AiPropertyCalendarPort {
+export const createAiPropertyCalendarAdapter = (db: Database): AiPropertyCalendarPort => {
   return Object.freeze({
     async assertComplete() {
       const result = await db.execute(

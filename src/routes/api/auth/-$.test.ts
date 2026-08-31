@@ -47,7 +47,13 @@ const IDENTITY = 'local-playwright-e2e'
 
 /** The env the route sees, plus the raw process.env a truthiness read would see. */
 function useEnv(overrides: Record<string, unknown>) {
-  mocks.env = { NODE_ENV: 'production', TRUSTED_PROXY_COUNT: 1, ...overrides }
+  mocks.env = {
+    NODE_ENV: 'production',
+    TRUSTED_PROXY_MODE: 'railway-edge',
+    TRUSTED_PROXY_COUNT: 1,
+    TRUSTED_PROXY_MAX_HOPS: 8,
+    ...overrides,
+  }
   if (typeof overrides.E2E === 'string') process.env.E2E = overrides.E2E
   else delete process.env.E2E
 }
@@ -62,7 +68,11 @@ async function loadRoute() {
 function signInPost() {
   return new Request('http://localhost:3000/api/auth/sign-in/email', {
     method: 'POST',
-    headers: { 'x-forwarded-for': '203.0.113.5, 10.0.0.1' },
+    headers: {
+      'x-real-ip': '203.0.113.5',
+      'x-railway-edge': 'ams1',
+      'x-railway-request-id': 'request-1',
+    },
   })
 }
 

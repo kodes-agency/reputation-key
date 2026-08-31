@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { CapabilityPolicyEnv } from '#/shared/auth/beta-capabilities'
 import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import {
@@ -16,31 +17,48 @@ import {
   resetDelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '#/shared/auth/process-policy-binding'
 import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
 import { setOrganizationPolicy } from './policy-state.repository'
 
 const db = getDb()
 const ORG = 'org-delayed-init'
-const PROP = 'd4000000-0000-4000-8000-000000000077'
+const POLICY_ENV = {
+  NODE_ENV: 'test',
+  BETA_E2E_GLOBAL_CAPABILITIES: 'notification.send_email',
+} satisfies CapabilityPolicyEnv
 
 beforeAll(async () => {
   await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Delayed Org', ${ORG}, now())`,
   )
   resetCapabilityPolicyStore()
   resetDelayedExecutionPolicy()
-  initPersistedCapabilityPolicyStore({ db, env: {} as CapabilityPolicyEnv })
+  // ARC-03-T8: the handle no longer installs itself — the process
+  // installation is the explicit bind.
+  bindProcessPolicies(
+    initPersistedCapabilityPolicyStore({
+      db,
+      env: POLICY_ENV,
+      clock: () => new Date(),
+      logger: { warn: () => {} },
+    }),
+  )
 })
 
 afterAll(async () => {
+  releaseProcessPolicies()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
   await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 describe('delayed policy contract wiring (BQC-2.5)', () => {
@@ -48,9 +66,13 @@ describe('delayed policy contract wiring (BQC-2.5)', () => {
     const policy = getDelayedExecutionPolicy()
     const base = {
       principal: { kind: 'system', id: 'worker:default' } as const,
-      action: 'system:review.sync',
+      // This test proves the generic external-effect strong-read contract.
+      // Google provider actions are separately default-denied until their
+      // exact approval/connection vectors are present, so use the locally
+      // enabled notification effect instead of weakening that provider fence.
+      action: 'system:notification.email_digest',
       organizationId: ORG,
-      propertyId: PROP,
+      capabilityAtEnqueue: 'notification.send_email' as const,
       executionKind: 'worker' as const,
       policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     }
@@ -82,7 +104,7 @@ describe('delayed policy contract wiring (BQC-2.5)', () => {
     expect(rows.length).toBeGreaterThanOrEqual(2)
     expect(rows[0]).toMatchObject({
       actor_type: 'system',
-      action: 'system:review.sync',
+      action: 'system:notification.email_digest',
       execution_kind: 'worker',
       decision: 'allow',
       reason: 'allowed',

@@ -40,7 +40,7 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
       correlationId: null,
     })
 
-    expect(queue.add).toHaveBeenCalledWith('insert-activity-log', {
+    expect(queue.add).toHaveBeenCalledWith('project-recent-activity', {
       action: 'created',
       resourceType: 'organization',
       resourceId: ORG,
@@ -49,11 +49,11 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
       userId: USER,
       source: 'web',
       eventId: 'evt-org-1',
-      payload: { subject: 'organization', from: null, to: null, detail: 'Acme Hotels' },
+      payload: { subject: 'organization', from: null, to: null, detail: null },
     })
   })
 
-  it('onPropertyCreated → created/property with the name in detail', async () => {
+  it('onPropertyCreated → created/property without retaining the name', async () => {
     const queue = mockQueue()
 
     await onPropertyCreated({ queue })({
@@ -68,7 +68,7 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
       correlationId: null,
     })
 
-    expect(queue.add).toHaveBeenCalledWith('insert-activity-log', {
+    expect(queue.add).toHaveBeenCalledWith('project-recent-activity', {
       action: 'created',
       resourceType: 'property',
       resourceId: PROP,
@@ -77,11 +77,11 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
       userId: null,
       source: 'web',
       eventId: 'evt-prop-created',
-      payload: { subject: 'property', from: null, to: null, detail: 'Grand Hotel' },
+      payload: { subject: 'property', from: null, to: null, detail: null },
     })
   })
 
-  it('onPropertyUpdated → changed/property with the name in detail', async () => {
+  it('onPropertyUpdated → changed/property without retaining the name', async () => {
     const queue = mockQueue()
 
     await onPropertyUpdated({ queue })({
@@ -95,7 +95,7 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
       correlationId: null,
     })
 
-    expect(queue.add).toHaveBeenCalledWith('insert-activity-log', {
+    expect(queue.add).toHaveBeenCalledWith('project-recent-activity', {
       action: 'changed',
       resourceType: 'property',
       resourceId: PROP,
@@ -104,7 +104,7 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
       userId: null,
       source: 'web',
       eventId: 'evt-prop-1',
-      payload: { subject: 'property', from: null, to: null, detail: 'Grand Hotel' },
+      payload: { subject: 'property', from: null, to: null, detail: null },
     })
   })
 
@@ -120,7 +120,7 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
       correlationId: null,
     })
 
-    expect(queue.add).toHaveBeenCalledWith('insert-activity-log', {
+    expect(queue.add).toHaveBeenCalledWith('project-recent-activity', {
       action: 'deleted',
       resourceType: 'property',
       resourceId: PROP,
@@ -146,7 +146,7 @@ describe('activity orphan audit handlers (BQC-3.9)', () => {
       correlationId: null,
     })
 
-    expect(queue.add).toHaveBeenCalledWith('insert-activity-log', {
+    expect(queue.add).toHaveBeenCalledWith('project-recent-activity', {
       action: 'changed',
       resourceType: 'integration',
       resourceId: CONN,

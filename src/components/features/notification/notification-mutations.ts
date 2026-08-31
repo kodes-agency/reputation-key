@@ -11,71 +11,13 @@
 //  3. `mutateAsync` was called without a catch, so a failed dismiss produced an
 //     unhandled rejection. Every action here resolves, never rejects.
 
-import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { notificationKeys } from '#/shared/queries/query-keys'
 import type { Notification } from '#/contexts/notification/application/public-api'
+import type { NotificationListFilter } from '#/contexts/notification/application/public-api'
+import { patchNotificationFeedCache } from './notification-feed-cache'
 import type { NotificationServerFns } from './types'
-
-/** Shape `useInfiniteQuery` stores under `notificationKeys.list(...)`. */
-type FeedPages = Readonly<{
-  pages: ReadonlyArray<ReadonlyArray<Notification>>
-  pageParams: ReadonlyArray<number>
-}>
-
-/** `null` removes the row. Returning the row unchanged is a no-op. */
-type RowPatch = (row: Notification) => Notification | null
-
-function patchPage(
-  page: ReadonlyArray<Notification>,
-  patch: RowPatch,
-): Readonly<{ rows: Notification[]; unreadDelta: number }> {
-  const rows: Notification[] = []
-  let unreadDelta = 0
-  for (const row of page) {
-    const patched = patch(row)
-    const wasUnread = row.status === 'unread'
-    if (patched === null) {
-      if (wasUnread) unreadDelta -= 1
-      continue
-    }
-    if (wasUnread !== (patched.status === 'unread')) unreadDelta += wasUnread ? -1 : 1
-    rows.push(patched)
-  }
-  return { rows, unreadDelta }
-}
-
-/**
- * Applies `patch` to every cached page and adjusts the badge by the change in
- * unread rows. Returns the rollback thunk `useActionMutation` runs on failure.
- */
-function patchFeed(
-  qc: QueryClient,
-  listKey: QueryKey,
-  countKey: QueryKey,
-  patch: RowPatch,
-): (() => void) | undefined {
-  const previousPages = qc.getQueryData<FeedPages>(listKey)
-  if (!previousPages) return undefined
-  const previousCount = qc.getQueryData<{ count: number }>(countKey)
-
-  let unreadDelta = 0
-  const pages = previousPages.pages.map((page) => {
-    const patched = patchPage(page, patch)
-    unreadDelta += patched.unreadDelta
-    return patched.rows
-  })
-
-  qc.setQueryData<FeedPages>(listKey, { ...previousPages, pages })
-  if (previousCount && unreadDelta !== 0) {
-    qc.setQueryData(countKey, { count: Math.max(0, previousCount.count + unreadDelta) })
-  }
-
-  return () => {
-    qc.setQueryData(listKey, previousPages)
-    if (previousCount) qc.setQueryData(countKey, previousCount)
-  }
-}
 
 const readNow = (row: Notification): Notification => ({
   ...row,
@@ -89,9 +31,9 @@ export type NotificationFeedMutations = Readonly<{
   onDismiss: (notificationId: string) => void
   onMuteCategory: (notification: Notification) => void
   markAllRead: () => void
-  clearAll: () => void
+  dismissAll: () => void
   isMarkingAllRead: boolean
-  isClearingAll: boolean
+  isDismissingAll: boolean
 }>
 
 export function useNotificationMutations(
@@ -99,23 +41,24 @@ export function useNotificationMutations(
   organizationId: string,
   announce: (text: string) => void,
   limit = 20,
+  filter: NotificationListFilter = 'all',
 ): NotificationFeedMutations {
   const qc = useQueryClient()
-  const listKey = notificationKeys.list(organizationId, limit)
-  const countKey = notificationKeys.count(organizationId)
+  const listKey = notificationKeys.list(organizationId, limit, filter)
+  const headKey = notificationKeys.head(organizationId, limit, filter)
   const invalidateKeys = [notificationKeys.feed(organizationId)]
 
   const markRead = useActionMutation(fns.markRead, {
     invalidateKeys,
     optimistic: (input) =>
-      patchFeed(qc, listKey, countKey, (row) =>
+      patchNotificationFeedCache(qc, listKey, headKey, (row) =>
         row.id === input.data.notificationId ? readNow(row) : row,
       ),
   })
   const markUnread = useActionMutation(fns.markUnread, {
     invalidateKeys,
     optimistic: (input) =>
-      patchFeed(qc, listKey, countKey, (row) =>
+      patchNotificationFeedCache(qc, listKey, headKey, (row) =>
         row.id === input.data.notificationId
           ? { ...row, status: 'unread', readAt: null }
           : row,
@@ -124,22 +67,30 @@ export function useNotificationMutations(
   const dismiss = useActionMutation(fns.dismiss, {
     invalidateKeys,
     optimistic: (input) =>
-      patchFeed(qc, listKey, countKey, (row) =>
+      patchNotificationFeedCache(qc, listKey, headKey, (row) =>
         row.id === input.data.notificationId ? null : row,
       ),
   })
   const markAllRead = useActionMutation(fns.markAllRead, {
     invalidateKeys,
     optimistic: () =>
-      patchFeed(qc, listKey, countKey, (row) =>
-        row.status === 'unread' ? readNow(row) : row,
+      patchNotificationFeedCache(
+        qc,
+        listKey,
+        headKey,
+        (row) => (row.status === 'unread' ? readNow(row) : row),
+        { unreadCount: 0 },
       ),
   })
   const dismissAll = useActionMutation(fns.dismissAll, {
     invalidateKeys,
-    optimistic: () => patchFeed(qc, listKey, countKey, () => null),
+    optimistic: () =>
+      patchNotificationFeedCache(qc, listKey, headKey, () => null, {
+        clearContinuation: true,
+        unreadCount: 0,
+      }),
   })
-  const mutePreference = useActionMutation(fns.updatePreference, {
+  const muteCategory = useActionMutation(fns.muteCategory, {
     invalidateKeys: [notificationKeys.preferences(organizationId)],
   })
 
@@ -153,35 +104,6 @@ export function useNotificationMutations(
     }
   }
 
-  const muteCategory = async (notification: Notification) => {
-    // Preferences are fetched only now, so the bell costs no extra request.
-    const preferences = await qc.ensureQueryData({
-      queryKey: notificationKeys.preferences(organizationId),
-      queryFn: () => fns.getPreferences(),
-      staleTime: 60_000,
-    })
-    const current = preferences.find(
-      (preference) =>
-        preference.propertyId === notification.propertyId &&
-        preference.category === notification.category &&
-        preference.channel === 'in_app',
-    )
-    // The update DTO is a full replace, so absent fields fall back to the
-    // shipped defaults rather than being silently blanked.
-    await mutePreference({
-      data: {
-        propertyId: notification.propertyId,
-        category: notification.category,
-        channel: 'in_app',
-        enabled: false,
-        cadence: current?.cadence ?? 'immediate',
-        urgentBypassEnabled: current?.urgentBypassEnabled ?? false,
-        quietHoursStart: current?.quietHoursStart ?? null,
-        quietHoursEnd: current?.quietHoursEnd ?? null,
-      },
-    })
-  }
-
   return {
     onMarkRead: (id) => {
       void run(markRead({ data: { notificationId: id } }), 'Marked as read.')
@@ -193,18 +115,27 @@ export function useNotificationMutations(
       void run(dismiss({ data: { notificationId: id } }), 'Notification dismissed.')
     },
     onMuteCategory: (notification) => {
+      if (notification.propertyId === null || notification.category === 'mandatory') {
+        announce('This account notice is always on.')
+        return
+      }
       void run(
-        muteCategory(notification),
+        muteCategory({
+          data: {
+            propertyId: notification.propertyId,
+            category: notification.category,
+          },
+        }),
         'Muted. You can turn it back on in notification settings.',
       )
     },
     markAllRead: () => {
       void run(markAllRead({ data: undefined }), 'All notifications marked as read.')
     },
-    clearAll: () => {
-      void run(dismissAll({ data: undefined }), 'All notifications cleared.')
+    dismissAll: () => {
+      void run(dismissAll({ data: undefined }), 'All notifications dismissed.')
     },
     isMarkingAllRead: markAllRead.isPending,
-    isClearingAll: dismissAll.isPending,
+    isDismissingAll: dismissAll.isPending,
   }
 }

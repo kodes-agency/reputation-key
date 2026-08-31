@@ -23,6 +23,8 @@ export type GetPortalInput = Readonly<{
  */
 export type PortalTokenStatus = Readonly<{
   hasActiveToken: boolean
+  /** False means the live legacy address must be rotated/reprinted for scan goals. */
+  qualifiedScanReady: boolean
   version: number | null
   issuedAt: string | null
   graceExpiresAt: string | null
@@ -35,6 +37,7 @@ export type GetPortalResult = Readonly<{
 
 const NO_ACTIVE_TOKEN: PortalTokenStatus = {
   hasActiveToken: false,
+  qualifiedScanReady: false,
   version: null,
   issuedAt: null,
   graceExpiresAt: null,
@@ -71,6 +74,7 @@ export const getPortal =
       tokenStatus: token
         ? {
             hasActiveToken: true,
+            qualifiedScanReady: token.hasPublishedAccessArtifact,
             version: token.version,
             issuedAt: token.issuedAt.toISOString(),
             graceExpiresAt: token.gracePeriodEnds?.toISOString() ?? null,

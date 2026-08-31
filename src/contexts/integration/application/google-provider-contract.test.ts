@@ -1,8 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
+import {
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION as CANONICAL_ROUTE_CATALOGUE_VERSION,
+  GOOGLE_PROVIDER_ROUTE_KEYS as CANONICAL_ROUTE_KEYS,
+  type GoogleProviderRouteKey as CanonicalGoogleProviderRouteKey,
+} from '#/shared/google-provider-control/contracts'
 import {
   GOOGLE_PERFORMANCE_CATALOG_VERSION,
   GOOGLE_PERFORMANCE_DAILY_METRICS,
   GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION,
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
+  GOOGLE_PROVIDER_ROUTE_KEYS,
+  type GoogleProviderRouteKey,
   MAX_GOOGLE_PERFORMANCE_DAILY_VALUE,
   isGooglePerformanceDailyMetric,
 } from './google-provider-contract'
@@ -38,7 +46,19 @@ describe('Google provider contract', () => {
     )
   })
 
-  it('versions the provider route catalogue independently', () => {
-    expect(GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION).toBe('google-provider-routes-1')
+  it('aliases the one canonical provider route catalogue without a second copy', () => {
+    expect(GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION).toBe(CANONICAL_ROUTE_CATALOGUE_VERSION)
+    expect(GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION).toBe(
+      CANONICAL_ROUTE_CATALOGUE_VERSION,
+    )
+    expect(GOOGLE_PROVIDER_ROUTE_KEYS).toBe(CANONICAL_ROUTE_KEYS)
+    expect(GOOGLE_PROVIDER_ROUTE_KEYS).toEqual(
+      expect.arrayContaining([
+        'notifications.get',
+        'notifications.subscribe',
+        'notifications.unsubscribe',
+      ]),
+    )
+    expectTypeOf<GoogleProviderRouteKey>().toEqualTypeOf<CanonicalGoogleProviderRouteKey>()
   })
 })

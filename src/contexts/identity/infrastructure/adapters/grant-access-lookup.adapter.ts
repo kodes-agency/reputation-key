@@ -20,20 +20,24 @@ import type { AccessiblePropertyLookupPort } from '#/contexts/staff/application/
 const CACHE_TTL_MS = 60_000
 const CACHE_MAX_SIZE = 200
 
-export function createGrantAccessLookup(db: Database): AccessiblePropertyLookupPort {
+export const createGrantAccessLookup = (
+  db: Database,
+  clock: () => Date,
+): AccessiblePropertyLookupPort => {
   const cache = new Map<string, { ids: ReadonlyArray<PropertyId>; ts: number }>()
 
   return async (orgId: OrganizationId, userId: UserId) => {
+    const now = clock()
     // Cheap PK read per call — the version IS the invalidation token.
     const version = await getPolicyVersion(db)
     const key = `${orgId}:${userId}:${version}`
     const cached = cache.get(key)
-    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.ids
+    if (cached && now.getTime() - cached.ts < CACHE_TTL_MS) return cached.ids
 
-    const grants = await listActiveGrantsForUser(db, orgId, userId, new Date())
+    const grants = await listActiveGrantsForUser(db, orgId, userId, now)
     const ids = [...new Set(grants.map((g) => propertyId(g.propertyId)))]
     if (cache.size >= CACHE_MAX_SIZE) cache.clear()
-    cache.set(key, { ids, ts: Date.now() })
+    cache.set(key, { ids, ts: now.getTime() })
     return ids
   }
 }
@@ -48,11 +52,14 @@ export type PropertyGrantHolderLookup = (
   propertyId: string,
 ) => Promise<ReadonlyArray<string>>
 
-export function createPropertyGrantHolderLookup(db: Database): PropertyGrantHolderLookup {
+export const createPropertyGrantHolderLookup = (
+  db: Database,
+  clock: () => Date,
+): PropertyGrantHolderLookup => {
   return async (organizationId, property) =>
     listActiveGrantUserIdsForProperty(db, {
       organizationId,
       propertyId: property,
-      at: new Date(),
+      at: clock(),
     })
 }

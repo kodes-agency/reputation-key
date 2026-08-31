@@ -28,9 +28,13 @@ const mocks = vi.hoisted(() => ({
   requireExecutionAllowed: vi.fn(),
   decide: vi.fn(),
   resolvePortalManagementScope: vi.fn(),
+  getPortalPublicationHistory: vi.fn(),
   updatePortal: vi.fn(),
+  requestUploadUrl: vi.fn(),
+  finalizeUpload: vi.fn(),
   rotatePortalToken: vi.fn(),
   softDeletePortal: vi.fn(),
+  loggerError: vi.fn(),
 }))
 
 vi.mock('#/shared/auth/headers', () => ({
@@ -56,20 +60,47 @@ vi.mock('#/shared/auth/execution-policy', () => ({
 
 vi.mock('#/composition', () => ({
   getContainer: vi.fn(() => ({
-    useCases: {
-      listPortals: mocks.listPortals,
-      listPortalManagementPropertyIds: mocks.listPortalManagementPropertyIds,
-      resolvePortalManagementScope: mocks.resolvePortalManagementScope,
-      updatePortal: mocks.updatePortal,
-      rotatePortalToken: mocks.rotatePortalToken,
-      softDeletePortal: mocks.softDeletePortal,
+    clock: () => new Date('2026-08-28T00:00:00.000Z'),
+    logger: { error: mocks.loggerError },
+    portalPublicApi: {
+      management: {
+        listPortals: mocks.listPortals,
+        listPortalManagementPropertyIds: mocks.listPortalManagementPropertyIds,
+        resolvePortalManagementScope: mocks.resolvePortalManagementScope,
+        getPortalPublicationHistory: mocks.getPortalPublicationHistory,
+        updatePortal: mocks.updatePortal,
+        requestUploadUrl: mocks.requestUploadUrl,
+        finalizeUpload: mocks.finalizeUpload,
+        rotatePortalToken: mocks.rotatePortalToken,
+        softDeletePortal: mocks.softDeletePortal,
+      },
     },
   })),
 }))
 
+vi.mock('#/shared/observability/logger', async (importOriginal) => {
+  const logger = {
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: mocks.loggerError,
+    fatal: vi.fn(),
+    child: vi.fn(),
+  }
+  logger.child.mockReturnValue(logger)
+  return {
+    ...(await importOriginal<typeof import('#/shared/observability/logger')>()),
+    getLogger: vi.fn(() => logger),
+  }
+})
+
 import {
   deletePortal,
+  getPortalPublicationHistory,
   listPortals,
+  requestUploadUrl,
+  finalizeUpload,
   rotatePortalToken,
   updatePortal,
 } from '#/contexts/portal/server/portals'
@@ -123,6 +154,32 @@ describe('listPortals handler (executable)', () => {
       propertyId: 'property-p2',
       portalId: 'portal-p2',
     })
+  })
+
+  it('returns the scoped manager publication history read model', async () => {
+    const history = {
+      current: {
+        activationSequence: 3,
+        version: 1,
+        kind: 'rollback',
+        activatedAt: '2026-08-26T14:00:00.000Z',
+        deactivatedAt: null,
+        deactivationReason: null,
+      },
+      priorActivations: [],
+      hasPendingChanges: true,
+      nextCursor: null,
+    } as const
+    mocks.getPortalPublicationHistory.mockResolvedValue(history)
+
+    await withStartContext(() =>
+      getPortalPublicationHistory({ data: { portalId: 'portal-p2' } }),
+    )
+    expect(mocks.resolvePortalManagementScope).toHaveBeenCalled()
+    expect(mocks.getPortalPublicationHistory).toHaveBeenCalledWith(
+      { portalId: 'portal-p2' },
+      TEST_CTX,
+    )
   })
 
   it('resolves auth context and invokes the listPortals use case with caller context', async () => {
@@ -191,12 +248,81 @@ describe('listPortals handler (executable)', () => {
     async (_name, invoke, effect) => {
       mocks.requireExecutionAllowed.mockRejectedValue(propertyDisabled())
 
-      await expect(withStartContext(invoke)).rejects.toMatchObject({
+      await expect(
+        withStartContext<unknown>(async (): Promise<unknown> => await invoke()),
+      ).rejects.toMatchObject({
         _tag: 'AuthError',
         code: 'property_disabled',
         status: 403,
       })
       expect(effect).not.toHaveBeenCalled()
+    },
+  )
+
+  it('treats the legacy delete endpoint as recoverable archive', async () => {
+    mocks.updatePortal.mockResolvedValue({
+      id: 'portal-p2',
+      publicationState: 'archived',
+    })
+
+    await withStartContext(() => deletePortal({ data: { portalId: 'portal-p2' } }))
+
+    expect(mocks.updatePortal).toHaveBeenCalledWith(
+      { portalId: 'portal-p2', publicationState: 'archived' },
+      TEST_CTX,
+    )
+    expect(mocks.softDeletePortal).not.toHaveBeenCalled()
+  })
+
+  const uploadFailureCases: ReadonlyArray<{
+    name: string
+    effect: typeof mocks.requestUploadUrl
+    invoke: () => Promise<unknown>
+    errorCode: string
+    message: string
+  }> = [
+    {
+      name: 'issuance',
+      effect: mocks.requestUploadUrl,
+      invoke: () =>
+        requestUploadUrl({
+          data: {
+            portalId: 'portal-p2',
+            contentType: 'image/png',
+            fileSize: 128,
+          },
+        }),
+      errorCode: 'portal_upload_request_failed',
+      message: 'Upload request failed',
+    },
+    {
+      name: 'finalization',
+      effect: mocks.finalizeUpload,
+      invoke: () =>
+        finalizeUpload({
+          data: {
+            portalId: 'portal-p2',
+            uploadId: '70000000-0000-4000-8000-000000000001',
+          },
+        }),
+      errorCode: 'portal_upload_finalization_failed',
+      message: 'Upload finalization failed',
+    },
+  ]
+
+  it.each(uploadFailureCases)(
+    'does not copy private provider details into $name failure logs',
+    async ({ effect, invoke, errorCode, message }) => {
+      const privateDetail = 's3://private-bucket/private/portal-upload/source-key'
+      effect.mockRejectedValueOnce(new Error(privateDetail))
+
+      await expect(withStartContext(invoke)).rejects.toMatchObject({
+        code: 'upload_failed',
+        status: 422,
+      })
+
+      expect(mocks.loggerError).toHaveBeenCalledWith({ errorCode }, message)
+      expect(JSON.stringify(mocks.loggerError.mock.calls)).not.toContain(privateDetail)
     },
   )
 })

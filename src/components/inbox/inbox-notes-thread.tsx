@@ -1,21 +1,34 @@
-// Inbox notes thread — displays notes and add-note form within the detail panel
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useForm } from '@tanstack/react-form'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormTextarea, type BaseFieldApiTextarea } from '#/components/forms/form-textarea'
+import { SubmitButton } from '#/components/forms/submit-button'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 // Receives addInboxNote server fn as a prop per src/components/CONTEXT.md:55.
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
-import { Button } from '#/components/ui/button'
-import { Textarea } from '#/components/ui/textarea'
 import { Send, Clock, User } from 'lucide-react'
-import type { InboxNote } from '#/contexts/inbox/application/public-api'
+import type { InboxNoteView } from '#/contexts/inbox/application/public-api'
+import { addInboxNoteFormDto } from '#/contexts/inbox/application/dto/inbox.dto'
 
 type Props = Readonly<{
-  notes: ReadonlyArray<InboxNote>
+  notes: ReadonlyArray<InboxNoteView>
   inboxItemId: string
+  expectedCommandRevision: number
   currentUserId?: string
-  onNoteAdded: () => void
+  onNoteAdded: (resultingCommandRevision: number) => void
   addInboxNote: typeof addInboxNoteFn
   canAdd?: boolean
 }>
+
+/**
+ * IBX-01-T6: never render a raw user id. The server resolves the author's
+ * current display name inside the Organization; an unresolvable author is an
+ * opaque "Unknown user", not an id fragment and not an email.
+ */
+function authorLabel(note: InboxNoteView, currentUserId?: string): string {
+  if (note.userId === currentUserId) return 'You'
+  return note.displayName ?? 'Unknown user'
+}
 
 function formatRelativeTime(date: Date): string {
   const d = typeof date === 'string' ? new Date(date) : date
@@ -40,34 +53,32 @@ function formatRelativeTime(date: Date): string {
 export function InboxNotesThread({
   notes,
   inboxItemId,
+  expectedCommandRevision,
   currentUserId,
   onNoteAdded,
   addInboxNote,
   canAdd = true,
 }: Props) {
-  const [noteText, setNoteText] = useState('')
-
-  // invalidate: false — onNoteAdded refreshes detail + bumps statusVersion
-  // (which refreshes the activity timeline); the inbox route has no loader.
+  // The success callback advances the cached command fence synchronously and
+  // refreshes notes/activity through the Inbox cache policy.
   const addNote = useActionMutation(addInboxNote, {
     successMessage: 'Note added',
-    onSuccess: () => {
-      setNoteText('')
-      onNoteAdded()
+    onSuccess: (_note, input) => {
+      onNoteAdded(input.data.expectedCommandRevision + 1)
     },
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const trimmed = noteText.trim()
-    if (!trimmed) return
-    addNote({
-      data: {
-        inboxItemId,
-        text: trimmed,
-      },
-    })
-  }
+  const form = useForm({
+    defaultValues: { text: '' },
+    validators: { onSubmit: addInboxNoteFormDto },
+    onSubmit: async ({ value }) => {
+      const parsed = addInboxNoteFormDto.parse(value)
+      await addNote({
+        data: { inboxItemId, text: parsed.text, expectedCommandRevision },
+      })
+      form.reset()
+    },
+  })
 
   // Sort notes newest first — FE-4 FIX: wrap in useMemo
   const sortedNotes = useMemo(
@@ -93,9 +104,7 @@ export function InboxNotesThread({
             <div key={note.id} className="rounded-md border bg-muted/30 p-3">
               <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <User className="size-3" />
-                <span className="font-medium">
-                  {note.userId === currentUserId ? 'You' : `${note.userId.slice(0, 8)}…`}
-                </span>
+                <span className="font-medium">{authorLabel(note, currentUserId)}</span>
                 <span className="flex items-center gap-1">
                   <Clock className="size-3" />
                   {formatRelativeTime(note.createdAt)}
@@ -109,25 +118,39 @@ export function InboxNotesThread({
 
       {/* Add note form */}
       {canAdd && (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-          <Textarea
-            placeholder="Add a note…"
-            value={noteText}
-            onChange={(e) => setNoteText(e.target.value)}
-            rows={3}
-            className="resize-none text-sm"
-            disabled={addNote.isPending}
-          />
-          <div className="flex justify-end">
-            <Button
-              type="submit"
-              size="sm"
-              disabled={addNote.isPending || !noteText.trim()}
-            >
-              <Send className="size-3.5" />
-              Add Note
-            </Button>
-          </div>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            void form.handleSubmit()
+          }}
+          className="flex flex-col gap-2"
+        >
+          <FormErrorBanner error={addNote.error} />
+          <form.Field name="text">
+            {(field: BaseFieldApiTextarea) => (
+              <>
+                <FormTextarea
+                  field={field}
+                  id="inbox-note-text"
+                  label="Add a note"
+                  placeholder="Add a note…"
+                  rows={3}
+                  maxLength={5_000}
+                  disabled={addNote.isPending}
+                />
+                <div className="flex justify-end">
+                  <SubmitButton
+                    mutation={addNote}
+                    form={form}
+                    disabled={!field.state.value?.trim()}
+                  >
+                    <Send className="size-3.5" />
+                    Add note
+                  </SubmitButton>
+                </div>
+              </>
+            )}
+          </form.Field>
         </form>
       )}
     </div>

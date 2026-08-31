@@ -4,37 +4,31 @@ export type LocalStackMode = 'beta' | 'e2e' | 'perf'
 
 /**
  * Non-core features promoted for the controlled local beta cohort.
- * Permanently blocked Google behaviors are deliberately absent.
+ * Permanently blocked Google behaviors are deliberately absent. Portal image
+ * upload is also withheld under the temporary SEC-01 containment; re-enable it
+ * here only after the issuance-bound implementation and adversarial tests meet
+ * the removal criteria documented beside BLOCKED_CAPABILITIES.
  */
 export const LOCAL_BETA_CAPABILITIES = [
-  'identity.register',
-  'organization.create',
   'notification.send_email',
   'portal.read',
   'portal.write',
-  'portal.upload',
   'portal.public_read',
   'portal.guest_response',
   'portal.guest_text',
   'portal.guest_contact',
-  'portal.guest_media',
-  'team.use',
   'goal.use',
-  'badge.use',
-  'leaderboard.use',
   'property.import_gbp_v2',
   'property.read_gbp_performance',
 ] as const satisfies ReadonlyArray<Capability>
 
 /**
- * Process-wide exceptions needed only to create a fresh E2E account and its
- * first organization. Product capabilities always come from persisted tenant
- * policy so revocation and suspension remain observable in acceptance tests.
+ * There are no process-wide E2E capability exceptions. Browser identities and
+ * Organizations are seeded or created through the exact invitation workflow;
+ * product capabilities come from persisted tenant policy.
  */
-export const LOCAL_E2E_BOOTSTRAP_CAPABILITIES = [
-  'identity.register',
-  'organization.create',
-] as const satisfies ReadonlyArray<Capability>
+export const LOCAL_E2E_BOOTSTRAP_CAPABILITIES =
+  [] as const satisfies ReadonlyArray<Capability>
 
 /**
  * Capabilities `pnpm seed` deliberately withholds from a developer
@@ -42,19 +36,12 @@ export const LOCAL_E2E_BOOTSTRAP_CAPABILITIES = [
  * anonymous input, so it must be granted per environment — with a reason and a
  * ticket, through `setOrgCapabilityFn` — rather than by running a seed script.
  *
- * The E2E stack still grants them (LOCAL_BETA_CAPABILITIES) because its
- * acceptance tests drive registration, org creation and the guest media
- * lifecycle against stubbed providers.
+ * Permanently blocked capabilities are absent from LOCAL_BETA_CAPABILITIES and
+ * cannot be restored by a seed or test override.
  */
 const SEED_WITHHELD_CAPABILITIES = [
-  // Public self-service signup.
-  'identity.register',
-  // Self-serve organization creation.
-  'organization.create',
   // Sends real email through the configured provider.
   'notification.send_email',
-  // Accepts unmoderated inbound media from anonymous guests.
-  'portal.guest_media',
 ] as const satisfies ReadonlyArray<Capability>
 
 /**
@@ -113,11 +100,8 @@ export function localStackEnvironment(mode: LocalStackMode): Readonly<{
   E2E_WEB_EXECUTION_IDENTITY: string
 }> {
   return {
-    // e2e only. `beta` (and `perf`) must resolve every product capability
-    // through persisted tenant policy — proving that gating is what
-    // beta-acceptance is for.
-    E2E_WEB_CAPABILITY_OVERRIDE:
-      mode === 'e2e' ? LOCAL_E2E_BOOTSTRAP_CAPABILITIES.join(',') : '',
+    // All modes resolve product capabilities through persisted tenant policy.
+    E2E_WEB_CAPABILITY_OVERRIDE: '',
     E2E_WEB_EXECUTION_IDENTITY: LOCAL_STACK_EXECUTION_IDENTITY[mode],
   }
 }

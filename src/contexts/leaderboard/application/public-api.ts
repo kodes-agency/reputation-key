@@ -1,10 +1,13 @@
-// Leaderboard context — public API surface.
-
-export type { GetLeaderboardInput } from './use-cases/get-leaderboard'
-export type { GetComparisonMatrixInput } from './use-cases/get-comparison-matrix'
+// Leaderboard/Recognition has no beta product API. This boundary exposes only
+// the content-free export/restore inventory retained for bounded contraction.
+export {
+  LEGACY_RECOGNITION_TABLES,
+  buildLegacyRecognitionInventoryReport,
+  canonicalLegacyRecognitionInventoryReport,
+} from './legacy-recognition-inventory'
 export type {
-  RecognitionBoardView,
-  RecognitionSettings,
-} from './ports/recognition.repository'
-export type { LeaderboardEntryWithTarget } from '../domain/types'
-export type { MatrixRow, MatrixCell } from '../domain/scoring'
+  LegacyRecognitionForeignKey,
+  LegacyRecognitionInventoryInput,
+  LegacyRecognitionInventoryReport,
+  LegacyRecognitionTableName,
+} from './legacy-recognition-inventory'

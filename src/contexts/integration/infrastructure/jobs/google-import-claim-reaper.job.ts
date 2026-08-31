@@ -13,7 +13,7 @@
 // the active-item index and does nothing when no claim is stale.
 
 import type { Job } from 'bullmq'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import type { GoogleImportV2ClaimReaper } from '../../application/google-import-v2-claim-reaper'
 
@@ -21,6 +21,7 @@ export const JOB_NAME = 'google-import-claim-reaper' as const
 
 type GoogleImportClaimReaperDeps = Readonly<{
   reap: GoogleImportV2ClaimReaper
+  logger: LoggerPort
 }>
 
 export const createGoogleImportClaimReaperHandler =
@@ -30,7 +31,7 @@ export const createGoogleImportClaimReaperHandler =
       const outcome = await deps.reap()
       // Counts only — no organization, import job, item, property, provider
       // identifier, or claim fence reaches a log line.
-      getLogger().info(
+      deps.logger.info(
         {
           job: JOB_NAME,
           staleClaimsVisited: outcome.staleClaimsVisited,

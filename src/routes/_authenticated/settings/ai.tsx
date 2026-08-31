@@ -18,7 +18,7 @@ import { propertiesQuery } from '#/routes/-queries/route-queries'
 import { inboxKeys, propertyKeys } from '#/shared/queries/query-keys'
 
 const merchantAiSearch = z.object({
-  propertyId: z.string().uuid().optional(),
+  propertyId: z.uuid().optional(),
 })
 
 export const Route = createFileRoute('/_authenticated/settings/ai')({

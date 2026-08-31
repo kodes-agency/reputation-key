@@ -5,7 +5,7 @@
 //
 // Apply sequence mirrors the ci.yml "Run migrations" trio (deploy order, see
 // src/shared/db/CONTEXT.md):
-//   1. pnpm auth:migrate  — Better Auth tables (the CLI prompts; fed "y")
+//   1. pnpm auth:migrate  — Better Auth tables via the pinned runtime
 //   2. pnpm db:migrate    — compatibility preflight + Drizzle journal track
 //   3. Google Property binding concurrent-index sidecar
 //   4. registered SQL sidecar — scripts/migrations/2026-07-06-permission-version-triggers.sql
@@ -20,7 +20,7 @@ import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { userInfo } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { Pool } from 'pg'
+import { Pool, type PoolClient } from 'pg'
 import { validateTestDatabaseTarget } from './test-environment-lease'
 import { DEFAULT_TEST_DATABASE_URL, testEnvironment } from './test-environment'
 
@@ -31,6 +31,7 @@ const SIDECAR_URL = new URL(
   import.meta.url,
 )
 const SIDECAR_MARKER_FUNCTION = 'bump_permission_version'
+const TEST_DATABASE_PROVISIONING_LOCK_PREFIX = 'repkey-test-database-provisioning-v1'
 
 export type TestDbSetupResult = Readonly<{
   databaseUrl: string
@@ -74,6 +75,76 @@ async function withPool<T>(url: string, fn: (pool: Pool) => Promise<T>): Promise
   }
 }
 
+/**
+ * Serialize the entire auth -> Drizzle -> sidecar sequence on one PostgreSQL
+ * session. The staged Drizzle runner intentionally commits between its enum
+ * prerequisite and the remaining journal, so transaction locks cannot protect
+ * this boundary. A session lock also covers the separately spawned Better Auth
+ * schema runner and index sidecar.
+ */
+export async function withTestDatabaseProvisioningLock<T>(
+  client: Pick<PoolClient, 'query'>,
+  operation: () => Promise<T>,
+  lockName = TEST_DATABASE_PROVISIONING_LOCK_PREFIX,
+): Promise<T> {
+  await client.query('SELECT pg_advisory_lock(hashtextextended($1, 0))', [lockName])
+
+  let operationOutcome:
+    Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; error: unknown }>
+  try {
+    operationOutcome = { ok: true, value: await operation() }
+  } catch (error) {
+    operationOutcome = { ok: false, error }
+  }
+
+  let releaseCompleted = false
+  let releaseError: unknown
+  try {
+    const result = await client.query<{ released: boolean }>(
+      'SELECT pg_advisory_unlock(hashtextextended($1, 0)) AS released',
+      [lockName],
+    )
+    if (result.rows[0]?.released !== true) {
+      throw new Error('Test database provisioning advisory lock was not held')
+    }
+    releaseCompleted = true
+  } catch (error) {
+    releaseError = error
+  }
+
+  // Preserve the migration failure when cleanup also fails. Closing the
+  // dedicated session below still releases every session advisory lock.
+  if (!operationOutcome.ok) throw operationOutcome.error
+  if (!releaseCompleted) throw releaseError
+  return operationOutcome.value
+}
+
+async function withProvisioningSession<T>(
+  url: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const targetDatabase = decodeURIComponent(new URL(url).pathname.slice(1))
+  // Hold and wait for the provisioning gate in the maintenance database.
+  // A waiter inside the target database retains a virtual transaction while
+  // blocked; CREATE INDEX CONCURRENTLY must wait for that snapshot and would
+  // deadlock with the lock holder. PostgreSQL advisory locks are shared by
+  // contenders connected to this same maintenance database, while the target
+  // remains free of waiting snapshots.
+  const pool = new Pool({ connectionString: maintenanceUrl(url), max: 1 })
+  let client: PoolClient | undefined
+  try {
+    client = await pool.connect()
+    return await withTestDatabaseProvisioningLock(
+      client,
+      operation,
+      `${TEST_DATABASE_PROVISIONING_LOCK_PREFIX}:${targetDatabase}`,
+    )
+  } finally {
+    client?.release()
+    await pool.end()
+  }
+}
+
 /** Probe a connection; report the PostgreSQL error code on failure. */
 async function probe(
   url: string,
@@ -98,9 +169,16 @@ async function ensureDatabaseExists(url: string): Promise<boolean> {
   const attempt = await probe(url)
   if (attempt.ok) return false
   if (attempt.code === '3D000') {
-    await withPool(maintenanceUrl(url), (pool) =>
-      pool.query(`CREATE DATABASE ${quoteIdent(dbName)}`),
-    )
+    try {
+      await withPool(maintenanceUrl(url), (pool) =>
+        pool.query(`CREATE DATABASE ${quoteIdent(dbName)}`),
+      )
+    } catch (error) {
+      if (!isConcurrentDatabaseCreationError(error)) throw error
+      const winner = await probe(url)
+      if (!winner.ok) throw error
+      return false
+    }
     return true
   }
   if (attempt.code === '28P01' || attempt.code === '28000') {
@@ -110,6 +188,16 @@ async function ensureDatabaseExists(url: string): Promise<boolean> {
   throw new Error(
     `Cannot connect to ${redact(url)} (${attempt.code ?? 'no code'}: ${attempt.message}). ` +
       'Is PostgreSQL running?',
+  )
+}
+
+/** PostgreSQL has reported both codes for two concurrent CREATE DATABASEs. */
+export function isConcurrentDatabaseCreationError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  const candidate = error as { code?: unknown; constraint?: unknown }
+  return (
+    candidate.code === '42P04' ||
+    (candidate.code === '23505' && candidate.constraint === 'pg_database_datname_index')
   )
 }
 
@@ -197,12 +285,12 @@ async function applyMigrations(url: string): Promise<void> {
     ...testEnvironment(), // hermetic floor (BETTER_AUTH_SECRET, ...)
     ...process.env, // explicit shell/CI values win
     NODE_ENV: 'test',
-    // Pin BOTH connection vars to the leased target — auth-cli prefers
+    // Pin BOTH connection vars to the leased target — the schema config prefers
     // DATABASE_URL_POOLER and a developer .env must never redirect it.
     DATABASE_URL: url,
     DATABASE_URL_POOLER: url,
   } as NodeJS.ProcessEnv
-  await run('pnpm', ['auth:migrate'], env, 'y\n')
+  await run('pnpm', ['auth:migrate'], env)
   await run('pnpm', ['db:migrate'], env)
   await run('pnpm', ['db:google-property-binding-index'], env)
   await withPool(url, (pool) => pool.query(readFileSync(SIDECAR_URL, 'utf8')))
@@ -223,29 +311,38 @@ export async function ensureTestDatabase(
   validateTestDatabaseTarget(url)
 
   const created = await ensureDatabaseExists(url)
-  const before = await readState(url)
-  const upToDate =
-    before.journalCount === expectedJournalCount() &&
-    before.hasAuthTables &&
-    before.hasGooglePropertyBindingIndex &&
-    before.hasSidecar
-  if (upToDate) {
+  return withProvisioningSession(url, async () => {
+    // Re-read only after acquiring the lock. A concurrent setup may have
+    // completed while this caller was waiting; its journal is authoritative.
+    const before = await readState(url)
+    const upToDate =
+      before.journalCount === expectedJournalCount() &&
+      before.hasAuthTables &&
+      before.hasGooglePropertyBindingIndex &&
+      before.hasSidecar
+    if (upToDate) {
+      // Registered sidecars are intentionally idempotent and may evolve without
+      // a new Drizzle journal entry. Production reapplies them on every deploy;
+      // do the same on the integration fast path so a marker function cannot
+      // make an older trigger definition look current.
+      await withPool(url, (pool) => pool.query(readFileSync(SIDECAR_URL, 'utf8')))
+      return {
+        databaseUrl: url,
+        created,
+        migrated: false,
+        tableCount: before.tableCount,
+        journalCount: before.journalCount,
+      }
+    }
+
+    await applyMigrations(url)
+    const after = await readState(url)
     return {
       databaseUrl: url,
       created,
-      migrated: false,
-      tableCount: before.tableCount,
-      journalCount: before.journalCount,
+      migrated: true,
+      tableCount: after.tableCount,
+      journalCount: after.journalCount,
     }
-  }
-
-  await applyMigrations(url)
-  const after = await readState(url)
-  return {
-    databaseUrl: url,
-    created,
-    migrated: true,
-    tableCount: after.tableCount,
-    journalCount: after.journalCount,
-  }
+  })
 }

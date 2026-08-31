@@ -175,5 +175,13 @@ describe('MetricRegistry', () => {
       })
       expect(isGamificationViolation(v)).toBe(false)
     })
+
+    it('allows de-identified Guest Gateway numeric facts for goals', () => {
+      const v = makeVersion({
+        sourcePolicyAllowlist: ['first_party_guest_gateway_metric'],
+        permittedConsumers: ['dashboard', 'goal'],
+      })
+      expect(isGamificationViolation(v)).toBe(false)
+    })
   })
 })

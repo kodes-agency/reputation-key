@@ -4,6 +4,7 @@ import {
   gbpImportItemRetryReceipts,
   gbpImportRequestItems,
   gbpImportRequests,
+  gbpImportSagas,
 } from './google-import-v2.schema'
 
 const columnNames = (table: Parameters<typeof getTableConfig>[0]) =>
@@ -16,6 +17,42 @@ const indexNames = (table: Parameters<typeof getTableConfig>[0]) =>
   getTableConfig(table).indexes.map((index) => index.config.name)
 
 describe('Google import v2 durable schema', () => {
+  it('persists replay-safe no-cap saga roots and tenant-scoped child checkpoints', () => {
+    expect(columnNames(gbpImportSagas)).toEqual(
+      expect.arrayContaining([
+        'id',
+        'organization_id',
+        'request_id',
+        'initiated_by',
+        'total_count',
+        'batch_count',
+        'wire_replay_digest',
+        'semantic_replay_digest',
+      ]),
+    )
+    expect(indexNames(gbpImportSagas)).toEqual(
+      expect.arrayContaining([
+        'gbp_import_sagas_org_request_unique',
+        'gbp_import_sagas_org_id_key',
+      ]),
+    )
+    expect(checkNames(gbpImportSagas)).toContain('gbp_import_sagas_batch_shape_valid')
+    expect(columnNames(gbpImportRequests)).toEqual(
+      expect.arrayContaining(['saga_id', 'batch_ordinal']),
+    )
+    expect(indexNames(gbpImportRequests)).toContain(
+      'gbp_import_requests_saga_batch_unique',
+    )
+    const sagaFk = getTableConfig(gbpImportRequests).foreignKeys.find(
+      (candidate) => candidate.getName() === 'gbp_import_requests_saga_tenant_fk',
+    )
+    expect(sagaFk?.onDelete).toBe('cascade')
+    expect(sagaFk?.reference().columns.map((column) => column.name)).toEqual([
+      'organization_id',
+      'saga_id',
+    ])
+  })
+
   it('keeps replay identity, immutable terminal bounds, and purge fencing on parents', () => {
     expect(columnNames(gbpImportRequests)).toEqual(
       expect.arrayContaining([

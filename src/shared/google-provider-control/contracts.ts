@@ -10,7 +10,7 @@ export const GOOGLE_ENDPOINT_CLASSES = [
 ] as const
 export type GoogleEndpointClass = (typeof GOOGLE_ENDPOINT_CLASSES)[number]
 
-export const GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION = '2026-08-16' as const
+export const GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION = '2026-08-27' as const
 
 export const GOOGLE_PERFORMANCE_CATALOG_VERSION = '2026-08-05' as const
 export const GOOGLE_PERFORMANCE_DAILY_METRICS = Object.freeze([
@@ -49,6 +49,9 @@ export const GOOGLE_PROVIDER_ROUTE_KEYS = [
   'oauth.token.refresh',
   'oauth.jwks',
   'oauth.revoke',
+  'notifications.get',
+  'notifications.subscribe',
+  'notifications.unsubscribe',
   'reviews.list',
   'reviews.get',
   'reviews.reply',
@@ -75,7 +78,11 @@ export type GoogleAuthorizationVector = Readonly<{
 }>
 
 export type GoogleExecutionAdmissionRequest = Readonly<{
-  capability: 'property.import_gbp_v2' | 'property.read_gbp_performance'
+  capability:
+    | 'property.import_gbp_v2'
+    | 'property.read_gbp_performance'
+    | 'property.connect_gbp'
+    | 'property.publish_reply'
   organizationId: string
   propertyId: string | null
   connectionId: string

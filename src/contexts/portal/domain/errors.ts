@@ -2,6 +2,8 @@
 // Per architecture: tagged error shape with _tag, code, message.
 // Error codes form a closed union so ts-pattern .exhaustive() works at the server boundary.
 
+import { createErrorFactory } from '#/shared/domain/errors'
+
 export type PortalErrorCode =
   | 'forbidden'
   | 'invalid_slug'
@@ -16,6 +18,8 @@ export type PortalErrorCode =
   | 'portal_not_found'
   | 'category_not_found'
   | 'link_not_found'
+  | 'destination_not_found'
+  | 'destination_not_approved'
   | 'property_not_found'
   | 'group_not_found'
   | 'group_name_taken'
@@ -23,9 +27,12 @@ export type PortalErrorCode =
   | 'portal_not_in_group'
   | 'portal_inactive'
   | 'invalid_publication_transition'
-  | 'portal_has_no_links'
+  | 'publication_snapshot_unavailable'
+  | 'google_review_destination_unavailable'
   | 'token_unavailable'
   | 'upload_failed'
+  | 'responsible_manager_ineligible'
+  | 'revision_conflict'
 
 export type PortalError = Readonly<{
   _tag: 'PortalError'
@@ -35,16 +42,9 @@ export type PortalError = Readonly<{
 }>
 
 /** Smart constructor — the only way to build a PortalError. */
-export const portalError = (
-  code: PortalErrorCode,
-  message: string,
-  context?: Readonly<Record<string, unknown>>,
-): PortalError => ({
-  _tag: 'PortalError',
-  code,
-  message,
-  ...(context ? { context } : {}),
-})
+export const portalError = createErrorFactory<PortalError['_tag'], PortalError['code']>(
+  'PortalError',
+)
 
 /** Type guard — lets server functions detect PortalError at catch time. */
 export const isPortalError = (e: unknown): e is PortalError =>

@@ -4,8 +4,12 @@ import type { GoogleImportManagerProps } from './google-import-manager-contract'
 import { GoogleImportManagerView } from './google-import-manager-view'
 import { GoogleImportProgressView } from './google-import-progress-view'
 import { GoogleImportRecoveryStatus } from './google-import-loading-rows'
-import { startErrorMessage } from './google-import-error-messages'
+import {
+  connectionCallbackErrorMessage,
+  startErrorMessage,
+} from './google-import-error-messages'
 import { buildConfirmedImportItems } from './google-import-review-model'
+import type { ImportReviewDraft } from './google-import-review-model'
 import { useGoogleImportDiscoveryController } from './use-google-import-discovery-controller'
 import { useGoogleImportProgressController } from './use-google-import-progress-controller'
 
@@ -26,6 +30,7 @@ export function GoogleImportManager({
   recoverImport,
   getImportStatus,
   retryImportItem,
+  cancelImport,
 }: GoogleImportManagerProps) {
   const navigate = useNavigate()
   const mounted = useRef(true)
@@ -33,17 +38,9 @@ export function GoogleImportManager({
   const ownedRequestId = useRef<string | null>(null)
   const recoveryStartedRequestId = useRef<string | null>(null)
   const [startPending, setStartPending] = useState(false)
-  // Copy mirrors the route-level banner in
-  // routes/_authenticated/properties/import-google/index.tsx so the same callback
-  // code never reads as two different outcomes.
-  const [startError, setStartError] = useState<string | null>(
-    initialError === 'account_already_connected'
-      ? 'That Google account is already connected. Select it above instead of authorizing again.'
-      : initialError === 'denied'
-        ? 'Google authorization was cancelled.'
-        : initialError
-          ? 'Google Account connection failed. Try connecting again.'
-          : null,
+  // Mirrors the route banner so the same callback never reads as two outcomes.
+  const [startError, setStartError] = useState<string | null>(() =>
+    connectionCallbackErrorMessage(initialError),
   )
   const [isRecoveringRequest, setIsRecoveringRequest] = useState(false)
   const clearStartError = useCallback(() => setStartError(null), [])
@@ -62,9 +59,11 @@ export function GoogleImportManager({
     initialProgress,
     getImportStatus,
     retryImportItem,
+    cancelImport,
     step: discovery.step,
     setStep: discovery.setStep,
   })
+  const { loadProgress } = progress
 
   useEffect(() => {
     mounted.current = true
@@ -85,8 +84,7 @@ export function GoogleImportManager({
           const recovered = await recoverImport({ data: { requestId } })
           if (recovered.requestId === requestId) return recovered.importJobId
         } catch {
-          // A reloaded start request may still be committing. Retry the bounded,
-          // tenant-scoped receipt lookup with the same opaque request ID.
+          // Retry the same tenant-scoped receipt while a reloaded start commits.
         }
       }
       return null
@@ -96,10 +94,10 @@ export function GoogleImportManager({
   const openProgress = useCallback(
     async (importJobId: string) => {
       await discovery.lifecycle.clear('route_left')
-      await progress.loadProgress(importJobId)
+      await loadProgress(importJobId)
       if (mounted.current) setStartError(null)
     },
-    [discovery.lifecycle, progress.loadProgress],
+    [discovery.lifecycle, loadProgress],
   )
   useEffect(() => {
     if (
@@ -134,12 +132,12 @@ export function GoogleImportManager({
       }
     })()
   }, [initialProgress, initialRequestId, openProgress, recoverRequest])
-  const submitImport = async () => {
-    if (!discovery.reviewDraft || startInFlight.current) return
+  const submitImport = async (reviewDraft: ImportReviewDraft) => {
+    if (startInFlight.current) return
     startInFlight.current = true
     const requestId = crypto.randomUUID()
     const submittedEpoch = discovery.lifecycle.epoch()
-    const submittedItems = [...buildConfirmedImportItems(discovery.reviewDraft)]
+    const submittedItems = [...buildConfirmedImportItems(reviewDraft)]
     ownedRequestId.current = requestId
     setStartPending(true)
     setStartError(null)
@@ -190,8 +188,10 @@ export function GoogleImportManager({
         isPollingError={progress.pollingError}
         isRefreshing={progress.isRefreshing}
         retryingItemId={progress.retryingItemId}
+        isCancelling={progress.isCancelling}
         onRefresh={() => void progress.refresh()}
         onRetry={(item) => void progress.retry(item)}
+        onCancel={() => void progress.cancel()}
       />
     )
   }
@@ -203,7 +203,7 @@ export function GoogleImportManager({
       discovery={discovery}
       startPending={startPending}
       startError={startError}
-      onSubmit={() => void submitImport()}
+      onSubmit={submitImport}
     />
   )
 }

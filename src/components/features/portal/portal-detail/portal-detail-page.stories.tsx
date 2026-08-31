@@ -7,7 +7,10 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { PortalDetailPage } from './portal-detail-page'
-import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
+import type {
+  getPortalAnalyticsFn,
+  PortalAnalyticsData,
+} from '#/contexts/dashboard/server/portal-analytics'
 import type { Action } from '#/components/hooks/use-action'
 import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
 import type {
@@ -36,6 +39,7 @@ const portal = {
   description: 'Main guest-facing portal with links and feedback.',
   heroImageUrl: null,
   theme: { primaryColor: '#6366f1', backgroundColor: '#ffffff', textColor: '#111827' },
+  privateFeedbackThreshold: 3,
   propertyId: 'prop-1',
   organizationId: 'org-1',
   publicationState: 'published' as const,
@@ -76,15 +80,30 @@ const idleMutation = Object.assign(
 
 const publicUrl = 'https://portal.example/p/opaque-token-shown-once'
 const issueTokenMutation = Object.assign(
-  async (_input: { data: { portalId: string; printBatch?: string } }) => ({
+  async (_input: { data: { portalId: string } }) => ({
     publicUrl,
   }),
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
-) as Action<{ data: { portalId: string; printBatch?: string } }, { publicUrl: string }>
-const rotateTokenMutation = Object.assign(
-  async (_input: { data: { portalId: string } }) => ({ publicUrl }),
-  { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<{ data: { portalId: string } }, { publicUrl: string }>
+const rotateTokenMutation = Object.assign(
+  async (_input: {
+    data: {
+      portalId: string
+      replacementKind?: 'planned' | 'security'
+      gracePeriodDays?: number
+    }
+  }) => ({ publicUrl }),
+  { isPending: false, error: null as unknown, isSuccess: false, data: null },
+) as Action<
+  {
+    data: {
+      portalId: string
+      replacementKind?: 'planned' | 'security'
+      gracePeriodDays?: number
+    }
+  },
+  { publicUrl: string }
+>
 const revokeTokenMutation = Object.assign(
   async (_input: { data: { portalId: string; reason: string } }) => ({
     revoked: true,
@@ -99,6 +118,7 @@ const completeReviewMutation = Object.assign(
 // No token issued yet — the Share tab offers the issue form (C2).
 const tokenStatus: PortalTokenStatus = {
   hasActiveToken: false,
+  qualifiedScanReady: false,
   version: null,
   issuedAt: null,
   graceExpiresAt: null,
@@ -106,21 +126,58 @@ const tokenStatus: PortalTokenStatus = {
 
 const requestUploadUrl = async (_input: {
   data: { portalId: string; contentType: string; fileSize: number }
-}) => ({ uploadUrl: 'https://upload.example.com/presigned', key: 'hero-key' })
-const finalizeUpload = async (_input: { data: { portalId: string; key: string } }) => ({
+}) => ({
+  uploadUrl: 'https://upload.example.com/presigned',
+  uploadId: 'upload-id',
+  requiredHeaders: { 'If-None-Match': '*' },
+})
+const finalizeUpload = async (_input: {
+  data: { portalId: string; uploadId: string }
+}) => ({
   heroImageUrl: 'https://cdn.example.com/hero.png',
+  processing: false,
 })
 
 // Empty analytics payload — exercises the "no data" rendering path of the
 // analytics tab (valid PortalAnalyticsData with zero KPIs / empty arrays).
-const getPortalAnalytics = mockServerFn(async (_input: unknown) => ({
-  kpis: {
-    scans: { value: 0, priorValue: 0, trend: null },
-    avgRating: { value: 0, priorValue: 0, trend: null },
-    feedback: { value: 0, priorValue: 0, trend: null },
-    reviewLinkClicks: { value: 0, priorValue: 0, trend: null },
+const analyticsComputedAt = new Date('2026-08-25T12:00:00.000Z')
+const emptyEvidence = {
+  definitionVersionId: 'portal-analytics-story-v1',
+  state: 'insufficient_data',
+  verifiedThrough: null,
+  latestActivity: null,
+  computedAt: analyticsComputedAt,
+  completeness: 1,
+  availabilityReason: 'no_eligible_sample',
+  correctionHead: null,
+  sampleCount: 0,
+} as const
+const emptyAnalytics: PortalAnalyticsData = {
+  period: {
+    startAt: new Date('2026-07-26T00:00:00.000Z'),
+    endAt: analyticsComputedAt,
+    timezone: 'Europe/Sofia',
   },
-  engagementFunnel: { scans: 0, ratings: 0, reviewLinkClicks: 0 },
+  lifetimeReconciliation: null,
+  kpis: {
+    scans: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
+    avgRating: {
+      value: null,
+      priorValue: null,
+      comparison: null,
+      sampleCount: 0,
+      priorSampleCount: 0,
+      evidence: emptyEvidence,
+    },
+    feedback: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
+    reviewLinkClicks: {
+      value: 0,
+      priorValue: null,
+      trend: null,
+      evidence: emptyEvidence,
+    },
+  },
+  engagementFunnel: null,
   ratingDistribution: [
     { stars: 1, count: 0 },
     { stars: 2, count: 0 },
@@ -129,12 +186,38 @@ const getPortalAnalytics = mockServerFn(async (_input: unknown) => ({
     { stars: 5, count: 0 },
   ],
   ratingTrend: [],
-})) as unknown as typeof getPortalAnalyticsFn
+  responseIntegrity: {
+    accepted: 0,
+    filteredAutomatically: 0,
+    underReview: 0,
+    total: 0,
+  },
+}
+const getPortalAnalytics = mockServerFn(
+  async (_input: unknown) => emptyAnalytics,
+) as unknown as typeof getPortalAnalyticsFn
 
 const baseArgs = {
   portal,
   organizationName: 'Acme Hotels',
   propertyId: 'prop-1',
+  publicationHistory: {
+    current: {
+      activationSequence: 1,
+      version: 1,
+      kind: 'publish' as const,
+      activatedAt: '2026-08-20T10:00:00.000Z',
+      deactivatedAt: null,
+      deactivationReason: null,
+    },
+    priorActivations: [],
+    hasPendingChanges: false,
+    nextCursor: null,
+  },
+  googleReviewDestination: {
+    state: 'verified' as const,
+    retrievedAt: new Date('2026-08-20T10:00:00.000Z'),
+  },
   categories,
   links,
   updateMutation: idleMutation,
@@ -155,6 +238,16 @@ export const SettingsTab: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('heading', { name: /settings/i })).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('heading', { name: 'Google review destination' }),
+    ).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('heading', { name: 'Publication history' }),
+    ).toBeInTheDocument()
+    await expect(canvas.getByText('Ready')).toBeInTheDocument()
+    await expect(
+      canvas.queryByRole('textbox', { name: /google review/i }),
+    ).not.toBeInTheDocument()
   },
 }
 

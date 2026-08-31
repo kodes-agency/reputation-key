@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  resolveLinkAndTrack: vi.fn(),
+  resolvePublicPortalLink: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
 }))
 
 vi.mock('#/contexts/guest/server/guest-scans', () => ({
-  resolveLinkAndTrack: mocks.resolveLinkAndTrack,
+  resolvePublicPortalLink: mocks.resolvePublicPortalLink,
 }))
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: vi.fn(() => ({ warn: mocks.warn, error: mocks.error })),
@@ -19,23 +19,26 @@ describe('GET /api/public/p/$token/click/$linkId', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('binds the opaque token and link ID before redirecting to the stored HTTPS URL', async () => {
-    mocks.resolveLinkAndTrack.mockResolvedValue({ url: 'https://reviews.example.com/r' })
+    mocks.resolvePublicPortalLink.mockResolvedValue({
+      url: 'https://reviews.example.com/r',
+    })
 
     const response = await handlePublicPortalClick({
       token: 'token-p1',
       linkId: 'link-p1',
     })
 
-    expect(mocks.resolveLinkAndTrack).toHaveBeenCalledWith({
+    expect(mocks.resolvePublicPortalLink).toHaveBeenCalledWith({
       data: { token: 'token-p1', linkId: 'link-p1' },
     })
     expect(response.status).toBe(302)
     expect(response.headers.get('location')).toBe('https://reviews.example.com/r')
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(response.headers.get('referrer-policy')).toBe('no-referrer')
   })
 
   it('returns an inert non-enumerating response for a forged cross-property link', async () => {
-    mocks.resolveLinkAndTrack.mockResolvedValue(null)
+    mocks.resolvePublicPortalLink.mockResolvedValue(null)
 
     const response = await handlePublicPortalClick({
       token: 'token-p2',
@@ -44,10 +47,14 @@ describe('GET /api/public/p/$token/click/$linkId', () => {
 
     expect(response.status).toBe(404)
     expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer')
   })
 
   it('does not disclose a retired token in logs or redirect effects', async () => {
-    mocks.resolveLinkAndTrack.mockRejectedValue(new Error('token unavailable'))
+    mocks.resolvePublicPortalLink.mockRejectedValue(
+      new Error('lookup failed for raw-secret-token'),
+    )
 
     const response = await handlePublicPortalClick({
       token: 'raw-secret-token',
@@ -56,5 +63,9 @@ describe('GET /api/public/p/$token/click/$linkId', () => {
 
     expect(response.status).toBe(404)
     expect(JSON.stringify(mocks.error.mock.calls)).not.toContain('raw-secret-token')
+    expect(mocks.error).toHaveBeenCalledWith(
+      { linkId: 'link-p1', errorCode: 'public_portal_click_unavailable' },
+      '[handler] public Portal click unavailable',
+    )
   })
 })

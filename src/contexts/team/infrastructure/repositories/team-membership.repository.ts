@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   staffParticipations,
@@ -21,7 +21,9 @@ const viewSelection = {
   effectiveTo: teamMemberships.effectiveTo,
   createdBy: teamMemberships.createdBy,
   endReason: teamMemberships.endReason,
-  userId: staffParticipations.userId,
+  // Team is an ADR-0052 quarantine-only path. Historical Team rows are
+  // login-bound; participant-without-login rows are excluded below.
+  userId: sql<string>`${staffParticipations.userId}`,
   displayName: staffParticipations.displayName,
 } as const
 
@@ -114,7 +116,7 @@ export const createTeamMembershipRepository = (
         .select({
           id: staffParticipations.id,
           propertyId: staffParticipations.propertyId,
-          userId: staffParticipations.userId,
+          userId: sql<string>`${staffParticipations.userId}`,
           displayName: staffParticipations.displayName,
         })
         .from(staffParticipations)
@@ -123,6 +125,7 @@ export const createTeamMembershipRepository = (
             eq(staffParticipations.organizationId, organizationId),
             eq(staffParticipations.propertyId, team.propertyId),
             eq(staffParticipations.status, 'active'),
+            isNotNull(staffParticipations.userId),
           ),
         )
         .orderBy(asc(staffParticipations.displayName)),
@@ -208,7 +211,8 @@ export const createTeamMembershipRepository = (
       }
       if (
         participation.status !== 'active' ||
-        participation.propertyId !== team.propertyId
+        participation.propertyId !== team.propertyId ||
+        !participation.userId
       ) {
         return { ok: false as const, code: 'participation_not_active' as const }
       }

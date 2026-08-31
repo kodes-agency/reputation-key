@@ -2,7 +2,7 @@
 // hatch to the full page. The popover used to BE the entire notification
 // surface (max-h-80, w-80, no filters, no history); it is now the quick view.
 
-import { CheckCheck, Trash2 } from 'lucide-react'
+import { CheckCheck } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
 import { Separator } from '#/components/ui/separator'
@@ -22,11 +22,9 @@ type Props = Readonly<{
   filter: NotificationFilter
   onFilterChange: (filter: NotificationFilter) => void
   isMarkingAllRead: boolean
-  isClearingAll: boolean
   onRetry: () => void
   onLoadMore: () => void
   onMarkAllRead: () => void
-  onClearAll: () => void
   actions: NotificationRowActions
   format?: NotificationFormat
   /** Lets the panel close itself when the user leaves for the full page. */
@@ -51,16 +49,6 @@ export function NotificationPopoverContent(props: Props) {
             >
               <CheckCheck aria-hidden="true" className="size-3" />
               Mark all read
-            </Button>
-            <Button
-              variant="ghost"
-              size="xs"
-              onClick={props.onClearAll}
-              disabled={props.isClearingAll}
-              className="text-xs text-muted-foreground"
-            >
-              <Trash2 aria-hidden="true" className="size-3" />
-              Clear all
             </Button>
           </div>
         )}

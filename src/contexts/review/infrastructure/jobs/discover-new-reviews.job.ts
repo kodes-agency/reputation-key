@@ -23,7 +23,6 @@
 // Content-free: identifiers, timestamps, counts, and an error class only.
 
 import type { Job } from 'bullmq'
-import type { Logger } from 'pino'
 
 export const JOB_NAME = 'discover-new-reviews' as const
 
@@ -35,7 +34,7 @@ import type {
   ReviewDiscoveryCandidate,
   ReviewDiscoveryRepository,
 } from '../../application/ports/review-discovery.repository'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import {
   discoveryTierFor,
@@ -59,6 +58,7 @@ type DiscoverHandlerDeps = Readonly<{
   discoveryRepo: ReviewDiscoveryRepository
   queue: ReviewQueuePort
   clock: () => Date
+  logger: Pick<LoggerPort, 'info' | 'warn'>
   intervalMs?: number
   batchSize?: number
   maxBatches?: number
@@ -94,7 +94,11 @@ async function enqueueCandidates(
   deps: DiscoverHandlerDeps,
   candidates: readonly ReviewDiscoveryCandidate[],
   state: SweepState,
-  options: Readonly<{ now: Date; baseIntervalMs: number; logger: Logger }>,
+  options: Readonly<{
+    now: Date
+    baseIntervalMs: number
+    logger: DiscoverHandlerDeps['logger']
+  }>,
 ): Promise<void> {
   const { now, baseIntervalMs, logger } = options
   for (const candidate of candidates) {
@@ -141,7 +145,7 @@ async function processDiscoveryBatch(
     batchSize: number
     now: Date
     baseIntervalMs: number
-    logger: Logger
+    logger: DiscoverHandlerDeps['logger']
   }>,
 ): Promise<BatchOutcome> {
   const batch = await deps.discoveryRepo.findDuePropertiesBatch(
@@ -174,7 +178,7 @@ async function runDiscoveryLoop(
     maxBatches: number
     now: Date
     baseIntervalMs: number
-    logger: Logger
+    logger: DiscoverHandlerDeps['logger']
   }>,
 ): Promise<void> {
   for (;;) {
@@ -200,7 +204,7 @@ export const createDiscoverNewReviewsHandler = (deps: DiscoverHandlerDeps) => {
 
   return async (_job: Job) => {
     return trace('job.discoverNewReviews', async () => {
-      const logger = getLogger()
+      const logger = deps.logger
       const now = deps.clock()
 
       const state: SweepState = {

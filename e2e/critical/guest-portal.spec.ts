@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { attachRequestLog } from '../helpers/request-log'
@@ -6,19 +7,40 @@ import {
   callServerFnExpectError,
   callServerFnGet,
   dbQuery,
+  refreshPortalDestinationApproval,
+  resetGuestRateLimits,
 } from '../helpers/fixtures'
 import { settleGuestConsent } from '../helpers/guest-consent'
 
 const seed = requireE2eSeedState()
 const guestMutationServerFile = 'src/contexts/guest/server/public.ts'
 const guestQueryServerFile = 'src/contexts/guest/server/guest-scans.ts'
-const tinyPng = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zf1sAAAAASUVORK5CYII=',
-  'base64',
-)
+/**
+ * Pick a star the way a guest does — by clicking the label.
+ *
+ * The radio itself is `sr-only`, so it is a 1x1 clipped target that
+ * `check()` cannot reliably hit; the visible control is the surrounding
+ * `<label>`. Clicking the label is also the more faithful interaction.
+ */
+const selectRating = async (page: Page, stars: number): Promise<void> => {
+  const name = `${stars} ${stars === 1 ? 'star' : 'stars'}`
+  await page.locator(`label:has(input[aria-label="${name}"])`).click()
+  await expect(page.getByRole('radio', { name })).toBeChecked()
+}
 
 test.describe('Critical: public Portal basics', () => {
-  test('published P1 token renders content and destinations without requiring a response', async ({
+  // Each journey is a different guest arriving fresh. See resetGuestRateLimits.
+  test.beforeEach(async () => {
+    await resetGuestRateLimits()
+    await refreshPortalDestinationApproval()
+  })
+
+  // The gateway is rating-first ("feat(portal): make guest gateway rating
+  // first"): a guest sees the Portal's content and the rating immediately, and
+  // the secondary destinations follow the private rating rather than competing
+  // with it. Both halves are asserted here, because a Portal that never showed
+  // its destinations and a Portal that showed them too early are both defects.
+  test('published P1 token renders content immediately and destinations after the rating', async ({
     page,
     context,
   }) => {
@@ -30,14 +52,32 @@ test.describe('Critical: public Portal basics', () => {
     const sessionCookies = (await context.cookies()).filter(
       (cookie) => cookie.name === 'rk_guest_session',
     )
+    // Three scopes, not two: the guest session is issued for the page (/p/),
+    // the server functions it calls (/_serverFn/), and the click-through
+    // endpoint (/api/public/p/). The third was added with the public-portal
+    // observation hardening and is asserted positionally in
+    // guest-session.test.ts; this stays an exact set so a fourth scope — a
+    // wider one — cannot appear unnoticed.
     expect(sessionCookies.map((cookie) => cookie.path).sort()).toEqual([
       '/_serverFn/',
+      '/api/public/p/',
       '/p/',
     ])
     expect(sessionCookies.every((cookie) => cookie.httpOnly)).toBe(true)
     expect(sessionCookies.every((cookie) => cookie.sameSite === 'Lax')).toBe(true)
     expect(sessionCookies.every((cookie) => cookie.secure)).toBe(true)
     await expect(page.getByRole('radio', { name: '5 stars' })).toBeVisible()
+
+    // Not yet — and this half is the one that would silently rot if the flow
+    // regressed to showing everything at once.
+    await expect(
+      page.getByRole('link', { name: 'Visit example review destination' }),
+    ).toHaveCount(0)
+
+    await settleGuestConsent(page)
+    await selectRating(page, 5)
+    await page.getByRole('button', { name: 'Submit private rating' }).click()
+
     await expect(
       page.getByRole('link', { name: 'Visit example review destination' }),
     ).toBeVisible()
@@ -49,69 +89,69 @@ test.describe('Critical: public Portal basics', () => {
     )
   })
 
-  test('guest response, media, one correction, and withdrawal survive reload', async ({
+  test('rating, private feedback, one correction, and withdrawal survive reload', async ({
     page,
   }) => {
     await page.goto(`/p/${seed.portalToken}`)
-    // Reject, not Accept: this spec's baseline is "no analytics recorded", and
-    // the notice would otherwise overlay the trailing form controls.
     await settleGuestConsent(page)
+
     const destination = page.getByRole('link', {
       name: 'Visit example review destination',
     })
     const expectedDestination = `/api/public/p/${encodeURIComponent(seed.portalToken)}/click/${seed.portalLinkId}`
+
+    await selectRating(page, 2)
+    await page.getByRole('button', { name: 'Submit private rating' }).click()
+    await expect(
+      page.getByText('Thank you. Your private rating was submitted.'),
+    ).toBeVisible()
+
+    // The destinations arrive with the receipt, and keep the signed
+    // click-through href rather than the raw external URL — the redirect is
+    // what attributes the click and keeps the guest's referrer off the target.
     await expect(destination).toHaveAttribute('href', expectedDestination)
 
-    await page.getByRole('radio', { name: '2 stars' }).check()
-    await page.getByLabel('Share this rating with the property team.').check()
     await page
-      .getByRole('textbox', { name: 'Written feedback' })
-      .fill('Initial private guest response.')
-    await page.getByLabel('Share this written feedback with the property team.').check()
-    await page.locator('input[type="file"]').setInputFiles({
-      name: 'guest-proof.png',
-      mimeType: 'image/png',
-      buffer: tinyPng,
-    })
-    await page.getByLabel('Share this image with the property team.').check()
-    await page.getByRole('button', { name: 'Submit response' }).click()
+      .getByRole('textbox', { name: 'Private feedback' })
+      .fill('Initial private guest note.')
+    await page.getByRole('button', { name: 'Send private feedback' }).click()
+    // Exact: the receipt panel repeats this sentence with a trailing clause,
+    // and the live-region status is the one that proves the send landed.
     await expect(
-      page.getByText(
-        'Your optional response was submitted. You may correct it once for one hour.',
-      ),
+      page.getByText('Your private feedback was sent to the property team.', {
+        exact: true,
+      }),
     ).toBeVisible()
+
+    // The rating survives a full document load; the feedback text deliberately
+    // does NOT come back, because the receipt promises it is not shown again on
+    // this device. Asserting both directions keeps that promise honest.
+    await page.reload()
+    await expect(page.getByText('You rated this experience 2/5.')).toBeVisible()
+    await expect(page.getByText('Initial private guest note.')).toHaveCount(0)
     await expect(destination).toHaveAttribute('href', expectedDestination)
 
-    await page.reload()
-    await expect(page.getByRole('button', { name: 'Save one correction' })).toBeVisible()
-    await expect(page.getByRole('textbox', { name: 'Written feedback' })).toHaveValue(
-      'Initial private guest response.',
-    )
-    await page.getByRole('radio', { name: '5 stars' }).check()
-    await page
-      .getByRole('textbox', { name: 'Written feedback' })
-      .fill('Corrected private guest response.')
-    await page.getByRole('button', { name: 'Save one correction' }).click()
-    await expect(
-      page.getByText('Your response was corrected. You can still withdraw it.'),
-    ).toBeVisible()
-    await expect(destination).toHaveAttribute('href', expectedDestination)
+    await page.getByRole('button', { name: 'Change your private rating' }).click()
+    await selectRating(page, 5)
+    await page.getByRole('button', { name: 'Save rating correction' }).click()
+    await expect(page.getByText('You rated this experience 5/5.')).toBeVisible()
 
     await page.reload()
-    await expect(page.getByRole('textbox', { name: 'Written feedback' })).toHaveValue(
-      'Corrected private guest response.',
-    )
-    await page.getByRole('button', { name: 'Withdraw response' }).click()
-    await expect(
-      page.getByText('Your response was withdrawn and its content was removed.'),
-    ).toBeVisible()
+    await expect(page.getByText('You rated this experience 5/5.')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Withdraw my entire response' }).click()
+    await expect(page.getByText('Your response was withdrawn')).toBeVisible()
     await page.reload()
-    await expect(page.getByText('Your response has been withdrawn.')).toBeVisible()
-    await expect(page.getByText('Corrected private guest response.')).toHaveCount(0)
-    await expect(destination).toHaveAttribute('href', expectedDestination)
+    await expect(page.getByText('Your response was withdrawn')).toBeVisible()
+    await expect(page.getByText('You rated this experience')).toHaveCount(0)
   })
 
-  test('guest replay is idempotent and queued media cannot survive withdrawal', async ({
+  // Media is gone from the guest gateway -- issueGuestMediaFn and
+  // confirmGuestMediaFn no longer exist, and the response carries a rating and
+  // an optional private note only. What remains worth pinning is that a
+  // replayed submit creates ONE response, and that withdrawal removes its
+  // content rather than only hiding it.
+  test('guest replay is idempotent and withdrawal removes the content', async ({
     page,
   }) => {
     await page.goto(`/p/${seed.portalToken}`)
@@ -132,50 +172,48 @@ test.describe('Critical: public Portal basics', () => {
       textConsent: false,
       mediaConsent: true,
     }
-    const first = await callServerFn<{ id: string; status: string }>(page, {
+    // A DELTA, not an absolute count: this Portal is shared with the other
+    // journeys in this file and with earlier runs, so "one row exists" would
+    // only ever have been true on a pristine database.
+    const countResponses = async (): Promise<number> =>
+      Number(
+        (
+          await dbQuery<{ n: string }>(
+            `SELECT count(*)::text AS n FROM guest_responses
+             WHERE portal_id = $1 AND deleted_at IS NULL`,
+            [seed.portalId],
+          )
+        )[0]?.n ?? '0',
+      )
+    const before = await countResponses()
+
+    const first = await callServerFn<{ status: string; submittedAt: string }>(page, {
       file: guestMutationServerFile,
       exportName: 'submitGuestResponseFn',
       data: payload,
     })
-    const replay = await callServerFn<{ id: string; status: string }>(page, {
+    const replay = await callServerFn<{ status: string; submittedAt: string }>(page, {
       file: guestMutationServerFile,
       exportName: 'submitGuestResponseFn',
       data: payload,
     })
     expect(replay).toEqual(first)
+
     const persisted = await callServerFnGet<{
-      response: { id: string; status: string; rating: number }
+      response: { status: string; rating: number; submittedAt: string }
     }>(page, {
       file: guestQueryServerFile,
       exportName: 'getPublicPortal',
       data: { token: seed.portalToken },
     })
+    // The public view deliberately carries no response id, so identity is
+    // asserted where it actually matters: one row, not two.
     expect(persisted.response).toMatchObject({
-      id: first.id,
       status: 'submitted',
       rating: 4,
+      submittedAt: first.submittedAt,
     })
-
-    const issuance = await callServerFn<{
-      mediaId: string
-      objectKey: string
-      uploadUrl: string
-      contentType: string
-    }>(page, {
-      file: guestMutationServerFile,
-      exportName: 'issueGuestMediaFn',
-      data: {
-        token: seed.portalToken,
-        csrfNonce: loaded.guestSession.csrfNonce,
-        contentType: 'image/png',
-        sizeBytes: tinyPng.byteLength,
-      },
-    })
-    const upload = await page.request.put(issuance.uploadUrl, {
-      headers: { 'content-type': issuance.contentType },
-      data: tinyPng,
-    })
-    expect(upload.ok()).toBe(true)
+    expect(await countResponses()).toBe(before + 1)
 
     await callServerFn(page, {
       file: guestMutationServerFile,
@@ -186,33 +224,24 @@ test.describe('Critical: public Portal basics', () => {
       },
     })
     const withdrawn = await callServerFnGet<{
-      response: { id: string; status: string; rating: null; text: null }
+      response: { status: string; rating: null }
     }>(page, {
       file: guestQueryServerFile,
       exportName: 'getPublicPortal',
       data: { token: seed.portalToken },
     })
-    expect(withdrawn.response).toMatchObject({
-      id: first.id,
-      status: 'deleted',
-      rating: null,
-      text: null,
-    })
-    const confirmAfterWithdrawal = await callServerFnExpectError(page, {
-      file: guestMutationServerFile,
-      exportName: 'confirmGuestMediaFn',
-      data: {
-        token: seed.portalToken,
-        csrfNonce: loaded.guestSession.csrfNonce,
-        mediaId: issuance.mediaId,
-        objectKey: issuance.objectKey,
-      },
-    })
-    expect(confirmAfterWithdrawal.message ?? '').toMatch(/error|request|completed/i)
+    // Withdrawal must ERASE, not hide: a status flip with the rating still
+    // readable would satisfy the UI and break the promise made to the guest.
+    expect(withdrawn.response).toMatchObject({ status: 'deleted', rating: null })
+
     await page.reload()
-    await expect(page.getByText('Your response has been withdrawn.')).toBeVisible()
+    await expect(page.getByText('Your response was withdrawn')).toBeVisible()
   })
 
+  // Guest media is gone from the gateway, so the oversize case is now the
+  // surviving unbounded input: private feedback. The cross-property case is
+  // unchanged and is the security-relevant half -- a session signed for P1
+  // must buy nothing at P2, even with a valid CSRF nonce.
   test('oversize and cross-property guest mutations are inert', async ({ page }) => {
     await page.goto(`/p/${seed.portalToken}`)
     const loaded = await callServerFnGet<{ guestSession: { csrfNonce: string } }>(page, {
@@ -220,17 +249,36 @@ test.describe('Critical: public Portal basics', () => {
       exportName: 'getPublicPortal',
       data: { token: seed.portalToken },
     })
-    const oversize = await callServerFnExpectError(page, {
+
+    // A rating first: private feedback is only offered on a rated response, so
+    // without one the oversize case would be rejected for the wrong reason.
+    await callServerFn(page, {
       file: guestMutationServerFile,
-      exportName: 'issueGuestMediaFn',
+      exportName: 'submitGuestResponseFn',
       data: {
         token: seed.portalToken,
         csrfNonce: loaded.guestSession.csrfNonce,
-        contentType: 'image/png',
-        sizeBytes: 10 * 1024 * 1024 + 1,
+        rating: 2,
+        text: null,
+        responseConsent: true,
+        textConsent: false,
+        mediaConsent: false,
       },
     })
-    expect(oversize.message ?? '').toMatch(/error|invalid|large|too big/i)
+
+    const oversize = await callServerFnExpectError(page, {
+      file: guestMutationServerFile,
+      exportName: 'submitPrivateFeedbackFn',
+      data: {
+        token: seed.portalToken,
+        csrfNonce: loaded.guestSession.csrfNonce,
+        // One past MAX_PRIVATE_FEEDBACK_LENGTH: the client caps the textarea at
+        // 2000, so only a direct call can prove the server does too.
+        text: 'x'.repeat(2001),
+      },
+    })
+    expect(oversize.message ?? '').toMatch(/error|invalid|long|large/i)
+
     const crossProperty = await callServerFnExpectError(page, {
       file: guestMutationServerFile,
       exportName: 'submitGuestResponseFn',
@@ -242,16 +290,26 @@ test.describe('Critical: public Portal basics', () => {
       },
     })
     expect(crossProperty.message ?? '').toMatch(/error|request|completed/i)
+
+    // Neither refusal may leave a mark: the guest still sees their own rated
+    // response, with no private feedback attached.
     await page.reload()
-    await expect(page.getByRole('button', { name: 'Submit response' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Save one correction' })).toHaveCount(0)
+    await expect(page.getByText('You rated this experience 2/5.')).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Send private feedback' }),
+    ).toBeVisible()
   })
 
   // The portal.scan metric had NO producer: recordScanFn was exported and
   // catalogued but never called, so the analytics tab showed Scans 0 on a
-  // portal with real traffic. It is now driven by the analytics-consent
-  // decision, which is also the consent the endpoint requires.
-  test('analytics consent gates the scan metric and one session counts once', async ({
+  // portal with real traffic. `GuestAnalyticsNotice` is now that producer — it
+  // records the visit from a mount effect, once per browser session.
+  //
+  // Recording is NOT gated on acknowledging the notice. It was, under the
+  // Accept/Reject `CookieConsentBanner`; "fix(guest): harden public portal
+  // observations" replaced that with an informational notice, so what this
+  // asserts is the dedupe, which is the half that can regress silently.
+  test('the scan metric has a producer and one session counts once', async ({
     page,
     context,
   }) => {
@@ -268,35 +326,31 @@ test.describe('Critical: public Portal basics', () => {
 
     const before = await countScans()
 
-    // Reject records nothing.
+    // One visit records exactly one, and a reload does not add another: the
+    // guard is storage-backed plus a use-case dedupe on the signed session, so
+    // it survives a full document load rather than only a re-render.
     await page.goto(`/p/${seed.portalToken}`)
-    await settleGuestConsent(page, 'reject')
+    await settleGuestConsent(page)
     await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
-    expect(await countScans()).toBe(before)
+    await expect.poll(countScans, { timeout: 10_000 }).toBe(before + 1)
 
-    // Accept records exactly one, and a reload does not add another: the guard
-    // is storage-backed plus a use-case dedupe on the signed session, so it
-    // survives a full document load rather than only a re-render.
-    //
-    // This second visit is a DIFFERENT guest, so the reset has to be a whole
-    // device and not just its cookies. The rejection above persisted
-    // `guest-analytics-consent=denied` in localStorage, and the notice
-    // deliberately never re-asks a guest who declined (the `Already Denied`
-    // story on CookieConsentBanner pins that). Clearing cookies alone therefore
-    // left a guest with no Accept button to click, so this half of the test
-    // asserted nothing and `countScans` stayed at the baseline.
+    await page.reload()
+    await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
+    expect(await countScans()).toBe(before + 1)
+
+    // A DIFFERENT guest counts again, which is what proves the dedupe is
+    // scoped to the session rather than to the portal. The reset has to be a
+    // whole device and not just its cookies: both the acknowledgement and the
+    // visit marker live in browser storage, so clearing cookies alone leaves a
+    // guest the notice never shows again and the visit never re-records for.
     await page.evaluate(() => {
       localStorage.clear()
       sessionStorage.clear()
     })
     await context.clearCookies()
     await page.goto(`/p/${seed.portalToken}`)
-    await settleGuestConsent(page, 'accept')
-    await expect.poll(countScans, { timeout: 10_000 }).toBe(before + 1)
-
-    await page.reload()
-    await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
-    expect(await countScans()).toBe(before + 1)
+    await settleGuestConsent(page)
+    await expect.poll(countScans, { timeout: 10_000 }).toBe(before + 2)
   })
 
   test('P2 and P3 tokens are externally indistinguishable', async ({ page }) => {

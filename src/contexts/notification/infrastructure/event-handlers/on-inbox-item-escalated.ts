@@ -4,19 +4,20 @@
 // This handler used to paste the raw inbox-item UUID into the body ("Inbox item
 // 61ed98fc-… has been escalated and requires attention"), which told the reader
 // nothing they could act on — the id is already carried silently by the deep
-// link. It now emits facts, and the template says how bad the rating is, which
-// property it belongs to, and how long it has gone unanswered.
+// link. It now emits content-free facts: Property, source kind, and how long it
+// has gone unanswered. Only locally collected Portal feedback may include its
+// private guest rating; Google/provider ratings remain in Review.
 
-import type { Queue } from 'bullmq'
 import type { InboxItemEscalated } from '#/contexts/inbox/application/public-api'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 import { buildInboxItemPayload } from './payload-facts'
+import type { NotificationJobEnqueuePort } from '../inbox-notification-fanout'
 
 type Deps = Readonly<{
-  queue: Queue
+  queue: NotificationJobEnqueuePort
   userLookup: UserLookupPort
   inboxItemLookup: InboxItemLookupPort
   clock: () => Date
@@ -48,17 +49,22 @@ export const onInboxItemEscalated =
     })
 
     await Promise.all(
-      recipients.map((userId) =>
-        deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, {
-          userId,
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          type: 'inbox.escalated' as const,
-          resourceType: 'inbox_item' as const,
-          resourceId: event.inboxItemId,
-          eventId: event.eventId,
-          payload,
-        }),
+      recipients.map((recipientId) =>
+        deps.queue.add(
+          INSERT_NOTIFICATION_JOB_NAME,
+          {
+            userId: recipientId,
+            organizationId: event.organizationId,
+            propertyId: event.propertyId,
+            type: 'inbox.escalated' as const,
+            resourceType: 'inbox_item' as const,
+            resourceId: event.inboxItemId,
+            eventId: event.eventId,
+            payload,
+            audience: { kind: 'account_admin' as const },
+          },
+          { jobId: `${event.eventId}-${recipientId}` },
+        ),
       ),
     )
   }

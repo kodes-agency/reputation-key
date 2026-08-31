@@ -48,7 +48,7 @@ async function authorizePortalCategoryScopes(
 // ── Category CRUD ──────────────────────────────────────────────────
 
 export const createLinkCategory = createServerFn({ method: 'POST' })
-  .inputValidator(createLinkCategoryInputSchema)
+  .validator(createLinkCategoryInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -56,12 +56,12 @@ export const createLinkCategory = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         await authorizePortalCategoryScopes(ctx, 'portal.create', [
           () =>
-            getContainer().useCases.resolvePortalManagementScope(
+            getContainer().portalPublicApi.management.resolvePortalManagementScope(
               toPortalId(data.portalId),
             ),
         ])
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           const category = await useCases.createLinkCategory(data, ctx)
           return { category }
         } catch (e) {
@@ -76,7 +76,7 @@ export const createLinkCategory = createServerFn({ method: 'POST' })
   )
 
 export const updateLinkCategory = createServerFn({ method: 'POST' })
-  .inputValidator(updateLinkCategoryInputSchema)
+  .validator(updateLinkCategoryInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -84,12 +84,12 @@ export const updateLinkCategory = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         await authorizePortalCategoryScopes(ctx, 'portal.update', [
           () =>
-            getContainer().useCases.resolvePortalCategoryManagementScope(
+            getContainer().portalPublicApi.management.resolvePortalCategoryManagementScope(
               toCategoryId(data.categoryId),
             ),
         ])
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           const category = await useCases.updateLinkCategory(data, ctx)
           return { category }
         } catch (e) {
@@ -104,7 +104,7 @@ export const updateLinkCategory = createServerFn({ method: 'POST' })
   )
 
 export const deleteLinkCategory = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ categoryId: z.string().min(1) }))
+  .validator(z.object({ categoryId: z.string().min(1) }))
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -112,12 +112,12 @@ export const deleteLinkCategory = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         await authorizePortalCategoryScopes(ctx, 'portal.delete', [
           () =>
-            getContainer().useCases.resolvePortalCategoryManagementScope(
+            getContainer().portalPublicApi.management.resolvePortalCategoryManagementScope(
               toCategoryId(data.categoryId),
             ),
         ])
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           await useCases.deleteLinkCategory(data, ctx)
           return { deleted: true }
         } catch (e) {
@@ -132,7 +132,7 @@ export const deleteLinkCategory = createServerFn({ method: 'POST' })
   )
 
 export const reorderCategories = createServerFn({ method: 'POST' })
-  .inputValidator(reorderCategoriesInputSchema)
+  .validator(reorderCategoriesInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -140,18 +140,18 @@ export const reorderCategories = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         await authorizePortalCategoryScopes(ctx, 'portal.update', [
           () =>
-            getContainer().useCases.resolvePortalManagementScope(
+            getContainer().portalPublicApi.management.resolvePortalManagementScope(
               toPortalId(data.portalId),
             ),
           ...data.items.map(
             (item) => () =>
-              getContainer().useCases.resolvePortalCategoryManagementScope(
+              getContainer().portalPublicApi.management.resolvePortalCategoryManagementScope(
                 toCategoryId(item.id),
               ),
           ),
         ])
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           await useCases.reorderCategories(data, ctx)
           return { success: true }
         } catch (e) {

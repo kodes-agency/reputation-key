@@ -25,10 +25,9 @@ function delay(ms: number): Promise<void> {
 }
 
 // ── Transient connection errors ────────────────────────────────────
-// Neon (serverless Postgres) suspends the compute endpoint when idle.
-// The first connection after a suspend fails with a TCP-level timeout;
-// recycled idle connections fail with "Connection terminated". Both are
-// transient — the endpoint is waking up, not permanently broken.
+// A database restart, network route change, or recycled idle socket can fail
+// connection acquisition transiently. Statements are deliberately excluded:
+// once sent, their commit outcome may be ambiguous.
 
 const TRANSIENT_CODES = new Set([
   'ETIMEDOUT',
@@ -59,60 +58,42 @@ export function isTransientConnectionError(err: unknown): boolean {
   return walk(err)
 }
 
-/** Retry a promise-returning operation on transient connection errors. */
-async function retryTransient<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
-  for (let attempt = 0; ; attempt++) {
+/** Total connection-acquisition attempts, including the initial try. */
+const CONNECTION_ACQUISITION_MAX_ATTEMPTS = 3
+
+/** Retry connection acquisition on transient connection errors. */
+async function retryTransient<T>(
+  fn: () => Promise<T>,
+  maxAttempts = CONNECTION_ACQUISITION_MAX_ATTEMPTS,
+): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
     try {
       return await fn()
     } catch (err) {
       if (!isTransientConnectionError(err) || attempt >= maxAttempts) throw err
-      await delay(500 * 2 ** attempt)
+      await delay(500 * 2 ** (attempt - 1))
     }
   }
 }
 
 /**
- * Wrap pool.connect() and pool.query() so the promise form of each retries
- * on transient network errors. Kysely (Better Auth) calls pool.connect()
- * directly. Drizzle calls pool.query() — which internally uses the callback
- * form of connect(), so the connect() wrapper alone does not cover it.
- * Wrapping both promise forms covers every query path without modifying
- * either library. Callback-form callers (pg's internal pool.query delegate)
- * are passed through untouched.
+ * Retry only pool.connect() acquisition failures. Once pool.query() has sent a
+ * statement, a connection error is ambiguous: PostgreSQL may have committed
+ * an autocommit write before the response was lost. Retrying that statement
+ * here can duplicate a non-idempotent mutation. Callers that can prove safe
+ * replay must implement it at their operation boundary with an idempotency
+ * key or authoritative readback.
+ *
+ * Kysely (Better Auth) calls pool.connect() directly, so it receives the same
+ * bounded acquisition recovery. Callback-form callers (including pg's
+ * internal pool.query checkout) are passed through untouched.
  */
-function wrapPoolWithRetry(pool: Pool): void {
+function wrapPoolConnectWithRetry(pool: Pool): void {
   const originalConnect = pool.connect.bind(pool)
   pool.connect = ((...args: Parameters<typeof originalConnect>) => {
     if (args.length > 0) return originalConnect(...args)
     return retryTransient(() => originalConnect())
   }) as typeof pool.connect
-  const originalQuery = pool.query.bind(pool)
-  pool.query = ((...args: Parameters<typeof originalQuery>): unknown => {
-    if (typeof args.at(-1) === 'function') return originalQuery(...args)
-    return retryTransient(() => originalQuery(...args) as unknown as Promise<unknown>)
-  }) as typeof pool.query
-}
-
-/**
- * Eagerly establish and verify the first connection so the first user
- * request doesn't fail on a cold Neon connection. Neon (serverless Postgres)
- * suspends the compute endpoint when idle; the first connection after a
- * suspend can fail. This retries until the pool has a healthy client.
- * Fire-and-forget — requests that arrive during warmup use the pool normally.
- */
-async function warmup(pool: Pool): Promise<void> {
-  for (let i = 0; i < 6; i++) {
-    let client
-    try {
-      client = await pool.connect()
-      await client.query('SELECT 1')
-      return
-    } catch {
-      await delay(1000)
-    } finally {
-      client?.release()
-    }
-  }
 }
 
 /**
@@ -173,30 +154,21 @@ export function getPool(): Pool {
     const pool = new Pool({
       connectionString: env.DATABASE_URL,
       max: POOL_MAX_CONNECTIONS,
-      // Neon (serverless Postgres) recycles connections when the compute
-      // endpoint suspends. These timeouts keep the pool from hanging on a
-      // dead connection and fail fast so the request errors instead of
-      // stalling indefinitely.
+      // Bound acquisition and idle-socket lifetime so a dead route or
+      // recycled connection cannot hold a request indefinitely.
       connectionTimeoutMillis: 15_000,
       idleTimeoutMillis: 30_000,
       onConnect: (client) => applySessionGuards(client),
     })
-    // CRITICAL for Neon: when the serverless runtime closes an idle client
-    // behind our back, the Pool emits 'error'. Without a listener Node treats
-    // it as an unhandled exception, which destabilizes the process and causes
-    // cascading 500s. This handler logs and lets the Pool recycle the client.
+    // PostgreSQL, a proxy, or the network can close an idle client behind the
+    // process. Pool emits `error`; handling it prevents an unhandled exception
+    // while allowing pg-pool to retire that client.
     pool.on('error', (err) => {
-      getLogger().warn(
-        { error: err.message },
-        '[db] idle pool connection error (Neon recycled connection)',
-      )
+      getLogger().warn({ error: err.message }, '[db] idle pool connection error')
     })
-    // Retry transient connection failures (Neon cold-start, recycled
-    // connections) at the pool level — wraps connect() + query() so both
-    // Kysely (Better Auth) and Drizzle queries survive a cold Neon endpoint.
-    wrapPoolWithRetry(pool)
-    // Warm the first connection (fire-and-forget). Retries internally.
-    void warmup(pool)
+    // Retry only acquisition failures. Never replay pool.query(): a write may
+    // have committed before a connection failure made its outcome ambiguous.
+    wrapPoolConnectWithRetry(pool)
     store[POOL_KEY] = pool
   }
   return store[POOL_KEY]

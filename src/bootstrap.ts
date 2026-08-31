@@ -8,8 +8,7 @@
 import type { Container } from './composition'
 import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.job'
 import { isDbHealthy } from '#/shared/health/db-probe'
-import { isRedisHealthy } from '#/shared/cache/redis'
-import { getLogger } from '#/shared/observability/logger'
+import { areRedisDependenciesHealthy } from '#/shared/health/redis-dependencies'
 import { createAlertAuxReader } from '#/shared/observability/alert-aux-reads'
 import { createRedisAlertStateStore } from '#/shared/health/alert-state'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
@@ -27,6 +26,24 @@ import {
 } from '#/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job'
 import { createGoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'
 import { createGoogleImportV2Store } from '#/contexts/integration/infrastructure/google-import-v2-store'
+import { createGoogleOAuthExchangeRecoveryRepository } from '#/contexts/integration/infrastructure/repositories/google-oauth-exchange-recovery.repository'
+import { createGoogleDisconnectRevokeRepository } from '#/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository'
+import {
+  createRecoverInvitedRegistrationsHandler,
+  JOB_NAME as RECOVER_INVITED_REGISTRATIONS_JOB,
+} from '#/contexts/identity/infrastructure/jobs/recover-invited-registrations.job'
+import {
+  createAdvanceOrganizationLifecycleHandler,
+  JOB_NAME as ADVANCE_ORGANIZATION_LIFECYCLE_JOB,
+} from '#/contexts/identity/infrastructure/jobs/advance-organization-lifecycle.job'
+import {
+  createGenerateOrganizationExportHandler,
+  JOB_NAME as GENERATE_ORGANIZATION_EXPORT_JOB,
+} from '#/contexts/identity/infrastructure/jobs/generate-organization-export.job'
+import {
+  createPurgeExpiredOrganizationExportsHandler,
+  JOB_NAME as PURGE_EXPIRED_ORGANIZATION_EXPORTS_JOB,
+} from '#/contexts/identity/infrastructure/jobs/purge-expired-organization-exports.job'
 import {
   createAiOperationExecutionReaperHandler,
   JOB_NAME as AI_EXECUTION_REAPER_JOB_NAME,
@@ -35,47 +52,29 @@ import {
   createAiReviewAnalysisBackfillAdvanceHandler,
   JOB_NAME as AI_BACKFILL_ADVANCE_JOB_NAME,
 } from '#/shared/jobs/ai-review-analysis-backfill-advance.job'
+import {
+  createAiReviewAnalysisEnrollmentSweepHandler,
+  JOB_NAME as AI_ENROLLMENT_SWEEP_JOB_NAME,
+} from '#/shared/jobs/ai-review-analysis-enrollment-sweep.job'
+import {
+  createAiAuthorizationErasureHandler,
+  JOB_NAME as AI_AUTHORIZATION_ERASURE_JOB_NAME,
+} from '#/shared/jobs/ai-authorization-erasure.job'
 import { createAiOperationExecutionReaper } from '#/contexts/ai/application/ai-operation-execution-reaper'
 import { createAiOperationStoreAdapter } from '#/contexts/ai/infrastructure/adapters/ai-operation-store.adapter'
 import {
-  createSyncPropertyReviewsHandler,
-  JOB_NAME as SYNC_REVIEWS_JOB_NAME,
-} from '#/contexts/review/infrastructure/jobs/sync-property-reviews.job'
-import {
-  createRefreshExpiringReviewsHandler,
-  JOB_NAME as REFRESH_EXPIRING_JOB_NAME,
-} from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
-import {
-  createDiscoverNewReviewsHandler,
-  JOB_NAME as DISCOVER_NEW_REVIEWS_JOB_NAME,
-} from '#/contexts/review/infrastructure/jobs/discover-new-reviews.job'
-import { createReviewDiscoveryRepository } from '#/contexts/review/infrastructure/repositories/review-discovery.repository'
-import { createReviewSyncActivityRecorder } from '#/contexts/review/infrastructure/repositories/review-sync-activity.repository'
-import { getEnv } from '#/shared/config/env'
-import {
-  createPurgeExpiredReviewsHandler,
-  JOB_NAME as PURGE_EXPIRED_JOB_NAME,
-} from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
+  AI_AUTHORIZATION_ERASURE_DEFAULT_BATCH_SIZE,
+  createEraseAiAuthorizationDerivatives,
+} from '#/contexts/ai/application/use-cases/erase-ai-authorization-derivatives'
+import { createAiAuthorizationErasureAdapter } from '#/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter'
+import type { Env } from '#/shared/config/env'
+import { writeWorkerHeartbeat } from '#/shared/health/worker-heartbeat'
 import {
   createRefreshRollupHandler,
   JOB_NAMES,
 } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
-import {
-  createPublishReplyHandler,
-  JOB_NAME as PUBLISH_REPLY_JOB_NAME,
-} from '#/contexts/review/infrastructure/jobs/publish-reply.job'
-import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
-import { activityLogId, replyId } from '#/shared/domain/ids'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
-import {
-  createExpireReviewProviderSourceHandler,
-  createSweepReviewProviderTombstonesHandler,
-  EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
-  SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
-  type ReviewProviderLifecycleSweepJobData,
-} from '#/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job'
-import { createReviewProviderSnapshotRepository } from '#/contexts/review/infrastructure/repositories/review-provider-snapshot.repository'
 import {
   createGeneratePropertyTrendJobHandler,
   GENERATE_PROPERTY_TREND_JOB_NAME,
@@ -84,21 +83,81 @@ import {
   createSchedulePropertyTrendsJobHandler,
   SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
 } from '#/contexts/ai/infrastructure/jobs/schedule-property-trends.job'
+import {
+  GoalProgramError,
+  type GoalExecutionPolicy,
+} from '#/contexts/goal/application/public-api'
+import {
+  createRevalidateApprovedDestinationsHandler,
+  JOB_NAME as PORTAL_DESTINATION_REVALIDATION_JOB,
+} from '#/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job'
+import {
+  createCleanupPortalUploadSourcesHandler,
+  JOB_NAME as PORTAL_UPLOAD_SOURCE_CLEANUP_JOB,
+} from '#/contexts/portal/infrastructure/jobs/cleanup-upload-sources.job'
+import {
+  createReleaseResponseTargetRemindersHandler,
+  JOB_NAME as RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
+} from '#/contexts/inbox/infrastructure/jobs/release-response-target-reminders.job'
 
 // BQC-5.5: the ops queue read handles are composition-owned (container.opsQueues)
 // — the per-module getOpsQueues() duplicate is gone. The health-check job
 // consumes the same read-only handles as /api/health/metrics.
 
+export type BootstrapRuntimeConfig = Readonly<{
+  reviewDiscoveryIntervalMs: number
+  quarantineTtlMs: number
+  notification: Readonly<{
+    nodeEnv: Env['NODE_ENV']
+    resendApiKey: string
+    resendBaseUrl?: string
+    emailFrom: string
+    appBaseUrl: string
+    unsubscribeHmacKeys?: string
+  }>
+}>
+
+/** Convert the validated process environment to the exact worker inputs once. */
+export const createBootstrapRuntimeConfig = (env: Env): BootstrapRuntimeConfig => ({
+  reviewDiscoveryIntervalMs: env.REVIEW_DISCOVERY_INTERVAL_MINUTES * 60 * 1_000,
+  quarantineTtlMs: env.QUARANTINE_TTL_DAYS * 24 * 60 * 60 * 1_000,
+  notification: {
+    nodeEnv: env.NODE_ENV,
+    resendApiKey: env.RESEND_API_KEY,
+    ...(env.RESEND_BASE_URL ? { resendBaseUrl: env.RESEND_BASE_URL } : {}),
+    emailFrom: env.EMAIL_FROM,
+    appBaseUrl: env.BETTER_AUTH_URL,
+    ...(env.NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS
+      ? { unsubscribeHmacKeys: env.NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS }
+      : {}),
+  },
+})
+
+/**
+ * BQR-0: registers a job only when its capability is globally enabled.
+ * Dark/blocked work has no executable handler.
+ */
+type CapabilityGatedJobRegistrar = (
+  jobName: string,
+  capability: Capability,
+  handler: (job: import('bullmq').Job) => Promise<void>,
+) => void
+
 export async function bootstrap(
   container: Container,
-  options: Readonly<{ allowUnavailableGoogleImportV2Processor?: boolean }> = {},
+  options: Readonly<{
+    runtime: BootstrapRuntimeConfig
+    allowUnavailableGoogleImportV2Processor?: boolean
+  }>,
 ): Promise<void> {
-  const logger = getLogger()
+  const logger = container.logger
+  const runtime = options.runtime
 
   /**
    * BQR-0: Register a job only when its capability is globally enabled.
-   * When dark/blocked, register a no-op so leftover Redis repeatable jobs
-   * drain harmlessly instead of executing dark work.
+   * Dark/blocked work has no executable handler. Scheduler reconciliation
+   * removes repeat registrations; any already-queued remnant fails unknown-job
+   * admission and is quarantined instead of being acknowledged as successful.
    */
   function registerCapabilityGatedJob(
     jobName: string,
@@ -106,15 +165,9 @@ export async function bootstrap(
     handler: (job: import('bullmq').Job) => Promise<void>,
   ): void {
     if (!isCapabilityJobEnabled(capability)) {
-      container.jobRegistry.register(jobName, async () => {
-        logger.info(
-          { job: jobName, capability },
-          'BQR-0: skipping dark/blocked capability job',
-        )
-      })
       logger.info(
         { job: jobName, capability },
-        'registered no-op job handler (capability dark/blocked)',
+        'job handler not registered (capability dark/blocked)',
       )
       return
     }
@@ -133,15 +186,12 @@ export async function bootstrap(
   })
   const healthCheckHandler = createHealthCheckHandler({
     dbHealthy: isDbHealthy,
-    redisHealthy: isRedisHealthy,
+    redisHealthy: areRedisDependenciesHealthy,
     logger,
     clock: container.clock,
     // BQR-6.2: stamp worker liveness for /api/health/metrics
-    recordHeartbeat: async () => {
-      const { getRedis } = await import('#/shared/cache/redis')
-      const { writeWorkerHeartbeat } = await import('#/shared/health/worker-heartbeat')
-      await writeWorkerHeartbeat(getRedis() ?? undefined, container.clock)
-    },
+    recordHeartbeat: () =>
+      writeWorkerHeartbeat(container.redis ?? undefined, container.clock),
     // BQC-7.4: alert evaluation inputs + dispatch (supersedes the 3.7
     // warn-only threshold sample).
     readOperationsSnapshot: () => container.operationsSnapshot.read(),
@@ -162,11 +212,90 @@ export async function bootstrap(
   container.jobRegistry.register(JOB_NAME, async (job) => healthCheckHandler(job))
   logger.info({ job: JOB_NAME }, 'registered health-check job handler')
 
+  registerCapabilityGatedJob(
+    PORTAL_DESTINATION_REVALIDATION_JOB,
+    'portal.write',
+    createRevalidateApprovedDestinationsHandler({
+      revalidate: container.portalWorkerRuntime.revalidateApprovedDestinations,
+      authorizeScope: createScheduledScopeAuthorizer(
+        'system:portal.destination_revalidate',
+      ),
+      logger: container.logger,
+    }),
+  )
+  logger.info(
+    { job: PORTAL_DESTINATION_REVALIDATION_JOB },
+    'registered Portal approved-destination revalidation job handler',
+  )
+
+  container.jobRegistry.register(
+    RECOVER_INVITED_REGISTRATIONS_JOB,
+    createRecoverInvitedRegistrationsHandler({
+      recover: container.identityWorkerRuntime.recoverInvitedRegistrations,
+      logger: container.logger,
+    }),
+  )
+  logger.info(
+    { job: RECOVER_INVITED_REGISTRATIONS_JOB },
+    'registered invited registration recovery job handler',
+  )
+
+  // LIF-01: these three safety handlers are registered so stale/older queued
+  // work has an explicit no-mutation landing. Their catalogue posture is
+  // quarantined, therefore scheduler reconciliation removes every recurrence
+  // until the named Identity runtime reports complete reviewed bindings.
+  container.jobRegistry.register(
+    ADVANCE_ORGANIZATION_LIFECYCLE_JOB,
+    createAdvanceOrganizationLifecycleHandler({
+      ...(container.identityLifecycleRuntime.maintenance.runScheduledPass
+        ? {
+            advance: container.identityLifecycleRuntime.maintenance.runScheduledPass,
+          }
+        : {}),
+      logger: container.logger,
+    }),
+  )
+  const organizationExportService =
+    container.identityLifecycleRuntime.organizationExport.service
+  container.jobRegistry.register(
+    GENERATE_ORGANIZATION_EXPORT_JOB,
+    createGenerateOrganizationExportHandler({
+      ...(organizationExportService
+        ? { generateNext: () => organizationExportService.generateNext() }
+        : {}),
+      logger: container.logger,
+    }),
+  )
+  container.jobRegistry.register(
+    PURGE_EXPIRED_ORGANIZATION_EXPORTS_JOB,
+    createPurgeExpiredOrganizationExportsHandler({
+      ...(organizationExportService
+        ? { purgeNextExpired: () => organizationExportService.purgeNextExpired() }
+        : {}),
+      logger: container.logger,
+    }),
+  )
+  logger.info(
+    {
+      jobs: [
+        ADVANCE_ORGANIZATION_LIFECYCLE_JOB,
+        GENERATE_ORGANIZATION_EXPORT_JOB,
+        PURGE_EXPIRED_ORGANIZATION_EXPORTS_JOB,
+      ],
+      lifecycleConfigured:
+        container.identityLifecycleRuntime.maintenance.readiness.configured,
+      exportConfigured:
+        container.identityLifecycleRuntime.organizationExport.readiness.configured,
+    },
+    'registered quarantined Organization lifecycle safety handlers',
+  )
+
   // ── Portal image processing job (portal dark / portal.upload blocked) ──
   const processImageHandler = createProcessImageJob({
-    storage: container.storage,
-    portalRepo: container.portalRepo,
+    storage: container.portalWorkerRuntime.storage,
+    uploadStore: container.portalWorkerRuntime.uploadStore,
     clock: container.clock,
+    logger: container.logger,
   })
   registerCapabilityGatedJob(PROCESS_IMAGE_JOB_NAME, 'portal.upload', async (job) => {
     await processImageHandler(
@@ -176,7 +305,23 @@ export async function bootstrap(
     )
   })
 
-  const processGoogleImportV2Item = container.useCases.processGoogleImportV2Item
+  // Cleanup remains active while uploads are dark. Capability shutdown must
+  // stop new processing without stranding expired/rejected private sources.
+  container.jobRegistry.register(
+    PORTAL_UPLOAD_SOURCE_CLEANUP_JOB,
+    createCleanupPortalUploadSourcesHandler({
+      storage: container.portalWorkerRuntime.storage,
+      uploadStore: container.portalWorkerRuntime.uploadStore,
+      clock: container.clock,
+      logger: container.logger,
+    }),
+  )
+  logger.info(
+    { job: PORTAL_UPLOAD_SOURCE_CLEANUP_JOB },
+    'registered Portal private upload source cleanup job handler',
+  )
+
+  const processGoogleImportV2Item = container.integrationWorkerRuntime.processImportItem
   if (processGoogleImportV2Item) {
     const importV2Handler = createGoogleImportV2ItemJobHandler(processGoogleImportV2Item)
     registerCapabilityGatedJob(
@@ -207,188 +352,31 @@ export async function bootstrap(
     'property.import_gbp_v2',
     createGoogleImportClaimReaperHandler({
       reap: createGoogleImportV2ClaimReaper({
-        store: createGoogleImportV2Store(container.db),
+        store: createGoogleImportV2Store(container.db, container.clock),
         clock: container.clock,
       }),
+      logger: container.logger,
     }),
   )
 
-  // ── Review provider-snapshot jobs ────────────────────────────────
-  // Discovery-ladder activity stamps: written by the sync path (a push
-  // arrived / a page persisted a review we had never seen), read by the
-  // discovery sweep's per-property backoff.
-  const reviewSyncActivity = createReviewSyncActivityRecorder(container.db)
-  const discoveryBaseIntervalMs = getEnv().REVIEW_DISCOVERY_INTERVAL_MINUTES * 60 * 1000
-  const syncReviewsHandler = createSyncPropertyReviewsHandler({
-    runSnapshot: container.useCases.runReviewProviderSnapshot,
-    propertyRouting: container.propertyProcessingScopeApi,
-    enqueueContinuation: async (data, options) => {
-      await container.reviewQueue.addSyncJob(
-        data,
-        options?.delayMs === undefined ? undefined : { delayMs: options.delayMs },
-      )
-    },
-    syncActivity: reviewSyncActivity,
-    clock: container.clock,
-    hotIntervalMs: discoveryBaseIntervalMs,
+  await container.registerReviewWorkerJobs({
+    reviewDiscoveryIntervalMs: runtime.reviewDiscoveryIntervalMs,
   })
-  container.jobRegistry.register(SYNC_REVIEWS_JOB_NAME, async (job) => {
-    await syncReviewsHandler(
-      job as import('bullmq').Job<
-        import('#/contexts/review/application/ports/review-queue.port').SyncPropertyReviewsJobData
-      >,
-    )
-  })
-  logger.info(
-    { job: SYNC_REVIEWS_JOB_NAME },
-    'registered sync-property-reviews job handler',
-  )
-  const reviewProviderSnapshotRepository = createReviewProviderSnapshotRepository(
-    container.db,
-    container.eventBus,
-  )
-  const enqueueReviewProviderLifecycleContinuation = async (
-    jobName:
-      | typeof EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME
-      | typeof SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
-    data: ReviewProviderLifecycleSweepJobData,
-  ): Promise<void> => {
-    if (!container.backgroundQueue) {
-      throw new Error('Review provider lifecycle queue is unavailable')
-    }
-    await container.backgroundQueue.add(jobName, data, {
-      jobId: `${jobName}-${data.beforeOrAtEpochMillis}-${data.afterReviewId ?? 'start'}`,
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 50 },
-      ...jobEnqueueOptions(jobName),
-    })
-  }
-  const expireReviewProviderSourceHandler = createExpireReviewProviderSourceHandler({
-    repository: reviewProviderSnapshotRepository,
-    enqueueExpiryContinuation: (data) =>
-      enqueueReviewProviderLifecycleContinuation(
-        EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
-        data,
-      ),
-    enqueueTombstoneContinuation: (data) =>
-      enqueueReviewProviderLifecycleContinuation(
-        SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
-        data,
-      ),
-  })
-  const sweepReviewProviderTombstonesHandler = createSweepReviewProviderTombstonesHandler(
-    {
-      repository: reviewProviderSnapshotRepository,
-      enqueueExpiryContinuation: (data) =>
-        enqueueReviewProviderLifecycleContinuation(
-          EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
-          data,
-        ),
-      enqueueTombstoneContinuation: (data) =>
-        enqueueReviewProviderLifecycleContinuation(
-          SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
-          data,
-        ),
-    },
-  )
-  container.jobRegistry.register(EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME, async (job) => {
-    await expireReviewProviderSourceHandler(
-      job as import('bullmq').Job<ReviewProviderLifecycleSweepJobData>,
-    )
-  })
+
   container.jobRegistry.register(
-    SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
-    async (job) => {
-      await sweepReviewProviderTombstonesHandler(
-        job as import('bullmq').Job<ReviewProviderLifecycleSweepJobData>,
-      )
-    },
+    RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
+    createReleaseResponseTargetRemindersHandler({
+      release: container.inboxRuntime.releaseDueResponseTargetReminders,
+      logger: container.logger,
+    }),
   )
   logger.info(
-    {
-      jobs: [
-        EXPIRE_REVIEW_PROVIDER_SOURCE_JOB_NAME,
-        SWEEP_REVIEW_PROVIDER_TOMBSTONES_JOB_NAME,
-      ],
-    },
-    'registered Review provider lifecycle handlers',
+    { job: RELEASE_RESPONSE_TARGET_REMINDERS_JOB },
+    'registered response-target reminder release job handler',
   )
 
-  // ── Review retention jobs ────────────────────────────────────────
-  const { createReviewRefreshRunRepository } =
-    await import('#/contexts/review/infrastructure/repositories/review-refresh-run.repository')
-  const refreshHandler = createRefreshExpiringReviewsHandler({
-    reviewRepo: container.reviewRepo,
-    queue: container.reviewQueue,
-    refreshRunRepo: createReviewRefreshRunRepository(container.db),
-    clock: container.clock,
-  })
-  container.jobRegistry.register(REFRESH_EXPIRING_JOB_NAME, async (job) => {
-    await refreshHandler(job)
-  })
-  logger.info(
-    { job: REFRESH_EXPIRING_JOB_NAME },
-    'registered refresh-expiring-reviews job handler',
-  )
-
-  // ── New-review discovery sweep ───────────────────────────────────
-  // The refresh sweep above only revisits reviews already stored, so it can
-  // never find a NEW one. This sweep polls connected properties on their own
-  // due schedule and is the only ingestion path when GBP push is unset. The
-  // configured interval is the ladder's HOT rung; quiet properties back off.
-  const discoverHandler = createDiscoverNewReviewsHandler({
-    discoveryRepo: createReviewDiscoveryRepository(container.db),
-    queue: container.reviewQueue,
-    clock: container.clock,
-    intervalMs: discoveryBaseIntervalMs,
-  })
-  container.jobRegistry.register(DISCOVER_NEW_REVIEWS_JOB_NAME, async (job) => {
-    await discoverHandler(job)
-  })
-  logger.info(
-    { job: DISCOVER_NEW_REVIEWS_JOB_NAME },
-    'registered discover-new-reviews job handler',
-  )
-
-  // BQC-3.3: atomic reply/review state + outbox writes for the purge and
-  // publish job handlers (one instance, shared — the store is stateless).
-  const replyCommandStore = createAtomicReplyCommandStore(
-    container.db,
-    container.eventBus,
-  )
-
-  const purgeHandler = createPurgeExpiredReviewsHandler({
-    reviewRepo: container.reviewRepo,
-    commandStore: replyCommandStore,
-    clock: container.clock,
-    db: container.db,
-  })
-  container.jobRegistry.register(PURGE_EXPIRED_JOB_NAME, async (job) => purgeHandler(job))
-  logger.info(
-    { job: PURGE_EXPIRED_JOB_NAME },
-    'registered purge-expired-reviews job handler',
-  )
-
-  // ── Reply publish job ──────────────────────────────────────────────
-  const publishReplyHandler = createPublishReplyHandler({
-    replyRepo: container.replyRepo,
-    reviewRepo: container.reviewRepo,
-    googleReviewApi: container.googleReviewApi,
-    replyCommandStore,
-    clock: container.clock,
-    idGen: () => replyId(crypto.randomUUID()),
-    staffPublicApi: container.staffPublicApi,
-  })
-  container.jobRegistry.register(PUBLISH_REPLY_JOB_NAME, async (job) => {
-    await publishReplyHandler(
-      job as import('bullmq').Job<
-        import('#/contexts/review/application/ports/reply-queue.port').PublishReplyJobData
-      >,
-    )
-  })
-  logger.info({ job: PUBLISH_REPLY_JOB_NAME }, 'registered publish-reply job handler')
   const generatePropertyTrendHandler = createGeneratePropertyTrendJobHandler({
-    generatePropertyTrend: container.useCases.generatePropertyTrend,
+    generatePropertyTrend: container.aiWorkerRuntime.generatePropertyTrend,
   })
   registerCapabilityGatedJob(
     GENERATE_PROPERTY_TREND_JOB_NAME,
@@ -400,7 +388,8 @@ export async function bootstrap(
     'registered property AI trend job handler',
   )
   const schedulePropertyTrendsHandler = createSchedulePropertyTrendsJobHandler({
-    schedulePropertyTrends: container.useCases.schedulePropertyTrends,
+    idGen: () => crypto.randomUUID(),
+    schedulePropertyTrends: container.aiWorkerRuntime.schedulePropertyTrends,
   })
   registerCapabilityGatedJob(
     SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
@@ -412,35 +401,12 @@ export async function bootstrap(
     'registered property AI trend scheduler job handler',
   )
 
-  // ── Reconcile ambiguous reply publications (BQC-3.8) ──────────────
-  // Sweep over replies whose Google send outcome was ambiguous on the final
-  // attempt (publication_state='ambiguous', reconcile_due_at <= now); each
-  // due row re-reads provider state via the composition-wired reconcile use
-  // case (provider read only — never a send).
-  const {
-    createReconcileAmbiguousPublicationsHandler,
-    JOB_NAME: RECONCILE_AMBIGUOUS_JOB_NAME,
-  } =
-    await import('#/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job')
-  const reconcileAmbiguousHandler = createReconcileAmbiguousPublicationsHandler({
-    replyRepo: container.replyRepo,
-    reconcileReplyPublication: container.useCases.reconcileReplyPublication,
-    clock: container.clock,
-  })
-  container.jobRegistry.register(RECONCILE_AMBIGUOUS_JOB_NAME, async (job) => {
-    await reconcileAmbiguousHandler(job)
-  })
-  logger.info(
-    { job: RECONCILE_AMBIGUOUS_JOB_NAME },
-    'registered reconcile-ambiguous-publications job handler',
-  )
-
   // ── Register event handlers here as contexts are added ────────────
   // Example:
   //   container.eventBus.on('portal.created', (event) => { ... })
 
   // ── Metric incremental rollup refresh jobs ─────────────────────────
-  const metricRollupDeps = { db: container.db }
+  const metricRollupDeps = { db: container.db, logger: container.logger }
   for (const [queryKey, jobName] of [
     ['dailyMetrics', JOB_NAMES.refreshDailyMetrics],
     ['weeklyMetrics', JOB_NAMES.refreshWeeklyMetrics],
@@ -451,6 +417,32 @@ export async function bootstrap(
     logger.info({ job: jobName }, 'registered metric rollup refresh job handler')
   }
 
+  // ── Canonical monthly Goal Program maintenance ───────────────────
+  // The dispatch gate authorizes this tenant-cross enumeration. The service
+  // then re-authorizes every discovered property immediately before reading
+  // its governed Metric source or mutating its Goal Program lifecycle.
+  const authorizeGoalProgramScope = createScheduledScopeAuthorizer('system:goal.maintain')
+  const goalProgramPolicy: GoalExecutionPolicy = {
+    authorize: async (request) => {
+      if (request.actor !== 'system') throw new GoalProgramError('forbidden')
+      const allowed = await authorizeGoalProgramScope(
+        request.organizationId,
+        request.propertyId,
+      )
+      if (!allowed) throw new GoalProgramError('forbidden')
+    },
+  }
+  const goalProgramMaintenance = container.goalWorkerRuntime.programMaintenance
+  const goalProgramMaintenanceHandler =
+    goalProgramMaintenance.createHandler(goalProgramPolicy)
+  registerCapabilityGatedJob(goalProgramMaintenance.jobName, 'goal.use', async (job) => {
+    await goalProgramMaintenanceHandler(job)
+  })
+  logger.info(
+    { job: goalProgramMaintenance.jobName },
+    'registered canonical Goal Program maintenance job handler',
+  )
+
   // ── Retention sweep (BQC-1.6: bounded, evidence-backed, daily) ──────
   const { createRetentionSweepHandler, JOB_NAME: RETENTION_SWEEP_JOB_NAME } =
     await import('#/shared/jobs/retention-sweep.job')
@@ -458,7 +450,8 @@ export async function bootstrap(
     db: container.db,
     clock: container.clock,
     googleImportLifecycleSweep:
-      container.useCases.sweepGoogleImportV2Lifecycle ?? undefined,
+      container.integrationWorkerRuntime.sweepImportLifecycle ?? undefined,
+    guestContactRequestRetentionSweep: container.guestContactRequestRetentionSweep,
   })
   container.jobRegistry.register(RETENTION_SWEEP_JOB_NAME, retentionSweepHandler)
   logger.info({ job: RETENTION_SWEEP_JOB_NAME }, 'registered retention sweep job handler')
@@ -473,7 +466,7 @@ export async function bootstrap(
     ? createQuarantineTtlSweepHandler({
         queue: container.opsQueues.quarantine,
         clock: container.clock,
-        ttlMs: getEnv().QUARANTINE_TTL_DAYS * 24 * 60 * 60 * 1000,
+        ttlMs: runtime.quarantineTtlMs,
         db: container.db,
       })
     : null
@@ -506,18 +499,66 @@ export async function bootstrap(
     await import('#/shared/auth/execution-permit-start-deadline-sweep')
   const { createGoogleContentAuthorityRepository } =
     await import('#/contexts/identity/infrastructure/repositories/google-content-authority.repository')
-  container.jobRegistry.register(
-    PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
-    createPermitStartDeadlineSweepHandler({
-      sweep: createExecutionPermitStartDeadlineSweeper({
-        store: createGoogleContentAuthorityRepository(container.db),
-        clock: container.clock,
-      }),
+  const permitStartDeadlineSweep = createPermitStartDeadlineSweepHandler({
+    sweep: createExecutionPermitStartDeadlineSweeper({
+      store: createGoogleContentAuthorityRepository(container.db),
+      clock: container.clock,
     }),
+  })
+  const oauthExchangeRecovery = createGoogleOAuthExchangeRecoveryRepository(container.db)
+  const disconnectRevokeRecovery = createGoogleDisconnectRevokeRepository(
+    container.db,
+    container.eventBus,
   )
+  container.jobRegistry.register(PERMIT_START_DEADLINE_SWEEP_JOB_NAME, async (job) => {
+    await permitStartDeadlineSweep(job)
+    const now = container.clock()
+    const [oauth, revoke] = await Promise.all([
+      oauthExchangeRecovery.expire({ now, limit: 100 }),
+      disconnectRevokeRecovery.reconcileElapsed({ now, limit: 100 }),
+    ])
+    // Counts only: no tenant, connection, attempt, permit, credential binding,
+    // provider response, or outcome payload reaches observability.
+    logger.info(
+      {
+        job: PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
+        oauthExchangeAttemptsExpired: oauth.expired,
+        disconnectAttemptsVisited: revoke.visited,
+        disconnectConfirmedNotSent: revoke.confirmedNotSent,
+        disconnectCleanupAmbiguous: revoke.cleanupAmbiguous,
+      },
+      'Google provider recovery sweep completed',
+    )
+  })
   logger.info(
     { job: PERMIT_START_DEADLINE_SWEEP_JOB_NAME },
     'registered permit start-deadline sweep job handler',
+  )
+
+  // ── AI authorization-derivative physical erasure ─────────────────
+  // Local Review Analysis, Property aggregate, and Property Trend
+  // generations are hidden synchronously at authorization change. This
+  // unconditional worker independently converges their physical deletion;
+  // switching AI execution off must never switch cleanup off with it.
+  const aiAuthorizationErasureStore = createAiAuthorizationErasureAdapter(container.db)
+  container.jobRegistry.register(
+    AI_AUTHORIZATION_ERASURE_JOB_NAME,
+    createAiAuthorizationErasureHandler({
+      db: container.db,
+      clock: container.clock,
+      batchSize: AI_AUTHORIZATION_ERASURE_DEFAULT_BATCH_SIZE,
+      erase: () =>
+        createEraseAiAuthorizationDerivatives({
+          store: aiAuthorizationErasureStore,
+          clock: container.clock,
+          leaseOwner: crypto.randomUUID(),
+          batchSize: AI_AUTHORIZATION_ERASURE_DEFAULT_BATCH_SIZE,
+        })(),
+    }),
+  )
+  logger.info(
+    { job: AI_AUTHORIZATION_ERASURE_JOB_NAME },
+    'registered AI authorization derivative erasure job handler',
   )
 
   // ── AI operation abandoned-execution reaper ───────────────────────
@@ -533,7 +574,7 @@ export async function bootstrap(
     AI_EXECUTION_REAPER_JOB_NAME,
     createAiOperationExecutionReaperHandler({
       reap: createAiOperationExecutionReaper({
-        store: createAiOperationStoreAdapter(container.db),
+        store: createAiOperationStoreAdapter(container.db, () => crypto.randomUUID()),
         nowEpochMillis: () => container.clock().getTime(),
       }),
     }),
@@ -554,7 +595,7 @@ export async function bootstrap(
   container.jobRegistry.register(
     AI_BACKFILL_ADVANCE_JOB_NAME,
     createAiReviewAnalysisBackfillAdvanceHandler({
-      sweep: container.useCases.advanceReviewAnalysisBackfill.sweep,
+      sweep: container.aiWorkerRuntime.advanceReviewAnalysisBackfill.sweep,
     }),
   )
   logger.info(
@@ -562,35 +603,84 @@ export async function bootstrap(
     'registered AI review-analysis backfill advance job handler',
   )
 
-  // ── Activity log insertion job ────────────────────────────────────
-  const { createInsertActivityLogHandler, INSERT_ACTIVITY_LOG_JOB_NAME } =
-    await import('#/contexts/activity/infrastructure/jobs/insert-activity-log.job')
-  const { createDbUserLookupAdapter } =
-    await import('#/contexts/activity/infrastructure/adapters/db-user-lookup.adapter')
-  const dbUserLookup = createDbUserLookupAdapter(container.db)
-  const insertActivityLogHandler = createInsertActivityLogHandler({
-    repo: container.activityRepo,
-    userLookup: dbUserLookup,
-    clock: container.clock,
-    logger: container.logger,
-    idGen: () => activityLogId(crypto.randomUUID()),
-  })
+  // ── AI first-enablement enrollment recovery ───────────────────────
+  // Enrollment intent is durable, but capturing it does not activate provider
+  // execution. The owning use case rechecks the exact authorization lineage,
+  // source/capability epochs, and current global/provider/capability controls
+  // for every head before opening a replay. Registration therefore remains
+  // unconditional: when execution is dark, the tick records runtimeBlocked and
+  // leaves the enrollment queued instead of silently stranding it.
   container.jobRegistry.register(
-    INSERT_ACTIVITY_LOG_JOB_NAME,
+    AI_ENROLLMENT_SWEEP_JOB_NAME,
+    createAiReviewAnalysisEnrollmentSweepHandler({
+      sweep: container.aiWorkerRuntime.advanceReviewAnalysisEnrollments.sweep,
+      logger: container.logger,
+    }),
+  )
+  logger.info(
+    { job: AI_ENROLLMENT_SWEEP_JOB_NAME },
+    'registered AI Review Analysis enrollment sweep job handler',
+  )
+
+  // ── Recent Activity projection job ────────────────────────────────
+  const { PROJECT_RECENT_ACTIVITY_JOB_NAME, LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME } =
+    await import('#/contexts/activity/infrastructure/jobs/project-recent-activity.job')
+  // ARC-03-T12: Activity owns the projection. The worker's job is transport
+  // only — it unwraps the BullMQ envelope and calls the context capability.
+  const projectRecentActivityHandler = async (
+    job: import('bullmq').Job<
+      import('#/contexts/activity/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
+    >,
+  ): Promise<void> => {
+    await container.activityWorkerRuntime.projectRecentActivity(job.data)
+  }
+  container.jobRegistry.register(
+    PROJECT_RECENT_ACTIVITY_JOB_NAME,
     async (job): Promise<void> => {
-      await insertActivityLogHandler(
+      await projectRecentActivityHandler(
         job as import('bullmq').Job<
-          import('#/contexts/activity/infrastructure/jobs/insert-activity-log.job').InsertActivityLogJobData
+          import('#/contexts/activity/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
+        >,
+      )
+    },
+  )
+  // Drain-only rolling compatibility. Current producers enqueue only the
+  // canonical name, but already-persisted queue items must remain processable.
+  container.jobRegistry.register(
+    LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME,
+    async (job): Promise<void> => {
+      await projectRecentActivityHandler(
+        job as import('bullmq').Job<
+          import('#/contexts/activity/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
         >,
       )
     },
   )
   logger.info(
-    { job: INSERT_ACTIVITY_LOG_JOB_NAME },
-    'registered activity log insertion job handler',
+    {
+      job: PROJECT_RECENT_ACTIVITY_JOB_NAME,
+      legacyDrainJob: LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME,
+    },
+    'registered Recent Activity projection and rolling drain handlers',
   )
 
-  // ── Notification jobs ────────────────────────────────────────────
+  await registerNotificationJobs(container, runtime, registerCapabilityGatedJob)
+}
+
+/**
+ * The notification job family: outbound transport selection, one-click
+ * unsubscribe signing, the insert handler, the notification-gap healing sweep,
+ * and the two capability-gated outbound-email handlers.
+ *
+ * It is a separate unit because every declaration below is used only by this
+ * family — nothing in the rest of the worker's registration reads them.
+ */
+async function registerNotificationJobs(
+  container: Container,
+  runtime: BootstrapRuntimeConfig,
+  registerCapabilityGatedJob: CapabilityGatedJobRegistrar,
+): Promise<void> {
+  const logger = container.logger
   const { createInsertNotificationHandler, INSERT_NOTIFICATION_JOB_NAME } =
     await import('#/contexts/notification/infrastructure/jobs/insert-notification.job')
   const { createDbUserLookupAdapter: createNotifUserLookup } =
@@ -598,12 +688,7 @@ export async function bootstrap(
   const { createResendEmailAdapter } =
     await import('#/contexts/notification/infrastructure/adapters/resend-email.adapter')
   const { notificationId, notificationEmailId } = await import('#/shared/domain/ids')
-  const { createPropertyGrantHolderLookup } =
-    await import('#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter')
-  const notifUserLookup = createNotifUserLookup(
-    container.db,
-    createPropertyGrantHolderLookup(container.db),
-  )
+  const notifUserLookup = createNotifUserLookup(container.db)
   // Outbound email transport is chosen ONCE, here, and logged loudly. Before
   // this the real Resend adapter was constructed unconditionally, so a local
   // boot with a real key in .env mailed real inboxes, and a boot with the
@@ -611,12 +696,29 @@ export async function bootstrap(
   // wiring time. Rules live in shared/email/transport-selection.ts.
   const { decideEmailTransport } = await import('#/shared/email/transport-selection')
   const { createCapturingEmailSender } =
-    await import('#/shared/testing/capturing-email-sender')
-  const emailTransport = decideEmailTransport(getEnv())
+    await import('#/contexts/notification/infrastructure/adapters/capturing-email-sender.adapter')
+  const emailTransport = decideEmailTransport({
+    NODE_ENV: runtime.notification.nodeEnv,
+    RESEND_API_KEY: runtime.notification.resendApiKey,
+    ...(runtime.notification.resendBaseUrl
+      ? { RESEND_BASE_URL: runtime.notification.resendBaseUrl }
+      : {}),
+  })
   const notifEmailSender =
     emailTransport.mode === 'capture'
       ? createCapturingEmailSender({ clock: container.clock })
-      : createResendEmailAdapter()
+      : createResendEmailAdapter({
+          config: {
+            apiKey: runtime.notification.resendApiKey,
+            ...(runtime.notification.resendBaseUrl
+              ? { baseUrl: runtime.notification.resendBaseUrl }
+              : {}),
+            from: runtime.notification.emailFrom,
+            appBaseUrl: runtime.notification.appBaseUrl,
+          },
+          logger,
+          clock: container.clock,
+        })
   if (emailTransport.mode === 'capture') {
     logger.warn(
       { transport: 'capture', reason: emailTransport.reason },
@@ -630,17 +732,42 @@ export async function bootstrap(
   }
   // Deep links in email are absolute; the base URL is injected, never read
   // from env inside a job.
-  const notifBaseUrl = getEnv().BETTER_AUTH_URL
-  const { getPool } = await import('#/shared/db/pool')
+  const notifBaseUrl = runtime.notification.appBaseUrl
+  const unsubscribeKeys = runtime.notification.unsubscribeHmacKeys
+  if (isCapabilityJobEnabled('notification.send_email') && !unsubscribeKeys) {
+    throw new Error(
+      '[CONFIG] notification.send_email requires NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS',
+    )
+  }
+  const { activeOneClickUnsubscribeKeyVersion, oneClickUnsubscribeUrl } =
+    await import('#/contexts/notification/application/one-click-unsubscribe-token')
+  const notificationUnsubscribeUrl = (
+    target: Parameters<typeof oneClickUnsubscribeUrl>[2],
+    keyVersion?: string,
+  ): string => {
+    if (!unsubscribeKeys) {
+      throw new Error('One-click unsubscribe signing keys are unavailable')
+    }
+    return oneClickUnsubscribeUrl(notifBaseUrl, unsubscribeKeys, target, keyVersion)
+  }
+  const notificationUnsubscribeKeyVersion = (): string => {
+    if (!unsubscribeKeys) {
+      throw new Error('One-click unsubscribe signing keys are unavailable')
+    }
+    return activeOneClickUnsubscribeKeyVersion(unsubscribeKeys)
+  }
   const { createNotificationPropertyScopeResolver } =
     await import('#/contexts/notification/infrastructure/repositories/notification-property-scope.repository')
   const { createNotificationOrganizationScopeResolver } =
     await import('#/contexts/notification/infrastructure/repositories/notification-organization-scope.repository')
-  const resolveNotificationProperty = createNotificationPropertyScopeResolver(getPool())
+  const resolveNotificationProperty = createNotificationPropertyScopeResolver(
+    container.pool,
+  )
   // ADR 0046 r.3: the organization fallback timezone plus property display
   // names for digest grouping.
-  const resolveNotificationOrgScope =
-    createNotificationOrganizationScopeResolver(getPool())
+  const resolveNotificationOrgScope = createNotificationOrganizationScopeResolver(
+    container.pool,
+  )
   const authorizeUrgentNotification = createScheduledScopeAuthorizer(
     'system:notification.email_urgent',
   )
@@ -655,13 +782,15 @@ export async function bootstrap(
   const { jobEnqueueOptions: urgentEnqueueOptions } =
     await import('#/shared/jobs/job-policy')
   const insertNotifHandler = createInsertNotificationHandler({
-    notificationRepo: container.notificationRepo,
-    emailRepo: container.notificationEmailRepo,
-    preferenceRepo: container.notificationPrefRepo,
+    notificationRepo: container.notificationWorkerRuntime.notificationRepo,
+    emailRepo: container.notificationWorkerRuntime.emailRepo,
+    preferenceRepo: container.notificationWorkerRuntime.preferenceRepo,
     clock: container.clock,
     idGen: () => notificationId(crypto.randomUUID()),
     emailIdGen: () => notificationEmailId(crypto.randomUUID()),
     logger: container.logger,
+    authorizeAudience: container.notificationAudienceAuthorizer,
+    deliverySettlement: container.notificationDeliverySettlement,
     enqueueImmediateEmail: container.jobQueue
       ? async (data) => {
           await container.jobQueue!.add(
@@ -721,25 +850,26 @@ export async function bootstrap(
     )
   }
 
-  // Outbound email is blocked (notification.send_email) for beta —
-  // registerCapabilityGatedJob installs a logging no-op below when it is dark,
-  // so a queued urgent email stays `pending` rather than being delivered. The
-  // transport decision logged above is orthogonal: the gate decides whether the
-  // JOB runs at all, the transport decides where a running job's mail goes.
+  // Outbound email is blocked (notification.send_email) for beta. The gated
+  // families retain no executable handler, so queued remnants cannot be
+  // acknowledged as delivered. The transport decision logged above is
+  // orthogonal: the gate decides whether the JOB may exist at runtime, while
+  // the transport decides where an admitted job's mail goes.
   const { createUrgentEmailJobHandler, URGENT_EMAIL_JOB_NAME } =
     await import('#/contexts/notification/infrastructure/jobs/urgent-email.job')
   const urgentEmailHandler = createUrgentEmailJobHandler({
-    emailRepo: container.notificationEmailRepo,
-    notifRepo: container.notificationRepo,
+    emailRepo: container.notificationWorkerRuntime.emailRepo,
+    notifRepo: container.notificationWorkerRuntime.notificationRepo,
     userLookup: notifUserLookup,
     emailSender: notifEmailSender,
     logger: container.logger,
     clock: container.clock,
-    preferenceRepo: container.notificationPrefRepo,
+    preferenceRepo: container.notificationWorkerRuntime.preferenceRepo,
     resolvePropertyScope: resolveNotificationProperty,
     resolveOrganizationScope: resolveNotificationOrgScope,
     authorizeScope: authorizeUrgentNotification,
     baseUrl: notifBaseUrl,
+    oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
   })
   registerCapabilityGatedJob(
     URGENT_EMAIL_JOB_NAME,
@@ -756,17 +886,20 @@ export async function bootstrap(
   const { createDigestNotificationJobHandler, DIGEST_JOB_NAME } =
     await import('#/contexts/notification/infrastructure/jobs/digest-notification.job')
   const digestHandler = createDigestNotificationJobHandler({
-    pool: getPool(),
-    emailRepo: container.notificationEmailRepo,
-    notifRepo: container.notificationRepo,
+    pool: container.pool,
+    emailRepo: container.notificationWorkerRuntime.emailRepo,
+    notifRepo: container.notificationWorkerRuntime.notificationRepo,
     userLookup: notifUserLookup,
     emailSender: notifEmailSender,
     logger: container.logger,
     clock: container.clock,
-    preferenceRepo: container.notificationPrefRepo,
+    batchIdGen: () => crypto.randomUUID(),
+    preferenceRepo: container.notificationWorkerRuntime.preferenceRepo,
     resolveOrganizationScope: resolveNotificationOrgScope,
     authorizeScope: createScheduledScopeAuthorizer('system:notification.email_digest'),
     baseUrl: notifBaseUrl,
+    activeOneClickUnsubscribeKeyVersion: notificationUnsubscribeKeyVersion,
+    oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
     enqueueImmediate: async (data) => {
       if (!container.jobQueue) return
       await container.jobQueue.add(
@@ -787,54 +920,5 @@ export async function bootstrap(
   })
   registerCapabilityGatedJob(DIGEST_JOB_NAME, 'notification.send_email', async (job) => {
     await digestHandler(job as import('bullmq').Job<void>)
-  })
-
-  // ── Seed system badge definitions ────────────────────────────────
-  // Seeding is idempotent domain data used by the recognition model; it does
-  // not evaluate awards. Safe to run while badge.use is dark.
-  try {
-    await container.useCases.seedBadgeDefinitions()
-    logger.info('seeded system badge definitions')
-  } catch (e) {
-    logger.error({ err: e }, 'failed to seed badge definitions')
-  }
-
-  // Global ticks fan out to scoped children; each child re-authorizes the
-  // concrete organization/property before governed reads or projection writes.
-  registerCapabilityGatedJob('leaderboard.reconcile', 'leaderboard.use', async (job) => {
-    const payload = job.data as Readonly<{
-      scope?: string
-      organizationId?: string
-      propertyId?: string
-    }>
-    if (payload.scope === 'property' && payload.organizationId && payload.propertyId) {
-      await container.useCases.reconcileRecognition(
-        payload.organizationId,
-        payload.propertyId,
-      )
-      return
-    }
-
-    const recognitionQueue = container.jobQueue
-    if (!recognitionQueue) {
-      throw new Error('recognition scoped reconciliation queue unavailable')
-    }
-
-    const scopes = await container.useCases.listRecognitionScopes()
-    for (const scope of scopes) {
-      await recognitionQueue.add(
-        'leaderboard.reconcile',
-        {
-          ...createJobExecutionEnvelope({
-            organizationId: scope.organizationId,
-            propertyId: scope.propertyId,
-            capability: 'leaderboard.use',
-            initiator: { kind: 'system', id: 'recognition:hourly-tick' },
-            correlationId: `recognition:${scope.organizationId}:${scope.propertyId}`,
-          }),
-        },
-        jobEnqueueOptions('leaderboard.reconcile'),
-      )
-    }
   })
 }

@@ -68,6 +68,7 @@ function fakes(): FakeRedisInstance[] {
 const REDIS_KEY = Symbol.for('repkey.shared.cache.redis')
 const ORIGINAL_REDIS_URL = process.env.REDIS_URL
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV
+const ORIGINAL_BETTER_AUTH_URL = process.env.BETTER_AUTH_URL
 
 function clearStore(): void {
   delete (globalThis as Record<symbol, unknown>)[REDIS_KEY]
@@ -85,6 +86,8 @@ afterEach(() => {
   else process.env.REDIS_URL = ORIGINAL_REDIS_URL
   if (ORIGINAL_NODE_ENV === undefined) delete process.env.NODE_ENV
   else process.env.NODE_ENV = ORIGINAL_NODE_ENV
+  if (ORIGINAL_BETTER_AUTH_URL === undefined) delete process.env.BETTER_AUTH_URL
+  else process.env.BETTER_AUTH_URL = ORIGINAL_BETTER_AUTH_URL
   resetEnv()
 })
 
@@ -130,6 +133,8 @@ describe('getRedis', () => {
   it('logs connection errors at error level outside development', () => {
     process.env.REDIS_URL = 'redis://unit-test:6379'
     process.env.NODE_ENV = 'production'
+    process.env.BETTER_AUTH_URL = 'https://app.example.test'
+    process.env.PROCESSING_CELL = 'us'
     resetEnv()
 
     getRedis()

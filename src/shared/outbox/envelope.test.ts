@@ -1,11 +1,13 @@
 // BQR-2.1 / BQC-3.7 — ConsumerEvent envelope contract between relay and dispatcher.
 // BQC-3.7 adds envelope-grade metadata: occurredAt, recordedAt, correlationId,
-// causationId, sourceAggregateVersion, region. Old 8-field envelopes must
-// still parse (in-flight back-compat).
+// causationId, sourceAggregateVersion, source Data Cell, region, and explicit
+// command/content classifications. Old 8-field envelopes must still parse
+// (in-flight back-compat).
 
 import { describe, it, expect } from 'vitest'
 import { buildConsumerEvent, parseConsumerEvent } from './envelope'
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 const RECORDED_AT = new Date('2026-07-17T10:00:00.000Z')
 
@@ -39,6 +41,8 @@ describe('buildConsumerEvent', () => {
       propertyId: 'prop-1',
       sourceContext: 'review',
       sourceAggregateId: 'rev-1',
+      commandClassification: 'durable_domain_fact_required',
+      contentClassification: 'identifier_only',
       recordedAt: RECORDED_AT.toISOString(),
       correlationId: null,
       causationId: null,
@@ -50,6 +54,35 @@ describe('buildConsumerEvent', () => {
   it('preserves null propertyId', () => {
     const envelope = buildConsumerEvent({ ...unpublished, propertyId: null })
     expect(envelope.propertyId).toBeNull()
+  })
+
+  it('carries and parses freshly resolved Property routing evidence', () => {
+    const envelope = buildConsumerEvent(
+      unpublished,
+      {
+        dataCellId: 'us',
+        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+      },
+      'us',
+    )
+    expect(envelope.sourceCellId).toBe('us')
+    expect(envelope.dataCellId).toBe('us')
+    expect(envelope.routingPolicyVersion).toBe(DATA_CELL_CATALOGUE_POLICY_VERSION)
+    expect(envelope.region).toBe('us')
+    expect(parseConsumerEvent(envelope)).toEqual(envelope)
+  })
+
+  it('carries and parses source-cell ownership without inventing Property routing', () => {
+    const envelope = buildConsumerEvent(
+      { ...unpublished, propertyId: null },
+      undefined,
+      'us',
+    )
+
+    expect(envelope).toMatchObject({ sourceCellId: 'us', region: 'us' })
+    expect(envelope).not.toHaveProperty('dataCellId')
+    expect(envelope).not.toHaveProperty('routingPolicyVersion')
+    expect(parseConsumerEvent(envelope)).toEqual(envelope)
   })
 
   it('lifts occurredAt/correlationId/causationId/aggregateVersion from the payload', () => {
@@ -90,6 +123,40 @@ describe('buildConsumerEvent', () => {
     expect(envelope.correlationId).toBeNull()
     expect(envelope.region).toBe('unscoped')
   })
+
+  it('never relays a retained invitee address while the v1 parser is supported', () => {
+    const envelope = buildConsumerEvent({
+      ...unpublished,
+      eventType: 'identity.member.invited',
+      eventVersion: 1,
+      payload: {
+        invitationId: 'invitation-1',
+        organizationId: 'org-1',
+        role: 'PropertyManager',
+        email: 'synthetic-secret@example.test',
+      },
+    })
+
+    expect(envelope.payload).toMatchObject({ email: '[redacted]' })
+    expect(JSON.stringify(envelope)).not.toContain('synthetic-secret@example.test')
+  })
+
+  it('removes the compatibility email key from v2 queue envelopes', () => {
+    const envelope = buildConsumerEvent({
+      ...unpublished,
+      eventType: 'identity.member.invited',
+      eventVersion: 2,
+      payload: {
+        invitationId: 'invitation-1',
+        organizationId: 'org-1',
+        role: 'PropertyManager',
+        email: 'synthetic-secret@example.test',
+      },
+    })
+
+    expect(envelope.payload).not.toHaveProperty('email')
+    expect(JSON.stringify(envelope)).not.toContain('synthetic-secret@example.test')
+  })
 })
 
 describe('parseConsumerEvent', () => {
@@ -116,6 +183,8 @@ describe('parseConsumerEvent', () => {
     expect(parsed!.recordedAt).toBeUndefined()
     expect(parsed!.correlationId).toBeNull()
     expect(parsed!.region).toBe('unscoped')
+    expect(parsed!.commandClassification).toBeUndefined()
+    expect(parsed!.contentClassification).toBeUndefined()
   })
 
   it('rejects a malformed region or mistyped metadata', () => {
@@ -126,6 +195,47 @@ describe('parseConsumerEvent', () => {
     expect(parseConsumerEvent({ ...built, causationId: {} })).toBeNull()
     expect(parseConsumerEvent({ ...built, sourceAggregateVersion: {} })).toBeNull()
     expect(parseConsumerEvent({ ...built, occurredAt: 42 })).toBeNull()
+    expect(
+      parseConsumerEvent({ ...built, commandClassification: 'local_only' }),
+    ).toBeNull()
+    expect(
+      parseConsumerEvent({ ...built, contentClassification: 'raw_content' }),
+    ).toBeNull()
+    expect(parseConsumerEvent({ ...built, dataCellId: 'eu' })).toBeNull()
+    expect(parseConsumerEvent({ ...built, sourceCellId: 'eu' })).toBeNull()
+    expect(
+      parseConsumerEvent({
+        ...built,
+        dataCellId: 'us',
+        region: 'us',
+        routingPolicyVersion: 0,
+      }),
+    ).toBeNull()
+    expect(parseConsumerEvent({ ...built, routingPolicyVersion: 2 })).toBeNull()
+    expect(
+      parseConsumerEvent({ ...built, dataCellId: 'us', region: 'europe' }),
+    ).toBeNull()
+    expect(
+      parseConsumerEvent({ ...built, sourceCellId: 'us', region: 'europe' }),
+    ).toBeNull()
+    expect(
+      parseConsumerEvent({
+        ...built,
+        sourceCellId: 'us',
+        dataCellId: 'europe',
+        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+        region: 'europe',
+      }),
+    ).toBeNull()
+  })
+
+  it('accepts the bounded pre-policy-version Data Cell stamp during rolling deploy', () => {
+    const built = buildConsumerEvent(unpublished)
+    expect(parseConsumerEvent({ ...built, dataCellId: 'us', region: 'us' })).toEqual({
+      ...built,
+      dataCellId: 'us',
+      region: 'us',
+    })
   })
 
   it('accepts explicit null metadata', () => {

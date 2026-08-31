@@ -4,7 +4,7 @@
 // not (gate OFF). The component also renders the status actions, activity
 // timeline, and notes thread, so stories supply mock detailFns for all three.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { InboxDetailContent } from './inbox-detail-content'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
@@ -16,7 +16,9 @@ import type {
   InboxItem,
   InboxItemDetailResult,
   InboxNote,
+  InboxNoteView,
 } from '#/contexts/inbox/application/public-api'
+import type { InboxDetailState } from './use-inbox-detail'
 
 const reviewItem: InboxItem = makeInboxItem({
   id: 'rev-det',
@@ -41,6 +43,8 @@ const reviewDetail: InboxItemDetailResult = {
   feedbackRatingValue: null,
   reply: null,
   analysis: null,
+  feedbackHandling: null,
+  responseTarget: null,
 }
 
 const feedbackDetail: InboxItemDetailResult = {
@@ -53,6 +57,16 @@ const feedbackDetail: InboxItemDetailResult = {
   feedbackRatingValue: 5,
   reply: null,
   analysis: null,
+  feedbackHandling: {
+    cycleNumber: 1,
+    sourceRevision: 1,
+    stateRevision: 1,
+    status: 'open',
+    closeReason: null,
+    currentOutcome: null,
+    history: [],
+  },
+  responseTarget: null,
 }
 
 // Google returns its machine translation and the guest's original words in one
@@ -66,12 +80,13 @@ const translatedReviewDetail: InboxItemDetailResult = {
   reviewTranslatedText: EN_TRANSLATION,
 }
 
-const notes: ReadonlyArray<InboxNote> = [
+const notes: ReadonlyArray<InboxNoteView> = [
   {
     id: 'note-1' as InboxNote['id'],
     inboxItemId: reviewItem.id,
     organizationId: 'org-1' as InboxNote['organizationId'],
     userId: 'user-1' as InboxNote['userId'],
+    displayName: 'Ada Lovelace',
     text: 'Drafting a reply today.',
     createdAt: new Date('2025-06-01T10:00:00Z'),
   },
@@ -88,23 +103,38 @@ const detailFns = {
   generateReplySuggestion: mockServerFn(
     async ({ data }: Parameters<typeof generateReplySuggestionFn>[0]) => ({
       status: 'ready' as const,
+      profileVersion: 'reply-draft-v2' as const,
       replyText:
         data.targetLanguage.kind === 'review_language'
-          ? 'Değerli yorumunuz için teşekkür ederiz. Sizi yeniden ağırlamayı sabırsızlıkla bekliyoruz.'
+          ? 'Благодарим Ви за отзива. Радваме се, че престоят Ви е бил приятен.'
           : 'Thank you for your review. We look forward to welcoming you again.',
       provenanceToken: 'storybook-provenance-token',
       expiresAtEpochMillis: Date.now() + 60_000,
       baseReplyStateRevision: 0,
-      concreteLanguageTag:
-        data.targetLanguage.kind === 'review_language' ? 'tr-Latn' : 'bg-Cyrl',
+      concreteLanguageTag: 'bg-Cyrl',
     }),
   ) as unknown as typeof generateReplySuggestionFn,
 }
+
+const markFeedbackHandled: InboxDetailState['markFeedbackHandled'] = Object.assign(
+  async (_input: Parameters<InboxDetailState['markFeedbackHandled']>[0]) => {
+    throw new Error('Story action only')
+  },
+  { isPending: false, error: null, isSuccess: false, data: null },
+)
+const correctFeedbackHandlingOutcome: InboxDetailState['correctFeedbackHandlingOutcome'] =
+  Object.assign(
+    async (_input: Parameters<InboxDetailState['correctFeedbackHandlingOutcome']>[0]) => {
+      throw new Error('Story action only')
+    },
+    { isPending: false, error: null, isSuccess: false, data: null },
+  )
 
 const meta: Meta<typeof InboxDetailContent> = {
   title: 'Inbox/Detail Content',
   component: InboxDetailContent,
   tags: ['autodocs'],
+  args: { markFeedbackHandled, correctFeedbackHandlingOutcome },
 }
 export default meta
 type Story = StoryObj<typeof InboxDetailContent>
@@ -207,8 +237,7 @@ export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
     currentItem: reviewItem,
     detail: {
       ...reviewDetail,
-      reviewText:
-        'Bulgaristan’da nadir görülen konforlu bir mekan ve konaklamada sabah kahvaltısı dahil.',
+      reviewText: 'Много уютно място, а закуската по време на престоя беше чудесна.',
       propertyDefaultReplyLanguage: null,
       reviewReplyLanguage: null,
     },
@@ -223,10 +252,15 @@ export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
 
     await expect(aiButton).toBeEnabled()
     await userEvent.click(aiButton)
+    // Generating only previews the suggestion — adopting it is a deliberate
+    // second step, so the detected review language reaches the composer (and
+    // the language select) once "Use draft" is pressed.
+    await expect(canvas.findByText('Personalized AI suggestion')).resolves.toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
     await expect(canvas.findByText(/AI draft/i)).resolves.toBeVisible()
     await expect(
       canvas.getByRole('combobox', { name: 'Reply language' }),
-    ).toHaveTextContent(/Turkish\s*·\s*Review language/i)
+    ).toHaveTextContent(/Bulgarian\s*·\s*Review language/i)
   },
 }
 
@@ -253,6 +287,22 @@ export const FeedbackDetail: Story = {
     onNoteAdded: () => {},
     onReplyMutated: () => {},
     detailFns,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Feedback handling')).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Mark as handled' }))
+    const dialog = within(document.body)
+    // The dialog fades/zooms in, so it is mounted (and named) a frame before it
+    // is painted — retry the visibility assertions instead of sampling once.
+    await waitFor(() =>
+      expect(
+        dialog.getByRole('heading', { name: 'Mark feedback as handled' }),
+      ).toBeVisible(),
+    )
+    await waitFor(() =>
+      expect(dialog.getByText(/never shown to the guest/i)).toBeVisible(),
+    )
   },
 }
 

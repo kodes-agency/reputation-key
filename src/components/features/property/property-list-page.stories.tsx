@@ -1,12 +1,9 @@
-// Property list page — the org's properties as clickable rows, each with a
-// delete affordance. Pure prop-driven: `properties` (plain rows) + a delete
-// `Action`. Routing (useNavigate) + permissions (usePermissions) are provided
-// globally by the Storybook decorators (memory router + permission table).
+// Property list page — the org's properties as clickable rows. Recoverable
+// lifecycle controls live in each Property's settings so a row click remains
+// unambiguous. Routing and permissions are provided by Storybook decorators.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { PropertyListPage } from './property-list-page'
-import type { Action } from '#/components/hooks/use-action'
-import type { PropertyListPageProps } from './property-list-page'
 
 const meta: Meta<typeof PropertyListPage> = {
   title: 'Property/PropertyListPage',
@@ -24,34 +21,6 @@ const meta: Meta<typeof PropertyListPage> = {
 export default meta
 type Story = StoryObj<typeof PropertyListPage>
 
-// Build an Action-shaped mock: a callable with the reactive `.isPending` /
-// `.error` / `.isSuccess` / `.data` surface the component reads.
-function mockAction<TInput, TOutput>(
-  impl: (input: TInput) => TOutput | Promise<TOutput>,
-  state: Partial<{
-    isPending: boolean
-    error: unknown
-    isSuccess: boolean
-    data: TOutput
-  }> = {},
-): Action<TInput, TOutput> {
-  const run = async (input: TInput) => impl(input)
-  return Object.assign(run, {
-    isPending: false,
-    error: null,
-    isSuccess: false,
-    data: null,
-    ...state,
-  }) as Action<TInput, TOutput>
-}
-
-const deleteAction: PropertyListPageProps['deleteAction'] = mockAction(
-  async (_input: { data: { propertyId: string } }) => ({
-    deleted: true,
-    propertyId: _input.data.propertyId,
-  }),
-)
-
 const properties = [
   {
     id: 'prop-1',
@@ -64,14 +33,20 @@ const properties = [
 ]
 
 export const Default: Story = {
-  args: { properties, deleteAction },
+  args: { properties },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Each property row renders its name + slug badge.
     for (const p of properties) {
       expect(canvas.getByText(p.name)).toBeVisible()
       expect(canvas.getByText(p.slug)).toBeVisible()
+      expect(
+        canvas.getByRole('link', {
+          name: (accessibleName) => accessibleName.includes(p.name),
+        }),
+      ).toHaveAttribute('href', `/properties/${p.id}`)
     }
+    expect(canvas.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
   },
 }
 
@@ -79,13 +54,12 @@ export const Default: Story = {
 export const SingleProperty: Story = {
   args: {
     properties: [properties[0]],
-    deleteAction,
   },
 }
 
 // Empty state — first-run CTA copy.
 export const Empty: Story = {
-  args: { properties: [], deleteAction },
+  args: { properties: [] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/no properties yet/i)).toBeVisible()

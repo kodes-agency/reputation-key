@@ -15,7 +15,7 @@
 //   cached?  TTL-fresh?  versioned?  version match?  → outcome
 //   no       —           —           —                → resolve fresh
 //   yes      no          —           —                → resolve fresh
-//   yes      yes         no          —                → serve
+//   yes      yes         no          —                → resolve fresh
 //   yes      yes         yes         yes              → serve
 //   yes      yes         yes         no / unreadable  → drop entry, resolve fresh
 
@@ -36,8 +36,11 @@ import { builtInPermissionsForRole } from './role-definitions'
 import {
   fetchRoleDefinitions,
   fetchPermissionVersion,
+  type RoleDefinitionDatabase,
 } from '#/shared/db/role-definitions'
-import { getDb, type Database } from '#/shared/db'
+import { getDb } from '#/shared/db'
+import { checkUserOrganizationBinding } from './user-organization-binding-authority'
+import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 
 import {
   recordTenantCacheEviction,
@@ -71,20 +74,33 @@ const tenantCache = new Map<string, TenantCacheEntry>()
 // it never imports this module (the auth stack stays out of health).
 registerTenantCacheSizeReader(() => tenantCache.size)
 
-function tenantCacheKey(headers: Headers, activeOrgId: string): string | null {
+function tenantCacheKey(
+  headers: Headers,
+  activeOrgId: string,
+  bindingVersion: number,
+): string | null {
   const cookie = headers.get('cookie')
   if (!cookie || cookie.trim() === '') {
     return null // Skip cache for empty cookies — prevents collision
   }
   // Extract only the session cookie value — different cookie ordering
   // or non-session cookies shouldn't create separate cache entries.
-  // Better-auth uses 'better-auth.session_token' by default.
-  const sessionCookie = cookie
-    .split(';')
-    .map((c) => c.trim())
-    .find((c) => c.startsWith('better-auth.session_token='))
+  // Better Auth 1.6.23 prefixes the production cookie with `__Secure-` for
+  // HTTPS base URLs and its own parser prefers that name when both are sent.
+  // Keep the cache identity aligned with the session decoder: otherwise the
+  // production cache is inert, or a stale legacy cookie can alias two secure
+  // sessions that happen to arrive in the same header.
+  const cookiePairs = cookie.split(';').map((c) => c.trim())
+  const sessionCookie = [
+    '__Secure-better-auth.session_token=',
+    'better-auth.session_token=',
+  ]
+    .map((prefix) => cookiePairs.find((pair) => pair.startsWith(prefix)))
+    .find((pair) => pair !== undefined && pair.slice(pair.indexOf('=') + 1) !== '')
   // Combine with the active org so an org switch resolves under a fresh key.
-  return sessionCookie ? `${sessionCookie}|${activeOrgId}` : null
+  return sessionCookie
+    ? `${sessionCookie}|${activeOrgId}|binding:${bindingVersion}`
+    : null
 }
 
 function evictOldestIfNeeded(): void {
@@ -119,7 +135,10 @@ export function decideTenantCacheAction(
   if (!entry || now - entry.ts >= TENANT_CACHE_TTL_MS) {
     return 'resolve-fresh'
   }
-  return entry.version === null ? 'serve' : 'check-version'
+  // Built-in authorization without a permission_version proof is never served
+  // across requests: membership removal and role downgrade must be visible on
+  // the next command, not after the cache TTL.
+  return entry.version === null ? 'resolve-fresh' : 'check-version'
 }
 
 /**
@@ -231,7 +250,7 @@ async function resolveDynamicAuthorization(
   memberRole: string,
   domainRole: Role | null,
   context: { activeOrgId: string; userId: string },
-  database: Database = getDb(),
+  database: RoleDefinitionDatabase = getDb(),
 ): Promise<MemberAuthorization> {
   // Fail-closed with 503 if role definitions can't load.
   try {
@@ -325,7 +344,7 @@ export async function resolveMemberAuthContext(
 
 /** Resolve a durable member using the caller's transaction snapshot. */
 export async function resolveMemberAuthContextWithDatabase(
-  database: Database,
+  database: RoleDefinitionDatabase,
   input: Readonly<{
     memberRole: string
     organizationId: string
@@ -375,9 +394,29 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
     throwAuthError('no_active_org', 'No active organization selected')
   }
 
+  let bindingDecision
+  try {
+    bindingDecision = await checkUserOrganizationBinding(session.user.id, activeOrgId)
+  } catch {
+    throwAuthError(
+      'authorization_unavailable',
+      'Organization binding could not be verified',
+    )
+  }
+  if (bindingDecision.kind === 'deny') {
+    getLogger().warn(
+      { reason: bindingDecision.reason },
+      'auth.organization_binding_denied: session Organization is not the beta binding',
+    )
+    throwAuthError(
+      'organization_binding_conflict',
+      'This account needs Organization access assistance',
+    )
+  }
+
   // Stage 2 — tenant-cache freshness decision table. Keyed per (session, org) so
   // an org switch A→B resolves fresh instead of serving org A's context.
-  const key = tenantCacheKey(headers, activeOrgId)
+  const key = tenantCacheKey(headers, activeOrgId, bindingDecision.version)
   if (key) {
     const cached = await tryServeFromCache(key)
     if (cached) {
@@ -390,6 +429,16 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
   if (!member) {
     throwAuthError('forbidden', 'Not a member of the active organization')
   }
+  if (!isBetaInteractiveMemberRoleToken(member.role)) {
+    getLogger().warn(
+      { memberRole: member.role },
+      'auth.beta_role_inactive: account has no active beta manager role',
+    )
+    throwAuthError(
+      'beta_role_inactive',
+      'This account is not enabled for beta manager access',
+    )
+  }
   const resolved = await resolveMemberAuthContext({
     memberRole: member.role,
     organizationId: activeOrgId,
@@ -398,7 +447,7 @@ export async function resolveTenant(headers: Headers): Promise<AuthContext> {
   const ctx = resolved.context
 
   // Stage 4 — cache (only with a valid key, i.e. non-empty cookies) + memo + span.
-  if (key) {
+  if (key && resolved.permissionVersion !== null) {
     evictOldestIfNeeded()
     tenantCache.set(key, { ctx, ts: Date.now(), version: resolved.permissionVersion })
   }

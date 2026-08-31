@@ -1,0 +1,15 @@
+{
+  "version": "beta-accessibility-debt-v1",
+  "assessedAt": "2026-08-28",
+  "owner": "Bozhidar Denev",
+  "scope": "Invitation and authentication, manager shell, Inbox and reply handling, public Portal rating/feedback/Google flow, settings, and mobile manager critical journeys",
+  "target": "Zero task-blocking accessibility defects in the closed beta; WCAG 2.2 AA remains the production target and is not claimed by this register",
+  "entries": [],
+  "manualEvidenceRequired": [
+    "Real iPhone and Android critical journeys",
+    "VoiceOver critical-journey smoke",
+    "Keyboard focus order and return",
+    "400% zoom and 320 CSS-pixel reflow",
+    "High-contrast and color-independent status review"
+  ]
+}

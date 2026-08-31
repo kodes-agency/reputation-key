@@ -11,6 +11,7 @@ import type {
   RatingTrendPoint,
   ReviewVolumePoint,
 } from '#/contexts/dashboard/application/public-api'
+import { buildPropertyReputationTrendData } from './property-reputation-trend-chart-data'
 
 const config = {
   count: { label: 'Reviews', color: 'var(--chart-1)' },
@@ -40,27 +41,8 @@ export function PropertyReputationTrendChart({
   reviewVolume: readonly ReviewVolumePoint[]
 }>) {
   // Volume and rating are independent series over the same calendar days, and
-  // either can be sparse. Merge on the date so a day present in one and absent
-  // from the other still plots, instead of silently truncating to the shorter.
-  const byDate = new Map<string, { date: string; count?: number; avgRating?: number }>()
-  for (const point of reviewVolume) {
-    byDate.set(point.date, {
-      ...byDate.get(point.date),
-      date: point.date,
-      count: point.count,
-    })
-  }
-  for (const point of ratingTrend) {
-    byDate.set(point.date, {
-      ...byDate.get(point.date),
-      date: point.date,
-      // One decimal: the axis is 0-5, so more precision is noise.
-      avgRating: Math.round(point.avgRating * 10) / 10,
-    })
-  }
-  const data = [...byDate.values()].sort((left, right) =>
-    left.date.localeCompare(right.date),
-  )
+  // either can be sparse. Merge on date so neither series silently truncates.
+  const data = buildPropertyReputationTrendData(ratingTrend, reviewVolume)
 
   if (data.length === 0) {
     return (
@@ -74,7 +56,13 @@ export function PropertyReputationTrendChart({
   // 1440px viewport — it would have owned the whole dashboard fold. Fixed height
   // instead, so the section stays a band regardless of width.
   return (
-    <ChartContainer config={config} className="aspect-auto h-[280px] w-full">
+    <ChartContainer
+      config={config}
+      className="aspect-auto h-[280px] w-full"
+      data-testid="reputation-trend-chart"
+      data-point-count={data.length}
+      data-series="review-volume,average-rating"
+    >
       <ComposedChart data={data} margin={{ left: 0, right: 0 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis

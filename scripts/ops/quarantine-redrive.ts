@@ -11,7 +11,7 @@
 // budget (catalogue policy) and redriveMetadata in the payload — the BQC-3
 // runtime contract (createRedriveJob); handlers are never invoked directly.
 // Redacted envelopes (unknown job families) cannot be redriven — the payload
-// is gone. Requires REDIS_URL + DATABASE_URL.
+// is gone. Requires QUEUE_REDIS_URL + DATABASE_URL.
 
 import { createJobQueue } from '../../src/shared/jobs/queue'
 import {
@@ -38,6 +38,7 @@ function printEntry(entry: QuarantinedEntry): void {
     e.jobName.padEnd(28),
     `queue=${e.originalQueue}`.padEnd(20),
     `attempts=${e.attemptsMade}`.padEnd(12),
+    `state=${entry.publicationState}`.padEnd(31),
     e.quarantinedAt,
   )
   console.log(
@@ -62,7 +63,7 @@ async function main(): Promise<void> {
     async (ctx, _args, io) => {
       const quarantine = createJobQueue(QUARANTINE_QUEUE_NAME)
       if (!quarantine) {
-        io.err('REDIS_URL is not configured — cannot reach the quarantine queue.')
+        io.err('QUEUE_REDIS_URL is not configured — cannot reach the quarantine queue.')
         return 1
       }
 
@@ -96,8 +97,12 @@ async function main(): Promise<void> {
         printEntry(entry)
 
         if (ctx.dryRun) {
+          const pendingNote =
+            entry.publicationState === 'pending_failure'
+              ? '; apply will first require the original job to still be failed'
+              : ''
           io.out(
-            `\nreport only — re-run with --apply to redrive to '${entry.envelope.originalQueue}'\n`,
+            `\nreport only — re-run with --apply to redrive to '${entry.envelope.originalQueue}'${pendingNote}\n`,
           )
           return
         }

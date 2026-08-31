@@ -1,15 +1,16 @@
 // Feed filtering + grouping. Pure functions over rows the server already sent.
 //
 // The category tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES, not
-// hardcoded: `mandatory` governs zero notification types today, so a
-// "mandatory" tab could only ever render an empty list — while the SETTINGS
-// page still has to show that category (ADR 0046 reserves it for
-// account/security/legal). One list per question, both from the domain.
+// hardcoded. Retained post-core categories remain visible through All/Unread
+// without advertising a dedicated beta control. `mandatory` DOES govern types
+// now (Organization access granted/removed, role changed, purge pending), so
+// it earns a tab: a category the reader cannot switch off is still one they
+// may filter to. One list per question, both from the domain.
 
 import {
   GOVERNING_NOTIFICATION_CATEGORIES,
   type Notification,
-  type NotificationCategory,
+  type NotificationListFilter,
 } from '#/contexts/notification/application/public-api'
 import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
 
@@ -17,7 +18,7 @@ import { CATEGORY_COPY } from '#/components/features/settings/notifications-type
  * `'urgent'` is the PRIORITY flag (any category); `'urgent_operational'` is the
  * category. They are different questions, hence different tabs.
  */
-export type NotificationFilter = 'all' | 'unread' | 'urgent' | NotificationCategory
+export type NotificationFilter = NotificationListFilter
 
 export type NotificationFilterOption = Readonly<{
   value: NotificationFilter
@@ -85,7 +86,8 @@ export function groupByReadState(
 /**
  * Page grouping. The label resolves from the properties the route already
  * loaded, then from the row's own payload — never from `propertyId`, because a
- * UUID is not a group heading.
+ * UUID is not a group heading. Organization account notices form their own
+ * stable group rather than inventing a Property.
  */
 export function groupByProperty(
   notifications: ReadonlyArray<Notification>,
@@ -93,9 +95,10 @@ export function groupByProperty(
 ): ReadonlyArray<NotificationGroup> {
   const order: string[] = []
   const buckets = new Map<string, Notification[]>()
+  const organizationKey = 'organization-account-security'
 
   for (const notification of notifications) {
-    const key = notification.propertyId
+    const key = notification.propertyId ?? organizationKey
     const bucket = buckets.get(key)
     if (bucket) {
       bucket.push(notification)
@@ -109,7 +112,10 @@ export function groupByProperty(
     const rows = buckets.get(key) ?? []
     return {
       key,
-      label: propertyNames[key] ?? rows[0]?.payload.propertyName ?? 'Unnamed property',
+      label:
+        key === organizationKey
+          ? 'Account and security'
+          : (propertyNames[key] ?? rows[0]?.payload.propertyName ?? 'Unnamed property'),
       notifications: rows,
     }
   })

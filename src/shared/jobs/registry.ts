@@ -19,6 +19,9 @@ export function createJobRegistry(): JobRegistry {
 
   return {
     register(name: string, handler: JobHandler): void {
+      if (handlers.has(name)) {
+        throw new Error(`Job handler "${name}" is already registered`)
+      }
       handlers.set(name, handler)
     },
 

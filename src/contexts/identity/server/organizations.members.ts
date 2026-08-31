@@ -15,12 +15,13 @@ import {
   updateMemberRoleInputSchema,
   removeMemberInputSchema,
 } from '../application/dto/invitation.dto'
+import { enforceInvitationSendRateLimit } from './invitation-rate-limit.server'
 
 // ── Invite member ──────────────────────────────────────────────────
 // Uses the use case through the composition root.
 
 export const inviteMember = createServerFn({ method: 'POST' })
-  .inputValidator(inviteMemberInputSchema)
+  .validator(inviteMemberInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -29,8 +30,15 @@ export const inviteMember = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'invitation.create' })
 
         try {
-          const { useCases } = getContainer()
-          await useCases.inviteMember(data, ctx)
+          const { identityPublicApi, rateLimiter, identityRequestSecurity } =
+            getContainer()
+          await enforceInvitationSendRateLimit({
+            rateLimiter,
+            actorId: ctx.userId,
+            organizationId: ctx.organizationId,
+            keyHmacSecret: identityRequestSecurity.invitationRateLimitHmacSecret,
+          })
+          await identityPublicApi.requests.inviteMember(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
@@ -45,7 +53,7 @@ export const inviteMember = createServerFn({ method: 'POST' })
 // Uses the use case through the composition root.
 
 export const updateMemberRole = createServerFn({ method: 'POST' })
-  .inputValidator(updateMemberRoleInputSchema)
+  .validator(updateMemberRoleInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -54,8 +62,7 @@ export const updateMemberRole = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'member.update' })
 
         try {
-          const { useCases } = getContainer()
-          await useCases.updateMemberRole(data, ctx)
+          await getContainer().identityPublicApi.requests.updateMemberRole(data, ctx)
           // Invalidate tenant cache — a role change mutates AuthContext.role,
           // so the affected member's cached permissions are now stale.
           resetTenantCache()
@@ -73,7 +80,7 @@ export const updateMemberRole = createServerFn({ method: 'POST' })
 // Uses the use case through the composition root.
 
 export const removeMember = createServerFn({ method: 'POST' })
-  .inputValidator(removeMemberInputSchema)
+  .validator(removeMemberInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -82,8 +89,7 @@ export const removeMember = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'member.delete' })
 
         try {
-          const { useCases } = getContainer()
-          await useCases.removeMember(data, ctx)
+          await getContainer().identityPublicApi.requests.removeMember(data, ctx)
           // Invalidate tenant cache — removing a member invalidates their cached
           // AuthContext (they may still hold a stale role for up to the TTL).
           resetTenantCache()

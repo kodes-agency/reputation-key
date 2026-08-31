@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useRouter } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
+import { useCallback, useRef } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type {
   ImportProgressDto,
@@ -11,6 +11,12 @@ import type {
   GoogleImportManagerProps,
   GoogleImportStep,
 } from './google-import-manager-contract'
+import { googleImportStatusQuery } from './google-import-progress-query'
+import { isImportParentTerminal } from './google-import-progress-model'
+import {
+  useGoogleImportProgressQuery,
+  useTerminalImportInvalidation,
+} from './use-google-import-progress-query'
 
 type RetryRequest = Readonly<{
   retryRevision: number
@@ -40,7 +46,7 @@ export async function sendRetryWithOneReplay<T>(send: () => Promise<T>): Promise
 
 type Props = Pick<
   GoogleImportManagerProps,
-  'initialProgress' | 'getImportStatus' | 'retryImportItem'
+  'initialProgress' | 'getImportStatus' | 'retryImportItem' | 'cancelImport'
 > &
   Readonly<{
     step: GoogleImportStep
@@ -51,82 +57,55 @@ export function useGoogleImportProgressController({
   initialProgress,
   getImportStatus,
   retryImportItem,
+  cancelImport,
   step,
   setStep,
 }: Props) {
   const navigate = useNavigate()
-  const router = useRouter()
   const queryClient = useQueryClient()
-  const mounted = useRef(true)
   const retryRequests = useRef(new Map<string, RetryRequest>())
-  const refreshInFlight = useRef<Promise<ImportProgressDto | null> | null>(null)
-  const [progress, setProgress] = useState<ImportProgressDto | null>(
-    initialProgress ?? null,
-  )
-  const [pollingError, setPollingError] = useState(false)
-  const [retryingItemId, setRetryingItemId] = useState<string | null>(null)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
+  const { activeImportId, progressQuery, setLoadedImportId } =
+    useGoogleImportProgressQuery({ initialProgress, getImportStatus, step })
 
   const invalidateCompletedImport = useCallback(async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: propertyKeys.list() }),
-      router.invalidate(),
-    ])
-  }, [queryClient, router])
+    await queryClient.invalidateQueries({ queryKey: propertyKeys.list() })
+  }, [queryClient])
 
   const loadProgress = useCallback(
     async (importJobId: string) => {
-      const next = await getImportStatus({ data: { importJobId } })
-      setProgress(next)
+      await queryClient.fetchQuery(googleImportStatusQuery(importJobId, getImportStatus))
+      setLoadedImportId(importJobId)
       setStep('progress')
       await navigate({
         to: '/properties/import-google/$importId',
         params: { importId: importJobId },
       })
     },
-    [getImportStatus, navigate, setStep],
+    // `setLoadedImportId` is the `useState` setter returned by
+    // `useGoogleImportProgressQuery` — stable for the hook's lifetime, but it
+    // arrives through a custom hook so the lint rule cannot infer that.
+    [getImportStatus, navigate, queryClient, setLoadedImportId, setStep],
   )
 
   const refresh = useCallback(async (): Promise<ImportProgressDto | null> => {
-    if (!progress) return null
-    if (refreshInFlight.current) return refreshInFlight.current
-    if (mounted.current) setIsRefreshing(true)
-    const operation = (async () => {
-      try {
-        const next = await getImportStatus({
-          data: { importJobId: progress.importJobId },
-        })
-        if (!mounted.current) return next
-        setProgress(next)
-        setPollingError(false)
-        if (next.status !== 'queued' && next.status !== 'processing') {
-          await invalidateCompletedImport()
-        }
-        return next
-      } catch {
-        if (mounted.current) setPollingError(true)
-        return null
-      }
-    })()
-    refreshInFlight.current = operation
+    if (!activeImportId) return null
     try {
-      return await operation
-    } finally {
-      refreshInFlight.current = null
-      if (mounted.current) setIsRefreshing(false)
+      return await queryClient.fetchQuery(
+        googleImportStatusQuery(activeImportId, getImportStatus),
+      )
+    } catch {
+      return null
     }
-  }, [getImportStatus, invalidateCompletedImport, progress])
+  }, [activeImportId, getImportStatus, queryClient])
 
-  const retry = useCallback(
-    async (item: ImportProgressItemDto) => {
-      if (!progress || retryingItemId !== null) return
+  const {
+    mutate: retryItem,
+    isPending: retryPending,
+    variables: retryVariables,
+  } = useMutation({
+    mutationFn: async (item: ImportProgressItemDto) => {
+      const progress = progressQuery.data
+      if (!progress) return
       const request = getRetryRequest(
         retryRequests.current,
         item.itemId,
@@ -141,7 +120,6 @@ export function useGoogleImportProgressController({
             expectedRetryRevision: request.retryRevision,
           },
         })
-      setRetryingItemId(item.itemId)
       try {
         await sendRetryWithOneReplay(send)
         retryRequests.current.delete(item.itemId)
@@ -156,42 +134,56 @@ export function useGoogleImportProgressController({
         } else {
           toast.error('This item could not be retried. Refresh its status and try again.')
         }
-      } finally {
-        if (mounted.current) setRetryingItemId(null)
       }
     },
-    [progress, refresh, retryImportItem, retryingItemId],
+  })
+
+  const { mutate: cancelImportRequest, isPending: isCancelling } = useMutation({
+    mutationFn: async () => {
+      if (!activeImportId) return
+      try {
+        const cancelled = await cancelImport({
+          data: { importJobId: activeImportId },
+        })
+        queryClient.setQueryData(
+          googleImportStatusQuery(activeImportId, getImportStatus).queryKey,
+          cancelled,
+        )
+      } catch {
+        const recovered = await refresh()
+        if (!recovered || !isImportParentTerminal(recovered.status)) {
+          toast.error(
+            'The import could not be cancelled. Refresh its status and try again.',
+          )
+        }
+      }
+    },
+  })
+
+  useTerminalImportInvalidation(progressQuery.data, invalidateCompletedImport)
+
+  const retry = useCallback(
+    (item: ImportProgressItemDto) => {
+      if (retryPending) return
+      retryItem(item)
+    },
+    [retryItem, retryPending],
   )
 
-  useEffect(() => {
-    if (!progress || step !== 'progress') return
-    if (progress.status !== 'queued' && progress.status !== 'processing') return
-    if (progress.pollAfterMs === null) return
-    const timeout = window.setTimeout(async () => {
-      try {
-        const next = await getImportStatus({
-          data: { importJobId: progress.importJobId },
-        })
-        if (!mounted.current) return
-        setProgress(next)
-        setPollingError(false)
-        if (next.status !== 'queued' && next.status !== 'processing') {
-          await invalidateCompletedImport()
-        }
-      } catch {
-        if (mounted.current) setPollingError(true)
-      }
-    }, progress.pollAfterMs)
-    return () => window.clearTimeout(timeout)
-  }, [getImportStatus, invalidateCompletedImport, progress, step])
+  const cancel = useCallback(() => {
+    if (isCancelling || !activeImportId) return
+    cancelImportRequest()
+  }, [activeImportId, cancelImportRequest, isCancelling])
 
   return {
-    progress,
-    pollingError,
-    isRefreshing,
-    retryingItemId,
+    progress: progressQuery.data ?? null,
+    pollingError: progressQuery.isError,
+    isRefreshing: progressQuery.isFetching,
+    retryingItemId: retryPending ? (retryVariables?.itemId ?? null) : null,
+    isCancelling,
     loadProgress,
     refresh,
     retry,
+    cancel,
   }
 }

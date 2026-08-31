@@ -41,6 +41,7 @@ describe('BQR-1.1: schema parity with migrations 0006–0008', () => {
         'timezone_source',
         'timezone_resolved_at',
         'processing_region',
+        'data_cell_id',
         'processing_region_source',
         'routing_policy_version',
         'processing_region_resolved_at',
@@ -141,7 +142,7 @@ describe('BQR-1.1: schema parity with migrations 0006–0008', () => {
     })
   })
 
-  describe('migration 0016 — region move workflow (BQC-4.5)', () => {
+  describe('migrations 0016, 0147–0148 — region move workflow', () => {
     it('registers region_moves with the machine columns', () => {
       expect(getTableName(regionMoves)).toBe('region_moves')
       const cols = new Set(columnNames(regionMoves))
@@ -152,6 +153,7 @@ describe('BQR-1.1: schema parity with migrations 0006–0008', () => {
         'from_region',
         'to_region',
         'state',
+        'state_revision',
         'denial_reason',
         'requested_by',
         'requested_at',

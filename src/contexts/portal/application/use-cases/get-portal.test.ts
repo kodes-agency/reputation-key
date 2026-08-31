@@ -18,7 +18,6 @@ const ISSUED_AT = new Date('2026-08-01T09:30:00.000Z')
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = (
@@ -99,6 +98,7 @@ describe('getPortal', () => {
 
     expect(result.tokenStatus).toEqual({
       hasActiveToken: false,
+      qualifiedScanReady: false,
       version: null,
       issuedAt: null,
       graceExpiresAt: null,
@@ -110,6 +110,7 @@ describe('getPortal', () => {
       version: 3,
       issuedAt: ISSUED_AT,
       gracePeriodEnds: null,
+      hasPublishedAccessArtifact: true,
     })
     const ctx = buildTestAuthContext()
     const portal = buildTestPortal({})
@@ -119,6 +120,7 @@ describe('getPortal', () => {
 
     expect(result.tokenStatus).toEqual({
       hasActiveToken: true,
+      qualifiedScanReady: true,
       version: 3,
       issuedAt: ISSUED_AT.toISOString(),
       graceExpiresAt: null,
@@ -127,6 +129,7 @@ describe('getPortal', () => {
       'graceExpiresAt',
       'hasActiveToken',
       'issuedAt',
+      'qualifiedScanReady',
       'version',
     ])
   })
@@ -137,6 +140,7 @@ describe('getPortal', () => {
       version: 1,
       issuedAt: ISSUED_AT,
       gracePeriodEnds: graceEnds,
+      hasPublishedAccessArtifact: false,
     })
     const ctx = buildTestAuthContext()
     const portal = buildTestPortal({})
@@ -146,6 +150,7 @@ describe('getPortal', () => {
 
     expect(result.tokenStatus).toEqual({
       hasActiveToken: true,
+      qualifiedScanReady: false,
       version: 1,
       issuedAt: ISSUED_AT.toISOString(),
       graceExpiresAt: graceEnds.toISOString(),

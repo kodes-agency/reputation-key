@@ -2,9 +2,16 @@
 // Per architecture: "Domain Returns Result<T, DomainError>. Never throws."
 
 import { ok, err, type Result } from '#/shared/domain'
-import type { ActivityLog, ActivityAction } from './types'
+import {
+  ACTIVITY_ACTIONS,
+  ACTIVITY_RESOURCE_TYPES,
+  ACTIVITY_SOURCES,
+  RECENT_ACTIVITY_KINDS,
+  type RecentActivityEntry,
+  type ActivityAction,
+} from './types'
 import type {
-  ActivityLogId,
+  RecentActivityEntryId,
   UserId,
   OrganizationId,
   PropertyId,
@@ -14,62 +21,51 @@ import { activityError, type ActivityError } from './errors'
 
 /** System user ID for automated / background operations. */
 export const SYSTEM_USER_ID: UserId = userId('system')
+export const REDACTED_RECENT_ACTIVITY_ACTOR_NAME = 'Former member'
 
-export type CreateActivityLogInput = Readonly<{
-  id: ActivityLogId
+export const withRedactedRecentActivityActor = (
+  entry: RecentActivityEntry,
+): RecentActivityEntry => ({
+  ...entry,
+  actorId: SYSTEM_USER_ID,
+  actorName: REDACTED_RECENT_ACTIVITY_ACTOR_NAME,
+  actorAvatarUrl: null,
+  actorRole: 'Staff',
+})
+
+export type CreateRecentActivityEntryInput = Readonly<{
+  id: RecentActivityEntryId
   actorId: UserId
   actorName: string
   actorAvatarUrl: string | null
-  actorRole: ActivityLog['actorRole']
+  actorRole: RecentActivityEntry['actorRole']
   action: ActivityAction
-  resourceType: ActivityLog['resourceType']
+  resourceType: RecentActivityEntry['resourceType']
   resourceId: string
   propertyId: PropertyId | null
   organizationId: OrganizationId
-  payload: ActivityLog['payload']
-  source: ActivityLog['source']
+  payload: RecentActivityEntry['payload']
+  source: RecentActivityEntry['source']
   eventId: string
 }>
 
-// Validators sync with the ActivityAction/ResourceType/source type unions —
-// if you add to a type, add to the corresponding set.
-// There's a test enforcing the action invariant.
-const ALLOWED_ACTIONS: ReadonlySet<ActivityAction> = new Set([
-  'created',
-  'changed',
-  'deleted',
-  'assigned',
-  'unassigned',
-  'published',
-  'rejected',
-  'approved',
-  'submitted',
-  'added',
-  'escalated',
-  'invited',
-  'connected',
-  'disconnected',
-])
+const ALLOWED_ACTIONS: ReadonlySet<ActivityAction> = new Set(ACTIVITY_ACTIONS)
+const ALLOWED_RESOURCE_TYPES: ReadonlySet<RecentActivityEntry['resourceType']> = new Set(
+  ACTIVITY_RESOURCE_TYPES,
+)
+const ALLOWED_SOURCES: ReadonlySet<RecentActivityEntry['source']> = new Set(
+  ACTIVITY_SOURCES,
+)
+const ALLOWED_RECENT_ACTIVITY_KINDS: ReadonlySet<string> = new Set(
+  RECENT_ACTIVITY_KINDS.map(
+    ({ action, resourceType }) => `${action}\u0000${resourceType}`,
+  ),
+)
 
-const ALLOWED_RESOURCE_TYPES: ReadonlySet<ActivityLog['resourceType']> = new Set([
-  'inbox_item',
-  'review',
-  'reply',
-  'note',
-  'property',
-  'member',
-  'team',
-  'staff_assignment',
-  'integration',
-  'organization',
-])
-
-const ALLOWED_SOURCES: ReadonlySet<ActivityLog['source']> = new Set(['web', 'import'])
-
-export const createActivityLog = (
-  input: CreateActivityLogInput,
+export const createRecentActivityEntry = (
+  input: CreateRecentActivityEntryInput,
   clock: () => Date,
-): Result<ActivityLog, ActivityError> => {
+): Result<RecentActivityEntry, ActivityError> => {
   if (!ALLOWED_ACTIONS.has(input.action)) {
     return err(
       activityError('invalid_action', `Invalid action: ${input.action}`, {
@@ -86,6 +82,16 @@ export const createActivityLog = (
         {
           resourceType: input.resourceType,
         },
+      ),
+    )
+  }
+
+  if (!ALLOWED_RECENT_ACTIVITY_KINDS.has(`${input.action}\u0000${input.resourceType}`)) {
+    return err(
+      activityError(
+        'invalid_event_kind',
+        `Unsupported Recent Activity kind: ${input.action}/${input.resourceType}`,
+        { action: input.action, resourceType: input.resourceType },
       ),
     )
   }

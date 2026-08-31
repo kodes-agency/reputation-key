@@ -21,21 +21,18 @@ import { TabsContent } from '#/components/ui/tabs'
 import type {
   ArchiveStaffParticipationMutationInput,
   CreateStaffParticipationMutationInput,
-  MemberOption,
   PortalResponsibilitySelection,
   StaffParticipationView,
   UpdatePortalResponsibilitiesMutationInput,
-} from '#/components/features/team/shared/types'
+} from '#/components/features/staff/types'
 
 interface StaffTabProps {
   propertyId: string
   participations: ReadonlyArray<StaffParticipationView>
   responsibilities: ReadonlyArray<PortalResponsibilitySelection>
-  memberOptions: ReadonlyArray<MemberOption>
   portalOptions: ReadonlyArray<PortalOption>
   portalsDenied: boolean
   canManageStaff?: boolean
-  activeUserIds: ReadonlySet<string>
   createMutation: Action<{ data: CreateStaffParticipationMutationInput }>
   archiveMutation: Action<{ data: ArchiveStaffParticipationMutationInput }>
   createOpen: boolean
@@ -49,11 +46,9 @@ export function StaffTab({
   propertyId,
   participations,
   responsibilities,
-  memberOptions,
   portalOptions,
   portalsDenied,
   canManageStaff = true,
-  activeUserIds,
   createMutation,
   archiveMutation,
   createOpen,
@@ -107,15 +102,13 @@ export function StaffTab({
             <DialogHeader>
               <DialogTitle>Add staff participation</DialogTitle>
               <DialogDescription>
-                Add organization members to this property. Team membership and portal
-                responsibilities are managed separately.
+                Add a person to this property for operational attribution. A login account
+                is not required, and Portal responsibilities are managed separately.
               </DialogDescription>
             </DialogHeader>
             <StaffParticipationForm
               propertyId={propertyId}
               mutation={createMutation}
-              members={memberOptions}
-              activeUserIds={activeUserIds}
               onSuccess={() => onCreateOpenChange(false)}
             />
           </DialogContent>
@@ -147,9 +140,9 @@ export function StaffTab({
           displayName={editingParticipation.displayName}
           currentPrimaryPortalId={editingResponsibilities?.primaryPortalId ?? null}
           currentSupportingPortalIds={editingResponsibilities?.supportingPortalIds ?? []}
+          expectedRevision={editingParticipation.revision}
           allPortals={portalOptions}
           updateAction={updateResponsibilitiesMutation}
-          open
           onOpenChange={(open) => {
             if (!open) setEditingParticipationId(null)
           }}

@@ -5,21 +5,27 @@ import * as migratable from './src/shared/db/schema/migratable'
 
 config({ path: ['.env.local', '.env'] })
 
-// The migratable barrel IS the boundary: all 60 app-owned tables. Auth
+const databaseUrl = process.env.DATABASE_URL
+if (!databaseUrl) throw new Error('DATABASE_URL is required for Drizzle tooling')
+
+// The migratable barrel IS the boundary: every app-owned table. Auth
 // tables (user, session, account, verification, organization, member,
 // invitation, organizationRole) are excluded by the barrel and managed by
 // `pnpm auth:migrate` (Better Auth CLI). tablesFilter is derived FROM the
 // barrel (never a second hand-maintained list): db:push introspects only
 // these tables — without it, push pulls the auth tables, hits interactive
 // rename/conflict prompts, and dies in non-TTY shells (simulation.yml).
-const managedTables = Object.values(migratable).filter(isTable).map(getTableName)
+const managedTables: string[] = []
+for (const value of Object.values(migratable)) {
+  if (isTable(value)) managedTables.push(getTableName(value))
+}
 
 export default defineConfig({
   out: './drizzle',
   schema: './src/shared/db/schema/migratable.ts',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    url: databaseUrl,
   },
   tablesFilter: managedTables,
   // Schema authority (BQC-5.4): the migration SQL track (this journal +

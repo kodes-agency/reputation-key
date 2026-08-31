@@ -1,10 +1,9 @@
 // BQC-3.4 — rebuildInboxProjection unit tests.
 //
 // Rebuild derives review-sourced inbox state from canonical data and
-// reconciles: missing items created (idempotent, NO created fact — rebuild
-// is repair, not new information), expired-but-open items closed (with
-// fact), missing reply milestones stamped. It never touches inbox-owned
-// fields (assignment, escalation, notes), never deletes, and dryRun writes
+// reconciles missing items and reply milestone metadata without inferring a
+// Handling Cycle outcome from expiry, source absence, or historical publish
+// state. It never touches inbox-owned fields, never deletes, and dryRun writes
 // nothing while reporting the same counts.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -57,6 +56,7 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
     closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
+    commandRevision: 1,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -69,8 +69,10 @@ function makeSource(overrides: Partial<ReviewSourceMeta> = {}): ReviewSourceMeta
     id: reviewId(`rev-${seq}`),
     propertyId: PROP,
     platform: 'google',
+    sourceEpoch: 1,
     sourceDate: new Date('2026-06-01'),
     contentExpiresAt: new Date('2027-01-01'),
+    materialReviewRevision: 1,
     ...overrides,
   }
 }
@@ -86,10 +88,10 @@ function setup(opts: {
   const commandStore = createSequentialInboxCommandStore({ repo, events })
   const reviewSourceLookup: ReviewSourceLookupPort = {
     getReviewSourceMetaById: vi.fn(async () => null),
+    getReviewSourceMetaByIds: vi.fn(async () => []),
     listReviewSources: vi.fn(async () => opts.sources ?? []),
   }
   const replyLookup: ReplyLookupPort = {
-    getReplyByReviewId: vi.fn(async () => null),
     getEffectiveReplyByReviewId: vi.fn(async () => null),
     getReplyMilestonesByReviewIds: vi.fn(async () => opts.milestones ?? new Map()),
   }
@@ -125,26 +127,66 @@ describe('rebuildInboxProjection', () => {
     expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(0)
   })
 
-  it('closes an open item whose review row is gone (purged)', async () => {
+  it('creates a missing expired review open without inferring a handling outcome', async () => {
+    const src = makeSource({ contentExpiresAt: new Date('2026-01-01') })
+    const { useCase, repo, events } = setup({ sources: [src] })
+
+    const report = await useCase({ organizationId: ORG, dryRun: false })
+
+    expect(report).toMatchObject({ created: 1, closed: 0 })
+    expect(repo.items[0]).toMatchObject({
+      sourceId: src.id,
+      status: 'open',
+      closedAt: null,
+    })
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+  })
+
+  it('creates a missing review open while preserving reply milestones', async () => {
+    const src = makeSource()
+    const publishedAt = new Date('2026-06-06T12:00:00Z')
+    const milestones: ReadonlyMap<string, ReplyMilestones> = new Map([
+      [
+        src.id as string,
+        {
+          firstSubmittedAt: new Date('2026-06-05T12:00:00Z'),
+          firstPublishedAt: publishedAt,
+        },
+      ],
+    ])
+    const { useCase, repo } = setup({ sources: [src], milestones })
+
+    const report = await useCase({ organizationId: ORG, dryRun: false })
+
+    expect(report).toMatchObject({ created: 1, closed: 0, milestones: 1 })
+    expect(repo.items[0]).toMatchObject({
+      status: 'open',
+      closedAt: null,
+      firstReplySubmittedAt: new Date('2026-06-05T12:00:00Z'),
+      firstReplyPublishedAt: publishedAt,
+    })
+  })
+
+  it('does not close an open item whose review row is gone', async () => {
     const item = makeItem({ status: 'open' })
     const { useCase, repo, events } = setup({ items: [item], sources: [] })
 
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
-    expect(report.closed).toBe(1)
-    expect(repo.items[0]!.status).toBe('closed')
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+    expect(report.closed).toBe(0)
+    expect(repo.items[0]!.status).toBe('open')
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
   })
 
-  it('closes an open item whose review is content-expired', async () => {
+  it('does not close an open item whose review content is expired', async () => {
     const src = makeSource({ contentExpiresAt: new Date('2026-01-01') })
     const item = makeItem({ sourceId: src.id, status: 'open' })
     const { useCase, repo } = setup({ items: [item], sources: [src] })
 
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
-    expect(report.closed).toBe(1)
-    expect(repo.items[0]!.status).toBe('closed')
+    expect(report.closed).toBe(0)
+    expect(repo.items[0]!.status).toBe('open')
   })
 
   it('leaves an open item alone when its review is live and no reply exists', async () => {
@@ -184,7 +226,7 @@ describe('rebuildInboxProjection', () => {
     expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
   })
 
-  it('auto-closes an open item with a published reply (with status_changed fact)', async () => {
+  it('stamps a published milestone without inferring a close', async () => {
     const src = makeSource()
     const item = makeItem({ sourceId: src.id, status: 'open' })
     const milestones: ReadonlyMap<string, ReplyMilestones> = new Map([
@@ -204,10 +246,10 @@ describe('rebuildInboxProjection', () => {
 
     const report = await useCase({ organizationId: ORG, dryRun: false })
 
-    expect(report.closed).toBe(1)
-    expect(repo.items[0]!.status).toBe('closed')
+    expect(report.closed).toBe(0)
+    expect(repo.items[0]!.status).toBe('open')
     expect(repo.items[0]!.firstReplyPublishedAt).toEqual(new Date('2026-06-06'))
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
   })
 
   it('stamps the published milestone on an already-closed item without a fact', async () => {
@@ -268,7 +310,7 @@ describe('rebuildInboxProjection', () => {
     const report = await useCase({ organizationId: ORG, dryRun: true })
 
     expect(report.created).toBe(1)
-    expect(report.closed).toBe(1) // orphan — its review is gone
+    expect(report.closed).toBe(0)
     expect(report.dryRun).toBe(true)
     expect(repo.items).toHaveLength(2)
     expect(repo.items[0]!.status).toBe('open')

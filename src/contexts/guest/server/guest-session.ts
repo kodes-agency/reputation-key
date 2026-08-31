@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import {
   buildCookieAttributes,
   buildSetCookieHeader,
@@ -7,6 +7,11 @@ import {
   SESSION_COOKIE_NAME,
   type GuestSession,
 } from '../domain/guest-session'
+import type {
+  RateLimitCheckOptions,
+  RateLimiter,
+  RateLimitResult,
+} from '#/shared/rate-limit/middleware'
 
 export type GuestSessionScope = Readonly<{
   organizationId: string
@@ -17,7 +22,21 @@ export type GuestSessionScope = Readonly<{
 export type GuestSessionManager = Readonly<{
   issue(
     scope: GuestSessionScope,
-  ): Readonly<{ session: GuestSession; cookies: readonly [string, string] }>
+    guestLocale?: 'en' | 'bg',
+  ): Readonly<{ session: GuestSession; cookies: readonly [string, string, string] }>
+  /** Re-sign the same scoped identity with the guest's explicit/effective locale. */
+  selectLocale(
+    session: GuestSession,
+    guestLocale: 'en' | 'bg',
+  ): Readonly<{ session: GuestSession; cookies: readonly [string, string, string] }>
+  /** Re-sign the same recovery identity only until an existing domain deadline. */
+  renewUntil(
+    session: GuestSession,
+    expiresAt: Date,
+  ): Readonly<{
+    session: GuestSession
+    cookies: readonly [string, string, string]
+  }> | null
   verify(cookieHeader: string, scope: GuestSessionScope): GuestSession | null
   verifyCsrf(session: GuestSession, presented: string): boolean
 }>
@@ -31,6 +50,8 @@ type SignedSessionPayload = Readonly<{
   portal: string
   issued: string
   expires: string
+  /** Optional for backward compatibility with already-issued v1 cookies. */
+  locale?: 'en' | 'bg'
 }>
 
 function readCookie(cookieHeader: string): string | null {
@@ -52,18 +73,50 @@ export function createGuestSessionManager(
     secret: string
     secureCookies: boolean
     clock: () => Date
-    randomId?: () => string
+    randomId: () => string
   }>,
 ): GuestSessionManager {
   if (Buffer.byteLength(input.secret, 'utf8') < 16) {
     throw new Error('Guest session secret must contain at least 16 bytes')
   }
-  const randomId = input.randomId ?? randomUUID
+  const randomId = input.randomId
   const sign = (payload: string) =>
     createHmac('sha256', input.secret).update(payload).digest('base64url')
+  const serialize = (session: GuestSession) => {
+    const payload: SignedSessionPayload = {
+      v: 1,
+      sid: session.sessionId,
+      csrf: session.csrfNonce,
+      org: session.organizationId,
+      property: session.propertyId,
+      portal: session.portalId,
+      issued: session.issuedAt.toISOString(),
+      expires: session.expiresAt.toISOString(),
+      ...(session.guestLocale ? { locale: session.guestLocale } : {}),
+    }
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
+    const cookieAttrs = buildCookieAttributes(session, input.secureCookies)
+    const signedValue = `${encoded}.${sign(encoded)}`
+    return {
+      session,
+      cookies: [
+        buildSetCookieHeader({ ...cookieAttrs, value: signedValue }),
+        buildSetCookieHeader({
+          ...cookieAttrs,
+          value: signedValue,
+          path: '/_serverFn/',
+        }),
+        buildSetCookieHeader({
+          ...cookieAttrs,
+          value: signedValue,
+          path: '/api/public/p/',
+        }),
+      ] as const,
+    }
+  }
 
   return {
-    issue: (scope) => {
+    issue: (scope, guestLocale) => {
       const session = createSession({
         sessionId: randomId(),
         csrfNonce: randomId(),
@@ -71,35 +124,30 @@ export function createGuestSessionManager(
         propertyId: scope.propertyId,
         portalId: scope.portalId,
         tokenVersion: 0,
+        guestLocale,
         now: input.clock(),
       })
-      const payload: SignedSessionPayload = {
-        v: 1,
-        sid: session.sessionId,
-        csrf: session.csrfNonce,
-        org: session.organizationId,
-        property: session.propertyId,
-        portal: session.portalId,
-        issued: session.issuedAt.toISOString(),
-        expires: session.expiresAt.toISOString(),
+      return serialize(session)
+    },
+
+    selectLocale: (session, guestLocale) =>
+      serialize({
+        ...session,
+        guestLocale,
+        // Cookie Max-Age is relative to this response. Advancing issuedAt keeps
+        // the browser lifetime aligned with the unchanged signed deadline.
+        issuedAt: input.clock(),
+      }),
+
+    renewUntil: (session, expiresAt) => {
+      const now = input.clock()
+      if (
+        expiresAt.getTime() <= now.getTime() ||
+        expiresAt.getTime() - now.getTime() > 24 * 60 * 60 * 1000
+      ) {
+        return null
       }
-      const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
-      const cookieAttrs = buildCookieAttributes(session, input.secureCookies)
-      const signedValue = `${encoded}.${sign(encoded)}`
-      return {
-        session,
-        cookies: [
-          buildSetCookieHeader({
-            ...cookieAttrs,
-            value: signedValue,
-          }),
-          buildSetCookieHeader({
-            ...cookieAttrs,
-            value: signedValue,
-            path: '/_serverFn/',
-          }),
-        ],
-      }
+      return serialize({ ...session, issuedAt: now, expiresAt })
     },
 
     verify: (cookieHeader, scope) => {
@@ -140,6 +188,8 @@ export function createGuestSessionManager(
           issuedAt: new Date(payload.issued),
           expiresAt: new Date(payload.expires),
           campaignMediumHint: null,
+          guestLocale:
+            payload.locale === 'en' || payload.locale === 'bg' ? payload.locale : null,
         }
         if (
           !Number.isFinite(session.issuedAt.getTime()) ||
@@ -167,9 +217,37 @@ export function createGuestSessionManager(
   }
 }
 export function guestRateLimitKey(
-  kind: 'rating' | 'feedback' | 'scan' | 'response' | 'media',
+  kind: 'rating' | 'feedback' | 'scan' | 'response' | 'media' | 'click',
   sessionId: string | null,
   ipHash: string,
 ): string {
   return sessionId ? `${kind}:${sessionId}` : `${kind}:ip:${ipHash}`
+}
+
+export function guestRateLimitKeys(
+  kind: 'rating' | 'feedback' | 'scan' | 'response' | 'media' | 'click',
+  sessionId: string | null,
+  ipHash: string,
+  portalId: string,
+): Readonly<{ session: string; networkPortal: string }> {
+  return {
+    session: guestRateLimitKey(kind, sessionId, ipHash),
+    networkPortal: `${kind}:network:${ipHash}:portal:${portalId}`,
+  }
+}
+
+export async function checkLayeredGuestRateLimit(
+  input: Readonly<{
+    rateLimiter: RateLimiter
+    keys: Readonly<{ session: string; networkPortal: string }>
+    sessionLimits: RateLimitCheckOptions
+    networkPortalLimits: RateLimitCheckOptions
+  }>,
+): Promise<RateLimitResult> {
+  const sessionResult = await input.rateLimiter.check(
+    input.keys.session,
+    input.sessionLimits,
+  )
+  if (!sessionResult.allowed) return sessionResult
+  return input.rateLimiter.check(input.keys.networkPortal, input.networkPortalLimits)
 }

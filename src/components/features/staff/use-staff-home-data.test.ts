@@ -9,38 +9,26 @@ import {
   staffHomeQueries,
   type StaffHomeFns,
 } from './use-staff-home-data'
-import {
-  badgeKeys,
-  dashboardKeys,
-  goalKeys,
-  reviewKeys,
-  staffKeys,
-} from '#/shared/queries/query-keys'
+import { dashboardKeys, reviewKeys, staffKeys } from '#/shared/queries/query-keys'
 
 const PROPERTY_ID = '11111111-1111-4111-8111-111111111111'
 
 const setup = () => {
-  const listStaffGoals = vi.fn(async () => ({ goals: [] }))
   const getStaffDashboardData = vi.fn(async () => ({ kpis: null, hasAssignments: true }))
   const listStaffPortals = vi.fn(async () => ({ portals: [] }))
   const getStaffRecentActivity = vi.fn(async () => ({ reviews: [] }))
-  const getStaffVisibleBadges = vi.fn(async () => [])
   // server-fn types carry createServerFn metadata the in-memory fns don't have —
   // the double cast bridges that brand (same justification as the storybook fns).
   const fns = {
-    listStaffGoals,
     getStaffDashboardData,
     listStaffPortals,
     getStaffRecentActivity,
-    getStaffVisibleBadges,
   } as unknown as StaffHomeFns
   return {
     fns,
-    listStaffGoals,
     getStaffDashboardData,
     listStaffPortals,
     getStaffRecentActivity,
-    getStaffVisibleBadges,
   }
 }
 
@@ -80,22 +68,18 @@ describe('staffHomeQueries', () => {
 
     const q = staffHomeQueries(fns, PROPERTY_ID, portalId)
 
-    expect(q.goals.queryKey).toEqual(goalKeys.staff(PROPERTY_ID))
+    expect(Object.keys(q)).toEqual(['dashboard', 'portals', 'activity'])
     expect(q.dashboard.queryKey).toEqual(
       dashboardKeys.staff({ propertyId: PROPERTY_ID, portalId }),
     )
     expect(q.portals.queryKey).toEqual(staffKeys.portals(PROPERTY_ID))
     expect(q.activity.queryKey).toEqual(reviewKeys.staffActivity(PROPERTY_ID))
-    expect(q.badges.queryKey).toEqual(badgeKeys.staffVisible(PROPERTY_ID))
   })
 
   it('routes each queryFn through the injected fns with the server-fn payload shape', async () => {
     const s = setup()
     const portalId = 'portal-1'
     const q = staffHomeQueries(s.fns, PROPERTY_ID, portalId)
-
-    await callQueryFn(q.goals.queryFn)
-    expect(s.listStaffGoals).toHaveBeenCalledWith({ data: { propertyId: PROPERTY_ID } })
 
     await callQueryFn(q.dashboard.queryFn)
     expect(s.getStaffDashboardData).toHaveBeenCalledWith({
@@ -108,11 +92,6 @@ describe('staffHomeQueries', () => {
     await callQueryFn(q.activity.queryFn)
     expect(s.getStaffRecentActivity).toHaveBeenCalledWith({
       data: { propertyId: PROPERTY_ID },
-    })
-
-    await callQueryFn(q.badges.queryFn)
-    expect(s.getStaffVisibleBadges).toHaveBeenCalledWith({
-      data: { propertyId: PROPERTY_ID, limit: 6 },
     })
   })
 })

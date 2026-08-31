@@ -4,7 +4,7 @@
 // detail-only fns are wired but only fire on item selection. Demonstrates the
 // Phase-1 prop channel end-to-end: a route-shaped fn bundle, no server/RPC.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, screen, userEvent, within } from 'storybook/test'
+import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { useState } from 'react'
 import type { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import { InboxPageV2 } from './inbox-page-v2'
@@ -80,11 +80,13 @@ function InboxPageHarness({
   properties: props,
   inboxFns,
   initialSearch = {},
+  recordInboxVisit = true,
 }: {
   ctx: InboxCtx
   properties?: ReadonlyArray<{ id: string; name: string }>
   inboxFns: InboxServerFns
   initialSearch?: InboxSearchParams
+  recordInboxVisit?: boolean
 }) {
   const [search, setSearch] = useState<InboxSearchParams>(initialSearch)
   const onNavigate: InboxPageNav = (o) =>
@@ -96,6 +98,7 @@ function InboxPageHarness({
       properties={props}
       onNavigate={onNavigate}
       inboxFns={inboxFns}
+      recordInboxVisit={recordInboxVisit}
     />
   )
 }
@@ -222,8 +225,7 @@ approvedContainer.seed([
 
 const approvedDetail: InboxItemDetailResult = {
   item: approvedItem,
-  reviewText:
-    'Bulgaristanda nadir olarak gorulen Konforlu bir mekan ve konaklamada sabah kahvaltisi dahil',
+  reviewText: 'A comfortable place to stay, and breakfast was included.',
   reviewTranslatedText:
     'A comfortable place to stay, rarely seen in Bulgaria, and includes breakfast.',
   reviewerProfilePhotoUrl: null,
@@ -231,7 +233,7 @@ const approvedDetail: InboxItemDetailResult = {
   feedbackComment: null,
   feedbackRatingValue: null,
   propertyDefaultReplyLanguage: 'bg-Cyrl',
-  reviewReplyLanguage: 'tr-Latn-TR',
+  reviewReplyLanguage: 'en-Latn-US',
   reply: {
     id: replyId('10000000-0000-4000-8000-000000000201'),
     reviewId: reviewId(String(approvedItem.sourceId)),
@@ -251,6 +253,7 @@ const approvedDetail: InboxItemDetailResult = {
     publishedAt: null,
     publicationState: null,
     publicationAttempts: 0,
+    publicationCycle: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
     createdAt: new Date('2026-08-19T07:10:00Z'),
@@ -263,6 +266,8 @@ const approvedDetail: InboxItemDetailResult = {
     attention: 'low',
     generatedAtEpochMillis: Date.parse('2026-08-19T07:08:00Z'),
   },
+  feedbackHandling: null,
+  responseTarget: null,
 }
 
 const approvedFns: InboxServerFns = {
@@ -275,13 +280,14 @@ const approvedFns: InboxServerFns = {
     const useReviewLanguage = data.targetLanguage.kind === 'review_language'
     return {
       status: 'ready' as const,
+      profileVersion: 'reply-draft-v2' as const,
       replyText: useReviewLanguage
-        ? 'Güzel yorumunuz için teşekkür ederiz. Konaklamanızdan ve kahvaltımızdan memnun kalmanıza sevindik. Sizi yeniden ağırlamayı dört gözle bekliyoruz.'
+        ? 'Thank you for your kind review. We are glad you enjoyed the stay and breakfast.'
         : approvedDetail.reply!.text,
       provenanceToken: 'storybook-signed-provenance',
       expiresAtEpochMillis: Date.now() + 60_000,
       baseReplyStateRevision: 1,
-      concreteLanguageTag: useReviewLanguage ? 'tr-Latn-TR' : 'bg-Cyrl',
+      concreteLanguageTag: useReviewLanguage ? 'en-Latn-US' : 'bg-Cyrl',
     }
   }) as unknown as NonNullable<InboxServerFns['generateReplySuggestion']>,
 }
@@ -311,9 +317,13 @@ export const ApprovedPanels: Story = {
     })
     await expect(languageSelect).toHaveTextContent(/^Bulgarian\s*·\s*Property default$/i)
     await userEvent.click(languageSelect)
-    await expect(
-      screen.findByRole('option', { name: /review language · turkish/i }),
-    ).resolves.toBeVisible()
+    // findBy resolves the moment the option EXISTS, which is while the Select
+    // content is still animating in from opacity 0 — assert visibility with a
+    // retry rather than on whichever frame the machine happened to be on.
+    const englishOption = await screen.findByRole('option', {
+      name: /review language · english/i,
+    })
+    await waitFor(() => expect(englishOption).toBeVisible())
     await userEvent.keyboard('{Escape}')
     languageSelect.blur()
   },
@@ -353,11 +363,100 @@ export const EmptyList: Story = {
   ),
 }
 
+const visitContainer = createInboxContainer()
+visitContainer.seed([
+  makeInboxItem({ id: 'visit-1', sourceType: 'review', status: 'open', rating: 5 }),
+])
+
+export const SuccessfulLoadStampsVisit: Story = {
+  render: () => (
+    <InboxPageHarness
+      ctx={orgCtx}
+      properties={properties}
+      inboxFns={makeInboxFns(visitContainer)}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await canvas.findByRole('button', { name: /Open review from Jane Doe/i })
+    await waitFor(async () => {
+      await expect(visitContainer.readLastInboxView()).resolves.not.toBeNull()
+    })
+  },
+}
+
+const failedVisitContainer = createInboxContainer()
+const failedVisitFns: InboxServerFns = {
+  ...makeInboxFns(failedVisitContainer),
+  getInboxItems: (async () => {
+    throw new Error('Inbox unavailable')
+  }) as unknown as typeof getInboxItemsFn,
+}
+
+export const FailedLoadPreservesVisitWatermark: Story = {
+  render: () => (
+    <InboxPageHarness ctx={orgCtx} properties={properties} inboxFns={failedVisitFns} />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await canvas.findByText('Failed to load inbox. Try again.')
+    await expect(failedVisitContainer.readLastInboxView()).resolves.toBeNull()
+  },
+}
+
+const propertyVisitContainer = createInboxContainer()
+propertyVisitContainer.seed([
+  makeInboxItem({ id: 'property-visit-1', sourceType: 'review', status: 'open' }),
+])
+
+export const PropertyScopedLoadPreservesOrganizationWatermark: Story = {
+  render: () => (
+    <InboxPageHarness
+      ctx={orgCtx}
+      properties={properties}
+      inboxFns={makeInboxFns(propertyVisitContainer)}
+      initialSearch={{ propertyId: String(inboxTestIds.PROP) }}
+      recordInboxVisit={false}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await canvas.findByRole('button', { name: /Open review from Jane Doe/i })
+    await expect(propertyVisitContainer.readLastInboxView()).resolves.toBeNull()
+  },
+}
+
 // getInboxItems never resolves → the list stays in its loading (skeleton) state.
 export const Loading: Story = {
   render: () => (
     <InboxPageHarness ctx={orgCtx} properties={properties} inboxFns={loadingFns} />
   ),
+}
+
+// `parameters.viewport` only resizes the preview iframe from the Storybook
+// manager, so the authoritative runner — which drives iframe.html directly at a
+// fixed 1280×720 page — never sees a narrow window. Pin the one media query the
+// layout branches on (`useIsMobile`) so the mobile composition renders in every
+// runner; other queries (reduced motion, color scheme) stay real.
+const MOBILE_BREAKPOINT_QUERY = '(max-width: 767px)'
+
+function pinMobileBreakpoint(): () => void {
+  const realMatchMedia = window.matchMedia.bind(window)
+  const alwaysMatches = (query: string): MediaQueryList => ({
+    matches: true,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })
+  window.matchMedia = (query: string) =>
+    query === MOBILE_BREAKPOINT_QUERY ? alwaysMatches(query) : realMatchMedia(query)
+  return () => {
+    window.matchMedia = realMatchMedia
+  }
 }
 
 // Mobile viewport (390×844 → matches the app's `max-width: 767px` breakpoint):
@@ -372,6 +471,14 @@ export const MobileViewport: Story = {
   ),
   parameters: {
     viewport: { defaultViewport: 'mobileStaff' },
+  },
+  beforeEach: () => pinMobileBreakpoint(),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(await canvas.findByRole('button', { name: 'Open folders' }))
+    await expect(
+      await screen.findByRole('combobox', { name: 'Filter by property' }),
+    ).toBeVisible()
   },
 }
 

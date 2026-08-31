@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { resolveLinkAndTrack } from './resolve-link-and-track'
 import { portalLinkId } from '#/shared/domain/ids'
 
@@ -25,12 +25,35 @@ const portal = {
       sortKey: 'a',
     },
   ],
+  reviewGateway: {
+    privateFeedbackThreshold: 3,
+    googleReview: {
+      status: 'available',
+      uri: 'https://search.google.com/local/writereview?placeid=property-p1',
+    },
+  },
+  localization: {
+    selectedLocale: 'en',
+    primaryLocale: 'en',
+    availableLocales: ['en'],
+    languagePackVersion: 'guest-ui-en-v1',
+  },
+  responseConfiguration: {
+    publicationState: 'published',
+    publicationSnapshotId: 'snapshot-1',
+    publicationVersion: 1,
+    publicationDigest: 'b'.repeat(64),
+    configurationDigest: 'a'.repeat(64),
+    guestLocale: 'en',
+    languagePackVersion: 'guest-ui-en-v1',
+    privateFeedbackThreshold: 3,
+  },
   organizationId: 'org-a',
   propertyId: 'property-p1',
 } as const
 
 describe('resolveLinkAndTrack (token-bound public redirect)', () => {
-  it('resolves a link owned by the policy-authorized token Portal and tracks it', async () => {
+  it('resolves a link owned by the policy-authorized token Portal without tracking a GET', async () => {
     const tracked: unknown[] = []
     const useCase = resolveLinkAndTrack({
       publicPortalLookup: { findByToken: async () => portal },
@@ -42,9 +65,35 @@ describe('resolveLinkAndTrack (token-bound public redirect)', () => {
     await expect(useCase({ token: TOKEN, linkId: LINK_ID })).resolves.toEqual({
       url: 'https://example.com',
     })
+    expect(tracked).toEqual([])
+  })
+
+  it('tracks only an explicitly qualified signed-session mutation', async () => {
+    const tracked: unknown[] = []
+    const useCase = resolveLinkAndTrack({
+      publicPortalLookup: { findByToken: async () => portal },
+      trackClick: async (input) => {
+        tracked.push(input)
+      },
+    })
+    const sessionExpiresAt = new Date('2026-05-02T12:00:00Z')
+
+    await expect(
+      useCase({
+        token: TOKEN,
+        linkId: LINK_ID,
+        qualifyObservation: async () => ({
+          sessionId: '00000000-0000-4000-8000-000000000100',
+          sessionExpiresAt,
+        }),
+      }),
+    ).resolves.toEqual({ url: 'https://example.com' })
     expect(tracked).toEqual([
       {
         linkId: LINK_ID,
+        destinationKind: 'secondary_link',
+        sessionId: '00000000-0000-4000-8000-000000000100',
+        sessionExpiresAt,
         organizationId: 'org-a',
         propertyId: 'property-p1',
         portalId: 'portal-p1',
@@ -83,5 +132,72 @@ describe('resolveLinkAndTrack (token-bound public redirect)', () => {
 
     await expect(useCase({ token: 'p2-token', linkId: LINK_ID })).resolves.toBeNull()
     expect(effects).toBe(0)
+  })
+
+  it('returns the stored destination but suppresses an unqualified metric', async () => {
+    let effects = 0
+    const qualifyObservation = vi.fn(async () => null)
+    const useCase = resolveLinkAndTrack({
+      publicPortalLookup: { findByToken: async () => portal },
+      trackClick: async () => {
+        effects += 1
+      },
+    })
+
+    await expect(
+      useCase({ token: TOKEN, linkId: LINK_ID, qualifyObservation }),
+    ).resolves.toEqual({ url: 'https://example.com' })
+    expect(qualifyObservation).toHaveBeenCalledWith({
+      linkId: LINK_ID,
+      organizationId: 'org-a',
+      propertyId: 'property-p1',
+      portalId: 'portal-p1',
+    })
+    expect(effects).toBe(0)
+  })
+
+  it('keeps navigation available when the metric qualifier is unavailable', async () => {
+    let effects = 0
+    const reportObservationLoss = vi.fn(async () => 'recorded' as const)
+    const failure = new Error('rate limit store unavailable')
+    const useCase = resolveLinkAndTrack({
+      publicPortalLookup: { findByToken: async () => portal },
+      trackClick: async () => {
+        effects += 1
+      },
+      reportObservationLoss,
+    })
+
+    await expect(
+      useCase({
+        token: TOKEN,
+        linkId: LINK_ID,
+        qualifyObservation: async () => Promise.reject(failure),
+      }),
+    ).resolves.toEqual({ url: 'https://example.com' })
+    expect(reportObservationLoss).toHaveBeenCalledWith('review_link')
+    expect(effects).toBe(0)
+  })
+
+  it('keeps navigation available when qualified observation persistence fails', async () => {
+    const reportObservationLoss = vi.fn(async () => 'recorded' as const)
+    const failure = new Error('observation transaction unavailable')
+    const useCase = resolveLinkAndTrack({
+      publicPortalLookup: { findByToken: async () => portal },
+      trackClick: async () => Promise.reject(failure),
+      reportObservationLoss,
+    })
+
+    await expect(
+      useCase({
+        token: TOKEN,
+        linkId: LINK_ID,
+        qualifyObservation: async () => ({
+          sessionId: '00000000-0000-4000-8000-000000000100',
+          sessionExpiresAt: new Date('2026-05-02T12:00:00Z'),
+        }),
+      }),
+    ).resolves.toEqual({ url: 'https://example.com' })
+    expect(reportObservationLoss).toHaveBeenCalledWith('review_link')
   })
 })

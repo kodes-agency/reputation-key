@@ -93,7 +93,11 @@ Required evidence:
 
 Entry additionally requires:
 
-- one named/owned property in any routed processing region (`us`, `europe`, `global` — the single approved cell serves all three; the closed-beta property is EEA/`europe`), current routing profile, current Merchant AI notice and explicit `review_analysis` opt-in;
+- one named/owned property assigned to the active Railway Data Cell `us`, with
+  its separate current AI provider-processing profile (currently
+  `global`/`private-beta-global-v1`), current Merchant AI notice, and explicit
+  `review_analysis` opt-in; country, Data Cell, and AI provider region must not
+  be treated as interchangeable facts;
 - current exact provider/ZDR/configuration evidence and an unexpired Stage B bundle;
 - atomic source revision/epoch checks before read/send and after return;
 - strict analysis schema, deterministic attention-level rule, idempotent persistence, deletion/revocation/restore proof, and no Inbox reorder/auto-assignment/staff evaluation;

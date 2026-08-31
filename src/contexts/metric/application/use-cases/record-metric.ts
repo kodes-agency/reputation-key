@@ -13,9 +13,18 @@ import {
   type ReadingDataQuality,
   type ReadingResult,
 } from '../../domain/metric-reading'
-import type { MetricScope, SourcePolicyClass } from '../../domain/metric-registry'
+import type {
+  GovernedMetricVersion,
+  MetricScope,
+  SourcePolicyClass,
+} from '../../domain/metric-registry'
 import type { MetricCommandStore } from '../ports/metric-command-store.port'
 import type { MetricRegistryRepository } from '../ports/metric-registry.repository.port'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+import {
+  portalLifetimeFactForMetric,
+  type PortalDestinationKind,
+} from '../../domain/portal-lifetime-aggregate'
 
 export type RecordMetricInput = Readonly<{
   organizationId: OrganizationId
@@ -36,6 +45,9 @@ export type RecordMetricInput = Readonly<{
   occurredAt: Date
   attributionQuality: AttributionQuality
   dataQuality?: ReadingDataQuality
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
+  /** Required only for a qualified destination-selection fact. */
+  destinationKind?: PortalDestinationKind | null
 }>
 
 export type RecordMetricDeps = Readonly<{
@@ -65,9 +77,45 @@ const payloadHash = (input: RecordMetricInput): string =>
         denominator: input.denominator ?? null,
         sampleCount: input.sampleCount,
         occurredAt: input.occurredAt.toISOString(),
+        staffAttribution: input.staffAttribution ?? null,
+        destinationKind: input.destinationKind ?? null,
       }),
     )
     .digest('hex')
+
+/**
+ * Admission checks that reject a reading outright. Returns the quarantine
+ * reason, or null when the reading may proceed to value-shape checks.
+ */
+function quarantineReasonFor(
+  input: RecordMetricInput,
+  governed: GovernedMetricVersion,
+): string | null {
+  const { definition, version } = governed
+  if (definition.lifecycleStatus !== 'approved') return 'definition_not_approved'
+  if (
+    input.occurredAt < version.effectiveFrom ||
+    (version.effectiveTo !== null && input.occurredAt >= version.effectiveTo)
+  ) {
+    return 'definition_version_not_effective'
+  }
+  if (!version.sourcePolicyAllowlist.includes(input.sourcePolicy)) {
+    return 'source_policy_not_allowed'
+  }
+  if (!version.allowedScopes.includes(input.scope)) return 'scope_not_allowed'
+  if (input.attributionQuality === 'unresolved') return 'unresolved_attribution'
+  if (
+    input.sourceEventId.trim().length === 0 ||
+    !Number.isFinite(input.value) ||
+    input.value < 0 ||
+    !Number.isInteger(input.sampleCount) ||
+    input.sampleCount < 0
+  ) {
+    return 'invalid_reading'
+  }
+  return null
+}
+
 export const recordMetric =
   (deps: RecordMetricDeps): RecordMetric =>
   async (input) => {
@@ -90,33 +138,8 @@ export const recordMetric =
     if (!governed) return quarantine('unknown_definition_version')
 
     const { definition, version } = governed
-    if (definition.lifecycleStatus !== 'approved') {
-      return quarantine('definition_not_approved')
-    }
-    if (
-      input.occurredAt < version.effectiveFrom ||
-      (version.effectiveTo !== null && input.occurredAt >= version.effectiveTo)
-    ) {
-      return quarantine('definition_version_not_effective')
-    }
-    if (!version.sourcePolicyAllowlist.includes(input.sourcePolicy)) {
-      return quarantine('source_policy_not_allowed')
-    }
-    if (!version.allowedScopes.includes(input.scope)) {
-      return quarantine('scope_not_allowed')
-    }
-    if (input.attributionQuality === 'unresolved') {
-      return quarantine('unresolved_attribution')
-    }
-    if (
-      input.sourceEventId.trim().length === 0 ||
-      !Number.isFinite(input.value) ||
-      input.value < 0 ||
-      !Number.isInteger(input.sampleCount) ||
-      input.sampleCount < 0
-    ) {
-      return quarantine('invalid_reading')
-    }
+    const admissionReason = quarantineReasonFor(input, governed)
+    if (admissionReason !== null) return quarantine(admissionReason)
 
     const numerator = input.numerator ?? null
     const denominator = input.denominator ?? null
@@ -162,12 +185,23 @@ export const recordMetric =
       attributionQuality: input.attributionQuality,
       dataQuality: input.dataQuality,
       retentionClass: definition.retentionClass,
+      staffAttribution: input.staffAttribution ?? null,
       now: deps.clock(),
     })
+
+    const portalLifetimeFact = portalLifetimeFactForMetric({
+      metricKey: reading.metricKey,
+      value: reading.value,
+      destinationKind: input.destinationKind ?? null,
+    })
+    if (portalLifetimeFact && reading.portalId === null) {
+      return quarantine('invalid_portal_lifetime_scope')
+    }
 
     return deps.commandStore.recordMetric({
       reading,
       supersedesSourceEventId: input.supersedesSourceEventId ?? null,
+      portalLifetimeFact,
       event: metricRecorded({
         readingId: reading.id,
         organizationId: reading.organizationId,
@@ -185,6 +219,7 @@ export const recordMetric =
         attributionQuality: reading.attributionQuality,
         permittedConsumers: version.permittedConsumers,
         occurredAt: reading.occurredAt,
+        staffAttribution: reading.staffAttribution,
       }),
     })
   }

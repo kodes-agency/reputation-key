@@ -93,6 +93,8 @@ function replyRequest(): ReplySuggestionGatewayRequestV1 {
     ...analysis,
     route: 'reply-suggestion',
     actorId: 'better-auth-user_01',
+    replyProfileVersion: 'reply-draft-v2',
+    brandProfile: { displayName: 'Example Hotel' },
     tone: 'professional',
     binding: {
       ...analysis.binding,
@@ -102,6 +104,9 @@ function replyRequest(): ReplySuggestionGatewayRequestV1 {
         baseReplyStateRevision: 0,
       },
       concreteReplyLanguage: { tag: 'en-Latn', templateGroup: 'en-Latn' },
+      replyBrandProfileVersion: 7,
+      replyBrandDisplayNameDigest:
+        '030c644bf71ad1d7570dc9ab6131f5209ac02fa65e930e2910778e024fc643bf',
       replyLanguageVerifierDigest: SHA,
       languageScriptConsistencyDigest: SHA,
       zhOrthographyVerifierDigest: SHA,
@@ -117,37 +122,37 @@ function replyRequest(): ReplySuggestionGatewayRequestV1 {
 }
 
 const baselineWindow = {
-  reviewCount: 10,
-  sentimentCounts: { positive: 2, neutral: 4, negative: 3, mixed: 1 },
-  attentionCounts: { urgent: 1, high: 2, medium: 3, low: 4 },
+  reviewCount: 20,
+  sentimentCounts: { positive: 4, neutral: 8, negative: 6, mixed: 2 },
+  attentionCounts: { urgent: 2, high: 4, medium: 6, low: 8 },
   categoryCounts: {
-    service: 1,
-    staff: 2,
-    quality: 1,
-    value: 1,
-    cleanliness: 1,
+    service: 2,
+    staff: 4,
+    quality: 2,
+    value: 2,
+    cleanliness: 2,
     waitTime: 0,
     atmosphere: 0,
     location: 0,
     accessibility: 0,
-    other: 4,
+    other: 8,
   },
 } as const
 const currentWindow = {
-  reviewCount: 10,
-  sentimentCounts: { positive: 7, neutral: 1, negative: 1, mixed: 1 },
-  attentionCounts: { urgent: 0, high: 1, medium: 2, low: 7 },
+  reviewCount: 20,
+  sentimentCounts: { positive: 14, neutral: 2, negative: 2, mixed: 2 },
+  attentionCounts: { urgent: 0, high: 2, medium: 4, low: 14 },
   categoryCounts: {
-    service: 5,
-    staff: 1,
-    quality: 1,
-    value: 1,
-    cleanliness: 1,
+    service: 10,
+    staff: 2,
+    quality: 2,
+    value: 2,
+    cleanliness: 2,
     waitTime: 0,
     atmosphere: 0,
     location: 0,
     accessibility: 0,
-    other: 1,
+    other: 2,
   },
 } as const
 
@@ -314,6 +319,51 @@ describe('AI gateway caller-wire contract', () => {
             templateGroup: 'es-Latn',
           },
         },
+      }),
+    ).toThrow(ZodError)
+  })
+
+  it('carries only the distinct personalized profile on the reply route', () => {
+    expect(parseAiGatewayRouteRequest(replyRequest())).toMatchObject({
+      route: 'reply-suggestion',
+      replyProfileVersion: 'reply-draft-v2',
+      brandProfile: { displayName: 'Example Hotel' },
+    })
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...replyRequest(),
+        replyProfileVersion: 'reply-suggestion-v1',
+      }),
+    ).toThrow(ZodError)
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...replyRequest(),
+        brandProfile: {
+          displayName: 'Example Hotel',
+          logoUrl: 'https://cdn.example/logo.png',
+        },
+      }),
+    ).toThrow(ZodError)
+
+    const response = {
+      route: 'reply-suggestion',
+      status: 'success',
+      result: {
+        profileVersion: 'reply-draft-v2',
+        replyText: 'Thank you for sharing that the room was quiet during your stay.',
+        provenanceToken: 'signed-personalized-provenance',
+        expiresAtEpochMillis: 1_780_000_010_000,
+        baseReplyStateRevision: 0,
+        concreteLanguageTag: 'en-Latn',
+        templateGroup: 'en-Latn',
+      },
+      settlementReceipt: receipt,
+    }
+    expect(parseAiGatewayRouteResponse(response)).toEqual(response)
+    expect(() =>
+      parseAiGatewayRouteResponse({
+        ...response,
+        result: { ...response.result, templateId: 'appreciation_positive' },
       }),
     ).toThrow(ZodError)
   })

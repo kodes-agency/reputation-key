@@ -7,9 +7,9 @@ import type { ProcessGoogleImportV2Item } from '../../application/google-import-
  * re-derived before handing current, content-free execution facts to the
  * fenced item processor.
  */
-export function createGoogleImportV2ItemJobHandler(
+export const createGoogleImportV2ItemJobHandler = (
   processItem: (input: ProcessGoogleImportV2Item) => Promise<void>,
-) {
+) => {
   return async (job: Job<GoogleImportV2ItemJobData>): Promise<void> => {
     const jobId = job.data.jobId
     if (

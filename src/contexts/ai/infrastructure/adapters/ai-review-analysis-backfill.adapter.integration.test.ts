@@ -7,9 +7,13 @@
 // `lock_review_ai_analysis_head_v1` really does hand back `H+1 … H+N` with the
 // review pointers moved and one outbox row each.
 
+import { readFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   merchantAiConsentEvidence,
   merchantAiEnablement,
@@ -17,9 +21,11 @@ import {
   properties,
   reviewAiAnalysisHeads,
   reviews,
+  aiReviewAnalysisBackfillRunMemberships,
   aiReviewAnalysisBackfillRuns,
 } from '#/shared/db/schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
@@ -30,18 +36,35 @@ import {
   type BackfillReviewAnalysisResult,
 } from '../../application/use-cases/backfill-review-analysis'
 import { createReviewAnalysisBackfillAdapter } from './ai-review-analysis-backfill.adapter'
-import { createPropertyGrantHolderLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
+import { createMemberPropertyAuthorityLookup } from '#/contexts/identity/infrastructure/repositories/member-property-authority'
 
 const NOW = new Date('2026-08-22T09:00:00.000Z')
 const CONTENT_EXPIRES_AT = new Date('2027-08-22T09:00:00.000Z')
 const ORGANIZATION_ID = organizationId('ai-reanalyze-backfill-test-org')
-const PROPERTY_ID = propertyId('7a000000-0000-4000-8000-000000000001')
+// Keep this fixture isolated from the portal-upload integration family. Those
+// tests intentionally persist a portal/property pair in the shared test DB.
+const PROPERTY_ID = propertyId('7d000000-0000-4000-8000-000000000001')
 const LINEAGE_ID = '7a000000-0000-4000-8000-000000000002'
 const CONNECTION_ID = '7a000000-0000-4000-8000-000000000003'
 const ACTOR_USER_ID = 'ai-reanalyze-test-actor'
 const SOURCE_EPOCH = 3
 const HEAD_SEQUENCE = 256
 const DIGEST = 'a'.repeat(64)
+const MEMBERSHIP_MIGRATION_PATH = join(
+  process.cwd(),
+  'drizzle/0119_ai_review_backfill_relational_membership.sql',
+)
+
+function legacyMembershipBackfillSql(): string {
+  const migration = readFileSync(MEMBERSHIP_MIGRATION_PATH, 'utf8')
+  const match = migration.match(
+    /-- AI-02 LEGACY MEMBERSHIP BACKFILL BEGIN\n([\s\S]*?)\n-- AI-02 LEGACY MEMBERSHIP BACKFILL END/,
+  )
+  if (!match?.[1]) throw new Error('0119 membership backfill statement is missing')
+  return match[1]
+}
+
+registerAllEventSchemas()
 
 const RUNTIME_PROFILES = {
   review_analysis: 'review-analysis-runtime-v1',
@@ -62,10 +85,14 @@ const REVIEW_IDS = STORED_SEQUENCES.map((_, index) =>
 describe('review analysis backfill adapter (real PostgreSQL)', () => {
   const db = getDb()
   const backfill = createBackfillReviewAnalysis({
-    backfillStore: createReviewAnalysisBackfillAdapter(db),
+    backfillStore: createReviewAnalysisBackfillAdapter(db, randomUUID),
     // The real identity-owned adapter: this is the sanctioned route to the
     // grant table, and wiring the real one keeps the seam honest here.
-    propertyAccessHolders: createPropertyGrantHolderLookup(db),
+    propertyAuthority: createMemberPropertyAuthorityLookup(
+      db,
+      'ai.manage',
+      () => new Date(),
+    ),
   })
 
   const clear = async () => {
@@ -82,7 +109,7 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
       sql`DELETE FROM member WHERE "organizationId" = ${ORGANIZATION_ID}`,
     ])
     await db.execute(sql`DELETE FROM "user" WHERE id = ${ACTOR_USER_ID}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORGANIZATION_ID}`)
+    await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
 
   const seed = async (
@@ -332,8 +359,53 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
       analysisStartSequence: HEAD_SEQUENCE,
       reviewAnalysisEpoch: 3,
     })
-    // Deterministic (reviewed_at, id) order, pinned once and never recomputed.
-    expect(runRow?.reviewIds).toEqual([...REVIEW_IDS])
+    // Deterministic (reviewed_at, id) order, pinned once as relational
+    // authority. The legacy array is a dual-written compatibility copy for a
+    // rolling old worker; this new reader never depends on it.
+    const membershipRows = await db
+      .select({
+        ordinal: aiReviewAnalysisBackfillRunMemberships.ordinal,
+        reviewId: aiReviewAnalysisBackfillRunMemberships.reviewId,
+      })
+      .from(aiReviewAnalysisBackfillRunMemberships)
+      .where(eq(aiReviewAnalysisBackfillRunMemberships.runId, runRow!.id))
+      .orderBy(asc(aiReviewAnalysisBackfillRunMemberships.ordinal))
+    expect(membershipRows).toEqual(
+      REVIEW_IDS.map((id, ordinal) => ({ ordinal, reviewId: id })),
+    )
+    expect(runRow?.legacyReviewIdsCompatibility).toEqual([...REVIEW_IDS])
+
+    const updateError = await db
+      .execute(
+        sql`
+        UPDATE ai_review_analysis_backfill_run_memberships
+        SET review_id = ${REVIEW_IDS[1]}::uuid
+        WHERE run_id = ${runRow!.id}::uuid AND ordinal = 0
+      `,
+      )
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+    const updateCause = updateError instanceof Error ? updateError.cause : null
+    expect(
+      updateCause instanceof Error ? updateCause.message : String(updateCause),
+    ).toContain('AI review-analysis membership is immutable')
+    const deleteError = await db
+      .execute(
+        sql`
+        DELETE FROM ai_review_analysis_backfill_run_memberships
+        WHERE run_id = ${runRow!.id}::uuid AND ordinal = 0
+      `,
+      )
+      .then(
+        () => null,
+        (error: unknown) => error,
+      )
+    const deleteCause = deleteError instanceof Error ? deleteError.cause : null
+    expect(
+      deleteCause instanceof Error ? deleteCause.message : String(deleteCause),
+    ).toContain('AI review-analysis membership is immutable')
   })
 
   it('refuses a second run while one is still open', async () => {
@@ -349,6 +421,174 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
     })
     // Nothing written: still one emitted event and one epoch bump.
     expect(await emittedSequences()).toEqual([257])
+  })
+
+  it('backfills a pre-0119 compatibility array in its original order', async () => {
+    await seed()
+    const runId = '7a000000-0000-4000-8000-0000000000a1'
+    await db.insert(aiReviewAnalysisBackfillRuns).values({
+      id: runId,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      reviewAnalysisEpoch: 3,
+      analysisStartSequence: HEAD_SEQUENCE,
+      legacyReviewIdsCompatibility: [],
+      requestedReviewCount: REVIEW_IDS.length,
+      state: 'running',
+      reasonCode: 'legacy_backfill_fixture',
+      correlationId: '7a000000-0000-4000-8000-0000000000a2',
+      createdAt: NOW,
+      updatedAt: NOW,
+    })
+    // The insert trigger deliberately saw an empty compatibility array. This
+    // update constructs the exact pre-0119 row shape so the journaled DML —
+    // extracted from migration 0119, not copied into the test — is what fills
+    // the canonical table.
+    await db.execute(sql`
+      UPDATE ai_review_analysis_backfill_runs
+      SET review_ids = ${sql.param(REVIEW_IDS.map(String))}::uuid[]
+      WHERE id = ${runId}::uuid
+    `)
+
+    const before = await db.execute<{ membership_count: string }>(sql`
+      SELECT count(*)::text AS membership_count
+      FROM ai_review_analysis_backfill_run_memberships
+      WHERE run_id = ${runId}::uuid
+    `)
+    expect(before.rows[0]?.membership_count).toBe('0')
+
+    await db.execute(sql.raw(legacyMembershipBackfillSql()))
+
+    const rows = await db
+      .select({
+        ordinal: aiReviewAnalysisBackfillRunMemberships.ordinal,
+        reviewId: aiReviewAnalysisBackfillRunMemberships.reviewId,
+      })
+      .from(aiReviewAnalysisBackfillRunMemberships)
+      .where(eq(aiReviewAnalysisBackfillRunMemberships.runId, runId))
+      .orderBy(asc(aiReviewAnalysisBackfillRunMemberships.ordinal))
+    expect(rows).toEqual(REVIEW_IDS.map((id, ordinal) => ({ ordinal, reviewId: id })))
+  })
+
+  it('mirrors an old-binary run insert and rejects duplicate membership atomically', async () => {
+    await seed()
+    const compatibleRunId = '7a000000-0000-4000-8000-0000000000b1'
+    await db.insert(aiReviewAnalysisBackfillRuns).values({
+      id: compatibleRunId,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      reviewAnalysisEpoch: 3,
+      analysisStartSequence: HEAD_SEQUENCE,
+      legacyReviewIdsCompatibility: [...REVIEW_IDS],
+      requestedReviewCount: REVIEW_IDS.length,
+      state: 'running',
+      reasonCode: 'old_binary_expand_fixture',
+      correlationId: '7a000000-0000-4000-8000-0000000000b2',
+      createdAt: NOW,
+      updatedAt: NOW,
+    })
+    const mirrored = await db
+      .select({ reviewId: aiReviewAnalysisBackfillRunMemberships.reviewId })
+      .from(aiReviewAnalysisBackfillRunMemberships)
+      .where(eq(aiReviewAnalysisBackfillRunMemberships.runId, compatibleRunId))
+      .orderBy(asc(aiReviewAnalysisBackfillRunMemberships.ordinal))
+    expect(mirrored.map(({ reviewId: id }) => id)).toEqual(REVIEW_IDS)
+
+    // The old insert is one PostgreSQL statement. A duplicate violates the
+    // canonical `(run_id, review_id)` identity and rolls the parent back too.
+    await db
+      .delete(aiReviewAnalysisBackfillRuns)
+      .where(eq(aiReviewAnalysisBackfillRuns.id, compatibleRunId))
+    const duplicateRunId = '7a000000-0000-4000-8000-0000000000b3'
+    const duplicated = [REVIEW_IDS[0]!, REVIEW_IDS[0]!]
+    await expect(
+      db.insert(aiReviewAnalysisBackfillRuns).values({
+        id: duplicateRunId,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        reviewAnalysisEpoch: 3,
+        analysisStartSequence: HEAD_SEQUENCE,
+        legacyReviewIdsCompatibility: duplicated,
+        requestedReviewCount: duplicated.length,
+        state: 'running',
+        reasonCode: 'old_binary_duplicate_fixture',
+        correlationId: '7a000000-0000-4000-8000-0000000000b4',
+        createdAt: NOW,
+        updatedAt: NOW,
+      }),
+    ).rejects.toMatchObject({ cause: { code: '23505' } })
+    const [rolledBack] = await db
+      .select({ id: aiReviewAnalysisBackfillRuns.id })
+      .from(aiReviewAnalysisBackfillRuns)
+      .where(eq(aiReviewAnalysisBackfillRuns.id, duplicateRunId))
+    expect(rolledBack).toBeUndefined()
+  })
+
+  it('reads ordinal 10,000 from a 10,001-member run without a persisted array', async () => {
+    await seed()
+    const runId = '7a000000-0000-4000-8000-0000000000c1'
+    await db.insert(aiReviewAnalysisBackfillRuns).values({
+      id: runId,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: SOURCE_EPOCH,
+      reviewAnalysisEpoch: 3,
+      analysisStartSequence: HEAD_SEQUENCE,
+      legacyReviewIdsCompatibility: [],
+      requestedReviewCount: 10_001,
+      state: 'running',
+      reasonCode: 'large_relational_membership_fixture',
+      correlationId: '7a000000-0000-4000-8000-0000000000c2',
+      createdAt: NOW,
+      updatedAt: NOW,
+    })
+    // PostgreSQL generates and writes the members as rows. The test never
+    // constructs a 10,001-element JavaScript array or stores one on the run.
+    await db.execute(sql`
+      INSERT INTO ai_review_analysis_backfill_run_memberships (
+        run_id, organization_id, property_id, ordinal, review_id, created_at
+      )
+      SELECT ${runId}::uuid, ${ORGANIZATION_ID}, ${PROPERTY_ID}::uuid,
+             generated.ordinal,
+             md5('ai-02-member-' || generated.ordinal::text)::uuid,
+             ${NOW}
+      FROM generate_series(0, 10000) AS generated(ordinal)
+    `)
+
+    const read = await createReviewAnalysisBackfillAdapter(db, randomUUID).runExclusive(
+      { organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID },
+      async (session) => {
+        await session.readContext()
+        const run = await session.readActiveRun()
+        const member = run
+          ? await session.readRunMember({ runId: run.id, ordinal: 10_000 })
+          : null
+        return { run, member }
+      },
+    )
+    expect(read.run?.requestedReviewCount).toBe(10_001)
+    expect(read.member).not.toBeNull()
+    expect(read.run).not.toHaveProperty('reviewIds')
+    const storage = await db.execute<{
+      membership_count: string
+      legacy_array_count: number
+    }>(sql`
+      SELECT (
+        SELECT count(*)::text
+        FROM ai_review_analysis_backfill_run_memberships
+        WHERE run_id = ${runId}::uuid
+      ) AS membership_count,
+      cardinality(review_ids) AS legacy_array_count
+      FROM ai_review_analysis_backfill_runs
+      WHERE id = ${runId}::uuid
+    `)
+    expect(storage.rows[0]).toMatchObject({
+      membership_count: '10001',
+      legacy_array_count: 0,
+    })
   })
 
   it('repositions the watermark to the head and bumps only the analysis epoch', async () => {

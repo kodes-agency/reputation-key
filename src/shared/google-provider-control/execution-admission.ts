@@ -14,6 +14,24 @@ const SHA256 = /^[a-f0-9]{64}$/
 const SAFE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/
 const MAX_ADMISSION_BYTES = 8 * 1024 * 1024
 
+const CAPABILITY_ROUTES = Object.freeze({
+  'property.import_gbp_v2': new Set([
+    'account-management.accounts.list',
+    'business-information.locations.list',
+  ]),
+  'property.read_gbp_performance': new Set(['performance.fetch']),
+  'property.connect_gbp': new Set([
+    'reviews.list',
+    'reviews.get',
+    'notifications.get',
+    'notifications.subscribe',
+    'notifications.unsubscribe',
+  ]),
+  'property.publish_reply': new Set(['reviews.reply']),
+} satisfies Readonly<
+  Record<GoogleExecutionAdmissionRequest['capability'], ReadonlySet<string>>
+>)
+
 function validGeneration(value: number | null): boolean {
   return value === null || (Number.isSafeInteger(value) && value >= 1)
 }
@@ -63,6 +81,9 @@ export function validateGoogleExecutionAdmissionRequest(
   }
   const policy = GOOGLE_PROVIDER_ROUTE_POLICIES[request.routeKey]
   if (!policy) return 'route_mismatch'
+  if (!CAPABILITY_ROUTES[request.capability]?.has(request.routeKey)) {
+    return 'route_mismatch'
+  }
   if (policy.endpointClass !== request.endpointClass) return 'endpoint_mismatch'
   if (policy.requestClass !== request.requestClass) {
     return 'request_class_mismatch'

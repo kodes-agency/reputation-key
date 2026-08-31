@@ -4,8 +4,21 @@ import { useState } from 'react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '#/components/ui/alert-dialog'
 import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
 import { formatDateTime } from './utils'
+
+const HEADING_ID = 'reply-editor-published-heading'
 
 type ReplyView = Readonly<{
   text: string
@@ -18,11 +31,15 @@ export function ReviewReplyApproved({ reply }: Readonly<{ reply: ReplyView }>) {
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
         <h2 className="text-sm font-medium">Reply</h2>
-        <Badge variant="outline">Publishing...</Badge>
+        <Badge variant="outline">Waiting for Google</Badge>
       </div>
       <div className="rounded-md border bg-muted/30 p-3">
         <p className="whitespace-pre-wrap text-sm leading-relaxed">{reply.text}</p>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Your confirmation is recorded. This reply stays pending until Google confirms that
+        it is live.
+      </p>
     </div>
   )
 }
@@ -35,7 +52,7 @@ export function ReviewReplyPublished({
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
         <h2 className="text-sm font-medium">Reply</h2>
-        <Badge className="bg-green-100 text-green-800">Published</Badge>
+        <Badge className="bg-green-100 text-green-800">Confirmed on Google</Badge>
         {onEdit && (
           <Button size="sm" variant="outline" className="ml-auto" onClick={onEdit}>
             Edit
@@ -47,7 +64,7 @@ export function ReviewReplyPublished({
       </div>
       {reply.publishedAt && (
         <p className="text-xs text-muted-foreground">
-          Published: {formatDateTime(reply.publishedAt)}
+          Confirmed: {formatDateTime(reply.publishedAt)}
         </p>
       )}
     </div>
@@ -78,10 +95,16 @@ export function ReviewReplyPublishedEditor({
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
-        <h2 className="text-sm font-medium">Edit published reply</h2>
+        <h2 id={HEADING_ID} className="text-sm font-medium">
+          Edit published reply
+        </h2>
         <Badge variant="outline">Republishes to Google</Badge>
       </div>
+      {/* The heading IS the label. Without the association the field is an
+          unlabelled form control: a screen reader announces "edit text" and
+          nothing about which reply is being republished to Google. */}
       <Textarea
+        aria-labelledby={HEADING_ID}
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={4}
@@ -97,9 +120,32 @@ export function ReviewReplyPublishedEditor({
           <Button size="sm" variant="ghost" disabled={isSaving} onClick={onCancel}>
             Cancel
           </Button>
-          <Button size="sm" disabled={!canSave} onClick={() => onSave(text)}>
-            Save &amp; republish
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" disabled={!canSave}>
+                Review update
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Confirm and update this Google reply?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This records your confirmation and starts replacing the current Google
+                  reply with the exact text shown here. RepKey keeps the update pending
+                  until Google confirms it is live.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep editing</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={!canSave}
+                  onClick={() => void onSave(text).catch(() => undefined)}
+                >
+                  {isSaving ? 'Confirming…' : 'Confirm & Update'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
     </div>
@@ -126,7 +172,7 @@ export function ReviewReplyMirror({ reply }: Readonly<{ reply: ReplyView }>) {
       </div>
       {reply.publishedAt && (
         <p className="text-xs text-muted-foreground">
-          Published: {formatDateTime(reply.publishedAt)} — via Google Business Profile
+          Observed: {formatDateTime(reply.publishedAt)} — via Google Business Profile
         </p>
       )}
     </div>

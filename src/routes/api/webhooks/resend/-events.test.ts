@@ -24,8 +24,8 @@ vi.mock('#/shared/observability/logger', () => ({
 vi.mock('#/shared/config/env', () => ({
   getEnv: () => ({ RESEND_WEBHOOK_SECRET: mocks.secret.value }),
 }))
-vi.mock('#/contexts/notification/infrastructure/handlers/resend-event-handler', () => ({
-  handleResendEvent: mocks.handleResendEvent,
+vi.mock('#/composition', () => ({
+  getContainer: () => ({ handleResendEvent: mocks.handleResendEvent }),
 }))
 
 const body = JSON.stringify({

@@ -8,6 +8,11 @@ export type PropertyLookup = Readonly<{
   id: string
   organizationId: string
   googleConnectionId: string | null
+  gbpAccountId: string | null
+  gbpLocationId: string | null
+  googleBindingState:
+    'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
+  sourceEpoch: number
 }>
 
 export type PropertyLookupPort = Readonly<{

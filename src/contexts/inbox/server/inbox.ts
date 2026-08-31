@@ -2,6 +2,7 @@
 export {
   getInboxItemsFn,
   getLastVisitCountFn,
+  stampLastInboxViewFn,
   getInboxFolderCountsFn,
 } from './inbox-queries'
 export {
@@ -10,5 +11,23 @@ export {
   escalateInboxItemFn,
   resolveEscalationFn,
 } from './inbox-status'
-export { addInboxNoteFn } from './inbox-item-actions'
-export { getInboxItemDetailFn, getInboxNotesFn } from './inbox-item-queries'
+export {
+  addInboxNoteFn,
+  assignInboxItemFn,
+  bulkAssignInboxItemsFn,
+} from './inbox-item-actions'
+export {
+  getInboxItemDetailFn,
+  getInboxItemHistoryFn,
+  getInboxNotesFn,
+} from './inbox-item-queries'
+export {
+  markFeedbackHandledFn,
+  correctFeedbackHandlingOutcomeFn,
+} from './inbox-feedback-handling'
+export {
+  getResponseTargetPolicySettingsFn,
+  getGoogleReviewTargetAnalyticsFn,
+  getPrivateFeedbackTargetAnalyticsFn,
+  setResponseTargetPolicyFn,
+} from './inbox-response-targets'

@@ -12,31 +12,24 @@ import {
 } from '../../src/shared/ai-internal-transport-contract'
 import type { VersionedHmacKeyring } from '../../src/shared/security/versioned-hmac-keyring'
 
-export const AI_ADMISSION_DENIAL_CODES = [
-  'malformed_request',
-  'request_binding_invalid',
-  'subject_mismatch',
-  'source_mismatch',
-  'authorization_changed',
-  'control_disabled',
-  'circuit_open',
-  'rate_limited',
-  'concurrency_exhausted',
-  'quota_exhausted',
-  'permit_unknown',
-  'permit_expired',
-  'already_consumed',
-  'canary_not_eligible',
-] as const
-export type AiAdmissionDenialCode = (typeof AI_ADMISSION_DENIAL_CODES)[number]
+export type AiAdmissionDenialCode =
+  | 'malformed_request'
+  | 'request_binding_invalid'
+  | 'subject_mismatch'
+  | 'source_mismatch'
+  | 'authorization_changed'
+  | 'control_disabled'
+  | 'circuit_open'
+  | 'rate_limited'
+  | 'concurrency_exhausted'
+  | 'quota_exhausted'
+  | 'permit_unknown'
+  | 'permit_expired'
+  | 'already_consumed'
+  | 'canary_not_eligible'
 
-export const AI_SETTLEMENT_DENIAL_CODES = [
-  'permit_unknown',
-  'permit_mismatch',
-  'permit_not_consumed',
-  'settlement_conflict',
-] as const
-export type AiSettlementDenialCode = (typeof AI_SETTLEMENT_DENIAL_CODES)[number]
+export type AiSettlementDenialCode =
+  'permit_unknown' | 'permit_mismatch' | 'permit_not_consumed' | 'settlement_conflict'
 
 type DatabaseAdmission = Readonly<{
   status: 'admitted'

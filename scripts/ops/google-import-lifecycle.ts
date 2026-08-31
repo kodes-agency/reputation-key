@@ -69,7 +69,7 @@ async function withCompatibilityLifecycle<T>(
   const domainEventsQueue = createJobQueue('domain-events')
   if (!defaultQueue || !domainEventsQueue) {
     await closeJobQueueConnections()
-    throw new Error('Google import compatibility inspection requires REDIS_URL')
+    throw new Error('Google import compatibility inspection requires QUEUE_REDIS_URL')
   }
   try {
     const adapter = createGoogleImportCompatibilityAdapter({
@@ -144,7 +144,7 @@ async function main(): Promise<void> {
 
       const container = getContainer()
       if (action === 'inspect') {
-        const inspect = container.useCases.inspectGoogleImportV2Lifecycle
+        const inspect = container.integrationMaintenanceRuntime.imports.inspectBacklog
         if (!inspect) throw new Error('Google import v2 lifecycle unavailable')
         const [v2, compatibility] = await Promise.all([
           inspect(),
@@ -155,7 +155,8 @@ async function main(): Promise<void> {
       }
 
       const organizationId = ctx.organizationId as string
-      const inspectRequest = container.useCases.inspectGoogleImportV2Request
+      const inspectRequest =
+        container.integrationMaintenanceRuntime.imports.inspectRequest
       if (!inspectRequest) throw new Error('Google import v2 lifecycle unavailable')
       const before = await inspectRequest(organizationId, importJobId as string)
       if (action === 'inspect-request') {
@@ -180,7 +181,7 @@ async function main(): Promise<void> {
         return
       }
 
-      const cancel = container.useCases.cancelGoogleImportV2Request
+      const cancel = container.integrationMaintenanceRuntime.imports.cancelRequest
       if (!cancel) throw new Error('Google import v2 lifecycle unavailable')
       const cancellation = await cancel(organizationId, importJobId as string)
       const after = await inspectRequest(organizationId, importJobId as string)

@@ -1,5 +1,7 @@
 // Notification context — domain errors
 
+import { createErrorFactory } from '#/shared/domain/errors'
+
 export type NotificationErrorCode =
   | 'invalid_input'
   | 'invalid_type'
@@ -9,25 +11,20 @@ export type NotificationErrorCode =
   | 'invalid_status'
   | 'insert_failed'
   | 'email_send_failed'
+  | 'query_failed'
   | 'not_found'
 
 export type NotificationError = Readonly<{
   _tag: 'NotificationError'
   code: NotificationErrorCode
   message: string
-  details?: Record<string, unknown>
+  context?: Readonly<Record<string, unknown>>
 }>
 
-export const notificationError = (
-  code: NotificationErrorCode,
-  message: string,
-  details?: Record<string, unknown>,
-): NotificationError => ({
-  _tag: 'NotificationError',
-  code,
-  message,
-  ...(details ? { details } : {}),
-})
+export const notificationError = createErrorFactory<
+  NotificationError['_tag'],
+  NotificationError['code']
+>('NotificationError')
 
 export const isNotificationError = (e: unknown): e is NotificationError =>
   typeof e === 'object' &&

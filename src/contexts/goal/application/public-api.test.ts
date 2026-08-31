@@ -31,7 +31,8 @@ describe('GoalPublicApi', () => {
       completedValue: 10,
       completedAt: new Date(),
       parentGoalId: null,
-      createdBy: userId('u1'),
+      userId: userId('u1'),
+      occurredAt: new Date(),
     })
     expect(event._tag).toBe('goal.completed')
   })
@@ -50,7 +51,8 @@ describe('GoalPublicApi', () => {
       completedValue: 10,
       completedAt: new Date('2026-08-16T12:00:00Z'),
       parentGoalId: null,
-      createdBy: userId('u1'),
+      userId: userId('u1'),
+      occurredAt: new Date('2026-08-16T12:00:00Z'),
     }
     for (const override of [
       { targetValue: Number.NaN },

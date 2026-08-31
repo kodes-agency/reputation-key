@@ -12,6 +12,9 @@ import {
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
+import type { Role } from '#/shared/domain/roles'
 import { isInboxError } from '../../domain/errors'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
@@ -25,14 +28,12 @@ const USER_ID = userId('user-1')
 const adminStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 // Mock: Staff gets specific property IDs (scoped)
 const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids.map(propertyId),
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): InboxItem {
@@ -59,6 +60,7 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
     closedAt: null,
     firstReplySubmittedAt: null as Date | null,
     firstReplyPublishedAt: null as Date | null,
+    commandRevision: 1,
     createdAt: FIXED_TIME,
     updatedAt: FIXED_TIME,
     ...(restOverrides as Partial<InboxItem>),
@@ -68,7 +70,7 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
 
 const setup = (staffApi: StaffPublicApi = adminStaffApi) => {
   const repo = createInMemoryInboxRepo()
-  const deps = { repo, staffPublicApi: staffApi }
+  const deps = { repo, staffPublicApi: staffApi, clock: () => FIXED_TIME }
   const useCase = getInboxItems(deps)
   return { useCase, repo }
 }
@@ -91,6 +93,16 @@ const staffCtx = {
   role: 'Staff' as const,
 } as AuthContext
 
+const dynamicCtx = (...permissions: Permission[]): AuthContext => ({
+  organizationId: ORG_ID,
+  userId: USER_ID,
+  role: 'Staff',
+  effectivePermissions: new Set(permissions),
+  scopeByPermission: new Map(
+    permissions.map((permission) => [permission, 'organization' as const]),
+  ),
+})
+
 describe('getInboxItems', () => {
   it('returns paginated items for an organization', async () => {
     const { useCase, repo } = setup()
@@ -102,6 +114,7 @@ describe('getInboxItems', () => {
     expect(result.items).toHaveLength(2)
     expect(result.totalCount).toBe(2)
     expect(result.nextCursor).toBeDefined()
+    expect(result.responseCutoff).toEqual(FIXED_TIME)
   })
 
   it('filters by status', async () => {
@@ -126,6 +139,119 @@ describe('getInboxItems', () => {
 
     expect(result.items).toHaveLength(1)
     expect(result.items[0].sourceType).toBe('feedback')
+  })
+
+  it('omits private-feedback rows when the caller lacks feedback.read', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedItem({ id: 'ii-review', sourceType: 'review' }))
+    repo.items.push(
+      seedItem({
+        id: 'ii-feedback',
+        sourceType: 'feedback',
+        sourceId: feedbackId('fb-private'),
+      }),
+    )
+
+    const result = await useCase({ filters: {} }, dynamicCtx('inbox.read', 'review.read'))
+
+    expect(result.items.map((item) => item.sourceType)).toEqual(['review'])
+    expect(result.totalCount).toBe(1)
+  })
+
+  it('intersects each source permission scope with Inbox scope', async () => {
+    const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
+    repo.items.push(
+      seedItem({ id: 'review-1', sourceType: 'review', propertyId: PROP_ID }),
+      seedItem({ id: 'review-2', sourceType: 'review', propertyId: OTHER_PROP_ID }),
+      seedItem({
+        id: 'feedback-1',
+        sourceType: 'feedback',
+        sourceId: feedbackId('feedback-1'),
+        propertyId: PROP_ID,
+      }),
+      seedItem({
+        id: 'feedback-2',
+        sourceType: 'feedback',
+        sourceId: feedbackId('feedback-2'),
+        propertyId: OTHER_PROP_ID,
+      }),
+    )
+
+    const result = await useCase(
+      { filters: {} },
+      createScopedAuthContext({
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        permissions: [
+          ['inbox.read', 'organization'],
+          ['review.read', 'organization'],
+          ['feedback.read', 'assigned-properties'],
+        ],
+      }),
+    )
+
+    expect(result.items.map((item) => item.id).sort()).toEqual(
+      [
+        inboxItemId('feedback-1'),
+        inboxItemId('review-1'),
+        inboxItemId('review-2'),
+      ].sort(),
+    )
+    expect(result.totalCount).toBe(3)
+  })
+
+  it('returns an empty page for an explicitly requested unauthorized source', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(
+      seedItem({
+        id: 'ii-feedback',
+        sourceType: 'feedback',
+        sourceId: feedbackId('fb-private'),
+      }),
+    )
+
+    const result = await useCase(
+      { filters: { sourceType: 'feedback' } },
+      dynamicCtx('inbox.read', 'review.read'),
+    )
+
+    expect(result).toEqual({
+      items: [],
+      nextCursor: null,
+      totalCount: 0,
+      responseCutoff: FIXED_TIME,
+    })
+  })
+
+  it('returns no source rows when Inbox read is not paired with an owning-context read', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedItem({ id: 'ii-review', sourceType: 'review' }))
+
+    const result = await useCase({ filters: {} }, dynamicCtx('inbox.read'))
+
+    expect(result).toEqual({
+      items: [],
+      nextCursor: null,
+      totalCount: 0,
+      responseCutoff: FIXED_TIME,
+    })
+  })
+
+  it('rejects a caller without inbox.read', async () => {
+    const { useCase } = setup()
+
+    await expect(
+      useCase(
+        { filters: {} },
+        {
+          organizationId: ORG_ID,
+          userId: USER_ID,
+          role: 'Guest' as unknown as Role,
+        },
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
   })
 
   it('filters the in-memory repository by its seeded AI category', async () => {

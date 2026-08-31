@@ -15,10 +15,9 @@ import type { NotificationServerFns } from '#/components/features/notification/t
 import { AppTopBar } from './app-top-bar'
 
 // Build a notification-fn bundle from a desired unread count. getList returns
-// an empty array so the panel (mounted on open) renders its empty state
-// gracefully; the mutation fns are inert. Preferences/user-settings are only
-// pulled on demand (mute, timestamp formatting), so they return the shapes
-// those paths expect rather than throwing.
+// an empty page so the panel (mounted on open) renders its empty state
+// gracefully; the mutation fns are inert. User settings are pulled only when
+// the panel opens so timestamps can use the persisted locale and timezone.
 function makeNotificationFns(count: number): NotificationServerFns {
   const inert = <K extends keyof NotificationServerFns>(
     result: unknown,
@@ -26,15 +25,18 @@ function makeNotificationFns(count: number): NotificationServerFns {
     (async () => result) as unknown as NotificationServerFns[K]
 
   return {
-    getUnreadCount: inert<'getUnreadCount'>({ count }),
-    getList: inert<'getList'>([]),
+    getFeedHead: inert<'getFeedHead'>({
+      page: { notifications: [], hasMore: false },
+      unreadCount: count,
+      watermark: 'app-top-bar-story',
+    }),
+    getList: inert<'getList'>({ notifications: [], hasMore: false }),
     markRead: inert<'markRead'>(undefined),
     markUnread: inert<'markUnread'>(undefined),
     markAllRead: inert<'markAllRead'>(undefined),
     dismiss: inert<'dismiss'>(undefined),
     dismissAll: inert<'dismissAll'>(undefined),
-    getPreferences: inert<'getPreferences'>([]),
-    updatePreference: inert<'updatePreference'>(undefined),
+    muteCategory: inert<'muteCategory'>(undefined),
     getUserSettings: inert<'getUserSettings'>(null),
   }
 }

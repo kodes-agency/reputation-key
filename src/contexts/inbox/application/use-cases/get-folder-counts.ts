@@ -8,6 +8,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { inboxError } from '../../domain/errors'
 import { resolveVisiblePropertyIds } from '../visible-properties'
+import { resolveInboxSourceScopes } from '../inbox-access'
 
 export type InboxFolderCounts = Readonly<{
   open: number
@@ -45,6 +46,10 @@ export const getInboxFolderCounts =
     if (visible === 'none') {
       return { open: 0, escalated: 0, closed: 0 }
     }
+    const sourceScopes = await resolveInboxSourceScopes(deps.staffPublicApi, ctx, 'read')
+    if (sourceScopes.length === 0) {
+      return { open: 0, escalated: 0, closed: 0 }
+    }
 
     let propertyIds: ReadonlyArray<PropertyId> | undefined
     if (visible !== 'all') {
@@ -64,9 +69,9 @@ export const getInboxFolderCounts =
       : propertyIds
 
     const [open, escalated, closed] = await Promise.all([
-      deps.repo.countByStatus(ctx.organizationId, 'open', scoped),
-      deps.repo.countEscalatedActive(ctx.organizationId, scoped),
-      deps.repo.countByStatus(ctx.organizationId, 'closed', scoped),
+      deps.repo.countByStatus(ctx.organizationId, 'open', scoped, sourceScopes),
+      deps.repo.countEscalatedActive(ctx.organizationId, scoped, sourceScopes),
+      deps.repo.countByStatus(ctx.organizationId, 'closed', scoped, sourceScopes),
     ])
 
     return { open, escalated, closed }

@@ -20,7 +20,7 @@ describe('getDashboardData (use case)', () => {
     const now = new Date()
     const startDate = new Date(now.getTime() - 30 * MS_PER_DAY)
     const repo = createInMemoryDashboardRepository()
-    const getDashboard = getDashboardData({ repo, clock: () => new Date() })
+    const getDashboard = getDashboardData({ repo })
 
     const result = await getDashboard({
       organizationId: ORG_A,
@@ -29,6 +29,7 @@ describe('getDashboardData (use case)', () => {
       startDate,
       endDate: now,
       timeRange: '30d',
+      propertyTimezone: 'UTC',
     })
 
     // All sections present
@@ -56,7 +57,7 @@ describe('getDashboardData (use case)', () => {
     const now = new Date()
     const startDate = new Date(now.getTime() - 30 * MS_PER_DAY)
     const repo = createInMemoryDashboardRepository()
-    const getDashboard = getDashboardData({ repo, clock: () => new Date() })
+    const getDashboard = getDashboardData({ repo })
 
     const result = await getDashboard({
       organizationId: ORG_A,
@@ -65,10 +66,34 @@ describe('getDashboardData (use case)', () => {
       startDate,
       endDate: now,
       timeRange: '30d',
+      propertyTimezone: 'UTC',
     })
 
     expect(result.engagementFunnel).not.toBeNull()
     expect(result.engagementFunnel!.scans).toBe(100)
     expect(repo.calls).toContain('getEngagementFunnel')
+  })
+
+  it('does not present all-time KPI self-comparisons as real trends', async () => {
+    const now = new Date()
+    const repo = createInMemoryDashboardRepository()
+    const getDashboard = getDashboardData({ repo })
+
+    const result = await getDashboard({
+      organizationId: ORG_A,
+      propertyId: PROP_A,
+      portalId: null,
+      startDate: new Date(0),
+      endDate: now,
+      timeRange: 'all',
+      propertyTimezone: 'UTC',
+    })
+
+    expect(Object.values(result.kpis).map((kpi) => kpi.trend)).toEqual([
+      null,
+      null,
+      null,
+      null,
+    ])
   })
 })

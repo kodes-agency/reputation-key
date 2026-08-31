@@ -26,7 +26,12 @@ export const staffErrorStatus = (code: StaffErrorCode): number =>
       'user_not_member',
       () => HTTP_STATUS.NOT_FOUND,
     )
-    .with('participation_archived', 'responsibility_conflict', () => HTTP_STATUS.CONFLICT)
+    .with(
+      'participation_archived',
+      'responsibility_conflict',
+      'revision_conflict',
+      () => HTTP_STATUS.CONFLICT,
+    )
     .with('already_assigned', () => HTTP_STATUS.CONFLICT)
     .with('invalid_input', () => HTTP_STATUS.BAD_REQUEST)
     .exhaustive()

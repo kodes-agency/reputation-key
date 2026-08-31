@@ -17,8 +17,10 @@ import type { DecisionAuditEntry } from '#/shared/auth/execution-policy'
 
 export type PolicyDecisionEntry = DecisionAuditEntry
 
+type PolicySqlExecutor = Pick<Database, 'execute'>
+
 export async function writePolicyDecision(
-  db: Database,
+  db: PolicySqlExecutor,
   entry: PolicyDecisionEntry,
 ): Promise<void> {
   await db.execute(sql`

@@ -10,11 +10,13 @@
 //
 // Phase doc §4.6: inject unavailable queue / database / provider conditions in
 // the US target cell and prove jobs remain in the approved cell, age/alert
-// visibly, and resume/reconcile there — plus the denied-Europe routing repeat.
+// visibly, and resume/reconcile there — plus an unapproved persisted-cell
+// routing repeat. Dormant Europe/Global behavior has separate catalogue tests.
 // At NO point may a failure invoke a fallback adapter, queue, endpoint, or
 // region. Enforcement references: the BQC-4.3 architecture guards
 // (src/shared/architecture/provider-target-selection.test.ts,
-// adr-0048-presence.test.ts) and the BQC-4.2 wrong-cell/blocked quarantine in
+// adr-0048-presence.test.ts, which follows ADR 0054 through ADR 0057) and the
+// BQC-4.2 wrong-cell/blocked quarantine in
 // src/shared/jobs/delayed-execution-gate.ts.
 //
 // Conditions (one describe each):
@@ -28,10 +30,10 @@
 //       retries, and at attempts-exhaustion the 3.6 worker 'failed' path
 //       parks the job in the dead-letter quarantine.
 //   (c) PROVIDER (GBP) DOWN — publish-reply against a failing googleReviewApi:
-//       5xx classifies retryable → markPublicationRetryQueued + rethrow
-//       (BullMQ attempts); an ambiguous final attempt (provider timeout)
-//       persists publish_failed + publication_state='ambiguous' +
-//       reconcile_due_at (3.3/3.8 states); the 3.6 quarantine envelope holds
+//       5xx is ambiguous and rethrows through BullMQ attempts, while each
+//       retry is gated by an exact targeted-absence readback; the final
+//       timeout persists publish_failed + publication_state='ambiguous' +
+//       reconcile_due_at (3.3/3.8 states). The 3.6 quarantine envelope holds
 //       the job with policyReason ABSENT (not a policy failure) and
 //       identifier-only data. Only the cell's single provider binding is ever
 //       called — no alternate provider exists (4.3).
@@ -43,12 +45,14 @@
 //       with a fresh attempt budget + redriveMetadata; with healthy
 //       dependencies the dispatch succeeds and the handler runs EXACTLY ONCE
 //       across the whole saga.
-//   (f) DENIED REGION PROPERTY (the §4.6 repeat) — a property whose
-//       processing_region has no target in CELL_TARGETS dispatches a sync job;
+//   (f) UNAPPROVED CELL FACT (the §4.6 repeat) — a property whose persisted
+//       compatibility region has no accepting target in the Data Cell catalogue
+//       dispatches a sync job;
 //       the 4.2 gate quarantines it with policyReason
 //       'routing_blocked:region_denied' and the handler NEVER runs; a redrive
-//       (as after a region approval) re-queues it, but with the region
-//       unchanged the SECOND dispatch blocks again — no silent override.
+//       (as after an explicit catalogue revision and data reconciliation)
+//       re-queues it, but with the persisted fact unchanged the SECOND
+//       dispatch blocks again — no silent override.
 //
 // Determinism: relay polls and dispatch closures are invoked directly (never
 // interval-driven); lease expiry is simulated by backdating lease_expires_at
@@ -77,6 +81,9 @@ import {
   type RedisTestLease,
 } from '#/shared/testing/redis-test-lease'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
+import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import {
@@ -120,7 +127,10 @@ import type { PublishReplyJobData } from '#/contexts/review/application/ports/re
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
 import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
+import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
 import { createPublishReplyHandler } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
+import { reviewReplyPublicationRequested } from '#/contexts/review/domain/events'
+import { AMBIGUOUS_RECONCILE_DELAY_MS } from '#/contexts/review/domain/reply-publication-workflow'
 
 // Queue names are unique to this suite — the shared Redis hosts other suites'
 // queues, and BullMQ cross-talk is ruled out by name.
@@ -379,7 +389,6 @@ describe('(b) database unavailable at dispatch (BQC-4.6)', () => {
       loadPropertyRouting: async () => {
         throw dbDown
       },
-      cell: 'us',
     })
     // The gate's direct-quarantine path must NOT fire for a transient throw.
     const gateQuarantine = vi.fn(async (_job: Job, _policyReason: string) => {})
@@ -400,7 +409,7 @@ describe('(b) database unavailable at dispatch (BQC-4.6)', () => {
     // Full BullMQ proof against the real worker wiring: the job fails, is
     // retried, and at attempts-exhaustion the 3.6 'failed' path quarantines.
     const worker = createJobWorker(QUEUE_B, dispatch, 1, q(QUAR_B))
-    if (!worker) throw new Error('worker unavailable (REDIS_URL missing)')
+    if (!worker) throw new Error('worker unavailable (queue Redis missing)')
     try {
       await q(QUEUE_B).add(
         'sync-property-reviews',
@@ -458,6 +467,10 @@ const REVIEW_C = reviewId('46c00000-0000-4000-8000-000000000010')
 const REPLY_C = replyId('46c00000-0000-4000-8000-000000000020')
 const USER_C = userId('user-bqc46-faults-cc00001')
 const NOW_C = new Date('2026-07-18T12:00:00.000Z')
+// Command-store attempt timestamps use the real database clock; keep the
+// deterministic provider observation after them so the absence evidence is
+// causally newer than every attempted send.
+const PROVIDER_OBSERVED_AT_C = new Date('2027-01-18T12:00:00.000Z')
 
 const silentEvents: EventBus = {
   on: () => {},
@@ -481,14 +494,14 @@ function makeReviewC(): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW_C,
-    expiresAt: new Date(NOW_C.getTime() + 25 * 24 * 60 * 60 * 1000),
+    expiresAt: new Date('2027-07-18T12:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW_C,
     sourceUpdatedAt: null,
     firstFetchedAt: NOW_C,
     lastFetchedAt: NOW_C,
-    contentExpiresAt: null,
+    contentExpiresAt: new Date('2027-07-18T12:00:00.000Z'),
     contentHash: null,
     sourceSeenGeneration: null,
     sourceEpoch: 0,
@@ -507,18 +520,19 @@ function makeReplyC(): Reply {
     reviewId: REVIEW_C,
     organizationId: ORG_C,
     text: 'Thank you for the kind words!',
-    status: 'approved',
+    status: 'pending_approval',
     source: 'internal',
     createdBy: USER_C,
-    approvedBy: USER_C,
+    approvedBy: null,
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
     stateRevision: 1,
     submittedAt: NOW_C,
-    approvedAt: NOW_C,
+    approvedAt: null,
     publishedAt: null,
-    publicationState: 'authorized',
+    publicationState: null,
+    publicationCycle: 0,
     publicationAttempts: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
@@ -529,10 +543,20 @@ function makeReplyC(): Reply {
 
 function publishJob(attemptsMade: number): Job<PublishReplyJobData> {
   return {
-    id: `bqc46-c-attempt-${attemptsMade}`,
+    // BullMQ retries preserve one job identity across every attempt. The
+    // publication workflow relies on that serialization authority.
+    id: 'bqc46-c-publish',
     name: 'publish-reply',
     queueName: 'default',
-    data: { replyId: REPLY_C, organizationId: ORG_C },
+    data: {
+      replyId: REPLY_C,
+      organizationId: ORG_C,
+      publicationCycle: 1,
+      propertyId: PROP_C,
+      sourceEpoch: 0,
+      materialReviewRevision: 1,
+      baseObservationRevision: 0,
+    },
     attemptsMade,
     opts: { attempts: 3 },
   } as unknown as Job<PublishReplyJobData>
@@ -542,11 +566,25 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
   /** Children before the parent org (FK) so a crashed previous run re-seeds cleanly. */
   async function cleanOrgC(): Promise<void> {
     await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG_C}`)
+    await db.execute(
+      sql`DELETE FROM google_reply_observation_heads WHERE organization_id = ${ORG_C}`,
+    )
+    await db.execute(
+      sql`DELETE FROM google_reply_observations WHERE organization_id = ${ORG_C}`,
+    )
+    await db.execute(
+      sql`DELETE FROM reply_publication_attempts WHERE organization_id = ${ORG_C}`,
+    )
+    await withPublicationAuthorizationFixtureMutation(() =>
+      db.execute(
+        sql`DELETE FROM reply_publication_authorizations WHERE organization_id = ${ORG_C}`,
+      ),
+    )
     await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORG_C}`)
     await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG_C}`)
     await db.execute(sql`DELETE FROM google_connections WHERE organization_id = ${ORG_C}`)
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG_C}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORG_C}`)
+    await deleteTestOrganizations(db, [ORG_C])
   }
 
   beforeAll(async () => {
@@ -580,19 +618,81 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
 
   beforeEach(async () => {
     await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG_C}`)
+    await db.execute(
+      sql`DELETE FROM google_reply_observation_heads WHERE organization_id = ${ORG_C}`,
+    )
+    await db.execute(
+      sql`DELETE FROM google_reply_observations WHERE organization_id = ${ORG_C}`,
+    )
+    await db.execute(
+      sql`DELETE FROM reply_publication_attempts WHERE organization_id = ${ORG_C}`,
+    )
+    await withPublicationAuthorizationFixtureMutation(() =>
+      db.execute(
+        sql`DELETE FROM reply_publication_authorizations WHERE organization_id = ${ORG_C}`,
+      ),
+    )
     await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORG_C}`)
     await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG_C}`)
   })
 
-  it('retryable 5xx rethrows through attempts; an ambiguous final attempt persists publish_failed; the 3.6 envelope is content-safe with no policyReason; only the cell provider is ever called', async () => {
+  it('ambiguous 5xx retries only after targeted absence; the final ambiguity is durable and never falls back', async () => {
     if (!redisAvailable) return
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
-    await reviewRepo.upsert(makeReviewC())
-    await replyRepo.upsert(makeReplyC())
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
+    const savedReview = await reviewRepo.upsert(makeReviewC(), NOW_C)
+    expect(savedReview).toMatchObject({ sourceEpoch: 0, sourceRevision: 1 })
+    const pendingReply = await replyRepo.upsert(makeReplyC(), NOW_C)
+    // Identity authority itself is outside this provider-fault proof. The
+    // fixture grants the seeded manager explicitly; production composition
+    // injects the real transaction-bound, fail-closed authority.
+    const replyCommandStore = createAtomicReplyCommandStore(
+      db,
+      silentEvents,
+      () => new Date(),
+      async () => true,
+    )
+    const authorizedReply = await replyCommandStore.markPublicationAuthorized(
+      pendingReply,
+      { status: 'approved', approvedBy: USER_C, approvedAt: NOW_C },
+      {
+        lifecycleEvent: null,
+        publicationIntent: reviewReplyPublicationRequested({
+          replyId: REPLY_C,
+          reviewId: REVIEW_C,
+          propertyId: PROP_C,
+          organizationId: ORG_C,
+          userId: USER_C,
+          publicationCycle: 1,
+          sourceEpoch: savedReview.sourceEpoch,
+          materialReviewRevision: savedReview.sourceRevision,
+          baseObservationRevision: 0,
+          occurredAt: NOW_C,
+        }),
+      },
+      NOW_C,
+    )
+    expect(authorizedReply).not.toBeNull()
+    const authorization = await db.execute(sql`
+      SELECT publication_cycle::int AS "publicationCycle",
+             source_epoch AS "sourceEpoch",
+             material_review_revision::int AS "materialReviewRevision",
+             base_observation_revision::int AS "baseObservationRevision"
+      FROM reply_publication_authorizations
+      WHERE organization_id = ${ORG_C} AND reply_id = ${REPLY_C}
+    `)
+    expect(authorization.rows).toEqual([
+      {
+        publicationCycle: 1,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        baseObservationRevision: 0,
+      },
+    ])
 
-    // GBP down: two 5xx responses (retryable class), then the provider stops
-    // responding at all (timeout — ambiguous class on the final attempt).
+    // GBP down: two 5xx responses, then the provider stops responding at all.
+    // Each 5xx is an ambiguous provider outcome: BullMQ retries, but the next
+    // attempt must first read back an exact targeted absence before resending.
     const gbp5xx = {
       _tag: 'IntegrationError',
       code: 'gbp_api_error',
@@ -610,9 +710,28 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       listReviewsPage: async () => ({
         reviews: [],
         totalReviewCount: 0,
+        averageRating: null,
         nextCursorRef: null,
       }),
-      getReview: async () => ({ status: 'not_found' }),
+      getReview: async () => ({
+        status: 'found',
+        review: {
+          reviewName: `${GOOGLE_LOCATION_PRIMARY_RESOURCE}/reviews/ext-bqc46-c-1`,
+          externalId: 'ext-bqc46-c-1',
+          externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+          reviewerName: 'Jane Doe',
+          reviewerProfilePhotoUrl: null,
+          rating: 5,
+          text: 'Great place!',
+          translatedText: null,
+          languageCode: 'en',
+          reviewedAt: NOW_C,
+          sourceCreatedAt: NOW_C,
+          sourceUpdatedAt: null,
+          replyText: null,
+          replyUpdatedAt: null,
+        },
+      }),
       discardReviewCursors: async () => {},
       replyToReview,
     }
@@ -620,35 +739,45 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       replyRepo,
       reviewRepo,
       googleReviewApi,
-      replyCommandStore: createAtomicReplyCommandStore(db, silentEvents),
-      clock: () => NOW_C,
+      googleReplyObservationStore: createGoogleReplyObservationStore(db, silentEvents),
+      replyCommandStore,
+      clock: () => PROVIDER_OBSERVED_AT_C,
+      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
       idGen: () => replyId('4d000000-0000-0000-0000-000000000099'),
       staffPublicApi: {} as unknown as StaffPublicApi,
     })
 
-    // Attempt 1 (5xx → retryable): rethrow = BullMQ retry; the row returns to
-    // 'authorized' (re-claimable by the next attempt or a quarantine redrive).
+    // Attempt 1 (5xx → ambiguous): rethrow = BullMQ retry; the row remains
+    // sending so the next attempt must reconcile before another provider call.
     await expect(handler(publishJob(0))).rejects.toBe(gbp5xx)
     let row = await replyRepo.findById(REPLY_C, ORG_C)
     expect(row!.status).toBe('approved')
-    expect(row!.publicationState).toBe('authorized')
+    expect(row!.publicationState).toBe('sending')
     expect(row!.publicationAttempts).toBe(1)
 
-    // Attempt 2 (5xx → retryable): same in-cell retry posture.
+    // Attempt 2 first records a targeted absence, then resends in the same
+    // cell. Its second 5xx remains ambiguous/sending for one more readback.
     await expect(handler(publishJob(1))).rejects.toBe(gbp5xx)
     row = await replyRepo.findById(REPLY_C, ORG_C)
-    expect(row!.publicationState).toBe('authorized')
+    expect(row!.publicationState).toBe('sending')
     expect(row!.publicationAttempts).toBe(2)
 
     // Attempt 3 = final (timeout → ambiguous): publish_failed persisted with
     // the 3.8 reconcile schedule; the job rethrows into BullMQ exhaustion.
+    const finalAttemptStartedAt = Date.now()
     await expect(handler(publishJob(2))).rejects.toBe(gbpTimeout)
+    const finalAttemptFinishedAt = Date.now()
     row = await replyRepo.findById(REPLY_C, ORG_C)
     expect(row!.status).toBe('publish_failed')
     expect(row!.publicationState).toBe('ambiguous')
     expect(row!.publicationLastErrorClass).toBe('ambiguous')
     expect(row!.reconcileDueAt).not.toBeNull()
-    expect(row!.reconcileDueAt!.getTime()).toBeGreaterThan(Date.now())
+    expect(row!.reconcileDueAt!.getTime()).toBeGreaterThanOrEqual(
+      finalAttemptStartedAt + AMBIGUOUS_RECONCILE_DELAY_MS,
+    )
+    expect(row!.reconcileDueAt!.getTime()).toBeLessThanOrEqual(
+      finalAttemptFinishedAt + AMBIGUOUS_RECONCILE_DELAY_MS,
+    )
 
     // The publish_failed fact is persisted identifier-only (3.3/3.8 states).
     const facts = await db.execute(sql`
@@ -665,7 +794,9 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     // Every call hit the cell's ONE provider binding — no alternate provider,
     // endpoint, or region was ever invoked (4.3: nothing to fall back to).
     expect(replyToReview).toHaveBeenCalledTimes(3)
-    const bindings = new Set(replyToReview.mock.calls.map((call) => call[1] as string))
+    const bindings = new Set(
+      replyToReview.mock.calls.map((call) => call[0].connectionId as string),
+    )
     expect(bindings).toEqual(new Set([CONN_C as string]))
 
     // The 3.6 dead-letter envelope holds the exhausted job: no policyReason
@@ -685,7 +816,8 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     expect(entry!.envelope.policyReason).toBeUndefined()
     expect(entry!.envelope.failedReason).toBe('AbortError: The operation was aborted')
     expect(entry!.envelope.failedReason.length).toBeLessThanOrEqual(200)
-    expect(entry!.envelope.data).toEqual({ replyId: REPLY_C, organizationId: ORG_C })
+    expect(entry!.envelope.data).toEqual(publishJob(2).data)
+    expect(entry!.envelope.data).not.toHaveProperty('text')
   })
 })
 
@@ -745,13 +877,15 @@ describe('(e) resume/reconcile in-cell (BQC-4.6)', () => {
       loadPropertyRouting: async () => {
         if (!dbUp)
           throw new Error('connect ECONNREFUSED 127.0.0.1:5432 — database unreachable')
-        return { processingRegion: 'us', routingPolicyVersion: 2 }
+        return {
+          processingRegion: 'us',
+          routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+        }
       },
-      cell: 'us',
     })
     const { dispatch, handler } = gatedSyncDispatch(QUEUE_E, QUAR_E, router)
     const worker = createJobWorker(QUEUE_E, dispatch, 1, q(QUAR_E))
-    if (!worker) throw new Error('worker unavailable (REDIS_URL missing)')
+    if (!worker) throw new Error('worker unavailable (queue Redis missing)')
     try {
       // Phase 1 — DB down: one attempt, exhausted → parked in quarantine.
       await q(QUEUE_E).add(
@@ -804,53 +938,51 @@ describe('(e) resume/reconcile in-cell (BQC-4.6)', () => {
   })
 })
 
-// ── (f) Denied (unrouted) region property (the §4.6 repeat) ──────────
+// ── (f) Unapproved persisted cell fact (the §4.6 repeat) ────────────
 
 const ORG_F = 'org-bqc46-faults-ff000001'
-const PROP_EU = '4e000000-0000-0000-0000-000000000001'
+const PROP_UNAPPROVED = '4e000000-0000-0000-0000-000000000001'
 
-describe('(f) denied region property (BQC-4.6 repeat)', () => {
+describe('(f) unapproved persisted cell fact (BQC-4.6 repeat)', () => {
   beforeAll(async () => {
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG_F}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORG_F}`)
+    await deleteTestOrganizations(db, [ORG_F])
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
       VALUES (${ORG_F}, 'BQC46 Faults F', 'bqc46-faults-f', NOW())
     `)
     await db.execute(sql`
       INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
-      VALUES (${PROP_EU}, ${ORG_F}, 'BQC46 Unrouted Property', 'bqc46-prop-eu', 'UTC', NOW(), NOW())
+      VALUES (${PROP_UNAPPROVED}, ${ORG_F}, 'BQC46 Unrouted Property', 'bqc46-prop-unapproved', 'UTC', NOW(), NOW())
     `)
-    // The approved cell serves us/europe/global; a region with no target in
-    // CELL_TARGETS is what must fail closed.
+    // An unknown compatibility value has no catalogue target and must fail closed.
     await db.execute(sql`
       UPDATE properties
       SET processing_region = 'ap-southeast-2', processing_region_source = 'country_default',
           routing_policy_version = 1, processing_region_resolved_at = NOW(),
           country_code = 'AU', country_source = 'google_address'
-      WHERE id = ${PROP_EU}
+      WHERE id = ${PROP_UNAPPROVED}
     `)
   })
 
   afterAll(async () => {
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG_F}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORG_F}`)
+    await deleteTestOrganizations(db, [ORG_F])
   })
 
   stubPolicyAllow()
 
-  it('the 4.2 gate quarantines with routing_blocked:region_denied, the handler never runs, and a redrive without a region approval blocks again', async () => {
+  it('the 4.2 gate quarantines with routing_blocked:region_denied, the handler never runs, and a redrive without an approved catalogue target blocks again', async () => {
     if (!redisAvailable) return
     // The REAL production wiring: drizzle adapter → ProcessingRouter.
     const router = createProcessingRouter({
       loadPropertyRouting: createPropertyRoutingLoader({ db }),
-      cell: 'us',
     })
     const { dispatch, handler } = gatedSyncDispatch(QUEUE_F, QUAR_F, router)
 
     await q(QUEUE_F).add(
       'sync-property-reviews',
-      { propertyId: PROP_EU, organizationId: ORG_F },
+      { propertyId: PROP_UNAPPROVED, organizationId: ORG_F },
       { jobId: 'bqc46-f-1' },
     )
     const [job] = await q(QUEUE_F).getJobs(['waiting'])
@@ -868,13 +1000,14 @@ describe('(f) denied region property (BQC-4.6 repeat)', () => {
     )
     expect(entries[0]!.envelope.originalQueue).toBe(QUEUE_F)
     expect(entries[0]!.envelope.data).toMatchObject({
-      propertyId: PROP_EU,
+      propertyId: PROP_UNAPPROVED,
       organizationId: ORG_F,
     })
     expect(handler).not.toHaveBeenCalled()
 
-    // Redrivable in principle (an operator would do this after a region
-    // approval): the job moves back onto its original queue with metadata.
+    // Redrivable in principle (an operator would do this after an accepted
+    // catalogue revision and row reconciliation): the job returns to its
+    // original queue with metadata.
     const redrive = createRedriveJob(q(QUAR_F), (name) =>
       name === QUEUE_F ? q(QUEUE_F) : undefined,
     )
@@ -882,8 +1015,8 @@ describe('(f) denied region property (BQC-4.6 repeat)', () => {
     expect(redriven.redriven).toBe(true)
     expect(await listQuarantinedJobs(q(QUAR_F))).toHaveLength(0)
 
-    // The region was NOT approved (unchanged in the database): the second
-    // dispatch blocks again — no silent override, no fallback to the US cell.
+    // The persisted fact is unchanged: the second dispatch blocks again — no
+    // silent rewrite and no implicit selection of the accepting US cell.
     const waiting = await q(QUEUE_F).getJobs(['waiting'])
     const reJob = waiting.find(
       (candidate) =>

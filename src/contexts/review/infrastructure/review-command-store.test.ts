@@ -56,7 +56,7 @@ function makeReview(): Omit<Review, 'createdAt' | 'updatedAt'> {
     sourceUpdatedAt: null,
     firstFetchedAt: NOW,
     lastFetchedAt: NOW,
-    contentExpiresAt: null,
+    contentExpiresAt: NOW,
     contentHash: null,
     sourceSeenGeneration: null,
     sourceEpoch: 0,
@@ -90,6 +90,7 @@ describe('createSequentialReviewCommandStore', () => {
     const saved = { ...review, createdAt: NOW, updatedAt: NOW }
 
     const store = createSequentialReviewCommandStore({
+      clock: () => NOW,
       upsert: async () => {
         order.push('upsert')
         return saved
@@ -121,55 +122,15 @@ describe('createAtomicReviewCommandStore', () => {
 
   it('runs upsert + outbox insert inside a single transaction before emit', async () => {
     const order: string[] = []
-    const row = {
-      id: 'rev-1',
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
-      platform: 'google',
-      externalId: 'ext-1',
-      externalLocationId: 'loc-1',
-      googleConnectionId: 'conn-1',
-      reviewerProfilePhotoUrl: null,
-      rating: 5,
-      text: 'Great',
-      translatedText: null,
-      languageCode: 'en',
-      reviewedAt: NOW,
-      expiresAt: NOW,
-      sentimentLabel: null,
-      sentimentScore: null,
-      sourceCreatedAt: NOW,
-      sourceUpdatedAt: null,
-      firstFetchedAt: NOW,
-      lastFetchedAt: NOW,
-      contentExpiresAt: null,
-      contentHash: null,
-      sourceSeenGeneration: null,
-      sourceEpoch: 0,
-      sourceRevision: 1,
+    const review = makeReview()
+    const saved = {
+      ...review,
       analysisSequence: 1,
-      aiSourceByteLength: 1,
-      aiSourceDigest: '0'.repeat(64),
       createdAt: NOW,
       updatedAt: NOW,
     }
-
-    const returning = vi.fn().mockResolvedValue([row])
-    const onConflictDoUpdate = vi.fn(() => ({ returning }))
-    const values = vi.fn(() => ({ onConflictDoUpdate }))
-    const insert = vi.fn(() => {
-      order.push('insert')
-      return { values }
-    })
-
-    // Second insert is outbox
-    let insertCalls = 0
     const txInsert = vi.fn(() => {
-      insertCalls++
-      order.push(insertCalls === 1 ? 'tx.review' : 'tx.outbox')
-      if (insertCalls === 1) {
-        return { values }
-      }
+      order.push('tx.outbox')
       return {
         values: vi.fn().mockResolvedValue(undefined),
       }
@@ -178,16 +139,26 @@ describe('createAtomicReviewCommandStore', () => {
     const execute = vi.fn().mockResolvedValue({
       rows: [{ analysis_sequence: '1' }],
     })
+    const select = vi.fn(() => ({
+      from: vi.fn(() => ({
+        leftJoin: vi.fn(() => ({
+          where: vi.fn(() => ({
+            for: vi.fn().mockResolvedValue([]),
+          })),
+        })),
+      })),
+    }))
 
     const transaction = vi.fn(
       async (
         fn: (tx: {
           insert: typeof txInsert
           execute: typeof execute
+          select: typeof select
         }) => Promise<unknown>,
       ) => {
         order.push('tx.start')
-        const result = await fn({ insert: txInsert, execute })
+        const result = await fn({ insert: txInsert, execute, select })
         order.push('tx.commit')
         return result
       },
@@ -201,8 +172,27 @@ describe('createAtomicReviewCommandStore', () => {
       clear: vi.fn(),
     }
 
-    const db = { transaction, insert } as unknown as Database
-    const store = createAtomicReviewCommandStore(db, events)
+    const persistObservation: NonNullable<
+      Parameters<typeof createAtomicReviewCommandStore>[3]
+    > = vi.fn(async (_tx, input) => {
+      order.push('tx.observation')
+      return {
+        review: { ...saved, analysisSequence: input.review.analysisSequence },
+        observationSequence: 1,
+        materialRevision: 1,
+        comparison: 'initial_material_revision' as const,
+        createsMaterialRevision: true,
+        duplicate: false,
+        outOfOrder: false,
+      }
+    })
+    const db = { transaction } as unknown as Database
+    const store = createAtomicReviewCommandStore(
+      db,
+      events,
+      () => NOW,
+      persistObservation,
+    )
 
     const eventFactory = vi.fn(
       (persisted: Review) =>
@@ -212,22 +202,28 @@ describe('createAtomicReviewCommandStore', () => {
           analysisSequence: persisted.analysisSequence,
         }) as DomainEvent,
     )
-    await store.upsertAndRecord(makeReview(), eventFactory, NOW)
+    await store.upsertAndRecord(review, eventFactory, NOW, 'f'.repeat(64))
 
     expect(transaction).toHaveBeenCalledTimes(1)
-    expect(order).toEqual(['tx.start', 'tx.review', 'tx.outbox', 'tx.commit', 'emit'])
+    expect(order).toEqual([
+      'tx.start',
+      'tx.observation',
+      'tx.outbox',
+      'tx.commit',
+      'emit',
+    ])
     expect(events.emit).toHaveBeenCalledTimes(1)
-    // Every provider-refreshed content column must be in the conflict update
-    // set. translatedText was missing, so a review whose Google translation
-    // appeared (or changed) after the first fetch kept the stale value.
-    expect(onConflictDoUpdate).toHaveBeenCalledWith(
+    expect(persistObservation).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
-        set: expect.objectContaining({
+        review: expect.objectContaining({
           text: 'Great',
           translatedText: null,
           languageCode: 'en',
           rating: 5,
+          analysisSequence: 1,
         }),
+        observationKey: 'f'.repeat(64),
       }),
     )
     expect(eventFactory).toHaveBeenCalledWith(

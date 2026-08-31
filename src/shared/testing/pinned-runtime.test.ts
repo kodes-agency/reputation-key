@@ -29,21 +29,40 @@ describe('the pinned runtime', () => {
     expect(pinned).toMatch(/^\d+\.\d+\.\d+$/)
   })
 
-  it('is the same exact version in engines.node, not a floor', () => {
+  it('pins both runtime manifests exactly and keeps Node types on that major', () => {
     const manifest = JSON.parse(read('package.json')) as {
       engines: { node: string }
+      devDependencies: Record<string, string>
     }
+    const runtimeManifest = JSON.parse(read('package.runtime.json')) as {
+      engines: { node: string }
+    }
+
     expect(manifest.engines.node).toBe(pinned)
+    expect(runtimeManifest.engines.node).toBe(pinned)
+    expect(manifest.devDependencies['@types/node']).toMatch(/^\d+\.\d+\.\d+$/u)
+    expect(manifest.devDependencies['@types/node']?.split('.')[0]).toBe(
+      pinned.split('.')[0],
+    )
+  })
+
+  it('does not install a host-specific build binding as a production dependency', () => {
+    const manifest = JSON.parse(read('package.json')) as {
+      dependencies: Record<string, string>
+    }
+
+    expect(manifest.dependencies['@rolldown/binding-darwin-arm64']).toBeUndefined()
   })
 
   it('uses neither engine-strict nor a preinstall guard — both were measured wrong', () => {
     const manifest = JSON.parse(read('package.json')) as {
       scripts: Record<string, string>
     }
-    // engine-strict also hard-enforces os/cpu, which failed every linux job on
-    // the darwin-only rolldown binding. A preinstall guard died inside the
-    // Docker deps stages (they COPY only package.json + the lockfile) and does
-    // not fire at all for a developer whose node_modules is already current.
+    // engine-strict also hard-enforces os/cpu metadata and previously failed
+    // Linux jobs while a host-specific binding was installed directly. A
+    // preinstall guard died inside the Docker deps stages (they COPY only
+    // package.json + the lockfile) and does not fire at all for a developer
+    // whose node_modules is already current.
     // .npmrc records both findings; this keeps them from being re-added.
     expect(read('.npmrc')).not.toMatch(/^engine-strict=true$/m)
     expect(manifest.scripts.preinstall).toBeUndefined()

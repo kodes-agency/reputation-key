@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { onReviewLinkClicked } from './on-review-link-clicked'
 import type { RecordPortalMetricDeps as OnReviewLinkClickedDeps } from './record-portal-metric'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   organizationId,
   portalId,
@@ -22,9 +23,10 @@ const createFakeDeps = (
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return input
+      return { status: 'duplicate', existingReadingId: input.sourceEventId }
     },
     findGroupForPortal: overrides.findGroupForPortal ?? (async () => null),
+    logger: createMockLogger(),
   }
 }
 
@@ -33,6 +35,7 @@ const clickEvent = () => ({
   eventId: 'test-event-id',
   correlationId: null,
   linkId: portalLinkId('link-1'),
+  destinationKind: 'secondary_link' as const,
   organizationId: organizationId('org-1'),
   portalId: portalId('portal-1'),
   propertyId: propertyId('prop-1'),
@@ -63,6 +66,8 @@ describe('onReviewLinkClicked', () => {
       value: 1,
       sampleCount: 1,
       attributionQuality: 'exact',
+      staffAttribution: null,
+      destinationKind: 'secondary_link',
       occurredAt: FIXED_TIME,
     })
   })
@@ -105,6 +110,7 @@ describe('onReviewLinkClicked', () => {
         throw new Error('DB unavailable')
       },
       findGroupForPortal: async () => null,
+      logger: createMockLogger(),
     }
     const handler = onReviewLinkClicked(failingDeps)
 

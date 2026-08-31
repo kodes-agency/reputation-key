@@ -4,7 +4,7 @@ import {
   claimsE2ERateLimitBypass,
   isE2ERateLimitBypassAuthorized,
 } from '#/shared/auth/beta-capabilities'
-import { getEnv } from '#/shared/config/env'
+import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getContainer } from '#/composition'
 import { getLogger } from '#/shared/observability/logger'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
@@ -55,7 +55,7 @@ let bypassRefusalLogged = false
  * value ('0', 'true') already refused boot rather than opening the endpoint.
  */
 function authRateLimitBypassed(): boolean {
-  const env = getEnv()
+  const env = requestRuntimeConfig().env
   if (isE2ERateLimitBypassAuthorized(env)) return true
   if (claimsE2ERateLimitBypass(env) && !bypassRefusalLogged) {
     bypassRefusalLogged = true
@@ -94,7 +94,7 @@ export async function handleAuthRequest(
   // endsWith tolerates the configured better-auth base path prefix (e.g. /api/auth).
   if (BLOCKED_RAW_WRITE_ENDPOINTS.some((suffix) => pathname.endsWith(suffix))) {
     getLogger().warn(
-      { method: request.method, url: request.url },
+      { method: request.method, path: pathname },
       'auth.raw_write_endpoint_blocked: raw better-auth write endpoint refused; use the app-owned service',
     )
     return new Response(JSON.stringify({ message: 'Not found' }), {

@@ -112,7 +112,7 @@ export function createGoogleImportV2Lifecycle(
 
   const cancelScope = async (
     scope: GoogleImportV2LifecycleScope,
-    outcomeCode: 'authorization_changed' | 'property_deleted',
+    outcomeCode: 'authorization_changed' | 'property_deleted' | 'user_cancelled',
     invalidate?: () => Promise<boolean>,
   ): Promise<GoogleImportV2LifecycleCancellationResult> => {
     if (invalidate && !(await invalidate())) {
@@ -349,7 +349,7 @@ export function createGoogleImportV2Lifecycle(
     cancelRequest: (organizationIdValue: string, importJobId: string) =>
       cancelScope(
         { kind: 'request', organizationId: organizationIdValue, importJobId },
-        'authorization_changed',
+        'user_cancelled',
       ),
     inspectRequest: (organizationIdValue: string, importJobId: string) =>
       deps.store.getOperatorProgress(organizationIdValue, importJobId),

@@ -21,7 +21,8 @@ import { OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1 } from '../../ai-openai-provider
 import { OPENAI_MODEL_SNAPSHOT } from '../../ai-openai-request-contract'
 import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '../../ai-property-calendar-profile'
 import { properties } from './property.schema'
-import { reviews } from './review.schema'
+import { materialReviewRevisions, reviews } from './review.schema'
+import { merchantAiConsentEvidence } from './merchant-ai-authorization.schema'
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
 
@@ -719,6 +720,10 @@ export const aiOperations = pgTable(
       length: 64,
     }),
     propertyProfileVersion: integer('property_profile_version'),
+    replyBrandProfileVersion: integer('reply_brand_profile_version'),
+    replyBrandDisplayNameDigest: varchar('reply_brand_display_name_digest', {
+      length: 64,
+    }),
     routingPolicyVersion: integer('routing_policy_version'),
     sourcePolicyId: varchar('source_policy_id', { length: 150 }),
     sourceCanonicalizerDigest: varchar('source_canonicalizer_digest', { length: 64 }),
@@ -810,6 +815,25 @@ export const aiOperations = pgTable(
       sql`${t.requestFingerprint} ~ '^[0-9a-f]{64}$'`,
     ),
     check(
+      'ai_operations_reply_brand_binding_valid',
+      sql`(
+        (
+          ${t.command} = 'reply'
+          AND (
+            (${t.replyBrandProfileVersion} IS NULL
+              AND ${t.replyBrandDisplayNameDigest} IS NULL)
+            OR (${t.replyBrandProfileVersion} >= 1
+              AND ${t.replyBrandDisplayNameDigest} ~ '^[0-9a-f]{64}$')
+          )
+        )
+        OR (
+          ${t.command} <> 'reply'
+          AND ${t.replyBrandProfileVersion} IS NULL
+          AND ${t.replyBrandDisplayNameDigest} IS NULL
+        )
+      )`,
+    ),
+    check(
       'ai_operations_source_provenance_valid',
       sql`(
         (${t.command} = 'synthetic_canary' AND ${t.sourceDigest} IS NULL AND ${t.sourceByteCount} IS NULL)
@@ -854,9 +878,16 @@ export const aiOperations = pgTable(
             (${t.replyAdoptionDisposition} = 'none'
               AND ${t.adoptedReplyRevision} IS NULL
               AND ${t.adoptedReviewReplyStateRevision} IS NULL)
-            OR (${t.replyAdoptionDisposition} IN ('adopted', 'invalidated')
+            OR (${t.replyAdoptionDisposition} = 'adopted'
               AND ${t.adoptedReplyRevision} >= 1
               AND ${t.adoptedReviewReplyStateRevision} >= 1)
+            OR (${t.replyAdoptionDisposition} = 'invalidated'
+              AND (
+                (${t.adoptedReplyRevision} IS NULL
+                  AND ${t.adoptedReviewReplyStateRevision} IS NULL)
+                OR (${t.adoptedReplyRevision} >= 1
+                  AND ${t.adoptedReviewReplyStateRevision} >= 1)
+              ))
           )
         )
         OR (
@@ -1502,6 +1533,25 @@ export const aiReviewAnalyses = pgTable(
       foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
       name: 'ai_review_analyses_review_fk',
     }).onDelete('cascade'),
+    foreignKey({
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.reviewId,
+        t.sourceEpoch,
+        t.sourceRevision,
+      ],
+      foreignColumns: [
+        materialReviewRevisions.organizationId,
+        materialReviewRevisions.propertyId,
+        materialReviewRevisions.reviewId,
+        materialReviewRevisions.sourceEpoch,
+        materialReviewRevisions.revision,
+      ],
+      name: 'ai_review_analyses_material_review_revision_fk',
+    })
+      .onDelete('restrict')
+      .onUpdate('no action'),
     check(
       'ai_review_analyses_versions_valid',
       sql`${t.sourceEpoch} >= 0 AND ${t.sourceRevision} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.analysisSequence} BETWEEN 1 AND '9007199254740991'::bigint AND ${t.reviewAnalysisEpoch} >= 1 AND ${t.propertyProfileVersion} >= 1`,
@@ -1789,6 +1839,8 @@ export const aiPropertyTrendSchedules = pgTable(
       t.propertyTrendsEpoch,
       t.propertyProfileVersion,
       t.reportProfileVersion,
+      t.terminalAnalysisSequence,
+      t.aggregateRevision,
     ),
     foreignKey({
       columns: [t.organizationId, t.propertyId],
@@ -1833,6 +1885,9 @@ export const aiPropertyTrendOutcomes = pgTable(
     summary: text('summary'),
     renderProfileVersion: varchar('render_profile_version', { length: 100 }),
     renderProfileDigest: varchar('render_profile_digest', { length: 64 }),
+    definitionVersion: varchar('definition_version', { length: 100 }),
+    definitionDigest: varchar('definition_digest', { length: 64 }),
+    evidence: jsonb('evidence').$type<Readonly<Record<string, unknown>>>(),
     providerSelectionRecordedAt: timestamptz('provider_selection_recorded_at'),
     recordedAt: timestamptz('recorded_at').notNull(),
     expiresAt: timestamptz('expires_at'),
@@ -1850,7 +1905,7 @@ export const aiPropertyTrendOutcomes = pgTable(
       'ai_property_trend_outcomes_valid',
       sql`(
         ${t.disposition} = 'ready'
-        AND ${t.operationId} IS NOT NULL
+        AND (${t.operationId} IS NOT NULL OR ${t.providerSelectionRecordedAt} IS NULL)
         AND jsonb_typeof(${t.selectedSignalIds}) = 'array'
         AND jsonb_array_length(${t.selectedSignalIds}) BETWEEN 1 AND 4
         AND ${t.signalKey} ~ '^[a-z][a-z0-9_.]{2,63}$'
@@ -1863,11 +1918,21 @@ export const aiPropertyTrendOutcomes = pgTable(
         AND length(${t.summary}) BETWEEN 1 AND 1000
         AND ${t.renderProfileVersion} = 'trend-render-v1'
         AND ${t.renderProfileDigest} ~ '^[0-9a-f]{64}$'
-        AND ${t.providerSelectionRecordedAt} IS NOT NULL
-        AND ${t.recordedAt} = ${t.providerSelectionRecordedAt}
+        AND (
+          (${t.definitionVersion} IS NULL AND ${t.definitionDigest} IS NULL AND ${t.evidence} IS NULL)
+          OR (${t.definitionVersion} = 'property-trend-definition-v1'
+            AND ${t.definitionDigest} ~ '^[0-9a-f]{64}$'
+            AND jsonb_typeof(${t.evidence}) = 'object')
+        )
+        AND (
+          (${t.operationId} IS NOT NULL
+            AND ${t.providerSelectionRecordedAt} IS NOT NULL
+            AND ${t.recordedAt} = ${t.providerSelectionRecordedAt})
+          OR (${t.operationId} IS NULL AND ${t.providerSelectionRecordedAt} IS NULL)
+        )
         AND ${t.expiresAt} > ${t.recordedAt}
       ) OR (
-        ${t.disposition} IN ('insufficient_data', 'no_material_change')
+        ${t.disposition} IN ('updating', 'insufficient_data', 'no_material_change')
         AND ${t.operationId} IS NULL
         AND ${t.selectedSignalIds} IS NULL
         AND ${t.signalKey} IS NULL
@@ -1879,8 +1944,14 @@ export const aiPropertyTrendOutcomes = pgTable(
         AND ${t.summary} IS NULL
         AND ${t.renderProfileVersion} IS NULL
         AND ${t.renderProfileDigest} IS NULL
+        AND (
+          (${t.definitionVersion} IS NULL AND ${t.definitionDigest} IS NULL AND ${t.evidence} IS NULL AND ${t.expiresAt} IS NULL)
+          OR (${t.definitionVersion} = 'property-trend-definition-v1'
+            AND ${t.definitionDigest} ~ '^[0-9a-f]{64}$'
+            AND jsonb_typeof(${t.evidence}) = 'object'
+            AND ${t.expiresAt} > ${t.recordedAt})
+        )
         AND ${t.providerSelectionRecordedAt} IS NULL
-        AND ${t.expiresAt} IS NULL
       )`,
     ),
     index('ai_property_trend_outcomes_property_idx').on(
@@ -1899,10 +1970,10 @@ export const aiPropertyTrendOutcomes = pgTable(
  * have ONE review in flight: `storeAnalysis` requires
  * `review_ai_analysis_heads.head_sequence` to still equal the sequence being
  * stored, so allocating `H+1 … H+N` up front makes every sequence but the last
- * unstorable. The run drives the batch one review at a time instead — and
- * because it is a row rather than a fan-out, the whole batch lands inside the
- * ONE `review_analysis_epoch` it opened, which is what the epoch-keyed
- * aggregates and the epoch-pinned read path require.
+ * unstorable. The run head drives its immutable ordered membership one review
+ * at a time instead of allocating an independent job fan-out, so the whole set
+ * lands inside the ONE `review_analysis_epoch` it opened, which is what the
+ * epoch-keyed aggregates and the epoch-pinned read path require.
  */
 export const aiReviewAnalysisBackfillRuns = pgTable(
   'ai_review_analysis_backfill_runs',
@@ -1916,11 +1987,12 @@ export const aiReviewAnalysisBackfillRuns = pgTable(
       mode: 'number',
     }).notNull(),
     /**
-     * The run's candidate set, PINNED and ordered at open. No predicate over
-     * `reviews.analysis_sequence` can name it: a stored sequence is only the
-     * sequence of a review's LAST analysis event, never a membership marker.
+     * Expand-only compatibility storage for old workers during rolling deploy
+     * or rollback. New code dual-writes this copy but never reads it; canonical
+     * authority is relational and contraction requires independently proven
+     * old-binary retirement.
      */
-    reviewIds: uuid('review_ids').array().notNull(),
+    legacyReviewIdsCompatibility: uuid('review_ids').array().notNull(),
     requestedReviewCount: integer('requested_review_count').notNull(),
     emittedReviewCount: integer('emitted_review_count').default(0).notNull(),
     /** Pinned reviews no longer eligible when their turn came; no sequence spent. */
@@ -1964,8 +2036,9 @@ export const aiReviewAnalysisBackfillRuns = pgTable(
     ),
     check(
       'ai_review_analysis_backfill_runs_counts_valid',
-      sql`${t.requestedReviewCount} BETWEEN 1 AND 10000
-        AND cardinality(${t.reviewIds}) = ${t.requestedReviewCount}
+      sql`${t.requestedReviewCount} BETWEEN 1 AND 2147483647
+        AND (cardinality(${t.legacyReviewIdsCompatibility}) = 0
+          OR cardinality(${t.legacyReviewIdsCompatibility}) = ${t.requestedReviewCount})
         AND ${t.emittedReviewCount} >= 0
         AND ${t.skippedReviewCount} >= 0
         AND ${t.emittedReviewCount} + ${t.skippedReviewCount} <= ${t.requestedReviewCount}
@@ -1987,8 +2060,603 @@ export const aiReviewAnalysisBackfillRuns = pgTable(
     uniqueIndex('ai_review_analysis_backfill_runs_one_active_idx')
       .on(t.organizationId, t.propertyId)
       .where(sql`${t.state} = 'running'`),
+    uniqueIndex('ai_review_analysis_backfill_runs_scope_idx').on(
+      t.id,
+      t.organizationId,
+      t.propertyId,
+    ),
     index('ai_review_analysis_backfill_runs_running_idx')
       .on(t.createdAt)
       .where(sql`${t.state} = 'running'`),
+  ],
+)
+
+/**
+ * Immutable, ordered authority for membership of one review-analysis backfill
+ * run. Recovery reads one ordinal at a time; it never re-evaluates eligibility
+ * to reconstruct the set and never loads a run-sized array into memory.
+ *
+ * `review_id` intentionally has no Review foreign key. A source row disappearing
+ * after enrollment must leave the pinned identity intact so the run can record
+ * a deterministic skip when that ordinal comes due.
+ */
+export const aiReviewAnalysisBackfillRunMemberships = pgTable(
+  'ai_review_analysis_backfill_run_memberships',
+  {
+    runId: uuid('run_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    /** Zero-based position in the deterministic `(reviewed_at, id)` ordering. */
+    ordinal: bigint('ordinal', { mode: 'number' }).notNull(),
+    reviewId: uuid('review_id').notNull(),
+    /**
+     * Exact Material Review Revision for first-enablement recovery. Null is
+     * expand compatibility for runs opened before 0137 and for legacy operator
+     * writers; first-enablement rows are forced non-null by a database guard.
+     */
+    sourceRevision: bigint('source_revision', { mode: 'number' }),
+    createdAt: timestamptz('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.runId, t.ordinal],
+      name: 'ai_review_backfill_memberships_pk',
+    }),
+    foreignKey({
+      columns: [t.runId, t.organizationId, t.propertyId],
+      foreignColumns: [
+        aiReviewAnalysisBackfillRuns.id,
+        aiReviewAnalysisBackfillRuns.organizationId,
+        aiReviewAnalysisBackfillRuns.propertyId,
+      ],
+      name: 'ai_review_backfill_memberships_run_scope_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('ai_review_backfill_memberships_review_idx').on(t.runId, t.reviewId),
+    check(
+      'ai_review_backfill_memberships_ordinal_safe',
+      sql`${t.ordinal} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'ai_review_backfill_memberships_revision_safe',
+      sql`${t.sourceRevision} IS NULL OR ${t.sourceRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    index('ai_review_backfill_memberships_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.runId,
+      t.ordinal,
+    ),
+  ],
+)
+
+/**
+ * Content-free AI lifecycle evidence for one exact Merchant AI authorization
+ * generation. Current Identity state remains the synchronous serving fence;
+ * this record classifies visible/retired local derivatives and gives every
+ * retired generation an auditable physical-erasure deadline.
+ */
+export const aiAuthorizationLifecycleRecords = pgTable(
+  'ai_authorization_lifecycle_records',
+  {
+    id: uuid('id').primaryKey(),
+    // Identifier-only provenance, deliberately not an FK: published outbox
+    // facts expire after 30 days while lifecycle/erasure evidence may outlive
+    // them. A restrictive FK would block the shared retention sweep.
+    eventEnvelopeId: uuid('event_envelope_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    authorizationLineageId: uuid('authorization_lineage_id').notNull(),
+    authorizationStateVersion: integer('authorization_state_version').notNull(),
+    transitionKind: varchar('transition_kind', { length: 24 }).notNull(),
+    authorizationState: varchar('authorization_state', { length: 16 }).notNull(),
+    authorizedCapabilities: text('authorized_capabilities').array().notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
+    replyDraftingEpoch: integer('reply_drafting_epoch').notNull(),
+    propertyTrendsEpoch: integer('property_trends_epoch').notNull(),
+    analysisStartSequence: bigint('analysis_start_sequence', {
+      mode: 'number',
+    }).notNull(),
+    visibleDataClasses: text('visible_data_classes').array().notNull(),
+    retiredDataClasses: text('retired_data_classes').array().notNull(),
+    previousAuthorizationLineageId: uuid('previous_authorization_lineage_id'),
+    previousAuthorizationStateVersion: integer('previous_authorization_state_version'),
+    previousSourceEpoch: integer('previous_source_epoch'),
+    previousReviewAnalysisEpoch: integer('previous_review_analysis_epoch'),
+    previousReplyDraftingEpoch: integer('previous_reply_drafting_epoch'),
+    previousPropertyTrendsEpoch: integer('previous_property_trends_epoch'),
+    erasureStatus: varchar('erasure_status', { length: 16 }).notNull(),
+    erasureDeadline: timestamptz('erasure_deadline'),
+    erasureCompletedAt: timestamptz('erasure_completed_at'),
+    erasureFailureCode: varchar('erasure_failure_code', { length: 64 }),
+    erasureAttemptCount: integer('erasure_attempt_count').default(0).notNull(),
+    erasureNextAttemptAt: timestamptz('erasure_next_attempt_at'),
+    erasureClaimedAt: timestamptz('erasure_claimed_at'),
+    erasureLeaseOwner: uuid('erasure_lease_owner'),
+    erasureLeaseExpiresAt: timestamptz('erasure_lease_expires_at'),
+    erasureLastFailureAt: timestamptz('erasure_last_failure_at'),
+    erasedReviewAnalysisCount: bigint('erased_review_analysis_count', {
+      mode: 'number',
+    })
+      .default(0)
+      .notNull(),
+    erasedPropertyAggregateCount: bigint('erased_property_aggregate_count', {
+      mode: 'number',
+    })
+      .default(0)
+      .notNull(),
+    erasedPropertyTrendCount: bigint('erased_property_trend_count', {
+      mode: 'number',
+    })
+      .default(0)
+      .notNull(),
+    appliedAt: timestamptz('applied_at').notNull(),
+    updatedAt: timestamptz('updated_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('ai_authorization_lifecycle_event_unique').on(t.eventEnvelopeId),
+    uniqueIndex('ai_authorization_lifecycle_authorization_unique').on(
+      t.authorizationLineageId,
+      t.authorizationStateVersion,
+      t.organizationId,
+      t.propertyId,
+    ),
+    foreignKey({
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+      name: 'ai_authorization_lifecycle_tenant_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [
+        t.authorizationLineageId,
+        t.authorizationStateVersion,
+        t.organizationId,
+        t.propertyId,
+      ],
+      foreignColumns: [
+        merchantAiConsentEvidence.authorizationLineageId,
+        merchantAiConsentEvidence.stateVersion,
+        merchantAiConsentEvidence.organizationId,
+        merchantAiConsentEvidence.propertyId,
+      ],
+      name: 'ai_authorization_lifecycle_evidence_fk',
+    }).onDelete('restrict'),
+    index('ai_authorization_lifecycle_property_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.appliedAt.desc(),
+    ),
+    index('ai_authorization_lifecycle_erasure_due_idx')
+      .on(t.erasureNextAttemptAt, t.erasureDeadline, t.id)
+      .where(sql`${t.erasureStatus} = 'pending'`),
+    index('ai_authorization_lifecycle_erasure_lease_idx')
+      .on(t.erasureLeaseExpiresAt, t.erasureDeadline, t.id)
+      .where(sql`${t.erasureStatus} = 'in_progress'`),
+    check(
+      'ai_authorization_lifecycle_transition_valid',
+      sql`${t.transitionKind} IN ('enable', 'change', 'revoke', 'restore_reset', 'analysis_backfill')`,
+    ),
+    check(
+      'ai_authorization_lifecycle_authorization_valid',
+      sql`(
+        (${t.authorizationState} = 'enabled' AND (
+          ${t.authorizedCapabilities} = ARRAY['review_analysis']::text[]
+          OR ${t.authorizedCapabilities} = ARRAY['reply_drafting']::text[]
+          OR ${t.authorizedCapabilities} = ARRAY['review_analysis', 'reply_drafting']::text[]
+          OR ${t.authorizedCapabilities} = ARRAY['review_analysis', 'property_trends']::text[]
+          OR ${t.authorizedCapabilities} = ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[]
+        ))
+        OR (${t.authorizationState} IN ('disabled', 'revoked') AND ${t.authorizedCapabilities} = ARRAY[]::text[])
+      )`,
+    ),
+    check(
+      'ai_authorization_lifecycle_fence_valid',
+      sql`${t.authorizationStateVersion} BETWEEN 1 AND 2147483647
+        AND ${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.reviewAnalysisEpoch} BETWEEN 1 AND 2147483647
+        AND ${t.replyDraftingEpoch} BETWEEN 1 AND 2147483647
+        AND ${t.propertyTrendsEpoch} BETWEEN 1 AND 2147483647
+        AND ${t.analysisStartSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'ai_authorization_lifecycle_visibility_valid',
+      sql`${t.visibleDataClasses} = CASE
+        WHEN ${t.authorizationState} <> 'enabled' THEN ARRAY[]::text[]
+        WHEN ${t.authorizedCapabilities} @> ARRAY['property_trends']::text[]
+          THEN ARRAY['review_analysis', 'property_aggregate', 'property_trend']::text[]
+        WHEN ${t.authorizedCapabilities} @> ARRAY['review_analysis']::text[]
+          THEN ARRAY['review_analysis', 'property_aggregate']::text[]
+        ELSE ARRAY[]::text[]
+      END`,
+    ),
+    check(
+      'ai_authorization_lifecycle_retired_classes_valid',
+      sql`${t.retiredDataClasses} = ARRAY[]::text[]
+        OR ${t.retiredDataClasses} = ARRAY['review_analysis', 'property_aggregate']::text[]
+        OR ${t.retiredDataClasses} = ARRAY['property_trend']::text[]
+        OR ${t.retiredDataClasses} = ARRAY['review_analysis', 'property_aggregate', 'property_trend']::text[]`,
+    ),
+    check(
+      'ai_authorization_lifecycle_previous_fence_valid',
+      sql`(
+        ${t.retiredDataClasses} = ARRAY[]::text[]
+        AND ${t.previousAuthorizationLineageId} IS NULL
+        AND ${t.previousAuthorizationStateVersion} IS NULL
+        AND ${t.previousSourceEpoch} IS NULL
+        AND ${t.previousReviewAnalysisEpoch} IS NULL
+        AND ${t.previousReplyDraftingEpoch} IS NULL
+        AND ${t.previousPropertyTrendsEpoch} IS NULL
+      ) OR (
+        cardinality(${t.retiredDataClasses}) > 0
+        AND ${t.previousAuthorizationLineageId} IS NOT NULL
+        AND ${t.previousAuthorizationStateVersion} >= 1
+        AND ${t.previousSourceEpoch} >= 0
+        AND ${t.previousReviewAnalysisEpoch} >= 1
+        AND ${t.previousReplyDraftingEpoch} >= 1
+        AND ${t.previousPropertyTrendsEpoch} >= 1
+      )`,
+    ),
+    check(
+      'ai_authorization_lifecycle_erasure_valid',
+      sql`(
+        (${t.erasureFailureCode} IS NULL) = (${t.erasureLastFailureAt} IS NULL)
+        AND ${t.erasureAttemptCount} BETWEEN 0 AND 8
+        AND ${t.erasedReviewAnalysisCount} BETWEEN 0 AND '9007199254740991'::bigint
+        AND ${t.erasedPropertyAggregateCount} BETWEEN 0 AND '9007199254740991'::bigint
+        AND ${t.erasedPropertyTrendCount} BETWEEN 0 AND '9007199254740991'::bigint
+        AND (
+        ${t.retiredDataClasses} = ARRAY[]::text[]
+        AND ${t.erasureStatus} = 'not_required'
+        AND ${t.erasureDeadline} IS NULL
+        AND ${t.erasureCompletedAt} IS NULL
+        AND ${t.erasureFailureCode} IS NULL
+        AND ${t.erasureAttemptCount} = 0
+        AND ${t.erasureNextAttemptAt} IS NULL
+        AND ${t.erasureClaimedAt} IS NULL
+        AND ${t.erasureLeaseOwner} IS NULL
+        AND ${t.erasureLeaseExpiresAt} IS NULL
+        AND ${t.erasedReviewAnalysisCount} = 0
+        AND ${t.erasedPropertyAggregateCount} = 0
+        AND ${t.erasedPropertyTrendCount} = 0
+      ) OR (
+        cardinality(${t.retiredDataClasses}) > 0
+        AND ${t.erasureDeadline} = ${t.appliedAt} + interval '24 hours'
+        AND (
+          (${t.erasureStatus} = 'pending'
+            AND ${t.erasureCompletedAt} IS NULL
+            AND ${t.erasureAttemptCount} BETWEEN 0 AND 7
+            AND ${t.erasureNextAttemptAt} IS NOT NULL
+            AND ${t.erasureNextAttemptAt} >= ${t.appliedAt}
+            AND ${t.erasureClaimedAt} IS NULL
+            AND ${t.erasureLeaseOwner} IS NULL
+            AND ${t.erasureLeaseExpiresAt} IS NULL
+            AND ${t.erasedReviewAnalysisCount} = 0
+            AND ${t.erasedPropertyAggregateCount} = 0
+            AND ${t.erasedPropertyTrendCount} = 0)
+          OR (${t.erasureStatus} = 'in_progress'
+            AND ${t.erasureCompletedAt} IS NULL
+            AND ${t.erasureAttemptCount} BETWEEN 1 AND 8
+            AND ${t.erasureNextAttemptAt} IS NULL
+            AND ${t.erasureClaimedAt} IS NOT NULL
+            AND ${t.erasureLeaseOwner} IS NOT NULL
+            AND ${t.erasureLeaseExpiresAt} > ${t.erasureClaimedAt}
+            AND ${t.erasedReviewAnalysisCount} = 0
+            AND ${t.erasedPropertyAggregateCount} = 0
+            AND ${t.erasedPropertyTrendCount} = 0)
+          OR (${t.erasureStatus} = 'completed'
+            AND ${t.erasureCompletedAt} >= ${t.appliedAt}
+            AND ${t.erasureAttemptCount} BETWEEN 1 AND 8
+            AND ${t.erasureNextAttemptAt} IS NULL
+            AND ${t.erasureClaimedAt} IS NULL
+            AND ${t.erasureLeaseOwner} IS NULL
+            AND ${t.erasureLeaseExpiresAt} IS NULL)
+          OR (${t.erasureStatus} = 'failed'
+            AND ${t.erasureCompletedAt} IS NULL
+            AND ${t.erasureFailureCode} ~ '^[a-z][a-z0-9_]{2,63}$'
+            AND ${t.erasureAttemptCount} BETWEEN 1 AND 8
+            AND ${t.erasureNextAttemptAt} IS NULL
+            AND ${t.erasureClaimedAt} IS NULL
+            AND ${t.erasureLeaseOwner} IS NULL
+            AND ${t.erasureLeaseExpiresAt} IS NULL
+            AND ${t.erasedReviewAnalysisCount} = 0
+            AND ${t.erasedPropertyAggregateCount} = 0
+            AND ${t.erasedPropertyTrendCount} = 0)
+        )
+      ))`,
+    ),
+    check('ai_authorization_lifecycle_time_valid', sql`${t.updatedAt} >= ${t.appliedAt}`),
+  ],
+)
+
+export const aiReviewAnalysisEnrollments = pgTable(
+  'ai_review_analysis_enrollments',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    authorizationLineageId: uuid('authorization_lineage_id').notNull(),
+    authorizationStateVersion: integer('authorization_state_version').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
+    analysisStartSequence: bigint('analysis_start_sequence', {
+      mode: 'number',
+    }).notNull(),
+    providerDeploymentProfileVersion: varchar('provider_deployment_profile_version', {
+      length: 100,
+    }).notNull(),
+    triggerEventEnvelopeId: uuid('trigger_event_envelope_id').notNull(),
+    state: varchar('state', { length: 32 }).notNull(),
+    snapshotRevisionCount: bigint('snapshot_revision_count', {
+      mode: 'number',
+    }).notNull(),
+    snapshotRevisionSetDigest: varchar('snapshot_revision_set_digest', {
+      length: 64,
+    }).notNull(),
+    snapshotCapturedAt: timestamptz('snapshot_captured_at').notNull(),
+    safetyCeiling: integer('safety_ceiling').default(10_000).notNull(),
+    assistedApprovalRequired: boolean('assisted_approval_required')
+      .default(false)
+      .notNull(),
+    assistedApprovedAt: timestamptz('assisted_approved_at'),
+    assistedApprovedBy: varchar('assisted_approved_by', { length: 255 }),
+    assistedApprovalEvidenceDigest: varchar('assisted_approval_evidence_digest', {
+      length: 64,
+    }),
+    assistedApprovalCorrelationId: uuid('assisted_approval_correlation_id'),
+    enrolledRevisionCount: bigint('enrolled_revision_count', { mode: 'number' })
+      .default(0)
+      .notNull(),
+    caughtUpEligibleRevisionCount: bigint('caught_up_eligible_revision_count', {
+      mode: 'number',
+    }),
+    caughtUpAnalysisSequence: bigint('caught_up_analysis_sequence', {
+      mode: 'number',
+    }),
+    caughtUpRevisionSetDigest: varchar('caught_up_revision_set_digest', {
+      length: 64,
+    }),
+    caughtUpAt: timestamptz('caught_up_at'),
+    terminalReason: varchar('terminal_reason', { length: 64 }),
+    terminalAt: timestamptz('terminal_at'),
+    createdAt: timestamptz('created_at').defaultNow().notNull(),
+    updatedAt: timestamptz('updated_at').defaultNow().notNull(),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+      name: 'ai_review_analysis_enrollments_tenant_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [
+        t.authorizationLineageId,
+        t.authorizationStateVersion,
+        t.organizationId,
+        t.propertyId,
+      ],
+      foreignColumns: [
+        merchantAiConsentEvidence.authorizationLineageId,
+        merchantAiConsentEvidence.stateVersion,
+        merchantAiConsentEvidence.organizationId,
+        merchantAiConsentEvidence.propertyId,
+      ],
+      name: 'ai_review_analysis_enrollments_authorization_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [t.providerDeploymentProfileVersion],
+      foreignColumns: [aiProviderDeploymentProfiles.profileVersion],
+      name: 'ai_review_analysis_enrollments_provider_profile_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('ai_review_analysis_enrollments_scope_unique').on(
+      t.id,
+      t.organizationId,
+      t.propertyId,
+    ),
+    uniqueIndex('ai_review_analysis_enrollments_fence_unique').on(
+      t.organizationId,
+      t.propertyId,
+      t.authorizationLineageId,
+      t.authorizationStateVersion,
+      t.sourceEpoch,
+      t.reviewAnalysisEpoch,
+      t.analysisStartSequence,
+    ),
+    uniqueIndex('ai_review_analysis_enrollments_trigger_unique').on(
+      t.triggerEventEnvelopeId,
+    ),
+    uniqueIndex('ai_review_analysis_enrollments_one_active')
+      .on(t.organizationId, t.propertyId)
+      .where(sql`${t.state} IN ('awaiting_assisted_approval', 'queued', 'running')`),
+    index('ai_review_analysis_enrollments_actionable_idx')
+      .on(t.createdAt, t.id)
+      .where(sql`${t.state} IN ('queued', 'running')`),
+    index('ai_review_analysis_enrollments_property_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.createdAt.desc(),
+    ),
+    check(
+      'ai_review_analysis_enrollments_state_valid',
+      sql`${t.state} IN ('awaiting_assisted_approval', 'queued', 'running', 'caught_up', 'superseded', 'stalled')`,
+    ),
+    check(
+      'ai_review_analysis_enrollments_fence_safe',
+      sql`${t.authorizationStateVersion} BETWEEN 1 AND 2147483647
+        AND ${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.reviewAnalysisEpoch} BETWEEN 1 AND 2147483647
+        AND ${t.analysisStartSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'ai_review_analysis_enrollments_snapshot_valid',
+      sql`${t.snapshotRevisionCount} BETWEEN 0 AND '9007199254740991'::bigint
+        AND ${t.snapshotRevisionSetDigest} ~ '^[0-9a-f]{64}$'
+        AND (
+          (${t.snapshotRevisionCount} = 0 AND ${t.snapshotRevisionSetDigest} = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
+          OR (${t.snapshotRevisionCount} > 0 AND ${t.snapshotRevisionSetDigest} <> 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
+        )
+        AND ${t.enrolledRevisionCount} BETWEEN 0 AND ${t.snapshotRevisionCount}`,
+    ),
+    check(
+      'ai_review_analysis_enrollments_assisted_approval_valid',
+      sql`${t.safetyCeiling} = 10000
+        AND ${t.assistedApprovalRequired} = (${t.snapshotRevisionCount} > ${t.safetyCeiling})
+        AND (
+          (${t.assistedApprovedAt} IS NULL
+            AND ${t.assistedApprovedBy} IS NULL
+            AND ${t.assistedApprovalEvidenceDigest} IS NULL
+            AND ${t.assistedApprovalCorrelationId} IS NULL)
+          OR (${t.assistedApprovalRequired}
+            AND ${t.assistedApprovedAt} IS NOT NULL
+            AND length(${t.assistedApprovedBy}) BETWEEN 1 AND 255
+            AND btrim(${t.assistedApprovedBy}) = ${t.assistedApprovedBy}
+            AND ${t.assistedApprovalEvidenceDigest} ~ '^[0-9a-f]{64}$'
+            AND ${t.assistedApprovalCorrelationId} IS NOT NULL)
+        )
+        AND (
+          (${t.state} = 'awaiting_assisted_approval'
+            AND ${t.assistedApprovalRequired}
+            AND ${t.assistedApprovedAt} IS NULL)
+          OR (${t.state} IN ('queued', 'running', 'caught_up')
+            AND (NOT ${t.assistedApprovalRequired} OR ${t.assistedApprovedAt} IS NOT NULL))
+          OR ${t.state} IN ('superseded', 'stalled')
+        )`,
+    ),
+    check(
+      'ai_review_analysis_enrollments_terminal_valid',
+      sql`(
+        ${t.state} IN ('awaiting_assisted_approval', 'queued', 'running')
+        AND ${t.caughtUpEligibleRevisionCount} IS NULL
+        AND ${t.caughtUpAnalysisSequence} IS NULL
+        AND ${t.caughtUpRevisionSetDigest} IS NULL
+        AND ${t.caughtUpAt} IS NULL
+        AND ${t.terminalReason} IS NULL
+        AND ${t.terminalAt} IS NULL
+      ) OR (
+        ${t.state} = 'caught_up'
+        AND ${t.caughtUpEligibleRevisionCount} BETWEEN 0 AND '9007199254740991'::bigint
+        AND ${t.caughtUpAnalysisSequence} BETWEEN ${t.analysisStartSequence} AND '9007199254740991'::bigint
+        AND ${t.caughtUpRevisionSetDigest} ~ '^[0-9a-f]{64}$'
+        AND (
+          (${t.caughtUpEligibleRevisionCount} = 0 AND ${t.caughtUpRevisionSetDigest} = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
+          OR (${t.caughtUpEligibleRevisionCount} > 0 AND ${t.caughtUpRevisionSetDigest} <> 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855')
+        )
+        AND ${t.caughtUpAt} IS NOT NULL
+        AND ${t.terminalReason} = 'eligible_revision_set_caught_up'
+        AND ${t.terminalAt} = ${t.caughtUpAt}
+      ) OR (
+        ${t.state} IN ('superseded', 'stalled')
+        AND ${t.caughtUpEligibleRevisionCount} IS NULL
+        AND ${t.caughtUpAnalysisSequence} IS NULL
+        AND ${t.caughtUpRevisionSetDigest} IS NULL
+        AND ${t.caughtUpAt} IS NULL
+        AND ${t.terminalReason} ~ '^[a-z][a-z0-9_]{2,63}$'
+        AND ${t.terminalAt} IS NOT NULL
+      )`,
+    ),
+    check(
+      'ai_review_analysis_enrollments_time_valid',
+      sql`${t.snapshotCapturedAt} >= ${t.createdAt}
+        AND ${t.updatedAt} >= ${t.createdAt}
+        AND (${t.caughtUpAt} IS NULL OR ${t.caughtUpAt} >= ${t.snapshotCapturedAt})
+        AND (${t.assistedApprovedAt} IS NULL OR ${t.assistedApprovedAt} >= ${t.snapshotCapturedAt})
+        AND (${t.terminalAt} IS NULL OR ${t.terminalAt} >= ${t.snapshotCapturedAt})`,
+    ),
+  ],
+)
+
+/** Immutable exact Material Review Revision population captured at enablement. */
+export const aiReviewAnalysisEnrollmentMemberships = pgTable(
+  'ai_review_analysis_enrollment_memberships',
+  {
+    enrollmentId: uuid('enrollment_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    ordinal: bigint('ordinal', { mode: 'number' }).notNull(),
+    reviewId: uuid('review_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    sourceRevision: bigint('source_revision', { mode: 'number' }).notNull(),
+    analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
+    createdAt: timestamptz('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.enrollmentId, t.ordinal],
+      name: 'ai_review_enrollment_memberships_pk',
+    }),
+    foreignKey({
+      columns: [t.enrollmentId, t.organizationId, t.propertyId],
+      foreignColumns: [
+        aiReviewAnalysisEnrollments.id,
+        aiReviewAnalysisEnrollments.organizationId,
+        aiReviewAnalysisEnrollments.propertyId,
+      ],
+      name: 'ai_review_enrollment_memberships_scope_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('ai_review_enrollment_memberships_review_unique').on(
+      t.enrollmentId,
+      t.reviewId,
+    ),
+    check(
+      'ai_review_enrollment_memberships_fence_safe',
+      sql`${t.ordinal} BETWEEN 0 AND '9007199254740991'::bigint
+        AND ${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.sourceRevision} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.analysisSequence} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    index('ai_review_enrollment_memberships_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.enrollmentId,
+      t.ordinal,
+    ),
+    index('ai_review_enrollment_memberships_review_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+      t.sourceRevision,
+    ),
+  ],
+)
+
+/** Immutable link between one enrollment and its bounded replay generations. */
+export const aiReviewAnalysisEnrollmentReplays = pgTable(
+  'ai_review_analysis_enrollment_replays',
+  {
+    enrollmentId: uuid('enrollment_id').notNull(),
+    runId: uuid('run_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    createdAt: timestamptz('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.enrollmentId, t.runId],
+      name: 'ai_review_analysis_enrollment_replays_pk',
+    }),
+    foreignKey({
+      columns: [t.enrollmentId, t.organizationId, t.propertyId],
+      foreignColumns: [
+        aiReviewAnalysisEnrollments.id,
+        aiReviewAnalysisEnrollments.organizationId,
+        aiReviewAnalysisEnrollments.propertyId,
+      ],
+      name: 'ai_review_analysis_enrollment_replays_enrollment_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.runId, t.organizationId, t.propertyId],
+      foreignColumns: [
+        aiReviewAnalysisBackfillRuns.id,
+        aiReviewAnalysisBackfillRuns.organizationId,
+        aiReviewAnalysisBackfillRuns.propertyId,
+      ],
+      name: 'ai_review_analysis_enrollment_replays_run_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('ai_review_analysis_enrollment_replays_run_unique').on(t.runId),
+    index('ai_review_analysis_enrollment_replays_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.enrollmentId,
+      t.createdAt.desc(),
+    ),
   ],
 )

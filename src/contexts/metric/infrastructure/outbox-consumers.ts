@@ -5,7 +5,7 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox/dispatcher'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import {
   onApprovedDestinationRatioRecorded,
   onConfigurationCompletenessRecorded,
@@ -21,6 +21,7 @@ type PortalWorkflowPayload = Readonly<{
   portalId: string
   portalGroupId: string | null
   supersedesSourceEventId: string | null
+  sourceAggregateVersion?: string
   occurredAt: string
   completedFields?: number
   requiredFields?: number
@@ -41,6 +42,15 @@ function portalWorkflowDomainEvent(
   )
   // validateEventPayload has applied the registered identifier-only Zod schema.
   const payload = validated as PortalWorkflowPayload
+  let sourceAggregateVersion: string
+  if (event.eventVersion === 1) {
+    sourceAggregateVersion = payload.occurredAt
+  } else {
+    if (!payload.sourceAggregateVersion) {
+      throw new Error('Portal workflow aggregate revision is missing')
+    }
+    sourceAggregateVersion = payload.sourceAggregateVersion
+  }
   const common = {
     eventId: event.eventId,
     correlationId: event.correlationId ?? null,
@@ -51,6 +61,7 @@ function portalWorkflowDomainEvent(
     portalId: portalId(payload.portalId),
     portalGroupId: payload.portalGroupId ? portalGroupId(payload.portalGroupId) : null,
     supersedesSourceEventId: payload.supersedesSourceEventId,
+    sourceAggregateVersion,
     occurredAt: new Date(payload.occurredAt),
   }
   if (Number.isNaN(common.occurredAt.getTime())) {
@@ -91,8 +102,10 @@ function portalWorkflowDomainEvent(
 }
 
 export function registerPortalWorkflowMetricConsumers(
+  registry: ConsumerRegistry,
   deps: PortalWorkflowMetricDeps,
 ): void {
+  const { registerConsumer } = registry
   const contentReviewHandler = onContentReviewCompleted(deps)
   const completenessHandler = onConfigurationCompletenessRecorded(deps)
   const ratioHandler = onApprovedDestinationRatioRecorded(deps)

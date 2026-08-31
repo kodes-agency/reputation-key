@@ -1,8 +1,11 @@
 # ADR 0003 — Review as a Separate Bounded Context
 
-**Status:** Implemented
+**Status:** Partially superseded by [ADR 0055](0055-stable-review-and-inbox-handling-cycles.md)
 **Date:** 2026-05-16
 **Context:** Reviews, Google Integration Architecture
+
+The bounded-context separation remains active. ADR 0055 replaces the historical
+push-only, destructive-expiry, and Reply-lifecycle clauses below.
 
 ## Decision
 

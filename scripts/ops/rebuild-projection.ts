@@ -1,5 +1,5 @@
 // Operator CLI (BQC-7.5): repair/rebuild the inbox projection from canonical
-// review/reply data via the rebuildInboxProjection use case (bounded, own
+// review/reply data via Inbox's bounded maintenance capability (own
 // clamps: batchSize ≤ 1000).
 //
 // Usage:
@@ -35,7 +35,7 @@ async function main(): Promise<void> {
     },
     async (ctx, _args, io) => {
       const container = getContainer()
-      const report = await container.useCases.rebuildInboxProjection({
+      const report = await container.inboxMaintenanceRuntime.rebuildInboxProjection({
         organizationId: organizationId(ctx.organizationId as string),
         propertyId: ctx.propertyId ? propertyId(ctx.propertyId) : undefined,
         dryRun: ctx.dryRun,

@@ -10,10 +10,12 @@ export const SESSION_UPDATE_AGE_SECONDS = 60 * 60 * 24
 export const INVITATION_EXPIRY_SECONDS = 60 * 60 * 24 * 7
 
 import { betterAuth } from 'better-auth'
+import { createAuthMiddleware } from 'better-auth/api'
 import { organization } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { getEnv } from '#/shared/config/env'
 import { getPool } from '#/shared/db/pool'
+import { getRedis } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
 import { absoluteUrl } from '#/shared/email/urls'
 import {
@@ -27,60 +29,31 @@ import {
   claimsE2ERateLimitBypass,
   isE2ERateLimitBypassAuthorized,
 } from './beta-capabilities'
+import { createBetterAuthRateLimitStorage } from './better-auth-rate-limit-storage'
+import { generateBetterAuthDatabaseId } from './registration-user-id'
 
-// ── Post-acceptance staff assignment hook ──────────────────────────
-// The afterAcceptInvitation hook creates staff_assignments for the
-// properties specified during invitation. Because auth.ts can't import
-// from the composition root (circular dependency), the assignment creator
-// function is injected via setOnAcceptInvitation() from composition.ts.
-
-type AcceptInvitationContext = Readonly<{
-  userId: string
-  organizationId: string
-  propertyIds: ReadonlyArray<string>
-  displayName?: string
-}>
-
-type AcceptInvitationHandler = (ctx: AcceptInvitationContext) => Promise<void>
-
-let _onAcceptInvitation: AcceptInvitationHandler | undefined
-
-/** Set the handler called after an invitation is accepted.
- * Called from composition.ts at startup. Injects the staff assignment
- * creator so auth.ts doesn't need to import from the composition root. */
-export function setOnAcceptInvitation(handler: AcceptInvitationHandler): void {
-  _onAcceptInvitation = handler
-}
-
-/** The currently-registered post-acceptance handler (or undefined). The app-owned
- * acceptInvitation txn calls this directly since it bypasses BA's afterAcceptInvitation hook. */
-export function getOnAcceptInvitation(): AcceptInvitationHandler | undefined {
-  return _onAcceptInvitation
-}
-
-type MembershipRemovalLifecycle = Readonly<{
-  beforeRemoveMember: (organizationId: string, userId: string) => Promise<void>
-  beforeDeleteOrganization: (organizationId: string) => Promise<void>
-}>
-
-let _membershipRemovalLifecycle: MembershipRemovalLifecycle | undefined
-
-export function setMembershipRemovalLifecycle(
-  lifecycle: MembershipRemovalLifecycle,
-): void {
-  _membershipRemovalLifecycle = lifecycle
-}
-
-function membershipRemovalLifecycle(): MembershipRemovalLifecycle {
-  if (!_membershipRemovalLifecycle) {
-    throw new Error('membership removal lifecycle is not initialized')
-  }
-  return _membershipRemovalLifecycle
+/**
+ * Better Auth remains the authentication provider, not the application write
+ * authority for Organization membership. The HTTP adapter blocks these raw
+ * routes; these provider hooks are the second, in-process fence for accidental
+ * direct `auth.api` calls. App-owned Identity commands bind every required
+ * lifecycle collaborator explicitly through the application container.
+ */
+async function denyRawOrganizationLifecycleWrite(): Promise<never> {
+  throw new Error(
+    'Raw Better Auth organization lifecycle write denied; use an app-owned Identity command',
+  )
 }
 
 export function createAuth() {
   const env = getEnv()
   const pool = getPool()
+  const redis = getRedis()
+  const authRateLimitStorage = redis
+    ? createBetterAuthRateLimitStorage(redis, {
+        keyHmacSecret: env.BETTER_AUTH_SECRET,
+      })
+    : undefined
 
   // Review §5.1: decided once per process (createAuth is a lazy singleton) so
   // the posture is recorded, not silently assumed. An E2E claim without an
@@ -110,15 +83,20 @@ export function createAuth() {
     trustedOrigins: [env.BETTER_AUTH_URL],
     emailAndPassword: {
       enabled: true,
+      // A reset token is an account-recovery credential. Once consumed, all
+      // previously issued sessions are invalidated so a stolen session cannot
+      // survive the recovery event.
+      revokeSessionsOnPasswordReset: true,
       // Enable email verification in production
       // Prerequisites:
       //   1. Verify Resend domain ownership (currently using sandbox)
       //   2. Test sendVerificationEmail flow end-to-end
       //   3. Update login/register UX to show "check your email" state
-      // Email verification: gated behind env var. Enable in production after:
+      // Email verification follows the parsed environment policy. Production
+      // defaults to enabled; explicitly disabling it is an operator decision.
+      // Before relying on the production default:
       //   1. Run scripts/migrations/verify-existing-emails.sql
       //   2. Confirm Resend domain verification is complete
-      //   3. Set EMAIL_VERIFICATION_REQUIRED=true in env
       requireEmailVerification: env.EMAIL_VERIFICATION_REQUIRED,
       sendResetPassword: async ({ user, url }) => {
         await sendResetPasswordEmail(user.email, url)
@@ -131,6 +109,12 @@ export function createAuth() {
       },
     },
     advanced: {
+      database: {
+        // Registration recovery preallocates the exact auth user ID before
+        // Better Auth commits. Outside that request-scoped override this
+        // preserves Better Auth's normal alphanumeric ID generation.
+        generateId: generateBetterAuthDatabaseId,
+      },
       defaultCookieAttributes: {
         secure: new URL(env.BETTER_AUTH_URL).protocol === 'https:',
         sameSite: 'lax',
@@ -150,14 +134,31 @@ export function createAuth() {
       // brute-force layers in a real deployment with no signal at all. An
       // unauthorized claim now keeps the limiter ON and is logged.
       enabled: !rateLimitBypass,
+      // Process memory multiplies the allowance by the number of web
+      // replicas. Share only limiter state through cache Redis; do not set
+      // Better Auth's global secondaryStorage because sessions and
+      // verification records remain authoritative in Postgres.
+      ...(authRateLimitStorage ? { customStorage: authRateLimitStorage } : {}),
     },
     session: {
       expiresIn: SESSION_EXPIRY_SECONDS, // 30 days
       updateAge: SESSION_UPDATE_AGE_SECONDS, // Rolling update every 24 hours
       cookieCache: {
-        enabled: true,
-        maxAge: 5 * 60, // 5 minutes — session revalidated from DB at most every 5 min
+        // Session revocation is an authority boundary. A self-contained cookie
+        // cache can outlive sign-out-all, password recovery, or compromise
+        // response, so beta requests revalidate the session from the database.
+        enabled: false,
       },
+    },
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/change-password') return
+        // Password change is itself a security event. The client may not opt
+        // out of multi-device revocation: delete every prior session, then let
+        // Better Auth rotate the authenticated caller onto one fresh session.
+        // Password recovery follows the equivalent server-owned option above.
+        ctx.body.revokeOtherSessions = true
+      }),
     },
     plugins: [
       tanstackStartCookies(),
@@ -177,9 +178,12 @@ export function createAuth() {
           enabled: true,
         },
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
-        requireEmailVerificationOnInvitation:
-          process.env.EMAIL_VERIFICATION_REQUIRED === 'true',
-        // Custom fields on invitation (propertyIds) and organization (billing/SLA).
+        // Use the same validated/defaulted policy as password signup. Reading
+        // process.env here previously made an unset production variable mean
+        // true above but false for invitation acceptance.
+        requireEmailVerificationOnInvitation: env.EMAIL_VERIFICATION_REQUIRED,
+        // Custom fields on invitation (propertyIds) and supported Organization
+        // settings (contact/response target).
         // Shared with auth-cli.ts via ./org-schema so the migration CLI manages
         // the same columns as the runtime (prevents drift).
         schema: organizationSchema,
@@ -195,42 +199,14 @@ export function createAuth() {
             inviteLink,
           })
         },
-        // After an invitation is accepted, auto-create staff assignments
-        // for the properties specified in the invitation.
+        // Membership and invitation lifecycle writes are app-owned. Keep the
+        // provider hooks fail-closed as defense in depth behind the raw-route
+        // HTTP refusal; no mutable composition callback lives in this module.
         organizationHooks: {
-          beforeRemoveMember: ({ member, organization }) =>
-            membershipRemovalLifecycle().beforeRemoveMember(
-              organization.id,
-              member.userId,
-            ),
-          beforeDeleteOrganization: ({ organization }) =>
-            membershipRemovalLifecycle().beforeDeleteOrganization(organization.id),
-          afterAcceptInvitation: async ({ invitation, member, organization }) => {
-            if (!_onAcceptInvitation) return
-
-            // propertyIds is stored as a JSON string in the invitation
-            const raw = (invitation as Record<string, unknown>).propertyIds
-            if (!raw || typeof raw !== 'string') return
-
-            let propertyIds: string[]
-            try {
-              propertyIds = JSON.parse(raw)
-            } catch (err) {
-              // F168 FIX: Log parse failure instead of silently returning
-              getLogger().error(
-                { err },
-                '[auth] Failed to parse propertyIds from invitation',
-              )
-              return
-            }
-            if (!Array.isArray(propertyIds) || propertyIds.length === 0) return
-
-            await _onAcceptInvitation({
-              userId: member.userId,
-              organizationId: organization.id,
-              propertyIds,
-            })
-          },
+          beforeAcceptInvitation: denyRawOrganizationLifecycleWrite,
+          beforeRemoveMember: denyRawOrganizationLifecycleWrite,
+          beforeUpdateMemberRole: denyRawOrganizationLifecycleWrite,
+          beforeDeleteOrganization: denyRawOrganizationLifecycleWrite,
         },
       }),
     ],

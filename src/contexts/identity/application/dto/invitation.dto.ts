@@ -6,7 +6,7 @@ import { z } from 'zod/v4'
 
 export const inviteMemberInputSchema = z.object({
   email: z.email('A valid email address is required'),
-  role: z.enum(['AccountAdmin', 'PropertyManager', 'Staff'] as const),
+  role: z.enum(['AccountAdmin', 'PropertyManager'] as const),
   propertyIds: z.array(z.string().min(1, 'This field is required')).default([]),
 })
 export type InviteMemberInput = z.infer<typeof inviteMemberInputSchema>
@@ -18,7 +18,7 @@ export type AcceptInvitationInput = z.infer<typeof acceptInvitationInputSchema>
 
 export const updateMemberRoleInputSchema = z.object({
   memberId: z.string().min(1, 'Member ID is required'),
-  role: z.enum(['AccountAdmin', 'PropertyManager', 'Staff'] as const),
+  role: z.enum(['AccountAdmin', 'PropertyManager'] as const),
 })
 export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleInputSchema>
 
@@ -40,6 +40,7 @@ export type RegisterUserInput = z.infer<typeof registerUserInputSchema>
 
 /** Member registration — creates user only, no organization. */
 export const registerMemberInputSchema = z.object({
+  invitationId: z.string().min(1, 'Invitation ID is required'),
   name: z.string().min(1, 'Name is required').max(100),
   email: z.email('A valid email address is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),

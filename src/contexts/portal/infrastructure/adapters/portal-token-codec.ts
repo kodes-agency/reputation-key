@@ -1,4 +1,4 @@
-import { createHmac, randomBytes } from 'node:crypto'
+import { createHmac } from 'node:crypto'
 import type {
   PortalTokenCodec,
   PortalTokenDigest,
@@ -6,16 +6,16 @@ import type {
 
 const TOKEN_PATTERN = /^pt_([A-Za-z0-9_-]{16})_([A-Za-z0-9_-]{43})$/
 
-export function createPortalTokenCodec(input: {
+export const createPortalTokenCodec = (input: {
   secret: string
   keyVersion?: number
-  randomBytes?: (size: number) => Buffer
-}): PortalTokenCodec {
+  randomBytes: (size: number) => Buffer
+}): PortalTokenCodec => {
   if (Buffer.byteLength(input.secret, 'utf8') < 32) {
     throw new Error('PORTAL_TOKEN_HASH_SECRET must contain at least 32 bytes')
   }
   const keyVersion = input.keyVersion ?? 1
-  const secureRandomBytes = input.randomBytes ?? randomBytes
+  const secureRandomBytes = input.randomBytes
 
   const digest = (rawToken: string): PortalTokenDigest | null => {
     const match = TOKEN_PATTERN.exec(rawToken)

@@ -31,6 +31,15 @@ import {
 } from '../application/ports/property-google-binding.port'
 import { propertyGoogleBindingChanged } from '../domain/events'
 import { propertyToRow } from './mappers/property.mapper'
+import {
+  resolvePersistedDataCellId,
+  type DataCellId,
+} from '#/shared/domain/data-cell-catalogue'
+import {
+  awaitingRefreshGoogleReviewDestination,
+  unavailableGoogleReviewDestination,
+  verifiedGoogleReviewDestination,
+} from '../domain/google-review-destination'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -103,8 +112,16 @@ function internalFromRow(
     address: row.address,
     countryCode: row.countryCode,
     timezone: row.timezone,
-    processingRegion: row.processingRegion,
+    processingRegion: resolvePersistedDataCellId(row.dataCellId, row.processingRegion),
     lifecycleState: row.lifecycleState,
+    googleReviewDestination: {
+      state:
+        row.googleReviewDestinationState as PropertyGoogleBindingInternalView['googleReviewDestination']['state'],
+      uri: row.googleReviewUri,
+      retrievedAt: row.googleReviewDestinationRetrievedAt,
+      sourceEpoch: row.googleReviewDestinationSourceEpoch,
+      profileVersion: row.googleReviewDestinationProfileVersion,
+    },
   }
 }
 
@@ -188,10 +205,12 @@ function assertBindingProfile(input: {
   }
 }
 
-export function createPropertyGoogleBindingStore(
+export const createPropertyGoogleBindingStore = (
   db: Database,
   events: EventBus,
-): PropertyGoogleBindingStore {
+  localCell?: DataCellId,
+): PropertyGoogleBindingStore => {
+  const cellWhere = () => (localCell ? [eq(properties.dataCellId, localCell)] : [])
   const readReceipt: PropertyGoogleBindingStore['readReceipt'] = async (
     organizationIdValue,
     idempotencyKey,
@@ -221,6 +240,7 @@ export function createPropertyGoogleBindingStore(
           and(
             eq(properties.organizationId, organizationIdValue),
             eq(properties.id, propertyIdValue),
+            ...cellWhere(),
           ),
         )
         .limit(1)
@@ -242,6 +262,7 @@ export function createPropertyGoogleBindingStore(
         .where(
           and(
             eq(properties.organizationId, organizationIdValue),
+            ...cellWhere(),
             inArray(properties.gbpLocationId, locationIds),
             isNull(properties.deletedAt),
           ),
@@ -258,6 +279,7 @@ export function createPropertyGoogleBindingStore(
           and(
             eq(properties.organizationId, organizationIdValue),
             eq(properties.id, propertyIdValue),
+            ...cellWhere(),
           ),
         )
         .limit(1)
@@ -276,7 +298,8 @@ export function createPropertyGoogleBindingStore(
       if (existingReceipt) return replayReceipt(existingReceipt, 'imported')
       if (
         input.property.organizationId !== input.organizationId ||
-        input.property.deletedAt !== null
+        input.property.deletedAt !== null ||
+        (localCell !== undefined && input.property.dataCellId !== localCell)
       ) {
         deny('invalid_binding')
       }
@@ -361,6 +384,15 @@ export function createPropertyGoogleBindingStore(
     relink: async (input) => {
       validateIdempotencyKey(input.idempotencyKey)
       const profile = normalizeConfirmedProfile(input.profile)
+      const nextDestination = input.profile.googleReviewUri
+        ? verifiedGoogleReviewDestination({
+            uri: input.profile.googleReviewUri,
+            retrievedAt: input.now,
+            sourceEpoch: input.expectedSourceEpoch + 1,
+            profileVersion: input.expectedProfileVersion + 1,
+          })
+        : unavailableGoogleReviewDestination()
+      if (!nextDestination) deny('invalid_binding')
       if (
         !isGoogleResourceSuffix(input.accountId) ||
         !isGoogleResourceSuffix(input.locationId)
@@ -404,6 +436,7 @@ export function createPropertyGoogleBindingStore(
                 and(
                   eq(properties.organizationId, input.organizationId),
                   eq(properties.id, input.propertyId),
+                  ...cellWhere(),
                 ),
               )
               .for('update')
@@ -434,12 +467,18 @@ export function createPropertyGoogleBindingStore(
                 profileSource: 'tenant_confirmed',
                 profileConfirmedAt: input.now,
                 profileConfirmedBy: profile.confirmedBy,
+                googleReviewUri: nextDestination.uri,
+                googleReviewDestinationState: nextDestination.state,
+                googleReviewDestinationRetrievedAt: nextDestination.retrievedAt,
+                googleReviewDestinationSourceEpoch: nextDestination.sourceEpoch,
+                googleReviewDestinationProfileVersion: nextDestination.profileVersion,
                 updatedAt: input.now,
               })
               .where(
                 and(
                   eq(properties.organizationId, input.organizationId),
                   eq(properties.id, input.propertyId),
+                  ...cellWhere(),
                   eq(properties.sourceEpoch, input.expectedSourceEpoch),
                   eq(properties.profileVersion, input.expectedProfileVersion),
                 ),
@@ -506,6 +545,7 @@ export function createPropertyGoogleBindingStore(
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
+                ...cellWhere(),
               ),
             )
             .for('update')
@@ -521,17 +561,27 @@ export function createPropertyGoogleBindingStore(
             deny('active_binding_conflict')
           }
           const nextSourceEpoch = current.sourceEpoch + 1
+          const nextDestination = awaitingRefreshGoogleReviewDestination({
+            state:
+              current.googleReviewDestinationState as PropertyGoogleBindingInternalView['googleReviewDestination']['state'],
+            uri: current.googleReviewUri,
+            retrievedAt: current.googleReviewDestinationRetrievedAt,
+            sourceEpoch: current.googleReviewDestinationSourceEpoch,
+            profileVersion: current.googleReviewDestinationProfileVersion,
+          })
           const [updated] = await tx
             .update(properties)
             .set({
               googleBindingState: 'disconnected',
               sourceEpoch: nextSourceEpoch,
+              googleReviewDestinationState: nextDestination.state,
               updatedAt: input.now,
             })
             .where(
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
+                ...cellWhere(),
                 eq(properties.sourceEpoch, input.expectedSourceEpoch),
                 eq(properties.profileVersion, input.expectedProfileVersion),
               ),
@@ -565,6 +615,7 @@ export function createPropertyGoogleBindingStore(
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
+                ...cellWhere(),
               ),
             )
             .for('update')
@@ -592,12 +643,18 @@ export function createPropertyGoogleBindingStore(
               gbpLocationId: null,
               googleBindingState: 'unbound',
               sourceEpoch: nextSourceEpoch,
+              googleReviewUri: null,
+              googleReviewDestinationState: 'unavailable',
+              googleReviewDestinationRetrievedAt: null,
+              googleReviewDestinationSourceEpoch: null,
+              googleReviewDestinationProfileVersion: null,
               updatedAt: input.now,
             })
             .where(
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
+                ...cellWhere(),
                 eq(properties.sourceEpoch, input.expectedSourceEpoch),
                 eq(properties.profileVersion, input.expectedProfileVersion),
               ),

@@ -1,6 +1,6 @@
 # AI private-beta policy v1
 
-Generated from `src/contexts/ai/domain/catalogues/ai-private-beta-policy-v1.json`. Digest: `7031c514c9296bf1895ae185e2a0df485df48807bb409acc275386ac199e2569`.
+Generated from `src/contexts/ai/domain/catalogues/ai-private-beta-policy-v1.json`. Digest: `76e6fa4509fb01dab244a688305eefd788b19302b7978dd7546917909f7eecd4`.
 
 ## Capabilities
 
@@ -15,7 +15,7 @@ Generated from `src/contexts/ai/domain/catalogues/ai-private-beta-policy-v1.json
 | id               | sourceClassId             | outputClassId                | retentionPolicyId           |
 | ---------------- | ------------------------- | ---------------------------- | --------------------------- |
 | property-trend   | aggregate-only            | trend-selection              | trend-report-24-months      |
-| reply-suggestion | identity-minimized-review | ephemeral-template-selection | browser-ephemeral           |
+| reply-suggestion | identity-minimized-review | ephemeral-personalized-draft | browser-ephemeral           |
 | review-analysis  | identity-minimized-review | review-derivative            | review-derivative-24-months |
 
 ## Roles

@@ -11,7 +11,10 @@ export type DashboardError = Readonly<{
   context?: Readonly<Record<string, unknown>>
 }>
 
-export const dashboardError = createErrorFactory<DashboardError['_tag']>('DashboardError')
+export const dashboardError = createErrorFactory<
+  DashboardError['_tag'],
+  DashboardError['code']
+>('DashboardError')
 
 export const isDashboardError = (e: unknown): e is DashboardError =>
   typeof e === 'object' && e !== null && (e as DashboardError)._tag === 'DashboardError'

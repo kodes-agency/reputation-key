@@ -8,7 +8,7 @@ import { InboxDetailPanel } from '#/components/inbox/inbox-detail-panel'
 import { InboxDetailSheet } from '#/components/inbox/inbox-detail-sheet'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { Panel, Separator } from 'react-resizable-panels'
+import { Panel, Separator, type LayoutStorage } from 'react-resizable-panels'
 import { Inbox } from 'lucide-react'
 
 /**
@@ -33,6 +33,15 @@ export const INBOX_PANEL_IDS = {
  * v2 gave us (v2's single panel div had inline `overflow: hidden`).
  */
 export const CLIP_PANEL_CONTENT = { overflow: 'hidden' } as const
+
+/** SSR-safe persistence adapter for the resizable Inbox layout. */
+export const inboxLayoutStorage: LayoutStorage = {
+  getItem: (key) =>
+    typeof window === 'undefined' ? null : window.localStorage.getItem(key),
+  setItem: (key, value) => {
+    if (typeof window !== 'undefined') window.localStorage.setItem(key, value)
+  },
+}
 
 export const ResizeHandle = () => (
   <Separator className="w-1.5 bg-border/50 hover:bg-primary/30 active:bg-primary/50 transition-colors" />
@@ -78,6 +87,7 @@ type InboxDetailPaneProps = Readonly<{
   isMobile: boolean
   onClose: () => void
   detailFns: InboxDetailFns
+  currentUserId?: string
 }>
 
 export function InboxDetailPane({
@@ -86,6 +96,7 @@ export function InboxDetailPane({
   isMobile,
   onClose,
   detailFns,
+  currentUserId,
 }: InboxDetailPaneProps) {
   return (
     <>
@@ -101,6 +112,7 @@ export function InboxDetailPane({
             detailState={detailState}
             onClose={onClose}
             detailFns={detailFns}
+            currentUserId={currentUserId}
           />
         ) : (
           <EmptyDetailPlaceholder />
@@ -114,6 +126,7 @@ export function InboxDetailPane({
         item={selectedItem}
         detailState={detailState}
         detailFns={detailFns}
+        currentUserId={currentUserId}
       />
     </>
   )

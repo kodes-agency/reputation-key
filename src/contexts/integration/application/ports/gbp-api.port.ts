@@ -2,7 +2,8 @@
 // Per architecture: "Ports are TypeScript types defining capability contracts."
 // External API boundary for Google Business Profile operations.
 
-export type GbpAccount = Readonly<{
+/** Raw account shape exposed by the compatibility list-accounts boundary. */
+export type GbpApiAccount = Readonly<{
   name: string
   accountName: string
   type: string
@@ -10,5 +11,5 @@ export type GbpAccount = Readonly<{
 }>
 
 export type GbpApiPort = Readonly<{
-  listAccounts: (accessToken: string) => Promise<ReadonlyArray<GbpAccount>>
+  listAccounts: (accessToken: string) => Promise<ReadonlyArray<GbpApiAccount>>
 }>

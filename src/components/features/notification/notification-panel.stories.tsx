@@ -13,24 +13,31 @@
 // that one factory.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { isPreferenceDisableable } from '#/contexts/notification/application/public-api'
 import {
   makeNotificationFns,
+  notificationFeedHeadFixture,
   notificationFixtures,
+  notificationPageFixture,
   notificationUserSettingsFixture,
-} from './notification-fixtures'
+} from './notification.stories.fixtures'
 import { NotificationPanel } from './notification-panel'
 import type { NotificationServerFns } from './types'
 
 const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222'
 
 const unreadCount = notificationFixtures.filter((n) => n.status === 'unread').length
+const muteableIndex = notificationFixtures.findIndex((notification) =>
+  isPreferenceDisableable(notification.category, 'in_app'),
+)
+const muteableNotification = notificationFixtures[muteableIndex]!
 
 const loadedFns = makeNotificationFns({
-  getUnreadCount: (async () => ({
-    count: unreadCount,
-  })) as unknown as NotificationServerFns['getUnreadCount'],
-  getList: (async () =>
-    notificationFixtures) as unknown as NotificationServerFns['getList'],
+  getFeedHead: (async () => ({
+    page: notificationPageFixture(notificationFixtures),
+    unreadCount,
+    watermark: 'story-loaded',
+  })) as unknown as NotificationServerFns['getFeedHead'],
 })
 
 const meta: Meta<typeof NotificationPanel> = {
@@ -50,6 +57,32 @@ export const Default: Story = {
     expect(
       await canvas.findByRole('button', { name: `Notifications, ${unreadCount} unread` }),
     ).toBeInTheDocument()
+  },
+}
+
+/** The badge and offset-zero rows come from one request, never two observers. */
+export const AtomicFeedHeadAuthority: Story = {
+  args: {
+    notificationFns: (() => {
+      const getFeedHead = fn(async () => ({
+        page: notificationPageFixture(notificationFixtures),
+        unreadCount,
+        watermark: 'story-atomic-head',
+      }))
+      const getList = fn(async () => notificationPageFixture())
+      return makeNotificationFns({
+        getFeedHead: getFeedHead as unknown as NotificationServerFns['getFeedHead'],
+        getList: getList as unknown as NotificationServerFns['getList'],
+      })
+    })(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      await canvas.findByRole('button', { name: `Notifications, ${unreadCount} unread` }),
+    ).toBeInTheDocument()
+    expect(args.notificationFns.getFeedHead).toHaveBeenCalledTimes(1)
+    expect(args.notificationFns.getList).not.toHaveBeenCalled()
   },
 }
 
@@ -74,11 +107,11 @@ export const OpensOnClick: Story = {
 export const DismissRemovesRowOptimistically: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (async () => ({
-        count: unreadCount,
-      })) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (async () =>
-        notificationFixtures) as unknown as NotificationServerFns['getList'],
+      getFeedHead: (async () =>
+        notificationFeedHeadFixture(
+          notificationFixtures,
+          unreadCount,
+        )) as unknown as NotificationServerFns['getFeedHead'],
       // Never settles: anything the user sees change is purely optimistic.
       dismiss: (() =>
         Promise.withResolvers<void>()
@@ -101,11 +134,11 @@ export const DismissRemovesRowOptimistically: Story = {
 export const MarkAllReadIsOptimistic: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (async () => ({
-        count: unreadCount,
-      })) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (async () =>
-        notificationFixtures) as unknown as NotificationServerFns['getList'],
+      getFeedHead: (async () =>
+        notificationFeedHeadFixture(
+          notificationFixtures,
+          unreadCount,
+        )) as unknown as NotificationServerFns['getFeedHead'],
       markAllRead: (() =>
         Promise.withResolvers<void>()
           .promise) as unknown as NotificationServerFns['markAllRead'],
@@ -127,23 +160,20 @@ export const MarkAllReadIsOptimistic: Story = {
 export const Loading: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (() =>
-        Promise.withResolvers<{ count: number }>()
-          .promise) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (() =>
-        Promise.withResolvers<typeof notificationFixtures>()
-          .promise) as unknown as NotificationServerFns['getList'],
+      getFeedHead: (() =>
+        Promise.withResolvers<ReturnType<typeof notificationFeedHeadFixture>>()
+          .promise) as unknown as NotificationServerFns['getFeedHead'],
     }),
   },
 }
 
-/** getList rejects → the error state and its Retry control render. */
+/** The unified feed-head rejects → the error state and its Retry control render. */
 export const ErrorState: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getList: (async () => {
+      getFeedHead: (async () => {
         throw new Error('Notifications service unavailable')
-      }) as unknown as NotificationServerFns['getList'],
+      }) as unknown as NotificationServerFns['getFeedHead'],
     }),
   },
   play: async ({ canvasElement }) => {
@@ -164,19 +194,18 @@ export const Empty: Story = {
   },
 }
 
-/** Muting reads preferences lazily and writes the in-app channel off. */
+/** Muting sends only the semantic command; server policy preserves other fields. */
 export const MuteCategory: Story = {
   args: {
     notificationFns: (() => {
-      const updatePreference = fn(async () => undefined)
+      const muteCategory = fn(async () => undefined)
       return makeNotificationFns({
-        getUnreadCount: (async () => ({
-          count: unreadCount,
-        })) as unknown as NotificationServerFns['getUnreadCount'],
-        getList: (async () =>
-          notificationFixtures) as unknown as NotificationServerFns['getList'],
-        updatePreference:
-          updatePreference as unknown as NotificationServerFns['updatePreference'],
+        getFeedHead: (async () =>
+          notificationFeedHeadFixture(
+            notificationFixtures,
+            unreadCount,
+          )) as unknown as NotificationServerFns['getFeedHead'],
+        muteCategory: muteCategory as unknown as NotificationServerFns['muteCategory'],
       })
     })(),
   },
@@ -185,12 +214,17 @@ export const MuteCategory: Story = {
     await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
     const portal = within(document.body)
     await userEvent.click(
-      (await portal.findAllByRole('button', { name: /^More actions for:/ }))[0],
+      (await portal.findAllByRole('button', { name: /^More actions for:/ }))[
+        muteableIndex
+      ]!,
     )
     await userEvent.click(await portal.findByRole('menuitem', { name: /^Mute/ }))
     await waitFor(() => {
-      expect(args.notificationFns.updatePreference).toHaveBeenCalledWith({
-        data: expect.objectContaining({ channel: 'in_app', enabled: false }),
+      expect(args.notificationFns.muteCategory).toHaveBeenCalledWith({
+        data: {
+          propertyId: muteableNotification.propertyId,
+          category: muteableNotification.category,
+        },
       })
     })
   },
@@ -204,11 +238,11 @@ export const MuteCategory: Story = {
 export const HonoursPersistedLocale: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (async () => ({
-        count: unreadCount,
-      })) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (async () =>
-        notificationFixtures) as unknown as NotificationServerFns['getList'],
+      getFeedHead: (async () =>
+        notificationFeedHeadFixture(
+          notificationFixtures,
+          unreadCount,
+        )) as unknown as NotificationServerFns['getFeedHead'],
       getUserSettings: (async () => ({
         ...notificationUserSettingsFixture,
         locale: 'de-DE',

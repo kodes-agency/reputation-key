@@ -10,6 +10,7 @@ import {
   testEnvironment,
   DEFAULT_TEST_DATABASE_URL,
   DEFAULT_TEST_OPS_METRICS_TOKEN,
+  DEFAULT_TEST_QUEUE_REDIS_URL,
   DEFAULT_TEST_REDIS_URL,
 } from './test-environment'
 
@@ -36,6 +37,7 @@ describe('testEnvironment (BQC-6.1)', () => {
       ENCRYPTION_KEY: 'a'.repeat(64),
       OAUTH_STATE_SECRET: 'ab'.repeat(32),
       REDIS_URL: DEFAULT_TEST_REDIS_URL,
+      QUEUE_REDIS_URL: DEFAULT_TEST_QUEUE_REDIS_URL,
       OPS_METRICS_TOKEN: DEFAULT_TEST_OPS_METRICS_TOKEN,
     })
   })

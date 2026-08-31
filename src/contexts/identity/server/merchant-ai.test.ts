@@ -12,12 +12,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    useCases: {
-      merchantAiAuthorization: {
-        get: mocks.get,
-        enable: mocks.enable,
-        change: mocks.change,
-        revoke: mocks.revoke,
+    identityPublicApi: {
+      requests: {
+        merchantAiAuthorization: {
+          get: mocks.get,
+          enable: mocks.enable,
+          change: mocks.change,
+          revoke: mocks.revoke,
+        },
       },
     },
   }),

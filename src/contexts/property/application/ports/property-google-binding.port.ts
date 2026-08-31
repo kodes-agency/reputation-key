@@ -1,6 +1,7 @@
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { Property } from '../../domain/types'
 import type { GoogleBindingState } from '../../domain/google-binding-contract'
+import type { PropertyGoogleReviewDestination } from '../../domain/google-review-destination'
 
 export const PROPERTY_OPERATION_RECEIPT_TTL_MS = 32 * 24 * 60 * 60 * 1_000
 export const PROPERTY_OPERATION_SWEEP_LIMIT = 100
@@ -38,6 +39,7 @@ export type PropertyGoogleBindingInternalView = Readonly<{
   timezone: string
   processingRegion: string | null
   lifecycleState: string
+  googleReviewDestination: PropertyGoogleReviewDestination
 }>
 
 /** Browser-safe binding lifecycle. Contains no provider or connection identifiers. */
@@ -119,6 +121,7 @@ export type PropertyGoogleBindingStore = Readonly<{
         address: string | null
         timezone: string
         confirmedBy: string
+        googleReviewUri?: string | null
       }>
       expectedSourceEpoch: number
       expectedProfileVersion: number

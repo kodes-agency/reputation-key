@@ -5,7 +5,7 @@
 // tablesFilter whitelist — the barrel itself is the boundary). The 8
 // session, account, verification, organization, member, invitation,
 // organizationRole) live in ./auth.ts, are managed by `pnpm auth:migrate`
-// (Better Auth CLI), and are deliberately NOT exported here.
+// (the Better Auth schema API), and are deliberately NOT exported here.
 //
 // Keep this barrel in lockstep with ./index.ts minus ./auth.ts — the semantic
 // drift test (../migration-verification.test.ts) fails if a migration-owned
@@ -15,13 +15,18 @@ export * from './ai.schema'
 export * from './activity.schema'
 export * from './audit'
 export * from './badge.schema'
+export * from './beta-feedback-triage.schema'
 export * from './dac.schema'
 export * from './goal.schema'
 export * from './google-connection.schema'
+export * from './google-credential-routing.schema'
+export * from './google-import-discovery.schema'
 export * from './google-import-v2.schema'
 export * from './google-content-control.schema'
 export * from './guest.schema'
 export * from './inbox.schema'
+export * from './identity-governance.schema'
+export * from './invited-registration.schema'
 export * from './leaderboard.schema'
 export * from './metric.schema'
 export * from './notification.schema'
@@ -34,6 +39,9 @@ export * from './portal-group.schema'
 export * from './property.schema'
 export * from './property-operation-receipt.schema'
 export * from './region-move.schema'
+export * from './recovery.schema'
+export * from './data-cell-topology.schema'
+export * from './dashboard.schema'
 export * from './review.schema'
 export * from './review-sync.schema'
 export * from './rollup.schema'

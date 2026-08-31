@@ -31,6 +31,7 @@ export function createSequentialMetricCommandStore(deps: {
       await emitAfterCommit(deps.events, command.event)
       return { status: 'recorded', reading: inserted }
     },
+    retractMetric: async () => ({ status: 'source_reading_not_found' }),
     quarantine: async (command) => {
       await deps.quarantine?.(command)
     },

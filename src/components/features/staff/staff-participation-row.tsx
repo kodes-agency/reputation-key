@@ -17,7 +17,7 @@ import { TableCell, TableRow } from '#/components/ui/table'
 import type {
   ArchiveStaffParticipationMutationInput,
   StaffParticipationView,
-} from '#/components/features/team/shared/types'
+} from '#/components/features/staff/types'
 
 type Props = Readonly<{
   participation: StaffParticipationView
@@ -84,8 +84,8 @@ export function StaffParticipationRow({
                 <AlertDialogHeader>
                   <AlertDialogTitle>Archive staff participation?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {participation.displayName} will no longer be available for new team
-                    or portal responsibilities. Their effective history is preserved.
+                    {participation.displayName} will no longer be available for new Portal
+                    responsibilities. Their effective history is preserved.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -97,6 +97,7 @@ export function StaffParticipationRow({
                         data: {
                           staffParticipationId: participation.id,
                           reason: 'Archived from property People page',
+                          expectedRevision: participation.revision,
                         },
                       })
                     }

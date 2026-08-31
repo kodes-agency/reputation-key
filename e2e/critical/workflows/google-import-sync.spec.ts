@@ -14,6 +14,7 @@ import type {
   ImportProgressDto,
 } from '../../../src/contexts/integration/application/public-api'
 import {
+  drainFixtureQueue,
   e2eRunId,
   cleanupE2eData,
   seedGoogleConnection,
@@ -137,6 +138,9 @@ let insertedOrgImportCapability = false
 
 test.describe('Critical workflow: Google import + initial sync', () => {
   test.beforeEach(async () => {
+    // Stale provider syncs from an earlier spec retry against a stub scope that
+    // has moved on, and burn the shared reviews quota this one needs.
+    await drainFixtureQueue()
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 

@@ -94,7 +94,6 @@ describe('portalErrorStatus (imported from server module)', () => {
       'link_not_found',
       'property_not_found',
       'invalid_publication_transition',
-      'portal_has_no_links',
       'portal_inactive',
       'token_unavailable',
       'upload_failed',
@@ -146,7 +145,12 @@ describe('throwContextError with PortalError', () => {
       ['category_not_found', 404],
       ['link_not_found', 404],
       ['slug_taken', 409],
+      ['invalid_publication_transition', 409],
+      ['google_review_destination_unavailable', 409],
+      ['revision_conflict', 409],
       ['upload_failed', 422],
+      ['token_unavailable', 422],
+      ['responsible_manager_ineligible', 422],
       ['invalid_slug', 400],
       ['invalid_name', 400],
       ['invalid_description', 400],
@@ -191,6 +195,31 @@ describe('createPortal input validation', () => {
       theme: { primaryColor: '#6366F1', backgroundColor: '#FFFFFF' },
     })
     expect(result.success).toBe(true)
+  })
+
+  it.each(['team', 'staff'] as const)(
+    'rejects legacy %s ownership on new Portal commands',
+    (entityType) => {
+      expect(
+        createPortalInputSchema.safeParse({
+          name: 'Guest Portal',
+          propertyId: 'prop-123',
+          entityType,
+          entityId: `${entityType}-123`,
+        }).success,
+      ).toBe(false)
+    },
+  )
+
+  it('rejects a compatibility entityId that does not match the owning Property', () => {
+    expect(
+      createPortalInputSchema.safeParse({
+        name: 'Guest Portal',
+        propertyId: 'prop-123',
+        entityType: 'property',
+        entityId: 'another-property',
+      }).success,
+    ).toBe(false)
   })
 
   it('rejects create input missing required name', () => {
@@ -279,5 +308,20 @@ describe('updatePortal input validation', () => {
       description: null,
     })
     expect(result.success).toBe(true)
+  })
+
+  it('accepts hero removal but rejects a caller-supplied hero URL', () => {
+    expect(
+      updatePortalInputSchema.safeParse({
+        portalId: 'portal-123',
+        heroImageUrl: null,
+      }).success,
+    ).toBe(true)
+    expect(
+      updatePortalInputSchema.safeParse({
+        portalId: 'portal-123',
+        heroImageUrl: 'https://attacker.example/image.png',
+      }).success,
+    ).toBe(false)
   })
 })

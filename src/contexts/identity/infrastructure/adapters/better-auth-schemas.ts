@@ -54,11 +54,6 @@ export const betterAuthOrganizationSchema = z.object({
   logo: z.string().nullable().optional(),
   createdAt: z.coerce.date(),
   contactEmail: z.string().nullable().optional(),
-  billingCompanyName: z.string().nullable().optional(),
-  billingAddress: z.string().nullable().optional(),
-  billingCity: z.string().nullable().optional(),
-  billingPostalCode: z.string().nullable().optional(),
-  billingCountry: z.string().nullable().optional(),
   responseSlaHours: z.number().nullable().optional(),
 })
 

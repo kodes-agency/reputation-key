@@ -9,7 +9,7 @@ import { expect, fn, within } from 'storybook/test'
 import {
   notificationFixtures,
   notificationPropertyFixtures,
-} from './notification-fixtures'
+} from './notification.stories.fixtures'
 import { groupByProperty, groupByReadState } from './notification-filters'
 import { NotificationListBody } from './notification-list-body'
 import type { NotificationRowActions } from './types'

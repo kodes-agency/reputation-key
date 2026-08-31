@@ -15,11 +15,29 @@ import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
 import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
 import { assertDashboardPropertyAccessible } from './assert-property-access'
+import { getAuth } from '#/shared/auth/auth'
+import { extractResponseSlaHours } from '#/shared/domain/response-sla'
+import type { DashboardData } from '../domain/types'
 
-import { timeRangeToDates } from '../application/utils'
+import { resolvePropertyPeriod } from './resolve-property-period'
+
+function hideReplyWorkflowForStaff(
+  canManageReplies: boolean,
+  dashboard: DashboardData,
+): DashboardData {
+  if (canManageReplies) return dashboard
+  return {
+    ...dashboard,
+    replyPerformance: { replyRate: 0, avgReplyHours: null },
+    recentReviews: dashboard.recentReviews.map((review) => ({
+      ...review,
+      replyStatus: 'none' as const,
+    })),
+  }
+}
 
 export const getDashboardDataFn = createServerFn({ method: 'GET' })
-  .inputValidator(getDashboardDataDto)
+  .validator(getDashboardDataDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -31,18 +49,28 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
             action: 'dashboard.read',
             propertyId: data.propertyId,
           })
-          const { useCases, clock, staffPublicApi } = getContainer()
+          const { dashboardPublicApi, clock, staffPublicApi, propertyPublicApi } =
+            getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
           await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
-          const { startDate, endDate } = timeRangeToDates(data.timeRange, clock())
+          const pid = propertyId(data.propertyId)
+          const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
+            { propertyFacts: propertyPublicApi, clock },
+            {
+              organizationId: ctx.organizationId,
+              propertyId: pid,
+              timeRange: data.timeRange,
+            },
+          )
 
-          const dashboard = await useCases.getDashboardData({
+          const dashboard = await dashboardPublicApi.getDashboardData({
             organizationId: ctx.organizationId,
-            propertyId: propertyId(data.propertyId),
+            propertyId: pid,
             portalId: data.portalId ? portalId(data.portalId) : null,
             startDate,
             endDate,
             timeRange: data.timeRange,
+            propertyTimezone,
           })
 
           // §9: reply-derived fields (replyPerformance aggregates + per-review
@@ -52,17 +80,7 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
           // reply state so a Staff caller (via direct RPC) learns nothing about
           // the reply workflow. The UI is already gated by property.admin (PM+),
           // so this only affects direct RPC callers.
-          if (!canForContext(ctx, 'reply.manage')) {
-            return {
-              ...dashboard,
-              replyPerformance: { replyRate: 0, avgReplyHours: null },
-              recentReviews: dashboard.recentReviews.map((review) => ({
-                ...review,
-                replyStatus: 'none' as const,
-              })),
-            }
-          }
-          return dashboard
+          return hideReplyWorkflowForStaff(canForContext(ctx, 'reply.manage'), dashboard)
         } catch (e) {
           if (isDashboardError(e))
             throwContextError('DashboardError', e, dashboardErrorStatus(e.code))
@@ -71,5 +89,66 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
       },
       'GET',
       'dashboard.getDashboardData',
+    ),
+  )
+
+/** Property page projection: Dashboard and attention share one KPI snapshot. */
+export const getPropertyOverviewFn = createServerFn({ method: 'GET' })
+  .validator(getDashboardDataDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        try {
+          const headers = await headersFromContext()
+          const ctx = await resolveTenantContext(headers)
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'dashboard.read',
+            propertyId: data.propertyId,
+          })
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'dashboard.fleet_read',
+          })
+          const org = await getAuth().api.getFullOrganization({ headers })
+          const slaHours = extractResponseSlaHours(org)
+          const { dashboardPublicApi, clock, staffPublicApi, propertyPublicApi } =
+            getContainer()
+          await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
+          const pid = propertyId(data.propertyId)
+          const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
+            { propertyFacts: propertyPublicApi, clock },
+            {
+              organizationId: ctx.organizationId,
+              propertyId: pid,
+              timeRange: data.timeRange,
+            },
+          )
+
+          const overview = await dashboardPublicApi.getPropertyOverview({
+            organizationId: ctx.organizationId,
+            propertyId: pid,
+            portalId: data.portalId ? portalId(data.portalId) : null,
+            slaHours,
+            startDate,
+            endDate,
+            timeRange: data.timeRange,
+            propertyTimezone,
+          })
+          return {
+            ...overview,
+            dashboard: hideReplyWorkflowForStaff(
+              canForContext(ctx, 'reply.manage'),
+              overview.dashboard,
+            ),
+          }
+        } catch (e) {
+          if (isDashboardError(e))
+            throwContextError('DashboardError', e, dashboardErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'GET',
+      'dashboard.getPropertyOverview',
     ),
   )

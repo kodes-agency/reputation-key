@@ -3,19 +3,17 @@
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalError } from '../../domain/errors'
 import { portalRemovedFromGroup } from '../../domain/events'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { loadGroupAndPortalForMembership } from '../load-accessible-portal'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 export type RemovePortalFromGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
   staffPublicApi: StaffPublicApi
-  events: EventBus
+  commandStore: PortalCommandStore
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const removePortalFromGroup =
@@ -24,30 +22,29 @@ export const removePortalFromGroup =
     input: { portalGroupId: string; portalId: string },
     ctx: AuthContext,
   ): Promise<void> => {
-    const { gid, pid } = await loadGroupAndPortalForMembership(deps, ctx, input)
+    const { gid, pid, group } = await loadGroupAndPortalForMembership(deps, ctx, input)
 
-    const now = deps.clock()
-    const removed = await deps.portalGroupRepo.removePortal(
-      ctx.organizationId,
-      gid,
-      pid,
-      now,
-      'removed_from_group',
-    )
-    if (!removed) {
-      throw portalError('portal_not_in_group', 'portal is not a member of this group')
-    }
-
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalRemovedFromGroup({
-        portalGroupId: gid,
-        portalId: pid,
-        organizationId: ctx.organizationId,
-        occurredAt: now,
-      }),
-    )
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, group.updatedAt)
+    const event = portalRemovedFromGroup({
+      portalGroupId: gid,
+      portalId: pid,
+      organizationId: ctx.organizationId,
+      propertyId: group.propertyId,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt,
+    })
+    await deps.commandStore.removePortalFromGroup({
+      organizationId: ctx.organizationId,
+      propertyId: group.propertyId,
+      portalGroupId: gid,
+      portalId: pid,
+      expectedUpdatedAt: group.updatedAt,
+      revision,
+      occurredAt,
+      changedBy: ctx.userId,
+      event,
+    })
   }
 
 export type RemovePortalFromGroup = ReturnType<typeof removePortalFromGroup>

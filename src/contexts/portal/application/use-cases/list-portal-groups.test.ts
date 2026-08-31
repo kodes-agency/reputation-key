@@ -10,7 +10,6 @@ import type { PropertyId } from '#/shared/domain/ids'
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')

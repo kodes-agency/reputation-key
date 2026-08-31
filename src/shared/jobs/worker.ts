@@ -4,15 +4,24 @@
 // BQC-3.6: retry behavior comes from JOB OPTIONS (queue defaults + explicit
 // per-job jobEnqueueOptions), never from a worker-level backoffStrategy — a
 // custom strategy would override the job-level backoff (with jitter) that the
-// event/job family catalogue declares. Exhausted jobs are copied to the
-// dead-letter quarantine queue from the 'failed' handler.
+// event/job family catalogue declares. Terminal jobs are staged in the
+// dead-letter quarantine queue before leaving the active set and become
+// redrivable only after BullMQ confirms the failed transition.
 
 import { Worker, type Job, type Queue } from 'bullmq'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
-import { quarantineExhaustedJob } from './failure-quarantine'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
+import {
+  confirmQuarantineFailure,
+  isTerminalFailedEvent,
+  quarantineFinalAttemptJob,
+} from './failure-quarantine'
 import type { JobHandler } from './registry'
 import { Redis } from 'ioredis'
+import { getJobRedisUrl } from './redis-topology'
+import type { JobRuntimeObservationSink } from './runtime-observations'
+import { JOB_OPERATIONAL_QUEUE_CONCURRENCY } from './operational-catalogue'
 
 export type { Job }
 export type { JobHandler }
@@ -63,16 +72,28 @@ export const WORST_CASE_POOL_CLIENTS_PER_JOB = 2
  * out `connectionTimeoutMillis`, and the items are reported as spurious
  * `temporarily_unavailable`. The invariant is pinned by worker.test.ts.
  */
-export const DEFAULT_QUEUE_CONCURRENCY = 4
+export const DEFAULT_QUEUE_CONCURRENCY = JOB_OPERATIONAL_QUEUE_CONCURRENCY.default
 
 /** Background queue concurrency — single-client maintenance sweeps. */
-export const BACKGROUND_QUEUE_CONCURRENCY = 3
+export const BACKGROUND_QUEUE_CONCURRENCY = JOB_OPERATIONAL_QUEUE_CONCURRENCY.background
+
+function isQuarantineRedrive(data: unknown): boolean {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return false
+  const metadata = (data as Record<string, unknown>).redriveMetadata
+  return (
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    !Array.isArray(metadata) &&
+    (metadata as Record<string, unknown>).redrivenFrom === 'quarantine'
+  )
+}
 
 /**
  * Create a BullMQ worker for the given queue name.
  * Uses a dedicated Redis connection with maxRetriesPerRequest=null
  * (required by BullMQ for blocking BRPOPLPUSH operations).
- * Returns undefined if Redis is not configured (REDIS_URL missing).
+ * Returns undefined if queue Redis is not configured. Production requires
+ * QUEUE_REDIS_URL; development/test may fall back to REDIS_URL.
  *
  * @param concurrency  Max jobs processed in parallel (BullMQ default: 1).
  *                     Set higher for latency-sensitive queues so a single
@@ -87,19 +108,54 @@ export function createJobWorker<T>(
   handler: JobHandler<T>,
   concurrency?: number,
   quarantineQueue?: Queue,
+  runtimeObservations?: JobRuntimeObservationSink,
+  clock: () => Date = () => new Date(),
 ): Worker<T> | undefined {
   const env = getEnv()
-  if (!env.REDIS_URL) return undefined
+  const redisUrl = getJobRedisUrl(env)
+  if (!redisUrl) return undefined
 
   const logger = getLogger()
 
   // BullMQ Worker requires maxRetriesPerRequest=null for blocking connections.
   // Cannot share the caching Redis client which uses maxRetriesPerRequest=3.
-  const connection = new Redis(env.REDIS_URL, {
+  const connection = new Redis(redisUrl, {
     maxRetriesPerRequest: null,
   })
 
-  const worker = new Worker<T>(name, handler, {
+  // Await the terminal-attempt dead-letter write while this process retains
+  // the BullMQ lock. A suspended process can outlive that lock, so invitation
+  // privacy does not rely on `active: 0`: the quarantine builder sanitizes the
+  // payload and failure reason before add. The copy remains non-redrivable
+  // until the `failed` event (or proof-based operator reconciliation).
+  const handlerWithQuarantineBarrier: JobHandler<T> = async (job) => {
+    try {
+      return await handler(job)
+    } catch (err) {
+      if (quarantineQueue) {
+        try {
+          const outcome = await quarantineFinalAttemptJob(quarantineQueue, job, err)
+          if (outcome.quarantined) {
+            logger.error(
+              { queue: name, jobName: job.name },
+              'terminal job failure — staged quarantine candidate',
+            )
+          }
+        } catch (quarantineErr: unknown) {
+          // The original failure still proceeds. A transport rejection may be
+          // ambiguous, but every invitation field was sanitized before add,
+          // so a late command cannot reopen the privacy guarantee.
+          logger.error(
+            { err: quarantineErr, queue: name, jobName: job.name },
+            'failed to quarantine exhausted job',
+          )
+        }
+      }
+      throw err
+    }
+  }
+
+  const worker = new Worker<T>(name, handlerWithQuarantineBarrier, {
     connection: connection as unknown as import('bullmq').ConnectionOptions,
     concurrency,
     // Ordering invariant documented on the constants above: the domain claim
@@ -112,8 +168,50 @@ export function createJobWorker<T>(
     },
   })
 
+  // EventEmitter's `error` event throws when it has no listener. BullMQ also
+  // re-emits dedicated and blocking Redis connection errors here, so this is
+  // the single structured, centrally redacted path for runtime queue faults.
+  worker.on('error', (err: Error) => {
+    logger.error({ component: 'bullmq-worker', queue: name, err }, 'BullMQ worker error')
+    captureObservabilityException(err, { source: 'bullmq-worker', queue: name })
+  })
+
+  const recordRuntime = (jobName: string | undefined, operation: Promise<void>): void => {
+    void operation.catch((err: unknown) => {
+      logger.error(
+        { err, queue: name, jobName },
+        'failed to persist job runtime observation',
+      )
+    })
+  }
+
+  worker.on('active', (job: Job<T>) => {
+    if (!runtimeObservations) return
+    recordRuntime(
+      job.name,
+      runtimeObservations.recordStarted({
+        queue: name,
+        jobName: job.name,
+        jobId: job.id ?? 'unknown',
+        at: clock(),
+      }),
+    )
+  })
+
   worker.on('completed', (job: Job<T>) => {
     logger.info({ queue: name, jobName: job.name }, 'job completed')
+    if (runtimeObservations) {
+      recordRuntime(
+        job.name,
+        runtimeObservations.recordSucceeded({
+          queue: name,
+          jobName: job.name,
+          jobId: job.id ?? 'unknown',
+          at: clock(),
+          repair: isQuarantineRedrive(job.data),
+        }),
+      )
+    }
   })
 
   worker.on('failed', (job: Job<T> | undefined, err: Error) => {
@@ -122,30 +220,50 @@ export function createJobWorker<T>(
         queue: name,
         jobName: job?.name,
         attemptsMade: job?.attemptsMade,
-        err: { message: err.message, stack: err.stack },
+        err,
       },
       'job failed',
     )
-    // BQC-3.6: attempts exhausted → dead-letter quarantine (content-safe).
-    // Fire-and-forget with its own error containment — a quarantine write
-    // failure must never take down the worker's failure path.
-    if (quarantineQueue && job) {
-      void quarantineExhaustedJob(quarantineQueue, job, err)
-        .then((outcome) => {
-          if (outcome.quarantined) {
-            logger.error(
-              { queue: name, jobName: job.name },
-              'job exhausted attempts — moved to quarantine',
-            )
-          }
-        })
-        .catch((quarantineErr: unknown) => {
-          logger.error(
-            { err: quarantineErr, queue: name, jobName: job.name },
-            'failed to quarantine exhausted job',
-          )
-        })
+    const terminal = job ? isTerminalFailedEvent(job, err) : false
+    if (job && terminal) {
+      captureObservabilityException(err, {
+        source: 'bullmq-job',
+        queue: name,
+        jobName: job.name,
+      })
+      if (runtimeObservations) {
+        recordRuntime(
+          job.name,
+          runtimeObservations.recordTerminalFailure({
+            queue: name,
+            jobName: job.name,
+            jobId: job.id ?? 'unknown',
+            at: clock(),
+          }),
+        )
+      }
     }
+    // The payload copy was staged while this job was still active. Confirm it
+    // only after BullMQ has completed moveToFailed; redrive refuses a
+    // provisional copy if this confirmation never lands.
+    if (quarantineQueue && job && terminal) {
+      void confirmQuarantineFailure(quarantineQueue, job).catch(
+        (confirmationErr: unknown) => {
+          logger.error(
+            { err: confirmationErr, queue: name, jobName: job.name },
+            'failed to confirm terminal quarantine candidate',
+          )
+        },
+      )
+    }
+  })
+
+  worker.on('stalled', (jobId: string) => {
+    if (!runtimeObservations) return
+    recordRuntime(
+      undefined,
+      runtimeObservations.recordStalled({ queue: name, jobId, at: clock() }),
+    )
   })
 
   return worker

@@ -68,7 +68,7 @@ export const getPolicyStateFn = createServerFn({ method: 'GET' }).handler(
 // ── setOrgCapability ─────────────────────────────────────────────────
 
 export const setOrgCapabilityFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       capability: z
         .string()
@@ -88,14 +88,14 @@ export const setOrgCapabilityFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'policy.admin' })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.setOrgCapability({
             organizationId: ctx.organizationId as string,
             capability: data.capability as Capability,
             enabled: data.enabled,
             reason: data.reason,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -109,7 +109,7 @@ export const setOrgCapabilityFn = createServerFn({ method: 'POST' })
 // ── setPropertyCapability ────────────────────────────────────────────
 
 export const setPropertyCapabilityFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       propertyId: z.string().min(1),
       capability: z
@@ -132,7 +132,7 @@ export const setPropertyCapabilityFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'policy.admin' })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.setPropertyCapability({
             organizationId: ctx.organizationId as string,
             propertyId: data.propertyId,
@@ -140,7 +140,7 @@ export const setPropertyCapabilityFn = createServerFn({ method: 'POST' })
             enabled: data.enabled,
             reason: data.reason,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -155,7 +155,7 @@ export const setPropertyCapabilityFn = createServerFn({ method: 'POST' })
 // ── setOrgSuspension ─────────────────────────────────────────────────
 
 export const setOrgSuspensionFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({ suspend: z.boolean(), reason: reasonSchema, ticketRef: ticketSchema }),
   )
   .handler(
@@ -166,14 +166,14 @@ export const setOrgSuspensionFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'policy.admin' })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.setOrgSuspension({
             organizationId: ctx.organizationId as string,
             suspend: data.suspend,
             reason: data.reason,
             ticketRef: data.ticketRef,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -188,7 +188,7 @@ export const setOrgSuspensionFn = createServerFn({ method: 'POST' })
 // ── setPropertySuspension ────────────────────────────────────────────
 
 export const setPropertySuspensionFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       propertyId: z.string().min(1),
       suspend: z.boolean(),
@@ -207,7 +207,7 @@ export const setPropertySuspensionFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'policy.admin' })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.setPropertySuspension({
             organizationId: ctx.organizationId as string,
             propertyId: data.propertyId,
@@ -215,7 +215,7 @@ export const setPropertySuspensionFn = createServerFn({ method: 'POST' })
             reason: data.reason,
             ticketRef: data.ticketRef,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -230,7 +230,7 @@ export const setPropertySuspensionFn = createServerFn({ method: 'POST' })
 // ── grantPropertyAccess ──────────────────────────────────────────────
 
 export const grantPropertyAccessFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       userId: z.string().min(1),
       propertyId: z.string().min(1),
@@ -251,7 +251,7 @@ export const grantPropertyAccessFn = createServerFn({ method: 'POST' })
         })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.grantPropertyAccessOp({
             organizationId: ctx.organizationId as string,
             propertyId: data.propertyId,
@@ -260,7 +260,7 @@ export const grantPropertyAccessFn = createServerFn({ method: 'POST' })
             ticketRef: data.ticketRef,
             expiresAt: data.expiresAt,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -275,7 +275,7 @@ export const grantPropertyAccessFn = createServerFn({ method: 'POST' })
 // ── revokePropertyAccess ─────────────────────────────────────────────
 
 export const revokePropertyAccessFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       userId: z.string().min(1),
       propertyId: z.string().min(1),
@@ -294,14 +294,14 @@ export const revokePropertyAccessFn = createServerFn({ method: 'POST' })
         })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.revokePropertyAccessOp({
             organizationId: ctx.organizationId as string,
             propertyId: data.propertyId,
             userId: data.userId,
             reason: data.reason,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -316,7 +316,7 @@ export const revokePropertyAccessFn = createServerFn({ method: 'POST' })
 // ── explainPolicyDecision (read-only diagnostic) ─────────────────────
 
 export const explainPolicyDecisionFn = createServerFn({ method: 'GET' })
-  .inputValidator(
+  .validator(
     z.object({
       action: z.string(),
       propertyId: z.string().optional(),
@@ -335,13 +335,13 @@ export const explainPolicyDecisionFn = createServerFn({ method: 'GET' })
         })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           return await policyAdmin.explainPolicyDecision({
             organizationId: ctx.organizationId as string,
             action: data.action as Permission,
             propertyId: data.propertyId,
             userId: data.userId ?? (ctx.userId as string),
-            now: new Date(),
+            now: clock(),
           })
         } catch (e) {
           throw catchUntagged(e)
@@ -360,7 +360,7 @@ export const explainPolicyDecisionFn = createServerFn({ method: 'GET' })
 // outcome (see policy-admin use case).
 
 export const getRegionDiagnosticFn = createServerFn({ method: 'GET' })
-  .inputValidator(
+  .validator(
     z.object({
       propertyId: z.string().min(1),
     }),

@@ -18,14 +18,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { registerEventSchema, clearEventSchemas } from '#/shared/events/schema-registry'
+import { createDispatcherHandler } from './dispatcher'
 import {
-  registerConsumer,
-  clearConsumers,
-  createDispatcherHandler,
+  createConsumerRegistry,
+  type ConsumerRegistry,
   type ConsumerEvent,
-} from './dispatcher'
+} from './consumer-registry'
 import type { OutboxRepository } from './infrastructure/outbox-repository'
 import {
   initDelayedExecutionPolicy,
@@ -33,6 +33,9 @@ import {
   type DelayedDecision,
   type DelayedDecisionRequest,
 } from '#/shared/auth/system-execution-policy'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const loggerMocks = vi.hoisted(() => ({
   warn: vi.fn(),
@@ -107,7 +110,7 @@ beforeEach(() => {
     version: TEST_EVENT_VERSION,
     schema: z.object({ resourceId: z.string() }),
   })
-  clearConsumers()
+  consumerRegistry = createConsumerRegistry()
   decideMock.mockReset()
   initDelayedExecutionPolicy({ decide: decideMock })
 })
@@ -121,7 +124,7 @@ describe('dispatcher gate (BQC-3.2)', () => {
   it('invokes the consumer when the gate allows', async () => {
     decideMock.mockResolvedValue(ALLOW)
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    registerConsumer({
+    consumerRegistry.registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-allow',
       module: TEST_MODULE,
@@ -129,7 +132,9 @@ describe('dispatcher gate (BQC-3.2)', () => {
     })
     const repo = makeRepo()
 
-    await createDispatcherHandler(repo)(fakeJob(makeEnvelope()))
+    await createDispatcherHandler(repo, { consumers: consumerRegistry })(
+      fakeJob(makeEnvelope()),
+    )
 
     expect(handler).toHaveBeenCalledOnce()
     expect(decideMock).toHaveBeenCalledTimes(1)
@@ -144,7 +149,7 @@ describe('dispatcher gate (BQC-3.2)', () => {
   it('terminal deny skips the consumer and writes an obsolete receipt (BQC-3.6)', async () => {
     decideMock.mockResolvedValue(decision({ reason: 'org_suspended' }))
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    registerConsumer({
+    consumerRegistry.registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-deny',
       module: TEST_MODULE,
@@ -153,7 +158,9 @@ describe('dispatcher gate (BQC-3.2)', () => {
     const repo = makeRepo()
 
     await expect(
-      createDispatcherHandler(repo)(fakeJob(makeEnvelope())),
+      createDispatcherHandler(repo, { consumers: consumerRegistry })(
+        fakeJob(makeEnvelope()),
+      ),
     ).resolves.toBeUndefined()
 
     expect(repo.hasReceipt).toHaveBeenCalledWith('evt-gate-1', 'c-deny')
@@ -172,7 +179,7 @@ describe('dispatcher gate (BQC-3.2)', () => {
 
   it('terminal-deny receipt short-circuits re-delivery (no re-evaluation)', async () => {
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    registerConsumer({
+    consumerRegistry.registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-deny',
       module: TEST_MODULE,
@@ -195,7 +202,9 @@ describe('dispatcher gate (BQC-3.2)', () => {
       insertReceipt: vi.fn(async () => undefined),
     } as unknown as OutboxRepository
 
-    await createDispatcherHandler(repo)(fakeJob(makeEnvelope()))
+    await createDispatcherHandler(repo, { consumers: consumerRegistry })(
+      fakeJob(makeEnvelope()),
+    )
 
     expect(handler).not.toHaveBeenCalled()
     expect(decideMock).not.toHaveBeenCalled()
@@ -206,7 +215,7 @@ describe('dispatcher gate (BQC-3.2)', () => {
       decision({ reason: 'policy_unavailable', freshRead: true }),
     )
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    registerConsumer({
+    consumerRegistry.registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-retry',
       module: TEST_MODULE,
@@ -214,16 +223,18 @@ describe('dispatcher gate (BQC-3.2)', () => {
     })
     const repo = makeRepo()
 
-    await expect(createDispatcherHandler(repo)(fakeJob(makeEnvelope()))).rejects.toThrow(
-      /policy_unavailable/,
-    )
+    await expect(
+      createDispatcherHandler(repo, { consumers: consumerRegistry })(
+        fakeJob(makeEnvelope()),
+      ),
+    ).rejects.toThrow(/policy_unavailable/)
 
     expect(handler).not.toHaveBeenCalled()
   })
 
   it('receipt check still short-circuits before the gate', async () => {
     const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    registerConsumer({
+    consumerRegistry.registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-dup',
       module: TEST_MODULE,
@@ -233,7 +244,9 @@ describe('dispatcher gate (BQC-3.2)', () => {
       hasReceipt: vi.fn(async () => true),
     } as unknown as OutboxRepository
 
-    await createDispatcherHandler(repo)(fakeJob(makeEnvelope()))
+    await createDispatcherHandler(repo, { consumers: consumerRegistry })(
+      fakeJob(makeEnvelope()),
+    )
 
     expect(handler).not.toHaveBeenCalled()
     expect(decideMock).not.toHaveBeenCalled()
@@ -244,20 +257,22 @@ describe('dispatcher gate (BQC-3.2)', () => {
     // 'inbox.outbox-consumers' for every consumer, so a notification
     // consumer was authorized under inbox's policy action.
     decideMock.mockResolvedValue(ALLOW)
-    registerConsumer({
+    consumerRegistry.registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-inbox',
       module: 'inbox.outbox-consumers',
       handler: vi.fn(async () => ({ status: 'applied' as const })),
     })
-    registerConsumer({
+    consumerRegistry.registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-notification',
       module: 'notification.outbox-consumers',
       handler: vi.fn(async () => ({ status: 'applied' as const })),
     })
 
-    await createDispatcherHandler(makeRepo())(fakeJob(makeEnvelope()))
+    await createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
+      fakeJob(makeEnvelope()),
+    )
 
     expect(decideMock).toHaveBeenCalledTimes(2)
     const actionByPrincipal: Record<string, string> = Object.fromEntries(
@@ -278,13 +293,13 @@ describe('dispatcher corrections (BQC-3.6)', () => {
       throw new Error('projection boom')
     })
     const succeeding = vi.fn(async () => ({ status: 'applied' as const }))
-    registerConsumer({
+    consumerRegistry.registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-fails',
       module: TEST_MODULE,
       handler: failing,
     })
-    registerConsumer({
+    consumerRegistry.registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-succeeds',
       module: TEST_MODULE,
@@ -292,9 +307,11 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     })
     const repo = makeRepo()
 
-    await expect(createDispatcherHandler(repo)(fakeJob(makeEnvelope()))).rejects.toThrow(
-      /c-fails/,
-    )
+    await expect(
+      createDispatcherHandler(repo, { consumers: consumerRegistry })(
+        fakeJob(makeEnvelope()),
+      ),
+    ).rejects.toThrow(/c-fails/)
 
     // Per-consumer isolation kept: every consumer was invoked this attempt.
     expect(failing).toHaveBeenCalledOnce()
@@ -314,17 +331,19 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     const repo = makeRepo()
 
     await expect(
-      createDispatcherHandler(repo)(fakeJob(makeEnvelope({ eventType: DURABLE_TYPE }))),
+      createDispatcherHandler(repo, { consumers: consumerRegistry })(
+        fakeJob(makeEnvelope({ eventType: DURABLE_TYPE })),
+      ),
     ).rejects.toThrow(new RegExp(DURABLE_TYPE))
 
     expect(loggerMocks.error).toHaveBeenCalled()
   })
 
   it('genuinely bus-only event type completes with a debug log', async () => {
-    // 'identity.member.invited' is catalogued with bus consumers only — no
-    // durable dispatch is expected, so the job completes (and the old
-    // "will be retried" lie is gone).
-    const BUS_ONLY_TYPE = 'identity.member.invited'
+    // `metric.recorded` is the retained bus-only delivery family. Identity
+    // membership facts now also feed durable Recent Activity, so they are no
+    // longer valid fixtures for this branch.
+    const BUS_ONLY_TYPE = 'metric.recorded'
     registerEventSchema({
       type: BUS_ONLY_TYPE,
       version: 1,
@@ -333,7 +352,9 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     const repo = makeRepo()
 
     await expect(
-      createDispatcherHandler(repo)(fakeJob(makeEnvelope({ eventType: BUS_ONLY_TYPE }))),
+      createDispatcherHandler(repo, { consumers: consumerRegistry })(
+        fakeJob(makeEnvelope({ eventType: BUS_ONLY_TYPE })),
+      ),
     ).resolves.toBeUndefined()
 
     expect(loggerMocks.debug).toHaveBeenCalledWith(
@@ -350,12 +371,58 @@ describe('dispatcher corrections (BQC-3.6)', () => {
       data: { bare: 'payload' },
     } as unknown as Job
 
-    await expect(createDispatcherHandler(repo)(job)).rejects.toThrow(UnrecoverableError)
+    await expect(
+      createDispatcherHandler(repo, { consumers: consumerRegistry })(job),
+    ).rejects.toThrow(UnrecoverableError)
+  })
+
+  it('rejects a queue-injected envelope stamped by another Data Cell', async () => {
+    const repo = makeRepo()
+    const handler = vi.fn(async () => ({ status: 'applied' as const }))
+    consumerRegistry.registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-wrong-cell',
+      module: TEST_MODULE,
+      handler,
+    })
+
+    await expect(
+      createDispatcherHandler(repo, { consumers: consumerRegistry, localCell: 'us' })(
+        fakeJob(makeEnvelope({ dataCellId: 'europe', region: 'europe' })),
+      ),
+    ).rejects.toThrow(UnrecoverableError)
+
+    expect(handler).not.toHaveBeenCalled()
+    expect(repo.hasReceipt).not.toHaveBeenCalled()
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ localCell: 'us', targetCell: 'europe' }),
+      expect.stringMatching(/wrong Data Cell/i),
+    )
+  })
+
+  it('rejects a Property-less fact whose source Data Cell differs from the worker', async () => {
+    const repo = makeRepo()
+    const handler = vi.fn(async () => ({ status: 'applied' as const }))
+    consumerRegistry.registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-wrong-source-cell',
+      module: TEST_MODULE,
+      handler,
+    })
+
+    await expect(
+      createDispatcherHandler(repo, { consumers: consumerRegistry, localCell: 'us' })(
+        fakeJob(makeEnvelope({ sourceCellId: 'europe', region: 'europe' })),
+      ),
+    ).rejects.toThrow(UnrecoverableError)
+
+    expect(handler).not.toHaveBeenCalled()
+    expect(repo.hasReceipt).not.toHaveBeenCalled()
   })
 
   it('schema validation failure throws UnrecoverableError with a content-free reason', async () => {
     const repo = makeRepo()
-    registerConsumer({
+    consumerRegistry.registerConsumer({
       eventType: TEST_EVENT_TYPE,
       consumerName: 'c-any',
       module: TEST_MODULE,
@@ -363,7 +430,7 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     })
 
     await expect(
-      createDispatcherHandler(repo)(
+      createDispatcherHandler(repo, { consumers: consumerRegistry })(
         fakeJob(makeEnvelope({ payload: { wrong: 'shape' } })),
       ),
     ).rejects.toThrow(UnrecoverableError)

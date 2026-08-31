@@ -1,4 +1,5 @@
 import type { StaffParticipation } from '../../domain/staff-participation'
+import type { StaffParticipant } from '../../domain/staff-participant'
 import type {
   PortalResponsibility,
   ResponsibilityKind,
@@ -23,12 +24,18 @@ export type StaffParticipationRepository = Readonly<{
     organizationId: string,
     filters: Readonly<{ propertyId?: string; userId?: string; activeOnly?: boolean }>,
   ) => Promise<readonly StaffParticipation[]>
-  create: (participation: StaffParticipation) => Promise<StaffParticipation>
+  createParticipantWithParticipation: (
+    input: Readonly<{
+      participant: StaffParticipant
+      participation: StaffParticipation
+    }>,
+  ) => Promise<StaffParticipation>
   archive: (
     organizationId: string,
     staffParticipationId: string,
     at: Date,
     reason: string,
+    expectedRevision: number,
   ) => Promise<StaffParticipation | null>
   listActiveResponsibilities: (
     organizationId: string,
@@ -42,6 +49,9 @@ export type StaffParticipationRepository = Readonly<{
       selections: readonly ResponsibilitySelection[]
       actorId: string
       at: Date
+      expectedRevision: number
     }>,
-  ) => Promise<readonly PortalResponsibility[]>
+  ) => Promise<
+    Readonly<{ responsibilities: readonly PortalResponsibility[]; revision: number }>
+  >
 }>

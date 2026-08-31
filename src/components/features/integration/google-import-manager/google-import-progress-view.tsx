@@ -20,18 +20,22 @@ type Props = Readonly<{
   progress: ImportProgressDto
   isPollingError: boolean
   isRefreshing: boolean
+  isCancelling: boolean
   retryingItemId: string | null
   onRefresh: () => void
   onRetry: (item: ImportProgressItemDto) => void
+  onCancel: () => void
 }>
 
 export function GoogleImportProgressView({
   progress,
   isPollingError,
   isRefreshing,
+  isCancelling,
   retryingItemId,
   onRefresh,
   onRetry,
+  onCancel,
 }: Props) {
   const percent = importProgressPercent(progress)
   const terminal = isImportParentTerminal(progress.status)
@@ -56,20 +60,32 @@ export function GoogleImportProgressView({
             {progress.processedCount} of {progress.totalCount} properties processed
           </p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onRefresh}
-          disabled={isRefreshing}
-        >
-          <RefreshCcw
-            className={
-              isRefreshing ? 'animate-spin motion-reduce:animate-none' : undefined
-            }
-            aria-hidden="true"
-          />
-          {isRefreshing ? 'Refreshing…' : 'Refresh status'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {!terminal ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              disabled={isCancelling}
+            >
+              {isCancelling ? 'Cancelling…' : 'Cancel import'}
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+          >
+            <RefreshCcw
+              className={
+                isRefreshing ? 'animate-spin motion-reduce:animate-none' : undefined
+              }
+              aria-hidden="true"
+            />
+            {isRefreshing ? 'Refreshing…' : 'Refresh status'}
+          </Button>
+        </div>
       </div>
 
       <div>

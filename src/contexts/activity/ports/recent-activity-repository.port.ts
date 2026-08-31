@@ -1,0 +1,40 @@
+import type { RecentActivityEntry } from '../domain/types'
+import type { ActivityAction, ResourceType, ActivityPayload } from '../domain/types'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+
+export type RecentActivityFilter = Readonly<{
+  resourceType?: string
+  resourceId?: string
+  propertyId?: PropertyId
+  /** When set (non-null array), restrict results to these properties plus
+   *  system-level entries (propertyId IS NULL). Used by PM/Staff scoping. */
+  propertyIds?: readonly PropertyId[]
+}>
+
+export type Pagination = Readonly<{ limit: number; offset: number }>
+
+export type FindRecentActivityDuplicateInput = Readonly<{
+  eventId: string
+  action: ActivityAction
+  resourceType: ResourceType
+  resourceId: string
+  organizationId: OrganizationId
+  payload: ActivityPayload
+}>
+
+export type RecentActivityRepository = Readonly<{
+  insert(entry: RecentActivityEntry): Promise<void>
+  findByResource(
+    orgId: OrganizationId,
+    resourceType: string,
+    resourceId: string,
+    limit: number,
+  ): Promise<readonly RecentActivityEntry[]>
+  findByOrganization(
+    orgId: OrganizationId,
+    filter: RecentActivityFilter,
+    pagination: Pagination,
+  ): Promise<readonly RecentActivityEntry[]>
+  /** Check if a duplicate activity entry already exists (idempotency gate). */
+  findDuplicate(input: FindRecentActivityDuplicateInput): Promise<boolean>
+}>

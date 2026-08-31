@@ -12,11 +12,30 @@ import type {
   AiReviewSourceDenial,
   AiReviewSourceRequest,
   AiReviewSourceResult,
+  AiTrendPopulationRequest,
+  AiTrendPopulationResult,
 } from './ai-review-source.port'
+import type { ReviewProviderSubject } from '#/shared/review-provider-subject-contract'
+import type { ReviewProviderObservationOrigin } from './response-target-authority.port'
+
+export type StableReviewSourceIdentity = Readonly<{
+  id: ReviewId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
+  sourceContentState: 'active' | 'source_expired' | 'provider_deleted'
+  firstFetchedAt: Date | null
+  sourceSeenGeneration: string | null
+  sentimentLabel: string | null
+  sentimentScore: number | null
+}>
 
 export type ReviewRepository = Readonly<{
   findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
   readForAi(input: AiReviewSourceRequest): Promise<AiReviewSourceResult>
+  readTrendPopulation(input: AiTrendPopulationRequest): Promise<AiTrendPopulationResult>
   assertCurrentForAi(
     input: AiReviewSourceRequest,
   ): Promise<Readonly<{ status: 'current' | AiReviewSourceDenial }>>
@@ -43,7 +62,20 @@ export type ReviewRepository = Readonly<{
     externalId: string,
     organizationId: OrganizationId,
   ): Promise<Review | null>
-  upsert(review: Omit<Review, 'createdAt' | 'updatedAt'>, now?: Date): Promise<Review>
+  findStableIdentityByProviderSubjects(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      sourceEpoch: number
+      subjects: readonly [ReviewProviderSubject, ...ReviewProviderSubject[]]
+    }>,
+  ): Promise<StableReviewSourceIdentity | null>
+  upsert(
+    review: Omit<Review, 'createdAt' | 'updatedAt'>,
+    now?: Date,
+    observationKey?: string,
+    observationOrigin?: ReviewProviderObservationOrigin,
+  ): Promise<Review>
   findByPropertyId(
     propertyId: PropertyId,
     organizationId: OrganizationId,
@@ -116,9 +148,4 @@ export type ReviewRepository = Readonly<{
    * number stays honest at any scale.
    */
   countExpiredBeforeAcrossTenants(date: Date): Promise<number>
-  deleteById(id: ReviewId, organizationId: OrganizationId): Promise<void>
-  deleteByPropertyId(
-    propertyId: PropertyId,
-    organizationId: OrganizationId,
-  ): Promise<void>
 }>

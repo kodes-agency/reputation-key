@@ -6,6 +6,8 @@ import type { GbpLocationCandidate } from './google-provider-contract'
 import type { ImportDiscoveryCandidate } from './ports/google-import-reference-store.port'
 import type { GoogleImportPropertyClassifier } from './google-import-discovery'
 
+const GOOGLE_PROVIDER_LOCATION_PAGE_SIZE = 100
+
 export type GoogleImportPropertyDiscoveryView = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -50,6 +52,7 @@ function resultBase(candidate: GbpLocationCandidate) {
     address: candidate.address,
     primaryCategory: candidate.primaryCategory,
     countryCode: candidate.countryCode,
+    googleReviewUri: candidate.googleReviewUri ?? null,
   }
 }
 
@@ -60,7 +63,9 @@ export function createGoogleImportPropertyClassifier(
   }>,
 ): GoogleImportPropertyClassifier {
   return async (input) => {
-    if (input.candidates.length > 100) throw classificationFailure()
+    if (input.candidates.length > GOOGLE_PROVIDER_LOCATION_PAGE_SIZE) {
+      throw classificationFailure()
+    }
     // An account with no locations is a legitimate empty page. The binding
     // reader rejects an empty id list as an invalid binding, so classifying it
     // would surface "Locations unavailable" instead of an empty result.

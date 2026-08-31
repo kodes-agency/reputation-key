@@ -11,7 +11,7 @@ export type ControlledRouteInput = Readonly<{
 
 /** Plain-data server boundary used by the client-side route redirect wrapper. */
 export const checkControlledRoute = createServerFn({ method: 'GET' })
-  .inputValidator((data: ControlledRouteInput) => data)
+  .validator((data: ControlledRouteInput) => data)
   .handler(async ({ data }) => {
     const headers = await headersFromContext()
     const ctx = await resolveTenantContext(headers)

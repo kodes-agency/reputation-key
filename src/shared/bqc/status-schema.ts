@@ -36,6 +36,12 @@ export const BETA_LOCAL_REQUIRED_GATE_IDS = [
   'release-bundle',
 ] as const
 
+/**
+ * Historical schema field name retained for existing beta-local-1 artifacts.
+ * These checks are outside the local profile, but the August REL-01 contract
+ * requires them before an external cohort; "postBeta" must not be read as a
+ * waiver of that release gate.
+ */
 export const BETA_LOCAL_POST_BETA_GATE_IDS = [
   'scale-capacity',
   'region-fault-matrix',
@@ -179,7 +185,7 @@ export const bqcStatusManifestSchema = z
       ctx.addIssue({
         code: 'custom',
         message:
-          'beta-local-1 postBetaGates must match the unmeasured operations contract',
+          'beta-local-1 postBetaGates must match the external release-gate contract',
         path: ['acceptance', 'postBetaGates'],
       })
     }

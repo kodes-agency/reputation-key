@@ -33,8 +33,10 @@
 // given, so it must never be the source of the accountable actor.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { randomUUID } from 'node:crypto'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { getPool } from '#/shared/db/pool'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import {
@@ -61,7 +63,8 @@ import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createPostgresAiAdmissionAuthority } from '../../../../../services/ai-execution-admission/postgres-admission-authority'
 import { createBackfillReviewAnalysis } from '../../application/use-cases/backfill-review-analysis'
 import { createReviewAnalysisBackfillAdapter } from './ai-review-analysis-backfill.adapter'
-import { createPropertyGrantHolderLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
+import { createMemberPropertyAuthorityLookup } from '#/contexts/identity/infrastructure/repositories/member-property-authority'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 const NOW = new Date('2026-08-22T09:00:00.000Z')
 const CONTENT_EXPIRES_AT = new Date(Date.now() + 365 * 86_400_000)
@@ -110,10 +113,14 @@ type Fence = Readonly<{ controlId: string; generation: number }>
 
 describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
   const db = getDb()
-  const store = createAiOperationStoreAdapter(db)
+  const store = createAiOperationStoreAdapter(db, randomUUID)
   const backfill = createBackfillReviewAnalysis({
-    backfillStore: createReviewAnalysisBackfillAdapter(db),
-    propertyAccessHolders: createPropertyGrantHolderLookup(db),
+    backfillStore: createReviewAnalysisBackfillAdapter(db, randomUUID),
+    propertyAuthority: createMemberPropertyAuthorityLookup(
+      db,
+      'ai.manage',
+      () => new Date(),
+    ),
   })
   let fences: Readonly<{ global: Fence; provider: Fence; capability: Fence }>
 
@@ -136,8 +143,8 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
       // suspends it the same way the other AI store tests do.
       sql`DELETE FROM member WHERE "organizationId" = ${ORGANIZATION_ID}`,
       sql`DELETE FROM "user" WHERE id = ${CONSENT_ACTOR_ID}`,
-      sql`DELETE FROM organization WHERE id = ${ORGANIZATION_ID}`,
     ])
+    await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
 
   /**
@@ -547,6 +554,7 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
   }
 
   beforeAll(async () => {
+    registerAllEventSchemas()
     await clear()
     await clearCanary()
     // Control activation is global and needs no org fixture, so it happens once.

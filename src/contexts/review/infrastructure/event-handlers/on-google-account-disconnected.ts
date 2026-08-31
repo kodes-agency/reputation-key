@@ -13,19 +13,21 @@
 
 import type { IntegrationGoogleAccountDisconnected } from '#/contexts/integration/application/public-api'
 import type { CancelPublicationsForConnection } from '../../application/use-cases/cancel-publications'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
+
+export type ReviewEventLogger = Pick<LoggerPort, 'info'>
 
 export type OnGoogleAccountDisconnectedDeps = Readonly<{
   cancelPublicationsForConnection: CancelPublicationsForConnection
+  logger: ReviewEventLogger
 }>
 
 export const onGoogleAccountDisconnected =
   (deps: OnGoogleAccountDisconnectedDeps) =>
   async (event: IntegrationGoogleAccountDisconnected): Promise<void> => {
     return trace('event.review.onGoogleAccountDisconnected', async () => {
-      const logger = getLogger()
-      logger.info(
+      deps.logger.info(
         'integration.google_account.disconnected: cancelling in-flight reply publications',
       )
       const result = await deps.cancelPublicationsForConnection({
@@ -33,7 +35,7 @@ export const onGoogleAccountDisconnected =
         connectionId: event.connectionId,
         cause: 'disconnect',
       })
-      logger.info(
+      deps.logger.info(
         { ...result },
         'integration.google_account.disconnected: reply publication cancellation complete',
       )

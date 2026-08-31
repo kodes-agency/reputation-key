@@ -1,23 +1,24 @@
-# Ticket: Better Auth cannot bootstrap a fresh database
+# Historical ticket: Better Auth fresh-database bootstrap
 
-**Status:** ✅ Resolved (2026-07-06)
+**Status:** ✅ Superseded and re-verified (2026-08-27)
 **Severity:** ~~Blocks clean-slate provisioning~~ Fixed
 **Discovered:** 2026-07-06, during DAC Stage 2 DB verification
 
-## Resolution
+## Current resolution
 
-A committed idempotent bootstrap SQL now provisions the 8 baseline auth tables from scratch. The 2 incremental BA migration files were made idempotent (`IF NOT EXISTS`) so `pnpm auth:migrate` is safe to run after the bootstrap.
+The repository-pinned Better Auth schema API now creates all eight baseline
+tables directly on an empty database. The production pre-deploy runner invokes
+that API before the Drizzle and sidecar tracks. A zero-table PostgreSQL proof on
+2026-08-27 reached 189 production tables and all 130 Drizzle journal entries;
+semantic model/catalog drift and the eight migration-verification assertions
+then passed.
 
-**Provisioning runbook (fresh DB):** see `docs/auth-migrations.md` → "Fresh-DB provisioning".
+The committed `db:bootstrap-auth` SQL is retained only as a constrained
+recovery compatibility path and now has an executable column, constraint, and
+index parity check against the pinned runtime. The normal runbook is
+`docs/auth-migrations.md`; production uses `pnpm db:migrate-deploy`.
 
-- Step 1: `pnpm db:bootstrap-auth` → `scripts/migrations/0000-auth-tables-bootstrap.sql`
-- Step 2: `pnpm auth:migrate` (idempotent no-ops post-bootstrap)
-- Step 3: `pnpm db:migrate` (Drizzle business tables)
-- Step 4: DAC triggers SQL (`scripts/migrations/2026-07-06-permission-version-triggers.sql`)
-
-Verified: `pnpm db:bootstrap-auth` against Neon is a clean idempotent no-op (all 8 tables + 7 indexes report "already exists, skipping"); the SQL is standard `CREATE TABLE IF NOT EXISTS` so it creates from scratch on an empty DB.
-
-## Problem (historical)
+## Original problem (historical)
 
 `pnpm auth:migrate` reports **"No migrations needed"** against an empty database
 and creates **no auth tables**. Better Auth's baseline schema (`user`, `session`,
@@ -25,7 +26,7 @@ and creates **no auth tables**. Better Auth's baseline schema (`user`, `session`
 `organizationRole`) is never provisioned on a fresh DB — the CLI silently does
 nothing.
 
-## Impact
+## Original impact (historical)
 
 - A brand-new environment (new developer, CI, fresh staging/prod) **cannot
   bootstrap auth tables**; the app 500s on any auth request.
@@ -72,12 +73,12 @@ tables with correct casing.
 
 ## Acceptance criteria
 
-- [ ] An empty Postgres + `pnpm auth:migrate` creates all 8 auth tables
+- [x] An empty Postgres + `pnpm auth:migrate` creates all 8 auth tables
       (`user`, `session`, `account`, `verification`, `organization`, `member`,
       `invitation`, `organizationRole`) with the correct camelCase columns.
-- [ ] `\d member`, `\d "organizationRole"`, `\d invitation` match the casing the
+- [x] `\d member`, `\d "organizationRole"`, `\d invitation` match the casing the
       DAC triggers + app-owned role/invitation services depend on.
-- [ ] The bootstrap is reproducible from a clean clone (no "restore from Neon").
+- [x] The bootstrap is reproducible from a clean clone (no "restore from Neon").
 
 ## Related
 

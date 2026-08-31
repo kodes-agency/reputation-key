@@ -47,13 +47,25 @@ const portals = [
     publicationState: 'disabled' as const,
     theme: { primaryColor: '#f59e0b' },
   },
+  {
+    id: 'p-4',
+    name: 'Archived Lobby',
+    slug: 'archived-lobby',
+    publicationState: 'archived' as const,
+    theme: { primaryColor: '#64748b' },
+  },
 ]
 
 const baseArgs = {
   portals,
   propertyId: 'prop-1',
   propertyName: 'Acme Hotel',
-  deleteMutation: action<{ data: { portalId: string } }>(),
+  archiveMutation: action<{
+    data: { portalId: string; publicationState: 'archived' }
+  }>(),
+  restoreMutation: action<{
+    data: { portalId: string; publicationState: 'disabled' }
+  }>(),
   portalGroups: [{ id: 'group-1', name: 'Guest experience', portalIds: ['p-1', 'p-2'] }],
   createGroupMutation: action<{
     data: { propertyId: string; name: string; portalIds?: string[] }
@@ -99,19 +111,32 @@ export const ShowsPortalNames: Story = {
   },
 }
 
-// The action is a permanent removal from the manager's side, so the trigger and
-// the dialog both say "Delete".
-export const DeleteConfirmation: Story = {
+export const RecoverableLifecycle: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
-    const deleteButtons = within(canvasElement).getAllByRole('button', {
-      name: /delete/i,
+    const archiveButtons = within(canvasElement).getAllByRole('button', {
+      name: /archive/i,
     })
-    await userEvent.click(deleteButtons[0])
+    await userEvent.click(archiveButtons[0])
     await expect(
       await within(document.body).findByRole('alertdialog', {
-        name: /delete guest services/i,
+        name: /archive guest services/i,
       }),
+    ).toBeInTheDocument()
+
+    await userEvent.click(within(document.body).getByRole('button', { name: /cancel/i }))
+    // findBy, not getBy: the dismissed alert dialog leaves the canvas
+    // aria-hidden for a beat, and getByRole would not see the button through it.
+    await userEvent.click(
+      await within(canvasElement).findByRole('button', { name: /^restore$/i }),
+    )
+    await expect(
+      await within(document.body).findByRole('alertdialog', {
+        name: /restore archived lobby/i,
+      }),
+    ).toBeInTheDocument()
+    await expect(
+      within(document.body).getByText(/return as disabled/i),
     ).toBeInTheDocument()
   },
 }
@@ -141,7 +166,8 @@ export const StaffReadOnly: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('button', { name: /add portal/i })).toBeNull()
-    await expect(canvas.queryAllByRole('button', { name: /delete/i })).toHaveLength(0)
+    await expect(canvas.queryAllByRole('button', { name: /archive/i })).toHaveLength(0)
+    await expect(canvas.queryAllByRole('button', { name: /restore/i })).toHaveLength(0)
     await expect(canvas.getByText(/view-only access/i)).toBeInTheDocument()
   },
 }

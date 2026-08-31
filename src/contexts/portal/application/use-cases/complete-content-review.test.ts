@@ -13,7 +13,6 @@ const now = new Date('2026-08-09T12:00:00.000Z')
 const accessible = (ids: readonly PropertyId[]): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 function setup(

@@ -40,7 +40,7 @@ export function RemoveMemberDialog({
           <AlertDialogTitle>Remove {memberName}?</AlertDialogTitle>
           <AlertDialogDescription>
             This will remove {memberName} ({memberEmail}) from your organization. They
-            will lose access to all properties and teams.
+            will lose access to the organization and its properties.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

@@ -7,11 +7,13 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { AnyAction } from '#/components/hooks/use-action'
-import type { Role } from '#/shared/domain/roles'
+import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import { InviteMemberForm } from './invite-member-form'
 
-type InviteInput = { data: { email: string; role: Role; propertyIds: string[] } }
+type InviteInput = {
+  data: { email: string; role: BetaInteractiveRole; propertyIds: string[] }
+}
 
 function makeAction(
   impl: (input: InviteInput) => Promise<unknown>,
@@ -25,7 +27,10 @@ function makeAction(
   })
 }
 
-const allowedRoles: ReadonlyArray<Role> = ['AccountAdmin', 'PropertyManager', 'Staff']
+const allowedRoles: ReadonlyArray<BetaInteractiveRole> = [
+  'AccountAdmin',
+  'PropertyManager',
+]
 const properties = [
   { id: 'prop-1', name: 'Sunset Apartments' },
   { id: 'prop-2', name: 'Harbor View' },

@@ -1,17 +1,18 @@
 // Link tree state management hook with mutations
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useLinkTreeMutations } from './use-link-tree-mutations'
 import { useLinkTreeReorder } from './use-link-tree-reorder'
 import { scopedError, type ErrorScope } from './link-tree-state-rules'
 import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
+import { useServerSnapshotOverride } from './use-server-snapshot-override'
 
 export function useLinkTreeState(
   portalId: string,
   initialCategories: readonly LinkTreeCategory[],
   initialLinks: readonly LinkTreeLink[],
 ) {
-  const [categories, setCategories] = useState(initialCategories)
-  const [links, setLinks] = useState(initialLinks)
+  const [categories, setCategories] = useServerSnapshotOverride(initialCategories)
+  const [links, setLinks] = useServerSnapshotOverride(initialLinks)
   const [addingToCategory, setAddingToCategoryState] = useState<string | null>(null)
   const [editingLink, setEditingLinkState] = useState<string | null>(null)
   const [editingCategory, setEditingCategoryState] = useState<string | null>(null)
@@ -19,24 +20,8 @@ export function useLinkTreeState(
   const [deletingLinkId, setDeletingLinkIdState] = useState<string | null>(null)
   const [errorScope, setErrorScope] = useState<ErrorScope | null>(null)
 
-  // The props ARE the `portalKeys.links(portalId)` query data (the route feeds it
-  // straight through useSuspenseQuery), and every mutation below invalidates that
-  // key. Resyncing the mirror on each refetch is what makes another session's
-  // edits visible; previously the snapshot stayed authoritative until unmount.
-  //
-  // Chosen over dropping the mirror entirely because the drag rollback in
-  // use-link-tree-reorder needs a synchronous local override of the server order;
-  // doing that through the query cache would mean rewriting all four reorder
-  // paths as cache writes for no user-visible gain. Consequence: the CRUD
-  // handlers must NOT also patch the mirror by hand — the refetch has already
-  // landed by the time `mutateAsync` resolves, so a manual append would double.
-  useEffect(() => {
-    setCategories(initialCategories)
-  }, [initialCategories])
-  useEffect(() => {
-    setLinks(initialLinks)
-  }, [initialLinks])
-
+  // Reorder overrides reset whenever the Query snapshot identity changes;
+  // CRUD handlers rely on the invalidation/refetch and do not patch them.
   const mutations = useLinkTreeMutations(portalId)
 
   // Opening, switching or cancelling any inline form discards a stale error.

@@ -3,10 +3,9 @@
 // Per architecture (ADR 0010): "Handlers map event → job payload, worker calls use case."
 
 import type { EventBus } from '#/shared/events/event-bus'
-import type { Queue } from 'bullmq'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
-import type { RecognitionLookupPort } from '../../application/ports/recognition-lookup.port'
+import type { ResponsibleManagerLookupPort } from '../../application/ports/responsible-manager-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { onInboxItemCreated } from './on-inbox-item-created'
 import { onInboxItemAssigned } from './on-inbox-item-assigned'
@@ -17,15 +16,19 @@ import { onReplyApproved } from './on-reply-approved'
 import { onReplyRejected } from './on-reply-rejected'
 import { onReplyPublished } from './on-reply-published'
 import { onReplyPublishFailed } from './on-reply-publish-failed'
-import { onGoalCompleted } from './on-goal-completed'
-import { onBadgeAwarded } from './on-badge-awarded'
+import {
+  onGoogleReauthorizationRequired,
+  type GoogleConnectionPropertyLookup,
+} from './on-google-reauthorization-required'
+import type { NotificationJobEnqueuePort } from '../inbox-notification-fanout'
 
 export type RegisterNotificationHandlersDeps = Readonly<{
   events: EventBus
-  queue: Queue
+  queue: NotificationJobEnqueuePort
   userLookup: UserLookupPort
+  responsibleManagers: ResponsibleManagerLookupPort
   inboxItemLookup: InboxItemLookupPort
-  recognitionLookup: RecognitionLookupPort
+  googleConnectionProperties: GoogleConnectionPropertyLookup
   /** Injected — handlers measure a waiting age, and this code never calls Date.now(). */
   clock: () => Date
   logger: LoggerPort
@@ -34,15 +37,27 @@ export type RegisterNotificationHandlersDeps = Readonly<{
 export const registerNotificationHandlers = (
   deps: RegisterNotificationHandlersDeps,
 ): void => {
-  const { events, queue, userLookup, inboxItemLookup, recognitionLookup, clock, logger } =
-    deps
+  const {
+    events,
+    queue,
+    userLookup,
+    responsibleManagers,
+    inboxItemLookup,
+    googleConnectionProperties,
+    clock,
+    logger,
+  } = deps
 
   // Every inbox-keyed handler assembles its payload from the same four things:
   // the item facts, the acting user's role, a clock for the waiting age, and a
   // logger for a degraded lookup.
-  const inboxFacts = { userLookup, inboxItemLookup, clock, logger }
-  const recognitionFacts = { userLookup, recognitionLookup, logger }
-
+  const inboxFacts = {
+    userLookup,
+    responsibleManagers,
+    inboxItemLookup,
+    clock,
+    logger,
+  }
   // Inbox events (reviews + feedback both arrive via inbox.inbox_item.created)
   events.on('inbox.inbox_item.created', onInboxItemCreated({ queue, ...inboxFacts }), {
     consumer: 'notification.event-handlers',
@@ -82,13 +97,14 @@ export const registerNotificationHandlers = (
 
     { consumer: 'notification.event-handlers' },
   )
-  // Goal events
-  events.on('goal.completed', onGoalCompleted({ queue, ...recognitionFacts }), {
-    consumer: 'notification.event-handlers',
-  })
-
-  // Badge events
-  events.on('badge.awarded', onBadgeAwarded({ queue, ...recognitionFacts }), {
-    consumer: 'notification.event-handlers',
-  })
+  events.on(
+    'integration.google_account.reauthorization_required',
+    onGoogleReauthorizationRequired({
+      queue,
+      userLookup,
+      googleConnectionProperties,
+      logger,
+    }),
+    { consumer: 'notification.event-handlers' },
+  )
 }

@@ -42,6 +42,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     publishedAt: null,
     publicationState: null,
     publicationAttempts: 0,
+    publicationCycle: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
     createdAt: NOW,
@@ -101,7 +102,7 @@ export const DraftOverLimit: Story = {
   args: { reply: makeReply({ status: 'draft', text: 'x'.repeat(5000) }) },
 }
 
-// status='pending_approval' → ReplyPendingApproval (Approve / Reject).
+// status='pending_approval' → ReplyPendingApproval (Confirm & Publish / Reject).
 export const PendingApproval: Story = {
   args: {
     reply: makeReply({
@@ -112,19 +113,19 @@ export const PendingApproval: Story = {
   },
 }
 
-// status='approved' → read-only "Publishing..." view.
+// status='approved' → read-only "Waiting for Google" view.
 export const Approved: Story = {
   args: { reply: makeReply({ status: 'approved', approvedAt: NOW }) },
 }
 
-// status='published' → green "Published" badge + timestamp.
+// status='published' → green "Confirmed on Google" badge + timestamp.
 export const Published: Story = {
   args: {
     reply: makeReply({ status: 'published', publishedAt: NOW, approvedAt: NOW }),
   },
 }
 
-// status='publish_failed' → "Publish Failed" + Retry affordance.
+// status='publish_failed' → calm "Needs a check" + safe retry affordance.
 export const PublishFailed: Story = {
   args: { reply: makeReply({ status: 'publish_failed', approvedAt: NOW }) },
 }

@@ -1,31 +1,44 @@
-import { readFile, stat } from 'node:fs/promises'
-import { getDb } from '../../src/shared/db'
+import { constants } from 'node:fs'
+import { open } from 'node:fs/promises'
 import {
   createGoogleContentRoleSignatureVerifier,
   parseGoogleContentApprovalBundle,
   parseGoogleContentRolePublicKeys,
   validateGoogleContentApprovalBundle,
 } from '../../src/shared/auth/google-content-approval'
-import { createGoogleContentApprovalInstaller } from '../../src/shared/auth/google-content-authority'
-import { createGoogleContentAuthorityRepository } from '../../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 import { runOperatorCommand } from './operator-command'
 
 const MAX_BUNDLE_BYTES = 5 * 1024 * 1024
 const PUBLIC_KEYS_ENV = 'GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON'
-const USAGE =
-  'pnpm ops:google-content-approval <bundle.json> --operator <id> [--reason <text> --ticket <ref> --apply]'
+const USAGE = 'pnpm ops:google-content-approval <bundle.json> --operator <id>'
 
+// Stat the descriptor, not the path. This command takes an operator-supplied
+// path on a shared ops host, so a `stat(path)` then `readFile(path)` pair
+// checks one inode and reads another if the path is swapped in between — the
+// size bound that was checked is not the bound that was read. Opening once and
+// validating the open descriptor makes them the same object by construction.
+//
+// O_NONBLOCK is what keeps that safe: the `isFile()` guard can only run AFTER
+// the open, and a plain read-only open of a FIFO blocks until a writer appears,
+// so the very path swap this guards against could otherwise hang the command
+// forever. With O_NONBLOCK the open returns, `stat` reports the FIFO, and the
+// guard refuses it. No effect on a regular file.
 async function readJsonFile(path: string): Promise<unknown> {
-  const metadata = await stat(path)
-  if (!metadata.isFile() || metadata.size > MAX_BUNDLE_BYTES) {
-    throw new Error('approval_bundle_invalid')
-  }
-  const bytes = await readFile(path)
-  if (bytes.byteLength > MAX_BUNDLE_BYTES) throw new Error('approval_bundle_invalid')
+  const handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK)
   try {
-    return JSON.parse(bytes.toString('utf8'))
-  } catch {
-    throw new Error('approval_bundle_invalid')
+    const metadata = await handle.stat()
+    if (!metadata.isFile() || metadata.size > MAX_BUNDLE_BYTES) {
+      throw new Error('approval_bundle_invalid')
+    }
+    const bytes = await handle.readFile()
+    if (bytes.byteLength > MAX_BUNDLE_BYTES) throw new Error('approval_bundle_invalid')
+    try {
+      return JSON.parse(bytes.toString('utf8'))
+    } catch {
+      throw new Error('approval_bundle_invalid')
+    }
+  } finally {
+    await handle.close()
   }
 }
 
@@ -53,6 +66,12 @@ async function main(): Promise<void> {
     async (ctx, args, io) => {
       if (args.positionals.length !== 1) {
         io.err(`Usage: ${USAGE}`)
+        return 1
+      }
+      if (!ctx.dryRun) {
+        io.err(
+          '--apply is blocked before approval installation: this command validates one private bundle only. Use pnpm infra:railway:google-content-approval plan, then apply or recover the unchanged reviewed cell-us intent',
+        )
         return 1
       }
 
@@ -87,29 +106,13 @@ async function main(): Promise<void> {
       }
 
       const binding = validation.binding
-      if (ctx.dryRun) {
-        // routeCatalogue is approval-bound: the bundle must carry the exact
-        // compiled GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION or parsing above
-        // already refused it. Printed so the operator can confirm which
-        // catalogue this approval authorizes.
-        io.out(
-          `validated capability=${binding.capability} phase=${binding.targetPhase} release=${binding.releaseSha} routeCatalogue=${binding.routeCatalogueVersion} performanceCatalog=${binding.performanceCatalogVersion} expires=${binding.expiresAt}; re-run with --apply`,
-        )
-        return
-      }
-
-      const installer = createGoogleContentApprovalInstaller({
-        store: createGoogleContentAuthorityRepository(getDb()),
-        clock: () => new Date(),
-        verifyRoleApproval,
-      })
-      const installed = await installer.installApproval(parsedBundle.bundle)
-      if (!installed.ok) {
-        io.err(`approval_refused code=${installed.code}`)
-        return 1
-      }
+      // routeCatalogue is approval-bound: the bundle must carry the exact
+      // compiled GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION or parsing above
+      // already refused it. Printed so the operator can confirm which
+      // catalogue this approval authorizes. Validation is the only permitted
+      // action here: the exact-target controller coordinates installation.
       io.out(
-        `approval_installed capability=${binding.capability} phase=${binding.targetPhase} routeCatalogue=${binding.routeCatalogueVersion} binding=${installed.approvalBindingId}`,
+        `validated capability=${binding.capability} phase=${binding.targetPhase} release=${binding.releaseSha} routeCatalogue=${binding.routeCatalogueVersion} performanceCatalog=${binding.performanceCatalogVersion} expires=${binding.expiresAt}; use the reviewed exact-target activation controller`,
       )
     },
   )

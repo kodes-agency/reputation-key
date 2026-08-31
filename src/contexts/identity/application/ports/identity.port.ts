@@ -7,6 +7,7 @@ import type { Permission } from '#/shared/domain/permissions'
 import type { DataScope } from '#/shared/domain/data-scope'
 import type { OrganizationId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
 
 /** Organization member shape returned by the port. */
 export type MemberRecord = Readonly<{
@@ -45,18 +46,21 @@ export type OrganizationRecord = Readonly<{
   logo: string | null
   createdAt: Date
   contactEmail: string | null
-  billingCompanyName: string | null
-  billingAddress: string | null
-  billingCity: string | null
-  billingPostalCode: string | null
-  billingCountry: string | null
   responseSlaHours: number
 }>
 
 /** Port for identity operations — wraps better-auth API calls. */
 export type IdentityPort = Readonly<{
-  /** Sign up a new user. Returns user ID. */
-  signUp: (name: string, email: string, password: string) => Promise<string>
+  /**
+   * Sign up a new user. Returns user ID. When supplied, expectedUserId is a
+   * recovery-fenced identities allocated before provider work begins.
+   */
+  signUp: (
+    name: string,
+    email: string,
+    password: string,
+    expectedAuthIds?: RegistrationAuthIds,
+  ) => Promise<string>
 
   /** List members of the active organization. */
   listMembers: (ctx: AuthContext) => Promise<ReadonlyArray<MemberRecord>>
@@ -85,15 +89,15 @@ export type IdentityPort = Readonly<{
   ) => Promise<Readonly<{ id: string; email: string; name?: string }> | null>
 
   /**
-   * Post-acceptance hook — auto-create staff assignments for the invited
-   * properties (replaces BA's afterAcceptInvitation hook, which the app-owned
-   * accept path bypasses). Failure-isolated inside the adapter.
+   * Post-acceptance hook — provision the explicitly invited Property access
+   * grants (replaces BA's afterAcceptInvitation hook, which the app-owned
+   * accept path bypasses). It never creates Staff participation or attribution.
+   * Failure-isolated inside the adapter.
    */
   runOnAcceptInvitation: (ctx: {
     userId: string
     organizationId: string
     propertyIds: ReadonlyArray<string>
-    displayName?: string
   }) => Promise<void>
 
   /**

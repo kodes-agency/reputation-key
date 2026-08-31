@@ -21,13 +21,11 @@ const FIXED_PROPERTY = propertyId('a0000000-0000-0000-0000-000000000001')
 const allAccessStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const noAccessStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => [],
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const allowAllMembership: IdentityMembershipPort = { isMember: async () => true }
@@ -164,6 +162,40 @@ describe('createStaffAssignment', () => {
       (e) =>
         isStaffError(e) && (e.code === 'invalid_input' || e.code === 'already_assigned'),
     )
+  })
+
+  it('denies self-assignment when current staff.manage scope is assigned-only despite an AccountAdmin label', async () => {
+    const { useCase, assignmentRepo } = setup()
+    const ctx = buildTestAuthContext({
+      role: 'AccountAdmin',
+      effectivePermissions: new Set(['staff.manage']),
+      scopeByPermission: new Map([['staff.manage', 'assigned-properties']]),
+    })
+
+    await expect(
+      useCase(
+        { userId: ctx.userId as string, propertyId: FIXED_PROPERTY as string },
+        ctx,
+      ),
+    ).rejects.toSatisfy((e) => isStaffError(e) && e.code === 'invalid_input')
+    expect(assignmentRepo.all()).toHaveLength(0)
+  })
+
+  it('allows self-assignment when current staff.manage scope is organization-wide despite a PropertyManager label', async () => {
+    const { useCase, assignmentRepo } = setup()
+    const ctx = buildTestAuthContext({
+      role: 'PropertyManager',
+      effectivePermissions: new Set(['staff.manage']),
+      scopeByPermission: new Map([['staff.manage', 'organization']]),
+    })
+
+    await expect(
+      useCase(
+        { userId: ctx.userId as string, propertyId: FIXED_PROPERTY as string },
+        ctx,
+      ),
+    ).resolves.toMatchObject({ userId: ctx.userId })
+    expect(assignmentRepo.all()).toHaveLength(1)
   })
 
   it('re-throws non-unique-constraint errors immediately', async () => {

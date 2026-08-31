@@ -1,10 +1,11 @@
 // BQC-4.1 — property region reconciliation (operator tool, real PostgreSQL).
 //
-// Phase BQC-4 §3/§4.1 + ADR 0048: backfill every non-deleted property's
+// Phase BQC-4 §3/§4.1 + ADR 0054 as amended by ADR 0057: reconcile every
+// non-deleted Property's
 // processing region from durable, property-owned country data with a reviewable
 // report — never a blind conversion (mirrors BQC-2.3 staff→grant
 // reconciliation). The report classifies each property; --apply converts
-// ONLY `resolvable` rows, bumps routing_policy_version in the same
+// ONLY `resolvable` rows, stamps the current catalogue policy in the same
 // statement, and is idempotent.
 //
 // Classifications (operator-review rows are NEVER auto-converted):
@@ -12,10 +13,15 @@
 //   resolvable — unresolved + property-level country present (apply converts)
 //   missing    — no property-level country (stays unresolved; operator action)
 //   conflict   — resolved region disagrees with the stored country
-//   ambiguous  — country maps to the denied 'global' placeholder
+//   ambiguous  — stored country is not covered by the signed catalogue
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
 import { resolveRegion } from '#/shared/domain/processing-profile'
+import {
+  DATA_CELL_CATALOGUE_POLICY_VERSION,
+  dataCellById,
+} from '#/shared/domain/data-cell-catalogue'
 
 export type RegionClassification =
   'resolved' | 'resolvable' | 'missing' | 'conflict' | 'ambiguous'
@@ -26,6 +32,7 @@ export type RegionReconcileRow = Readonly<{
   countryCode: string | null
   countrySource: string | null
   processingRegion: string | null
+  dataCellId: string | null
   classification: RegionClassification
   /** Content-free explanation for operators (region/country codes only). */
   detail: string
@@ -59,6 +66,7 @@ type PropertyScanRow = Readonly<{
   country_code: string | null
   country_source: string | null
   processing_region: string | null
+  data_cell_id: string | null
 }>
 
 async function loadProperties(
@@ -70,7 +78,7 @@ async function loadProperties(
     : sql``
   const rows = await db.execute(sql`
     SELECT p.id, p.organization_id, p.country_code, p.country_source,
-           p.processing_region
+           p.processing_region, p.data_cell_id
     FROM properties p
     WHERE p.deleted_at IS NULL
     ${orgFilter}
@@ -85,15 +93,36 @@ function classify(r: PropertyScanRow): RegionReconcileRow {
     countryCode: r.country_code,
     countrySource: r.country_source,
     processingRegion: r.processing_region,
+    dataCellId: r.data_cell_id,
   }
   const region =
     r.processing_region && r.processing_region !== 'unresolved'
       ? r.processing_region
       : null
   const country = r.country_code?.trim().toUpperCase() || null
+  const derived = country ? resolveRegion(country) : 'unresolved'
+
+  if (r.data_cell_id) {
+    if (
+      !dataCellById(r.data_cell_id) ||
+      region !== r.data_cell_id ||
+      (country !== null && derived !== r.data_cell_id)
+    ) {
+      return {
+        ...base,
+        classification: 'conflict',
+        detail: `canonical Data Cell ${r.data_cell_id} conflicts with legacy region ${region ?? 'unresolved'} or stored country ${country ?? 'missing'}`,
+      }
+    }
+    return {
+      ...base,
+      classification: 'resolved',
+      detail: 'canonical Data Cell set and consistent with stored country',
+    }
+  }
 
   if (region) {
-    if (country && resolveRegion(country) !== region) {
+    if (!dataCellById(region) || (country && derived !== region)) {
       return {
         ...base,
         classification: 'conflict',
@@ -102,8 +131,8 @@ function classify(r: PropertyScanRow): RegionReconcileRow {
     }
     return {
       ...base,
-      classification: 'resolved',
-      detail: 'region set and consistent with stored country',
+      classification: 'resolvable',
+      detail: `legacy region ${region} is valid; canonical Data Cell assignment is missing`,
     }
   }
   if (!country) {
@@ -113,22 +142,23 @@ function classify(r: PropertyScanRow): RegionReconcileRow {
       detail: 'no property-level country',
     }
   }
-  if (resolveRegion(country) === 'global') {
+  if (derived === 'unresolved') {
     return {
       ...base,
       classification: 'ambiguous',
-      detail: `country ${country} maps to the denied 'global' placeholder — operator must decide`,
+      detail: `country ${country} is not covered by the signed Data Cell catalogue`,
     }
   }
   return {
     ...base,
     classification: 'resolvable',
-    detail: `country ${country} resolves to region ${resolveRegion(country)}`,
+    detail: `country ${country} resolves to Data Cell ${derived}`,
   }
 }
 
 export async function buildRegionReconcileReport(
   db: Database,
+  clock: Clock,
   scope?: RegionReconcileScope,
 ): Promise<RegionReconcileReport> {
   const rows = (await loadProperties(db, scope)).map(classify)
@@ -173,7 +203,7 @@ export async function buildRegionReconcileReport(
       r.classification === 'ambiguous',
   )
 
-  return { organizations, rows, reviewRows, generatedAt: new Date() }
+  return { organizations, rows, reviewRows, generatedAt: clock() }
 }
 
 export async function applyRegionReconciliation(
@@ -188,21 +218,23 @@ export async function applyRegionReconciliation(
   for (const row of rows) {
     if (row.classification !== 'resolvable' || row.countryCode == null) continue
     const region = resolveRegion(row.countryCode.trim().toUpperCase())
-    // One UPDATE per property (ADR 0048): resolve the region with
+    // One UPDATE per Property (ADR 0054 as amended by ADR 0057): resolve with
     // country_default provenance (mirrors resolvePropertyRouting), stamp the
-    // resolution time, and bump routing_policy_version in the same statement.
+    // resolution time and stamp the current routing policy in the same statement.
     // The WHERE guard keeps it idempotent and never clobbers a concurrent
     // manual correction (region resolved elsewhere, or country changed).
     const updated = await db.execute(sql`
       UPDATE properties
       SET processing_region = ${region},
+          data_cell_id = ${region},
           processing_region_source = 'country_default',
           processing_region_resolved_at = now(),
-          routing_policy_version = routing_policy_version + 1,
+          routing_policy_version = ${DATA_CELL_CATALOGUE_POLICY_VERSION},
           updated_at = now()
       WHERE id = ${row.propertyId}
         AND deleted_at IS NULL
-        AND (processing_region IS NULL OR processing_region = 'unresolved')
+        AND data_cell_id IS NULL
+        AND (processing_region IS NULL OR processing_region = 'unresolved' OR processing_region = ${region})
         AND country_code = ${row.countryCode}
       RETURNING id
     `)

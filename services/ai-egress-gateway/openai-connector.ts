@@ -4,7 +4,7 @@ import { createHash, timingSafeEqual, type KeyObject } from 'node:crypto'
 import OpenAI from 'openai'
 import { zodTextFormat } from 'openai/helpers/zod'
 import { Agent, request as undiciRequest, type Dispatcher } from 'undici'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { AI_OPERATION_PROFILES } from '../../src/shared/ai-operation-profiles'
 import {
   explainJsonBytesRejection,
@@ -582,14 +582,22 @@ export function createPinnedOpenAiRequestFetch(dispatcher: Dispatcher): typeof f
   }) as typeof fetch
 }
 
+export const PINNED_OPENAI_DISPATCHER_LIMITS = Object.freeze({
+  // The byte-attestation and one-request isolation contract is HTTP/1.1.
+  // Undici enables H2 negotiation by default, where pipelining and
+  // maxRequestsPerClient do not enforce these HTTP/1-only bounds.
+  allowH2: false,
+  connections: 1,
+  pipelining: 0,
+  maxRequestsPerClient: 1,
+  keepAliveTimeout: 1,
+  keepAliveMaxTimeout: 1,
+} as const)
+
 function createPinnedOpenAiOutboundFetch(): PinnedOpenAiOutbound {
   const restrictedLookup = createRestrictedOpenAiLookup()
   const dispatcher = new Agent({
-    connections: 1,
-    pipelining: 0,
-    maxRequestsPerClient: 1,
-    keepAliveTimeout: 1,
-    keepAliveMaxTimeout: 1,
+    ...PINNED_OPENAI_DISPATCHER_LIMITS,
     connect: {
       servername: 'api.openai.com',
       minVersion: 'TLSv1.2',

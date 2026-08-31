@@ -9,18 +9,10 @@ import { useMemo, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
-import {
-  useNotificationFormat,
-  useNotifications,
-  useUnreadNotificationCount,
-} from './notification-queries'
+import { useNotificationFormat, useNotifications } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
-import {
-  groupByReadState,
-  matchesNotificationFilter,
-  type NotificationFilter,
-} from './notification-filters'
+import { groupByReadState, type NotificationFilter } from './notification-filters'
 import { NotificationPopoverContent } from './notification-popover-content'
 import type { NotificationServerFns, NotificationRowActions } from './types'
 import type { Notification } from '#/contexts/notification/application/public-api'
@@ -48,27 +40,27 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
   const [filter, setFilter] = useState<NotificationFilter>('all')
   const { announcement, announce } = useNotificationAnnouncer()
 
-  const { count } = useUnreadNotificationCount(
-    notificationFns.getUnreadCount,
+  // The badge and list head are one snapshot. Polling the shared head while
+  // closed keeps the bell current without a second, racing count request.
+  const list = useNotifications(
+    notificationFns.getFeedHead,
+    notificationFns.getList,
     organizationId,
+    PAGE_SIZE,
+    filter,
+    true,
   )
-  // Polls only while open: the list used to go stale beside a live badge.
-  const list = useNotifications(notificationFns.getList, organizationId, PAGE_SIZE, open)
+  const count = list.unreadCount
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(
     notificationFns,
     organizationId,
     announce,
     PAGE_SIZE,
+    filter,
   )
 
-  const groups = useMemo(
-    () =>
-      groupByReadState(
-        list.notifications.filter((n) => matchesNotificationFilter(n, filter)),
-      ),
-    [list.notifications, filter],
-  )
+  const groups = useMemo(() => groupByReadState(list.notifications), [list.notifications])
 
   const actions: NotificationRowActions = {
     ...mutations,
@@ -83,8 +75,9 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        // Refetch, never invalidate: invalidating the org subtree used to evict
-        // the settings page's caches every time the bell was opened.
+        // Refetch the head, never invalidate: invalidating the org subtree used
+        // to evict settings caches, while refetching the old infinite query
+        // replayed every history page already loaded.
         if (next) list.refetch()
       }}
     >
@@ -121,11 +114,9 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
           filter={filter}
           onFilterChange={setFilter}
           isMarkingAllRead={mutations.isMarkingAllRead}
-          isClearingAll={mutations.isClearingAll}
           onRetry={list.refetch}
           onLoadMore={list.loadMore}
           onMarkAllRead={mutations.markAllRead}
-          onClearAll={mutations.clearAll}
           actions={actions}
           format={format}
           onViewAll={() => setOpen(false)}

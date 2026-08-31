@@ -21,6 +21,7 @@ const USER_2 = userId('user-00000000-0000-0000-0000-000000000002') as UserId
 const PROP_A1 = propertyId('d1000000-0000-0000-0000-000000000001') as PropertyId
 const PROP_A2 = propertyId('d1000000-0000-0000-0000-000000000002') as PropertyId
 const PROP_B1 = propertyId('d1000000-0000-0000-0000-000000000003') as PropertyId
+const CLOCK = () => new Date('2026-08-28T00:00:00.000Z')
 
 let pool: Pool
 
@@ -79,7 +80,7 @@ describe('staffAssignmentRepository (integration)', () => {
   describe('insert and findById', () => {
     it('inserts and retrieves a staff assignment', async () => {
       const db = getDb()
-      const repo = createStaffAssignmentRepository(db)
+      const repo = createStaffAssignmentRepository(db, CLOCK)
       const assignment = buildTestStaffAssignment({
         id: 'staff-findbyid-1',
         organizationId: ORG_A,
@@ -100,7 +101,7 @@ describe('staffAssignmentRepository (integration)', () => {
   describe('tenant isolation', () => {
     it('does not return assignments from other organizations', async () => {
       const db = getDb()
-      const repo = createStaffAssignmentRepository(db)
+      const repo = createStaffAssignmentRepository(db, CLOCK)
       const aA = buildTestStaffAssignment({
         id: 'staff-org-a',
         organizationId: ORG_A,
@@ -126,7 +127,7 @@ describe('staffAssignmentRepository (integration)', () => {
 
     it('listByUser only returns assignments for the given organization', async () => {
       const db = getDb()
-      const repo = createStaffAssignmentRepository(db)
+      const repo = createStaffAssignmentRepository(db, CLOCK)
       const aA = buildTestStaffAssignment({
         id: 'staff-user-a',
         organizationId: ORG_A,
@@ -154,7 +155,7 @@ describe('staffAssignmentRepository (integration)', () => {
 
     it('listByProperty only returns assignments for the given organization', async () => {
       const db = getDb()
-      const repo = createStaffAssignmentRepository(db)
+      const repo = createStaffAssignmentRepository(db, CLOCK)
       const aA = buildTestStaffAssignment({
         id: 'staff-prop-a',
         organizationId: ORG_A,
@@ -175,7 +176,7 @@ describe('staffAssignmentRepository (integration)', () => {
   describe('assignmentExists', () => {
     it('detects existing direct (no team) assignment', async () => {
       const db = getDb()
-      const repo = createStaffAssignmentRepository(db)
+      const repo = createStaffAssignmentRepository(db, CLOCK)
       const assignment = buildTestStaffAssignment({
         id: 'staff-exists-1',
         organizationId: ORG_A,
@@ -192,7 +193,7 @@ describe('staffAssignmentRepository (integration)', () => {
 
     it('distinguishes between direct and team assignments', async () => {
       const db = getDb()
-      const repo = createStaffAssignmentRepository(db)
+      const repo = createStaffAssignmentRepository(db, CLOCK)
       const TEST_TEAM = teamId('10000000-0000-0000-0000-000000000001')
 
       // Seed a team for the FK
@@ -225,7 +226,7 @@ describe('staffAssignmentRepository (integration)', () => {
   describe('softDelete', () => {
     it('removes assignment from queries but preserves row', async () => {
       const db = getDb()
-      const repo = createStaffAssignmentRepository(db)
+      const repo = createStaffAssignmentRepository(db, CLOCK)
       const assignment = buildTestStaffAssignment({
         id: 'staff-del',
         organizationId: ORG_A,
@@ -247,7 +248,7 @@ describe('staffAssignmentRepository (integration)', () => {
   describe('getAccessiblePropertyIds', () => {
     it('returns distinct property IDs for a user', async () => {
       const db = getDb()
-      const repo = createStaffAssignmentRepository(db)
+      const repo = createStaffAssignmentRepository(db, CLOCK)
 
       const a1 = buildTestStaffAssignment({
         id: 'staff-acc-1',
@@ -275,7 +276,7 @@ describe('staffAssignmentRepository (integration)', () => {
 
     it('does not leak properties from other organizations', async () => {
       const db = getDb()
-      const repo = createStaffAssignmentRepository(db)
+      const repo = createStaffAssignmentRepository(db, CLOCK)
 
       const aA = buildTestStaffAssignment({
         id: 'staff-cross-a',

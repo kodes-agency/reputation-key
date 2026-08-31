@@ -1,245 +1,125 @@
-// Staff context — listStaffPortals use case tests.
-// Covers portalId dedupe, null-portalId exclusion, publication filtering, and alphabetical sort.
-
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { listStaffPortals } from './list-staff-portals'
-import { createInMemoryStaffAssignmentRepo } from '#/shared/testing/in-memory-staff-assignment-repo'
-import { buildTestAuthContext, buildTestStaffAssignment } from '#/shared/testing/fixtures'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import type { StaffPortalLookupPort } from '../ports/portal-lookup.port'
-import { userId, propertyId, portalId } from '#/shared/domain/ids'
-import type { UserId, PropertyId, PortalId } from '#/shared/domain/ids'
+import type { PortalResponsibilityLookupPort } from '../ports/portal-responsibility-lookup.port'
+import { portalId, propertyId, userId } from '#/shared/domain/ids'
+import type { PortalId, PropertyId, UserId } from '#/shared/domain/ids'
 
 const TARGET_USER = userId('user-00000000-0000-0000-0000-0000000000aa') as UserId
 const TARGET_PROPERTY = propertyId('a0000000-0000-0000-0000-0000000000a1') as PropertyId
 
-/**
- * Fake StaffPortalLookupPort — holds a map of portalId → publication state
- * and answers getPortalInfo from it. listPortalIdsByProperty is unused by
- * this use case but required by the port type.
- */
 const createFakePortalLookup = (
   portals: Readonly<Record<string, { name: string; isActive: boolean }>>,
 ): StaffPortalLookupPort => ({
   listPortalIdsByProperty: async () => [],
-  getPortalInfo: async (_orgId, pid: PortalId) => {
-    const entry = portals[String(pid)]
+  getPortalInfo: async (_orgId, id: PortalId) => {
+    const entry = portals[String(id)]
     if (!entry) return null
     return {
-      id: pid,
+      id,
       name: entry.name,
       publicationState: entry.isActive ? 'published' : 'disabled',
     }
   },
 })
 
-const setup = (
+function setup(
+  assignedPortalIds: ReadonlyArray<PortalId> = [],
   portals: Readonly<Record<string, { name: string; isActive: boolean }>> = {},
-) => {
-  const assignmentRepo = createInMemoryStaffAssignmentRepo()
+) {
+  const responsibilityLookup: PortalResponsibilityLookupPort = {
+    listAssignedPortalIds: vi.fn(async () => assignedPortalIds),
+  }
   const portalLookup = createFakePortalLookup(portals)
-  const useCase = listStaffPortals({ assignmentRepo, portalLookup })
-  return { useCase, assignmentRepo, portalLookup }
+  return {
+    useCase: listStaffPortals({ responsibilityLookup, portalLookup }),
+    responsibilityLookup,
+  }
 }
 
 describe('listStaffPortals', () => {
-  it('dedupes duplicate portalIds across assignments', async () => {
+  it('resolves portals from current Portal Responsibility', async () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const dupPortal = portalId('p-00000000-0000-0000-0000-000000000001') as PortalId
-    const { useCase, assignmentRepo } = setup({
-      [String(dupPortal)]: { name: 'Only Portal', isActive: true },
+    const assignedPortal = portalId('p-00000000-0000-0000-0000-000000000000') as PortalId
+    const { useCase, responsibilityLookup } = setup([assignedPortal], {
+      [String(assignedPortal)]: { name: 'Responsible Portal', isActive: true },
     })
-
-    // Two assignments pointing at the same portalId for the same user/property.
-    assignmentRepo.seed([
-      buildTestStaffAssignment({
-        organizationId: ctx.organizationId,
-        userId: TARGET_USER,
-        propertyId: TARGET_PROPERTY,
-        portalId: dupPortal,
-      }),
-      buildTestStaffAssignment({
-        id: 'c0000000-0000-0000-0000-000000000002',
-        organizationId: ctx.organizationId,
-        userId: TARGET_USER,
-        propertyId: TARGET_PROPERTY,
-        portalId: dupPortal,
-      }),
-    ])
 
     const result = await useCase(
       { userId: TARGET_USER, propertyId: TARGET_PROPERTY },
       ctx,
     )
-    expect(result.portals).toHaveLength(1)
-    expect(result.portals[0].id).toBe(dupPortal)
+
+    expect(responsibilityLookup.listAssignedPortalIds).toHaveBeenCalledWith(
+      ctx.organizationId,
+      TARGET_USER,
+      TARGET_PROPERTY,
+    )
+    expect(result.portals).toEqual([{ id: assignedPortal, name: 'Responsible Portal' }])
   })
 
-  it('excludes assignments with a null portalId', async () => {
+  it('deduplicates reconciled responsibility rows', async () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const withPortal = portalId('p-00000000-0000-0000-0000-000000000010') as PortalId
-    const { useCase, assignmentRepo } = setup({
-      [String(withPortal)]: { name: 'With Portal', isActive: true },
+    const assignedPortal = portalId('p-00000000-0000-0000-0000-000000000001') as PortalId
+    const { useCase } = setup([assignedPortal, assignedPortal], {
+      [String(assignedPortal)]: { name: 'Only Portal', isActive: true },
     })
-
-    // One assignment scoped to a portal, one direct (portalId = null).
-    assignmentRepo.seed([
-      buildTestStaffAssignment({
-        organizationId: ctx.organizationId,
-        userId: TARGET_USER,
-        propertyId: TARGET_PROPERTY,
-        portalId: withPortal,
-      }),
-      buildTestStaffAssignment({
-        id: 'c0000000-0000-0000-0000-000000000002',
-        organizationId: ctx.organizationId,
-        userId: TARGET_USER,
-        propertyId: TARGET_PROPERTY,
-        portalId: null,
-      }),
-    ])
 
     const result = await useCase(
       { userId: TARGET_USER, propertyId: TARGET_PROPERTY },
       ctx,
     )
-    // Only the portal-scoped assignment contributes; the null one is skipped.
-    expect(result.portals).toHaveLength(1)
-    expect(result.portals[0].id).toBe(withPortal)
+
+    expect(result.portals).toEqual([{ id: assignedPortal, name: 'Only Portal' }])
   })
 
-  it('filters out inactive portals', async () => {
+  it('excludes unpublished portals', async () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const activePortal = portalId('p-00000000-0000-0000-0000-000000000020') as PortalId
-    const inactivePortal = portalId('p-00000000-0000-0000-0000-000000000021') as PortalId
-    const { useCase, assignmentRepo } = setup({
-      [String(activePortal)]: { name: 'Active', isActive: true },
-      [String(inactivePortal)]: { name: 'Inactive', isActive: false },
+    const published = portalId('p-00000000-0000-0000-0000-000000000020') as PortalId
+    const disabled = portalId('p-00000000-0000-0000-0000-000000000021') as PortalId
+    const { useCase } = setup([published, disabled], {
+      [String(published)]: { name: 'Published', isActive: true },
+      [String(disabled)]: { name: 'Disabled', isActive: false },
     })
-
-    assignmentRepo.seed([
-      buildTestStaffAssignment({
-        organizationId: ctx.organizationId,
-        userId: TARGET_USER,
-        propertyId: TARGET_PROPERTY,
-        portalId: activePortal,
-      }),
-      buildTestStaffAssignment({
-        id: 'c00000000-0000-0000-0000-000000000002',
-        organizationId: ctx.organizationId,
-        userId: TARGET_USER,
-        propertyId: TARGET_PROPERTY,
-        portalId: inactivePortal,
-      }),
-    ])
 
     const result = await useCase(
       { userId: TARGET_USER, propertyId: TARGET_PROPERTY },
       ctx,
     )
-    expect(result.portals).toHaveLength(1)
-    expect(result.portals[0].id).toBe(activePortal)
+
+    expect(result.portals).toEqual([{ id: published, name: 'Published' }])
   })
 
   it('sorts portals alphabetically by name', async () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    // Names intentionally out of alphabetical order.
     const zeta = portalId('p-00000000-0000-0000-0000-000000000030') as PortalId
     const alpha = portalId('p-00000000-0000-0000-0000-000000000031') as PortalId
     const middle = portalId('p-00000000-0000-0000-0000-000000000032') as PortalId
-    const { useCase, assignmentRepo } = setup({
+    const { useCase } = setup([zeta, alpha, middle], {
       [String(zeta)]: { name: 'Zeta Portal', isActive: true },
       [String(alpha)]: { name: 'Alpha Portal', isActive: true },
       [String(middle)]: { name: 'Middle Portal', isActive: true },
     })
 
-    assignmentRepo.seed([
-      buildTestStaffAssignment({
-        organizationId: ctx.organizationId,
-        userId: TARGET_USER,
-        propertyId: TARGET_PROPERTY,
-        portalId: zeta,
-      }),
-      buildTestStaffAssignment({
-        id: 'c0000000-0000-0000-0000-000000000002',
-        organizationId: ctx.organizationId,
-        userId: TARGET_USER,
-        propertyId: TARGET_PROPERTY,
-        portalId: alpha,
-      }),
-      buildTestStaffAssignment({
-        id: 'c0000000-0000-0000-0000-000000000003',
-        organizationId: ctx.organizationId,
-        userId: TARGET_USER,
-        propertyId: TARGET_PROPERTY,
-        portalId: middle,
-      }),
-    ])
-
     const result = await useCase(
       { userId: TARGET_USER, propertyId: TARGET_PROPERTY },
       ctx,
     )
-    expect(result.portals.map((p) => p.name)).toEqual([
+
+    expect(result.portals.map((portal) => portal.name)).toEqual([
       'Alpha Portal',
       'Middle Portal',
       'Zeta Portal',
     ])
   })
 
-  it('returns an empty list when the user has no portal-scoped assignments', async () => {
+  it('returns an empty list when no current responsibility exists', async () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const { useCase, assignmentRepo } = setup()
+    const { useCase } = setup()
 
-    // Only a direct (null-portal) assignment.
-    assignmentRepo.seed([
-      buildTestStaffAssignment({
-        organizationId: ctx.organizationId,
-        userId: TARGET_USER,
-        propertyId: TARGET_PROPERTY,
-        portalId: null,
-      }),
-    ])
-
-    const result = await useCase(
-      { userId: TARGET_USER, propertyId: TARGET_PROPERTY },
-      ctx,
-    )
-    expect(result.portals).toEqual([])
-  })
-
-  it('only considers assignments for the target user + property in the current org', async () => {
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const portalForTarget = portalId('p-00000000-0000-0000-0000-000000000040') as PortalId
-    const portalForOtherUser = portalId(
-      'p-00000000-0000-0000-0000-000000000041',
-    ) as PortalId
-    const { useCase, assignmentRepo } = setup({
-      [String(portalForTarget)]: { name: 'Target Portal', isActive: true },
-      [String(portalForOtherUser)]: { name: 'Other Portal', isActive: true },
-    })
-
-    assignmentRepo.seed([
-      buildTestStaffAssignment({
-        organizationId: ctx.organizationId,
-        userId: TARGET_USER,
-        propertyId: TARGET_PROPERTY,
-        portalId: portalForTarget,
-      }),
-      // Different user, same property — must not leak into the target's listing.
-      buildTestStaffAssignment({
-        id: 'c0000000-0000-0000-0000-000000000002',
-        organizationId: ctx.organizationId,
-        userId: userId('user-00000000-0000-0000-0000-0000000000bb') as UserId,
-        propertyId: TARGET_PROPERTY,
-        portalId: portalForOtherUser,
-      }),
-    ])
-
-    const result = await useCase(
-      { userId: TARGET_USER, propertyId: TARGET_PROPERTY },
-      ctx,
-    )
-    expect(result.portals).toHaveLength(1)
-    expect(result.portals[0].id).toBe(portalForTarget)
+    await expect(
+      useCase({ userId: TARGET_USER, propertyId: TARGET_PROPERTY }, ctx),
+    ).resolves.toEqual({ portals: [] })
   })
 })

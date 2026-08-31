@@ -30,6 +30,7 @@ describe('buildPortal', () => {
       expect(result.value.name).toBe('Test Portal')
       expect(result.value.entityType).toBe('property')
       expect(result.value.publicationState).toBe('draft')
+      expect(result.value.privateFeedbackThreshold).toBe(3)
     }
   })
 
@@ -80,6 +81,26 @@ describe('buildPortal', () => {
       },
     })
     expect(result.isOk()).toBe(true)
+  })
+
+  it('accepts a custom inclusive private-feedback threshold', () => {
+    const result = buildPortal({
+      ...base,
+      name: 'Test',
+      privateFeedbackThreshold: 4,
+    })
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) expect(result.value.privateFeedbackThreshold).toBe(4)
+  })
+
+  it('rejects a private-feedback threshold outside 1–5', () => {
+    const result = buildPortal({
+      ...base,
+      name: 'Test',
+      privateFeedbackThreshold: 0,
+    })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) expect(result.error.code).toBe('invalid_threshold')
   })
 
   it('sets entityId to propertyId by default', () => {
@@ -135,6 +156,7 @@ describe('buildPortalLink', () => {
       categoryId: portalLinkCategoryId('cat-1'),
       portalId: portalId('portal-1'),
       organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
       label: 'Google Review',
       url: 'https://google.com/review',
       sortKey: 'a0',
@@ -154,6 +176,7 @@ describe('buildPortalLink', () => {
       categoryId: portalLinkCategoryId('cat-1'),
       portalId: portalId('portal-1'),
       organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
       label: 'Test',
       url: 'https://example.com',
       iconKey: 'google',
@@ -172,6 +195,7 @@ describe('buildPortalLink', () => {
       categoryId: portalLinkCategoryId('cat-1'),
       portalId: portalId('portal-1'),
       organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
       label: 'Test',
       url: 'not-a-url',
       sortKey: 'a0',
@@ -189,6 +213,7 @@ describe('buildPortalLink', () => {
       categoryId: portalLinkCategoryId('cat-1'),
       portalId: portalId('portal-1'),
       organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
       label: '',
       url: 'https://example.com',
       sortKey: 'a0',

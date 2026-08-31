@@ -1,5 +1,12 @@
 # Product Readiness Program — July 2026
 
+> **Historical program index.** The research, accepted ADRs, Google response,
+> and AI governance records linked here remain evidence, but the July beta and
+> post-beta plans are superseded as execution instructions by the
+> [August 2026 comprehensive beta implementation program](../comprehensive-beta-implementation-program-2026-08-25.md).
+> Where they differ, use the August product contract and current executable
+> capability/status authorities.
+
 This folder contains the AI, PRE17, beta-readiness, Google-policy, and post-beta product-completion material prepared together in July 2026. Historical plans that predate this program remain in their original folders.
 
 ## Recommended reading order

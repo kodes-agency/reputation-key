@@ -186,3 +186,14 @@ describe('property.delete permission', () => {
     expect(can('Staff', 'property.delete')).toBe(false)
   })
 })
+
+describe('recoverable Property lifecycle permissions', () => {
+  it.each(['property.archive', 'property.restore', 'property.disconnect'] as const)(
+    'allows only AccountAdmin for %s',
+    (permission) => {
+      expect(can('AccountAdmin', permission)).toBe(true)
+      expect(can('PropertyManager', permission)).toBe(false)
+      expect(can('Staff', permission)).toBe(false)
+    },
+  )
+})

@@ -1,6 +1,11 @@
 import { z } from 'zod/v4'
+import {
+  DATA_CELL_IDS,
+  isBetaDeploymentDataCellId,
+} from '#/shared/domain/data-cell-catalogue'
+import { isRailwayPitrDatabaseUrl } from '#/shared/config/restore-mode'
 
-const envSchema = z.object({
+const baseEnvSchema = z.object({
   // Server
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3000),
@@ -34,6 +39,17 @@ const envSchema = z.object({
   // starts. Format is Resend's `whsec_<base64>`; the verifier strips the
   // prefix and base64-decodes the remainder as the HMAC-SHA256 key.
   RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // RFC 8058 bearer-capability signing keys shared by the web and worker in
+  // one Data Cell. Optional at schema level for expand/configure/cutover:
+  // optional mail refuses to send and the endpoint returns 503 while absent.
+  // Format: active-plus-retained versioned HMAC keys (v2:<64-hex>,v1:<64-hex>).
+  NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS:
+    process.env.NODE_ENV === 'production'
+      ? z.string().max(195).optional()
+      : z
+          .string()
+          .max(195)
+          .default(`dev:${'01'.repeat(32)}`),
   // RFC 5322 From header for every outbound message. Defaulted, not required,
   // so no deployment breaks on the upgrade — the default is the value that was
   // previously hardcoded in shared/auth/emails.ts.
@@ -51,6 +67,9 @@ const envSchema = z.object({
 
   // Redis — Upstash / Railway Redis
   REDIS_URL: z.string().optional(),
+  // Dedicated BullMQ Redis. Required and physically distinct from REDIS_URL
+  // by the production web/worker boot guard; dev/test may fall back to one.
+  QUEUE_REDIS_URL: z.string().optional(),
   // Dedicated non-persistent Redis for provider Content and short-lived
   // authorization records. Production composition requires a distinct TLS URL.
   PROVIDER_EPHEMERAL_REDIS_URL: z.string().optional(),
@@ -68,6 +87,18 @@ const envSchema = z.object({
   // RELEASE_SHA wins; Railway injects RAILWAY_GIT_COMMIT_SHA at build time.
   // Both optional — local/dev boots report 'unknown'.
   RELEASE_SHA: z.string().min(1).optional(),
+  // REG-03: digest of the canonical, Sigstore-verified promotion manifest.
+  // Optional during local development and the pre-promotion compatibility
+  // window; every digest-promoted Railway service receives the exact value.
+  // D1 (2026-08-29): PRESENCE alone is also the composition root's
+  // deployed-cell signal — applyProviderEndpointOverrides denies the
+  // local-sandbox provider profile and every endpoint override on it. Never
+  // set this outside a promotion: doing so breaks the local Compose stack,
+  // which rehearses the production images against the sandbox on purpose.
+  RELEASE_MANIFEST_SHA256: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
   RAILWAY_GIT_COMMIT_SHA: z.string().min(1).optional(),
   // Revision baked into Docker images through SOURCE_REVISION. Production
   // startup rejects a concrete RELEASE_SHA that names a different candidate.
@@ -91,7 +122,8 @@ const envSchema = z.object({
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
-  // Storage — AWS S3
+  // S3-compatible object storage. Beta uses a private Railway bucket; the
+  // AWS_S3_* names are retained because the adapter speaks the S3 protocol.
   AWS_S3_ACCESS_KEY: z.string().min(1).optional(),
   AWS_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   AWS_S3_BUCKET_NAME: z.string().min(1).optional(),
@@ -106,8 +138,10 @@ const envSchema = z.object({
     .optional()
     .transform((value) => value?.toLowerCase() === 'true'),
 
-  // Error tracking — Sentry (optional, Phase 22 for full integration)
-  SENTRY_DSN: z.string().optional(),
+  // Error tracking — optional for local/test execution. Every deployed
+  // production Data Cell requires a Germany-ingestion DSN at the monitoring
+  // preload boundary (shared/observability/telemetry.ts).
+  SENTRY_DSN: z.url().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
 
   // Guest sessions — required in production, dev-only default for convenience
@@ -161,28 +195,41 @@ const envSchema = z.object({
     .optional(),
   // App/worker -> Google egress gateway. All six values are an all-or-none
   // protected transport configuration validated by the composition root.
-  GOOGLE_EGRESS_GATEWAY_ORIGIN: z.string().url().optional(),
+  GOOGLE_EGRESS_GATEWAY_ORIGIN: z.url().optional(),
   GOOGLE_EGRESS_GATEWAY_SERVER_NAME: z.string().min(1).optional(),
   GOOGLE_INTERNAL_MTLS_CA_PATH: z.string().min(1).optional(),
   GOOGLE_INTERNAL_MTLS_CERT_PATH: z.string().min(1).optional(),
   GOOGLE_INTERNAL_MTLS_KEY_PATH: z.string().min(1).optional(),
+  // Railway and other variable-only runtimes cannot mount secret files. The
+  // base64 triplet is the no-disk equivalent of the legacy path triplet above.
+  // Composition accepts exactly one complete triplet and rejects partial or
+  // mixed configuration. The path form remains during the deployment
+  // expand/cutover window and can be contracted after every environment has
+  // moved to the variable-only form.
+  GOOGLE_INTERNAL_MTLS_CA_B64: z.string().min(1).optional(),
+  GOOGLE_INTERNAL_MTLS_CERT_B64: z.string().min(1).optional(),
+  GOOGLE_INTERNAL_MTLS_KEY_B64: z.string().min(1).optional(),
   GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
-  // Explicit operator opt-out for UNGOVERNED direct Google provider egress.
-  // The review adapter falls back to a direct `fetch` whenever the egress
-  // executor is absent — which happens merely by leaving the six values above
-  // unset — and that path bypasses admission, quota control, credential
-  // binding and mTLS. Absent (the default) means PRODUCTION REFUSES the
-  // fallback with a config error naming the missing fields; development and
-  // test are unaffected either way. Set to 'true' only for a production
-  // deployment that knowingly runs without the gateway.
-  GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS: z
-    .string()
-    .optional()
-    .transform((v) => v?.toLowerCase() === 'true'),
+  // Cross-environment credential broker Phase B. Railway exposes this through
+  // a public TCP proxy, so validate-only mode requires self-TLS/mTLS and exact
+  // cryptographic peer identities. No live-execution mode exists yet.
+  GOOGLE_CREDENTIAL_BROKER_MODE: z
+    .enum(['disabled', 'validate_only'])
+    .default('disabled'),
+  GOOGLE_CREDENTIAL_BROKER_PUBLIC_ORIGIN: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_SERVER_NAME: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_SERVICE_IDENTITY: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_PEER_IDENTITIES: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_MTLS_CA_B64: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_MTLS_CERT_B64: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_MTLS_KEY_B64: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_SIGNATURE_HMAC_KEYS: z.string().max(195).optional(),
+  GOOGLE_CREDENTIAL_BROKER_REPLAY_HMAC_KEYS: z.string().max(195).optional(),
+  GOOGLE_CREDENTIAL_ROUTING_HMAC_KEYS: z.string().max(195).optional(),
 
   // Web/worker -> AI egress gateway. All transport and settlement-verification
   // values are configured together; composition rejects partial configuration.
-  AI_EGRESS_GATEWAY_ORIGIN: z.string().url().optional(),
+  AI_EGRESS_GATEWAY_ORIGIN: z.url().optional(),
   AI_EGRESS_GATEWAY_SERVER_NAME: z.string().min(1).optional(),
   AI_INTERNAL_MTLS_CA_B64: z.string().min(1).optional(),
   AI_INTERNAL_MTLS_CERT_B64: z.string().min(1).optional(),
@@ -273,20 +320,33 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v?.toLowerCase() === 'true'),
+  // BQC-3.9: durable Inbox consumer cutover. Values are parsed by the shared
+  // cutover resolver at composition so invalid states fail startup closed.
+  DURABLE_CUTOVER_INBOX: z.string().optional(),
+  DURABLE_CUTOVER_INBOX_REVIEW_CREATED: z.string().optional(),
+  DURABLE_CUTOVER_INBOX_REVIEW_UPDATED: z.string().optional(),
+  DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED: z.string().optional(),
+  DURABLE_CUTOVER_INBOX_REVIEW_REPLY_PUBLISHED: z.string().optional(),
   // Org slugs/IDs suspended from the beta (B0.5 operator controls).
   BETA_SUSPENDED_ORGS: z.string().optional(),
-  // Number of trusted reverse proxies in front of the app (B0.7).
-  // Used to derive the real client IP from X-Forwarded-For safely.
+  // Deployed request-edge contract. Production defaults to Railway's documented
+  // X-Real-IP edge headers; local/test defaults to trusting no forwarding header.
+  TRUSTED_PROXY_MODE: z
+    .enum(['direct', 'railway-edge', 'xff'])
+    .default(process.env.NODE_ENV === 'production' ? 'railway-edge' : 'direct'),
+  // XFF mode only: number of trusted reverse proxies and maximum accepted chain.
   TRUSTED_PROXY_COUNT: z.coerce.number().int().min(0).default(1),
+  TRUSTED_PROXY_MAX_HOPS: z.coerce.number().int().min(1).max(32).default(8),
   // BQC-7.6: maximum accepted request body size in bytes (declared
   // content-length), enforced by the request-guard nitro plugin before
   // routing. Default 1 MiB — the largest legitimate payloads (portal image
   // uploads go through presigned S3 URLs, not this server).
   REQUEST_BODY_LIMIT_BYTES: z.coerce.number().int().min(1).default(1_048_576),
-  // BQC-4.2 / ADR 0048: the processing cell this process belongs to. 'us' is
-  // the only APPROVED beta cell; a worker declaring any other cell
-  // quarantines every routed job it receives (wrong-cell, fail closed).
-  PROCESSING_CELL: z.string().min(1).default('us'),
+  // REG-01: the stable Data Cell this process belongs to. Catalogue admission,
+  // not this variable, decides whether that cell may accept work. Unknown cell
+  // names fail environment parsing; known wrong-cell work fails at the shared
+  // execution, repository, queue, provider, and storage boundaries.
+  PROCESSING_CELL: z.enum(DATA_CELL_IDS).optional(),
   // BQC-7.1: worker graceful-shutdown drain budget (ms). BullMQ worker.close()
   // resolves only when in-flight jobs finish — a hung job would otherwise hang
   // the deploy window until the platform's SIGKILL. On budget expiry the
@@ -301,6 +361,45 @@ const envSchema = z.object({
   // (no schedules/consumers/relay). Cutover = unset this and redeploy.
   // See docs/operations/backup-and-lifecycle.md.
   RESTORE_MODE: z.literal('isolated').optional(),
+  // REG-01: immutable logical cell recorded by the backup/restore selection.
+  // Required in restore-isolated mode and must equal PROCESSING_CELL; a backup
+  // from another cell may only be inspected in a separately declared target.
+  RESTORE_SOURCE_CELL: z.enum(DATA_CELL_IDS).optional(),
+  // REG-04: exact provider restore point bound into the durable recovery
+  // generation. Optional at normal boot; ops:restore-verify requires it.
+  RESTORE_POINT_AT: z.iso.datetime({ offset: true }).optional(),
+  // REG-04: exact Railway PITR sibling selected by the operator. Railway
+  // creates `<source>-restored-YYYYMMDD-HHMM`; restore commands bind this
+  // name to DATABASE_URL's private Railway hostname and refuse public/source
+  // targets. Loopback drills must also name their explicit disposable target.
+  RESTORE_DATABASE_SERVICE_NAME: z.string().min(1).optional(),
+  // Restore-only, one-shot Review lifecycle recovery authority. These three
+  // values are all-or-none and are refused outside RESTORE_MODE=isolated.
+  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON: z
+    .string()
+    .min(1)
+    .max(128 * 1024)
+    .optional(),
+  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
+  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON: z
+    .string()
+    .min(1)
+    .max(64 * 1024)
+    .optional(),
+  // REG-04: permanent serving attestation for a Railway PITR sibling. The
+  // isolated verifier prints this exact recovery run/generation pair. Once
+  // RESTORE_MODE is removed, web and worker boot query the sibling database
+  // and refuse traffic/effects unless the pair names its latest recovery run.
+  RECOVERY_CUTOVER_RUN_ID: z.uuid().optional(),
+  RECOVERY_CUTOVER_GENERATION: z.coerce.number().int().min(1).optional(),
+  // Railway-provided deployment identity. Optional for local/dev; the restore
+  // target guard requires all three for a non-loopback PITR verifier.
+  RAILWAY_PROJECT_ID: z.string().min(1).optional(),
+  RAILWAY_ENVIRONMENT_ID: z.string().min(1).optional(),
+  RAILWAY_ENVIRONMENT_NAME: z.string().min(1).optional(),
   // BQC-7.8: dead-letter quarantine entry TTL (days). The quarantine queue
   // has no consumer by design — without a TTL, redacted envelopes accumulate
   // forever. The quarantine-ttl-sweep job (daily) removes entries older than
@@ -330,22 +429,165 @@ const envSchema = z.object({
   GOOGLE_OAUTH_REVOKE_URL: z.url().optional(),
 })
 
+/**
+ * Whether a production auth origin is safe to put session cookies on.
+ *
+ * HTTPS everywhere it can be reached over a network — that is the whole point
+ * of the check below. The exception is a LOOPBACK origin, and it is not a
+ * loosening: traffic to 127.0.0.1 / [::1] / localhost never leaves the machine,
+ * so there is no plaintext transport to protect. Browsers reason the same way,
+ * treating loopback as a potentially-trustworthy origin (W3C Secure Contexts)
+ * and honouring `Secure` cookies on it.
+ *
+ * Without this, the local Compose stack cannot exist: it runs the PRODUCTION
+ * images (`NODE_ENV=production` is baked into them) against
+ * `http://127.0.0.1:3000`, because terminating TLS in front of a loopback
+ * rehearsal buys nothing. The e2e stack refused to seed for exactly this
+ * reason. A deployed cell is unaffected — its origin is a public hostname, and
+ * a public hostname on `http:` is still refused.
+ */
+function isSecureAuthOrigin(origin: URL): boolean {
+  if (origin.protocol === 'https:') return true
+  if (origin.protocol !== 'http:') return false
+  const host = origin.hostname.toLowerCase()
+  return (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '[::1]' ||
+    host === '::1' ||
+    host.endsWith('.localhost')
+  )
+}
+
+const envSchema = baseEnvSchema
+  .superRefine((env, context) => {
+    if (env.NODE_ENV === 'production' && !env.PROCESSING_CELL) {
+      context.addIssue({
+        code: 'custom',
+        path: ['PROCESSING_CELL'],
+        message: 'Production deployments require an explicit PROCESSING_CELL',
+      })
+    } else if (
+      env.NODE_ENV === 'production' &&
+      env.PROCESSING_CELL !== undefined &&
+      !isBetaDeploymentDataCellId(env.PROCESSING_CELL)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['PROCESSING_CELL'],
+        message: 'Production deployments require a beta-deployable PROCESSING_CELL (us)',
+      })
+    }
+    // A production auth origin controls trusted-origin checks, callback URLs,
+    // and the Secure attribute on session cookies. Refuse the deployment before
+    // either web or worker starts if a configuration mistake would make those
+    // cookies eligible for plaintext transport.
+    if (
+      env.NODE_ENV === 'production' &&
+      !isSecureAuthOrigin(new URL(env.BETTER_AUTH_URL))
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['BETTER_AUTH_URL'],
+        message: 'Production BETTER_AUTH_URL must use HTTPS',
+      })
+    }
+    if (env.RESTORE_MODE === 'isolated' && !env.RESTORE_SOURCE_CELL) {
+      context.addIssue({
+        code: 'custom',
+        path: ['RESTORE_SOURCE_CELL'],
+        message: 'Restore-isolated mode requires the backup source Data Cell',
+      })
+    } else if (
+      env.RESTORE_MODE === 'isolated' &&
+      env.RESTORE_SOURCE_CELL !== env.PROCESSING_CELL
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['RESTORE_SOURCE_CELL'],
+        message: 'Restore source Data Cell must match PROCESSING_CELL',
+      })
+    }
+    if (
+      (env.RECOVERY_CUTOVER_RUN_ID === undefined) !==
+      (env.RECOVERY_CUTOVER_GENERATION === undefined)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['RECOVERY_CUTOVER_RUN_ID'],
+        message: 'Recovery cutover run ID and generation must be configured together',
+      })
+    }
+    const reviewRecoveryApprovalConfigured = [
+      env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON,
+      env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256,
+      env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON,
+    ].filter((value) => value !== undefined).length
+    if (
+      reviewRecoveryApprovalConfigured !== 0 &&
+      reviewRecoveryApprovalConfigured !== 3
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
+        message:
+          'Review lifecycle recovery approval bundle, digest, and public keys must be configured together',
+      })
+    } else if (
+      reviewRecoveryApprovalConfigured === 3 &&
+      env.RESTORE_MODE !== 'isolated'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
+        message:
+          'Review lifecycle recovery approval authority is allowed only in restore-isolated mode',
+      })
+    }
+    if (
+      env.RESTORE_MODE !== 'isolated' &&
+      isRailwayPitrDatabaseUrl(env.DATABASE_URL) &&
+      (env.RECOVERY_CUTOVER_RUN_ID === undefined ||
+        env.RECOVERY_CUTOVER_GENERATION === undefined)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['RECOVERY_CUTOVER_RUN_ID'],
+        message:
+          'A Railway PITR sibling may serve only with its recovery cutover run ID and generation',
+      })
+    }
+  })
+  .transform((env) => ({
+    ...env,
+    // A single-cell local/test stack deliberately behaves as the US cell. A
+    // production process may reach this transform only after the refinement
+    // above has established the explicit beta-deployable US identity.
+    PROCESSING_CELL: env.PROCESSING_CELL ?? 'us',
+  }))
+
 export type Env = z.infer<typeof envSchema>
 
 let _env: Env | undefined
 
+export function parseEnvironment(
+  input: NodeJS.ProcessEnv | Record<string, unknown>,
+): Env {
+  const parsed = envSchema.safeParse(input)
+  if (!parsed.success) {
+    const errors = parsed.error.issues
+      .map((i) => `  ${i.path.join('.')}: ${i.message}`)
+      .join('\n')
+    // Startup-time assertion (not domain/application logic).
+    // Plain Error is acceptable here — tagged errors are for domain and application layers.
+    throw new Error(`[CONFIG] Invalid environment variables:\n${errors}`)
+  }
+  return parsed.data
+}
+
 export function getEnv(): Env {
   if (!_env) {
-    const parsed = envSchema.safeParse(process.env)
-    if (!parsed.success) {
-      const errors = parsed.error.issues
-        .map((i) => `  ${i.path.join('.')}: ${i.message}`)
-        .join('\n')
-      // Startup-time assertion (not domain/application logic).
-      // Plain Error is acceptable here — tagged errors are for domain and application layers.
-      throw new Error(`[CONFIG] Invalid environment variables:\n${errors}`)
-    }
-    _env = parsed.data
+    _env = parseEnvironment(process.env)
   }
   return _env
 }

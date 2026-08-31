@@ -1,6 +1,7 @@
 import { GOOGLE_ACCOUNT_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
 import {
   googleConnectionId,
   organizationId,
@@ -52,6 +53,9 @@ function connection(overrides: Partial<GoogleConnection> = {}): GoogleConnection
     lifecycleVersion: 4,
     accessVersion: 5,
     credentialGeneration: 6,
+    credentialHomeCellId: 'us',
+    credentialHomePolicyVersion: 2,
+    credentialHomeAuthorityGeneration: 1,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,
@@ -59,6 +63,7 @@ function connection(overrides: Partial<GoogleConnection> = {}): GoogleConnection
     createdAt: now,
     updatedAt: now,
     ...overrides,
+    credentialAuthorizedBy: overrides.credentialAuthorizedBy ?? USER_ID,
   }
 }
 
@@ -125,7 +130,9 @@ function setup(
             executionPolicyVersion: 'beta-local-2',
             googleContentPolicyVersion: 12,
             emergencyKillVersion: 3,
+            principalKind: 'user',
             role: 'PropertyManager',
+            permissionVersion: 7,
             permissionDigest: googleAuthorizationPermissionDigest(actor),
             connectionLifecycleVersion: 4,
             connectionAccessVersion: 5,
@@ -162,7 +169,7 @@ function setup(
 
 describe('createGooglePerformanceAuthorizer', () => {
   it('returns a full current snapshot and token for an authorized active binding', async () => {
-    const { authorize, getAccessToken } = setup()
+    const { authorize, decide, getAccessToken } = setup()
 
     const result = await authorize({
       actor,
@@ -193,7 +200,9 @@ describe('createGooglePerformanceAuthorizer', () => {
       executionPolicyVersion: 'beta-local-2',
       googleContentPolicyVersion: 12,
       emergencyKillVersion: 3,
+      principalKind: 'user',
       role: 'PropertyManager',
+      permissionVersion: 7,
       propertySourceEpoch: 7,
       propertyProfileVersion: 8,
       propertyBindingState: 'active',
@@ -203,6 +212,10 @@ describe('createGooglePerformanceAuthorizer', () => {
     })
     expect(result.snapshot.authorizationVectorSha256).toMatch(/^[a-f0-9]{64}$/)
     expect(result.snapshot.authorizationFenceSha256).toMatch(/^[a-f0-9]{64}$/)
+    expect(decide).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ action: 'property.read_gbp_performance' }),
+    )
     expect(result.snapshot.principalHmac).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(getAccessToken).toHaveBeenCalledOnce()
   })
@@ -212,7 +225,9 @@ describe('createGooglePerformanceAuthorizer', () => {
       executionPolicyVersion: 'beta-local-2',
       googleContentPolicyVersion: 12,
       emergencyKillVersion: 3,
+      principalKind: 'user',
       role: 'PropertyManager',
+      permissionVersion: 7,
       permissionDigest: googleAuthorizationPermissionDigest(actor),
       connectionLifecycleVersion: 4,
       connectionAccessVersion: 5,
@@ -254,7 +269,9 @@ describe('createGooglePerformanceAuthorizer', () => {
         executionPolicyVersion: 'beta-local-2',
         googleContentPolicyVersion: 12,
         emergencyKillVersion: 3,
+        principalKind: 'user',
         role: 'PropertyManager',
+        permissionVersion: 7,
         permissionDigest: googleAuthorizationPermissionDigest(actor),
         connectionLifecycleVersion: 4,
         connectionAccessVersion: 5,
@@ -279,7 +296,9 @@ describe('createGooglePerformanceAuthorizer', () => {
         executionPolicyVersion: 'beta-local-2',
         googleContentPolicyVersion: 12,
         emergencyKillVersion: 3,
+        principalKind: 'user',
         role: 'PropertyManager',
+        permissionVersion: 7,
         permissionDigest: googleAuthorizationPermissionDigest(actor),
         connectionLifecycleVersion: 4,
         connectionAccessVersion: 5,
@@ -334,7 +353,7 @@ describe('createGooglePerformanceAuthorizer', () => {
   it('does not disclose a property denied by the current grant', async () => {
     const { authorize, readBinding, getAccessToken } = setup({
       decide: (action) =>
-        action === 'property.read'
+        action === 'property.read_gbp_performance'
           ? { allowed: false, reason: 'scope_denied', policyVersion: 'beta-local-2' }
           : { allowed: true, reason: 'allowed', policyVersion: 'beta-local-2' },
     })
@@ -389,7 +408,7 @@ describe('createGooglePerformanceAuthorizer', () => {
     })
   })
 
-  it('does not disclose a private connection owned by another user', async () => {
+  it('treats connectedBy as provenance for a legacy private row', async () => {
     const { authorize, getAccessToken } = setup({
       connection: connection({
         visibility: 'private',
@@ -399,6 +418,30 @@ describe('createGooglePerformanceAuthorizer', () => {
 
     await expect(
       authorize({ actor, propertyId: PROPERTY_ID, phase: 'before_provider' }),
+    ).resolves.toMatchObject({ ok: true })
+    expect(getAccessToken).toHaveBeenCalledOnce()
+  })
+
+  it('denies live Performance when effective authority lacks its dedicated permission', async () => {
+    const staff: AuthContext = Object.freeze({
+      ...actor,
+      role: 'Staff',
+      effectivePermissions: new Set<Permission>(['property.read']),
+    })
+    const { authorize, readBinding, getAccessToken } = setup({
+      resolvedActor: staff,
+      decide: (action) =>
+        action === 'property.read_gbp_performance'
+          ? {
+              allowed: false,
+              reason: 'permission_denied',
+              policyVersion: 'beta-local-2',
+            }
+          : { allowed: true, reason: 'allowed', policyVersion: 'beta-local-2' },
+    })
+
+    await expect(
+      authorize({ actor: staff, propertyId: PROPERTY_ID, phase: 'before_provider' }),
     ).resolves.toEqual({
       ok: false,
       result: {
@@ -407,6 +450,7 @@ describe('createGooglePerformanceAuthorizer', () => {
         action: null,
       },
     })
+    expect(readBinding).not.toHaveBeenCalled()
     expect(getAccessToken).not.toHaveBeenCalled()
   })
 
@@ -485,7 +529,9 @@ describe('createGooglePerformanceAuthorizer', () => {
         executionPolicyVersion: 'beta-local-2',
         googleContentPolicyVersion: 12,
         emergencyKillVersion: 3,
+        principalKind: 'user',
         role: 'PropertyManager',
+        permissionVersion: 7,
         permissionDigest: googleAuthorizationPermissionDigest(actor),
         connectionLifecycleVersion: 4,
         connectionAccessVersion: 5,

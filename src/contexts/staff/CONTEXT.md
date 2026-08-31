@@ -2,102 +2,162 @@
 
 ## Bounded context
 
-Staff assignment management — linking users to properties (directly or via teams), including portal access scoping for staff users.
+Staff owns business participants, their effective-dated participation at a
+Property, and their Portal performance attribution. It does not own login role,
+Property authorization, Team, Portal grouping, or notification responsibility.
 
-## Glossary
-
-- **StaffAssignment** — Links a user to a property, optionally via a team. Carries `propertyId`, `teamId` (nullable), and `portalId` (nullable).
-- **Self-assignment** — A user assigning themselves to a property. Explicitly forbidden by domain rules.
-
-## Relationships
-
-- StaffAssignment → Property (required `propertyId`).
-- StaffAssignment → Team (optional `teamId`, scopes assignment to a team).
-- StaffAssignment → Portal (optional `portalId`, scopes assignment to a specific portal).
-- StaffAssignment → User (via `userId`, identity context).
+ADR 0052 is the current beta authority. The context is mid-migration: the
+StaffParticipation/PortalResponsibility path is canonical, while legacy
+`staff_assignments` code and data remain only for reconciliation and controlled
+rollback until contraction is safe.
 
 ## Invariants
 
-- A user cannot assign themselves to a property/team (`validateNotSelfAssignment`).
-- Duplicate assignments (same user + property + team + portal) are forbidden (`already_assigned` error). Portal-scoped rows are intentionally distinct from property-level rows (no team/portal).
-- Only PM+ roles can create/remove assignments (enforced by centralized permission system).
+- Identity owns `OrganizationMembership` and `PropertyAccessGrant`.
+- StaffParticipation and PortalResponsibility carry matching Organization and
+  Property scope.
+- Active intervals are half-open: `[effectiveFrom, effectiveTo)`. Editing a set
+  closes removed relationships, inserts new relationships, and preserves every
+  unchanged row's identity, creator, and start time.
+- Current `StaffUserLink` reads honor both interval boundaries. If retained data
+  contains overlapping current links for a Participant or login, interactive
+  eligibility resolves no link until reconciliation removes the ambiguity.
+- Authorization-sensitive participation checks run in the caller's command
+  transaction and lock the one unambiguous current `StaffUserLink` before the
+  exact Organization/Property `StaffParticipation`. Link or participation
+  revocation therefore cannot race the protected write.
+- At most one active Primary Staff Attribution exists per Portal. Supporting
+  relationships do not confer primary credit.
+- Participation and responsibility never grant login or Property access and never
+  select notification recipients.
+- Invitation acceptance may provision an explicitly selected PropertyAccessGrant,
+  but never creates Staff participation or attribution.
+- Authorization uses Identity's PropertyAccessGrant-backed lookup. It is not
+  derived from Team, legacy assignments, participation, or PortalResponsibility.
+- Team data is quarantined and must never be interpreted as PortalGroup data.
 
 ## Events produced
 
-| Tag                | Payload                                                            | When                        |
-| ------------------ | ------------------------------------------------------------------ | --------------------------- |
-| `staff.assigned`   | assignmentId, organizationId, userId, propertyId, teamId, portalId | Staff assigned to property  |
-| `staff.unassigned` | assignmentId, organizationId, userId, propertyId, portalId         | Staff removed from property |
+The retained events belong to the inactive legacy StaffAssignment path. Its command
+store and endpoints are not wired in beta, so these schemas exist only for
+historical/reconciliation compatibility.
 
-All events include envelope fields: eventId, occurredAt, correlationId (may be null).
+| `_tag`             | Payload fields                                                                                                           | When emitted                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| `staff.assigned`   | `eventId`, `assignmentId`, `organizationId`, `userId`, `propertyId`, `teamId`, `portalId`, `occurredAt`, `correlationId` | Legacy assignment insertion only   |
+| `staff.unassigned` | `eventId`, `assignmentId`, `organizationId`, `userId`, `propertyId`, `portalId`, `occurredAt`, `correlationId`           | Legacy assignment soft-delete only |
 
-## Events consumed
+New participation and manager-responsibility event contracts must be
+identifier-only and added with their owning projection/consumer; do not relabel
+legacy events.
 
-None. Staff context does not subscribe to events from other contexts.
+## Public API
+
+Cross-context consumers use `application/public-api.ts`:
+
+- `getAccessiblePropertyIds` delegates to the Identity-owned access-grant lookup;
+- `getAssignedPortals` resolves current PortalResponsibility for the active
+  participation and is the canonical attribution read seam;
+- participation lookup methods expose narrow current Staff state where needed.
+
+Consumers must never access Staff repositories or `container.useCases` directly.
+Notification code must use future Portal/Property Responsible Manager APIs instead
+of `getAssignedPortals`.
+
+The Identity-owned operator-only reconciliation seam is
+`../identity/infrastructure/repositories/people-authority-reconciliation.repository.ts`.
+It is read-only and compares legacy assignment/access rows, Better Auth
+membership, canonical Participant/link/participation/attribution rows, manager
+responsibility, and quarantined Team history at one explicit observation time.
+Its stable outcomes are `exact`, `mappable`, `conflict`, `orphan`, and `unsafe`;
+no outcome performs or authorizes a write.
+
+## Glossary
+
+- **StaffParticipant** — Manager-maintained person/business profile. The target
+  model permits no login. A current `StaffUserLink` may associate a retained
+  login identity without granting application access.
+- **StaffParticipation** — Effective-dated relationship between a Participant and
+  a Property. It is operational/attribution state, never an access grant.
+- **PortalResponsibility** — Effective-dated Staff Participation-to-Portal
+  attribution. `primary` is the single future metric-credit relationship;
+  `supporting` is operational context and cannot multiply totals.
+- **Portal Responsible Manager** — A separate Portal-owned manager workflow and
+  notification assignment. It is not represented by `PortalResponsibility`.
+- **StaffAssignment** — Legacy combined row retained for reconciliation. It is not
+  the beta Portal-attribution or Property-access read authority.
+
+## Active application surface
+
+| Use case                       | Purpose                                                                                            | Permission                         |
+| ------------------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `createStaffParticipation`     | Create a login-independent StaffParticipant and start active participation at a Property.          | `staff.manage` plus Property scope |
+| `listStaffParticipations`      | List participants and current Portal Responsibility selections.                                    | `staff.read` plus Property scope   |
+| `archiveStaffParticipation`    | Archive participation and close active Portal Responsibilities; retained Team rows stay untouched. | `staff.manage` plus Property scope |
+| `updatePortalResponsibilities` | Replace a responsibility set without rewriting unchanged intervals.                                | `staff.manage` plus Property scope |
+| `listStaffPortals`             | Resolve a Staff user's published Portals from current PortalResponsibility.                        | `staff.read`                       |
+
+The People route uses only these participation/responsibility seams, the Identity
+member directory, and Portal options. It has no Team dependency.
+
+## Legacy quarantine
+
+Legacy assignment repository source, the older plural `property_access_grants`
+table, inactive use-case/source files, events, and Team data remain because the
+migration has not reached contraction. The legacy repository and its membership
+adapter are no longer constructed or exposed by production composition. Their
+network endpoints and activity consumers have been removed; they must not gain a
+new beta consumer. The deterministic authority report is the current review
+input; older conversion utilities are not authority to revive Team or infer
+access/manager responsibility. Active Staff archive and People cutover paths
+never update retained Team Membership rows. Schema removal waits for:
+
+1. an exact/mappable/conflict/orphan/unsafe reconciliation report with zero
+   unexplained rows;
+2. replacement write/read parity and denial of legacy mutations;
+3. one verified release plus retention/export and restore evidence.
+
+## Organization Export contribution
+
+`infrastructure/adapters/staff-organization-export.adapter.ts` is Staff's
+`LIF-01` contributor for the "people / access / responsibility" content of the
+Organization Export. It reads `staff_participants`, `staff_user_links`,
+`staff_participations`, `staff_assignments`, `portal_responsibilities`, and
+`portal_group_memberships` inside one read-only repeatable-read snapshot bounded
+to fifteen minutes after the request, and emits four `tenant_visible` CSV/JSON
+pairs: `staff/participants`, `staff/participations`,
+`staff/portal-responsibilities`, and `staff/portal-group-memberships`. An
+Organization with no people rows gets the affirmative `no_data`; nothing is ever
+omitted, because everything Staff owns is tenant-visible.
+
+Two exclusions are deliberate and recorded in the payload. Property access
+authority belongs to Identity's contributor, which owns both the canonical and
+the compatibility grant tables; duplicating them here would breach the
+sole-reader boundary and put two divergent copies of an authorization record in
+one archive. Staff User login material — credentials, sessions, tokens — is
+excluded by `LIF-01` work item 7 and is never queried; participation is a people
+fact, sign-in is not.
 
 ## Architecture layers
 
 ```
 staff/
-  domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
+  domain/              StaffParticipant, StaffParticipation, PortalResponsibility, legacy assignment
   application/
-    ports/             staff-assignment.repository.ts
-    dto/               staff-assignment.dto.ts (Zod schemas)
-    use-cases/         create-staff-assignment.ts, remove-staff-assignment.ts,
-                       list-staff-assignments.ts, get-assigned-portals.ts, update-staff-portals.ts
-    public-api.ts      re-exports StaffPublicApi, event types/constructors
+    ports/             participation repository, responsibility lookup, access ports
+    use-cases/         canonical participation/responsibility plus inactive legacy source
+    public-api.ts      cross-context Staff read surface
   infrastructure/
-    repositories/      staff-assignment.repository.ts (Drizzle)
-    mappers/           staff-assignment.mapper.ts
-  server/              staff-assignments.ts, staff-portals.ts, staff-portals-update.ts
-  build.ts
+    adapters/          Organization Export contributor (read-only)
+    repositories/      effective-dated participation/responsibility and legacy assignment
+  server/              manager participation/responsibility endpoints only
+  build.ts             constructs canonical participation/attribution seams only
 ```
 
-## Use cases
+## Deferred work
 
-| Name                    | Input                                                                    | Output                               | Permission                                            |
-| ----------------------- | ------------------------------------------------------------------------ | ------------------------------------ | ----------------------------------------------------- |
-| `createStaffAssignment` | `propertyId`, `userId`, `teamId?`, `portalId?`, `organizationId`, `role` | `StaffAssignment`                    | `staff_assignment.create`                             |
-| `listStaffAssignments`  | `propertyId`, `organizationId`, `role`                                   | `StaffAssignment[]`                  | `staff_assignment.read`                               |
-| `removeStaffAssignment` | `assignmentId`, `organizationId`, `role`                                 | `void`                               | `staff_assignment.delete`                             |
-| `getAssignedPortals`    | `userId`, `propertyId`                                                   | `PortalId[]`                         | `staff_assignment.read`                               |
-| `updateStaffPortals`    | `userId`, `propertyId`, `portalIds`                                      | `{ added: number, removed: number }` | `staff_assignment.create` + `staff_assignment.delete` |
-
-Note: `organizationId` and `role` are derived from AuthContext (resolved via `resolveTenantContext`), not from request body/query params. The Input column shows only request-level parameters; auth context fields are implicit.
-
-## Public API
-
-Exported from `application/public-api.ts`:
-
-- Types: `StaffPublicApi` interface
-  - `getAccessiblePropertyIds(organizationId, userId, role)` — Returns property IDs accessible to a user based on role and assignments. Returns `null` for AccountAdmin (all properties).
-  - `getAssignedPortals(input, ctx)` — Returns portal IDs assigned to a staff user for a given property. Cross-context consumers must call this, not `container.useCases`.
-- Types: `StaffPortalEntry` (cross-context portal lookup shape with branded `PortalId`)
-- Error types: `StaffErrorCode`, `StaffError`, `isStaffError`
-- Event types: `StaffAssigned`, `StaffUnassigned`, `StaffEvent`
-- Event constructors: `staffAssigned`, `staffUnassigned`
-
-## Server functions
-
-- **`staff-assignments.ts`** — Server functions for staff assignment CRUD (create, remove, list).
-- **`staff-portals.ts`** — Server function for listing staff portals (`listStaffPortals`).
-- **`staff-portals-update.ts`** — Server function for updating staff portals (`updateStaffPortals`).
-
-## Permissions
-
-- `staff_assignment.create` — Assign staff to properties/teams.
-- `staff_assignment.delete` — Remove staff assignments.
-- `staff_assignment.read` — List and view staff assignments.
-
-## Ports
-
-- **StaffAssignmentRepository** — Persistence port for staff assignments (`application/ports/staff-assignment.repository.ts`).
-  - `findById(orgId, id)` — Find assignment by ID.
-  - `listByUser(orgId, userId)` — List all assignments for a user.
-  - `listByProperty(orgId, propertyId)` — List all assignments for a property.
-  - `listByTeam(orgId, teamId)` — List all assignments for a team.
-  - `listByUserAndProperty(orgId, userId, propertyId)` — Returns assignments for a user in a specific property.
-  - `assignmentExists(orgId, userId, propertyId, teamId, portalId)` — Check for duplicate assignment.
-  - `insert(orgId, assignment)` — Create new assignment.
-  - `softDelete(orgId, id)` — Soft-delete assignment.
-  - `getAccessiblePropertyIds(orgId, userId)` — Get all unique property IDs a user is assigned to.
+- Contract the nullable legacy `staff_participations.user_id` and display-name
+  shadows only after rollback/parity evidence permits it.
+- Contract inactive legacy source/data only after row, export, restore, and
+  verified-release quarantine gates pass. No Badge/Recognition runtime reader
+  remains to cut over.

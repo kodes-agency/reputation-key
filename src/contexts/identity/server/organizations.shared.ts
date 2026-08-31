@@ -18,10 +18,17 @@ export const identityErrorStatus = (code: IdentityErrorCode): number =>
       'invalid_slug',
       'invalid_name',
       'validation_error',
+      'feedback_triage_invalid',
       () => HTTP_STATUS.BAD_REQUEST,
     )
     .with('registration_failed', () => HTTP_STATUS.BAD_REQUEST)
-    .with('org_setup_failed', 'already_exists', 'last_owner', () => HTTP_STATUS.CONFLICT)
+    .with(
+      'org_setup_failed',
+      'already_exists',
+      'organization_conflict',
+      'last_owner',
+      () => HTTP_STATUS.CONFLICT,
+    )
     .with('member_not_found', 'invitation_not_found', () => HTTP_STATUS.NOT_FOUND)
     .exhaustive()
 
@@ -60,11 +67,6 @@ export type AuthOrganizationResponse = Readonly<{
   logo: string | null
   createdAt: Date
   contactEmail: string | null
-  billingCompanyName: string | null
-  billingAddress: string | null
-  billingCity: string | null
-  billingPostalCode: string | null
-  billingCountry: string | null
   responseSlaHours: number
 }>
 // ── Response SLA (from the shared kernel) ───────────────────────────

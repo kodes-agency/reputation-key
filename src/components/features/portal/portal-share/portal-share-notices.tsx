@@ -34,6 +34,21 @@ export function PortalRevokedNotice({ show }: NoticeProps) {
   )
 }
 
+export function PortalScanGoalReadinessNotice({ show }: NoticeProps) {
+  if (!show) return null
+  return (
+    <Alert>
+      <Link2 />
+      <AlertTitle>QR update available</AlertTitle>
+      <AlertDescription>
+        This public link was created before visit goals were added. It remains usable, but
+        visits from it are not included in scan-based goals. Rotate the link, then replace
+        the printed QR with the new one to include future visits.
+      </AlertDescription>
+    </Alert>
+  )
+}
+
 type ActiveLinkNoticeProps = Readonly<{
   show: boolean
   /** `version 3, issued Jan 4, 2026`; empty when the token has no metadata. */

@@ -2,15 +2,21 @@
 
 import { z } from 'zod/v4'
 
+const portalLinkCategoryTitleSchema = z
+  .string()
+  .trim()
+  .min(1, 'Title is required')
+  .max(100)
+
 export const createLinkCategoryInputSchema = z.object({
   portalId: z.string().min(1, 'Portal ID is required'),
-  title: z.string().min(1, 'Title is required').max(100),
+  title: portalLinkCategoryTitleSchema,
 })
 
 // CreateLinkCategoryInput — exported when consumed by route validators or forms
 export const updateLinkCategoryInputSchema = z.object({
   categoryId: z.string().min(1, 'Category ID is required'),
-  title: z.string().min(1).max(100).optional(),
+  title: portalLinkCategoryTitleSchema.optional(),
 })
 
 // UpdateLinkCategoryInput — exported when consumed by route validators or forms

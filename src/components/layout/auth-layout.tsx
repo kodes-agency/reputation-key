@@ -10,22 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { AlertCircle } from 'lucide-react'
-
-// Backwards-compatible error banner for routes still being migrated.
-// New code should import FormErrorBanner directly from components/forms/.
-// accept-invitation.tsx uses this because it has a plain string error, not a mutation error.
-export function ErrorBanner({ message }: Readonly<{ message: string | null }>) {
-  if (!message) return null
-  return (
-    <Alert variant="destructive">
-      <AlertCircle />
-      <AlertTitle>Error</AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
-  )
-}
 
 type AuthCardProps = Readonly<{
   title: string

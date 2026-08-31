@@ -15,6 +15,29 @@ const fakeData: PublicPortalData = {
   },
   categories: [],
   links: [],
+  reviewGateway: {
+    privateFeedbackThreshold: 3,
+    googleReview: {
+      status: 'available',
+      uri: 'https://search.google.com/local/writereview?placeid=p1',
+    },
+  },
+  localization: {
+    selectedLocale: 'en',
+    primaryLocale: 'en',
+    availableLocales: ['en'],
+    languagePackVersion: 'guest-ui-en-v1',
+  },
+  responseConfiguration: {
+    publicationState: 'published',
+    publicationSnapshotId: 'snapshot-1',
+    publicationVersion: 1,
+    publicationDigest: 'b'.repeat(64),
+    configurationDigest: 'a'.repeat(64),
+    guestLocale: 'en',
+    languagePackVersion: 'guest-ui-en-v1',
+    privateFeedbackThreshold: 3,
+  },
   organizationId: 'org-1',
   propertyId: 'prop-1',
 }
@@ -25,7 +48,29 @@ describe('getPublicPortal', () => {
     const useCase = getPublicPortal({ publicPortalLookup: { findByToken } })
 
     await expect(useCase({ token: 'pt_key_secret' })).resolves.toEqual(fakeData)
-    expect(findByToken).toHaveBeenCalledWith('pt_key_secret')
+    expect(findByToken).toHaveBeenCalledWith('pt_key_secret', {
+      requestedLocale: undefined,
+      sessionLocale: undefined,
+      acceptLanguage: undefined,
+    })
+  })
+
+  it('forwards the signed-session locale separately from an explicit choice', async () => {
+    const findByToken = vi.fn(async () => fakeData)
+    const useCase = getPublicPortal({ publicPortalLookup: { findByToken } })
+
+    await useCase({
+      token: 'pt_key_secret',
+      requestedLocale: null,
+      sessionLocale: 'bg',
+      acceptLanguage: 'en-US',
+    })
+
+    expect(findByToken).toHaveBeenCalledWith('pt_key_secret', {
+      requestedLocale: null,
+      sessionLocale: 'bg',
+      acceptLanguage: 'en-US',
+    })
   })
 
   it('maps every unavailable token to portal_not_found', async () => {

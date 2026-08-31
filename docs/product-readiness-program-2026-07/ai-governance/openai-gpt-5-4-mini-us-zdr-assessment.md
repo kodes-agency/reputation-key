@@ -10,22 +10,22 @@ This record assesses one exact intended deployment. It does not approve OpenAI g
 
 ## 1. Assessment identity
 
-| Field                           | Exact intended value / current evidence                                                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Provider and contracting entity | OpenAI; exact contracting entity and applicable signed terms/DPA are not present in repository evidence                                                 |
-| Service/product                 | OpenAI API, `/v1/responses` only                                                                                                                        |
-| Model/family                    | Exact snapshot `gpt-5.4-mini-2026-03-17`; moving aliases forbidden                                                                                      |
-| SDK                             | Intended exact lock `openai@7.4.0`; not yet installed or assessed in this checkout                                                                      |
-| Request mode                    | Synchronous, non-streaming, `background:false`, strict Structured Output, no tools/files/search/conversation/metadata                                   |
-| Reasoning/service tier          | `xhigh`; `default`                                                                                                                                      |
-| RepKey project/resource         | Dedicated US data-residency project required; project ID/configuration evidence absent                                                                  |
-| Processing cell                 | `us` only                                                                                                                                               |
-| Provider host                   | Compiled `us.api.openai.com`; no environment/caller override and no redirect/fallback                                                                   |
-| Retention posture               | Project-level Zero Data Retention required; `store:false`; compatible in-memory prompt-cache posture must be proved for the exact project/model/request |
-| Intended capabilities           | `review_analysis`, `reply_drafting`, `property_trends`                                                                                                  |
-| Input classes                   | Minimized/redacted single-review facts for analysis/drafting; aggregate-only deterministic candidates for trends                                        |
-| Output classes                  | Strict derivative metadata, one untrusted reply suggestion, or bounded aggregate narrative; no reasoning/rationale persisted                            |
-| Approval expiry                 | Not assigned; no approval exists                                                                                                                        |
+| Field                           | Exact intended value / current evidence                                                                                                                                           |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provider and contracting entity | OpenAI; exact contracting entity and applicable signed terms/DPA are not present in repository evidence                                                                           |
+| Service/product                 | OpenAI API, `/v1/responses` only                                                                                                                                                  |
+| Model/family                    | Exact snapshot `gpt-5.4-mini-2026-03-17`; moving aliases forbidden                                                                                                                |
+| SDK and HTTP transport          | Exact locks `openai@7.4.0` and `undici@8.10.0`; mechanically checked by `check:ai-contract-attestations`; scoped dispatcher forces HTTP/1.1 for byte-exact, one-request isolation |
+| Request mode                    | Synchronous, non-streaming, `background:false`, strict Structured Output, no tools/files/search/conversation/metadata                                                             |
+| Reasoning/service tier          | `xhigh`; `default`                                                                                                                                                                |
+| RepKey project/resource         | Dedicated US data-residency project required; project ID/configuration evidence absent                                                                                            |
+| Processing cell                 | `us` only                                                                                                                                                                         |
+| Provider host                   | Compiled `us.api.openai.com`; no environment/caller override and no redirect/fallback                                                                                             |
+| Retention posture               | Project-level Zero Data Retention required; `store:false`; compatible in-memory prompt-cache posture must be proved for the exact project/model/request                           |
+| Intended capabilities           | `review_analysis`, `reply_drafting`, `property_trends`                                                                                                                            |
+| Input classes                   | Minimized/redacted single-review facts for analysis/drafting; aggregate-only deterministic candidates for trends                                                                  |
+| Output classes                  | Strict derivative metadata, one untrusted reply suggestion, or bounded aggregate narrative; no reasoning/rationale persisted                                                      |
+| Approval expiry                 | Not assigned; no approval exists                                                                                                                                                  |
 
 ## 2. Frozen request profile
 
@@ -128,17 +128,17 @@ Comparative quality/cost scoring has not started because hard eligibility failed
 
 ## 8. Required evidence ledger
 
-| Evidence                                                                                                                   | Owner                              | State                             |
-| -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------- |
-| Applicable signed agreement/DPA/entity/subprocessor/transfer record                                                        | Privacy/legal                      | Pending external evidence         |
-| Exact project ID plus dated export proving US residency, ZDR, no sharing/feedback/training, and accepted exception posture | Privacy + operations               | Pending external evidence         |
-| Commercial quota/rate-limit/escalation/status/deprecation contacts                                                         | Product + operations               | Pending external evidence         |
-| Gateway/admission network, identity, credential, config-attestation, kill/drain, and no-fallback proof                     | Security + engineering             | Pending implementation            |
-| Exact `openai@7.4.0` request-shape and error/body-limit contract tests                                                     | Engineering                        | Pending implementation            |
-| `gbp-review-en-v1` corpus digest and leakage/injection/false-positive acceptance                                           | Privacy + security + product       | Pending implementation/evaluation |
-| Target-environment content-negative logs/traces/queues/stores/artifacts proof                                              | Security + operations              | Pending implementation            |
-| Cost/latency/quality/load and failure-mode evidence                                                                        | Product + engineering + operations | Pending implementation            |
-| Deletion/revocation/restore/ambiguous-operation evidence                                                                   | Privacy + engineering + operations | Pending implementation            |
+| Evidence                                                                                                                   | Owner                              | State                                  |
+| -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------- |
+| Applicable signed agreement/DPA/entity/subprocessor/transfer record                                                        | Privacy/legal                      | Pending external evidence              |
+| Exact project ID plus dated export proving US residency, ZDR, no sharing/feedback/training, and accepted exception posture | Privacy + operations               | Pending external evidence              |
+| Commercial quota/rate-limit/escalation/status/deprecation contacts                                                         | Product + operations               | Pending external evidence              |
+| Gateway/admission network, identity, credential, config-attestation, kill/drain, and no-fallback proof                     | Security + engineering             | Pending implementation                 |
+| Exact `openai@7.4.0` / `undici@8.10.0` pins, HTTP/1.1 isolation, request-shape, and error/body-limit contract tests        | Engineering                        | Implemented; release evidence required |
+| `gbp-review-en-v1` corpus digest and leakage/injection/false-positive acceptance                                           | Privacy + security + product       | Pending implementation/evaluation      |
+| Target-environment content-negative logs/traces/queues/stores/artifacts proof                                              | Security + operations              | Pending implementation                 |
+| Cost/latency/quality/load and failure-mode evidence                                                                        | Product + engineering + operations | Pending implementation                 |
+| Deletion/revocation/restore/ambiguous-operation evidence                                                                   | Privacy + engineering + operations | Pending implementation                 |
 
 ## 9. Approval record
 

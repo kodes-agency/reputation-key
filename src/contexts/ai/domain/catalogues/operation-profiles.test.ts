@@ -42,6 +42,10 @@ import {
   AI_GATEWAY_BUILD_ATTESTATION_DIGEST,
   AI_GATEWAY_BUILD_ATTESTATION_VERSION,
 } from '#/shared/ai-gateway-build-attestation'
+import {
+  AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+} from '#/shared/ai-personalized-reply-contract'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import {
   buildClosedOpenAiRequest,
@@ -221,7 +225,7 @@ describe('PR5 immutable AI execution catalogues', () => {
     ])
   })
 
-  it('uses schema-closed derivative, finite-template, selected-signal, and canary outputs', () => {
+  it('uses schema-closed derivative, grounded draft, selected-signal, and canary outputs', () => {
     const [analysis, reply, trend, canary] = AI_OPERATION_PROFILES
     expect(analysis?.outputSchema).toMatchObject({
       additionalProperties: false,
@@ -278,6 +282,8 @@ describe('PR5 immutable AI execution catalogues', () => {
         replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
         outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
         outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
+        personalizedReplyProfileVersion: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+        personalizedReplyProfileDigest: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
       },
     })
     expect(trend?.artifactAttestations).toMatchObject({

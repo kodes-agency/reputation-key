@@ -4,6 +4,7 @@
 
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxItemLookupPort } from '../../ports/inbox-item-lookup.port'
 import { onInboxItemCreated } from './on-inbox-item-created'
 import { onInboxStatusChanged } from './on-inbox-status-changed'
@@ -19,11 +20,6 @@ import { onReplyUpdated } from './on-reply-updated'
 import { onReplySubmitted } from './on-reply-submitted'
 import { onReplyApproved } from './on-reply-approved'
 import { onReplyRejected } from './on-reply-rejected'
-import { onTeamCreated } from './on-team-created'
-import { onTeamUpdated } from './on-team-updated'
-import { onTeamDeleted } from './on-team-deleted'
-import { onStaffAssigned } from './on-staff-assigned'
-import { onStaffUnassigned } from './on-staff-unassigned'
 import { onMemberInvited } from './on-member-invited'
 import { onInvitationAccepted } from './on-invitation-accepted'
 import { onInvitationCanceled } from './on-invitation-canceled'
@@ -41,6 +37,7 @@ export type RegisterActivityHandlersDeps = Readonly<{
   events: EventBus
   queue: Queue
   inboxItemLookup: InboxItemLookupPort
+  logger: LoggerPort
 }>
 
 export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): void => {
@@ -50,7 +47,7 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
   })
   deps.events.on(
     'inbox.inbox_item.status_changed',
-    onInboxStatusChanged({ queue: deps.queue }),
+    onInboxStatusChanged({ queue: deps.queue, logger: deps.logger }),
 
     { consumer: 'activity.event-handlers' },
   )
@@ -109,26 +106,7 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
     consumer: 'activity.event-handlers',
   })
 
-  // ── Team events (user-management audit) ──
-  deps.events.on('team.created', onTeamCreated({ queue: deps.queue }), {
-    consumer: 'activity.event-handlers',
-  })
-  deps.events.on('team.updated', onTeamUpdated({ queue: deps.queue }), {
-    consumer: 'activity.event-handlers',
-  })
-  deps.events.on('team.deleted', onTeamDeleted({ queue: deps.queue }), {
-    consumer: 'activity.event-handlers',
-  })
-
-  // ── Staff events (user-management audit) ──
-  deps.events.on('staff.assigned', onStaffAssigned({ queue: deps.queue }), {
-    consumer: 'activity.event-handlers',
-  })
-  deps.events.on('staff.unassigned', onStaffUnassigned({ queue: deps.queue }), {
-    consumer: 'activity.event-handlers',
-  })
-
-  // ── Identity events (user-management audit) ──
+  // ── Identity events (user-management activity) ──
   deps.events.on(
     'identity.organization.created',
     onOrganizationCreated({ queue: deps.queue }),
@@ -160,7 +138,7 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
     { consumer: 'activity.event-handlers' },
   )
 
-  // ── Integration events (user-management audit) ──
+  // ── Integration events (connection activity) ──
   deps.events.on(
     'integration.google_account.connected',
     onGoogleAccountConnected({ queue: deps.queue }),
@@ -180,7 +158,7 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
     { consumer: 'activity.event-handlers' },
   )
 
-  // ── Property events (BQC-3.9 orphan consume: audit) ──
+  // ── Property events (BQC-3.9 Recent Activity projection) ──
   deps.events.on('property.created', onPropertyCreated({ queue: deps.queue }), {
     consumer: 'activity.event-handlers',
   })

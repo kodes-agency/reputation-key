@@ -7,6 +7,7 @@
 
 import type { DomainEvent } from '#/shared/events/events'
 import type { Review } from '../../domain/types'
+import type { ReviewProviderObservationOrigin } from './response-target-authority.port'
 
 export type ReviewCommandStore = Readonly<{
   /**
@@ -17,13 +18,19 @@ export type ReviewCommandStore = Readonly<{
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
     event: DomainEvent | ((persisted: Review) => DomainEvent),
     now?: Date,
+    observationKey?: string,
+    observationOrigin?: ReviewProviderObservationOrigin,
   ): Promise<Review>
   /**
    * At the database expiry equality boundary, atomically emit the old source
-   * expiry and recreate the same internal Review UUID as a fresh revision.
+   * expiry and restore the same durable Review identity from a fresh
+   * observation. The material revision advances only for a material change;
+   * dependent staff-authored records remain attached to the identity.
    */
   reobserveExpiredAndRecord(
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
     now?: Date,
+    observationKey?: string,
+    observationOrigin?: ReviewProviderObservationOrigin,
   ): Promise<Review>
 }>

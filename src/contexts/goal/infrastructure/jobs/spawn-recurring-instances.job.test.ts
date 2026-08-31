@@ -1,7 +1,7 @@
 // Goal context — spawn-recurring-instances job tests
 // Verifies: spawning next instance, idempotency, monthly & weekly calendar anchoring.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   createSpawnRecurringInstancesHandler,
   type SpawnRecurringInstancesDeps,
@@ -136,15 +136,21 @@ function createFakeDeps(state: {
   }
 
   let idCounter = 0
+  const logger = {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  }
   const deps: SpawnRecurringInstancesDeps = {
     goalRepo,
     events: eventBus,
     clock: () => state.now,
     idGen: () => `spawned-${++idCounter}`,
     authorizeScope: async () => true,
+    logger,
   }
 
-  return { deps, created, state }
+  return { deps, created, state, logger }
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────
@@ -166,7 +172,7 @@ describe('spawn-recurring-instances job', () => {
         periodEnd: d('2026-05-31T23:59:59Z'),
       })
 
-      const { deps, created } = createFakeDeps({
+      const { deps, created, logger } = createFakeDeps({
         templates: [template],
         latestInstance: new Map([['template-1', instance]]),
         now: d('2026-06-01T00:00:00Z'), // Next period start is exactly NOW
@@ -186,6 +192,7 @@ describe('spawn-recurring-instances job', () => {
       expect(goal.periodEnd).toEqual(d('2026-06-30T23:59:59.999Z'))
       expect(progress.goalId).toBe(goal.id)
       expect(progress.currentValue).toBe(0)
+      expect(logger.info).toHaveBeenCalledWith(result, 'Spawned recurring instances')
     })
 
     it('does NOT spawn when next period start is more than 1 day away', async () => {

@@ -13,20 +13,20 @@
 // (a BullMQ worker running createDispatcherHandler — the same wiring
 // worker/index.ts performs when OUTBOX_DISPATCHER_ENABLED=true) and proves:
 //
-//   (a) DURABLE PATH END-TO-END — synthetic review.created / review.updated /
-//       review.expired / review.reply.published facts produced through the
-//       REAL atomic command stores are projected by the durable consumers to
-//       EXACTLY the state the in-process bus handlers produce for the same
-//       event (shadow compare — field names only, never content). Receipts
-//       exist per consumer per event; dual delivery (bus + durable + an
-//       explicit durable redelivery) cannot double effects (receipt fencing +
-//       idempotent applyOnce); the external-effect dedup mechanism (BullMQ
-//       jobId) is proven for the review-sync enqueue shape.
+//   (a) DURABLE PATH END-TO-END — review.created retains bus/durable shadow
+//       parity; review.updated is durable-only; destructive Review expiry is
+//       explicitly quarantined; review.reply.published is compatibility-
+//       receipt-only on both paths; and only an exact current
+//       review.reply.observed fact closes Inbox work. Receipts and explicit
+//       redelivery prove replay safety; the external-effect dedup mechanism
+//       (BullMQ jobId) is proven for the review-sync enqueue shape.
 //   (b) BACKLOG DRAIN — N unpublished outbox rows recorded BEFORE the first
 //       relay poll (the pre-dispatcher backlog) are each processed exactly
 //       once.
-//   (c) REPAIR — a corrupted projection heals via rebuildInboxProjection
-//       (dry-run reports first, then the real run closes/re-stamps/creates).
+//   (c) REPAIR — a missing live Review projection heals via
+//       rebuildInboxProjection (dry-run first), while observation-owned
+//       closure evidence is preserved rather than recreated from a retired
+//       lifecycle event.
 //   (d) SWITCH MODE — with a family in 'switch' the bus handlers are not
 //       registered (registration assertion) and the durable path ALONE
 //       produces the projection (legacy retirement + durable-primary proof).
@@ -43,6 +43,7 @@ import { Pool } from 'pg'
 import { Queue, Worker, type Job } from 'bullmq'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   acquireRedisTestLease,
   type RedisTestLease,
@@ -59,7 +60,12 @@ import {
   type InboxItemId,
 } from '#/shared/domain/ids'
 import { createOutboxRelay, type OutboxRelay } from '#/shared/outbox/relay'
-import { createDispatcherHandler, clearConsumers } from '#/shared/outbox/dispatcher'
+import { insertOutboxRow } from '#/shared/outbox/commit'
+import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import {
+  createConsumerRegistry,
+  type ConsumerRegistry,
+} from '#/shared/outbox/consumer-registry'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import {
@@ -74,6 +80,10 @@ import {
   type CapabilityPolicyEnv,
 } from '#/shared/auth/beta-capabilities'
 import { resetDelayedExecutionPolicy } from '#/shared/auth/system-execution-policy'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '#/shared/auth/process-policy-binding'
 import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
 import {
   reviewCreated,
@@ -81,16 +91,28 @@ import {
   reviewExpired,
   reviewReplyPublished,
 } from '#/contexts/review/domain/events'
-import type { Review, Reply } from '#/contexts/review/domain/types'
+import type { Review } from '#/contexts/review/domain/types'
 import { createAtomicReviewCommandStore } from '#/contexts/review/infrastructure/review-command-store'
 import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
+import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
+import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
+import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
+import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
+import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
-import { createAtomicInboxCommandStore } from '#/contexts/inbox/infrastructure/inbox-command-store'
+import {
+  createAtomicInboxCommandStore,
+  type InboxCommandAuthority,
+} from '#/contexts/inbox/infrastructure/inbox-command-store'
+import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
 import { registerInboxConsumers } from '#/contexts/inbox/infrastructure/outbox-consumers'
+import { createReplyObservationAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-observation-authority.adapter'
+import { createSourceTransitionAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/source-transition-authority.adapter'
+import { createReviewResponseTargetAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/review-response-target-authority.adapter'
 import { registerInboxHandlers } from '#/contexts/inbox/infrastructure/event-handlers/index'
 import { createInboxItem } from '#/contexts/inbox/application/use-cases/create-inbox-item'
 import { rebuildInboxProjection } from '#/contexts/inbox/application/use-cases/rebuild-inbox-projection'
@@ -101,6 +123,9 @@ import type {
 } from '#/contexts/inbox/application/ports/review-lookup.port'
 import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 // ── Constants (hex-only UUID fixtures) ──────────────────────────────
 
@@ -127,8 +152,8 @@ const T5 = new Date('2026-07-05T12:00:00.000Z') // rebuild clock / switch event
 
 const CREATED_CONSUMER = 'inbox.on-review-created'
 const UPDATED_CONSUMER = 'inbox.on-review-updated'
-const EXPIRED_CONSUMER = 'inbox.on-review-expired'
 const PUBLISHED_CONSUMER = 'inbox.on-reply-published'
+const OBSERVED_CONSUMER = 'inbox.on-reply-observed'
 
 // ── Shared fixtures ─────────────────────────────────────────────────
 
@@ -141,7 +166,7 @@ let eventsQueue: Queue | undefined
 let jobsQueue: Queue | undefined
 let worker: Worker | undefined
 let relay: OutboxRelay | undefined
-let policyHandle: { stopPolling: () => void } | undefined
+let policyHandle: ReturnType<typeof initPersistedCapabilityPolicyStore> | undefined
 
 /** Deterministic hex-only inbox item ids. */
 let idCounter = 0
@@ -152,6 +177,9 @@ const idGen = (): InboxItemId =>
 let consumerNow = T1
 
 const silentEvents: EventBus = { on: () => {}, emit: async () => {}, clear: () => {} }
+const allowAllInboxCommandAuthority: InboxCommandAuthority = async () => ({
+  allowed: true,
+})
 
 const noopLogger: LoggerPort = {
   info: () => {},
@@ -206,35 +234,9 @@ function makeReview(id: string, reviewedAt: Date, externalId: string): Review {
   }
 }
 
-function makeApprovedReply(): Reply {
-  return {
-    id: REPLY3,
-    reviewId: R3,
-    organizationId: ORG,
-    text: 'Synthetic cutover reply',
-    status: 'approved',
-    source: 'internal',
-    createdBy: null,
-    approvedBy: null,
-    rejectedBy: null,
-    rejectionReason: null,
-    aiGenerated: false,
-    stateRevision: 1,
-    submittedAt: new Date('2026-07-03T18:00:00.000Z'),
-    approvedAt: new Date('2026-07-03T19:00:00.000Z'),
-    publishedAt: null,
-    publicationState: null,
-    publicationAttempts: 0,
-    publicationLastErrorClass: null,
-    reconcileDueAt: null,
-    createdAt: T3,
-    updatedAt: T3,
-  }
-}
-
 /** Real existence-check adapter (the durable consumer only reads .status). */
 function makeReviewLookup(): ReviewLookupPort {
-  const reviewRepo = createReviewRepository(db)
+  const reviewRepo = createReviewRepository(db, () => new Date())
   return {
     getReviewSnippetById: async (id, orgId): Promise<ReviewSnippetResult> => {
       const row = await reviewRepo.findById(id, orgId)
@@ -277,19 +279,21 @@ const stubEnrichmentPorts = {
 }
 
 function makeReviewSourceLookup(): ReviewSourceLookupPort {
-  const reviewRepo = createReviewRepository(db)
+  const reviewRepo = createReviewRepository(db, () => new Date())
   return createReviewSourceLookupAdapter({
     findById: (id, orgId) => reviewRepo.findById(id, orgId),
+    findByIds: (ids, orgId) => reviewRepo.findByIds(ids, orgId),
     findByOrganizationId: (orgId) => reviewRepo.findByOrganizationId(orgId),
     findByPropertyId: (pid, orgId) => reviewRepo.findByPropertyId(pid, orgId),
   })
 }
 
 function makeReplyLookup() {
-  const replyRepo = createReplyRepository(db)
+  const replyRepo = createReplyRepository(db, () => new Date())
   return createReplyLookupAdapter({
-    findInternalByReviewId: (id, orgId) => replyRepo.findInternalByReviewId(id, orgId),
     findByReviewId: (id, orgId) => replyRepo.findByReviewId(id, orgId),
+    findMilestonesByReviewIds: (ids, orgId) =>
+      replyRepo.findMilestonesByReviewIds(ids, orgId),
   })
 }
 
@@ -390,7 +394,7 @@ async function redeliver(eventId: string, eventType: string): Promise<void> {
     sourceAggregateId: row.source_aggregate_id as string,
     recordedAt: row.created_at as Date,
   })
-  const handler = createDispatcherHandler(outboxRepo)
+  const handler = createDispatcherHandler(outboxRepo, { consumers: consumerRegistry })
   await handler({ id: eventId, name: eventType, data: envelope } as unknown as Job)
 }
 
@@ -423,7 +427,12 @@ async function createdFactsFor(
 
 /** Seed an open inbox item for a review without emitting any fact. */
 async function seedOpenItem(source: string, sourceDate: Date): Promise<void> {
-  const store = createAtomicInboxCommandStore(db, silentEvents)
+  const store = createAtomicInboxCommandStore(
+    db,
+    silentEvents,
+    allowAllInboxCommandAuthority,
+    () => sourceDate,
+  )
   const built = buildInboxItem({
     id: idGen(),
     organizationId: ORG,
@@ -436,7 +445,7 @@ async function seedOpenItem(source: string, sourceDate: Date): Promise<void> {
     clock: () => sourceDate,
   })
   if (built.isErr()) throw built.error
-  await store.createItem(built.value, null)
+  await store.createItem(built.value, null, { materialReviewRevision: 1 })
 }
 
 // ── Suite ───────────────────────────────────────────────────────────
@@ -454,10 +463,38 @@ beforeAll(async () => {
   // afterAll cleanup is org-scoped identically).
   await pool.query('DELETE FROM inbox_notes WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])
+  await pool.query(
+    'DELETE FROM google_reply_observation_heads WHERE organization_id = $1',
+    [ORG],
+  )
+  await pool.query('DELETE FROM google_reply_observations WHERE organization_id = $1', [
+    ORG,
+  ])
+  await pool.query('DELETE FROM reply_publication_attempts WHERE organization_id = $1', [
+    ORG,
+  ])
+  await withPublicationAuthorizationFixtureMutation(() =>
+    pool.query(
+      'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
+      [ORG],
+    ),
+  )
   await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM policy_decision_audit WHERE organization_id = $1', [ORG])
+  // The production relay intentionally claims globally. Integration files
+  // share this guarded scratch database, however, so an unpublished fact from
+  // another file would become accidental input to this closed-world proof.
+  // Remove only pending facts before this suite creates its own backlog.
+  await pool.query('DELETE FROM outbox_events WHERE published_at IS NULL')
+  // A crashed prior run can leave rows created while such foreign facts were
+  // dispatched. This UUID prefix is reserved by idGen above, so it is safe to
+  // clean across organizations without touching another fixture namespace.
+  await pool.query(
+    `DELETE FROM inbox_items
+      WHERE id::text LIKE '4e000000-0000-4000-8000-0000000002%'`,
+  )
 
   // BQC-6.1: lease-guarded Redis — refuses remote/managed hosts; skips cleanly
   // when the local Redis is unavailable. Obliterates suite-unique queues only.
@@ -481,31 +518,64 @@ beforeAll(async () => {
   policyHandle = initPersistedCapabilityPolicyStore({
     db,
     env: {} as CapabilityPolicyEnv,
+    clock: () => new Date(),
+    logger: { warn: () => {} },
   })
+  // ARC-03-T8: the handle no longer installs itself — the dispatcher's BQC-3.2
+  // consumer gate reads the process-bound delayed policy, so bind explicitly.
+  bindProcessPolicies(policyHandle)
 
-  // Durable consumers (module-global registry — clear first for isolation).
-  clearConsumers()
-  registerInboxConsumers({
-    commandStore: createAtomicInboxCommandStore(db, silentEvents),
+  // Durable consumers registered on this run's own registry (ARC-03-T7).
+  consumerRegistry = createConsumerRegistry()
+  registerInboxConsumers(consumerRegistry, {
+    commandStore: createAtomicInboxCommandStore(
+      db,
+      silentEvents,
+      allowAllInboxCommandAuthority,
+      () => consumerNow,
+    ),
+    handlingCycleStore: createReviewHandlingCycleStore(db),
+    replyObservationAuthority: createReplyObservationAuthorityAdapter(
+      createReviewReplyObservationAuthority(db),
+    ),
+    responseTargetAuthority: createReviewResponseTargetAuthorityAdapter(
+      createReviewResponseTargetAuthority(db),
+    ),
+    sourceTransitionAuthority: createSourceTransitionAuthorityAdapter(
+      createReviewSourceTransitionAuthority(db),
+    ),
     reviewLookup: makeReviewLookup(),
     reviewSourceLookup: makeReviewSourceLookup(),
-    inboxRepo: createInboxRepository(db, stubEnrichmentPorts),
+    inboxRepo: createInboxRepository(db, stubEnrichmentPorts, {
+      clock: () => consumerNow,
+      logger: noopLogger,
+    }),
     idGen,
     clock: () => consumerNow,
+    logger: noopLogger,
   })
 
   // The REAL dispatcher on a REAL BullMQ worker (the worker/index.ts wiring).
-  worker = new Worker(EVENTS_QUEUE, createDispatcherHandler(outboxRepo), {
-    connection,
-    concurrency: 4,
-  })
+  worker = new Worker(
+    EVENTS_QUEUE,
+    createDispatcherHandler(outboxRepo, { consumers: consumerRegistry }),
+    {
+      connection,
+      concurrency: 4,
+    },
+  )
   await worker.waitUntilReady()
   relay = createOutboxRelay(outboxRepo, eventsQueue)
 
   // Org + property fixtures.
-  await pool.query(`DELETE FROM organization WHERE slug = 'bqc39-cutover' AND id <> $1`, [
-    ORG,
-  ])
+  const conflictingOrganizations = await pool.query<{ id: string }>(
+    `SELECT id FROM organization WHERE slug = 'bqc39-cutover' AND id <> $1`,
+    [ORG],
+  )
+  await deleteTestOrganizations(
+    pool,
+    conflictingOrganizations.rows.map(({ id }) => id),
+  )
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, 'BQC39 Cutover Org', 'bqc39-cutover', NOW())
@@ -532,12 +602,30 @@ afterAll(async () => {
   await jobsQueue?.close()
   redisLease?.release()
   policyHandle?.stopPolling()
+  releaseProcessPolicies()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
-  clearConsumers()
+  consumerRegistry = createConsumerRegistry()
   if (pool) {
     await pool.query('DELETE FROM inbox_notes WHERE organization_id = $1', [ORG])
     await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])
+    await pool.query(
+      'DELETE FROM google_reply_observation_heads WHERE organization_id = $1',
+      [ORG],
+    )
+    await pool.query('DELETE FROM google_reply_observations WHERE organization_id = $1', [
+      ORG,
+    ])
+    await pool.query(
+      'DELETE FROM reply_publication_attempts WHERE organization_id = $1',
+      [ORG],
+    )
+    await withPublicationAuthorizationFixtureMutation(() =>
+      pool.query(
+        'DELETE FROM reply_publication_authorizations WHERE organization_id = $1',
+        [ORG],
+      ),
+    )
     await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
     await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
     // Receipts cascade from outbox_events.
@@ -546,7 +634,7 @@ afterAll(async () => {
       ORG,
     ])
     await pool.query('DELETE FROM properties WHERE id = $1', [PROP])
-    await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
+    await deleteTestOrganizations(pool, [ORG])
     await pool.end()
   }
   clearEventSchemas()
@@ -560,10 +648,19 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
     // The bus path: REAL inbox bus handlers on a dedicated bus, wired through
     // the REAL use case + repositories (record-only registration posture).
     const busBus = createEventBus()
-    const busRepo = createInboxRepository(db, stubEnrichmentPorts)
+    const busRepo = createInboxRepository(db, stubEnrichmentPorts, {
+      clock: () => T1,
+      logger: noopLogger,
+    })
+    const busCommandStore = createAtomicInboxCommandStore(
+      db,
+      busBus,
+      allowAllInboxCommandAuthority,
+      () => T1,
+    )
     const busCreateInboxItem = createInboxItem({
       repo: busRepo,
-      commandStore: createAtomicInboxCommandStore(db, busBus),
+      commandStore: busCommandStore,
       idGen,
       clock: () => T1,
     })
@@ -571,6 +668,9 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       events: busBus,
       createInboxItem: busCreateInboxItem,
       repo: busRepo,
+      commandStore: busCommandStore,
+      logger: noopLogger,
+      cutoverState: () => 'record-only',
     })
 
     /**
@@ -605,7 +705,7 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
     }
 
     // ── review.created (bus + durable both project) ──────────────────
-    const reviewStore = createAtomicReviewCommandStore(db, silentEvents)
+    const reviewStore = createAtomicReviewCommandStore(db, silentEvents, () => new Date())
     const e1 = reviewCreated({
       reviewId: R1,
       propertyId: PROP,
@@ -648,32 +748,27 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
     expect(busOutcomeUpdated.sourceDate).toBe(T1.toISOString()) // bus inert
     expect(durableOutcomeUpdated.sourceDate).toBe(T2.toISOString()) // refreshed
 
-    // ── review.expired ────────────────────────────────────────────────
-    const reviewRepo = createReviewRepository(db)
+    // ── destructive Review lifecycle is quarantined ──────────────────
+    const reviewRepo = createReviewRepository(db, () => new Date())
     await reviewRepo.upsert(makeReview(R2, T1, 'bqc39-r2'))
     await seedOpenItem(R2, T1)
-    const replyStore = createAtomicReplyCommandStore(db, silentEvents)
+    const replyStore = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
     const e3 = reviewExpired({
       reviewId: R2,
       propertyId: PROP,
       organizationId: ORG,
       occurredAt: T3,
     })
-    await replyStore.purgeExpiredReview(R2, e3)
-    await shadowRun({
-      family: 'review.expired',
-      consumerName: EXPIRED_CONSUMER,
-      sourceId: R2,
-      eventId: e3.eventId,
-      occurredAt: T3,
-      busEmit: () => busBus.emit(e3),
+    await expect(replyStore.purgeExpiredReview(R2, e3)).rejects.toMatchObject({
+      code: 'review_destructive_lifecycle_quarantined',
     })
+    expect(await receiptsFor(e3.eventId)).toEqual([])
+    expect((await projectionSnapshot(R2)).status).toBe('open')
 
-    // ── review.reply.published ────────────────────────────────────────
-    await reviewRepo.upsert(makeReview(R3, T1, 'bqc39-r3'))
+    // ── review.reply.published is retired/receipt-only ────────────────
+    const savedR3 = await reviewRepo.upsert(makeReview(R3, T1, 'bqc39-r3'))
+    expect(savedR3.sourceRevision).toBe(1)
     await seedOpenItem(R3, T1)
-    const replyRepo = createReplyRepository(db)
-    const seededReply = await replyRepo.upsert(makeApprovedReply())
     const e4 = reviewReplyPublished({
       replyId: REPLY3,
       reviewId: R3,
@@ -683,26 +778,83 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       authorId: null,
       occurredAt: T4,
     })
-    const published = await replyStore.markPublished(
-      seededReply,
-      { status: 'published', publishedAt: T4 },
-      e4,
-      T4,
+    await db.transaction((tx) => insertOutboxRow(tx, e4))
+    // Both compatibility paths are deliberately inert. Compare them in place
+    // so this receipt-only proof does not tear down and recreate the Inbox row
+    // (which would also tear down its immutable Handling Cycle anchor).
+    await busBus.emit(e4)
+    const busPublishedOutcome = await projectionSnapshot(R3)
+    consumerNow = T4
+    await relayNow.poll()
+    await waitForReceipts([e4.eventId], PUBLISHED_CONSUMER)
+    const durablePublishedOutcome = await projectionSnapshot(R3)
+    shadowCollector.record(
+      compareInboxProjection({
+        family: 'review.reply.published',
+        eventId: e4.eventId,
+        bus: busPublishedOutcome,
+        durable: durablePublishedOutcome,
+      }),
     )
-    expect(published).not.toBeNull()
-    await shadowRun({
-      family: 'review.reply.published',
-      consumerName: PUBLISHED_CONSUMER,
-      sourceId: R3,
-      eventId: e4.eventId,
-      occurredAt: T4,
-      busEmit: () => busBus.emit(e4),
+    const receiptOnlyProjection = await projectionSnapshot(R3)
+    expect(receiptOnlyProjection).toMatchObject({
+      status: 'open',
+      firstReplyPublishedAt: null,
+      closedAt: null,
     })
+    await redeliver(e4.eventId, 'review.reply.published')
+    expect(await projectionSnapshot(R3)).toEqual(receiptOnlyProjection)
+
+    // ── exact current review.reply.observed owns closure ──────────────
+    const observationStore = createGoogleReplyObservationStore(db, silentEvents)
+    const observation = await observationStore.record({
+      organizationId: ORG,
+      propertyId: PROP,
+      reviewId: R3,
+      sourceEpoch: savedR3.sourceEpoch,
+      materialReviewRevision: savedR3.sourceRevision,
+      readGeneration: await observationStore.allocateReadGeneration(),
+      observationKey: '3'.repeat(64),
+      source: 'provider_snapshot',
+      observedText: 'External current reply',
+      providerUpdatedAt: T4,
+      observedAt: T4,
+      contentExpiresAt: new Date('2027-07-04T12:00:00.000Z'),
+    })
+    expect(observation).toMatchObject({
+      observationRevision: 1,
+      change: 'added',
+      resolution: 'external_current_live',
+      matchedReplyId: null,
+      matchedPublicationCycle: null,
+    })
+    const observedFacts = await pool.query(
+      `SELECT id FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type = 'review.reply.observed'
+          AND payload->>'reviewId' = $2`,
+      [ORG, R3],
+    )
+    expect(observedFacts.rows).toHaveLength(1)
+    const observedEventId = (observedFacts.rows[0] as { id: string }).id
+    await relayNow.poll()
+    await waitForReceipts([observedEventId], OBSERVED_CONSUMER)
+    const observedProjection = await projectionSnapshot(R3)
+    expect(observedProjection).toMatchObject({
+      status: 'closed',
+      firstReplyPublishedAt: T4.toISOString(),
+      closedAt: T4.toISOString(),
+    })
+    await redeliver(observedEventId, 'review.reply.observed')
+    expect(await projectionSnapshot(R3)).toEqual(observedProjection)
+    expect(await receiptsFor(observedEventId)).toEqual([
+      { consumer_name: OBSERVED_CONSUMER, status: 'applied' },
+    ])
 
     // ── Shadow summary: every compared family matches ─────────────────
     const summary = shadowCollector.summary()
-    expect(summary).toMatchObject({ compared: 3, matched: 3, mismatched: 0 })
-    expect(shadowLogLines).toHaveLength(3)
+    expect(summary).toMatchObject({ compared: 2, matched: 2, mismatched: 0 })
+    expect(shadowLogLines).toHaveLength(2)
     for (const line of shadowLogLines) {
       expect(line.outcome).toBe('match')
       expect(line.mismatchFields).toEqual([])
@@ -717,9 +869,6 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
     ])
     expect(await receiptsFor(e2.eventId)).toEqual([
       { consumer_name: UPDATED_CONSUMER, status: 'applied' },
-    ])
-    expect(await receiptsFor(e3.eventId)).toEqual([
-      { consumer_name: EXPIRED_CONSUMER, status: 'applied' },
     ])
     expect(await receiptsFor(e4.eventId)).toEqual([
       { consumer_name: PUBLISHED_CONSUMER, status: 'applied' },
@@ -766,7 +915,7 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
 
     // N facts committed by the REAL atomic producer BEFORE any relay poll —
     // the pre-dispatcher backlog (bus silent: no projection happened).
-    const reviewStore = createAtomicReviewCommandStore(db, silentEvents)
+    const reviewStore = createAtomicReviewCommandStore(db, silentEvents, () => new Date())
     const backlogEventIds: string[] = []
     for (let i = 0; i < BACKLOG; i++) {
       const rid = backlogReviewIds[i]!
@@ -813,11 +962,20 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
   it('(c) repairs a corrupted projection (dry-run reports first)', async () => {
     if (!redisAvailable) return
 
-    // Post-(a)/(b) state: R1 open (sourceDate T2), R2 closed, R3 closed with
-    // the published milestone, 12 open backlog items.
+    // Post-(a)/(b) state: R1 open (sourceDate T2), R2 remains open because
+    // destructive lifecycle facts are quarantined, R3 is closed by exact
+    // observed provider truth, and the 12 backlog items are open.
     const rebuild = rebuildInboxProjection({
-      repo: createInboxRepository(db, stubEnrichmentPorts),
-      commandStore: createAtomicInboxCommandStore(db, silentEvents),
+      repo: createInboxRepository(db, stubEnrichmentPorts, {
+        clock: () => T5,
+        logger: noopLogger,
+      }),
+      commandStore: createAtomicInboxCommandStore(
+        db,
+        silentEvents,
+        allowAllInboxCommandAuthority,
+        () => T5,
+      ),
       reviewSourceLookup: makeReviewSourceLookup(),
       replyLookup: makeReplyLookup(),
       idGen,
@@ -825,19 +983,9 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       logger: noopLogger,
     })
 
-    // Corrupt: reopen the expired item, reopen + de-stamp the published item,
-    // delete the live item outright.
-    await pool.query(
-      `UPDATE inbox_items SET status = 'open', closed_at = NULL
-        WHERE organization_id = $1 AND source_id = $2`,
-      [ORG, R2],
-    )
-    await pool.query(
-      `UPDATE inbox_items SET status = 'open', closed_at = NULL,
-              first_reply_submitted_at = NULL, first_reply_published_at = NULL
-        WHERE organization_id = $1 AND source_id = $2`,
-      [ORG, R3],
-    )
+    // Corrupt only the live projection by deleting it. Repair must recreate
+    // missing live rows without inventing destructive closure or replacing
+    // the exact observation-owned closure already projected for R3.
     await pool.query(
       'DELETE FROM inbox_items WHERE organization_id = $1 AND source_id = $2',
       [ORG, R1],
@@ -845,16 +993,26 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
 
     // Dry-run: full report, zero writes — the corruption persists.
     const dry = await rebuild({ organizationId: ORG, dryRun: true })
-    expect(dry).toMatchObject({ created: 1, closed: 2, milestones: 1, dryRun: true })
+    expect(dry).toMatchObject({ created: 1, closed: 0, milestones: 0, dryRun: true })
     expect((await projectionSnapshot(R2)).status).toBe('open')
+    expect(await projectionSnapshot(R3)).toMatchObject({
+      status: 'closed',
+      firstReplyPublishedAt: T4.toISOString(),
+    })
     expect(await itemsFor(R1)).toHaveLength(0)
 
     // Real run: heals exactly what the dry-run reported.
     const report = await rebuild({ organizationId: ORG, dryRun: false })
-    expect(report).toMatchObject({ created: 1, closed: 2, milestones: 1, dryRun: false })
-    // scanned = 14 existing items (12 backlog + R2 + R3) + 14 canonical
-    // sources (12 backlog + R1 + R3 — R2's review is purged).
-    expect(report.scanned).toBe(28)
+    expect(report).toMatchObject({
+      created: 1,
+      closed: 0,
+      milestones: 0,
+      dryRun: false,
+    })
+    // scanned = 14 existing items (12 backlog + R2 + R3) + 15 canonical
+    // reviews (12 backlog + R1 + R2 + R3). Quarantining the destructive
+    // lifecycle keeps R2's source Review available to repair.
+    expect(report.scanned).toBe(29)
 
     const r1 = await projectionSnapshot(R1)
     expect(r1).toMatchObject({
@@ -863,13 +1021,19 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       sourceDate: T2.toISOString(),
     })
     const r2 = await projectionSnapshot(R2)
-    expect(r2).toMatchObject({ exists: true, status: 'closed' })
+    expect(r2).toMatchObject({
+      exists: true,
+      status: 'open',
+      firstReplyPublishedAt: null,
+      closedAt: null,
+    })
     const r3 = await projectionSnapshot(R3)
     expect(r3).toMatchObject({
       exists: true,
       status: 'closed',
-      firstReplySubmittedAt: '2026-07-03T18:00:00.000Z',
+      firstReplySubmittedAt: null,
       firstReplyPublishedAt: T4.toISOString(),
+      closedAt: T4.toISOString(),
     })
     // Repair does not re-emit the created fact (rebuild is repair, not new
     // information): still exactly the two harness-artifact facts from (a).
@@ -879,8 +1043,9 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
   it('(d) switch mode: bus handlers retired, the durable path alone projects', async () => {
     if (!redisAvailable || !relay) return
 
-    // Registration assertion: with review.created in 'switch', the family's
-    // bus handlers are NOT registered (legacy path retired for the family).
+    // Registration assertion: with review.created in 'switch', that family's
+    // bus handler is not registered. The compatibility-only published handler
+    // is retired in every mode; exact observed authority owns closure.
     const registrations: string[] = []
     const recordingBus: EventBus = {
       on: (tag) => {
@@ -889,27 +1054,41 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       emit: async () => {},
       clear: () => {},
     }
+    const switchCommandStore = createAtomicInboxCommandStore(
+      db,
+      silentEvents,
+      allowAllInboxCommandAuthority,
+      () => T5,
+    )
     registerInboxHandlers({
       events: recordingBus,
       createInboxItem: createInboxItem({
-        repo: createInboxRepository(db, stubEnrichmentPorts),
-        commandStore: createAtomicInboxCommandStore(db, silentEvents),
+        repo: createInboxRepository(db, stubEnrichmentPorts, {
+          clock: () => T5,
+          logger: noopLogger,
+        }),
+        commandStore: switchCommandStore,
         idGen,
         clock: () => T5,
       }),
-      repo: createInboxRepository(db, stubEnrichmentPorts),
+      repo: createInboxRepository(db, stubEnrichmentPorts, {
+        clock: () => T5,
+        logger: noopLogger,
+      }),
+      commandStore: switchCommandStore,
+      logger: noopLogger,
       cutoverState: (family) => (family === 'review.created' ? 'switch' : 'record-only'),
     })
     expect(registrations).toEqual([
       'guest.feedback.submitted',
-      'review.reply.published',
+      'guest.feedback.retracted',
       'review.reply.submitted',
       'review.expired',
     ])
 
     // Durable-primary: the fact is produced on a bus with NO inbox handlers —
     // only the durable path can project it.
-    const reviewStore = createAtomicReviewCommandStore(db, silentEvents)
+    const reviewStore = createAtomicReviewCommandStore(db, silentEvents, () => new Date())
     const e5 = reviewCreated({
       reviewId: R4,
       propertyId: PROP,

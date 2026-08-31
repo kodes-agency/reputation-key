@@ -13,7 +13,7 @@
 //   metrics-weekly  — refresh-weekly-metrics (incremental rollup)
 //   metrics-inbox   — refresh-daily-inbox-metrics (incremental rollup)
 //
-// Requires REDIS_URL + DATABASE_URL. The enqueue is audited by the harness
+// Requires QUEUE_REDIS_URL + DATABASE_URL. The enqueue is audited by the harness
 // (decision row) and re-authorized by the BQC-3 dispatch gate at execution.
 
 import { createJobQueue } from '../../src/shared/jobs/queue'
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
     async (ctx, _args, io) => {
       const queue = createJobQueue('background')
       if (!queue) {
-        io.err('REDIS_URL is not configured — cannot reach the background queue.')
+        io.err('QUEUE_REDIS_URL is not configured — cannot reach the background queue.')
         return 1
       }
       try {

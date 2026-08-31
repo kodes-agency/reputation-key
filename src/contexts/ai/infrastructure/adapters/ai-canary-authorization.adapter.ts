@@ -118,9 +118,9 @@ function parseClaim(row: Record<string, unknown>): AiCanaryClaimV1 {
   })
 }
 
-export function createAiCanaryAuthorizationAdapter(
+export const createAiCanaryAuthorizationAdapter = (
   db: Database,
-): AiCanaryAuthorizationPort {
+): AiCanaryAuthorizationPort => {
   return Object.freeze({
     async issue(input) {
       if (!OPERATOR_ID.test(input.operatorUserId)) {

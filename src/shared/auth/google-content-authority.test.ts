@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   GOOGLE_CONTENT_APPROVAL_ROLES,
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   type GoogleContentApprovalBinding,
   type GoogleContentApprovalRoleDocument,
+  type GoogleContentCapability,
 } from './google-content-contract'
 import type { AuthorizationExecutionPermit } from './authorization-execution-permit'
 import {
@@ -19,8 +21,10 @@ import {
 
 const now = new Date('2026-08-10T10:00:00.000Z')
 
-const bindingBase = (): Omit<GoogleContentApprovalBinding, 'evidenceIndexSha256'> => ({
-  capability: 'property.import_gbp_v2',
+const bindingBase = (
+  capability: GoogleContentCapability = 'property.import_gbp_v2',
+): Omit<GoogleContentApprovalBinding, 'evidenceIndexSha256'> => ({
+  capability,
   targetPhase: 'local_sandbox',
   environmentProfile: 'sandbox',
   releaseSha: 'release-sha',
@@ -41,7 +45,7 @@ const bindingBase = (): Omit<GoogleContentApprovalBinding, 'evidenceIndexSha256'
   railwayClosedBetaCohortSha256: null,
   railwayClosedBetaResidualRiskSha256: null,
   performanceCatalogVersion: '2026-08-05',
-  routeCatalogueVersion: '2026-08-16',
+  routeCatalogueVersion: GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   capabilityPolicyVersion: 'beta-local-2',
   executionPolicyVersion: 'beta-local-2',
   migrationHead: '0029_google-content-control',
@@ -69,10 +73,11 @@ const runtimeBinding = (): GoogleContentRuntimeBinding => {
 
 const roleDocument = (
   role: (typeof GOOGLE_CONTENT_APPROVAL_ROLES)[number],
+  capability: GoogleContentCapability = 'property.import_gbp_v2',
 ): GoogleContentApprovalRoleDocument => ({
   role,
-  capability: 'property.import_gbp_v2',
-  manifestSha256: bindingBase().evidenceManifestSha256,
+  capability,
+  manifestSha256: bindingBase(capability).evidenceManifestSha256,
   releaseSha: 'release-sha',
   targetPhase: 'local_sandbox',
   environmentProfile: 'sandbox',
@@ -88,14 +93,18 @@ const roleDocument = (
   signature: `${role}-signature`,
 })
 
-const candidate = (): GoogleContentApprovalCandidate => {
+const candidate = (
+  capability: GoogleContentCapability = 'property.import_gbp_v2',
+): GoogleContentApprovalCandidate => {
   const roleDocuments = GOOGLE_CONTENT_APPROVAL_ROLES.map((role) => {
-    const document = roleDocument(role)
+    const document = roleDocument(role, capability)
     return { sha256: canonicalGoogleContentSha256(document), document }
   })
   const indexDocument = {
-    manifestSha256: bindingBase().evidenceManifestSha256,
-    artifactSha256: { deployment: bindingBase().deploymentAttestationSha256 },
+    manifestSha256: bindingBase(capability).evidenceManifestSha256,
+    artifactSha256: {
+      deployment: bindingBase(capability).deploymentAttestationSha256,
+    },
     roleDocumentSha256: {
       'engineering/runtime': roleDocuments[0]!.sha256,
       'product/property': roleDocuments[1]!.sha256,
@@ -109,13 +118,15 @@ const candidate = (): GoogleContentApprovalCandidate => {
     sha256: canonicalGoogleContentSha256(indexDocument),
   }
   return {
-    binding: { ...bindingBase(), evidenceIndexSha256: index.sha256 },
+    binding: { ...bindingBase(capability), evidenceIndexSha256: index.sha256 },
     index,
     roleDocuments,
   }
 }
 
-const approvalBundle = () => ({ manifest: 'manifest', candidate: candidate() })
+const approvalBundle = (
+  capability: GoogleContentCapability = 'property.import_gbp_v2',
+) => ({ manifest: 'manifest', candidate: candidate(capability) })
 
 const binding = (): GoogleContentApprovalBinding => candidate().binding
 const railwayCandidate = (): GoogleContentApprovalCandidate => {
@@ -571,6 +582,72 @@ describe('Google Content authorization authority', () => {
     await expect(
       authority.start(admitted.permit.id, admissionInput().runtimeBinding),
     ).resolves.toMatchObject({ ok: true, permit: { state: 'started' } })
+  })
+
+  it('reconstructs the frozen publication identity when revalidating a permit', async () => {
+    const memory = createStore()
+    const publication = {
+      reviewId: '11111111-1111-4111-8111-111111111111',
+      replyId: '22222222-2222-4222-8222-222222222222',
+      publicationCycle: 2,
+      attemptNumber: 3,
+      sourceEpoch: 4,
+      materialReviewRevision: 5,
+    }
+    const publicationVector = {
+      reviewId: publication.reviewId,
+      replyId: publication.replyId,
+      publicationCycle: publication.publicationCycle,
+      publicationAttemptNumber: publication.attemptNumber,
+      propertySourceEpoch: publication.sourceEpoch,
+      materialReviewRevision: publication.materialReviewRevision,
+    }
+    const authorize = vi.fn(async (_tx: Tx, input) =>
+      input.scope.publication === undefined
+        ? ({ allowed: false, code: 'authorization_denied' } as const)
+        : ({ allowed: true, vector: publicationVector } as const),
+    )
+    const publicationCandidate = candidate('property.publish_reply')
+    const publicationRuntime = runtimeBindingFromCandidate(publicationCandidate)
+    const authority = createGoogleContentAuthorizationAuthority({
+      store: memory.store,
+      clock: () => now,
+      newPermitId: () => 'permit-publication-1',
+      verifyRoleApproval: () => true,
+      refreshPolicy: freshPolicy(memory),
+      isRegisteredOperator: () => true,
+      authorize,
+    })
+    await authority.installApproval({
+      manifest: 'manifest',
+      candidate: publicationCandidate,
+    })
+
+    const admitted = await authority.admit({
+      ...admissionInput(publicationVector),
+      runtimeBinding: publicationRuntime,
+      scope: {
+        organizationId: 'org-1',
+        propertyId: '33333333-3333-4333-8333-333333333333',
+        connectionId: 'connection-1',
+        initiatorUserId: null,
+        publication,
+      },
+      operationKey: 'reply.publish',
+      routeKey: 'google.my-business.reviews.reply',
+    })
+    if (!admitted.ok) throw new Error('expected publication admission')
+
+    await expect(
+      authority.start(admitted.permit.id, publicationRuntime),
+    ).resolves.toMatchObject({ ok: true, permit: { state: 'started' } })
+    expect(authorize).toHaveBeenLastCalledWith(
+      {},
+      expect.objectContaining({
+        capability: 'property.publish_reply',
+        scope: expect.objectContaining({ publication }),
+      }),
+    )
   })
 
   it('fences a permit when an authorization generation changes before start', async () => {

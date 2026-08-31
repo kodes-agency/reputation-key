@@ -10,6 +10,7 @@ import type {
   PropertyId,
   PortalLinkCategoryId,
   PortalLinkId,
+  PortalApprovedDestinationId,
   TeamId,
   UserId,
 } from '#/shared/domain/ids'
@@ -40,7 +41,14 @@ export type Portal = Readonly<{
   description: string | null
   heroImageUrl: string | null
   theme: PortalTheme
+  /** Inclusive threshold: ratings at or below this value may add private feedback. */
+  privateFeedbackThreshold: number
   publicationState: PortalPublicationState
+  readonly createdBy: UserId | null
+  readonly responsibleManagerRevision: number
+  readonly responsibilityNeededSince: Date | null
+  primaryGuestLocale: 'en' | 'bg'
+  additionalGuestLocales: readonly ('en' | 'bg')[]
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null
@@ -78,6 +86,9 @@ export type PortalLink = Readonly<{
   categoryId: PortalLinkCategoryId
   portalId: PortalId
   organizationId: OrganizationId
+  propertyId: PropertyId
+  destinationId: PortalApprovedDestinationId | null
+  legacyDestinationState: 'unclassified' | 'quarantined' | 'migrated'
   label: string
   url: string
   iconKey: string | null

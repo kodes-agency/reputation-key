@@ -54,7 +54,7 @@ async function main(): Promise<void> {
         return
       }
       const container = getContainer()
-      const connection = await container.useCases.disconnectGoogleAccount(
+      const connection = await container.integrationPublicApi.connections.disconnect(
         { connectionId },
         {
           userId: userId(ctx.operatorId),

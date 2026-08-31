@@ -15,8 +15,14 @@ import type { InboxItem } from '#/contexts/inbox/application/public-api'
 // Mirrors the server fns' { data } payloads (same as the detail-content
 // stories): updateStatus takes a status, escalate/resolveEscalation take only
 // the id. Output is InboxItem, matching the use-case returns.
-type StatusInput = { data: { inboxItemId: string; status: 'open' | 'closed' } }
-type IdInput = { data: { inboxItemId: string } }
+type StatusInput = {
+  data: {
+    inboxItemId: string
+    status: 'open' | 'closed'
+    expectedCommandRevision: number
+  }
+}
+type IdInput = { data: { inboxItemId: string; expectedCommandRevision: number } }
 
 function makeStatusAction(
   overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
@@ -41,6 +47,13 @@ function makeIdAction(
     data: null,
   })
 }
+
+const unusedFeedbackAction = Object.assign(
+  async () => {
+    throw new Error('Story action only')
+  },
+  { isPending: false, error: null, isSuccess: false, data: null },
+)
 
 const detailFns = {
   getActivityTimeline: mockServerFn(
@@ -69,6 +82,8 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
     updateStatus: makeStatusAction(),
     escalate: makeIdAction(),
     resolveEscalation: makeIdAction(),
+    markFeedbackHandled: unusedFeedbackAction,
+    correctFeedbackHandlingOutcome: unusedFeedbackAction,
     refetch: () => {},
     onNoteAdded: () => {},
     onReplyMutated: () => {},
@@ -109,6 +124,8 @@ export const Open: Story = {
         feedbackRatingValue: null,
         reply: null,
         analysis: null,
+        feedbackHandling: null,
+        responseTarget: null,
       },
       notes: [],
     }),

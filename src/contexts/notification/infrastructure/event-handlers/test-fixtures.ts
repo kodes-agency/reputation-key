@@ -6,9 +6,10 @@ import type { Queue } from 'bullmq'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { RecognitionLookupPort } from '../../application/ports/recognition-lookup.port'
-import type { NotificationType } from '../../domain/types'
+import type { ResponsibleManagerLookupPort } from '../../application/ports/responsible-manager-lookup.port'
+import type { NotificationResourceType, NotificationType } from '../../domain/types'
 import type { NotificationPayload } from '../../domain/notification-payload'
+import type { NotificationAudience } from '../../application/notification-audience'
 import {
   organizationId,
   propertyId,
@@ -44,8 +45,8 @@ export type FakeEventHandlerDeps = Readonly<{
   addMock: Mock
   jobs: FakeJob[]
   userLookup: MockedPort<UserLookupPort>
+  responsibleManagers: MockedPort<ResponsibleManagerLookupPort>
   inboxItemLookup: MockedPort<InboxItemLookupPort>
-  recognitionLookup: MockedPort<RecognitionLookupPort>
   clock: () => Date
   logger: MockedPort<LoggerPort>
 }>
@@ -62,12 +63,19 @@ const createFakeQueue = (): Pick<FakeEventHandlerDeps, 'queue' | 'addMock' | 'jo
 /** Fake UserLookupPort — every method starts as an empty/mockable vi.fn(). */
 const createFakeUserLookup = (): MockedPort<UserLookupPort> =>
   ({
-    findAssignedManagers: vi.fn(async () => []),
     findByRole: vi.fn(async () => []),
     getEmail: vi.fn(async () => null),
     getName: vi.fn(async () => null),
     findActorRole: vi.fn(async () => 'property_manager'),
   }) as unknown as MockedPort<UserLookupPort>
+
+const createFakeResponsibleManagers = (): MockedPort<ResponsibleManagerLookupPort> =>
+  ({
+    findForProperty: vi.fn(async () => []),
+    findForPortal: vi.fn(async () => []),
+    findForPortalGroup: vi.fn(async () => []),
+    isEligibleForProperty: vi.fn(async () => false),
+  }) as unknown as MockedPort<ResponsibleManagerLookupPort>
 
 /** Fake LoggerPort. */
 const createFakeLogger = (): MockedPort<LoggerPort> =>
@@ -80,52 +88,55 @@ const createFakeLogger = (): MockedPort<LoggerPort> =>
   }) as unknown as MockedPort<LoggerPort>
 
 /** Fake InboxItemLookupPort — resolves the standard inbox item and a standard
- *  set of render facts (2-star Google review at Riverside Hotel, 3h old
+ *  set of render facts (Google review at Riverside Hotel, 3h old
  *  against NOTIF_TEST_IDS.now); tests override for skip/degrade cases. */
 const createFakeInboxItemLookup = (): MockedPort<InboxItemLookupPort> =>
   ({
     findInboxItemByReviewId: vi.fn(async () => inboxItemId('item-1')),
     findInboxItemFacts: vi.fn(async () => ({
       propertyId: 'prop-1',
+      portalId: null,
+      assignedTo: null,
       propertyName: 'Riverside Hotel',
-      rating: 2,
+      guestRating: null,
       sourceType: 'review',
       createdAt: new Date('2026-06-01T09:00:00.000Z'),
     })),
-  }) as unknown as MockedPort<InboxItemLookupPort>
-
-/** Fake RecognitionLookupPort — named goal/badge facts by default. */
-const createFakeRecognitionLookup = (): MockedPort<RecognitionLookupPort> =>
-  ({
-    findGoalFacts: vi.fn(async () => ({
-      goalName: 'Weekend response time',
+    findHandlingCycleNotificationFacts: vi.fn(async () => ({
+      propertyId: 'prop-1',
+      portalId: null,
+      assignedTo: null,
       propertyName: 'Riverside Hotel',
+      guestRating: null,
+      sourceType: 'review',
+      sourceId: 'source-1',
+      createdAt: new Date('2026-06-01T09:00:00.000Z'),
+      currentCycleNumber: 1,
+      currentSourceRevision: 1,
+      stateRevision: 1,
+      status: 'open',
     })),
-    findBadgeFacts: vi.fn(async () => ({
-      badgeName: 'Fast Responder',
-      recipientName: 'Front desk',
-    })),
-  }) as unknown as MockedPort<RecognitionLookupPort>
+    findResponseTargetReminderNotificationFacts: vi.fn(async () => null),
+  }) as unknown as MockedPort<InboxItemLookupPort>
 
 /** Build the full deps record used by notification event-handler tests. */
 export const createEventHandlerDeps = (): FakeEventHandlerDeps => ({
   ...createFakeQueue(),
   userLookup: createFakeUserLookup(),
+  responsibleManagers: createFakeResponsibleManagers(),
   logger: createFakeLogger(),
   inboxItemLookup: createFakeInboxItemLookup(),
-  recognitionLookup: createFakeRecognitionLookup(),
   // Fixed clock, 3 hours after the fake item's createdAt.
   clock: () => new Date('2026-06-01T12:00:00.000Z'),
 })
 
 /**
  * The payload every inbox-keyed handler derives from the fake facts above:
- * property name, star rating, platform, and a 3h waiting age. Handlers that
+ * property name, source platform, and a 3h waiting age. Handlers that
  * name an actor add `actorRole` on top (see `withActor`).
  */
 export const EXPECTED_INBOX_PAYLOAD = {
   propertyName: 'Riverside Hotel',
-  rating: 2,
   platform: 'google',
   waitingHours: 3,
 } as const
@@ -163,7 +174,7 @@ export const buildInboxItemCreatedEvent = (
   inboxItemId: NOTIF_TEST_IDS.inboxItemId,
   organizationId: NOTIF_TEST_IDS.orgId,
   propertyId: NOTIF_TEST_IDS.propId,
-  sourceType: 'feedback',
+  sourceType: 'review',
   sourceId: NOTIF_TEST_IDS.reviewId,
   userId: null,
   source: 'web',
@@ -297,18 +308,25 @@ export const buildReplyRejectedEvent = (
 type ExpectedNotificationJobData = {
   userId: UserId
   type: NotificationType
-  resourceType: 'inbox_item' | 'reply' | 'goal' | 'badge'
+  resourceType: NotificationResourceType
   resourceId: string
   payload: NotificationPayload
+  audience: NotificationAudience
 }
 
-export const buildExpectedJob = (data: ExpectedNotificationJobData) => ({
+export const buildExpectedJob = (
+  data: ExpectedNotificationJobData,
+  opts?: Readonly<Record<string, unknown>>,
+) => ({
   name: INSERT_NOTIFICATION_JOB_NAME,
   data: {
     ...data,
     organizationId: NOTIF_TEST_IDS.orgId,
     propertyId: NOTIF_TEST_IDS.propId,
     eventId: NOTIF_TEST_IDS.eventId,
+  },
+  opts: opts ?? {
+    jobId: `${NOTIF_TEST_IDS.eventId}-${data.userId}`,
   },
 })
 
@@ -322,6 +340,7 @@ export const expectJobsEnqueued = (deps: FakeEventHandlerDeps, count: number): v
 
 /** Stub a single manager + a rejecting queue, for "propagates error from queue.add" tests. */
 export const stubManagerForQueueAddError = (deps: FakeEventHandlerDeps): void => {
-  deps.userLookup.findAssignedManagers.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+  deps.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
+  deps.responsibleManagers.findForPortal.mockResolvedValue([NOTIF_TEST_IDS.manager1])
   deps.addMock.mockRejectedValue(new Error('Queue unavailable'))
 }

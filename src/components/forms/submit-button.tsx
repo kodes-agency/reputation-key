@@ -22,6 +22,7 @@ type Props = Readonly<{
   children: ReactNode
   variant?: 'default' | 'destructive' | 'secondary' | 'outline'
   className?: string
+  disabled?: boolean
 }>
 
 export function SubmitButton({
@@ -30,6 +31,7 @@ export function SubmitButton({
   children,
   variant = 'default',
   className,
+  disabled = false,
 }: Props) {
   const isPending = mutation.isPending
   const isInvalid = form ? !form.state.canSubmit || form.state.isSubmitting : false
@@ -39,7 +41,7 @@ export function SubmitButton({
       type="submit"
       variant={variant}
       className={className}
-      disabled={isPending || isInvalid}
+      disabled={disabled || isPending || isInvalid}
       aria-busy={isPending}
     >
       {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

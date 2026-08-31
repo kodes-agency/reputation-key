@@ -3,6 +3,7 @@
 dist-worker/
 storybook-static/
 .tmp-storybook-build/
+.tmp-unit-results.json
 
 
 # Generated artifacts
@@ -28,6 +29,14 @@ src/shared/ai-reply-language-verifier.ts
 src/shared/ai-language-script-consistency.ts
 src/shared/ai-zh-orthography-verifier.ts
 src/shared/ai-review-language-catalogue.ts
+
+
+# Digest-bound release authority. security/rel-01-canary-threshold-profile.json
+# is round-tripped through canaryThresholdProfileAuthorityJson() and pins a
+# sha256 over docs/adr/0059's exact bytes, so a formatter that collapses a short
+# array invalidates the authority. Same reason as the AI language artifacts
+# above: a prettier bump must never silently break a governance control.
+security/rel-01-canary-threshold-profile.json
 
 
 # Lock files

@@ -3,15 +3,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { onReviewCreated } from './on-review-created'
-
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: () => ({
-    info: () => {},
-    warn: () => {},
-    error: () => {},
-    debug: () => {},
-  }),
-}))
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
 import type { ReviewCreated } from '#/contexts/review/application/public-api'
 import { organizationId, reviewId, propertyId } from '#/shared/domain/ids'
@@ -41,6 +33,7 @@ describe('onReviewCreated', () => {
 
     await onReviewCreated({
       createInboxItem: createInboxItem as unknown as CreateInboxItem,
+      logger: createMockLogger(),
     })(mockEvent)
 
     expect(createInboxItem).toHaveBeenCalledWith({
@@ -50,6 +43,7 @@ describe('onReviewCreated', () => {
       sourceId: REVIEW_ID,
       sourceDate: NOW,
       platform: 'google',
+      materialReviewRevision: 3,
     })
   })
 
@@ -68,6 +62,7 @@ describe('onReviewCreated', () => {
     await expect(
       onReviewCreated({
         createInboxItem: createInboxItem as unknown as CreateInboxItem,
+        logger: createMockLogger(),
       })(mockEvent),
     ).resolves.toBeUndefined()
   })
@@ -80,6 +75,7 @@ describe('onReviewCreated', () => {
     await expect(
       onReviewCreated({
         createInboxItem: createInboxItem as unknown as CreateInboxItem,
+        logger: createMockLogger(),
       })(mockEvent),
     ).resolves.toBeUndefined()
   })

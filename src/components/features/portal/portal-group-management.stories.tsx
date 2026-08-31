@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PortalGroupManagement } from './portal-group-management'
 import type { Action } from '#/components/hooks/use-action'
 import {
@@ -60,6 +60,11 @@ export const Populated: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Guest experience')).toBeInTheDocument()
     await expect(canvas.getByText('Guest services')).toBeInTheDocument()
+    const purpose = canvas.getByText(
+      /organize this property’s review gateways into groups for shared goals/i,
+    )
+    await expect(purpose).toHaveTextContent(/a portal can belong to one group at a time/i)
+    await expect(canvas.queryByText(/recognition/i)).toBeNull()
   },
 }
 
@@ -148,6 +153,27 @@ export const MutationError: Story = {
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByRole('alert')).toHaveTextContent(
       /already assigned/i,
+    )
+  },
+}
+
+export const CreateGroupUsesSharedDto: Story = {
+  args: {
+    ...baseArgs,
+    createMutation: Object.assign(
+      fn(async (_input: CreateInput) => undefined),
+      { isPending: false, error: null, isSuccess: false, data: null },
+    ) as unknown as Action<CreateInput>,
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /new group/i }))
+    await userEvent.type(canvas.getByLabelText(/group name/i), '  Lobby team  ')
+    await userEvent.click(canvas.getByRole('button', { name: /create group/i }))
+    await waitFor(() =>
+      expect(args.createMutation).toHaveBeenCalledWith({
+        data: { propertyId: 'property-1', name: 'Lobby team' },
+      }),
     )
   },
 }

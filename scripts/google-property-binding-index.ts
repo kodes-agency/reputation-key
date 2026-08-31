@@ -192,7 +192,7 @@ export async function inspectGooglePropertyBindingIndex(
 export async function buildGooglePropertyBindingIndex(
   client: SqlClient,
 ): Promise<GooglePropertyBindingIndexResult> {
-  let acquired = false
+  let acquired: boolean
   try {
     const lock = await client.query<{ acquired: boolean }>(
       'SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS acquired',

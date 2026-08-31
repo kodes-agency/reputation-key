@@ -14,7 +14,7 @@
 //   #  Context      Verdict          Criterion (phase §5.10)                              Pin
 //   1  Identity     enabled/limited  grant/public interface sole access source;           NEW grant sole-access scan (this file);
 //                                     owner/session rules deterministic; invitation       content-free-facts register (F2 below)
-//                                     content owned
+//                                     content owned; invitation facts content-free
 //   2  Property     enabled/limited  lifecycle + processing profile behind command/       cross-context-public-api.test.ts;
 //                                     query interfaces                                    NEW properties-table WATCH register
 //   3  Integration  enabled/limited  Google adapter behind explicit port; jobs use        provider-target-selection.test.ts
@@ -36,8 +36,9 @@
 //                                                                                         NEW sole-writer scans (this file)
 //   10 Staff        enabled/limited  participation interface contains no authorization    NEW no-authZ scan (this file)
 //                                     decision
-//   11 Team         default-deny     no enabled-context coupling; deterministic domain;   dark-context-matrix, dark-capability-enforcement
-//                                     no registered active jobs/events
+//   11 Team         quarantined      no route/navigation/UI/network/build/consumer         NEW quarantine surface pin (this file),
+//                                     reachability; retained reconciliation data;           dark-context-matrix, dark-capability-enforcement
+//                                     hard-denied capability
 //   12 Portal       default-deny     independent read/write/upload policy; no direct      portal-capability-taxonomy.test.ts,
 //                                     BullMQ construction from application; public        dark-context-matrix
 //                                     edge denied
@@ -45,18 +46,18 @@
 //                                     adapters unregistered/denied                        scan (this file)
 //   14 Goal         default-deny     split build logic; injected clock; no active         dark-consumer-gating, dark-context-matrix
 //                                     schedules/events
-//   15 Badge        default-deny     deterministic evaluation; no active awards/          dark-consumer-gating, dark-context-matrix
-//                                     workers/events
-//   16 Leaderboard  default-deny     no active recompute/read/export; interface isolated  dark-consumer-gating, dark-context-matrix
+//   15 Badge        quarantined      legacy mechanics/network removed; event envelope,   legacy-recognition-active-surfaces,
+//                                     schema, and restore inventory only                  dark-consumer-gating
+//   16 Leaderboard  quarantined      legacy mechanics/network removed; schema and        legacy-recognition-active-surfaces,
+//                                     content-free restore inventory only                 dark-consumer-gating
 //   17 AI           default-deny     no implementation imports/providers/jobs; only       NEW absence pin (this file)
 //                                     approved governance interfaces
 //
 // Registered gaps (findings, NOT blockers — owned, returned to owner, unfixed here):
 //   F1  replyRejected.reason → activity detail + notification body (owner: BQC-1)
-//   F2  memberInvited.email → activity detail (owner: BQC-1)
 //   F3  feedback comment lookup without retention clock (owner: BQC-1)
-//   WATCH  properties-table direct reads by portal/badge/leaderboard repositories
-//          bypassing property public-api (owners: Property + dark contexts)
+//   WATCH  properties-table direct reads by Portal and Team reconciliation
+//          bypassing property public-api (owners: Property + retained contexts)
 //   Metric: isGamificationViolation has no production call-site (owner: Metric)
 // Documented exceptions (accepted as-is):
 //   identity grant-access-lookup.adapter.ts:30 ambient new Date() (owner: Identity)
@@ -73,24 +74,34 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
+import {
+  JOB_OPERATIONAL_CONTRACTS,
+  createOperationalSchedulerPlan,
+} from '#/shared/jobs/operational-catalogue'
 
 process.env.GOOGLE_CLIENT_ID ||= 'ci-placeholder'
 process.env.GOOGLE_CLIENT_SECRET ||= 'ci-placeholder'
 
 const ROOT = process.cwd()
 
-/** Recursively list production .ts files under dir (tests excluded). */
-function walkSource(dir: string): string[] {
+function walkFiles(dir: string): string[] {
   const out: string[] = []
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
     if (statSync(full).isDirectory()) {
-      out.push(...walkSource(full))
-    } else if (entry.endsWith('.ts') && !entry.endsWith('.test.ts')) {
+      out.push(...walkFiles(full))
+    } else {
       out.push(full)
     }
   }
   return out
+}
+
+/** Recursively list production .ts files under dir (tests excluded). */
+function walkSource(dir: string): string[] {
+  return walkFiles(dir).filter(
+    (file) => file.endsWith('.ts') && !file.endsWith('.test.ts'),
+  )
 }
 
 function rel(path: string): string {
@@ -164,20 +175,20 @@ const REUSED_PINS: Readonly<Record<string, string>> = {
 export const PROPERTY_TABLE_WATCH_REGISTER: Readonly<Record<string, string>> = {
   'src/contexts/team/infrastructure/repositories/reconcile-people-team.repository.ts':
     'WATCH (owner Property): bounded people/team migration reconciliation reads property ownership directly',
-  'src/contexts/badge/infrastructure/repositories/badge.repository.ts':
-    'WATCH (owner Property): dark-context direct properties-table read bypassing property public-api',
-  'src/contexts/leaderboard/infrastructure/repositories/leaderboard.repository.ts':
-    'WATCH (owner Property): dark-context direct properties-table read bypassing property public-api',
+  'src/contexts/portal/infrastructure/portal-health-reconciliation-store.ts':
+    'WATCH (owner Property): Portal Health takes a shared Property-row lock in the same transaction as its receipt and effective-dated interval transition',
+  'src/contexts/leaderboard/infrastructure/adapters/leaderboard-organization-lifecycle.adapter.ts':
+    'WATCH (owner Property): legacy leaderboard_snapshots rows carry no organization_id, so the Organization purge scopes them through a read-only property-ownership subquery; a Property belongs to exactly one Organization, so the clause cannot reach another tenant',
 }
 
 const DARK_CONTEXT_DIRS = ['team', 'portal', 'guest', 'goal', 'badge', 'leaderboard']
 
 const GRANT_TABLE_ACCESS =
-  /property_access_grant\b|\bpropertyAccessGrant\b|property-access-grant\.repository/
+  /\bproperty_access_grant\b|\bpropertyAccessGrant\b|property-access-grant\.repository/
 const PROPERTIES_TABLE_ACCESS =
   /\b(?:from|innerJoin|leftJoin|rightJoin|fullJoin|join|insert|update|delete)\s*\(\s*properties\b|\b(?:FROM|JOIN|UPDATE|INTO)\s+properties\b/i
-const ACTIVITY_LOG_WRITE =
-  /\.\s*(?:insert|update|delete)\s*\(\s*activityLog\b|\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+activity_log\b/i
+const RECENT_ACTIVITY_WRITE =
+  /\.\s*(?:insert|update|delete)\s*\(\s*recentActivityEntries\b|\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+recent_activity_entries\b/i
 const POLICY_AUDIT_WRITE =
   /\.\s*(?:insert|update|delete)\s*\(\s*policyDecisionAudit\b|\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+policy_decision_audit\b/i
 const AUTHZ_PRIMITIVES =
@@ -194,7 +205,9 @@ describe('row 1 — Identity (enabled/limited): property_access_grant sole acces
     const offenders = offendersMatching(
       GRANT_TABLE_ACCESS,
       (p) =>
-        p.startsWith('src/contexts/identity/') || p.startsWith('src/shared/db/schema/'),
+        p.startsWith('src/contexts/identity/') ||
+        p.startsWith('src/shared/db/schema/') ||
+        p === 'src/shared/governance/data-fate-authority.ts',
     )
     expect(
       offenders,
@@ -224,10 +237,14 @@ describe('row 2 — Property (enabled/limited): properties-table cross-context r
 })
 
 describe('row 3 — Integration (enabled/limited): adapters behind ports, jobs on JobRuntime/ProcessingRouter', () => {
-  it('the composition provider mapping and the integration adapter factories still exist', () => {
+  it('the composition provider mapping and governed integration adapter boundary still exist', () => {
     expect(strippedSource('src/composition.ts')).toContain('providerConfigFor(')
     const build = strippedSource('src/contexts/integration/build.ts')
-    expect(build).toContain('createGbpApiAdapter(')
+    expect(build).not.toContain('createGbpApiAdapter(')
+    expect(build).toContain('deps.googleAuthorizedProviderExecutor')
+    expect(build).toContain('createDirectGoogleCredentialUseGate(')
+    expect(build).toContain('createGoogleAccountManagementAdapter(')
+    expect(build).toContain('createGoogleBusinessInformationAdapter(')
     expect(build).toContain('createGoogleReviewApiAdapter(')
   })
 })
@@ -249,7 +266,7 @@ describe('row 5 — Inbox (enabled/limited): content-free projection + applyOnce
   it('the command-store port exposes applyOnce and detail enrichment uses the review lookup port', () => {
     expect(
       strippedSource('src/contexts/inbox/application/ports/inbox-command-store.port.ts'),
-    ).toContain('applyReviewCreatedOnce')
+    ).toContain('applySourceCreatedOnce')
     expect(
       strippedSource(
         'src/contexts/inbox/infrastructure/repositories/inbox.repository.ts',
@@ -281,25 +298,49 @@ describe('row 7 — Metric (enabled/limited): idempotent content-free rollup; no
 })
 
 describe('row 8 — Notification (enabled/limited): in-app delivery; outbound non-auth email dark', () => {
-  it('the worker still schedules the email jobs only behind notification.send_email', () => {
-    expect(strippedSource('src/worker/index.ts')).toContain(
-      `capability: 'notification.send_email'`,
+  it('the operational authority schedules digest email only behind notification.send_email', () => {
+    expect(
+      JOB_OPERATIONAL_CONTRACTS.find((row) => row.jobName === 'digest-notification'),
+    ).toMatchObject({
+      capability: 'notification.send_email',
+      posture: 'active',
+      schedule: 'cron:0 * * * *',
+    })
+    expect(createOperationalSchedulerPlan().desired.map((row) => row.jobName)).toContain(
+      'digest-notification',
     )
   })
 })
 
-describe('row 9 — Activity (enabled/limited): collaboration facts and security audit have sole writers', () => {
+describe('row 9 — Activity (enabled/limited): collaboration facts and security audit have governed writers', () => {
   // Retention sweep deletes via generic table-name config (no activity-specific
   // writer); the scans target write patterns, not the config string.
-  it('only the activity drizzle repository writes activity_log', () => {
-    expect(offendersMatching(ACTIVITY_LOG_WRITE, () => false)).toEqual([
-      'src/contexts/activity/infrastructure/activity-repository.drizzle.ts',
+  it('only Activity-owned projection/recovery/privacy/reconciliation stores and the bounded invitation privacy migrator write recent_activity_entries', () => {
+    expect(offendersMatching(RECENT_ACTIVITY_WRITE, () => false)).toEqual([
+      'src/contexts/activity/infrastructure/activity-delivery-store.ts',
+      'src/contexts/activity/infrastructure/activity-recovery-store.ts',
+      // LIF-01-T14: the Organization purge scrubs Recent Activity, which is
+      // tenant data. Operational Action History is independently retained
+      // evidence under program bullet 5 and is deliberately NOT touched here.
+      'src/contexts/activity/infrastructure/adapters/activity-organization-lifecycle.adapter.ts',
+      'src/contexts/activity/infrastructure/recent-activity-privacy-store.ts',
+      'src/contexts/activity/infrastructure/recent-activity-repository.drizzle.ts',
+      'src/contexts/activity/infrastructure/recent-activity-vocabulary-reconciliation.store.ts',
+      // Temporary, operator-audited migration exception. It can update only
+      // invited-member payload.detail to JSON null in bounded batches while
+      // both processing queues are paused. Remove with the v1 invitation-fact
+      // contraction after every Data Cell has sealed v2 + restore proof.
+      'src/shared/ops/identity-invitation-fact-contract.ts',
     ])
   })
 
-  it('only the identity audit repository writes policy_decision_audit', () => {
+  it('only Identity and the atomic Property region-move adapter write policy_decision_audit', () => {
     expect(offendersMatching(POLICY_AUDIT_WRITE, () => false)).toEqual([
       'src/contexts/identity/infrastructure/repositories/policy-decision-audit.repository.ts',
+      // Accepted region-move requests must co-commit their machine row and
+      // allow audit. Denials still use Identity's injected audit sink because
+      // they have no Property state change to commit.
+      'src/contexts/property/infrastructure/adapters/region-move-request-command-store.adapter.ts',
     ])
   })
 })
@@ -326,11 +367,152 @@ describe('row 10 — Staff (enabled/limited): participation interface carries no
     expect(domain).toContain('StaffParticipation')
     expect(domain).toContain('archive')
   })
+
+  it('exposes only participation/responsibility endpoints while retaining legacy data', () => {
+    const removedLegacyEndpoints = [
+      'src/contexts/staff/server/staff-assignments.ts',
+      'src/contexts/staff/server/staff-portals-update.ts',
+    ].filter((path) => existsSync(join(ROOT, path)))
+    expect(
+      removedLegacyEndpoints,
+      `reachable legacy Staff endpoints:\n${removedLegacyEndpoints.join('\n')}`,
+    ).toEqual([])
+
+    expect(
+      existsSync(join(ROOT, 'src/contexts/staff/server/staff-participations.ts')),
+    ).toBe(true)
+    expect(existsSync(join(ROOT, 'src/contexts/staff/server/staff-portals.ts'))).toBe(
+      true,
+    )
+    expect(strippedSource('src/shared/db/schema/staff-assignment.schema.ts')).toContain(
+      'staffAssignments',
+    )
+
+    const activityHandlers = strippedSource(
+      'src/contexts/activity/infrastructure/event-handlers/index.ts',
+    )
+    expect(activityHandlers).not.toMatch(/staff\.(?:assigned|unassigned)/)
+    expect(activityHandlers).not.toMatch(/onStaff(?:Assigned|Unassigned)/)
+  })
 })
 
-describe('row 11 — Team (controlled beta): scoped authorization and persisted cohort policy', () => {
-  it('team.use remains a declared controlled-beta capability', () => {
-    expect(strippedSource('src/shared/auth/beta-capabilities.ts')).toContain(`'team.use'`)
+describe('row 11 — Team (quarantined): no executable beta product surface', () => {
+  const REMOVED_TEAM_SURFACES = [
+    'src/routes/_authenticated/team.tsx',
+    'src/routes/_authenticated/properties/$propertyId/teams/index.tsx',
+    'src/routes/_authenticated/properties/$propertyId/teams/$teamId.tsx',
+    'src/routes/_authenticated/properties/$propertyId/teams/$teamId/index.tsx',
+    'src/routes/_authenticated/properties/$propertyId/teams/$teamId/members.tsx',
+  ]
+
+  it('has no route, navigation, UI bundle, or active consumer reachability', () => {
+    const existing = REMOVED_TEAM_SURFACES.filter((path) => existsSync(join(ROOT, path)))
+    expect(existing, `reachable Team surfaces:\n${existing.join('\n')}`).toEqual([])
+
+    const navigation = [
+      strippedSource('src/components/layout/staff-nav-items.tsx'),
+      strippedSource('src/components/layout/staff-sidebar.tsx'),
+    ].join('\n')
+    expect(navigation).not.toMatch(/['"]\/team(?:['"/])/)
+
+    const teamUiFiles = existsSync(join(ROOT, 'src/components/features/team'))
+      ? walkFiles(join(ROOT, 'src/components/features/team'))
+      : []
+    expect(
+      teamUiFiles.map(rel),
+      `bundled Team UI:\n${teamUiFiles.map(rel).join('\n')}`,
+    ).toEqual([])
+
+    const activityHandlers = strippedSource(
+      'src/contexts/activity/infrastructure/event-handlers/index.ts',
+    )
+    expect(activityHandlers).not.toMatch(/team\.(?:created|updated|deleted)/)
+    expect(activityHandlers).not.toMatch(/onTeam(?:Created|Updated|Deleted)/)
+  })
+
+  it('retains reconciliation evidence behind an unconditionally blocked capability', () => {
+    expect(
+      existsSync(
+        join(
+          ROOT,
+          'src/contexts/team/infrastructure/repositories/reconcile-people-team.repository.ts',
+        ),
+      ),
+    ).toBe(true)
+
+    const capabilities = strippedSource('src/shared/auth/beta-capabilities.ts')
+    expect(capabilities).toContain(`'team.use'`)
+    expect(capabilities).toMatch(/BLOCKED_CAPABILITIES[\s\S]*'team\.use'/)
+  })
+
+  it('has no Team network or production-composition reachability', () => {
+    const serverDir = join(ROOT, 'src/contexts/team/server')
+    const serverFiles = existsSync(serverDir) ? walkSource(serverDir).map(rel) : []
+    expect(serverFiles, `Team server files:\n${serverFiles.join('\n')}`).toEqual([])
+
+    const composition = strippedSource('src/composition.ts')
+    expect(composition).not.toContain('#/contexts/team/build')
+    expect(composition).not.toContain('buildTeamContext(')
+    expect(composition).not.toContain('team.internal')
+
+    const build = strippedSource('src/contexts/team/build.ts')
+    expect(build).not.toMatch(/from ['"].*(?:application|infrastructure)\//u)
+    expect(build).toMatch(/repos\s*:\s*\{\}/u)
+    expect(build).toMatch(/useCases\s*:\s*\{\}/u)
+
+    const catalogue = strippedSource('src/shared/governance/entry-point-catalogue.ts')
+    expect(catalogue).not.toMatch(/src\/contexts\/team\/server/u)
+
+    // Two narrowly-scoped importers, each justified below and each pinned to
+    // the exact module it may import — a bare path allowance would let any
+    // future Team import in under the same exception.
+    const TEAM_IMPORTER_EXCEPTIONS = new Set([
+      'src/shared/events/events.ts',
+      // LIF-01-T11: the Organization Export contract requires all seventeen
+      // contexts to answer, so a quarantined context must still contribute —
+      // with retained rows or an affirmative no_data. Exporting a tenant's own
+      // retained Team rows is not an activation: it grants no capability, adds
+      // no reachable surface, and the assertions below pin that.
+      'src/composition/organization-export-contributors.ts',
+    ])
+    const importers = SOURCES.filter(
+      ({ path, body }) =>
+        !path.startsWith('src/contexts/team/') &&
+        !TEAM_IMPORTER_EXCEPTIONS.has(path) &&
+        /(?:from\s*|import\(\s*)['"][^'"]*(?:contexts\/team\/|\/team\/)/u.test(body),
+    ).map(({ path }) => path)
+    expect(
+      importers,
+      `production Team importers outside the retained event union:\n${importers.join('\n')}`,
+    ).toEqual([])
+
+    // The export exception may reach exactly one Team module, and no other.
+    const exportComposition = strippedSource(
+      'src/composition/organization-export-contributors.ts',
+    )
+    const teamImports = [
+      ...exportComposition.matchAll(
+        /(?:from\s*|import\(\s*)['"]([^'"]*contexts\/team\/[^'"]*)['"]/gu,
+      ),
+    ].map((match) => match[1])
+    expect(teamImports.sort()).toEqual([
+      '#/contexts/team/infrastructure/adapters/team-organization-export.adapter',
+      '#/contexts/team/infrastructure/adapters/team-organization-lifecycle.adapter',
+    ])
+    expect(strippedSource('src/shared/events/events.ts')).toContain(
+      "from '#/contexts/team/domain/events'",
+    )
+  })
+
+  it('keeps historical Team event families schema-only and consumer-free', () => {
+    const catalogue = strippedSource('src/shared/governance/event-job-catalogue.ts')
+    const teamRows = catalogue.slice(
+      catalogue.indexOf('const TEAM_ROWS'),
+      catalogue.indexOf('const STAFF_ROWS'),
+    )
+    expect(teamRows).not.toMatch(/\b(?:bus|durable)\(/u)
+    expect(teamRows.match(/consumers:\s*\[\]/gu)).toHaveLength(3)
+    expect(teamRows.match(/recordedInOutbox:\s*false/gu)).toHaveLength(3)
   })
 })
 
@@ -364,8 +546,8 @@ describe('row 14 — Goal (controlled beta): governed jobs stay registered and g
   })
 })
 
-describe('row 15 — Badge (controlled beta): governed evaluation and gated jobs', () => {
-  it('badge.use remains declared and gates the governed Badge job family', () => {
+describe('row 15 — Badge (quarantined): historical event schema stays dark', () => {
+  it('badge.use remains blocked on the retained historical event family', () => {
     expect(strippedSource('src/shared/auth/beta-capabilities.ts')).toContain(
       `'badge.use'`,
     )
@@ -375,14 +557,17 @@ describe('row 15 — Badge (controlled beta): governed evaluation and gated jobs
   })
 })
 
-describe('row 16 — Leaderboard (controlled beta): bounded recompute and gated reads', () => {
-  it('leaderboard.use remains declared and gates its recurring reconciliation', () => {
+describe('row 16 — Leaderboard (quarantined): no recompute runtime remains', () => {
+  it('leaderboard.use remains declared while recurring reconciliation is absent', () => {
     expect(strippedSource('src/shared/auth/beta-capabilities.ts')).toContain(
       `'leaderboard.use'`,
     )
-    expect(strippedSource('src/worker/index.ts')).toContain(
-      `capability: 'leaderboard.use'`,
-    )
+    expect(
+      JOB_OPERATIONAL_CONTRACTS.find((row) => row.jobName === 'leaderboard.reconcile'),
+    ).toBeUndefined()
+    expect(
+      createOperationalSchedulerPlan().desired.map((row) => row.jobName),
+    ).not.toContain('leaderboard.reconcile')
   })
 })
 
@@ -433,14 +618,11 @@ describe('row 17 — AI (private-beta foundation): closed policy and durable ope
   })
 })
 
-describe('registered BQC-1 gaps F1–F3 keep their register entries (rerun rule)', () => {
-  it('F1 + F2 stay in the content-free facts register with their BQC-1 justification', () => {
+describe('registered BQC-1 gaps F1 and F3 keep their register entries (rerun rule)', () => {
+  it('F1 stays in the content-free facts register with its BQC-1 justification', () => {
     const facts = readFileSync(join(ROOT, REUSED_PINS.contentFreeFacts), 'utf-8')
     expect(facts, 'F1 fixed? update this matrix row and rerun').toMatch(
       /'ReviewReplyRejected\.reason':\s*'BQC-1 gap/,
-    )
-    expect(facts, 'F2 fixed? update this matrix row and rerun').toMatch(
-      /'IdentityMemberInvited\.email':\s*'BQC-1 gap/,
     )
   })
 

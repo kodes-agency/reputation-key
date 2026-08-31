@@ -37,6 +37,7 @@ function ProfileSettings() {
       />
       <div className="mt-6">
         <ProfileSettingsPage
+          key={`${ctx.user.id}:${ctx.user.name}:${ctx.user.image ?? 'no-image'}`}
           user={ctx.user}
           updateProfile={updateProfile}
           updateUserImage={updateUserImage}

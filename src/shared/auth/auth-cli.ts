@@ -1,8 +1,8 @@
 /**
- * Better Auth CLI configuration.
+ * Better Auth schema-management configuration.
  *
- * Used exclusively by `@better-auth/cli` (generate, migrate).
- * Reuses the same options as auth.ts but avoids Vite path aliases.
+ * Used exclusively by the repository-pinned schema runner (generate,
+ * migrate). Reuses the same options as auth.ts but avoids Vite path aliases.
  */
 import { betterAuth } from 'better-auth'
 import { organization } from 'better-auth/plugins'
@@ -15,14 +15,16 @@ import {
 } from './auth'
 import { organizationSchema } from './org-schema'
 import { ac } from './permissions'
+import { generateBetterAuthDatabaseId } from './registration-user-id'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL_POOLER ?? process.env.DATABASE_URL,
 })
 
 if (!process.env.BETTER_AUTH_SECRET) {
-  // Startup-time assertion for the CLI config (not domain/application logic).
-  // Plain Error is acceptable here — the auth CLI runs before any context is initialized.
+  // Startup-time assertion for the schema config (not domain/application
+  // logic). Plain Error is acceptable here — schema management runs before
+  // any context is initialized.
   throw new Error('BETTER_AUTH_SECRET environment variable is required')
 }
 
@@ -33,6 +35,11 @@ const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  advanced: {
+    // Match runtime ID semantics. The schema runner has no registration
+    // context, so this produces Better Auth-compatible random text IDs.
+    database: { generateId: generateBetterAuthDatabaseId },
+  },
   session: {
     expiresIn: SESSION_EXPIRY_SECONDS,
     updateAge: SESSION_UPDATE_AGE_SECONDS,
@@ -41,12 +48,13 @@ const auth = betterAuth({
     organization({
       ac,
       // MUST mirror auth.ts so auth:generate/auth:migrate manage the same
-      // additionalFields (propertyIds, org billing/SLA) as the runtime.
+      // additionalFields (propertyIds, Organization contact/response target)
+      // as the runtime.
       schema: organizationSchema,
       dynamicAccessControl: { enabled: true },
       invitationExpiresIn: INVITATION_EXPIRY_SECONDS,
       async sendInvitationEmail() {
-        // CLI config doesn't send real emails
+        // Schema-management config doesn't send real emails.
       },
     }),
   ],

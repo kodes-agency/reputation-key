@@ -14,14 +14,16 @@
 // (/live /ready /started) deliberately stay unauthenticated.
 import { createFileRoute } from '@tanstack/react-router'
 import { getContainer } from '#/composition'
-import { getEnv } from '#/shared/config/env'
+import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { isMetricsAuthorized } from '#/shared/health/metrics-access'
 
 export const Route = createFileRoute('/api/health/metrics')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        if (!isMetricsAuthorized(request.headers, getEnv().OPS_METRICS_TOKEN)) {
+        if (
+          !isMetricsAuthorized(request.headers, requestRuntimeConfig().opsMetricsToken)
+        ) {
           return new Response(null, { status: 404 })
         }
 

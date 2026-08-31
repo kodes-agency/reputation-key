@@ -4,13 +4,18 @@ import { isTransientConnectionError, getPool, closePool } from './pool'
 vi.mock('pg', () => {
   class FakePool {
     static instances: FakePool[] = []
+    static nextConnect: (() => Promise<unknown>) | null = null
     readonly handlers = new Map<string, (err: unknown) => void>()
     end = vi.fn(async () => undefined)
-    connect = vi.fn(async () => ({
-      query: vi.fn(async () => ({ rows: [] })),
-      release: vi.fn(),
-    }))
-    query = vi.fn(async () => ({ rows: [] }))
+    connect = vi.fn(async () => {
+      if (FakePool.nextConnect) return FakePool.nextConnect()
+      return {
+        query: vi.fn(async () => ({ rows: [] })),
+        release: vi.fn(),
+      }
+    })
+    queryImplementation = vi.fn(async (..._args: unknown[]) => ({ rows: [] }))
+    query = vi.fn((...args: unknown[]) => this.queryImplementation(...args))
 
     constructor(public readonly options: unknown) {
       FakePool.instances.push(this)
@@ -29,10 +34,16 @@ import { Pool } from 'pg'
 type FakePoolInstance = Pool & {
   options: { connectionString?: string; max?: number }
   end: ReturnType<typeof vi.fn>
+  queryImplementation: ReturnType<typeof vi.fn>
 }
 
 function fakePools(): FakePoolInstance[] {
   return (Pool as unknown as { instances: FakePoolInstance[] }).instances
+}
+
+function setNextConnect(implementation: (() => Promise<unknown>) | null): void {
+  ;(Pool as unknown as { nextConnect: (() => Promise<unknown>) | null }).nextConnect =
+    implementation
 }
 
 const POOL_KEY = Symbol.for('repkey.shared.db.pool')
@@ -44,6 +55,7 @@ function clearStore(): void {
 beforeEach(() => {
   clearStore()
   fakePools().length = 0
+  setNextConnect(null)
   vi.clearAllMocks()
 })
 
@@ -53,13 +65,13 @@ afterEach(() => {
 
 /**
  * The error shapes below are copied from the actual production logs:
- * Neon serverless Postgres cold-start / connection-recycling failures that
- * surface through pg-pool → Kysely → Better Auth as getActiveOrganization 500s.
+ * PostgreSQL acquisition and recycled-socket failures that surface through
+ * pg-pool → Kysely → Better Auth as getActiveOrganization 500s.
  * If isTransientConnectionError stops recognising one of these, the pool-level
- * retry no longer fires and the cold-start 500 returns.
+ * retry no longer fires and a transient availability failure reaches the user.
  */
 describe('isTransientConnectionError', () => {
-  it('recognises the Neon cold-start AggregateError (IPv4 ETIMEDOUT + IPv6 EHOSTUNREACH)', () => {
+  it('recognises a dual-stack AggregateError (IPv4 ETIMEDOUT + IPv6 EHOSTUNREACH)', () => {
     // Verbatim shape from logs: AggregateError [ETIMEDOUT]
     const aggregate = Object.assign(new Error(''), {
       code: 'ETIMEDOUT',
@@ -131,7 +143,7 @@ describe('isTransientConnectionError', () => {
 // build bundles this module twice, so the store must be global, not module
 // scope) and the graceful-shutdown close semantics.
 describe('getPool / closePool (BQC-7.1)', () => {
-  it('creates one pool with the Neon-safe options and dedups on the process store', () => {
+  it('creates one pool with bounded connection options and dedups on the process store', () => {
     const first = getPool()
     const second = getPool()
 
@@ -143,6 +155,47 @@ describe('getPool / closePool (BQC-7.1)', () => {
       connectionTimeoutMillis: 15_000,
       idleTimeoutMillis: 30_000,
     })
+  })
+
+  it('never retries pool.query after an ambiguous connection failure', async () => {
+    const pool = getPool() as FakePoolInstance
+    const ambiguous = Object.assign(new Error('Connection terminated during query'), {
+      code: 'ECONNRESET',
+    })
+    pool.queryImplementation
+      .mockRejectedValueOnce(ambiguous)
+      .mockResolvedValueOnce({ rows: [] })
+
+    await expect(
+      pool.query('INSERT INTO audit_log VALUES ($1)', ['event-1']),
+    ).rejects.toBe(ambiguous)
+    expect(pool.queryImplementation).toHaveBeenCalledTimes(1)
+  })
+
+  it('makes exactly three acquisition attempts with 500ms and 1000ms backoff', async () => {
+    vi.useFakeTimers()
+    const pool = getPool()
+    const transient = Object.assign(new Error('connect ETIMEDOUT'), {
+      code: 'ETIMEDOUT',
+    })
+    let attempts = 0
+    setNextConnect(async () => {
+      attempts += 1
+      throw transient
+    })
+
+    const settled = pool.connect().catch((error: unknown) => error)
+    await vi.advanceTimersByTimeAsync(499)
+    expect(attempts).toBe(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(attempts).toBe(2)
+    await vi.advanceTimersByTimeAsync(999)
+    expect(attempts).toBe(2)
+    await vi.advanceTimersByTimeAsync(1)
+
+    await expect(settled).resolves.toBe(transient)
+    expect(attempts).toBe(3)
+    vi.useRealTimers()
   })
 
   it('closePool ends the pool and resets the store so getPool recreates', async () => {

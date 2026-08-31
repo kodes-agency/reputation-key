@@ -16,12 +16,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
-import type { Notification } from '#/contexts/notification/application/public-api'
+import {
+  isPreferenceDisableable,
+  NOTIFICATION_SETTINGS_CATEGORIES,
+  type Notification,
+} from '#/contexts/notification/application/public-api'
 import type { NotificationRowActions } from './types'
 
 type Props = Readonly<{
   notification: Notification
-  /** Human name of the notification's category, e.g. "Urgent operations". */
+  /** Human name of the notification's category, e.g. "Action needed". */
   categoryLabel: string
   /** Used only for the trigger's accessible name, never rendered. */
   title: string
@@ -35,8 +39,10 @@ export function NotificationRowMenu({
   actions,
 }: Props) {
   const isUnread = notification.status === 'unread'
-  // `mandatory` is non-disableable by ADR 0046, so muting it is not offered.
-  const canMute = notification.category !== 'mandatory'
+  const canMute =
+    notification.category !== 'mandatory' &&
+    NOTIFICATION_SETTINGS_CATEGORIES.includes(notification.category) &&
+    isPreferenceDisableable(notification.category, 'in_app')
 
   return (
     <DropdownMenu>

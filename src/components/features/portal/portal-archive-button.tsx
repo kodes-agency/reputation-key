@@ -1,13 +1,7 @@
-// Portal delete button with confirmation dialog.
-//
-// This used to be called "Archive" and the dialog promised the configuration was
-// retained. It is not: `softDeletePortal` sets `deleted_at` and never touches
-// `publicationState`, and `listPortals` filters `deleted_at IS NULL`, so the
-// portal disappears with no archived view and no restore action anywhere in the
-// product. The row survives in the database for audit, but from the manager's
-// side the action is irreversible — and a portal's printed QR mapping dies with
-// it. The label and copy now say exactly that. Rename this back to "Archive"
-// only together with an archived filter and a restore action.
+// Recoverable Portal archive/restore control. Archive preserves the Portal's
+// address, snapshots, metrics, assignments, and saved settings. Restore is
+// intentionally non-public: it always returns to Disabled and requires a later,
+// deliberate publication after the manager re-checks the retained configuration.
 
 import {
   AlertDialog,
@@ -21,52 +15,81 @@ import {
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
 import { Button } from '#/components/ui/button'
-import { Trash2 } from 'lucide-react'
+import { Archive, RotateCcw } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 
 interface PortalArchiveButtonProps {
   portalId: string
   portalName: string
-  deleteMutation: Action<{ data: { portalId: string } }>
+  publicationState: 'draft' | 'published' | 'disabled' | 'archived'
+  archiveMutation: Action<{
+    data: { portalId: string; publicationState: 'archived' }
+  }>
+  restoreMutation: Action<{
+    data: { portalId: string; publicationState: 'disabled' }
+  }>
 }
 
 export function PortalArchiveButton({
   portalId,
   portalName,
-  deleteMutation,
+  publicationState,
+  archiveMutation,
+  restoreMutation,
 }: PortalArchiveButtonProps) {
+  const restoring = publicationState === 'archived'
+  const mutation = restoring ? restoreMutation : archiveMutation
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button
           size="sm"
           variant="outline"
-          className="min-h-11 text-destructive hover:text-destructive sm:min-h-8"
-          disabled={deleteMutation.isPending}
+          className="min-h-11 sm:min-h-8"
+          disabled={mutation.isPending}
         >
-          <Trash2 className="size-3.5" />
-          Delete
+          {restoring ? (
+            <RotateCcw className="size-3.5" />
+          ) : (
+            <Archive className="size-3.5" />
+          )}
+          {restoring ? 'Restore' : 'Archive'}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete {portalName}?</AlertDialogTitle>
+          <AlertDialogTitle>
+            {restoring ? `Restore ${portalName}?` : `Archive ${portalName}?`}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            This cannot be undone from here. The portal, its links and its public address
-            are removed, so any printed QR code pointing at it stops working. To take a
-            portal offline temporarily, set its status to Disabled instead.
+            {restoring
+              ? 'The Portal will return as Disabled. Its saved settings remain available, but guests will not see it until you review and publish it again.'
+              : 'The Portal will become read-only and unavailable to guests. Its public address, saved settings, publication history, metrics, goals, and manager assignments are retained so it can be restored later.'}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => {
-              void deleteMutation({ data: { portalId } }).catch(() => undefined)
+              if (restoring) {
+                void restoreMutation({
+                  data: { portalId, publicationState: 'disabled' },
+                }).catch(() => undefined)
+              } else {
+                void archiveMutation({
+                  data: { portalId, publicationState: 'archived' },
+                }).catch(() => undefined)
+              }
             }}
-            disabled={deleteMutation.isPending}
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            disabled={mutation.isPending}
           >
-            {deleteMutation.isPending ? 'Deleting…' : 'Delete portal'}
+            {mutation.isPending
+              ? restoring
+                ? 'Restoring…'
+                : 'Archiving…'
+              : restoring
+                ? 'Restore as Disabled'
+                : 'Archive Portal'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

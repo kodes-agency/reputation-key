@@ -63,6 +63,7 @@ export const createInboxItem = (
     closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
+    commandRevision: 1,
     createdAt: now,
     updatedAt: now,
   })

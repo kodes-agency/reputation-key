@@ -17,14 +17,15 @@ export type TeamCreated = Readonly<{
   correlationId: string | null
 }>
 export const teamCreated = (
-  args: Omit<TeamCreated, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<TeamCreated, '_tag' | 'eventId' | 'correlationId'> &
+    Readonly<{ correlationId?: string | null }>,
 ): TeamCreated => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
     _tag: 'team.created',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -39,14 +40,15 @@ export type TeamUpdated = Readonly<{
   correlationId: string | null
 }>
 export const teamUpdated = (
-  args: Omit<TeamUpdated, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<TeamUpdated, '_tag' | 'eventId' | 'correlationId'> &
+    Readonly<{ correlationId?: string | null }>,
 ): TeamUpdated => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
     _tag: 'team.updated',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -60,14 +62,15 @@ export type TeamDeleted = Readonly<{
   correlationId: string | null
 }>
 export const teamDeleted = (
-  args: Omit<TeamDeleted, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<TeamDeleted, '_tag' | 'eventId' | 'correlationId'> &
+    Readonly<{ correlationId?: string | null }>,
 ): TeamDeleted => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
   return {
     _tag: 'team.deleted',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
 

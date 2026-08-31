@@ -56,7 +56,7 @@
     {
       "id": "reply-suggestion",
       "sourceClassId": "identity-minimized-review",
-      "outputClassId": "ephemeral-template-selection",
+      "outputClassId": "ephemeral-personalized-draft",
       "retentionPolicyId": "browser-ephemeral"
     },
     {
@@ -78,7 +78,7 @@
   ],
   "outputClasses": [
     {
-      "id": "ephemeral-template-selection",
+      "id": "ephemeral-personalized-draft",
       "durable": false
     },
     {

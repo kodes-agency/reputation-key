@@ -20,9 +20,9 @@ export const auditLogs = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => ({
+  (t) => [
     // F163: Indexes for common audit log query patterns
-    orgIdx: index('audit_logs_org_idx').on(t.organizationId),
-    userIdx: index('audit_logs_user_idx').on(t.userId),
-  }),
+    index('audit_logs_org_idx').on(t.organizationId),
+    index('audit_logs_user_idx').on(t.userId),
+  ],
 )

@@ -93,6 +93,14 @@ describe('BQC-5.1: cross-context public-api rule', () => {
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
   })
 
+  it('flags context build.ts → foreign infrastructure', async () => {
+    const messages = await lintSnippet(
+      `import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'\nexport const factory = createSourceContentPurge\n`,
+      'src/contexts/integration/build.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
+  })
+
   it('flags relative imports crossing into a foreign context domain', async () => {
     const messages = await lintSnippet(
       `import { assertRegionResolved } from '../../property/domain/processing-routing'\nexport const gate = assertRegionResolved\n`,

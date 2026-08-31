@@ -118,7 +118,7 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
   it('denies a non-core capability without an org allowlist row', async () => {
     const policy = createExecutionPolicy(deps())
     const decision = await policy.decide(
-      request({ action: 'team.read', capability: 'team.use' }),
+      request({ action: 'goal.read', capability: 'goal.use' }),
     )
     expect(decision.allowed).toBe(false)
     expect(decision.reason).toBe('org_not_allowlisted')
@@ -201,6 +201,39 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     )
     expect(decision.allowed).toBe(false)
     expect(decision.reason).toBe('policy_unavailable')
+  })
+
+  it('denies a property-scoped interactive request routed to another cell', async () => {
+    const admitPropertyExecution = vi.fn(async () => ({
+      kind: 'deny' as const,
+      reason: 'wrong_cell' as const,
+      localCell: 'europe' as const,
+      targetCell: 'us' as const,
+    }))
+    const policy = createExecutionPolicy(deps({ admitPropertyExecution }))
+
+    const decision = await policy.decide(request({ propertyId: PROP }))
+
+    expect(decision).toMatchObject({ allowed: false, reason: 'wrong_cell' })
+    expect(admitPropertyExecution).toHaveBeenCalledWith(PROP)
+  })
+
+  it('maps unresolved or unavailable routing to a closed cell_unavailable decision', async () => {
+    const policy = createExecutionPolicy(
+      deps({
+        admitPropertyExecution: async () => ({
+          kind: 'deny',
+          reason: 'routing_unavailable',
+          localCell: 'us',
+          targetCell: null,
+        }),
+      }),
+    )
+
+    await expect(policy.decide(request({ propertyId: PROP }))).resolves.toMatchObject({
+      allowed: false,
+      reason: 'cell_unavailable',
+    })
   })
 
   it('explicit consent selector: active → allow; missing → consent_required', async () => {
@@ -296,9 +329,9 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     initCapabilityPolicyStore({
       isCapabilityGloballyEnabled: () => false,
       isOrgAllowlisted: (organizationId, capability) =>
-        organizationId === ORG && capability === 'portal.guest_media',
+        organizationId === ORG && capability === 'portal.guest_text',
       isPropertyAllowlisted: (candidatePropertyId, capability) =>
-        candidatePropertyId === PROP && capability === 'portal.guest_media',
+        candidatePropertyId === PROP && capability === 'portal.guest_text',
       isOrgSuspended: () => false,
       isPropertySuspended: () => false,
     })
@@ -306,19 +339,19 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     const consentAssertions = {
       analytics: false,
       response: true,
-      freeText: false,
+      freeText: true,
       contact: false,
-      media: true,
+      media: false,
     } as const
     const allowed = await policy.decide(
       request({
         principal: { kind: 'public', id: 'guest-session' },
-        action: 'public:portal.media.issue',
-        capability: 'portal.guest_media',
+        action: 'public:portal.response.text.submit',
+        capability: 'portal.guest_text',
         organizationId: ORG,
         propertyId: PROP,
         executionKind: 'public',
-        requiredPublicConsents: ['response', 'media'],
+        requiredPublicConsents: ['response', 'freeText'],
         consentAssertions,
       }),
     )
@@ -327,12 +360,12 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     const wrongProperty = await policy.decide(
       request({
         principal: { kind: 'public' },
-        action: 'public:portal.media.issue',
-        capability: 'portal.guest_media',
+        action: 'public:portal.response.text.submit',
+        capability: 'portal.guest_text',
         organizationId: ORG,
         propertyId: 'p2',
         executionKind: 'public',
-        requiredPublicConsents: ['response', 'media'],
+        requiredPublicConsents: ['response', 'freeText'],
         consentAssertions,
       }),
     )
@@ -341,13 +374,13 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     const declined = await policy.decide(
       request({
         principal: { kind: 'public' },
-        action: 'public:portal.media.issue',
-        capability: 'portal.guest_media',
+        action: 'public:portal.response.text.submit',
+        capability: 'portal.guest_text',
         organizationId: ORG,
         propertyId: PROP,
         executionKind: 'public',
-        requiredPublicConsents: ['response', 'media'],
-        consentAssertions: { ...consentAssertions, media: false },
+        requiredPublicConsents: ['response', 'freeText'],
+        consentAssertions: { ...consentAssertions, freeText: false },
       }),
     )
     expect(declined.reason).toBe('consent_required')
@@ -465,6 +498,22 @@ describe('operator principal (BQC-7.5)', () => {
     expect(decision.reason).toBe('unsupported_principal')
   })
 
+  it('denies a registered property-scoped operator in the wrong Data Cell', async () => {
+    const policy = createExecutionPolicy(
+      deps({
+        isRegisteredOperator: () => true,
+        admitPropertyExecution: async () => ({
+          kind: 'deny',
+          reason: 'wrong_cell',
+          localCell: 'europe',
+          targetCell: 'us',
+        }),
+      }),
+    )
+    const decision = await policy.decide(operatorRequest({ propertyId: PROP }))
+    expect(decision).toMatchObject({ allowed: false, reason: 'wrong_cell' })
+  })
+
   it('denies when the declared capability is blocked (org-scoped)', async () => {
     const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
     const decision = await policy.decide(
@@ -487,10 +536,10 @@ describe('operator principal (BQC-7.5)', () => {
   it('global scope (no org) evaluates the global capability gate only', async () => {
     const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
     const deny = await policy.decide(
-      operatorRequest({ organizationId: undefined, capability: 'team.use' }),
+      operatorRequest({ organizationId: undefined, capability: 'goal.use' }),
     )
     expect(deny.allowed).toBe(false)
-    // team.use is non-core → globally off without an e2e override.
+    // goal.use is non-core → globally off without an e2e override.
     expect(deny.reason).toBe('capability_disabled')
 
     const allow = await policy.decide(
@@ -586,6 +635,48 @@ describe('requireExecutionAllowed (BQC-2.4 migration helper)', () => {
         propertyId: propertyId(PROP),
       }),
     ).resolves.toBeUndefined()
+  })
+
+  it('surfaces wrong-cell requests as HTTP 421 and cell outages as 503', async () => {
+    initExecutionPolicy(
+      createExecutionPolicy(
+        deps({
+          admitPropertyExecution: async () => ({
+            kind: 'deny',
+            reason: 'wrong_cell',
+            localCell: 'europe',
+            targetCell: 'us',
+          }),
+        }),
+      ),
+    )
+    await expect(
+      requireExecutionAllowed({
+        actor: orgWideCtx(['property.read']),
+        action: 'property.read',
+        propertyId: propertyId(PROP),
+      }),
+    ).rejects.toMatchObject({ code: 'wrong_cell', status: 421 })
+
+    initExecutionPolicy(
+      createExecutionPolicy(
+        deps({
+          admitPropertyExecution: async () => ({
+            kind: 'deny',
+            reason: 'routing_unavailable',
+            localCell: 'us',
+            targetCell: null,
+          }),
+        }),
+      ),
+    )
+    await expect(
+      requireExecutionAllowed({
+        actor: orgWideCtx(['property.read']),
+        action: 'property.read',
+        propertyId: propertyId(PROP),
+      }),
+    ).rejects.toMatchObject({ code: 'cell_unavailable', status: 503 })
   })
 })
 

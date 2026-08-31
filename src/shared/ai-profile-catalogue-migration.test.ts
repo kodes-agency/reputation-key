@@ -16,11 +16,14 @@ const seedMigration = readFileSync(
   'utf8',
 )
 const currentCatalogueMigration = readFileSync(
-  resolve(process.cwd(), 'drizzle/0078_ai-language-catalogue-repin.sql'),
+  resolve(process.cwd(), 'drizzle/0163_ai_reply_brand_profile_grounding.sql'),
   'utf8',
 )
 const laterMigrations = readdirSync(resolve(process.cwd(), 'drizzle'))
-  .filter((name) => /^00(?:4[7-9]|[5-9][0-9])_.*\.sql$/u.test(name))
+  .filter((name) => {
+    const index = Number.parseInt(name.slice(0, 4), 10)
+    return /^\d{4}_.*\.sql$/u.test(name) && index >= 47
+  })
   .sort()
   .map((name) => readFileSync(resolve(process.cwd(), 'drizzle', name), 'utf8'))
   .join('\n')

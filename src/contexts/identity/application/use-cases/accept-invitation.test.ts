@@ -35,7 +35,7 @@ describe('acceptInvitation', () => {
       id: invId as string,
       organizationId: orgId as string,
       email: 'joiner@test.com',
-      role: 'member',
+      role: 'admin',
       status: 'pending',
       expiresAt: new Date(Date.now() + 86_400_000),
       propertyIds: JSON.stringify(['prop-a', 'prop-b']),
@@ -51,6 +51,7 @@ describe('acceptInvitation', () => {
 
     // Returns the joined org id
     expect(result.organizationId).toBe(orgId)
+    expect(identity.activeOrganizationCalls).toEqual([orgId as string])
 
     // State: the invitation is accepted and the membership exists
     expect(commandStore.invitationById(invId as string)?.status).toBe('accepted')
@@ -68,7 +69,7 @@ describe('acceptInvitation', () => {
     expect(emitted[0].propertyIds).toEqual(['prop-a', 'prop-b'])
     expect(emitted[0].occurredAt).toBe(FIXED_TIME)
 
-    // Post-commit hook: staff assignments for the invited properties
+    // Post-commit hook: explicit Property access for the invited properties.
     expect(identity.acceptInvitationHookCalls).toEqual([
       {
         userId: joiningUserId as string,

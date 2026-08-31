@@ -9,6 +9,8 @@ type FormFieldValues = {
   password: string
   confirmPassword: string
   organizationName?: string
+  invitationId?: string
+  mode?: 'register' | 'join'
 }
 
 type Props = Readonly<{

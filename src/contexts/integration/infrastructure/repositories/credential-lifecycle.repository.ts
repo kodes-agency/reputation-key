@@ -56,9 +56,9 @@ function validRegistration(input: CredentialSourceRegistration): boolean {
   )
 }
 
-export function createCredentialLifecycleRepository(
+export const createCredentialLifecycleRepository = (
   db: Database,
-): CredentialLifecycleStore {
+): CredentialLifecycleStore => {
   return Object.freeze({
     registerSource: async (input) => {
       if (!validRegistration(input)) return fail('invalid_transition')

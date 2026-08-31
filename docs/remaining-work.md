@@ -1,5 +1,12 @@
 # Remaining Work — rep-key
 
+> **Historical snapshot — superseded 2026-08-25.** Do not use this file as an
+> execution backlog or capability authority. In particular, its custom-role,
+> Team, and release-posture statements predate the settled beta decisions. The
+> current authority is
+> [`comprehensive-beta-implementation-program-2026-08-25.md`](./comprehensive-beta-implementation-program-2026-08-25.md)
+> plus the executable package-status evidence under `docs/release-evidence/review/`.
+
 **Last updated:** 2026-07-06 (end of DAC Stage 2 session, branch `review/deep-review-sweep`)
 **Test baseline:** 259/259 files · 2403 tests · tsc 0 · eslint + boundaries clean · §6 CI greps all 0
 
@@ -19,7 +26,12 @@ Pick it up by priority; items within a priority tier are independent unless note
 
 ### 2. Better Auth cannot bootstrap a fresh database — ✅ DONE
 
-**Status:** Resolved. A committed idempotent bootstrap SQL (`scripts/migrations/0000-auth-tables-bootstrap.sql`) provisions all 8 baseline auth tables from scratch; `pnpm db:bootstrap-auth` applies it. The 2 incremental BA migration files were made idempotent (`IF NOT EXISTS`) so `auth:migrate` is safe post-bootstrap. Verified: idempotent no-op on Neon. Full runbook in `docs/auth-migrations.md` → "Fresh-DB provisioning".
+**Status:** Resolved and superseded. `pnpm db:migrate-deploy` uses the exact
+pinned Better Auth runtime to provision all eight baseline auth tables before
+the staged application migrations. The committed idempotent bootstrap SQL is a
+recovery-only compatibility fallback and is parity-tested against the runtime;
+it is not part of the normal provisioning sequence. Full runbook in
+`docs/auth-migrations.md` → "Fresh-database provisioning".
 
 ---
 

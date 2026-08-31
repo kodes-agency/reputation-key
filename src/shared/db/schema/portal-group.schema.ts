@@ -21,19 +21,19 @@ export const portalGroups = pgTable(
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
   },
-  (t) => ({
-    orgPropertyNameUnique: uniqueIndex('portal_groups_org_property_name_unique')
+  (t) => [
+    uniqueIndex('portal_groups_org_property_name_unique')
       .on(t.organizationId, t.propertyId, t.name)
       .where(sql`${t.deletedAt} IS NULL`),
-    tenantKey: uniqueIndex('portal_groups_org_property_id_key').on(
+    uniqueIndex('portal_groups_org_property_id_key').on(
       t.organizationId,
       t.propertyId,
       t.id,
     ),
-    propertyTenantFk: foreignKey({
+    foreignKey({
       name: 'portal_groups_property_tenant_fk',
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
     }).onDelete('restrict'),
-  }),
+  ],
 )

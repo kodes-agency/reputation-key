@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest'
 import { systemCancelGoal, type SystemCancelGoalDeps } from './system-cancel-goal'
 import type { Goal } from '../../domain/types'
 import type { GoalRepository } from '../ports/goal.repository'
-import type { getLogger as getLoggerType } from '#/shared/observability/logger'
 import { organizationId, propertyId, goalId, userId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
@@ -85,8 +84,7 @@ function createFakeDeps(storedGoals: Goal[] = []) {
   const deps: SystemCancelGoalDeps = {
     goalRepo,
     clock: () => FIXED_TIME,
-    getLogger: (() =>
-      logger as unknown as ReturnType<typeof getLoggerType>) as typeof getLoggerType,
+    logger,
   }
 
   return {

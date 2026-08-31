@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
   GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,

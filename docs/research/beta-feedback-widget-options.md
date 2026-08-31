@@ -1,5 +1,12 @@
 # Beta feedback widget options for RepKey
 
+> **Execution status (2026-08-26): superseded.** This research is retained as
+> decision background. The authoritative contract is `OBS-01` in
+> `docs/comprehensive-beta-implementation-program-2026-08-25.md`: Suggestions
+> are text-only; Bug screenshot/replay capture is allowed only after explicit
+> per-submission opt-in with preview/removal/cancel semantics. The first safe
+> implementation intentionally ships without either attachment type.
+
 **Research date:** 2026-07-15
 **Scope:** authenticated beta testers reporting bugs and suggestions from the RepKey web app
 **Sources:** first-party product documentation, pricing/security pages, official SDK/source repositories, and web specifications only

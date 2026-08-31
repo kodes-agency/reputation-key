@@ -32,9 +32,21 @@ import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { ManagerSidebar } from './manager-sidebar'
 
 const properties = [
-  { id: 'prop-acme', name: 'Acme Hotel', slug: 'acme-hotel' },
-  { id: 'prop-globex', name: 'Globex HQ', slug: 'globex-hq' },
-  { id: 'prop-initech', name: 'Initech Offices', slug: 'initech-offices' },
+  {
+    id: '10000000-0000-4000-8000-000000000001',
+    name: 'Acme Hotel',
+    slug: 'acme-hotel',
+  },
+  {
+    id: '10000000-0000-4000-8000-000000000002',
+    name: 'Globex HQ',
+    slug: 'globex-hq',
+  },
+  {
+    id: '10000000-0000-4000-8000-000000000003',
+    name: 'Initech Offices',
+    slug: 'initech-offices',
+  },
 ]
 
 // InboxNewBadge calls useAction(useServerFn(getNewCount)); a plain callable cast
@@ -95,7 +107,7 @@ function withRoleAt(role: Role, initialUrl: string) {
 // the new-count badge (mocked to 5) mounts on the Reviews entry.
 export const AsPropertyManager: Story = {
   args: { properties, getLastVisitCount: lastVisitCountWithBadge },
-  decorators: [withRoleAt('PropertyManager', '/?propertyId=prop-acme')],
+  decorators: [withRoleAt('PropertyManager', `/?propertyId=${properties[0].id}`)],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Property switcher shows the active property.
@@ -106,6 +118,7 @@ export const AsPropertyManager: Story = {
     expect(await canvas.findByText(/^people$/i)).toBeInTheDocument()
     expect(await canvas.findByText(/^portals$/i)).toBeInTheDocument()
     expect(await canvas.findByText(/^goals$/i)).toBeInTheDocument()
+    expect(canvas.queryByText(/^leaderboard$/i)).toBeNull()
     // New-count badge resolves from the mock (async) → "5".
     expect(await canvas.findByText(/^5$/)).toBeInTheDocument()
   },
@@ -115,7 +128,7 @@ export const AsPropertyManager: Story = {
 // Identical chrome — documents the role reaches the same nav.
 export const AsAccountAdmin: Story = {
   args: { properties, getLastVisitCount: lastVisitCountZero },
-  decorators: [withRoleAt('AccountAdmin', '/?propertyId=prop-acme')],
+  decorators: [withRoleAt('AccountAdmin', `/?propertyId=${properties[0].id}`)],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/acme hotel/i)).toBeInTheDocument()

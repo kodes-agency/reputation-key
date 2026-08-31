@@ -34,6 +34,8 @@ function createMigrationClient(input: {
   cleanupRequiredPresent: boolean
   railwayTargetPresent: boolean
   railwayProfilePresent: boolean
+  googleConnectPresent: boolean
+  googlePublishReplyPresent: boolean
   reviews?: readonly Readonly<{
     id: string
     text: string | null
@@ -54,6 +56,8 @@ function createMigrationClient(input: {
   let cleanupRequiredPresent = input.cleanupRequiredPresent
   let railwayTargetPresent = input.railwayTargetPresent
   let railwayProfilePresent = input.railwayProfilePresent
+  let googleConnectPresent = input.googleConnectPresent
+  let googlePublishReplyPresent = input.googlePublishReplyPresent
   let reviewBatchRead = false
   let pendingEnumType = false
   let inTransaction = false
@@ -102,6 +106,16 @@ function createMigrationClient(input: {
           ],
         }
       }
+      if (statement.includes('AS google_connect_present')) {
+        return {
+          rows: [
+            {
+              google_connect_present: googleConnectPresent,
+              google_publish_reply_present: googlePublishReplyPresent,
+            },
+          ],
+        }
+      }
       if (statement.includes("ADD VALUE IF NOT EXISTS 'cleanup_required'")) {
         if (!cleanupRequiredPresent) {
           if (inTransaction) throw new Error('unsafe enum use in migration transaction')
@@ -120,6 +134,20 @@ function createMigrationClient(input: {
         if (!railwayProfilePresent) {
           if (inTransaction) throw new Error('unsafe Railway profile enum use')
           railwayProfilePresent = true
+        }
+        return { rows: [] }
+      }
+      if (statement.includes("ADD VALUE IF NOT EXISTS 'property.connect_gbp'")) {
+        if (!googleConnectPresent) {
+          if (inTransaction) throw new Error('unsafe Google capability enum use')
+          googleConnectPresent = true
+        }
+        return { rows: [] }
+      }
+      if (statement.includes("ADD VALUE IF NOT EXISTS 'property.publish_reply'")) {
+        if (!googlePublishReplyPresent) {
+          if (inTransaction) throw new Error('unsafe Google capability enum use')
+          googlePublishReplyPresent = true
         }
         return { rows: [] }
       }
@@ -155,6 +183,8 @@ describe('staged Drizzle migrator', () => {
       cleanupRequiredPresent: false,
       railwayTargetPresent: false,
       railwayProfilePresent: false,
+      googleConnectPresent: false,
+      googlePublishReplyPresent: false,
     })
 
     await expect(runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)).resolves.toEqual({
@@ -186,6 +216,16 @@ describe('staged Drizzle migrator', () => {
     expect(railwayTargetAddition).toBeLessThan(secondBegin)
     expect(railwayProfileAddition).toBeGreaterThan(firstCommit)
     expect(railwayProfileAddition).toBeLessThan(secondBegin)
+    const googleConnectAddition = queries.findIndex((query) =>
+      query.includes("ADD VALUE IF NOT EXISTS 'property.connect_gbp'"),
+    )
+    expect(googleConnectAddition).toBeGreaterThan(firstCommit)
+    expect(googleConnectAddition).toBeLessThan(secondBegin)
+    const googlePublishReplyAddition = queries.findIndex((query) =>
+      query.includes("ADD VALUE IF NOT EXISTS 'property.publish_reply'"),
+    )
+    expect(googlePublishReplyAddition).toBeGreaterThan(firstCommit)
+    expect(googlePublishReplyAddition).toBeLessThan(secondBegin)
   })
 
   it('is a no-op when the complete journal and enum label already exist', async () => {
@@ -195,6 +235,8 @@ describe('staged Drizzle migrator', () => {
       cleanupRequiredPresent: true,
       railwayTargetPresent: true,
       railwayProfilePresent: true,
+      googleConnectPresent: true,
+      googlePublishReplyPresent: true,
     })
     await expect(runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)).resolves.toEqual({
       preEnumCommitApplied: 0,
@@ -229,6 +271,8 @@ describe('staged Drizzle migrator', () => {
       cleanupRequiredPresent: true,
       railwayTargetPresent: true,
       railwayProfilePresent: true,
+      googleConnectPresent: true,
+      googlePublishReplyPresent: true,
       reviews: [review],
     })
 

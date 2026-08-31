@@ -22,6 +22,7 @@ export const reviewErrorStatus = (code: ReviewErrorCode): number =>
   match(code)
     .with(
       'invalid_reply',
+      'invalid_input',
       'invalid_rating',
       'invalid_transition',
       'ai_suggestion_invalid',
@@ -47,10 +48,10 @@ export const reviewErrorStatus = (code: ReviewErrorCode): number =>
 
 // ── DTOs ─────────────────────────────────────────────────────────────
 
-export const reviewIdDto = z.object({ reviewId: z.string().uuid() })
+export const reviewIdDto = z.object({ reviewId: z.uuid() })
 
 export const draftReplyDto = z.object({
-  reviewId: z.string().uuid(),
+  reviewId: z.uuid(),
   text: z.string().min(1).max(MAX_REPLY_LENGTH),
   replyLanguageTag: z
     .string()
@@ -64,23 +65,26 @@ export const draftReplyDto = z.object({
 })
 
 export const rejectReplyDto = z.object({
-  reviewId: z.string().uuid(),
+  reviewId: z.uuid(),
   reason: z.string().max(1000).optional(),
 })
 
 // ── getReply ─────────────────────────────────────────────────────────
 
 export const getReplyFn = createServerFn({ method: 'GET' })
-  .inputValidator(reviewIdDto)
+  .validator(reviewIdDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { useCases } = getContainer()
+        const { reviewPublicApi } = getContainer()
         try {
-          return await useCases.getReply({ reviewId: reviewId(data.reviewId) }, ctx)
+          return await reviewPublicApi.reply.get(
+            { reviewId: reviewId(data.reviewId) },
+            ctx,
+          )
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))

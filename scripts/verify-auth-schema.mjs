@@ -46,7 +46,7 @@ try {
       [table],
     )
     if (res.rows.length === 0) {
-      failures.push(`${table}: table not found (run pnpm db:bootstrap-auth)`)
+      failures.push(`${table}: table not found (run pnpm db:migrate-deploy)`)
       continue
     }
     const actual = new Set(res.rows.map((r) => r.column_name))

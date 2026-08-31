@@ -27,6 +27,7 @@ export const replyFromRow = (row: ReplyRow): Reply => ({
   approvedAt: row.approvedAt,
   publishedAt: row.publishedAt,
   publicationState: row.publicationState as Reply['publicationState'],
+  publicationCycle: row.publicationCycle,
   publicationAttempts: row.publicationAttempts,
   publicationLastErrorClass:
     row.publicationLastErrorClass as Reply['publicationLastErrorClass'],
@@ -57,6 +58,7 @@ export const replyToRow = (
   approvedAt: reply.approvedAt,
   publishedAt: reply.publishedAt,
   publicationState: reply.publicationState,
+  publicationCycle: reply.publicationCycle,
   publicationAttempts: reply.publicationAttempts,
   publicationLastErrorClass: reply.publicationLastErrorClass,
   reconcileDueAt: reply.reconcileDueAt,

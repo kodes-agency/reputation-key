@@ -3,17 +3,20 @@ import {
   bigint,
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
   pgEnum,
   pgTable,
+  text,
   timestamp,
   uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
 import { createdAtColumn, updatedAtColumn } from '../columns'
+import { googleConnections } from './google-connection.schema'
 
 import type {
   GoogleContentApprovalRoleDocument,
@@ -25,6 +28,8 @@ const generation = (name: string) => bigint(name, { mode: 'number' })
 export const googleContentCapabilityEnum = pgEnum('google_content_capability', [
   'property.import_gbp_v2',
   'property.read_gbp_performance',
+  'property.connect_gbp',
+  'property.publish_reply',
 ])
 export const googleContentApprovalTargetPhaseEnum = pgEnum(
   'google_content_approval_target_phase',
@@ -87,6 +92,29 @@ export const credentialRevokePermitStateEnum = pgEnum('credential_revoke_permit_
   'cleanup_ambiguous',
   'provider_reset_confirmed',
 ])
+export const googleOauthExchangeAttemptStateEnum = pgEnum(
+  'google_oauth_exchange_attempt_state',
+  [
+    'prepared',
+    'provider_started',
+    'response_preserved',
+    'applying',
+    'completed',
+    'failed',
+    'provider_outcome_ambiguous',
+    'expired',
+  ],
+)
+export const googleDisconnectRevokeAttemptStateEnum = pgEnum(
+  'google_disconnect_revoke_attempt_state',
+  [
+    'active',
+    'dispatching',
+    'confirmed_not_sent',
+    'confirmed_revoked',
+    'cleanup_ambiguous',
+  ],
+)
 
 export const capabilityComplianceApprovals = pgTable(
   'capability_compliance_approvals',
@@ -447,6 +475,130 @@ export const credentialRevokePermits = pgTable(
     check(
       'credential_revoke_permits_state_check',
       sql`(${table.state} = 'dormant' AND ${table.tokenHmac} IS NULL AND ${table.sendAuthorizationExpiresAt} IS NULL AND ${table.dispatchingAt} IS NULL AND ${table.terminalAt} IS NULL) OR (${table.state} = 'active' AND ${table.tokenHmac} IS NOT NULL AND ${table.sendAuthorizationExpiresAt} IS NOT NULL AND ${table.activatedAt} IS NOT NULL AND ${table.dispatchingAt} IS NULL AND ${table.terminalAt} IS NULL) OR (${table.state} = 'dispatching' AND ${table.tokenHmac} IS NULL AND ${table.sendAuthorizationExpiresAt} IS NULL AND ${table.dispatchingAt} IS NOT NULL AND ${table.terminalAt} IS NULL) OR (${table.state} IN ('consumed_no_revoke', 'confirmed_not_sent', 'confirmed_revoked', 'cleanup_ambiguous', 'provider_reset_confirmed') AND ${table.tokenHmac} IS NULL AND ${table.sendAuthorizationExpiresAt} IS NULL AND ${table.terminalAt} IS NOT NULL)`,
+    ),
+  ],
+)
+
+/**
+ * Crash boundary for a one-use OAuth authorization code. Provider material is
+ * present only as one application-encrypted envelope, and only between the
+ * successful token response and the atomic connection/audit commit.
+ */
+export const googleOauthExchangeAttempts = pgTable(
+  'google_oauth_exchange_attempts',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    initiatorUserId: varchar('initiator_user_id', { length: 255 }).notNull(),
+    connectionId: uuid('connection_id').notNull(),
+    connectionMode: varchar('connection_mode', { length: 16 }).notNull(),
+    targetConnectionId: uuid('target_connection_id'),
+    state: googleOauthExchangeAttemptStateEnum('state').notNull(),
+    expectedLifecycleVersion: generation('expected_lifecycle_version').notNull(),
+    expectedAccessVersion: generation('expected_access_version').notNull(),
+    expectedCredentialGeneration: generation('expected_credential_generation').notNull(),
+    credentialHomeCellId: varchar('credential_home_cell_id', {
+      length: 16,
+    }).notNull(),
+    credentialHomePolicyVersion: integer('credential_home_policy_version').notNull(),
+    credentialHomeAuthorityGeneration: integer(
+      'credential_home_authority_generation',
+    ).notNull(),
+    encryptedResult: text('encrypted_result'),
+    providerStartedAt: timestamptz('provider_started_at'),
+    preservedAt: timestamptz('preserved_at'),
+    responseExpiresAt: timestamptz('response_expires_at'),
+    applyLeaseExpiresAt: timestamptz('apply_lease_expires_at'),
+    terminalAt: timestamptz('terminal_at'),
+    outcomeCode: varchar('outcome_code', { length: 100 }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => [
+    index('google_oauth_exchange_attempts_recovery_idx').on(
+      table.state,
+      table.responseExpiresAt,
+      table.applyLeaseExpiresAt,
+    ),
+    index('google_oauth_exchange_attempts_scope_idx').on(
+      table.organizationId,
+      table.initiatorUserId,
+      table.createdAt,
+    ),
+    check(
+      'google_oauth_exchange_attempts_target_check',
+      sql`(${table.connectionMode} = 'new' AND ${table.targetConnectionId} IS NULL) OR (${table.connectionMode} IN ('reauth', 'reconnect') AND ${table.targetConnectionId} = ${table.connectionId})`,
+    ),
+    check(
+      'google_oauth_exchange_attempts_versions_check',
+      sql`${table.expectedLifecycleVersion} >= 0 AND ${table.expectedAccessVersion} >= 0 AND ${table.expectedCredentialGeneration} >= 0`,
+    ),
+    check(
+      'google_oauth_exchange_attempts_home_check',
+      sql`${table.credentialHomeCellId} IN ('us', 'europe', 'global') AND ${table.credentialHomePolicyVersion} >= 1 AND ${table.credentialHomeAuthorityGeneration} >= 1`,
+    ),
+    check(
+      'google_oauth_exchange_attempts_state_check',
+      sql`(${table.state} = 'prepared' AND ${table.providerStartedAt} IS NULL AND ${table.encryptedResult} IS NULL AND ${table.preservedAt} IS NULL AND ${table.responseExpiresAt} IS NULL AND ${table.applyLeaseExpiresAt} IS NULL AND ${table.terminalAt} IS NULL) OR (${table.state} = 'provider_started' AND ${table.providerStartedAt} IS NOT NULL AND ${table.encryptedResult} IS NULL AND ${table.preservedAt} IS NULL AND ${table.responseExpiresAt} IS NULL AND ${table.applyLeaseExpiresAt} IS NULL AND ${table.terminalAt} IS NULL) OR (${table.state} = 'response_preserved' AND ${table.providerStartedAt} IS NOT NULL AND ${table.encryptedResult} IS NOT NULL AND ${table.preservedAt} IS NOT NULL AND ${table.responseExpiresAt} > ${table.preservedAt} AND ${table.applyLeaseExpiresAt} IS NULL AND ${table.terminalAt} IS NULL) OR (${table.state} = 'applying' AND ${table.providerStartedAt} IS NOT NULL AND ${table.encryptedResult} IS NOT NULL AND ${table.preservedAt} IS NOT NULL AND ${table.responseExpiresAt} > ${table.preservedAt} AND ${table.applyLeaseExpiresAt} IS NOT NULL AND ${table.applyLeaseExpiresAt} <= ${table.responseExpiresAt} AND ${table.terminalAt} IS NULL) OR (${table.state} IN ('completed', 'failed', 'provider_outcome_ambiguous', 'expired') AND ${table.encryptedResult} IS NULL AND ${table.responseExpiresAt} IS NULL AND ${table.applyLeaseExpiresAt} IS NULL AND ${table.terminalAt} IS NOT NULL)`,
+    ),
+  ],
+)
+
+/**
+ * Disconnect-specific cleanup authority. It binds one exact token digest to
+ * one admitted execution permit and retains only content-free outcome facts.
+ */
+export const googleDisconnectRevokeAttempts = pgTable(
+  'google_disconnect_revoke_attempts',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    connectionId: uuid('connection_id').notNull(),
+    initiatorUserId: varchar('initiator_user_id', { length: 255 }).notNull(),
+    cleanupWorkPermitId: uuid('cleanup_work_permit_id').references(
+      () => authorizationExecutionPermits.id,
+      { onDelete: 'restrict' },
+    ),
+    state: googleDisconnectRevokeAttemptStateEnum('state').notNull(),
+    expectedLifecycleVersion: generation('expected_lifecycle_version').notNull(),
+    expectedAccessVersion: generation('expected_access_version').notNull(),
+    expectedCredentialGeneration: generation('expected_credential_generation').notNull(),
+    credentialBinding: varchar('credential_binding', { length: 64 }),
+    cleanupDeadlineAt: timestamptz('cleanup_deadline_at').notNull(),
+    activatedAt: timestamptz('activated_at').notNull(),
+    dispatchingAt: timestamptz('dispatching_at'),
+    terminalAt: timestamptz('terminal_at'),
+    outcomeCode: varchar('outcome_code', { length: 100 }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'google_disconnect_revoke_attempts_connection_fk',
+      columns: [table.organizationId, table.connectionId],
+      foreignColumns: [googleConnections.organizationId, googleConnections.id],
+    }).onDelete('restrict'),
+    uniqueIndex('google_disconnect_revoke_attempts_permit_key')
+      .on(table.cleanupWorkPermitId)
+      .where(sql`${table.cleanupWorkPermitId} IS NOT NULL`),
+    uniqueIndex('google_disconnect_revoke_attempts_one_active_idx')
+      .on(table.organizationId, table.connectionId)
+      .where(sql`${table.state} IN ('active', 'dispatching')`),
+    index('google_disconnect_revoke_attempts_recovery_idx').on(
+      table.state,
+      table.cleanupDeadlineAt,
+    ),
+    check(
+      'google_disconnect_revoke_attempts_versions_check',
+      sql`${table.expectedLifecycleVersion} >= 1 AND ${table.expectedAccessVersion} >= 1 AND ${table.expectedCredentialGeneration} >= 1`,
+    ),
+    check(
+      'google_disconnect_revoke_attempts_window_check',
+      sql`${table.cleanupDeadlineAt} > ${table.activatedAt} AND ${table.cleanupDeadlineAt} <= ${table.activatedAt} + interval '00:01:00'`,
+    ),
+    check(
+      'google_disconnect_revoke_attempts_state_check',
+      sql`(${table.state} = 'active' AND ${table.cleanupWorkPermitId} IS NULL AND ${table.credentialBinding} ~ '^[a-f0-9]{64}$' AND ${table.dispatchingAt} IS NULL AND ${table.terminalAt} IS NULL) OR (${table.state} = 'dispatching' AND ${table.cleanupWorkPermitId} IS NOT NULL AND ${table.credentialBinding} IS NULL AND ${table.dispatchingAt} IS NOT NULL AND ${table.terminalAt} IS NULL) OR (${table.state} IN ('confirmed_not_sent', 'confirmed_revoked', 'cleanup_ambiguous') AND ${table.credentialBinding} IS NULL AND ${table.terminalAt} IS NOT NULL)`,
     ),
   ],
 )

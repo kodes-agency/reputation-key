@@ -14,6 +14,7 @@ import {
   createInternalMtlsWebServer,
   parseInternalMtlsJsonResponse,
   loadInternalMtlsMaterialFromBase64,
+  loadInternalMtlsMaterialFromOneSource,
   writeWebResponse,
 } from './internal-mtls'
 
@@ -26,6 +27,38 @@ function certificate(input: Readonly<{ altNames: string; usages: string[] }>) {
 }
 
 describe('internal mTLS base64 material lifetime', () => {
+  it('loads a complete variable-only triplet without filesystem material', () => {
+    const material = loadInternalMtlsMaterialFromOneSource({
+      path: {},
+      base64: {
+        ca: Buffer.from('ca').toString('base64'),
+        cert: Buffer.from('cert').toString('base64'),
+        key: Buffer.from('key').toString('base64'),
+      },
+    })
+    expect(material.ca.toString()).toBe('ca')
+    expect(material.cert.toString()).toBe('cert')
+    expect(material.key.toString()).toBe('key')
+    material.ca.fill(0)
+    material.cert.fill(0)
+    material.key.fill(0)
+  })
+
+  it.each([
+    {
+      path: {},
+      base64: { ca: 'Y2E=', cert: 'Y2VydA==' },
+    },
+    {
+      path: { ca: '/ca', cert: '/cert', key: '/key' },
+      base64: { ca: 'Y2E=', cert: 'Y2VydA==', key: 'a2V5' },
+    },
+  ])('rejects partial or mixed material before reading it', (input) => {
+    expect(() => loadInternalMtlsMaterialFromOneSource(input)).toThrow(
+      'exactly one complete source',
+    )
+  })
+
   it('zeroes accepted CA and certificate buffers when late key decoding fails', () => {
     const fill = vi.spyOn(Buffer.prototype, 'fill')
     try {

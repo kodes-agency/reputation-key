@@ -5,6 +5,8 @@
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { PropertyLifecycleState } from './property-lifecycle'
+import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
+import type { PropertyGoogleReviewDestination } from './google-review-destination'
 
 /** Property entity — the organizational unit everything else lives under. */
 export type Property = Readonly<{
@@ -22,6 +24,8 @@ export type Property = Readonly<{
   profileVersion: number
   googleBindingState:
     'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
+  /** Optional only during the expand/cutover window; constructors always set it. */
+  googleReviewDestination?: PropertyGoogleReviewDestination
   profileSource: 'legacy' | 'tenant_confirmed'
   profileConfirmedAt: Date | null
   profileConfirmedBy: string | null
@@ -40,10 +44,16 @@ export type Property = Readonly<{
   timezoneSource: string | null
   timezoneResolvedAt: Date | null
   processingRegion: string | null
+  /** Canonical Property execution/residency assignment; null until resolved. */
+  dataCellId: DataCellId | null
   processingRegionSource: string | null
   routingPolicyVersion: number
   processingRegionResolvedAt: Date | null
   sourceEpoch: number
+  /** CAS token for explicit workflow-notification responsibility edits. */
+  responsibleManagerRevision: number
+  /** Visible recovery state; null while one or more active assignments exist. */
+  responsibilityNeededSince: Date | null
 }>
 
 /** Default processing-profile fields for new properties (migration 0006). */
@@ -53,6 +63,7 @@ export const DEFAULT_PROPERTY_ROUTING = {
   timezoneSource: 'legacy',
   timezoneResolvedAt: null,
   processingRegion: 'unresolved',
+  dataCellId: null,
   processingRegionSource: 'country_default',
   routingPolicyVersion: 1,
   processingRegionResolvedAt: null,
@@ -64,6 +75,7 @@ export const DEFAULT_PROPERTY_ROUTING = {
   | 'timezoneSource'
   | 'timezoneResolvedAt'
   | 'processingRegion'
+  | 'dataCellId'
   | 'processingRegionSource'
   | 'routingPolicyVersion'
   | 'processingRegionResolvedAt'
@@ -77,6 +89,13 @@ export const DEFAULT_PROPERTY_GOOGLE_PROFILE = {
   profileSource: 'legacy',
   profileConfirmedAt: null,
   profileConfirmedBy: null,
+  googleReviewDestination: {
+    state: 'unavailable',
+    uri: null,
+    retrievedAt: null,
+    sourceEpoch: null,
+    profileVersion: null,
+  },
 } as const satisfies Pick<
   Property,
   | 'address'
@@ -86,6 +105,7 @@ export const DEFAULT_PROPERTY_GOOGLE_PROFILE = {
   | 'profileSource'
   | 'profileConfirmedAt'
   | 'profileConfirmedBy'
+  | 'googleReviewDestination'
 >
 
 /** Re-export PropertyId from shared for convenience */

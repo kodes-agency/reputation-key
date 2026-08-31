@@ -4,7 +4,7 @@ import {
   timingSafeEqual,
   type KeyObject,
 } from 'node:crypto'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { parseAiInternalJsonBytes } from '../../src/shared/ai-internal-transport-contract'
 import { AI_GATEWAY_KEY_INVENTORY_V1 } from '../../src/shared/ai-openai-provider-profile'
 

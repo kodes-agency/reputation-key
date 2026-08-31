@@ -7,17 +7,15 @@
 // already had a durable consumer; notification had none, so the bus was its
 // ONLY path.
 //
-// Scope: `inbox.inbox_item.created` only, deliberately. It is the one inbox
-// event whose loss is both silent and unrecoverable — nobody is watching a
-// screen when a guest posts a review, so a dropped notification is
-// indistinguishable from "no new review". Assignment, escalation and note
-// events are user actions with immediate in-app feedback: the actor sees
-// whether they landed, and the item itself is already visible in the inbox.
-// Those stay bus-only.
+// Scope of this module: `inbox.inbox_item.created`. The sibling
+// workflow-outbox-consumers module durably covers assignment, escalation,
+// notes, and Reply lifecycle notifications while reusing their existing
+// recipient handlers. Keeping the created-item fan-out here preserves its
+// source-specific lookup and obsolete-event policy.
 //
 // Idempotency, in the order the fences apply:
 //   1. The dispatcher pre-checks `hasReceipt(eventId, consumerName)` and skips
-//      a consumer that already ran (src/shared/outbox/dispatcher.ts:132).
+//      a consumer that already ran.
 //   2. Each enqueue carries the deterministic job id `<eventId>-<userId>`, so
 //      an ambiguous relay redelivery between the enqueue and the receipt write
 //      converges on the same BullMQ job instead of queueing a second one
@@ -33,10 +31,8 @@
 //
 // Content-free: identifiers, an enum and counts only (ADR 0030 / BQC-7.3).
 
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox/dispatcher'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { getLogger } from '#/shared/observability/logger'
 import {
   inboxItemId as brandInboxItemId,
   organizationId as brandOrganizationId,
@@ -87,7 +83,7 @@ export async function handleNotificationInboxItemCreated(
   deps: NotificationConsumerDeps,
   event: ConsumerEvent,
 ): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
-  const logger = getLogger()
+  const logger = deps.logger
   const correlationId = event.correlationId ?? undefined
   const payload = parseInboxItemCreated(event)
 
@@ -114,7 +110,7 @@ export async function handleNotificationInboxItemCreated(
     propertyId: payload.propertyId ?? facts.propertyId,
     sourceType: payload.sourceType ?? facts.sourceType,
     eventId: event.eventId,
-    correlationId: event.correlationId,
+    correlationId: event.correlationId ?? null,
     // Relay delivery is at-least-once and the receipt is written after the
     // enqueue; the deterministic id makes the redelivery in that window a
     // no-op instead of a second notification job.
@@ -151,7 +147,11 @@ export async function handleNotificationInboxItemCreated(
  * Register notification consumers with the outbox dispatcher.
  * Called during worker startup (after bootstrap).
  */
-export function registerNotificationConsumers(deps: NotificationConsumerDeps): void {
+export function registerNotificationConsumers(
+  registry: ConsumerRegistry,
+  deps: NotificationConsumerDeps,
+): void {
+  const { registerConsumer } = registry
   // Consumer names MUST stay string literals here — both governance catalogue
   // guards discover durable consumers by scanning registerConsumer calls.
   registerConsumer({
@@ -160,8 +160,7 @@ export function registerNotificationConsumers(deps: NotificationConsumerDeps): v
     module: 'notification.outbox-consumers',
     handler: (event) => handleNotificationInboxItemCreated(deps, event),
   })
-
-  getLogger().info(
+  deps.logger.info(
     'Notification consumers registered with outbox dispatcher (1 consumer)',
   )
 }

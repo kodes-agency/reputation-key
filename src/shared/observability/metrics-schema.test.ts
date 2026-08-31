@@ -30,6 +30,47 @@ describe('metrics-schema registry', () => {
     for (const p of paths) expect(p).toMatch(/^[a-zA-Z][a-zA-Z0-9.*[\]]*$/)
   })
 
+  it('registers every immediate-email source-clock acceptance signal', () => {
+    const definitions = METRIC_DEFINITIONS.filter((definition) =>
+      definition.name.startsWith('notification.email.immediate_acceptance_'),
+    )
+
+    expect(
+      definitions.map((definition) => [definition.name, definition.snapshotPath]),
+    ).toEqual([
+      [
+        'notification.email.immediate_acceptance_pending',
+        ['notifications.deliveryLag.immediateEmailAcceptance.awaitingProviderAcceptance'],
+      ],
+      [
+        'notification.email.immediate_acceptance_attempted_pending',
+        [
+          'notifications.deliveryLag.immediateEmailAcceptance.attemptedAwaitingProviderAcceptance',
+        ],
+      ],
+      [
+        'notification.email.immediate_acceptance_oldest_source_age_ms',
+        ['notifications.deliveryLag.immediateEmailAcceptance.oldestAwaitingSourceAgeMs'],
+      ],
+      [
+        'notification.email.immediate_acceptance_p99_ms',
+        ['notifications.deliveryLag.immediateEmailAcceptance.acceptedLatencyP99Ms'],
+      ],
+      [
+        'notification.email.immediate_acceptance_sample_count',
+        ['notifications.deliveryLag.immediateEmailAcceptance.acceptedSampleCount'],
+      ],
+      [
+        'notification.email.immediate_acceptance_source_unlinked',
+        ['notifications.deliveryLag.immediateEmailAcceptance.sourceUnlinked'],
+      ],
+      [
+        'notification.email.immediate_acceptance_saturated',
+        ['notifications.deliveryLag.immediateEmailAcceptance.saturated'],
+      ],
+    ])
+  })
+
   it('labelValueAllowed enforces closed sets and patterns', () => {
     const queueLabel = { values: QUEUE_NAMES }
     expect(labelValueAllowed(queueLabel, 'default')).toBe(true)
@@ -66,6 +107,13 @@ describe('label policy', () => {
       'locationName',
       'email',
       'token',
+      'password',
+      'password_hash',
+      'clientSecret',
+      'OPENAI_API_KEY',
+      'contactEmail',
+      'reviewText',
+      'DATABASE_URL',
     ]) {
       expect(isBannedLogKey(key), key).toBe(true)
     }
