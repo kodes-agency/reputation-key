@@ -52,6 +52,14 @@ const CONTRACT_FILES: readonly string[] = Object.freeze([
   'src/shared/config/env.ts',
   'src/shared/config/release-identity.ts',
   '.railway/railway.ts',
+  // Added 2026-08-31 after it caused exactly the failure this gate exists to
+  // catch, and was not covered. It decides — from RAILWAY_PROJECT_NAME,
+  // RAILWAY_ENVIRONMENT_NAME, PROCESSING_CELL and
+  // REPKEY_RAILWAY_DEPLOYMENT_PROFILE — whether a deploy is allowed to run its
+  // migration at all. A change here can pass every repository-only gate and
+  // then refuse every deployment, which is what happened to `web`.
+  'src/shared/db/deploy-migration-runtime.ts',
+  'src/shared/release/railway-deployment-profile.ts',
 ])
 
 export type ContractSnapshot = Readonly<{

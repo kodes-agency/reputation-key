@@ -1,8 +1,12 @@
 import {
-  assertRailwayProjectNameForProfile,
+  assertRailwayDeploymentTarget,
   requireRailwayDeploymentProfile,
   type RailwayDeploymentProfile,
 } from '#/shared/release/railway-deployment-profile'
+import {
+  CURRENT_RELEASE_POSTURE,
+  type ReleasePosture,
+} from '#/shared/release/release-posture'
 
 type DeployMigrationEnvironment = Readonly<Record<string, string | undefined>>
 
@@ -33,6 +37,7 @@ function exactEnvironmentValue(env: DeployMigrationEnvironment, name: string): s
  */
 export function authorizeDeployMigrationRuntime(
   env: DeployMigrationEnvironment,
+  posture: ReleasePosture = CURRENT_RELEASE_POSTURE,
 ): AuthorizedDeployMigrationRuntime {
   if (env.DEPLOY_MIGRATE === '1') {
     // Railway injects these opaque IDs into every deployment. Never let a
@@ -63,10 +68,15 @@ export function authorizeDeployMigrationRuntime(
   if (env.PROCESSING_CELL !== 'us') {
     throw new Error('PROCESSING_CELL must be us for beta deploy migrations')
   }
-  if (environmentName !== 'cell-us') {
-    throw new Error('RAILWAY_ENVIRONMENT_NAME must be cell-us')
-  }
-  assertRailwayProjectNameForProfile(deploymentProfile, projectName)
+  // Project AND environment are checked together, against the target the
+  // DECLARED POSTURE authorizes. Previously both were pinned to the dedicated
+  // cell unconditionally, which is correct for a public launch and refused
+  // every deploy of the closed beta — it runs in `reputation-key` /
+  // `google-closed-beta`, so `web` built fine and then never shipped.
+  assertRailwayDeploymentTarget(posture, deploymentProfile, {
+    projectName,
+    environmentName,
+  })
   if (service !== 'schema-migrator' && service !== 'web') {
     throw new Error('RAILWAY_SERVICE_NAME must be schema-migrator or web')
   }

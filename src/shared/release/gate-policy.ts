@@ -98,6 +98,17 @@ export const GATE_POLICY: readonly GateRecord[] = Object.freeze([
       'Already posture-scoped, and the precedent for this whole registry: gateFApprovalRolesFor collapses six roles to one (founder) at closed-beta. Armed at every posture because the signature requirement never vanishes — only its size changes, inside the gate itself.',
   }),
   Object.freeze({
+    id: 'runtime.deploy_migration_target',
+    question:
+      'Is this deploy-time migration running in the project and environment the declared posture authorizes?',
+    location: 'src/shared/db/deploy-migration-runtime.ts:63',
+    surface: 'runtime',
+    classification: 'audience-dependent',
+    armedFrom: 'closed-beta',
+    rationale:
+      'Armed at every posture — a migration must always prove its target — but WHICH target is authorized moves with the audience: reputation-key/google-closed-beta while closed, the dedicated reputation-key-us-beta/cell-us once it widens. Pinned unconditionally to the dedicated cell it refused every deploy of the closed beta, so web built from git and never shipped.',
+  }),
+  Object.freeze({
     id: 'gate-f.opening.cohort_readiness',
     question: 'Does the first bounded cohort have a named support and incident owner?',
     location: 'src/shared/release/gate-f-evidence.ts:63',
