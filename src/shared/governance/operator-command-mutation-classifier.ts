@@ -65,6 +65,13 @@ const PURE_DIAGNOSTIC_COMMANDS = [
   'scripts/ci/check-technology-stack.ts',
   'scripts/ci/check-typescript-project-coverage.ts',
   'scripts/ci/check-product-state-consistency.ts',
+  // `pnpm gate <id>` mutates nothing of its own: it reads the gate policy
+  // registry and either skips, or spawns the gate's own declared command and
+  // returns its exit code. Read-only is accurate as long as every registered
+  // gate is itself a check — which is true today and is the registry's whole
+  // purpose. A registry entry whose command mutates state would need
+  // reclassifying here, not silently inheriting this one.
+  'scripts/ci/gate.ts',
   'scripts/review/baseline-inventory.ts',
   'scripts/review/tracked-artifact.ts',
   'scripts/review/comprehensive-program-status.ts',
