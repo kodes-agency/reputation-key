@@ -33,6 +33,22 @@ const RUNTIME_METADATA_NAMES = Object.freeze([
   'RAILWAY_REPLICA_REGION',
   'RAILWAY_SERVICE_ID',
   'RAILWAY_SERVICE_NAME',
+  // Railway generates one `RAILWAY_SERVICE_<NAME>_URL` per service that has a
+  // public domain and injects it into EVERY service in the environment. It is
+  // not stored on the service: `variableDelete` returns true and the value is
+  // back on the next read (verified against the live API, 2026-08-31).
+  //
+  // Omitting them did not harden anything — it made this gateway unbootable on
+  // Railway for a reason no operator action could clear, which is how it failed
+  // the first time it ever built from git. Both AI sidecars have always allowed
+  // these three and run in the same environment.
+  //
+  // These are sibling hostnames, not credentials. The isolation this list
+  // exists for is unchanged: OPENAI_API_KEY was found set on this service and
+  // is still refused.
+  'RAILWAY_SERVICE_GBP_SANDBOX_URL',
+  'RAILWAY_SERVICE_MAIL_SANDBOX_URL',
+  'RAILWAY_SERVICE_WEB_URL',
   'RAILWAY_SNAPSHOT_ID',
   'RELEASE_MANIFEST_SHA256',
 ] as const)
