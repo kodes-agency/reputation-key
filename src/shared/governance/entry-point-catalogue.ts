@@ -5810,6 +5810,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/closed-beta-google-content-activate.ts',
+    'scripts/ops/closed-beta-google-content-activate.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:closed-beta-google-content — installs signed Google Content bundles into the closed beta, which the cell-us activation controller structurally cannot address. Reuses the same parser, signature verifier and bundle validator; adds only the set-level rules (one deployment, one owner, one route catalogue). REFUSES at any posture but closed-beta, so it can never substitute for the governed ceremony. --apply writes the two runtime variables to web and worker with --skip-deploys',
+    },
+  ),
+  ops(
     'scripts/ops/google-content-approval-sign.ts',
     'scripts/ops/google-content-approval-sign.ts',
     'tenant_cross',

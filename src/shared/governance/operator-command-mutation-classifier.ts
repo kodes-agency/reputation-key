@@ -229,6 +229,10 @@ const RELEASE_ORCHESTRATION_COMMANDS = [
   'scripts/release/railway-google-content-approval-activation.ts',
   'scripts/release/bootstrap-schema-migrator.ts',
   'scripts/release/deploy-beta.ts',
+  // Writes the two Google Content runtime variables to the closed-beta web and
+  // worker services. Release orchestration rather than a command-store
+  // mutation: it changes deployed configuration, never tenant rows.
+  'scripts/ops/closed-beta-google-content-activate.ts',
 ] as const
 
 const ATOMIC_COMMAND_STORE_COMMANDS = [
