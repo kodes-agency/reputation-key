@@ -556,6 +556,43 @@ const PORTAL_LANGUAGE_PACK_VERSIONS: Readonly<Record<string, string>> = {
   bg: 'guest-ui-bg-v1',
 }
 
+/**
+ * Whether the stored snapshot already publishes exactly what this seed would.
+ *
+ * The digest alone is not enough. The COLUMNS that mirror the configuration
+ * are outside it, and the reader refuses a snapshot whose row and
+ * configuration disagree (snapshotFromRow) — so a seed that corrected a
+ * mirrored column would converge on "already serving" and never republish.
+ * Snapshots are immutable, so a new version is the only way to change what is
+ * served.
+ */
+function publishesSameConfiguration(
+  existing:
+    | Readonly<{
+        configurationDigest: string
+        localeSet: unknown
+        localizedContent: unknown
+        brandProfileVersion: number | null
+      }>
+    | undefined,
+  snapshot: ReturnType<typeof buildPortalPublicationSnapshot>,
+): boolean {
+  if (existing?.configurationDigest !== snapshot.configurationDigest) return false
+  if (
+    stableJson(sortedLocales(existing.localeSet)) !==
+    stableJson(sortedLocales(PORTAL_LOCALE_SET))
+  ) {
+    return false
+  }
+  const configuration = snapshot.configuration
+  if (configuration.schemaVersion !== 2) return true
+  return (
+    existing.brandProfileVersion === configuration.brandProfile.version &&
+    stableJson(existing.localizedContent ?? {}) ===
+      stableJson(configuration.localizedContent)
+  )
+}
+
 async function publishPortalSnapshot(input: {
   organizationId: string
   propertyId: string
@@ -684,26 +721,7 @@ async function publishPortalSnapshot(input: {
     )
     .limit(1)
 
-  // Only skip when the CURRENT configuration is actually being served. Testing
-  // the snapshot alone is not enough: a seed that died between writing the
-  // snapshot and activating it leaves a portal that resolves to nothing, and a
-  // digest-only check would call that converged and never repair it.
-  // The COLUMNS that mirror the configuration are not part of its digest, and
-  // the reader refuses a snapshot whose row and configuration disagree
-  // (snapshotFromRow). A seed that corrected a mirrored column would
-  // otherwise converge on "already serving" and never republish — and
-  // snapshots are immutable, so a new version is the only way to change what
-  // is served.
-  const configuration = snapshot.configuration
-  const mirrorsRow =
-    stableJson(sortedLocales(existing?.localeSet)) ===
-      stableJson(sortedLocales(PORTAL_LOCALE_SET)) &&
-    (configuration.schemaVersion !== 2 ||
-      (existing?.brandProfileVersion === configuration.brandProfile.version &&
-        stableJson(existing?.localizedContent ?? {}) ===
-          stableJson(configuration.localizedContent)))
-  const sameConfiguration =
-    existing?.configurationDigest === snapshot.configurationDigest && mirrorsRow
+  const sameConfiguration = publishesSameConfiguration(existing, snapshot)
   const isServingCurrent =
     sameConfiguration && liveActivation?.snapshotId === existing?.id
   if (isServingCurrent) return
