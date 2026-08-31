@@ -100,7 +100,22 @@ export type StartupProbes = Readonly<{
   policy: () => Promise<boolean>
 }>
 
-/** Run every readiness probe under budget and assemble the probe body. */
+/**
+ * Run every readiness probe under budget and assemble the probe body.
+ *
+ * A degraded result is LOGGED with the names of the probes that reported
+ * false. Without that, a failing activation gate is silent: the platform
+ * reports "HTTP 503" and the body only reaches whoever can curl the container
+ * — which, for a deployment that never activates, is nobody. On 2026-08-31
+ * that cost hours of deploys on `web`, where the only visible signal was five
+ * identical 503s and no clue which of four dependencies was unhappy.
+ *
+ * `withBudget` returns the same `false` for a genuine failure and for a probe
+ * that simply outran its 2s budget, so the two are reported together rather
+ * than guessed apart — a slow cold pool and a broken dependency look identical
+ * here by construction, and pretending otherwise would be a worse lie than
+ * naming both.
+ */
 export async function runReadiness(
   probes: ReadinessProbes,
   budgetMs: number = READINESS_PROBE_BUDGET_MS,
@@ -112,7 +127,17 @@ export async function runReadiness(
     withBudget(probes.migrations(), budgetMs, () => false),
     withBudget(probes.policy(), budgetMs, () => false),
   ])
-  return readyProbe({ db, redis, migrations, policy }, now)
+  const probe = readyProbe({ db, redis, migrations, policy }, now)
+  if (probe.status === 'degraded') {
+    const failing = Object.entries({ db, redis, migrations, policy })
+      .filter(([, value]) => !value)
+      .map(([name]) => name)
+    getLogger().warn(
+      { failing, budgetMs },
+      '[health] readiness degraded — probe(s) reported false or outran the budget',
+    )
+  }
+  return probe
 }
 
 /** Run the startup probes: container built + migrations + policy, budgeted. */
@@ -125,12 +150,27 @@ export async function runStartup(
     withBudget(probes.migrations(), budgetMs, () => false),
     withBudget(probes.policy(), budgetMs, () => false),
   ])
+  // The composition root throw is swallowed into `container: false`, which is
+  // right for the probe body and useless for diagnosis: a boot that cannot
+  // build reports the same shape as one that simply has not finished. Log the
+  // reason once here so a container that never activates leaves a trace.
   const container = (() => {
     try {
       return probes.container()
-    } catch {
+    } catch (err) {
+      getLogger().warn({ err }, '[health] startup container probe threw')
       return false
     }
   })()
-  return startupProbe({ container, migrations, policy }, now)
+  const probe = startupProbe({ container, migrations, policy }, now)
+  if (probe.status === 'degraded') {
+    const failing = Object.entries({ container, migrations, policy })
+      .filter(([, value]) => !value)
+      .map(([name]) => name)
+    getLogger().warn(
+      { failing, budgetMs },
+      '[health] startup degraded — probe(s) reported false or outran the budget',
+    )
+  }
+  return probe
 }
