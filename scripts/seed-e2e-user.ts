@@ -530,6 +530,11 @@ async function ensurePortal(
  * `?locale=bg` fall back to English — correct product behaviour, and a
  * fixture that can never exercise the other locale.
  */
+/** The stored locale set is untyped JSONB; compare it as plain sorted text. */
+function sortedLocales(value: unknown): readonly string[] {
+  return Array.isArray(value) ? [...value].map(String).sort() : []
+}
+
 /** Key-order-independent comparison: JSONB round-trips object keys in its own
  * order, so a plain stringify would report every seed as changed and publish a
  * new snapshot version on every run. */
@@ -691,8 +696,8 @@ async function publishPortalSnapshot(input: {
   // is served.
   const configuration = snapshot.configuration
   const mirrorsRow =
-    stableJson([...(existing?.localeSet ?? [])].sort()) ===
-      stableJson([...PORTAL_LOCALE_SET].sort()) &&
+    stableJson(sortedLocales(existing?.localeSet)) ===
+      stableJson(sortedLocales(PORTAL_LOCALE_SET)) &&
     (configuration.schemaVersion !== 2 ||
       (existing?.brandProfileVersion === configuration.brandProfile.version &&
         stableJson(existing?.localizedContent ?? {}) ===
