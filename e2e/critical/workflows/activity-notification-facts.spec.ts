@@ -144,6 +144,20 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
       },
       { timeoutMs: 10_000, description: 'item closed' },
     )
+    // The status landing in the write model is NOT the end of the close: it
+    // fans out worker jobs (activity log, notifications, response target) and
+    // several of those bump `commandRevision` again. The page below reads the
+    // revision at load and the reopen submits it back, so loading between the
+    // status change and the last job means submitting a revision that is
+    // already stale — `assertExpectedCommandRevision` then throws
+    // `revision_conflict` ("Inbox item changed; reload current state"), the
+    // reopen never happens, and the wait for it times out.
+    //
+    // That is exactly how this spec failed on main at aed3cc72, on both the
+    // first attempt and the retry. It is a race with the worker, not a product
+    // defect: a real manager only sees the Open control once their page shows
+    // the item closed, by which point the fan-out has landed.
+    await waitForQueuesIdle()
     // Reopen through the real manager path: work-status select → reason →
     // confirm. A reopen without a stated reason is refused by the dialog.
     await page.goto(`/inbox?folder=closed&itemId=${inboxItem.id}`)
@@ -162,6 +176,11 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
       },
       { timeoutMs: 10_000, description: 'item reopened' },
     )
+    // Same hazard on the way out: the reopen fans out its own jobs, and the
+    // note added below carries `expectedCommandRevision` too
+    // (inbox-notes-thread.tsx:77). Draining here keeps the note from racing
+    // the reopen's fan-out the way the reopen raced the close's.
+    await waitForQueuesIdle()
     await page.goto(`/inbox?itemId=${inboxItem.id}`)
     await expect(page.getByText(SENSITIVE_NAME).first()).toBeVisible({ timeout: 15_000 })
     // The note thread lives behind the composer's Internal note tab.
