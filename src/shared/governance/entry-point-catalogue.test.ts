@@ -701,16 +701,28 @@ describe('BQC-2.1 entry-point catalogue', () => {
       createHash('sha256')
         .update(rows.map((entry) => `${entry.id}|${entry.file}`).join('\n'))
         .digest('hex')
-    expect(orderedDigest(catalogue)).toBe(
-      '1c177bcd935d4bac907b3a9bbdc8954c7a4cce7ebe3f9bcbf49de22a33328def',
-    )
-    expect(
-      orderedDigest(
+    // Both digests are asserted TOGETHER, as one object, deliberately.
+    //
+    // As two separate `expect`s the first throw aborted the test and the second
+    // digest was never evaluated — so adding one catalogue row cost two full
+    // runs of a 5-second suite: fix digest A, re-run, discover digest B, fix it,
+    // re-run. Measured on 2026-08-31 while registering `scripts/ci/gate.ts`.
+    //
+    // Compared as an object, one run prints both actual values and the
+    // `Received` block is literally what you paste back in. Same assertion,
+    // same strictness, half the cycles.
+    expect({
+      full: orderedDigest(catalogue),
+      withoutOutboxConsumers: orderedDigest(
         catalogue.filter(
           ({ id }) => id !== 'consumer:notification.workflow-outbox-consumers',
         ),
       ),
-    ).toBe('5e77685ebd7fd9dddc0cce6b69eec411c20faf84abe1fe5e2971166a077bf294')
+    }).toEqual({
+      full: '1c177bcd935d4bac907b3a9bbdc8954c7a4cce7ebe3f9bcbf49de22a33328def',
+      withoutOutboxConsumers:
+        '5e77685ebd7fd9dddc0cce6b69eec411c20faf84abe1fe5e2971166a077bf294',
+    })
 
     const invalid = {
       ...catalogue[0],
