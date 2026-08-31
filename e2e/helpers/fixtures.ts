@@ -165,6 +165,59 @@ export async function waitForQueuesIdle(timeoutMs = 10_000): Promise<void> {
   }
 }
 
+/**
+ * Wait until an inbox item's `command_revision` stops moving.
+ *
+ * `waitForQueuesIdle` covers BullMQ only. Inbox projection convergence
+ * (`convergeProjectedItemRow`, inbox-command-store.ts:889) is reached through
+ * the OUTBOX RELAY, which polls on its own interval and is not a queue — so a
+ * queue-idle wait can return while a relay tick is still about to bump the
+ * revision, without changing status.
+ *
+ * That matters because the UI reads `commandRevision` when the page loads and
+ * submits it back with the next command
+ * (inbox-detail-manager-actions.tsx:43). A bump landing between the load and
+ * the click makes an ordinary interaction fail with `revision_conflict`, which
+ * surfaces as an unhandled page error and trips the E2E error gate. Measured
+ * on 2026-08-31: ~50% of local runs of activity-notification-facts, and the
+ * failure that took `e2e` red on main at aed3cc72.
+ *
+ * Settling on the value itself rather than on any one mechanism is deliberate:
+ * whichever background process is responsible, what a driving test needs is
+ * that the revision it is about to submit is still current.
+ */
+export async function waitForInboxItemSettled(
+  inboxItemId: string,
+  options: { stableMs?: number; timeoutMs?: number } = {},
+): Promise<number> {
+  const stableMs = options.stableMs ?? 1_000
+  const timeoutMs = options.timeoutMs ?? 20_000
+  const deadline = Date.now() + timeoutMs
+  let last: number | null = null
+  let stableSince = Date.now()
+
+  while (Date.now() < deadline) {
+    const rows = await dbQuery<{ command_revision: string }>(
+      'SELECT command_revision FROM inbox_items WHERE id = $1',
+      [inboxItemId],
+    )
+    const current = rows[0] ? Number(rows[0].command_revision) : null
+    if (current === null) {
+      throw new Error(`inbox item ${inboxItemId} not found while settling`)
+    }
+    if (current !== last) {
+      last = current
+      stableSince = Date.now()
+    } else if (Date.now() - stableSince >= stableMs) {
+      return current
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error(
+    `inbox item ${inboxItemId} revision never settled within ${String(timeoutMs)}ms (last ${String(last)})`,
+  )
+}
+
 // ── DB access ─────────────────────────────────────────────────────────
 
 let _pool: Pool | undefined
