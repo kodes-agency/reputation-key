@@ -16,6 +16,7 @@ import { gbpStubControl } from '../../fixtures/gbp-stub'
 import {
   drainFixtureQueue,
   waitForQueuesIdle,
+  waitForInboxItemSettled,
   e2eRunId,
   cleanupE2eData,
   seedGoogleConnection,
@@ -144,6 +145,18 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
       },
       { timeoutMs: 10_000, description: 'item closed' },
     )
+    // The status landing is NOT the end of the close. Projection convergence
+    // (convergeProjectedItemRow) runs afterwards through the OUTBOX RELAY and
+    // bumps command_revision again WITHOUT changing status — and the relay
+    // polls on its own interval, so `waitForQueuesIdle` does not cover it.
+    //
+    // The page reads commandRevision at load and the reopen submits it back
+    // (inbox-detail-manager-actions.tsx:43), so a bump landing in between
+    // fails the click with `revision_conflict`, which also surfaces as an
+    // unhandled page error and trips the E2E error gate. Measured: revision
+    // went 2 → 3 between page load and click on every failing run, and stayed
+    // at 2 on every passing one.
+    await waitForInboxItemSettled(inboxItem.id as string)
     // Reopen through the real manager path: work-status select → reason →
     // confirm. A reopen without a stated reason is refused by the dialog.
     await page.goto(`/inbox?folder=closed&itemId=${inboxItem.id}`)
@@ -162,6 +175,11 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
       },
       { timeoutMs: 10_000, description: 'item reopened' },
     )
+    // Same hazard on the way out: the note added below carries
+    // `expectedCommandRevision` too (inbox-notes-thread.tsx:77), so it can
+    // race the reopen's own convergence exactly as the reopen raced the
+    // close's.
+    await waitForInboxItemSettled(inboxItem.id as string)
     await page.goto(`/inbox?itemId=${inboxItem.id}`)
     await expect(page.getByText(SENSITIVE_NAME).first()).toBeVisible({ timeout: 15_000 })
     // The note thread lives behind the composer's Internal note tab.
