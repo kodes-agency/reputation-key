@@ -172,6 +172,7 @@
     "ops:restore-preflight": "tsx scripts/ops/restore-preflight.ts",
     "ops:restore-verify": "tsx scripts/ops/restore-verify.ts",
     "ops:google-content-approval": "tsx scripts/ops/google-content-approval.ts",
+    "ops:closed-beta-google-content": "tsx scripts/ops/closed-beta-google-content-activate.ts",
     "ops:google-content-approval-sign": "tsx scripts/ops/google-content-approval-sign.ts",
     "ops:google-admission-role": "tsx scripts/ops/provision-google-admission-role.ts",
     "ops:google-import-lifecycle": "tsx scripts/ops/google-import-lifecycle.ts",
