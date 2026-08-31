@@ -30,9 +30,13 @@ test.describe('Compatibility: core surfaces', () => {
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
     await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
     await expect(page.getByRole('radio', { name: '5 stars' })).toBeVisible()
+    // The destination link appears only AFTER a rating is submitted, and this
+    // gate is deliberately read-only — so the assertion is that the gateway
+    // withholds it, which is the same flow contract guest-portal.spec.ts
+    // proves from the other side.
     await expect(
       page.getByRole('link', { name: 'Visit example review destination' }),
-    ).toBeVisible()
+    ).toHaveCount(0)
 
     await expectNoHorizontalOverflow(page)
     await assertNoAxeViolations(page, 'compatibility public rating gateway')
@@ -86,7 +90,9 @@ test.describe('Compatibility: core surfaces', () => {
   }) => {
     await page.goto('/p/repkey-compatibility-missing-portal')
 
-    await expect(page.getByText('This portal is no longer available')).toBeVisible()
+    // 403 / 404 / 410 collapse to ONE posture on the public surface so a guest
+    // cannot tell a bad token from a withdrawn Portal (see routes/p/$token.tsx).
+    await expect(page.getByRole('heading', { name: 'Portal Unavailable' })).toBeVisible()
     await expect(page.getByRole('radio')).toHaveCount(0)
     await expectNoHorizontalOverflow(page)
     await assertNoAxeViolations(page, 'compatibility unavailable public gateway')

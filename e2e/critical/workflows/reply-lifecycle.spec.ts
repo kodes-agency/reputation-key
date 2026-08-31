@@ -270,7 +270,12 @@ test.describe('Critical workflow: reply lifecycle', () => {
   test('(b) transient 500 heals through the retryQueued path (failure recovery)', async ({
     page,
   }) => {
-    test.setTimeout(90_000)
+    // The longest chain in this file: a scripted 500, a BullMQ retry with its
+    // backoff, an accepted write, a provider read-back, and the observation
+    // that confirms it — every provider step sharing ONE quota with the whole
+    // suite. 90s was enough for the spec alone and not for its position in a
+    // full run.
+    test.setTimeout(180_000)
     const s = await setupScenario('transient', {
       reviews: [stubReview('transient')],
       replyBehavior: { mode: 'fail-then-success', status: 500, failures: 1 },

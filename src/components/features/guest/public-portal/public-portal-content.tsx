@@ -98,7 +98,11 @@ export function PublicPortalContent({
         ...themeStyle,
       }}
     >
-      <div className="mx-auto max-w-lg space-y-8 px-4 py-8">
+      {/* `main` is the landmark every word below belongs to. Without it a
+          screen-reader user navigating by landmark finds nothing on the guest
+          surface — axe reports it as landmark-one-main plus a region
+          violation for the heading. */}
+      <main className="mx-auto max-w-lg space-y-8 px-4 py-8">
         <PortalLanguageNav
           token={token}
           accessArtifactId={accessArtifactId}
@@ -163,7 +167,7 @@ export function PublicPortalContent({
             {secondaryLinks?.(responseForm?.csrfNonce ?? '')}
           </>
         )}
-      </div>
+      </main>
     </div>
   )
 }

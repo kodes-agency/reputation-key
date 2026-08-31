@@ -225,18 +225,30 @@ test.describe('Critical a11y: keyboard', () => {
     await expect(rowA).toBeVisible({ timeout: 15_000 })
     await expect(rowB).toBeVisible()
 
-    // List order is newest-first → [Kb Beta, Kb Alpha].
-    await expect(rowB).toBeVisible()
-    // 'j' selects the first row (Kb Beta) and opens the detail.
+    // The contract under test is "j moves down one row, k moves back up" —
+    // NOT that these two seeded rows are adjacent. The Inbox is shared, so
+    // other specs' items legitimately sort between them, and asserting
+    // adjacency made this test about the rest of the suite's fixtures.
+    const listOrder = await page
+      .getByRole('button', { name: /^open review from /i })
+      .evaluateAll((rows) =>
+        rows.map((row) =>
+          (row.getAttribute('aria-label') ?? '').replace(/^Open review from /i, ''),
+        ),
+      )
+    expect(listOrder.slice(0, 2).length).toBe(2)
+    const [firstRow, secondRow] = listOrder
+
+    // 'j' selects the first row and opens the detail.
     await page.keyboard.press('j')
     await expect(page).toHaveURL(/itemId=/, { timeout: 10_000 })
-    await expect(page.getByText('Kb Beta').nth(1)).toBeVisible({ timeout: 10_000 })
-    // 'j' again → next row (Kb Alpha).
+    await expect(page.getByText(firstRow!).nth(1)).toBeVisible({ timeout: 10_000 })
+    // 'j' again → the next row down.
     await page.keyboard.press('j')
-    await expect(page.getByText('Kb Alpha').nth(1)).toBeVisible({ timeout: 10_000 })
-    // 'k' → back up to Kb Beta.
+    await expect(page.getByText(secondRow!).nth(1)).toBeVisible({ timeout: 10_000 })
+    // 'k' → back up to the first.
     await page.keyboard.press('k')
-    await expect(page.getByText('Kb Beta').nth(1)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(firstRow!).nth(1)).toBeVisible({ timeout: 10_000 })
     // Escape → detail closes.
     await page.keyboard.press('Escape')
     await expect(page.getByText(/no message selected/i)).toBeVisible({

@@ -524,6 +524,33 @@ async function ensurePortal(
  * serve a Portal with no destinations — the page would render and the
  * destination journeys would still fail, which is the harder bug to see.
  */
+/**
+ * Both guest locales, because the cross-browser gate proves the Bulgarian
+ * contract renders and reflows. A snapshot published with `en` alone makes
+ * `?locale=bg` fall back to English — correct product behaviour, and a
+ * fixture that can never exercise the other locale.
+ */
+/** Key-order-independent comparison: JSONB round-trips object keys in its own
+ * order, so a plain stringify would report every seed as changed and publish a
+ * new snapshot version on every run. */
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, (_key, entry: unknown) =>
+    entry && typeof entry === 'object' && !Array.isArray(entry)
+      ? Object.fromEntries(
+          Object.entries(entry as Record<string, unknown>).sort(([left], [right]) =>
+            left < right ? -1 : left > right ? 1 : 0,
+          ),
+        )
+      : entry,
+  )
+}
+
+const PORTAL_LOCALE_SET = ['en', 'bg'] as const
+const PORTAL_LANGUAGE_PACK_VERSIONS: Readonly<Record<string, string>> = {
+  en: 'guest-ui-en-v1',
+  bg: 'guest-ui-bg-v1',
+}
+
 async function publishPortalSnapshot(input: {
   organizationId: string
   propertyId: string
@@ -581,6 +608,36 @@ async function publishPortalSnapshot(input: {
       privateFeedbackThreshold: 3,
       organizationId,
       propertyId,
+      // A MULTILINGUAL publication (schema v2). Without an `experience` the
+      // builder emits the legacy single-locale shape, which pins every guest
+      // to English — so `?locale=bg` fell back silently and the Bulgarian
+      // half of the product had no fixture that could exercise it.
+      experience: {
+        primaryGuestLocale: 'en',
+        localeSet: [...PORTAL_LOCALE_SET],
+        languagePackVersions: PORTAL_LANGUAGE_PACK_VERSIONS,
+        localizedContent: {
+          en: {
+            title: fixture.name,
+            shortDescription: 'Published Portal fixture for local beta acceptance.',
+            heroImageUrl: null,
+          },
+          bg: {
+            title: `${fixture.name} (BG)`,
+            shortDescription: 'Публикуван портал за локално бета приемане.',
+            heroImageUrl: null,
+          },
+        },
+        brandProfile: {
+          displayName: organizationName,
+          version: 1,
+          primaryColor: '#6366F1',
+          backgroundColor: '#FFFFFF',
+          textColor: '#111827',
+          logoUrl: null,
+          defaultHeroImageUrl: null,
+        },
+      },
     },
     destination: {
       state: 'verified',
@@ -602,6 +659,9 @@ async function publishPortalSnapshot(input: {
       id: portalPublicationSnapshots.id,
       version: portalPublicationSnapshots.version,
       configurationDigest: portalPublicationSnapshots.configurationDigest,
+      localeSet: portalPublicationSnapshots.localeSet,
+      localizedContent: portalPublicationSnapshots.localizedContent,
+      brandProfileVersion: portalPublicationSnapshots.brandProfileVersion,
     })
     .from(portalPublicationSnapshots)
     .where(eq(portalPublicationSnapshots.portalId, fixture.id))
@@ -623,14 +683,29 @@ async function publishPortalSnapshot(input: {
   // the snapshot alone is not enough: a seed that died between writing the
   // snapshot and activating it leaves a portal that resolves to nothing, and a
   // digest-only check would call that converged and never repair it.
+  // The COLUMNS that mirror the configuration are not part of its digest, and
+  // the reader refuses a snapshot whose row and configuration disagree
+  // (snapshotFromRow). A seed that corrected a mirrored column would
+  // otherwise converge on "already serving" and never republish — and
+  // snapshots are immutable, so a new version is the only way to change what
+  // is served.
+  const configuration = snapshot.configuration
+  const mirrorsRow =
+    stableJson([...(existing?.localeSet ?? [])].sort()) ===
+      stableJson([...PORTAL_LOCALE_SET].sort()) &&
+    (configuration.schemaVersion !== 2 ||
+      (existing?.brandProfileVersion === configuration.brandProfile.version &&
+        stableJson(existing?.localizedContent ?? {}) ===
+          stableJson(configuration.localizedContent)))
+  const sameConfiguration =
+    existing?.configurationDigest === snapshot.configurationDigest && mirrorsRow
   const isServingCurrent =
-    existing?.configurationDigest === snapshot.configurationDigest &&
-    liveActivation?.snapshotId === existing.id
+    sameConfiguration && liveActivation?.snapshotId === existing?.id
   if (isServingCurrent) return
 
   // Reuse the existing snapshot when only the activation is missing — writing
   // a second identical snapshot would make the version history a lie.
-  const reuseExisting = existing?.configurationDigest === snapshot.configurationDigest
+  const reuseExisting = sameConfiguration
   const snapshotId = reuseExisting ? existing.id : existing ? randomUUID() : snapshot.id
   const activationId = existing ? randomUUID() : fixture.activationId
   const version = reuseExisting ? existing.version : (existing?.version ?? 0) + 1
@@ -646,10 +721,20 @@ async function publishPortalSnapshot(input: {
       configuration: snapshot.configuration,
       guestLocale: snapshot.configuration.guestLocale,
       languagePackVersion: snapshot.configuration.languagePackVersion,
-      localeSet: ['en'],
-      languagePackVersions: { en: 'guest-ui-en-v1' },
-      localizedContent: {},
-      brandProfileVersion: null,
+      // These columns are the row's copy of what the CONFIGURATION publishes.
+      // Leaving them out of step (an empty localizedContent beside a
+      // two-locale configuration, a null brand version beside a brand
+      // profile) makes the snapshot describe two different portals.
+      localeSet: [...PORTAL_LOCALE_SET],
+      languagePackVersions: PORTAL_LANGUAGE_PACK_VERSIONS,
+      localizedContent:
+        snapshot.configuration.schemaVersion === 2
+          ? snapshot.configuration.localizedContent
+          : {},
+      brandProfileVersion:
+        snapshot.configuration.schemaVersion === 2
+          ? snapshot.configuration.brandProfile.version
+          : null,
       privateFeedbackThreshold:
         snapshot.configuration.reviewGateway.privateFeedbackThreshold,
       destinationUri: snapshot.destinationUri,
