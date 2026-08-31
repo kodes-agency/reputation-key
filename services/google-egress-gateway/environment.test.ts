@@ -50,6 +50,44 @@ describe('Google egress-gateway startup isolation', () => {
     ).not.toThrow()
   })
 
+  // Railway injects one `RAILWAY_SERVICE_<NAME>_URL` per service with a public
+  // domain into EVERY service in the environment. It is generated, not stored:
+  // `variableDelete` returns true and the value is present again on the next
+  // read, verified against the live API on 2026-08-31. So an allowlist that
+  // omits these names cannot be satisfied on Railway at all — the gateway
+  // refuses to boot, permanently, for a reason no operator action can clear.
+  //
+  // That is exactly what happened. `google-egress-gateway` failed with
+  // "forbidden variable RAILWAY_SERVICE_GBP_SANDBOX_URL" on the first build it
+  // had ever done from git. Both AI sidecars already allow these three
+  // (ai-egress-gateway/environment.ts:38-40) and boot fine in the same
+  // environment; the Google pair simply never got them.
+  //
+  // This admits three sibling hostnames, not secrets. The isolation this gate
+  // exists for is intact and provably so: the rejection list above still
+  // refuses OPENAI_API_KEY, which was found set on this very service.
+  it.each([
+    'RAILWAY_SERVICE_WEB_URL',
+    'RAILWAY_SERVICE_GBP_SANDBOX_URL',
+    'RAILWAY_SERVICE_MAIL_SANDBOX_URL',
+  ])('admits the platform-injected %s, which cannot be removed', (name) => {
+    expect(() =>
+      assertGoogleGatewayRequiredEnvironment({
+        ...environment(),
+        [name]: 'some-service.up.railway.app',
+      }),
+    ).not.toThrow()
+  })
+
+  it('still refuses a real secret alongside the platform-injected URLs', () => {
+    expect(() =>
+      assertGoogleGatewayEnvironmentIsIsolated({
+        RAILWAY_SERVICE_WEB_URL: 'web.up.railway.app',
+        OPENAI_API_KEY: 'secret',
+      }),
+    ).toThrow('OPENAI_API_KEY')
+  })
+
   it('accepts only the separated health/mTLS ports and the single beta cell', () => {
     expect(() =>
       assertGoogleGatewayRequiredEnvironment({ ...environment(), PORT: '8443' }),

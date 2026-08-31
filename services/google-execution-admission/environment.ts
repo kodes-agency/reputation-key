@@ -32,6 +32,13 @@ const RUNTIME_METADATA_NAMES = Object.freeze([
   'RAILWAY_REPLICA_REGION',
   'RAILWAY_SERVICE_ID',
   'RAILWAY_SERVICE_NAME',
+  // Same platform-injected trio as the egress gateway — see the note in
+  // `services/google-egress-gateway/environment.ts`. This service has not hit
+  // it yet only because it still runs a pinned image and has never built from
+  // git; it would fail identically the moment it did.
+  'RAILWAY_SERVICE_GBP_SANDBOX_URL',
+  'RAILWAY_SERVICE_MAIL_SANDBOX_URL',
+  'RAILWAY_SERVICE_WEB_URL',
   'RAILWAY_SNAPSHOT_ID',
   'RELEASE_MANIFEST_SHA256',
 ] as const)
