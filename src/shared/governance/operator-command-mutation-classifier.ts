@@ -163,6 +163,7 @@ const FILESYSTEM_ARTIFACT_COMMANDS = [
   'scripts/perf/write-scale-evidence.ts',
   'scripts/release/promote-local-evidence.ts',
   'scripts/release/create-promotion-manifest.ts',
+  'scripts/ci/check-runtime-environment-contract.ts',
   'db:generate',
   'db:pull',
 ] as const
