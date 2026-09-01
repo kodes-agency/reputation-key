@@ -128,6 +128,47 @@ describe('buildGoogleProviderAuthority', () => {
     ).rejects.toThrow('Google OAuth provider authorization is unavailable')
   })
 
+  it('names the deciding code in the log when it refuses an OAuth provider call', async () => {
+    // Regression guard for the 2026-09-01 outage. A stale route catalogue left
+    // every approval unresolvable; the import path logged `approval_unavailable`
+    // and was diagnosed from that line alone, while this path threw a bare Error
+    // and surfaced only as `connection_failed` in the OAuth callback — which
+    // reads as a transient network fault for a condition no retry can clear.
+    // The refusal must carry an operator-visible reason.
+    const warnings: { fields: Record<string, unknown>; message: string }[] = []
+    const authority = buildGoogleProviderAuthority(
+      buildInput({
+        logger: {
+          warn: (fields: unknown, message: unknown) =>
+            warnings.push({
+              fields: fields as Record<string, unknown>,
+              message: String(message),
+            }),
+          info: () => {},
+        } as unknown as GoogleProviderAuthorityInput['logger'],
+      }),
+    )
+
+    await expect(
+      authority.authorizeGoogleOAuthProviderCall({
+        organizationId: 'org-1',
+        connectionId: 'conn-1',
+        initiatorUserId: 'user-1',
+        operation: 'oauth.token.refresh',
+      } as Parameters<typeof authority.authorizeGoogleOAuthProviderCall>[0]),
+    ).rejects.toThrow('Google OAuth provider authorization is unavailable')
+
+    const refusal = warnings.find(
+      (entry) => entry.fields.stage === 'google-oauth-preauthorize',
+    )
+    expect(refusal).toBeDefined()
+    expect(refusal?.fields.code).toBe('runtime_unavailable')
+    // Which of the two preconditions was absent, so the operator does not have
+    // to guess between a missing binding and a missing authority.
+    expect(refusal?.fields.missing).toBe('runtime_binding')
+    expect(refusal?.fields.operation).toBe('oauth.token.refresh')
+  })
+
   it('builds no egress executor without gateway transport configuration', () => {
     expect(
       buildGoogleProviderAuthority(buildInput()).googleAuthorizedProviderExecutor,

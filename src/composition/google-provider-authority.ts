@@ -512,8 +512,30 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       if (input.disconnectRevoke && input.operation !== 'oauth.revoke') {
         throw new Error('Google OAuth cleanup authority is inconsistent')
       }
+      // Every denial below is logged with the deciding code before it throws.
+      // The import path already does this (`Google Content authorization
+      // denied`, above) and it is the only reason the 2026-09-01 outage was
+      // diagnosable at all: the log named `approval_unavailable`, which pointed
+      // straight at the approval row. This path threw a bare Error instead, so
+      // the identical root cause surfaced to the operator as nothing but
+      // `connection_failed` in the OAuth callback — a generic, retryable-looking
+      // message for a control-plane condition that no retry can clear. The
+      // thrown Error is deliberately left message-identical and code-free: it
+      // reaches `connectFailureCode` (routes/api/auth/google/callback.ts), which
+      // maps anything but `account_already_connected` to `connection_failed`,
+      // and the user-facing surface must not leak authorization internals.
+      // The operator signal belongs in the log, not in the response.
       const binding = googleContentRuntimeBindings?.['property.import_gbp_v2']
       if (!binding || !googleContentAuthority) {
+        logger.warn(
+          {
+            stage: 'google-oauth-preauthorize',
+            code: 'runtime_unavailable',
+            operation: input.operation,
+            missing: !binding ? 'runtime_binding' : 'content_authority',
+          },
+          'Google OAuth authorization unavailable',
+        )
         throw new Error('Google OAuth provider authorization is unavailable')
       }
       const result = await googleContentAuthority.preauthorize({
@@ -536,6 +558,17 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         !Number.isSafeInteger(credentialGeneration) ||
         credentialGeneration < 0
       ) {
+        logger.warn(
+          {
+            stage: 'google-oauth-preauthorize',
+            // A denial reports the authority's own code; an ok result that got
+            // this far failed the credential-generation invariant instead, and
+            // saying which keeps the two apart in the log.
+            code: result.ok ? 'credential_generation_invalid' : result.code,
+            operation: input.operation,
+          },
+          'Google OAuth authorization denied',
+        )
         throw new Error('Google OAuth provider authorization is unavailable')
       }
       return Object.freeze({
