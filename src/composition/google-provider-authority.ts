@@ -45,6 +45,7 @@ import {
 } from '#/shared/auth/google-content-approval'
 import { parseGoogleContentRuntimeBindings } from '#/shared/auth/google-content-runtime-bindings'
 import { createGoogleCredentialBinder } from '#/shared/google-provider-control/credential-binding'
+import { googleApprovalGapDisposition } from '#/shared/release/google-approval-gap'
 import { createGoogleEgressGatewayHttpClient } from '../../services/google-egress-gateway/http-api'
 import {
   createInternalMtlsJsonTransport,
@@ -615,7 +616,19 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   }
   let googleAuthorizedProviderExecutor =
     options?.providers?.googleAuthorizedProviderExecutor
-  if (!googleAuthorizedProviderExecutor && configuredGatewayValues.length > 0) {
+  const approvalGap = googleApprovalGapDisposition({
+    gatewayConfigured: configuredGatewayValues.length > 0,
+    approvalUsable: Boolean(googleContentAuthority && googleContentRuntimeBindings),
+  })
+  if (approvalGap === 'refuse') {
+    throw new Error('Google egress gateway requires Google Content runtime approval')
+  }
+  if (!googleAuthorizedProviderExecutor && approvalGap === 'wire') {
+    // `wire` is only returned when both of these resolved, so this cannot fire.
+    // It is kept because the compiler cannot see through the disposition, and a
+    // redundant guard is better than the non-null assertion it replaces: if the
+    // disposition and this branch ever disagree, the failure is named here
+    // rather than surfacing as a null dereference deep inside an admit call.
     if (!googleContentAuthority || !googleContentRuntimeBindings) {
       throw new Error('Google egress gateway requires Google Content runtime approval')
     }
