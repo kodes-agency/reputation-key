@@ -128,6 +128,52 @@ describe('buildGoogleProviderAuthority', () => {
     ).rejects.toThrow('Google OAuth provider authorization is unavailable')
   })
 
+  it.each([
+    ['import', 'authorizeGoogleImportContent', 'property.import_gbp_v2'],
+    ['performance', 'authorizeGooglePerformanceContent', 'property.read_gbp_performance'],
+    ['review-sync', 'authorizeGoogleReviewSyncContent', 'property.connect_gbp'],
+    [
+      'reply-publication',
+      'authorizeGoogleReplyPublicationContent',
+      'property.publish_reply',
+    ],
+  ] as const)(
+    'records which capability was unbound when %s refuses',
+    async (surface, key, capability) => {
+      // An absent binding short-circuits before any database access, so a
+      // capability with no binding key refuses every call for the lifetime of
+      // the process. `property.connect_gbp` and `property.publish_reply` are in
+      // exactly that state in the closed beta, and before this the refusal left
+      // no trace anywhere — review sync and reply publication simply never
+      // worked, silently.
+      const warnings: Record<string, unknown>[] = []
+      const authority = buildGoogleProviderAuthority(
+        buildInput({
+          logger: {
+            warn: (fields: unknown) => warnings.push(fields as Record<string, unknown>),
+            info: () => {},
+          } as unknown as GoogleProviderAuthorityInput['logger'],
+        }),
+      )
+      const authorize = authority[key] as (input: unknown) => Promise<unknown>
+
+      await authorize({
+        actor: { organizationId: 'org-1', userId: 'user-1' },
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        connectionId: 'conn-1',
+        phase: 'start',
+        operationKey: 'test',
+      })
+
+      const refusal = warnings.find((w) => w.surface === surface)
+      expect(refusal).toBeDefined()
+      expect(refusal?.code).toBe('runtime_binding_absent')
+      expect(refusal?.capability).toBe(capability)
+      expect(refusal?.stage).toBe('google-content-preauthorize')
+    },
+  )
+
   it('names the deciding code in the log when it refuses an OAuth provider call', async () => {
     // Regression guard for the 2026-09-01 outage. A stale route catalogue left
     // every approval unresolvable; the import path logged `approval_unavailable`
