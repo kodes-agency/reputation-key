@@ -52,7 +52,6 @@ import {
 } from '../../src/shared/auth/google-content-approval'
 import {
   GOOGLE_CONTENT_APPROVAL_ROLES,
-  GOOGLE_CONTENT_CAPABILITIES,
   GOOGLE_CONTENT_CAPABILITY_POLICY_VERSION,
   GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
   GOOGLE_CONTENT_PERFORMANCE_CATALOG_VERSION,
@@ -63,6 +62,7 @@ import {
   type GoogleContentCapability,
 } from '../../src/shared/auth/google-content-contract'
 import { GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION } from '../../src/shared/google-provider-control/contracts'
+import { googleContentSigningScope } from '../../src/shared/release/google-content-signing-scope'
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 /** Override only for rehearsal; the real ceremony uses the default path. */
@@ -395,11 +395,18 @@ async function main(): Promise<void> {
   } finally {
     await client.end()
   }
-  const missing = GOOGLE_CONTENT_CAPABILITIES.filter(
-    (capability: GoogleContentCapability) =>
-      !rows.some((row) => row.capability === capability),
+  // Which capabilities this run refreshes. Keyed on posture: the closed beta
+  // has approval rows for two of the four, so demanding all four made this
+  // command impossible to run exactly when a moved route catalogue had taken
+  // the Google capabilities down. It can never invent an approval — the scope
+  // is drawn from the rows that already exist, and an empty set is refused at
+  // every posture.
+  const scope = googleContentSigningScope(rows.map((row) => row.capability))
+  if (!scope.ok) fail(scope.reason)
+  rows = rows.filter((row) =>
+    scope.capabilities.includes(row.capability as GoogleContentCapability),
   )
-  if (missing.length > 0) fail(`no approval row to re-sign for: ${missing.join(', ')}`)
+  process.stderr.write(`re-signing ${scope.capabilities.join(', ')}\n`)
 
   const now = new Date()
   const approvedAt = now.toISOString()
