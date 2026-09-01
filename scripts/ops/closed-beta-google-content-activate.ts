@@ -71,7 +71,23 @@ import { closePool } from '../../src/shared/db/pool'
 import { createGoogleContentAuthorityRepository } from '../../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 
 const ENVIRONMENT = 'google-closed-beta'
-const SERVICES = ['web', 'worker'] as const
+/**
+ * Every service that resolves a Google Content approval from the runtime
+ * binding, not just the ones that serve requests.
+ *
+ * `google-execution-admission` was missing here, and the omission is not
+ * cosmetic: it holds its own GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON and runs its
+ * own `authority.admit()` for every provider call. Activating web and worker
+ * alone left it pinned to a binding from a previous generation, so web passed
+ * preauthorization and then every call died one hop later — the egress gateway
+ * reports any failure to reach or satisfy admission as
+ * `admission_denied / coordination_unavailable` (google-egress-gateway/service.ts),
+ * which reads like a transient coordination fault rather than a stale binding.
+ * Observed live on 2026-09-01: import, the performance panel on every property,
+ * and the OAuth token refresh all failed this way AFTER the approval itself was
+ * correctly repaired.
+ */
+const SERVICES = ['web', 'worker', 'google-execution-admission'] as const
 const MAX_INPUT_BYTES = 5 * 1024 * 1024
 
 function fail(message: string): never {
