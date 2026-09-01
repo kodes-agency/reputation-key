@@ -101,6 +101,7 @@ function setup(
       policyVersion: string
     }
     contentAllowed?: boolean
+    resolveActorThrows?: boolean
     contentVector?: Readonly<Record<string, string | number | boolean | null>>
   } = {},
 ) {
@@ -146,9 +147,12 @@ function setup(
           },
         },
   )
+  const warnings: Record<string, unknown>[] = []
   const authorize = createGooglePerformanceAuthorizer({
-    resolveActor: async () =>
-      overrides.resolvedActor === undefined ? actor : overrides.resolvedActor,
+    resolveActor: async () => {
+      if (overrides.resolveActorThrows) throw new Error('actor lookup exploded')
+      return overrides.resolvedActor === undefined ? actor : overrides.resolvedActor
+    },
     readBinding,
     findConnection,
     getAccessToken,
@@ -156,8 +160,12 @@ function setup(
     authorizeGoogleContent,
     principalKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
     clock: () => new Date('2026-08-12T12:00:00.000Z'),
+    logger: {
+      warn: (fields: unknown) => warnings.push(fields as Record<string, unknown>),
+    },
   })
   return {
+    warnings,
     authorize,
     readBinding,
     findConnection,
@@ -168,6 +176,49 @@ function setup(
 }
 
 describe('createGooglePerformanceAuthorizer', () => {
+  it('records the authority code when content authorization is denied', async () => {
+    // The caller only ever sees `policy_disabled`, and the route renders that
+    // as a 200 with an empty panel. On 2026-09-01 a stale approval row denied
+    // this capability on every property page view with no server-side signal
+    // whatsoever. The deciding code has to be recorded here or it is lost.
+    const { authorize, warnings } = setup({ contentAllowed: false })
+
+    const result = await authorize({
+      actor,
+      propertyId: PROPERTY_ID,
+      phase: 'before_provider',
+    })
+
+    expect(result).toMatchObject({
+      result: { status: 'unavailable', reason: 'policy_disabled' },
+    })
+    const denial = warnings.find((w) => w.stage === 'authorize_content')
+    expect(denial).toBeDefined()
+    expect(denial?.code).toBe('authorization_denied')
+    expect(denial?.surface).toBe('google-performance')
+  })
+
+  it('records the stage when an infrastructure call throws', async () => {
+    // Each of these catch blocks used to swallow the exception into an
+    // indistinguishable `integration_unavailable`, so a database fault and a
+    // policy denial looked identical from outside.
+    const { authorize, warnings } = setup({ resolveActorThrows: true })
+
+    const result = await authorize({
+      actor,
+      propertyId: PROPERTY_ID,
+      phase: 'before_provider',
+    })
+
+    expect(result).toMatchObject({
+      result: { status: 'unavailable', reason: 'integration_unavailable' },
+    })
+    const failure = warnings.find((w) => w.stage === 'resolve_actor')
+    expect(failure).toBeDefined()
+    expect(failure?.surface).toBe('google-performance')
+    expect(failure?.err).toMatchObject({ message: 'actor lookup exploded' })
+  })
+
   it('returns a full current snapshot and token for an authorized active binding', async () => {
     const { authorize, decide, getAccessToken } = setup()
 

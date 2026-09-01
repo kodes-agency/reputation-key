@@ -1,4 +1,5 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   googleAuthorizationPermissionDigest,
   sameFrozenGoogleContentAuthorizationVector,
@@ -134,14 +135,39 @@ export function createGooglePerformanceAuthorizer(
     authorizeGoogleContent: PerformanceContentAuthorizer
     principalKeys: VersionedHmacKeyring
     clock: () => Date
+    /**
+     * Optional so existing constructions and tests keep working. When absent
+     * this module behaves exactly as before — it just says nothing.
+     */
+    logger?: Pick<LoggerPort, 'warn'>
   }>,
 ): GooglePerformanceAuthorizer {
   return async (input) => {
+    // Every branch below fails closed to an `unavailable(...)` snapshot, which
+    // the route renders as a 200 with an empty performance panel. That is the
+    // right user-facing behaviour and the wrong operator behaviour: on
+    // 2026-09-01 a stale approval row denied this capability on every property
+    // page view and produced no server-side signal at all, so the panel was
+    // simply blank with nothing to grep for. The response shape is unchanged;
+    // only the silence is.
+    const failClosed = (
+      stage: string,
+      detail?: Readonly<Record<string, unknown>>,
+    ): GooglePerformanceAuthorizationResult => {
+      deps.logger?.warn(
+        { surface: 'google-performance', stage, ...detail },
+        'Google performance authorization failed closed',
+      )
+      return unavailable('integration_unavailable', null)
+    }
+    const errorFields = (error: unknown) =>
+      error instanceof Error ? { err: { name: error.name, message: error.message } } : {}
+
     let actor: AuthContext | null
     try {
       actor = await deps.resolveActor(input.actor.organizationId, input.actor.userId)
-    } catch {
-      return unavailable('integration_unavailable', null)
+    } catch (error) {
+      return failClosed('resolve_actor', errorFields(error))
     }
     if (
       !actor ||
@@ -164,8 +190,8 @@ export function createGooglePerformanceAuthorizer(
     let readDecision: PerformanceDecision
     try {
       readDecision = await decide('property.read_gbp_performance')
-    } catch {
-      return unavailable('integration_unavailable', null)
+    } catch (error) {
+      return failClosed('read_decision', errorFields(error))
     }
     if (!readDecision.allowed) {
       return readDecision.reason === 'capability_disabled'
@@ -176,8 +202,8 @@ export function createGooglePerformanceAuthorizer(
     let binding: PropertyAuthorizationView | null
     try {
       binding = await deps.readBinding(actor.organizationId, input.propertyId)
-    } catch {
-      return unavailable('integration_unavailable', null)
+    } catch (error) {
+      return failClosed('read_binding', errorFields(error))
     }
     if (
       !binding ||
@@ -215,8 +241,8 @@ export function createGooglePerformanceAuthorizer(
     let connection: GoogleConnection | null
     try {
       connection = await deps.findConnection(actor.organizationId, binding.connectionId)
-    } catch {
-      return unavailable('integration_unavailable', null)
+    } catch (error) {
+      return failClosed('find_connection', errorFields(error))
     }
     if (
       !connection ||
@@ -246,9 +272,29 @@ export function createGooglePerformanceAuthorizer(
         connectionId: connection.id,
         phase: input.phase,
       })
-      if (!result.ok) return unavailable('policy_disabled', null)
+      if (!result.ok) {
+        // The authority's own code is the diagnosis; the caller only ever sees
+        // `policy_disabled`, so it has to be recorded here or it is lost.
+        deps.logger?.warn(
+          {
+            surface: 'google-performance',
+            stage: 'authorize_content',
+            code: result.code,
+          },
+          'Google performance authorization denied',
+        )
+        return unavailable('policy_disabled', null)
+      }
       content = result
-    } catch {
+    } catch (error) {
+      deps.logger?.warn(
+        {
+          surface: 'google-performance',
+          stage: 'authorize_content',
+          ...errorFields(error),
+        },
+        'Google performance authorization threw',
+      )
       return unavailable('policy_disabled', null)
     }
 
