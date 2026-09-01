@@ -95,7 +95,7 @@ export type GoogleProviderAuthorityInput = Readonly<{
   db: Database
   eventBus: EventBus
   clock: Clock
-  logger: Pick<LoggerPort, 'warn'>
+  logger: Pick<LoggerPort, 'warn' | 'info'>
   /** Parsed configuration, supplied once by the composition boundary. */
   env: Env
   redis: Redis | undefined
@@ -622,6 +622,32 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   })
   if (approvalGap === 'refuse') {
     throw new Error('Google egress gateway requires Google Content runtime approval')
+  }
+  // State every boot which side of the fork it took.
+  //
+  // Silence used to mean either "Google is fine" or "Google is off and every
+  // import will 503", with nothing to tell them apart until a user tried one.
+  // Logging only the failure would leave the same ambiguity whenever logging
+  // itself is misconfigured, so both outcomes are stated and the healthy line
+  // names the capabilities that were actually admitted.
+  if (approvalGap === 'wire') {
+    logger.info(
+      { capabilities: Object.keys(googleContentRuntimeBindings ?? {}).sort() },
+      'Google provider executor wired — Google Content approval is usable',
+    )
+  } else if (configuredGatewayValues.length > 0) {
+    logger.warn(
+      {
+        hasRuntimeBindings: Boolean(googleContentRuntimeBindings),
+        hasContentAuthority: Boolean(googleContentAuthority),
+      },
+      'Google provider DISABLED — no usable Google Content approval. Import and performance reads will fail with 503 until a freshly signed bundle is installed (docs/operations/google-content-approval-closed-beta.md)',
+    )
+  } else {
+    logger.info(
+      {},
+      'Google provider not configured — no egress gateway in this environment',
+    )
   }
   if (!googleAuthorizedProviderExecutor && approvalGap === 'wire') {
     // `wire` is only returned when both of these resolved, so this cannot fire.

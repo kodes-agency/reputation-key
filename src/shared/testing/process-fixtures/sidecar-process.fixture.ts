@@ -37,7 +37,7 @@ function main(): void {
     db: forbiddenDatabase,
     eventBus: inertEventBus,
     clock: () => FIXTURE_CLOCK_INSTANT,
-    logger: { warn: () => {} },
+    logger: { warn: () => {}, info: () => {} },
     env: {
       NODE_ENV: 'test',
       OAUTH_STATE_SECRET: 'fixture-oauth-state-secret',

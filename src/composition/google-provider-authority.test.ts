@@ -50,7 +50,7 @@ function buildInput(
     db: dbStub,
     eventBus: eventBusStub,
     clock: () => FIXED_DATE,
-    logger: { warn: () => {} },
+    logger: { warn: () => {}, info: () => {} },
     env: envWith({}),
     redis: undefined,
     providerEndpoints: providerConfigFor('gbp-default'),
