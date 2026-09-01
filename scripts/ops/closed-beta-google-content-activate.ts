@@ -12,11 +12,25 @@
  *
  * This does the proportionate half: verify the bundles with the SAME parser,
  * signature verifier and validator the production installer uses, apply the
- * set-level rules, and print (or set) the two runtime variables. It does not
- * do the cell-us foundation readback or the reviewed-intent digest ceremony,
- * neither of which is meaningful for an environment with one operator and no
- * promotion step — and it refuses outright at any posture but `closed-beta`,
- * so it can never stand in for the real ceremony.
+ * set-level rules, install the approval rows, and print (or set) the two
+ * runtime variables. It does not do the cell-us foundation readback or the
+ * reviewed-intent digest ceremony, neither of which is meaningful for an
+ * environment with one operator and no promotion step — and it refuses
+ * outright at any posture but `closed-beta`, so it can never stand in for the
+ * real ceremony.
+ *
+ * THE DATABASE HALF IS NOT OPTIONAL. `authorizeRuntime` resolves a capability
+ * by reading `capability_compliance_approvals` through `loadApprovalForRuntime`
+ * (google-content-authority.ts), whose predicate pins ~20 binding columns
+ * exactly — `routeCatalogueVersion` among them. The deployed image carries only
+ * the runtime binding and the role public keys, never the bundle, so the app
+ * can never install its own approval. Writing the two variables alone therefore
+ * leaves the runtime pointing at a binding no stored row matches, and both
+ * capabilities deny `approval_unavailable` — observed live on 2026-09-01, where
+ * the binding advertised routeCatalogue 2026-08-27 while the newest row was
+ * still 2026-08-16, and every import returned 403. The rows are written FIRST,
+ * before the variables move, so the running deployment is never pointed at a
+ * binding that has no approval behind it.
  *
  * Usage:
  *   pnpm ops:closed-beta-google-content \
@@ -25,11 +39,16 @@
  *     --bundle .secrets/google-content-approval-bundles/property-read_gbp_performance.json \
  *     [--apply]
  *
- * Without `--apply` it verifies and reports only. With `--apply` it writes
+ * Without `--apply` it verifies and reports only, touching neither the database
+ * nor Railway. With `--apply` it installs each approval row through the
+ * repository's `ensureApproval` (idempotent: an identical binding returns the
+ * existing row, a conflicting one is refused), then writes
  * GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON and
  * GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON to `web` and `worker` via the
  * Railway CLI, then tells you to redeploy. Values are passed through a
  * 0600 env-file, never argv, so they are not visible in a process list.
+ *
+ * `--apply` requires DATABASE_URL to address the closed-beta database.
  */
 import { execFileSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -40,12 +59,16 @@ import {
   parseGoogleContentApprovalBundle,
   parseGoogleContentRolePublicKeys,
   validateGoogleContentApprovalBundle,
+  type GoogleContentApprovalBundle,
 } from '../../src/shared/auth/google-content-approval'
 import {
   activateClosedBetaGoogleContent,
   type ClosedBetaBundleView,
 } from '../../src/shared/release/closed-beta-google-content-activation'
 import { CURRENT_RELEASE_POSTURE } from '../../src/shared/release/release-posture'
+import { getDb, type Database } from '../../src/shared/db'
+import { closePool } from '../../src/shared/db/pool'
+import { createGoogleContentAuthorityRepository } from '../../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 
 const ENVIRONMENT = 'google-closed-beta'
 const SERVICES = ['web', 'worker'] as const
@@ -88,7 +111,7 @@ function readJson(path: string, label: string): unknown {
   }
 }
 
-function main(): number {
+async function main(): Promise<number> {
   if (CURRENT_RELEASE_POSTURE !== 'closed-beta') {
     fail(
       `refusing: CURRENT_RELEASE_POSTURE is ${CURRENT_RELEASE_POSTURE}. Use the governed cell-us activation controller (pnpm infra:railway:google-content-approval).`,
@@ -112,6 +135,7 @@ function main(): number {
 
   const now = new Date()
   const views: ClosedBetaBundleView[] = []
+  const candidates: GoogleContentApprovalBundle['candidate'][] = []
   for (const path of bundlePaths) {
     const parsed = parseGoogleContentApprovalBundle(readJson(path, `bundle ${path}`))
     if (!parsed.ok) fail(`bundle ${path} is not a valid approval bundle`)
@@ -121,6 +145,7 @@ function main(): number {
     if (!validation.ok) {
       fail(`bundle ${path} refused: ${validation.code}`)
     }
+    candidates.push(parsed.bundle.candidate)
     views.push({
       binding: parsed.bundle.candidate.binding as ClosedBetaBundleView['binding'],
       approverIdentities: parsed.bundle.candidate.roleDocuments.map(
@@ -153,6 +178,37 @@ function main(): number {
     )
     process.stderr.write('report only; pass --apply to write the variables.\n')
     return 0
+  }
+
+  // The database half, first. `ensureApproval` is the same idempotent call the
+  // production installer makes: an identical binding returns the row already
+  // stored, and a binding that collides with a stored one under the same
+  // identity is refused outright ('google_content_approval_runtime_binding_conflict'),
+  // so a re-run converges instead of stacking rows.
+  if (!process.env.DATABASE_URL) {
+    fail(
+      '--apply needs DATABASE_URL pointing at the closed-beta database.\n' +
+        'Postgres16 has no public route by default; open a temporary TCP proxy and run under:\n' +
+        '  railway run --service Postgres16 --environment google-closed-beta -- sh -c \'export DATABASE_URL="postgresql://$PGUSER:$(node -e "process.stdout.write(encodeURIComponent(process.env.PGPASSWORD))")@$RAILWAY_TCP_PROXY_DOMAIN:$RAILWAY_TCP_PROXY_PORT/$PGDATABASE"; pnpm ops:closed-beta-google-content ... --apply\'',
+    )
+  }
+  const repository = createGoogleContentAuthorityRepository(getDb())
+  const installed: { capability: string; inserted: boolean }[] = []
+  try {
+    for (const candidate of candidates) {
+      const ensured = await repository.transaction(async (tx: Database) =>
+        repository.ensureApproval(tx, candidate),
+      )
+      installed.push({
+        capability: candidate.binding.capability,
+        inserted: ensured.inserted,
+      })
+      process.stderr.write(
+        `${ensured.inserted ? 'installed' : 'already present'} approval row for ${candidate.binding.capability} (${ensured.record.id})\n`,
+      )
+    }
+  } finally {
+    await closePool()
   }
 
   // Values go through a 0600 env-file rather than argv: a bindings map is not a
@@ -199,6 +255,7 @@ function main(): number {
         routeCatalogueVersion: outcome.routeCatalogueVersion,
         expiresAt: outcome.expiresAt,
         applied: true,
+        approvalsInstalled: installed,
         services: SERVICES,
       },
       null,
@@ -213,4 +270,5 @@ function main(): number {
   return 0
 }
 
-process.exit(main())
+const exitCode = await main()
+process.exit(exitCode)
