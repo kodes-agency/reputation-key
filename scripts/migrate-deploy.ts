@@ -57,6 +57,10 @@ import { runStagedDrizzleMigrations } from '../src/shared/db/staged-drizzle-migr
 import { authorizeDeployMigrationRuntime } from '../src/shared/db/deploy-migration-runtime'
 import { bindSingleUsDataCellCutoverTarget } from '../src/shared/db/single-us-data-cell-target-binding'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
+import {
+  AI_ADMISSION_PUBLIC_PROCEDURES,
+  sidecarFunctionIsolationSql,
+} from '../src/shared/db/sidecar-function-isolation'
 
 // dist-worker/migrate-deploy.js (built) and scripts/migrate-deploy.ts (tsx)
 // both sit one level below the app root.
@@ -68,6 +72,8 @@ const SIDECAR_PATH = join(
   'scripts/migrations/2026-07-06-permission-version-triggers.sql',
 )
 const SIDECAR_MARKER_FUNCTION = 'bump_permission_version'
+/** The non-superuser role whose EXECUTE surface the isolation readback reports. */
+const AI_ADMISSION_ROLE = 'repkey_ai_admission_local'
 
 /** Stable signed int64 advisory-lock key derived from a constant string. */
 function advisoryLockKey(): bigint {
@@ -160,6 +166,37 @@ async function main(): Promise<void> {
       // 4. Registered deploy SQL sidecar
       await client.query(readFileSync(SIDECAR_PATH, 'utf8'))
       log('sidecar applied', { file: SIDECAR_PATH.split('/').pop() })
+
+      // 4b. Restore the AI admission isolation posture.
+      //
+      // Every function created or replaced above carries PostgreSQL's default
+      // EXECUTE grant to PUBLIC, and the AI admission readiness predicate
+      // refuses to start if its role can execute anything in `public` beyond
+      // its own five procedures. On 2026-09-01 a deploy left 51 executable
+      // where 5 are allowed and both AI sidecars stopped booting. Runs after
+      // the schema work, every deploy, because a one-off revoke lasts only
+      // until the next migration recreates a function.
+      await client.query(sidecarFunctionIsolationSql())
+      // Joined against pg_roles rather than passing the name to
+      // has_function_privilege directly: that function RAISES for an unknown
+      // role, and the role is absent in local and CI databases. No rows there
+      // means the readback logs null instead of failing the deploy.
+      const isolation = await client.query<{ executable: number }>(
+        `SELECT (
+            SELECT count(*)::int
+              FROM pg_proc AS p
+             WHERE p.pronamespace = 'public'::regnamespace
+               AND has_function_privilege(role.oid, p.oid, 'EXECUTE')
+          ) AS executable
+           FROM pg_roles AS role
+          WHERE role.rolname = $1`,
+        [AI_ADMISSION_ROLE],
+      )
+      log('sidecar function isolation', {
+        role: AI_ADMISSION_ROLE,
+        executable: isolation.rows[0]?.executable ?? null,
+        allowed: AI_ADMISSION_PUBLIC_PROCEDURES.length,
+      })
       await initializeReviewProviderSubjectKeyInventoryFromEnvironment({
         db: migrationDb,
         env: process.env,
