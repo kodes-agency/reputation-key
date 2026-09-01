@@ -25,10 +25,10 @@
       "kind": "engineering_fact_map",
       "path": "docs/legal/implementation-facts-2026-08-26.md",
       "reviewDueOn": null,
-      "sha256": "bff0a58b6d7e380ccf4e6cd2f3ced5eca12d1b526684e440471d57b69a30fb76",
+      "sha256": "e26f157761851a3843fdb9d354fd1dd364677e7ede15474bae7b0b0e8e8d656f",
       "status": "draft",
       "title": "Engineering implementation facts for legal and release review",
-      "version": "2026-08-28"
+      "version": "2026-08-31"
     },
     {
       "approvalEvidenceRef": null,

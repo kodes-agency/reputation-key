@@ -290,3 +290,88 @@ A checklist with any missing or `decided: false` key, an approval outside its
 `completedAt` is rejected. Counsel's approval must also carry a verified
 signature over the Gate F decision digest; an engineering identity cannot
 satisfy the counsel role.
+
+## Addendum A — verification against merged code (2026-08-31)
+
+Sections 1–5 above were re-verified against `origin/main` at `926f09e0`, after
+the beta programme merged. This addendum records DRIFT ONLY. It does not
+restate, approve, or soften anything above, and it contains no legal
+conclusions. Every item below was read in source at the cited location.
+
+### A.1 Capability posture (section 1): three corrections
+
+1. **Contact Request is not controlled beta.** `portal.guest_contact` is
+   `safety_blocked` (`src/shared/governance/capability-fate.ts:99-103`) and is
+   listed in `BLOCKED_CAPABILITIES`
+   (`src/shared/auth/beta-capabilities.ts:143`). Its own fate note states that
+   "tenant policy alone cannot enable it." Section 1 places it in the
+   controlled-beta row, whose consequence text tells a reader that persisted
+   Organization/Property policy can turn it on. For this capability that is
+   false — no tenant setting can.
+2. **`identity.custom_roles` is missing from the excluded row.** It is
+   `DISABLED` (`capability-fate.ts:56-58`) and blocked
+   (`beta-capabilities.ts:132`).
+3. Consequently the "temporarily unavailable" row is incomplete: two
+   capabilities are safety-blocked, not one.
+
+### A.2 Retention (section 4): one class has since acquired a horizon
+
+`guest_contact_requests` now carries a 30-day horizon stamped at consent,
+enforced from the retention registry
+(`src/shared/db/retention/retention-registry.ts:292-298`), with audited
+reveals recorded separately in `guest_contact_request_reveal_audits`. Section
+4's closing paragraph still lists Contact Requests among the classes that
+"still need accepted horizons".
+
+The enforcing authority is `src/shared/db/retention/retention-registry.ts`,
+which currently carries 21 entries across 14 source tables — more classes than
+section 4's table enumerates. Treat the registry as the enumeration and the
+table as a summary of it.
+
+### A.3 Surfaces this document does not cover at all
+
+Landed after this document's last reconciliation and mentioned nowhere in it:
+
+- **Organization Export**, which produces an archive that includes
+  guest-authored private feedback bodies
+  (`src/contexts/guest/infrastructure/adapters/guest-organization-export.adapter.ts:33`,
+  record class `expired_private_feedback_bodies` at `:95`).
+- Self-service Organization closure and reactivation (`/settings/closure`).
+- Transfer-first "leave organization".
+- Support-mediated permanent Property Erase.
+
+These are portability, deletion and egress paths. They declare capability
+`'none'` in the entry-point catalogue, so section 1's capability map does not
+describe them; whether each is reachable is decided by container composition
+rather than by tenant policy.
+
+### A.4 Claims a reader must NOT infer
+
+Each was checked and is NOT supported by the code:
+
+- **Qualified Scan staff attribution has no retention horizon.**
+  `guest_qualified_scans` has neither a `retention_deadline` nor an
+  `expires_at` column (`src/shared/db/schema/guest.schema.ts:52-73`) and is
+  named by no rule in the retention registry or the retention sweep. Its
+  attribution foreign keys are `onDelete('restrict')`, so the referenced
+  participation row cannot be deleted while an attribution exists.
+- **`erasure_deadline` is a deadline, not a guarantee of erasure.** The
+  database constraint fixes the column VALUE to `applied_at + 24 hours`
+  (`drizzle/0145_ai_authorization_lifecycle.sql:49`); the same constraint
+  admits a terminal `erasure_status = 'failed'` row with zero erased counts
+  after bounded attempts.
+- **Property Trend inference has no call site.** Do not describe it as a live
+  provider route.
+- **`ops:privacy-request` exists and is registered**, but its apply path
+  refuses in this build; report mode only prints a plan.
+
+### A.5 Not establishable from this repository
+
+**Physical processing location of the live closed beta.** Section 5 records an
+older observation that the legacy `reputation-key` project uses Amsterdam
+resources. On 2026-08-31 that project was the one serving the beta, and
+`PROCESSING_CELL=us` was set on its services because it is the only value the
+code accepts — production boot is refused without a beta-deployable cell, and
+`us` is the only one. That variable therefore records the cell identity the
+code demands; it is NOT evidence of a verified physical region. Live placement
+must still be captured from the platform, as section 5 already requires.

@@ -314,9 +314,9 @@ export const LEGAL_DOCUMENT_REGISTRY: LegalDocumentRegistry = Object.freeze(
         kind: 'engineering_fact_map',
         title: 'Engineering implementation facts for legal and release review',
         path: 'docs/legal/implementation-facts-2026-08-26.md',
-        version: '2026-08-28',
+        version: '2026-08-31',
         status: 'draft',
-        sha256: 'bff0a58b6d7e380ccf4e6cd2f3ced5eca12d1b526684e440471d57b69a30fb76',
+        sha256: 'e26f157761851a3843fdb9d354fd1dd364677e7ede15474bae7b0b0e8e8d656f',
         ...UNAPPROVED,
       },
       {
