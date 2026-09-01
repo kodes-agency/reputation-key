@@ -934,6 +934,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       authorizeGoogleContent: deps.authorizeGooglePerformanceContent,
       principalKeys: deps.googlePerformancePrincipalKeys,
       clock: deps.clock,
+      logger: deps.logger,
     })
     const performanceProviderExecutor = createSingle401RefreshExecutor({
       executor: deps.googleAuthorizedProviderExecutor,

@@ -34,8 +34,12 @@
 //   pnpm ops:permit-start-deadline-fence --operator <id> --reason <text> \
 //     --apply --yes ops:permit-start-deadline-fence
 //
-// Optional: --batch <n> (1..1000, default 200) bounds one run. A run that
-// reports batchFull=true has more candidates; re-run until it is false.
+// Optional: --batch-size <n> (1..1000, default 200) bounds one run. A run that
+// reports batchFull=true has more candidates; re-run until it is false. The
+// flag is declared in the command spec so the harness parses and clamps it —
+// a hand-rolled --batch was rejected as an unknown flag before the script ever
+// saw it, which capped a 102,045-row drain at 200 rows per invocation on
+// 2026-09-01 and made it ~510 separate runs.
 //
 // Requires DATABASE_URL. The invocation is audited by the harness
 // (policy_decision_audit, actorType/executionKind 'operator').
@@ -50,25 +54,10 @@ import { GOOGLE_CONTENT_CAPABILITIES } from '../../src/shared/auth/google-conten
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:permit-start-deadline-fence'
-const USAGE = `pnpm ${COMMAND_NAME} --operator <id> [--batch <n>] [--reason <text> --apply --yes ${COMMAND_NAME}]`
+const USAGE = `pnpm ${COMMAND_NAME} --operator <id> [--batch-size <n>] [--reason <text> --apply --yes ${COMMAND_NAME}]`
 const MAX_BATCH = 1_000
 
-function parseBatch(argv: readonly string[]): number {
-  const index = argv.indexOf('--batch')
-  if (index === -1) return EXECUTION_PERMIT_START_DEADLINE_SWEEP_BATCH_SIZE
-  const raw = argv[index + 1]
-  const value = Number(raw)
-  if (!raw || !Number.isSafeInteger(value) || value < 1 || value > MAX_BATCH) {
-    console.error(`Usage: ${USAGE}`)
-    console.error(`--batch must be an integer in 1..${MAX_BATCH}`)
-    process.exit(1)
-  }
-  return value
-}
-
 async function main(): Promise<void> {
-  const batchSize = parseBatch(process.argv.slice(2))
-
   const result = await runOperatorCommand(
     {
       name: COMMAND_NAME,
@@ -76,11 +65,19 @@ async function main(): Promise<void> {
       mutation: true,
       destructive: false,
       capability: undefined,
+      batchSize: {
+        default: EXECUTION_PERMIT_START_DEADLINE_SWEEP_BATCH_SIZE,
+        max: MAX_BATCH,
+      },
       usage: USAGE,
     },
     async (ctx, _args, io) => {
       const store = createGoogleContentAuthorityRepository(getDb())
       const clock = () => new Date()
+      // The harness owns the flag: it parses --batch-size, clamps it to the
+      // spec's max and applies the default, so there is one bound rather than
+      // two that can disagree.
+      const batchSize = ctx.batchSize ?? EXECUTION_PERMIT_START_DEADLINE_SWEEP_BATCH_SIZE
 
       if (ctx.dryRun) {
         // Same predicate the sweeper scans with — selection only, no lock, no

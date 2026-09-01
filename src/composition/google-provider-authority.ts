@@ -44,6 +44,7 @@ import {
   parseGoogleContentRolePublicKeys,
 } from '#/shared/auth/google-content-approval'
 import { parseGoogleContentRuntimeBindings } from '#/shared/auth/google-content-runtime-bindings'
+import type { GoogleContentCapability } from '#/shared/auth/google-content-contract'
 import { createGoogleCredentialBinder } from '#/shared/google-provider-control/credential-binding'
 import { googleApprovalGapDisposition } from '#/shared/release/google-approval-gap'
 import { createGoogleEgressGatewayHttpClient } from '../../services/google-egress-gateway/http-api'
@@ -374,12 +375,68 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
     ok: false as const,
     code: 'runtime_unavailable' as const,
   })
+
+  /**
+   * Every Google Content refusal goes through here, so it always names the
+   * surface it came from and the code that decided it.
+   *
+   * WHY: only the import authorizer used to log, and on 2026-09-01 that single
+   * line was the only reason a control-plane outage was diagnosable at all — it
+   * said `approval_unavailable`, which pointed straight at a stale route
+   * catalogue in the approval row. The same cause reached three other surfaces
+   * silently: the performance panel returned an empty 200 with nothing logged,
+   * review sync and reply publication reported `runtime_unavailable` with
+   * nothing logged, and the OAuth callback flattened it to `connection_failed`.
+   * One root cause, four symptoms, one log line between them.
+   *
+   * An absent binding is reported too, and is the more insidious case: it
+   * short-circuits before any database access, so a capability with no binding
+   * key — `property.connect_gbp` and `property.publish_reply` have none in this
+   * deployment — refuses every call for the lifetime of the process while
+   * leaving no evidence anywhere that it was ever asked.
+   */
+  type GoogleContentSurface =
+    'import' | 'performance' | 'review-sync' | 'reply-publication'
+  type GoogleContentRefusal = Readonly<{
+    ok: false
+    code: 'authorization_denied' | 'runtime_unavailable'
+  }>
+
+  const refuseAbsentBinding = (
+    surface: GoogleContentSurface,
+    capability: GoogleContentCapability,
+  ): GoogleContentRefusal => {
+    logger.warn(
+      {
+        stage: 'google-content-preauthorize',
+        surface,
+        capability,
+        code: 'runtime_binding_absent',
+        authorityConfigured: Boolean(googleContentAuthority),
+      },
+      'Google Content authorization unavailable',
+    )
+    return unavailableGoogleContentAuthorization
+  }
+
+  const refuseDenied = (
+    surface: GoogleContentSurface,
+    code: string,
+  ): GoogleContentRefusal => {
+    logger.warn(
+      { stage: 'google-content-preauthorize', surface, code },
+      'Google Content authorization denied',
+    )
+    return code === 'authorization_denied' || code === 'authorization_changed'
+      ? Object.freeze({ ok: false as const, code: 'authorization_denied' as const })
+      : unavailableGoogleContentAuthorization
+  }
   const authorizeGoogleImportContent: GoogleImportContentAuthorizer =
     options?.providers?.authorizeGoogleImportContent ??
     (async (input) => {
       const binding = googleContentRuntimeBindings?.['property.import_gbp_v2']
       if (!binding || !googleContentAuthority) {
-        return unavailableGoogleContentAuthorization
+        return refuseAbsentBinding('import', 'property.import_gbp_v2')
       }
       const result = await googleContentAuthority
         .preauthorize({
@@ -398,25 +455,14 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
           throw err
         })
       if (result.ok) return result
-      logger.warn(
-        { stage: 'google-content-preauthorize', code: result.code },
-        'Google Content authorization denied',
-      )
-      return {
-        ok: false as const,
-        code:
-          result.code === 'authorization_denied' ||
-          result.code === 'authorization_changed'
-            ? ('authorization_denied' as const)
-            : ('runtime_unavailable' as const),
-      }
+      return refuseDenied('import', result.code)
     })
   const authorizeGooglePerformanceContent: PerformanceContentAuthorizer =
     options?.providers?.authorizeGooglePerformanceContent ??
     (async (input) => {
       const binding = googleContentRuntimeBindings?.['property.read_gbp_performance']
       if (!binding || !googleContentAuthority) {
-        return unavailableGoogleContentAuthorization
+        return refuseAbsentBinding('performance', 'property.read_gbp_performance')
       }
       const result = await googleContentAuthority.preauthorize({
         runtimeBinding: binding,
@@ -429,23 +475,14 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         operationKey: `performance.${input.phase}`,
         vectorMode: 'full',
       })
-      return result.ok
-        ? result
-        : {
-            ok: false as const,
-            code:
-              result.code === 'authorization_denied' ||
-              result.code === 'authorization_changed'
-                ? ('authorization_denied' as const)
-                : ('runtime_unavailable' as const),
-          }
+      return result.ok ? result : refuseDenied('performance', result.code)
     })
   const authorizeGoogleReviewSyncContent: GoogleReviewSyncContentAuthorizer =
     options?.providers?.authorizeGoogleReviewSyncContent ??
     (async (input) => {
       const binding = googleContentRuntimeBindings?.['property.connect_gbp']
       if (!binding || !googleContentAuthority) {
-        return unavailableGoogleContentAuthorization
+        return refuseAbsentBinding('review-sync', 'property.connect_gbp')
       }
       const result = await googleContentAuthority.preauthorize({
         runtimeBinding: binding,
@@ -458,23 +495,14 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         operationKey: input.operationKey,
         vectorMode: 'full',
       })
-      return result.ok
-        ? result
-        : {
-            ok: false as const,
-            code:
-              result.code === 'authorization_denied' ||
-              result.code === 'authorization_changed'
-                ? ('authorization_denied' as const)
-                : ('runtime_unavailable' as const),
-          }
+      return result.ok ? result : refuseDenied('review-sync', result.code)
     })
   const authorizeGoogleReplyPublicationContent: GoogleReplyPublicationContentAuthorizer =
     options?.providers?.authorizeGoogleReplyPublicationContent ??
     (async (input) => {
       const binding = googleContentRuntimeBindings?.['property.publish_reply']
       if (!binding || !googleContentAuthority) {
-        return unavailableGoogleContentAuthorization
+        return refuseAbsentBinding('reply-publication', 'property.publish_reply')
       }
       const result = await googleContentAuthority.preauthorize({
         runtimeBinding: binding,
@@ -495,16 +523,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         operationKey: input.operationKey,
         vectorMode: 'full',
       })
-      return result.ok
-        ? result
-        : {
-            ok: false as const,
-            code:
-              result.code === 'authorization_denied' ||
-              result.code === 'authorization_changed'
-                ? ('authorization_denied' as const)
-                : ('runtime_unavailable' as const),
-          }
+      return result.ok ? result : refuseDenied('reply-publication', result.code)
     })
   const authorizeGoogleOAuthProviderCall: GoogleOAuthProviderCallAuthorizer =
     options?.providers?.authorizeGoogleOAuthProviderCall ??
@@ -512,8 +531,30 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       if (input.disconnectRevoke && input.operation !== 'oauth.revoke') {
         throw new Error('Google OAuth cleanup authority is inconsistent')
       }
+      // Every denial below is logged with the deciding code before it throws.
+      // The import path already does this (`Google Content authorization
+      // denied`, above) and it is the only reason the 2026-09-01 outage was
+      // diagnosable at all: the log named `approval_unavailable`, which pointed
+      // straight at the approval row. This path threw a bare Error instead, so
+      // the identical root cause surfaced to the operator as nothing but
+      // `connection_failed` in the OAuth callback — a generic, retryable-looking
+      // message for a control-plane condition that no retry can clear. The
+      // thrown Error is deliberately left message-identical and code-free: it
+      // reaches `connectFailureCode` (routes/api/auth/google/callback.ts), which
+      // maps anything but `account_already_connected` to `connection_failed`,
+      // and the user-facing surface must not leak authorization internals.
+      // The operator signal belongs in the log, not in the response.
       const binding = googleContentRuntimeBindings?.['property.import_gbp_v2']
       if (!binding || !googleContentAuthority) {
+        logger.warn(
+          {
+            stage: 'google-oauth-preauthorize',
+            code: 'runtime_unavailable',
+            operation: input.operation,
+            missing: !binding ? 'runtime_binding' : 'content_authority',
+          },
+          'Google OAuth authorization unavailable',
+        )
         throw new Error('Google OAuth provider authorization is unavailable')
       }
       const result = await googleContentAuthority.preauthorize({
@@ -536,6 +577,17 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         !Number.isSafeInteger(credentialGeneration) ||
         credentialGeneration < 0
       ) {
+        logger.warn(
+          {
+            stage: 'google-oauth-preauthorize',
+            // A denial reports the authority's own code; an ok result that got
+            // this far failed the credential-generation invariant instead, and
+            // saying which keeps the two apart in the log.
+            code: result.ok ? 'credential_generation_invalid' : result.code,
+            operation: input.operation,
+          },
+          'Google OAuth authorization denied',
+        )
         throw new Error('Google OAuth provider authorization is unavailable')
       }
       return Object.freeze({
