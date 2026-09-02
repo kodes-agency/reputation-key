@@ -143,6 +143,7 @@ const EXPECTED_INBOX_PUBLIC_API_KEYS = [
 ] as const
 
 const EXPECTED_POLICY_ADMIN_OPS = [
+  'explainCapabilityRefusal',
   'explainPolicyDecision',
   'getOrgPolicyState',
   'getRegionDiagnostic',

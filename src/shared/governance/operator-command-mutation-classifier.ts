@@ -110,6 +110,7 @@ const PURE_DIAGNOSTIC_COMMANDS = [
 
 const AUDIT_ONLY_OPERATOR_COMMANDS = [
   'scripts/ops/operator-command.ts',
+  'scripts/ops/report-capability-refusal.ts',
   'scripts/ops/report-guest-response-readiness.ts',
   'scripts/ops/report-organization-lifecycle.ts',
   'scripts/ops/report-legacy-goals.ts',

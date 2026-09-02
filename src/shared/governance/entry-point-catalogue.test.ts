@@ -719,9 +719,9 @@ describe('BQC-2.1 entry-point catalogue', () => {
         ),
       ),
     }).toEqual({
-      full: '76ec108fd071eaf0b7c70895a7e1b2ec3a42963e5ea582aa8675d23c370144ee',
+      full: 'c58ab5a454bb6d6d4eedf84c943551da592ccd94e4201ed70de298be5f10d77a',
       withoutOutboxConsumers:
-        '8d80fac4cf58b33f087e74e3d9ab52c9c18e16387378bc87670064f28a79cdd6',
+        'b655bc66c2fba3edb597670645ec9ff961039e285718fff04703f00079721c38',
     })
 
     const invalid = {

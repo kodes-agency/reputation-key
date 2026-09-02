@@ -21,6 +21,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { listAllCapabilities, type Capability } from '#/shared/auth/beta-capabilities'
+import { capabilityForPermission } from '#/shared/auth/capability-for-permission'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import type { Permission } from '#/shared/domain/permissions'
@@ -336,13 +337,28 @@ export const explainPolicyDecisionFn = createServerFn({ method: 'GET' })
 
         try {
           const { policyAdmin, clock } = getContainer()
-          return await policyAdmin.explainPolicyDecision({
-            organizationId: ctx.organizationId as string,
-            action: data.action as Permission,
+          const action = data.action as Permission
+          const organizationId = ctx.organizationId as string
+          const userId = data.userId ?? (ctx.userId as string)
+          const explanation = await policyAdmin.explainPolicyDecision({
+            organizationId,
+            action,
             propertyId: data.propertyId,
-            userId: data.userId ?? (ctx.userId as string),
+            userId,
             now: clock(),
           })
+          const capabilityRefusal = await policyAdmin.explainCapabilityRefusal({
+            capability: capabilityForPermission(action),
+            organizationId,
+            propertyId: data.propertyId,
+            role: ctx.role,
+            userId,
+            permissionScope: {
+              allowed: explanation.checks.permission.allowed,
+              scopeOutcome: explanation.checks.scope.outcome,
+            },
+          })
+          return { ...explanation, capabilityRefusal }
         } catch (e) {
           throw catchUntagged(e)
         }

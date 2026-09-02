@@ -1,0 +1,233 @@
+// Read-only capability refusal diagnostic (issues #403/#408). The report reads
+// live capability, Google approval, execution-control, and empirical permit
+// state; it never predicts or invokes the mutating Postgres start authority.
+
+import { pathToFileURL } from 'node:url'
+import { CAPABILITIES } from '../../src/shared/auth/beta-capabilities'
+import {
+  createGoogleContentRoleSignatureVerifier,
+  parseGoogleContentRolePublicKeys,
+  type GoogleContentApprovalSignatureVerifier,
+} from '../../src/shared/auth/google-content-approval'
+import { parseGoogleContentRuntimeBindings } from '../../src/shared/auth/google-content-runtime-bindings'
+import { getEnv } from '../../src/shared/config/env'
+import { createCapabilityRefusalReaders } from '../../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { getDb } from '../../src/shared/db'
+import {
+  createCapabilityRefusalExplainer,
+  type CapabilityRefusalReport,
+  type ObservedFact,
+} from '../../src/shared/governance/capability-refusal'
+import { runOperatorCommand } from './operator-command'
+
+const COMMAND_NAME = 'ops:report-capability-refusal'
+const USAGE =
+  'pnpm ops:report-capability-refusal --operator <id> [--capability <id>] [--org <id>] [--property <id>] [--json]'
+const HELP = [
+  'Explain the first authority refusing one capability or the complete capability catalogue.',
+  'This command is read-only; it never calls the mutating Postgres start authority.',
+  '',
+  `usage: ${USAGE}`,
+  '',
+  'options:',
+  '  --operator <id>    Required registered operator identity',
+  '  --capability <id>  Explain one capability (default: the complete catalogue)',
+  '  --org <id>         Supply Organization scope when available',
+  '  --property <id>    Supply Property scope when available',
+  '  --json             Emit machine-readable JSON',
+  '  --help             Show this usage without connecting to the database',
+].join('\n')
+
+type ReportArgv = Readonly<{
+  capability?: string
+  harnessArgv: ReadonlyArray<string>
+}>
+
+type ReportArgvResult =
+  Readonly<{ ok: true; value: ReportArgv }> | Readonly<{ ok: false; error: string }>
+
+function extractReportArgv(argv: ReadonlyArray<string>): ReportArgvResult {
+  let capability: string | undefined
+  const harnessArgv: string[] = []
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index] as string
+    if (token === '--capability') {
+      const value = argv[index + 1]
+      if (!value || value.startsWith('--')) {
+        return { ok: false, error: '--capability requires a value' }
+      }
+      capability = value
+      index += 1
+      continue
+    }
+    if (token.startsWith('--capability=')) {
+      const value = token.slice('--capability='.length)
+      if (!value) return { ok: false, error: '--capability requires a value' }
+      capability = value
+      continue
+    }
+    harnessArgv.push(token)
+  }
+
+  return { ok: true, value: { capability, harnessArgv } }
+}
+
+function loadRoleApprovalVerifier(
+  raw: string | undefined,
+): GoogleContentApprovalSignatureVerifier {
+  if (!raw) throw new Error('Google Content approval role public keys are unavailable')
+
+  let input: unknown
+  try {
+    input = JSON.parse(raw)
+  } catch {
+    throw new Error('Google Content approval role public keys are invalid')
+  }
+  const parsed = parseGoogleContentRolePublicKeys(input)
+  if (!parsed.ok) throw new Error('Google Content approval role public keys are invalid')
+  return createGoogleContentRoleSignatureVerifier(parsed.publicKeys)
+}
+
+/** Load signing configuration only if the explainer reaches approval validation. */
+function createConfiguredRoleApprovalVerifier(
+  raw: string | undefined,
+): GoogleContentApprovalSignatureVerifier {
+  let verifier: GoogleContentApprovalSignatureVerifier | undefined
+  return (document) => {
+    verifier ??= loadRoleApprovalVerifier(raw)
+    return verifier(document)
+  }
+}
+
+function renderFact(fact: ObservedFact): string {
+  return fact.expected === undefined
+    ? `${fact.name}: observed ${fact.observed}`
+    : `${fact.name}: expected ${fact.expected}, observed ${fact.observed}`
+}
+
+export function renderCapabilityRefusalReport(report: CapabilityRefusalReport): string {
+  const factlessRefusal = report.chain.find(
+    (entry) => entry.outcome === 'refused' && entry.facts.length === 0,
+  )
+  if (factlessRefusal) {
+    throw new Error(
+      `Capability refusal report is missing facts for ${factlessRefusal.authority}`,
+    )
+  }
+
+  const lines = [
+    `${report.allowed ? 'ALLOWED' : 'REFUSED'} ${report.capability}`,
+    `  deciding authority: ${report.decidedBy ?? '<none>'}`,
+    `  code: ${report.code ?? '<none>'}`,
+    `  fate: ${report.fate?.fate ?? '<none>'}`,
+    `  fate authority: ${report.fate?.authority ?? '<none>'}`,
+    `  activation: ${report.fate?.activation ?? '<none>'}`,
+    '  chain:',
+  ]
+
+  for (const entry of report.chain) {
+    lines.push(
+      `    - ${entry.authority}: ${entry.outcome}${entry.code ? ` (code=${entry.code})` : ''}`,
+    )
+    for (const fact of entry.facts) lines.push(`      ${renderFact(fact)}`)
+  }
+
+  lines.push('  permit outcomes:')
+  if (report.permitOutcomes.length === 0) {
+    lines.push('    - none observed')
+  } else {
+    for (const outcome of report.permitOutcomes) {
+      lines.push(
+        `    - state=${outcome.state}; correlationId=${outcome.correlationId ?? '<none>'}; count=${outcome.count}; lastAt=${outcome.lastAt ?? '<none>'}`,
+      )
+    }
+  }
+
+  return lines.join('\n')
+}
+
+async function main(): Promise<void> {
+  const argv = process.argv.slice(2)
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log(HELP)
+    return
+  }
+
+  const parsed = extractReportArgv(argv)
+  if (!parsed.ok) {
+    console.error(`${COMMAND_NAME}: ${parsed.error}`)
+    console.error(`usage: ${USAGE}`)
+    process.exit(1)
+  }
+
+  const json = parsed.value.harnessArgv.includes('--json')
+  let actionRunning = false
+  const machineIO = json
+    ? {
+        out: (line: string) => {
+          if (actionRunning) console.log(line)
+          else console.error(line)
+        },
+        err: (line: string) => console.error(line),
+      }
+    : undefined
+
+  const result = await runOperatorCommand(
+    {
+      name: COMMAND_NAME,
+      scope: 'global',
+      mutation: false,
+      extraFlags: ['json'],
+      usage: USAGE,
+    },
+    async (context, _args, io) => {
+      actionRunning = true
+      const env = getEnv()
+      const runtimeBindings = env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON
+        ? parseGoogleContentRuntimeBindings(env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON)
+        : undefined
+      const explain = createCapabilityRefusalExplainer({
+        ...createCapabilityRefusalReaders(getDb()),
+        googleContentRuntimeBindings: () => runtimeBindings,
+        verifyRoleApproval: createConfiguredRoleApprovalVerifier(
+          env.GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON,
+        ),
+        clock: () => new Date(),
+      })
+      const capabilities: ReadonlyArray<string> = parsed.value.capability
+        ? [parsed.value.capability]
+        : CAPABILITIES
+      const reports: CapabilityRefusalReport[] = []
+      for (const capability of capabilities) {
+        reports.push(
+          await explain({
+            capability,
+            organizationId: context.organizationId,
+            propertyId: context.propertyId,
+          }),
+        )
+      }
+
+      io.out(
+        json
+          ? JSON.stringify({ reports }, null, 2)
+          : reports.map(renderCapabilityRefusalReport).join('\n\n'),
+      )
+    },
+    parsed.value.harnessArgv,
+    machineIO,
+  )
+  process.exit(result.exitCode)
+}
+
+const invokedPath = process.argv[1]
+if (invokedPath && import.meta.url === pathToFileURL(invokedPath).href) {
+  main().catch((error) => {
+    console.error(
+      `${COMMAND_NAME} failed:`,
+      error instanceof Error ? error.name : 'UnknownError',
+    )
+    process.exit(1)
+  })
+}
