@@ -185,13 +185,27 @@ export async function waitForQueuesIdle(timeoutMs = 10_000): Promise<void> {
  * Settling on the value itself rather than on any one mechanism is deliberate:
  * whichever background process is responsible, what a driving test needs is
  * that the revision it is about to submit is still current.
+ *
+ * THE STABILITY WINDOW MUST OUTLAST THE OUTBOX RELAY TICK. The convergence
+ * bump is delivered by the relay, which polls every 5s (`relay.start(5_000)`,
+ * src/worker/index.ts). A 1s window — the original default — therefore proved
+ * nothing: it fitted entirely between two ticks, so "settled" routinely
+ * returned while the bump was still queued, and the caller went on to load a
+ * page whose revision was invalidated moments later. That is exactly the
+ * 2 -> 3 bump measured on every failing run of activity-notification-facts,
+ * and it kept `e2e` red on main. The window is now one full relay period plus
+ * a margin, so a quiet interval means no tick is pending rather than that we
+ * happened to look between two of them.
  */
+const OUTBOX_RELAY_TICK_MS = 5_000
+
 export async function waitForInboxItemSettled(
   inboxItemId: string,
   options: { stableMs?: number; timeoutMs?: number } = {},
 ): Promise<number> {
-  const stableMs = options.stableMs ?? 1_000
-  const timeoutMs = options.timeoutMs ?? 20_000
+  const stableMs = options.stableMs ?? OUTBOX_RELAY_TICK_MS + 1_000
+  // Room for a bump to land late and still be followed by a full quiet window.
+  const timeoutMs = options.timeoutMs ?? 45_000
   const deadline = Date.now() + timeoutMs
   let last: number | null = null
   let stableSince = Date.now()
