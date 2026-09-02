@@ -348,26 +348,40 @@ function signRoleDocument(
   return { sha256: canonicalGoogleContentSha256(document), document }
 }
 
-async function main(): Promise<void> {
-  const operator = flag('operator')
-  const reason = flag('reason')
-  const ticket = flag('ticket')
-  const apply = process.argv.includes('--apply')
+type SigningInvocation = Readonly<{
+  operator: string
+  reason: string
+  ticket: string
+  releaseSha: string | undefined
+}>
+
+/**
+ * Read and validate the invocation before any keystore or database work.
+ *
+ * Split out of `main` so the ceremony itself stays legible: argument policy is
+ * a flat list of refusals and does not belong interleaved with unlocking keys,
+ * signing role documents and writing bundles.
+ */
+function parseInvocation(): SigningInvocation {
   if (flag('railway-environment')) {
     fail(
       '--railway-environment is retired; this command never mutates Railway. Use the governed exact-target cell-us configuration and signed-release procedure.',
     )
   }
-  if (apply) {
+  if (process.argv.includes('--apply')) {
     fail(
       '--apply is blocked before any database write: this signer prepares private review artifacts only. Use pnpm infra:railway:google-content-approval plan, then apply or recover the unchanged reviewed intent; do not install bundles manually.',
     )
   }
+  const operator = flag('operator')
+  const reason = flag('reason')
+  const ticket = flag('ticket')
   if (!operator || !reason || !ticket) {
     fail(
       'Usage: pnpm ops:google-content-approval-sign --operator <id> --reason <text> --ticket <ref> [--release-sha <40-hex>]',
     )
   }
+
   // Re-signing the release the approval covers.
   //
   // `release_sha` is an approval-bound value like any other, and refreshing a
@@ -391,10 +405,17 @@ async function main(): Promise<void> {
   // the cohort and residual-risk digests — is environment-scoped and still
   // copied verbatim from the approved row, so this widens WHICH release the
   // existing evidence covers and mints nothing.
-  const releaseShaFlag = flag('release-sha')
-  if (releaseShaFlag !== undefined && !/^[0-9a-f]{40}$/.test(releaseShaFlag)) {
+  const releaseSha = flag('release-sha')
+  if (releaseSha !== undefined && !/^[0-9a-f]{40}$/.test(releaseSha)) {
     fail('--release-sha must be a lowercase 40-character git object id')
   }
+  return { operator, reason, ticket, releaseSha }
+}
+
+async function main(): Promise<void> {
+  // `reason` and `ticket` are validated by parseInvocation for the audit trail;
+  // the signing run itself only needs the operator identity and the release.
+  const { operator, releaseSha: releaseShaFlag } = parseInvocation()
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) fail('DATABASE_URL is required')
   const created = !existsSync(KEYSTORE_PATH)
