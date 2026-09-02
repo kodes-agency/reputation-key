@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
-import { createCapabilityRefusalReaders } from './google-content-authority.repository'
+import { createCapabilityRefusalReaders } from './capability-refusal.repository'
 
 function databaseReturning(rows: ReadonlyArray<unknown>): Database {
   return {
