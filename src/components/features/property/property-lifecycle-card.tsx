@@ -4,67 +4,17 @@ import { Badge } from '#/components/ui/badge'
 import {
   PropertyArchiveDialog,
   PropertyGoogleDisconnectDialog,
+  PropertyRemoveDialog,
   PropertyRestoreDialog,
   type ArchiveLifecycleAction,
   type TargetLifecycleAction,
 } from './property-lifecycle-dialogs'
-
-type PropertyLifecycleState =
-  | 'active'
-  | 'suspended'
-  | 'archived'
-  | 'disconnecting'
-  | 'purge_pending'
-  | 'purging'
-  | 'purged'
-
-type GoogleBindingState =
-  'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
-
-type LifecycleControls = Readonly<{
-  showArchive: boolean
-  showRestore: boolean
-  showDisconnect: boolean
-  restoreDisabled: boolean
-  statusLabel: string
-}>
-
-const LIFECYCLE_LABELS: Readonly<Record<PropertyLifecycleState, string>> = {
-  active: 'Active',
-  suspended: 'Paused',
-  archived: 'Archived',
-  disconnecting: 'Disconnecting',
-  purge_pending: 'Support review',
-  purging: 'Unavailable',
-  purged: 'Unavailable',
-}
-
-export const getPropertyLifecycleControls = (input: {
-  lifecycleState: PropertyLifecycleState
-  googleBindingState: GoogleBindingState
-  responsibilityNeeded: boolean
-}): LifecycleControls => ({
-  showArchive: input.lifecycleState === 'active' || input.lifecycleState === 'suspended',
-  showRestore: input.lifecycleState === 'archived',
-  showDisconnect:
-    input.lifecycleState === 'archived' && input.googleBindingState === 'active',
-  restoreDisabled: input.responsibilityNeeded,
-  statusLabel: LIFECYCLE_LABELS[input.lifecycleState],
-})
-
-export const formatPropertyRecoveryDeadline = (
-  value: Date | string | null,
-): string | null => {
-  if (value === null) return null
-  const date = value instanceof Date ? value : new Date(value)
-  if (!Number.isFinite(date.getTime())) return null
-  return new Intl.DateTimeFormat('en', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(date)
-}
+import {
+  formatPropertyRecoveryDeadline,
+  getPropertyLifecycleControls,
+  type GoogleBindingState,
+  type PropertyLifecycleState,
+} from './property-lifecycle-model'
 
 const googleBindingLabel = (state: GoogleBindingState): string => {
   switch (state) {
@@ -83,6 +33,7 @@ export function PropertyLifecycleCard({
   property,
   responsibilityNeeded,
   archiveAction,
+  removeAction,
   restoreAction,
   disconnectAction,
   permissions,
@@ -97,6 +48,7 @@ export function PropertyLifecycleCard({
   }>
   responsibilityNeeded: boolean
   archiveAction: ArchiveLifecycleAction
+  removeAction: ArchiveLifecycleAction
   restoreAction: TargetLifecycleAction
   disconnectAction: TargetLifecycleAction
   permissions: Readonly<{
@@ -112,7 +64,10 @@ export function PropertyLifecycleCard({
   })
   const recoveryDeadline = formatPropertyRecoveryDeadline(property.purgeScheduledFor)
   const pending =
-    archiveAction.isPending || restoreAction.isPending || disconnectAction.isPending
+    archiveAction.isPending ||
+    removeAction.isPending ||
+    restoreAction.isPending ||
+    disconnectAction.isPending
 
   return (
     <section
@@ -174,6 +129,15 @@ export function PropertyLifecycleCard({
             />
           )}
 
+          {controls.showRemove && (
+            <PropertyRemoveDialog
+              propertyId={property.id}
+              propertyName={property.name}
+              action={removeAction}
+              disabled={!permissions.archive || !permissions.disconnect || pending}
+            />
+          )}
+
           {controls.showRestore && (
             <PropertyRestoreDialog
               propertyId={property.id}
@@ -194,7 +158,12 @@ export function PropertyLifecycleCard({
         </div>
 
         <FormErrorBanner
-          error={archiveAction.error ?? restoreAction.error ?? disconnectAction.error}
+          error={
+            archiveAction.error ??
+            removeAction.error ??
+            restoreAction.error ??
+            disconnectAction.error
+          }
         />
       </div>
     </section>

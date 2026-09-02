@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   formatPropertyRecoveryDeadline,
   getPropertyLifecycleControls,
-} from './property-lifecycle-card'
+} from './property-lifecycle-model'
 
 describe('Property lifecycle card model', () => {
-  it('offers Archive without any destructive deletion control for active state', () => {
+  it('offers Archive and the recoverable Remove for active state, and nothing that deletes', () => {
+    // Remove archives and disconnects — both recoverable. No control here reaches
+    // permanent erasure, which stays support-mediated and off the tenant surface.
     expect(
       getPropertyLifecycleControls({
         lifecycleState: 'active',
@@ -14,11 +16,22 @@ describe('Property lifecycle card model', () => {
       }),
     ).toEqual({
       showArchive: true,
+      showRemove: true,
       showRestore: false,
       showDisconnect: false,
       restoreDisabled: false,
       statusLabel: 'Active',
     })
+  })
+
+  it('withdraws Remove once the Property is already out of the workspace', () => {
+    expect(
+      getPropertyLifecycleControls({
+        lifecycleState: 'archived',
+        googleBindingState: 'disconnected',
+        responsibilityNeeded: false,
+      }),
+    ).toMatchObject({ showRemove: false })
   })
 
   it('offers independent Restore and Property-only Google disconnect after Archive', () => {
@@ -30,6 +43,7 @@ describe('Property lifecycle card model', () => {
       }),
     ).toEqual({
       showArchive: false,
+      showRemove: false,
       showRestore: true,
       showDisconnect: true,
       restoreDisabled: false,

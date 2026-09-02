@@ -17,6 +17,7 @@ const lifecycleAction = () => idleAction<{ data: { propertyId: string } }>()
 const baseArgs = {
   responsibilityNeeded: false,
   archiveAction: archiveAction(),
+  removeAction: archiveAction(),
   restoreAction: lifecycleAction(),
   disconnectAction: lifecycleAction(),
   permissions: { archive: true, restore: true, disconnect: true },

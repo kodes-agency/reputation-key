@@ -1,17 +1,7 @@
-import { useState, type ReactNode } from 'react'
-import { Archive, Link2Off, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
+import { Archive, Link2Off, RotateCcw, Trash2 } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
+import { ConfirmationDialog } from './property-lifecycle-confirmation-dialog'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
@@ -23,48 +13,40 @@ export type TargetLifecycleAction = Action<{
   data: Readonly<{ propertyId: string }>
 }>
 
-function ConfirmationDialog({
-  trigger,
-  title,
-  description,
-  cancelLabel,
-  confirmLabel,
-  pendingLabel,
-  pending,
-  confirmDisabled = false,
-  onConfirm,
-  onOpenChange,
-  children,
+export function PropertyRemoveDialog({
+  propertyId,
+  propertyName,
+  action,
+  disabled,
 }: Readonly<{
-  trigger: ReactNode
-  title: string
-  description: string
-  cancelLabel: string
-  confirmLabel: string
-  pendingLabel: string
-  pending: boolean
-  confirmDisabled?: boolean
-  onConfirm: () => void
-  onOpenChange?: (open: boolean) => void
-  children?: ReactNode
+  propertyId: string
+  propertyName: string
+  action: ArchiveLifecycleAction
+  disabled: boolean
 }>) {
   return (
-    <AlertDialog onOpenChange={onOpenChange}>
-      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        {children}
-        <AlertDialogFooter>
-          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
-          <AlertDialogAction disabled={pending || confirmDisabled} onClick={onConfirm}>
-            {pending ? pendingLabel : confirmLabel}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmationDialog
+      trigger={
+        <Button variant="destructive" disabled={disabled}>
+          <Trash2 aria-hidden="true" />
+          Remove from workspace
+        </Button>
+      }
+      title={`Remove ${propertyName} from your workspace?`}
+      // Deliberately explicit that this is not destruction. Calling it "delete"
+      // while a 30-day restore window is running would be a lie the operator
+      // only discovers when they go looking for data they thought was gone.
+      description="It leaves your property list and navigation, and its Google connection is disconnected so no further reviews or reports are collected. Nothing is deleted — reviews, settings and history are retained, and you can restore it from the Removed list for 30 days."
+      cancelLabel="Keep Property"
+      confirmLabel="Remove Property"
+      pendingLabel="Removing…"
+      pending={action.isPending}
+      onConfirm={() => {
+        void action({
+          data: { propertyId, reason: 'Removed from workspace' },
+        }).catch(() => undefined)
+      }}
+    />
   )
 }
 
