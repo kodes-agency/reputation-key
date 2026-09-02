@@ -259,6 +259,13 @@ export type ImportCandidateEligibility =
   | Readonly<{ kind: 'already_imported'; propertyId: PropertyId }>
   | Readonly<{ kind: 'active_binding_conflict' }>
   | Readonly<{ kind: 'region_unavailable' }>
+  /**
+   * Google reports the location as lacking Voice of Merchant, so it is not
+   * verified and cannot serve reviews or performance data. Importing it would
+   * produce a Property that is permanently empty, so it is offered for display
+   * only — never for selection, and never with a candidate reference.
+   */
+  | Readonly<{ kind: 'verification_required' }>
   | Readonly<{ kind: 'unavailable' }>
 
 export type ImportCandidateDto = Readonly<{

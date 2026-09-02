@@ -118,6 +118,14 @@ export type GoogleAccountManagementPort = Readonly<{
   ): Promise<ProviderPage<GbpAccount>>
 }>
 
+/**
+ * Whether Google reports the location as having Voice of Merchant — its own
+ * signal that a listing is verified and eligible to serve reviews and insights.
+ * `unknown` means the provider gave us no usable evidence either way and must
+ * never be treated as a denial.
+ */
+export type GbpLocationVerification = 'verified' | 'unverified' | 'unknown'
+
 export type GbpLocationCandidate = Readonly<{
   binding: Readonly<{ accountId: string; locationId: string }>
   accountDisplayName: string
@@ -127,6 +135,7 @@ export type GbpLocationCandidate = Readonly<{
   countryCode: string | null
   /** Output-only provider destination; absent metadata is represented as null. */
   googleReviewUri?: string | null
+  verification: GbpLocationVerification
 }>
 
 export type GoogleBusinessInformationPort = Readonly<{
