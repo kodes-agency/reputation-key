@@ -103,11 +103,31 @@ const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
  * Google policy permanently prohibits automated reply publishing,
  * cross-property AI summaries, and review-solicitation gamification.
  *
- * `portal.upload` is a temporary SEC-01 safety containment. Remove it from
- * this set only after upload finalization accepts a durable, tenant-bound
- * issuance ID instead of an object key, storage revalidates the uploaded
- * object, derivative keys cannot alias the source, stale workers fail closed,
- * and the cross-tenant/replay/expiry/oversize adversarial suite passes.
+ * `portal.upload` is a safety containment whose authority is the **`SAFE-01`
+ * package completion record**, not the `SEC-01` finding. Corrected 2026-09-02
+ * (issue #406): this comment previously named `SEC-01` and listed that
+ * finding's removal criteria — issuance-bound finalization, storage
+ * revalidation, non-aliasing derivative keys, stale-worker fail-closed, and
+ * the cross-tenant/replay/expiry/oversize adversarial suite. Every one of
+ * those is now SATISFIED (`SEC-01` is closed: see
+ * `docs/release-evidence/review/finding-revalidation-fragments/data-runtime-safeguards-2026-08-26.json`),
+ * so a reader following the old criteria would have concluded the gate was
+ * met and unblocked this capability.
+ *
+ * `SEC-01` was one finding owned by `SAFE-01`, which also covers `SEC-02` and
+ * `SEC-13..17`. `SAFE-01` itself is still open, and everything outstanding is
+ * DEPLOYED evidence that cannot be produced locally: the object-store
+ * adversarial drill, Railway proxy/header proof, deployed cache/header proof,
+ * the two-replica observation-loss drill, and security approval
+ * (`docs/release-evidence/review/comprehensive-progress-report-2026-08-28.md`).
+ * The independent review is explicit that no remaining local code defect
+ * requires activating this capability
+ * (`docs/release-evidence/review/safe-01-independent-security-review-2026-08-28.md`).
+ *
+ * Remove it from this set only after the signed `SAFE-01` completion record.
+ * Tenant policy alone cannot enable it — see
+ * `CAPABILITY_FATE['portal.upload']` in `#/shared/governance/capability-fate`,
+ * which is the authority this comment must agree with.
  *
  * `portal.guest_media` is deliberately blocked for the first beta cohort.
  * Its historical records and internal lifecycle remain available for audit;
