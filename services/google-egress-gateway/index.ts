@@ -98,6 +98,15 @@ const gateway = createGoogleEgressGateway({
   grantKeyring,
   admission,
   fetch,
+  // These sidecars have no structured logger; the other one writes plain lines
+  // to stderr for the same reason. Serialising the fields keeps the reason
+  // greppable in `railway logs` without pulling a logging stack into a service
+  // whose whole job is to be small.
+  logger: {
+    warn: (fields, message) => {
+      process.stderr.write(`${message} ${JSON.stringify(fields)}\n`)
+    },
+  },
 })
 
 const readiness = async (signal: AbortSignal): Promise<boolean> => {

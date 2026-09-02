@@ -24,7 +24,8 @@
  *
  * Usage:
  *   pnpm ops:google-content-approval-sign --operator <id> \
- *     --reason <text> --ticket <ref> [--release-sha <40-hex>]
+ *     --reason <text> --ticket <ref> [--release-sha <40-hex>] \
+ *     [--introduce <capability>]...
  *
  * `--release-sha` re-attests the approval against a different deployed release.
  * Without it the binding keeps the release the CURRENT row names, which is the
@@ -35,6 +36,13 @@
  * deployed release makes "approved" and "runnable" mutually exclusive as soon
  * as the release moves. There is no default and no inference from git: this is
  * the value the five role signatures attest, so the operator states it.
+ *
+ * `--introduce` gives a capability its FIRST approval, seeded from an approved
+ * row. `property.connect_gbp` (review sync) and `property.publish_reply` (reply
+ * publication) had none, and the signer drew its scope only from rows that
+ * already existed, so those two were unreachable by construction rather than by
+ * decision. Everything seeded is environment-scoped; the per-capability content
+ * is the five role documents, which signing produces.
  *
 
  * It reads the current approval rows and writes only private local artifacts;
@@ -74,6 +82,7 @@ import {
 } from '../../src/shared/auth/google-content-contract'
 import { GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION } from '../../src/shared/google-provider-control/contracts'
 import { googleContentSigningScope } from '../../src/shared/release/google-content-signing-scope'
+import { CURRENT_RELEASE_POSTURE } from '../../src/shared/release/release-posture'
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 /** Override only for rehearsal; the real ceremony uses the default path. */
@@ -104,6 +113,18 @@ function fail(message: string): never {
 function flag(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`)
   return index >= 0 ? process.argv[index + 1] : undefined
+}
+
+/** Every occurrence of a repeatable flag, in the order given. */
+function flags(name: string): string[] {
+  const values: string[] = []
+  for (let index = 0; index < process.argv.length; index += 1) {
+    if (process.argv[index] !== `--${name}`) continue
+    const value = process.argv[index + 1]
+    if (!value || value.startsWith('--')) fail(`--${name} requires a value`)
+    values.push(value)
+  }
+  return values
 }
 
 function readPassword(prompt: string): Promise<string> {
@@ -353,6 +374,7 @@ type SigningInvocation = Readonly<{
   reason: string
   ticket: string
   releaseSha: string | undefined
+  introduce: readonly string[]
 }>
 
 /**
@@ -378,7 +400,7 @@ function parseInvocation(): SigningInvocation {
   const ticket = flag('ticket')
   if (!operator || !reason || !ticket) {
     fail(
-      'Usage: pnpm ops:google-content-approval-sign --operator <id> --reason <text> --ticket <ref> [--release-sha <40-hex>]',
+      'Usage: pnpm ops:google-content-approval-sign --operator <id> --reason <text> --ticket <ref> [--release-sha <40-hex>] [--introduce <capability>]...',
     )
   }
 
@@ -409,13 +431,13 @@ function parseInvocation(): SigningInvocation {
   if (releaseSha !== undefined && !/^[0-9a-f]{40}$/.test(releaseSha)) {
     fail('--release-sha must be a lowercase 40-character git object id')
   }
-  return { operator, reason, ticket, releaseSha }
+  return { operator, reason, ticket, releaseSha, introduce: flags('introduce') }
 }
 
 async function main(): Promise<void> {
   // `reason` and `ticket` are validated by parseInvocation for the audit trail;
   // the signing run itself only needs the operator identity and the release.
-  const { operator, releaseSha: releaseShaFlag } = parseInvocation()
+  const { operator, releaseSha: releaseShaFlag, introduce } = parseInvocation()
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) fail('DATABASE_URL is required')
   const created = !existsSync(KEYSTORE_PATH)
@@ -461,9 +483,32 @@ async function main(): Promise<void> {
   // the Google capabilities down. It can never invent an approval — the scope
   // is drawn from the rows that already exist, and an empty set is refused at
   // every posture.
-  const scope = googleContentSigningScope(rows.map((row) => row.capability))
+  const scope = googleContentSigningScope(
+    rows.map((row) => row.capability),
+    CURRENT_RELEASE_POSTURE,
+    introduce,
+  )
   if (!scope.ok) fail(scope.reason)
-  rows = rows.filter((row) =>
+  // A capability being introduced has no row of its own, so its binding is
+  // seeded from an approved one. That is sound because everything copied is
+  // environment-scoped — the evidence index, deployment attestation, ADR
+  // digest, OAuth client and redirect digests, cohort and residual-risk
+  // digests all describe THIS deployment, not one capability within it. The
+  // only per-capability content is the five role documents, and those are
+  // produced by signing. Without a donor there is nothing to seed from and no
+  // evidence to point at, so the run is refused rather than inventing any.
+  if (introduce.length > 0 && rows.length === 0) {
+    fail(
+      'cannot introduce a capability with no approved row to seed the environment evidence from',
+    )
+  }
+  const donor = rows[0]
+  const introduced: ApprovalRow[] = introduce.map((capability) => ({
+    ...(donor as ApprovalRow),
+    capability,
+    role_approvals: null,
+  }))
+  rows = [...rows, ...introduced].filter((row) =>
     scope.capabilities.includes(row.capability as GoogleContentCapability),
   )
   process.stderr.write(
