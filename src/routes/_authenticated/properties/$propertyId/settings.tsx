@@ -166,10 +166,12 @@ function PropertySettingsRoute() {
         <PropertyLifecycleCard
           property={propertyData.property}
           responsibilityNeeded={responsibleManagers.responsibilityNeeded}
-          archiveAction={archiveAction}
-          removeAction={removeAction}
-          restoreAction={restoreAction}
-          disconnectAction={disconnectAction}
+          actions={{
+            archive: archiveAction,
+            remove: removeAction,
+            restore: restoreAction,
+            disconnect: disconnectAction,
+          }}
           permissions={{
             archive: can(role, 'property.archive'),
             restore: can(role, 'property.restore'),
