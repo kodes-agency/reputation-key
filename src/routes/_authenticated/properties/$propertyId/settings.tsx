@@ -10,6 +10,10 @@ import {
   updatePropertyResponsibleManagers,
 } from '#/contexts/property/server/property-responsible-managers'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  removePropertyFromWorkspace,
+  type RemovePropertyInput,
+} from '#/components/features/property/remove-property-from-workspace'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { PropertyResponsibleManagersCard } from '#/components/features/property/property-responsible-managers-card'
@@ -103,6 +107,27 @@ function PropertySettingsRoute() {
       }
     },
   })
+  const removeAction = useActionMutation(
+    (input: RemovePropertyInput) =>
+      removePropertyFromWorkspace(input, {
+        archive: archiveProperty,
+        disconnect: disconnectPropertyGoogleBinding,
+      }),
+    {
+      invalidateKeys: lifecycleInvalidateKeys,
+      onSuccess: (result) => {
+        if (result.googleDisconnected) {
+          toast.success(
+            'Property removed. Restore it from the Removed list within 30 days.',
+          )
+        } else {
+          toast.warning(
+            'Property removed, but its Google connection could not be disconnected. Open the Property to disconnect it.',
+          )
+        }
+      },
+    },
+  )
   const disconnectAction = useActionMutation(disconnectPropertyGoogleBinding, {
     successMessage:
       'This Property is disconnected. The Organization Google connection is unchanged.',
@@ -142,6 +167,7 @@ function PropertySettingsRoute() {
           property={propertyData.property}
           responsibilityNeeded={responsibleManagers.responsibilityNeeded}
           archiveAction={archiveAction}
+          removeAction={removeAction}
           restoreAction={restoreAction}
           disconnectAction={disconnectAction}
           permissions={{

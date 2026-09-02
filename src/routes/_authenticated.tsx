@@ -28,6 +28,7 @@ import { AppTopBar } from '#/components/layout/app-top-bar'
 import { hasRole } from '#/shared/domain/roles'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
+import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
 import { submitBetaFeedbackFn } from '#/contexts/identity/server/beta-feedback'
 
 export type AuthRouteContext = Readonly<{
@@ -180,7 +181,9 @@ export const Route = createFileRoute('/_authenticated')({
 function AuthenticatedLayout() {
   const ctx = Route.useRouteContext()
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
-  const properties = propsData.properties
+  // Removed properties stay out of the navigation. They remain reachable and
+  // restorable from the Properties page, which lists them under "Removed".
+  const properties = partitionWorkspaceProperties(propsData.properties).workspace
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isSettings = pathname.startsWith('/settings')
   const isInbox = pathname.startsWith('/inbox') || pathname.includes('/reviews')
