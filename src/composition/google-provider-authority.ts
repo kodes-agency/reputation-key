@@ -49,6 +49,7 @@ import {
   type GoogleContentRuntimeBindings,
 } from '#/shared/auth/google-content-runtime-bindings'
 import type { GoogleContentCapability } from '#/shared/auth/google-content-contract'
+import type { CapabilityRefusalDeps } from '#/shared/governance/capability-refusal'
 import { createGoogleCredentialBinder } from '#/shared/google-provider-control/credential-binding'
 import { googleApprovalGapDisposition } from '#/shared/release/google-approval-gap'
 import { createGoogleEgressGatewayHttpClient } from '../../services/google-egress-gateway/http-api'
@@ -138,6 +139,23 @@ export function createGoogleContentAuthorityRuntime(
   return Object.freeze({
     runtimeBindings,
     verifyRoleApproval: createGoogleContentRoleSignatureVerifier(publicKeys.publicKeys),
+  })
+}
+
+/**
+ * The narrow slice the capability refusal explainer needs (issue #408). Takes
+ * `env` rather than a shared runtime handle so the composition root does not
+ * have to thread one through: `createGoogleContentAuthorityRuntime` is a pure
+ * parse, and keeping the fail-closed verifier in exactly one place matters more
+ * than parsing the same env twice at boot.
+ */
+export function googleContentCapabilityRefusal(
+  env: Env,
+): Pick<CapabilityRefusalDeps, 'googleContentRuntimeBindings' | 'verifyRoleApproval'> {
+  const runtime = createGoogleContentAuthorityRuntime(env)
+  return Object.freeze({
+    googleContentRuntimeBindings: () => runtime.runtimeBindings,
+    verifyRoleApproval: runtime.verifyRoleApproval,
   })
 }
 

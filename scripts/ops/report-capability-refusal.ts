@@ -1,6 +1,22 @@
 // Read-only capability refusal diagnostic (issues #403/#408). The report reads
 // live capability, Google approval, execution-control, and empirical permit
 // state; it never predicts or invokes the mutating Postgres start authority.
+//
+// WHERE THIS CAN RUN, and why that is not an oversight.
+//
+// This command cannot reach the deployed closed beta. The runtime image ships
+// neither `scripts/` nor tsx, and `scripts/check-production-artifacts.mjs`
+// deny-lists `scripts/ops/` as "operator-only command source" — so bundling it
+// into `dist-worker` to run it over `railway ssh` fails the image build, on
+// purpose. Operator command source is deliberately absent from production
+// artifacts. I tried exactly that and CI refused it; the gate was right.
+//
+// So this is the local-stack and dev-database surface. The live answer comes
+// from the other caller of the same core: `explainPolicyDecisionFn`, which runs
+// inside the web process and is reachable by an authenticated operator holding
+// `policy.admin`. Both call `createCapabilityRefusalExplainer`, so there is one
+// truth with two entry points — see #408 for why a third, internet-reachable
+// surface was rejected while SAFE-01 remains open.
 
 import { pathToFileURL } from 'node:url'
 import { CAPABILITIES } from '../../src/shared/auth/beta-capabilities'
