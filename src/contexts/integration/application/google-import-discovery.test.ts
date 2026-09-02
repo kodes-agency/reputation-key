@@ -177,6 +177,7 @@ function setup(
           address: '1 Main Street',
           primaryCategory: 'Cafe',
           countryCode: 'US',
+          verification: 'verified' as const,
         },
       ],
       nextPageToken: 'provider-locations-next',

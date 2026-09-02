@@ -488,6 +488,7 @@ describe('Google Business Information adapter', () => {
           countryCode: 'BG',
           googleReviewUri:
             'https://search.google.com/local/writereview?placeid=location-1',
+          verification: 'unknown',
         },
       ],
       nextPageToken: 'next-location-page',
@@ -501,6 +502,58 @@ describe('Google Business Information adapter', () => {
       },
       { authorization, deadlineMs: 15_000, signal: expect.any(AbortSignal) },
     )
+  })
+
+  it('reads Voice of Merchant as verification once the page proves the flag is served', async () => {
+    const adapter = createGoogleBusinessInformationAdapter({
+      executor: executorReturning({
+        locations: [
+          {
+            name: 'locations/verified-1',
+            title: 'Verified Diner',
+            metadata: { hasVoiceOfMerchant: true },
+          },
+          // Google omits the flag entirely rather than sending `false`.
+          { name: 'locations/unverified-1', title: 'Unverified Diner', metadata: {} },
+          { name: 'locations/unverified-2', title: 'No Metadata Diner' },
+        ],
+      }),
+    })
+
+    const page = await adapter.listLocations({
+      accessToken: 'access-token',
+      authorization,
+      accountId: 'account-1',
+      accountDisplayName: 'Acme Group',
+    })
+
+    expect(page.items.map((item) => item.verification)).toEqual([
+      'verified',
+      'unverified',
+      'unverified',
+    ])
+  })
+
+  it('leaves verification unknown when no location on the page carries the flag', async () => {
+    // Indistinguishable from an account served no flag at all, so absence alone
+    // must never withhold a location from import.
+    const adapter = createGoogleBusinessInformationAdapter({
+      executor: executorReturning({
+        locations: [
+          { name: 'locations/location-1', title: 'Diner One', metadata: {} },
+          { name: 'locations/location-2', title: 'Diner Two' },
+        ],
+      }),
+    })
+
+    const page = await adapter.listLocations({
+      accessToken: 'access-token',
+      authorization,
+      accountId: 'account-1',
+      accountDisplayName: 'Acme Group',
+    })
+
+    expect(page.items.map((item) => item.verification)).toEqual(['unknown', 'unknown'])
   })
 
   it('rejects an unsafe provider review destination', async () => {
