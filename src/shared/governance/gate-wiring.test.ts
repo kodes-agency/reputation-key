@@ -79,20 +79,37 @@ describe('coverage and changed-code gates', () => {
     expect(ciWorkflow).toContain('run: pnpm check:changed-code')
   })
 
-  it('runs the same coverage ratchet before merge and on main without a second unit run', () => {
+  it('runs the unit ratchet and integration exactly once each, unconditionally', () => {
     expect(packageJson.scripts['check:coverage']).toBe('node scripts/check-coverage.mjs')
-    // check:coverage already runs the unit project. The workflow therefore
-    // pairs it with integration directly on every event and never invokes the
-    // duplicate umbrella `pnpm test` command.
-    const testStep = /- name: Test\n(?<body>(?: {8}[^\n]*\n)+)/.exec(ciWorkflow)
-    const body = testStep?.groups?.body
-    expect(body).toBeDefined()
-    expect(body).toContain('pnpm check:coverage')
-    expect(body).toContain('pnpm test:integration')
-    expect(body).not.toContain('github.event_name')
-    expect(body).not.toMatch(/pnpm test\s*$/m)
+
+    // 2026-09-02 (#375): the serial `check` job was split into `static`,
+    // `test-unit`, `test-integration` and `artifacts`, because its 650s Test
+    // step ran `check:coverage` (371s) and `test:integration` (275s) in
+    // sequence while the integration project is `maxWorkers: 1` by config. The
+    // two commands therefore no longer share one `- name: Test` step, so the
+    // shape this test asserted is gone. The INVARIANT is unchanged and is
+    // pinned here against the new shape, deliberately: the unit suite runs
+    // exactly once, integration runs exactly once, and neither may become
+    // conditional on the event — that is how a coverage gate silently stops
+    // running on pull requests.
+    const occurrences = (needle: string): number => ciWorkflow.split(needle).length - 1
+
+    expect(occurrences('pnpm check:coverage')).toBe(1)
+    expect(occurrences('pnpm test:integration')).toBe(1)
+    // check:coverage owns the only unit run; nothing else may invoke the project.
+    expect(ciWorkflow).not.toContain('--project=unit')
+    expect(ciWorkflow).not.toMatch(/run: pnpm test\s*$/m)
     // And the standalone main-only coverage step is gone, not duplicated.
     expect(ciWorkflow).not.toContain('- name: Coverage gate')
+
+    // Event-conditionality is pinned by exact count rather than by slicing the
+    // job that owns each command: a YAML-shape regex broke the moment the job
+    // graph changed, which is the very thing this file exists to survive. The
+    // six legitimate sites are the gitleaks log-opts branch, the three
+    // `--fail-on-flaky-tests` promotions on the Playwright projects, and the
+    // two in `beta-acceptance`'s `if:`. A seventh means some gate just became
+    // conditional, and whoever added it deliberately updates this number.
+    expect(occurrences('github.event_name')).toBe(6)
   })
 
   it('lets a flake report itself on a PR and refuses one on the release path', () => {
