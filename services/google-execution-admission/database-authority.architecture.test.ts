@@ -89,4 +89,55 @@ describe('Google admission database authority architecture', () => {
     expect(authority).toContain('has_sequence_privilege')
     expect(authority).toContain('::regprocedure')
   })
+
+  it('starts a permit without coupling it to the deployed release sha', () => {
+    const superseded = source('drizzle/0175_google_core_capability_start_authority.sql')
+    const sql = source('drizzle/0177_google_permit_release_decoupling.sql')
+      .split('\n')
+      .filter((line) => !line.startsWith('--'))
+      .join('\n')
+    const count = (haystack: string, needle: string): number =>
+      haystack.split(needle).length - 1
+
+    // All four occurrences are pinned: v1 gated both its branches (ordinary
+    // work and the `oauth.revoke` cleanup drain), and v2 and v3 each re-check
+    // the approval themselves before delegating — so replacing v1 alone would
+    // have left the OAuth exchange and revoke routes fenced.
+    expect(superseded.match(/AND approval\.release_sha = p_release_sha/gu)).toHaveLength(
+      2,
+    )
+    for (const earlier of [
+      'drizzle/0162_google_oauth_gateway_admission.sql',
+      'drizzle/0164_google_provider_recovery_authority.sql',
+    ]) {
+      expect(
+        source(earlier).match(/AND approval\.release_sha = p_release_sha/gu),
+      ).toHaveLength(1)
+    }
+    expect(sql).not.toContain('approval.release_sha')
+
+    // All three authorities are redefined together, and arity is preserved
+    // deliberately: the admission sidecar calls v3 by regprocedure and v3
+    // delegates through v2 with nine arguments, and it is a pinned image that
+    // cannot redeploy in lockstep with a migration.
+    expect(
+      count(sql, 'CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v'),
+    ).toBe(3)
+    expect(sql).toContain(
+      'FUNCTION public.start_google_execution_permit_v1(p_permit_id uuid, p_permit_generation bigint, p_policy_version bigint, p_emergency_kill_version bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)',
+    )
+
+    // Every other approval control survives, in all four branches.
+    for (const predicate of [
+      "approval.status = 'approved'",
+      'approval.route_catalog_version = permit.route_catalog_version',
+      'approval.google_project_attestation_sha256 =',
+      'approval.railway_closed_beta_cohort @>',
+    ]) {
+      expect(count(sql, predicate)).toBe(4)
+    }
+    expect(count(sql, 'newer.binding_version > approval.binding_version')).toBe(2)
+    expect(count(sql, 'control.denied = false')).toBe(2)
+    expect(sql.match(/SECURITY DEFINER/gu)).toHaveLength(3)
+  })
 })
