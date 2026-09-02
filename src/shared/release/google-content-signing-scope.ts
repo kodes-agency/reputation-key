@@ -34,16 +34,45 @@ export type SigningScope =
   | Readonly<{ ok: false; reason: string }>
 
 /**
- * The capabilities a re-signing run should cover, given what is approved.
+ * The capabilities a signing run should cover.
+ *
+ * `introduce` is how a capability gets its FIRST approval. Without it the scope
+ * is drawn only from rows that already exist, which is correct for a refresh
+ * and is why `property.connect_gbp` and `property.publish_reply` could never be
+ * approved here: the signer had no input for a capability with no row, so
+ * review sync and reply publication were unreachable by construction rather
+ * than by decision. Introducing one is deliberate — it is named on the command
+ * line, it must be a real contract capability, and it is refused outright if a
+ * row already exists, because that is a refresh and must not silently become an
+ * introduction.
  *
  * @param present capabilities that have at least one approval row today.
+ * @param introduce capabilities being approved for the first time.
  */
 export function googleContentSigningScope(
   present: readonly string[],
   posture: ReleasePosture = CURRENT_RELEASE_POSTURE,
+  introduce: readonly string[] = [],
 ): SigningScope {
-  const approved = GOOGLE_CONTENT_CAPABILITIES.filter((capability) =>
-    present.includes(capability),
+  const unknown = introduce.filter(
+    (capability) =>
+      !(GOOGLE_CONTENT_CAPABILITIES as readonly string[]).includes(capability),
+  )
+  if (unknown.length > 0) {
+    return Object.freeze({
+      ok: false as const,
+      reason: `not a Google Content capability: ${unknown.join(', ')}`,
+    })
+  }
+  const alreadyApproved = introduce.filter((capability) => present.includes(capability))
+  if (alreadyApproved.length > 0) {
+    return Object.freeze({
+      ok: false as const,
+      reason: `already approved, so this is a refresh and not an introduction: ${alreadyApproved.join(', ')}`,
+    })
+  }
+  const approved = GOOGLE_CONTENT_CAPABILITIES.filter(
+    (capability) => present.includes(capability) || introduce.includes(capability),
   )
   if (approved.length === 0) {
     return Object.freeze({

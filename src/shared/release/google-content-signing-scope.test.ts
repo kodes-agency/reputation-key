@@ -62,6 +62,67 @@ describe('Google Content signing scope', () => {
     }
   })
 
+  it('introduces a capability that has never been approved', () => {
+    // The gap this closes: `property.connect_gbp` gates review sync and
+    // `property.publish_reply` gates reply publication, and neither could ever
+    // be approved here because the scope was drawn only from rows that already
+    // existed. Unreachable by construction rather than by decision.
+    const scope = googleContentSigningScope(CLOSED_BETA_ROWS, 'closed-beta', [
+      'property.connect_gbp',
+    ])
+    expect(scope.ok).toBe(true)
+    if (!scope.ok) return
+    expect(scope.capabilities).toEqual([
+      'property.import_gbp_v2',
+      'property.read_gbp_performance',
+      'property.connect_gbp',
+    ])
+  })
+
+  it('refuses to introduce a capability that is already approved', () => {
+    // That is a refresh, and a refresh must not silently become an
+    // introduction — the two carry different intent.
+    const scope = googleContentSigningScope(CLOSED_BETA_ROWS, 'closed-beta', [
+      'property.import_gbp_v2',
+    ])
+    expect(scope.ok).toBe(false)
+    if (scope.ok) return
+    expect(scope.reason).toContain('already approved')
+    expect(scope.reason).toContain('property.import_gbp_v2')
+  })
+
+  it('refuses a name that is not a contract capability', () => {
+    const scope = googleContentSigningScope(CLOSED_BETA_ROWS, 'closed-beta', [
+      'property.invent_something',
+    ])
+    expect(scope.ok).toBe(false)
+    if (scope.ok) return
+    expect(scope.reason).toContain('not a Google Content capability')
+  })
+
+  it('can introduce the first approval into an empty set', () => {
+    // An empty set is refused only when nothing is being introduced either:
+    // the refusal is about signing something never approved, not about the
+    // count of existing rows.
+    const scope = googleContentSigningScope([], 'closed-beta', ['property.publish_reply'])
+    expect(scope.ok).toBe(true)
+    if (!scope.ok) return
+    expect(scope.capabilities).toEqual(['property.publish_reply'])
+  })
+
+  it('returns introduced capabilities in contract order, not argument order', () => {
+    const scope = googleContentSigningScope([], 'closed-beta', [
+      'property.publish_reply',
+      'property.import_gbp_v2',
+    ])
+    expect(scope.ok).toBe(true)
+    if (!scope.ok) return
+    expect(scope.capabilities).toEqual([
+      'property.import_gbp_v2',
+      'property.publish_reply',
+    ])
+  })
+
   it('ignores rows for names that are not Google Content capabilities', () => {
     const scope = googleContentSigningScope(
       ['property.import_gbp_v2', 'not.a.capability'],

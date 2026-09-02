@@ -132,6 +132,13 @@ export function createGoogleEgressGateway(
     grantKeyring: VersionedHmacKeyring
     admission: Pick<GoogleExecutionAdmissionService, 'start' | 'redeem' | 'complete'>
     fetch: typeof fetch
+    /**
+     * Optional so existing constructions keep working; without it this behaves
+     * exactly as before and simply says nothing.
+     */
+    logger?: Readonly<{
+      warn: (fields: Readonly<Record<string, unknown>>, message: string) => void
+    }>
   }>,
 ): GoogleEgressGateway {
   return Object.freeze({
@@ -164,7 +171,26 @@ export function createGoogleEgressGateway(
       let started: GoogleAdmissionStartResult
       try {
         started = await deps.admission.start(admissionInput)
-      } catch {
+      } catch (error) {
+        // Everything that can go wrong reaching admission — TLS, socket,
+        // HTTP status, response schema, timeout — arrives here and leaves as
+        // one indistinguishable code. On 2026-09-02 that code was reported for
+        // hours while the real cause was a Redis ACL denying the quota script
+        // inside the admission service; neither side logged anything, so the
+        // failing hop was invisible from both ends. The response is unchanged
+        // (the caller must not learn why), but the operator gets the reason.
+        deps.logger?.warn(
+          {
+            surface: 'google-egress-gateway',
+            stage: 'admission-start',
+            code: 'coordination_unavailable',
+            routeKey: compiled.admission.routeKey,
+            ...(error instanceof Error
+              ? { err: { name: error.name, message: error.message } }
+              : {}),
+          },
+          'Google admission call failed',
+        )
         return {
           ok: false,
           code: 'admission_denied',
@@ -173,6 +199,19 @@ export function createGoogleEgressGateway(
         }
       }
       if (!admissionAccepted(started)) {
+        // A refusal the admission service actually decided, as opposed to one
+        // it never received. Recording which is which is the difference
+        // between "the hop is broken" and "the request was denied".
+        deps.logger?.warn(
+          {
+            surface: 'google-egress-gateway',
+            stage: 'admission-start',
+            code: started.code,
+            routeKey: compiled.admission.routeKey,
+            retryAfterMs: started.retryAfterMs,
+          },
+          'Google admission denied',
+        )
         return {
           ok: false,
           code: 'admission_denied',
