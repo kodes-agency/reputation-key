@@ -51,7 +51,6 @@ import { buildPropertyContext } from '#/contexts/property/build'
 import { createInboxCommandAuthority } from '#/contexts/inbox/infrastructure/adapters/inbox-command-authority.adapter'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
-import { createPropertyRegionLoader } from '#/contexts/property/infrastructure/property-region-loader'
 import {
   createProcessingRouter,
   providerRefForCell,
@@ -89,10 +88,8 @@ import { buildReadAndNotifyContexts } from './composition/read-and-notify-contex
 import type { CreateContainerOptions } from './composition/container-options'
 import { buildOperationalReadout } from './composition/operational-readout'
 import { composeOrganizationLifecycle } from '#/composition/organization-export-contributors'
-import {
-  buildGoogleProviderAuthority,
-  createGoogleContentAuthorityRuntime,
-} from './composition/google-provider-authority'
+import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
+import { buildIdentityPolicyDeps } from './composition/identity-policy'
 import { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
 import {
   createDeferredMemberAuthorityLifecycle,
@@ -124,7 +121,6 @@ export function createContainer(options?: CreateContainerOptions) {
     options?.eventBus ?? createEventBus({ authorizeConsumer: createBusAuthorizer() })
   const clock = options?.clock ?? (() => new Date())
   const env = options?.env ?? getEnv()
-  const googleContentRuntime = createGoogleContentAuthorityRuntime(env)
   // Boot-time all-or-none validation only. Cross-cell effects remain dark;
   // this proves a Railway public TCP deployment cannot start with partial,
   // private-DNS, cleartext, or unpinned broker transport configuration.
@@ -294,26 +290,15 @@ export function createContainer(options?: CreateContainerOptions) {
     invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
     deleteUser: identityPort.deleteUser,
     logger,
-    // BQC-2.2/2.7/4.4: identity owns the policy store, admin ops, and the
-    // operator audit sink; the root supplies env + the shared routing
-    // primitives (property region loader, router decision).
-    policy: {
+    policy: buildIdentityPolicyDeps({
       env,
-      loadPropertyRegion: createPropertyRegionLoader({ db }),
-      // Late-bound because identity is constructed before the property context.
-      // The callback runs only after the container is fully composed.
+      db,
       propertyBelongsToOrganization: (orgId, pid) =>
         property.publicApi.propertyExists(organizationId(orgId), propertyId(pid)),
       resolveRouting: (pid) =>
         processingRouter.resolve({ kind: 'property', propertyId: pid }, 'review.sync'),
-      cell: env.PROCESSING_CELL,
       admitPropertyExecution: dataCellExecutionFence.decideProperty,
-      providerRef: providerRefForCell(env.PROCESSING_CELL) ?? null,
-      capabilityRefusal: {
-        googleContentRuntimeBindings: () => googleContentRuntime.runtimeBindings,
-        verifyRoleApproval: googleContentRuntime.verifyRoleApproval,
-      },
-    },
+    }),
     cancelGoogleImportsForUser: (orgId, userIdValue) => {
       const cancel = integration.lifecycle.cancelImportsForUser
       if (!cancel) throw new Error('Google import lifecycle unavailable')
@@ -346,7 +331,6 @@ export function createContainer(options?: CreateContainerOptions) {
     clock,
     logger,
     env,
-    googleContentRuntime,
     redis,
     providerEndpoints,
     dataCellExecutionFence,
