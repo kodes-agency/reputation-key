@@ -13,6 +13,15 @@ export default defineConfig({
     // Immutable-release proof: exercises only final schema reads on expand
     // and contract schemas from the exact web/worker image bits.
     'google-import-final-schema-probe': 'scripts/google-import-final-schema-probe.ts',
+    // Issue #408: the capability refusal explainer's operator surface. The
+    // runtime image ships neither `scripts/` nor tsx, so without this entry the
+    // command could only ever run against a local stack — and the live
+    // closed-beta database is reachable only from inside the container
+    // (`postgres16.railway.internal`, no TCP proxy). Bundled here it runs as
+    // `node dist-worker/report-capability-refusal.js` over `railway ssh`,
+    // which is what makes "ask the running system why" true rather than
+    // aspirational. Read-only: SELECTs plus the harness's own decision audit.
+    'report-capability-refusal': 'scripts/ops/report-capability-refusal.ts',
     // Error monitoring must initialize before the worker imports queue/runtime
     // modules. Docker and start:worker load this through Node's supported ESM
     // --import preload path. The web counterpart has its own config so

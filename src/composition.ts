@@ -89,7 +89,10 @@ import { buildReadAndNotifyContexts } from './composition/read-and-notify-contex
 import type { CreateContainerOptions } from './composition/container-options'
 import { buildOperationalReadout } from './composition/operational-readout'
 import { composeOrganizationLifecycle } from '#/composition/organization-export-contributors'
-import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
+import {
+  buildGoogleProviderAuthority,
+  createGoogleContentAuthorityRuntime,
+} from './composition/google-provider-authority'
 import { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
 import {
   createDeferredMemberAuthorityLifecycle,
@@ -121,6 +124,7 @@ export function createContainer(options?: CreateContainerOptions) {
     options?.eventBus ?? createEventBus({ authorizeConsumer: createBusAuthorizer() })
   const clock = options?.clock ?? (() => new Date())
   const env = options?.env ?? getEnv()
+  const googleContentRuntime = createGoogleContentAuthorityRuntime(env)
   // Boot-time all-or-none validation only. Cross-cell effects remain dark;
   // this proves a Railway public TCP deployment cannot start with partial,
   // private-DNS, cleartext, or unpinned broker transport configuration.
@@ -305,6 +309,10 @@ export function createContainer(options?: CreateContainerOptions) {
       cell: env.PROCESSING_CELL,
       admitPropertyExecution: dataCellExecutionFence.decideProperty,
       providerRef: providerRefForCell(env.PROCESSING_CELL) ?? null,
+      capabilityRefusal: {
+        googleContentRuntimeBindings: () => googleContentRuntime.runtimeBindings,
+        verifyRoleApproval: googleContentRuntime.verifyRoleApproval,
+      },
     },
     cancelGoogleImportsForUser: (orgId, userIdValue) => {
       const cancel = integration.lifecycle.cancelImportsForUser
@@ -338,6 +346,7 @@ export function createContainer(options?: CreateContainerOptions) {
     clock,
     logger,
     env,
+    googleContentRuntime,
     redis,
     providerEndpoints,
     dataCellExecutionFence,

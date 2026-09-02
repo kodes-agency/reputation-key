@@ -137,6 +137,7 @@
     "ops:cutover-single-us-data-cell": "tsx scripts/ops/cutover-single-us-data-cell.ts",
     "ops:google-credential-routing-publish": "tsx scripts/ops/google-credential-routing-publish.ts",
     "ops:reconcile-people-team": "tsx scripts/ops/reconcile-people-team.ts",
+    "ops:report-capability-refusal": "tsx scripts/ops/report-capability-refusal.ts",
     "ops:report-portal-artifacts": "tsx scripts/ops/report-portal-access-artifacts.ts",
     "ops:report-portal-beta-readiness": "tsx scripts/ops/report-portal-beta-readiness.ts",
     "ops:report-guest-response-readiness": "tsx scripts/ops/report-guest-response-readiness.ts",

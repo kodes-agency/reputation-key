@@ -42,8 +42,12 @@ import { createGoogleContentAuthorizationAuthority } from '#/shared/auth/google-
 import {
   createGoogleContentRoleSignatureVerifier,
   parseGoogleContentRolePublicKeys,
+  type GoogleContentApprovalSignatureVerifier,
 } from '#/shared/auth/google-content-approval'
-import { parseGoogleContentRuntimeBindings } from '#/shared/auth/google-content-runtime-bindings'
+import {
+  parseGoogleContentRuntimeBindings,
+  type GoogleContentRuntimeBindings,
+} from '#/shared/auth/google-content-runtime-bindings'
 import type { GoogleContentCapability } from '#/shared/auth/google-content-contract'
 import { createGoogleCredentialBinder } from '#/shared/google-provider-control/credential-binding'
 import { googleApprovalGapDisposition } from '#/shared/release/google-approval-gap'
@@ -91,6 +95,51 @@ export const GOOGLE_PROVIDER_AUTHORITY_KEYS = [
   'providerEphemeralRedis',
   'providerEphemeralStore',
 ] as const
+export type GoogleContentAuthorityRuntime = Readonly<{
+  runtimeBindings: GoogleContentRuntimeBindings | undefined
+  verifyRoleApproval: GoogleContentApprovalSignatureVerifier
+}>
+
+const denyUnconfiguredRoleApproval: GoogleContentApprovalSignatureVerifier = () => false
+
+/**
+ * Parse Google Content runtime-owned configuration once, then hand the same
+ * binding object and signature verifier to every authority that explains or
+ * enforces it.
+ */
+export function createGoogleContentAuthorityRuntime(
+  env: Env,
+): GoogleContentAuthorityRuntime {
+  const runtimeBindings = env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON
+    ? parseGoogleContentRuntimeBindings(env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON)
+    : undefined
+  if (!runtimeBindings) {
+    return Object.freeze({
+      runtimeBindings,
+      verifyRoleApproval: denyUnconfiguredRoleApproval,
+    })
+  }
+
+  const rawPublicKeys = env.GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON
+  if (!rawPublicKeys) {
+    throw new Error('Google Content approval role public keys are unavailable')
+  }
+  let publicKeysInput: unknown
+  try {
+    publicKeysInput = JSON.parse(rawPublicKeys)
+  } catch {
+    throw new Error('Google Content approval role public keys are invalid')
+  }
+  const publicKeys = parseGoogleContentRolePublicKeys(publicKeysInput)
+  if (!publicKeys.ok) {
+    throw new Error('Google Content approval role public keys are invalid')
+  }
+
+  return Object.freeze({
+    runtimeBindings,
+    verifyRoleApproval: createGoogleContentRoleSignatureVerifier(publicKeys.publicKeys),
+  })
+}
 
 export type GoogleProviderAuthorityInput = Readonly<{
   db: Database
@@ -116,6 +165,11 @@ export type GoogleProviderAuthorityInput = Readonly<{
       typeof createGoogleContentAuthorizationCheck
     >[0]['hasActivePropertyGrant']
   }>
+  /**
+   * Pre-parsed Google Content bindings and the verifier shared with diagnostic
+   * composition. Direct builders may omit this and parse exactly once here.
+   */
+  googleContentRuntime?: GoogleContentAuthorityRuntime
   options?: Readonly<{
     providerEphemeralStore?: ProviderEphemeralStore
     providers?: ProviderOverrides
@@ -242,34 +296,20 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         })
       : undefined
 
-  const googleContentRuntimeBindings = env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON
-    ? parseGoogleContentRuntimeBindings(env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON)
-    : undefined
+  const googleContentRuntime =
+    input.googleContentRuntime ?? createGoogleContentAuthorityRuntime(env)
+  const googleContentRuntimeBindings = googleContentRuntime.runtimeBindings
   let googleContentAuthority:
     ReturnType<typeof createGoogleContentAuthorizationAuthority<Database>> | undefined
   let googleContentAuthorityStore:
     ReturnType<typeof createGoogleContentAuthorityRepository> | undefined
   if (googleContentRuntimeBindings) {
-    const rawPublicKeys = env.GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON
-    if (!rawPublicKeys) {
-      throw new Error('Google Content approval role public keys are unavailable')
-    }
-    let publicKeysInput: unknown
-    try {
-      publicKeysInput = JSON.parse(rawPublicKeys)
-    } catch {
-      throw new Error('Google Content approval role public keys are invalid')
-    }
-    const publicKeys = parseGoogleContentRolePublicKeys(publicKeysInput)
-    if (!publicKeys.ok) {
-      throw new Error('Google Content approval role public keys are invalid')
-    }
     googleContentAuthorityStore = createGoogleContentAuthorityRepository(db)
     googleContentAuthority = createGoogleContentAuthorizationAuthority({
       store: googleContentAuthorityStore,
       clock,
       newPermitId: randomUUID,
-      verifyRoleApproval: createGoogleContentRoleSignatureVerifier(publicKeys.publicKeys),
+      verifyRoleApproval: googleContentRuntime.verifyRoleApproval,
       refreshPolicy: input.identity.refreshPolicyStoreRequired,
       isRegisteredOperator: () => false,
       authorize: createGoogleContentAuthorizationCheck({

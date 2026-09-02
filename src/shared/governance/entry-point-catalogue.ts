@@ -5065,6 +5065,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/report-capability-refusal.ts',
+    'scripts/ops/report-capability-refusal.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-capability-refusal — read-only live refusal explanation across capability fate, tenant policy, Google execution control/approval, and empirical permit outcomes; no apply path, and it never invokes or duplicates the mutating Postgres start authority',
+    },
+  ),
+  ops(
     'scripts/ops/report-people-authority.ts',
     'scripts/ops/report-people-authority.ts',
     'tenant_cross',

@@ -49,6 +49,11 @@ import {
   type PropertyRegionRecord,
 } from '#/shared/auth/policy-diagnostic'
 import {
+  createCapabilityRefusalExplainer,
+  type CapabilityRefusalDeps,
+} from '#/shared/governance/capability-refusal'
+import { createCapabilityRefusalReaders } from './infrastructure/repositories/google-content-authority.repository'
+import {
   isCoreCapability,
   isBlockedCapability,
   listAllCapabilities,
@@ -239,6 +244,10 @@ type IdentityContextDeps = Readonly<{
     admitPropertyExecution: (propertyId: string) => Promise<DataCellExecutionDecision>
     /** The accepting cell's catalogue provider reference — never a URL. */
     providerRef: string | null
+    capabilityRefusal: Pick<
+      CapabilityRefusalDeps,
+      'googleContentRuntimeBindings' | 'verifyRoleApproval'
+    >
   }>
   cancelGoogleImportsForUser?: (organizationId: string, userId: string) => Promise<void>
   prepareGoogleConnectorDeparture?: (
@@ -670,28 +679,36 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     hasActiveGrant: (input) => hasActiveGrant(deps.db, input),
   })
   const policyAdminCommandStore = createPostgresPolicyAdminCommandStore(deps.db)
-  const policyAdmin = createPolicyAdminOps({
+  const explainCapabilityRefusal = createCapabilityRefusalExplainer({
+    ...createCapabilityRefusalReaders(deps.db),
+    ...deps.policy.capabilityRefusal,
     clock: deps.clock,
-    isCoreCapability: (cap) => isCoreCapability(cap as Capability),
-    isBlockedCapability: (cap) => isBlockedCapability(cap as Capability),
-    listAllCapabilities,
-    policyVersion: EXECUTION_POLICY_VERSION,
-    explainPolicyDecision: (input) => policyDiagnostic(input),
-    // BQC-4.4: content-free region diagnostic — the org-scoped loader treats
-    // cross-org properties as missing; the router reports the fresh decision;
-    // cell + provider ref are logical identifiers, never URLs.
-    getRegionDiagnostic: createRegionDiagnostic({
-      loadPropertyRegion: deps.policy.loadPropertyRegion,
-      resolveRouting: deps.policy.resolveRouting,
-      cell: deps.policy.cell,
-      providerRef: deps.policy.providerRef,
+  })
+  const policyAdmin = Object.freeze({
+    ...createPolicyAdminOps({
+      clock: deps.clock,
+      isCoreCapability: (cap) => isCoreCapability(cap as Capability),
+      isBlockedCapability: (cap) => isBlockedCapability(cap as Capability),
+      listAllCapabilities,
+      policyVersion: EXECUTION_POLICY_VERSION,
+      explainPolicyDecision: (input) => policyDiagnostic(input),
+      // BQC-4.4: content-free region diagnostic — the org-scoped loader treats
+      // cross-org properties as missing; the router reports the fresh decision;
+      // cell + provider ref are logical identifiers, never URLs.
+      getRegionDiagnostic: createRegionDiagnostic({
+        loadPropertyRegion: deps.policy.loadPropertyRegion,
+        resolveRouting: deps.policy.resolveRouting,
+        cell: deps.policy.cell,
+        providerRef: deps.policy.providerRef,
+      }),
+      refreshPolicy: () => policyStore.refresh(),
+      commandStore: policyAdminCommandStore,
+      loadOrgPolicyState: (orgId) => loadOrgPolicyState(deps.db, orgId),
+      reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
+      listActiveGrantsForOrg: (orgId, at) => listActiveGrantsForOrg(deps.db, orgId, at),
+      writePolicyDecision: (entry) => writePolicyDecision(deps.db, entry),
     }),
-    refreshPolicy: () => policyStore.refresh(),
-    commandStore: policyAdminCommandStore,
-    loadOrgPolicyState: (orgId) => loadOrgPolicyState(deps.db, orgId),
-    reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
-    listActiveGrantsForOrg: (orgId, at) => listActiveGrantsForOrg(deps.db, orgId, at),
-    writePolicyDecision: (entry) => writePolicyDecision(deps.db, entry),
+    explainCapabilityRefusal,
   })
 
   // BQC-4.5: content-free operator audit sink for the property region-move
