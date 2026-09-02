@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { z } from 'zod/v4'
 import type { Database } from '#/shared/db'
 import {
@@ -33,7 +33,6 @@ import type {
   GoogleContentRuntimeBinding,
 } from '#/shared/auth/google-content-authority'
 import type { AuthorizationExecutionPermit } from '#/shared/auth/authorization-execution-permit'
-import type { CapabilityRefusalDeps } from '#/shared/governance/capability-refusal'
 
 const roleDocumentSchema = z
   .object({
@@ -101,7 +100,9 @@ const countRowSchema = z.object({
 
 type ApprovalRow = typeof capabilityComplianceApprovals.$inferSelect
 type PermitRow = typeof authorizationExecutionPermits.$inferSelect
-function runtimeBindingFromApprovalRow(row: ApprovalRow): GoogleContentRuntimeBinding {
+export function runtimeBindingFromApprovalRow(
+  row: ApprovalRow,
+): GoogleContentRuntimeBinding {
   // Version columns are varchar so obsolete persisted values survive upgrades.
   // Preserve those raw values for the explainer even though the current
   // runtime-binding type narrows each version to its compiled literal.
@@ -141,7 +142,9 @@ function runtimeBindingFromApprovalRow(row: ApprovalRow): GoogleContentRuntimeBi
   }
 }
 
-function approvalRecordFromRow(row: ApprovalRow): GoogleContentApprovalRecord | null {
+export function approvalRecordFromRow(
+  row: ApprovalRow,
+): GoogleContentApprovalRecord | null {
   const index = evidenceIndexSchema.safeParse(row.evidenceIndex)
   const roleDocuments = z.array(roleApprovalSchema).safeParse(row.roleApprovals)
   const imageDigests = imageDigestsSchema.safeParse(row.imageDigests)
@@ -208,7 +211,7 @@ function permitRecordFromRow(row: PermitRow): GoogleContentPermitRecord | null {
   return { permit, authorizationVector: authorizationVector.data }
 }
 
-function approvalIdentityWhere(runtime: GoogleContentRuntimeBinding) {
+export function approvalIdentityWhere(runtime: GoogleContentRuntimeBinding) {
   return and(
     eq(capabilityComplianceApprovals.capability, runtime.capability),
     eq(capabilityComplianceApprovals.targetPhase, runtime.targetPhase),
@@ -313,7 +316,7 @@ function approvalRuntimeWhere(runtime: GoogleContentRuntimeBinding) {
   )
 }
 
-async function latestApprovalRow(
+export async function latestApprovalRow(
   tx: Database,
   runtime: GoogleContentRuntimeBinding,
 ): Promise<ApprovalRow | null> {
@@ -324,91 +327,6 @@ async function latestApprovalRow(
     .orderBy(desc(capabilityComplianceApprovals.bindingVersion))
     .limit(1)
   return rows[0] ?? null
-}
-export function createCapabilityRefusalReaders(
-  db: Database,
-): Pick<
-  CapabilityRefusalDeps,
-  | 'loadExecutionControl'
-  | 'loadApprovalForRuntime'
-  | 'loadApprovalsForIdentity'
-  | 'loadPermitOutcomes'
-> {
-  return Object.freeze({
-    loadExecutionControl: async (capability) => {
-      const rows = await db
-        .select({
-          denied: capabilityExecutionControl.denied,
-          deniedAt: capabilityExecutionControl.deniedAt,
-          emergencyKillVersion: capabilityExecutionControl.emergencyKillVersion,
-        })
-        .from(capabilityExecutionControl)
-        .where(eq(capabilityExecutionControl.capability, capability))
-        .limit(1)
-      const row = rows[0]
-      if (!row) return null
-      return {
-        denied: row.denied,
-        deniedAt: row.deniedAt?.toISOString() ?? null,
-        emergencyKillVersion: String(row.emergencyKillVersion),
-      }
-    },
-    loadApprovalForRuntime: async (binding) => {
-      const row = await latestApprovalRow(db, binding)
-      return row ? approvalRecordFromRow(row) : null
-    },
-    loadApprovalsForIdentity: async (binding) => {
-      const rows = await db
-        .select()
-        .from(capabilityComplianceApprovals)
-        .where(approvalIdentityWhere(binding))
-        .orderBy(desc(capabilityComplianceApprovals.bindingVersion))
-      return rows.map((row) => ({
-        bindingVersion: row.bindingVersion,
-        binding: runtimeBindingFromApprovalRow(row),
-      }))
-    },
-    loadPermitOutcomes: async (capability) => {
-      const rows = await db
-        .select({
-          state: authorizationExecutionPermits.state,
-          correlationId: authorizationExecutionPermits.correlationId,
-          count: sql<number>`count(*)::int`.as('count'),
-          lastAt: sql<Date | string | null>`
-            max(
-              case ${authorizationExecutionPermits.state}
-                when 'admitted' then ${authorizationExecutionPermits.admittedAt}
-                when 'started' then ${authorizationExecutionPermits.startedAt}
-                when 'completed' then ${authorizationExecutionPermits.completedAt}
-                when 'fenced' then ${authorizationExecutionPermits.fencedAt}
-              end
-            )
-          `.as('last_at'),
-        })
-        .from(authorizationExecutionPermits)
-        .where(eq(authorizationExecutionPermits.capability, capability))
-        .groupBy(
-          authorizationExecutionPermits.state,
-          authorizationExecutionPermits.correlationId,
-        )
-        .orderBy(
-          asc(authorizationExecutionPermits.state),
-          asc(authorizationExecutionPermits.correlationId),
-        )
-      return rows.map((row) => ({
-        state: row.state,
-        correlationId: row.correlationId,
-        count: row.count,
-        lastAt:
-          row.lastAt === null
-            ? null
-            : (row.lastAt instanceof Date
-                ? row.lastAt
-                : new Date(row.lastAt)
-              ).toISOString(),
-      }))
-    },
-  })
 }
 
 async function persistApproval(

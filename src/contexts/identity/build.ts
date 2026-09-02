@@ -52,7 +52,7 @@ import {
   createCapabilityRefusalExplainer,
   type CapabilityRefusalDeps,
 } from '#/shared/governance/capability-refusal'
-import { createCapabilityRefusalReaders } from './infrastructure/repositories/google-content-authority.repository'
+import { createCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
 import {
   isCoreCapability,
   isBlockedCapability,

@@ -27,7 +27,7 @@ import {
 } from '../../src/shared/auth/google-content-approval'
 import { parseGoogleContentRuntimeBindings } from '../../src/shared/auth/google-content-runtime-bindings'
 import { getEnv } from '../../src/shared/config/env'
-import { createCapabilityRefusalReaders } from '../../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+import { createCapabilityRefusalReaders } from '../../src/contexts/identity/infrastructure/repositories/capability-refusal.repository'
 import { getDb } from '../../src/shared/db'
 import {
   createCapabilityRefusalExplainer,
