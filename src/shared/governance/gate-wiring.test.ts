@@ -79,7 +79,13 @@ describe('coverage and changed-code gates', () => {
     expect(ciWorkflow).toContain('run: pnpm check:changed-code')
   })
 
-  it('runs the unit ratchet and integration exactly once each, unconditionally', () => {
+  // DO NOT RENAME. This title is a pinned regression marker: oracle
+  // `BASELINE_GATE_INTERRUPTION` in
+  // docs/release-evidence/review/pre-fix-oracle-index-2026-08-26.json requires
+  // it verbatim at `currentRegressionProofs[0].contains[1]`, and that index is
+  // sha256-attested release evidence. Renaming it here fails
+  // scripts/review/pre-fix-oracles.test.ts, which is how I found out.
+  it('runs the same coverage ratchet before merge and on main without a second unit run', () => {
     expect(packageJson.scripts['check:coverage']).toBe('node scripts/check-coverage.mjs')
 
     // 2026-09-02 (#375): the serial `check` job was split into `static`,
