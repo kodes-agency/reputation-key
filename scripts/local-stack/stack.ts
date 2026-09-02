@@ -1669,7 +1669,12 @@ function migrationHeadProof(
 function oneShot(
   mode: LocalStackMode,
   state: StackPaths,
-  service: 'object-store-init' | 'migrator' | 'ai-admission-role' | 'seed',
+  service:
+    | 'object-store-init'
+    | 'migrator'
+    | 'ai-admission-role'
+    | 'google-admission-role'
+    | 'seed',
 ): void {
   dockerCompose(mode, state, [
     'up',
@@ -1738,16 +1743,38 @@ function startDependencies(mode: LocalStackMode, state: StackPaths): void {
     'object-store',
     'provider-sandbox',
     'provider-control-proxy',
-    'google-execution-admission',
-    'google-egress-gateway',
     'mail-stub',
     'ai-provider-stub',
   ])
 }
 
-function startAiInfrastructure(mode: LocalStackMode, state: StackPaths): void {
+/**
+ * The admission and egress pairs, started after the migrator has run.
+ *
+ * Both chains reach the migrator: `*-egress-gateway` needs `*-execution-admission`,
+ * which needs `*-admission-role`, which `depends_on` the migrator. Naming one of
+ * them in a `docker compose up` therefore MIGRATES THE DATABASE, because compose
+ * starts a service's dependencies.
+ *
+ * The Google pair used to be listed in `startDependencies`, which runs before
+ * `sanitationEvidence`. So the hermetic check — whose entire job is to prove the
+ * stack begins with an empty database — ran against a database the dependency
+ * graph had already migrated, and failed with 242 public tables and
+ * `noStaleDatabase: false`. It could never have passed. That went unnoticed
+ * because `beta-acceptance` only runs once `e2e` is green, and `e2e` was red.
+ *
+ * Both pairs are started here, in one place, so the asymmetry cannot come back:
+ * anything that transitively requires the migrator belongs after it.
+ */
+function startAdmissionInfrastructure(mode: LocalStackMode, state: StackPaths): void {
+  oneShot(mode, state, 'google-admission-role')
   oneShot(mode, state, 'ai-admission-role')
-  for (const service of ['ai-execution-admission', 'ai-egress-gateway'] as const) {
+  for (const service of [
+    'google-execution-admission',
+    'google-egress-gateway',
+    'ai-execution-admission',
+    'ai-egress-gateway',
+  ] as const) {
     dockerCompose(mode, state, [
       'up',
       '--no-deps',
@@ -1888,7 +1915,7 @@ async function up(
     const sanitation = options.cleanStart ? sanitationEvidence(mode, state) : undefined
     if (!options.cleanStart) oneShot(mode, state, 'object-store-init')
     oneShot(mode, state, 'migrator')
-    startAiInfrastructure(mode, state)
+    startAdmissionInfrastructure(mode, state)
     await startApplications(mode, state)
     await smoke(mode, state)
     return { state, sanitation }
@@ -2533,7 +2560,7 @@ async function upgrade(
       throw new Error('Versioned upgrade fixture has no pending migrations')
     }
     oneShot(mode, state, 'migrator')
-    startAiInfrastructure(mode, state)
+    startAdmissionInfrastructure(mode, state)
     await startApplications(mode, state)
     const upgradedHead = migrationHeadProof(mode, state, 'upgrade')
     const images = inspectIdentities(mode, state)
