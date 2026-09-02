@@ -81,7 +81,21 @@ const gbpReviewItemSchema = z.object({
 const gbpReviewsPageSchema = z
   .object({
     reviews: z.array(gbpReviewItemSchema).max(PAGE_SIZE).optional(),
-    totalReviewCount: z.number().int().safe().nonnegative(),
+    // Google OMITS this field for a location with no reviews — the response
+    // body is `{}`, not `{totalReviewCount: 0}`. Requiring it turned "this
+    // location has no reviews" into `malformed_page`, which fails the whole
+    // snapshot run rather than recording an empty result. Observed live on
+    // 2026-09-02 for every property in the closed beta:
+    //   Google reviews page rejected by schema keys=[]
+    //     issues=["totalReviewCount:invalid_type"]
+    // and `sync-property-reviews` never completed a single run in this
+    // deployment's history as a result.
+    //
+    // Absent therefore means zero, which is the reading the rest of this
+    // schema already assumes: the refinement below has always handled
+    // `totalReviewCount === 0`, so a zero page was expected as a value and
+    // simply never arrived as one.
+    totalReviewCount: z.number().int().safe().nonnegative().default(0),
     averageRating: z.number().finite().min(0).max(5).optional(),
     nextPageToken: z.string().min(1).max(2_048).optional(),
   })

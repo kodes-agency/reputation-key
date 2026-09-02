@@ -159,6 +159,29 @@ function publicationInput() {
 }
 
 describe('GoogleReviewApiAdapter', () => {
+  it('reads an empty provider page as zero reviews', async () => {
+    // Google omits `totalReviewCount` entirely for a location with no reviews:
+    // the body is `{}`. Requiring the field turned that into `malformed_page`,
+    // which failed the whole snapshot run — observed live on 2026-09-02 for
+    // every property, with `sync-property-reviews` never completing a run.
+    const execute = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        contentType: 'application/json; charset=utf-8',
+        cacheControl: null,
+        retryAfter: null,
+      },
+      body: new TextEncoder().encode(JSON.stringify({})),
+    })
+    const { api } = createAdapter({ execute, cursors: cursorStore() })
+
+    const page = await api.listReviewsPage(listInput())
+
+    expect(page.totalReviewCount).toBe(0)
+    expect(page.reviews).toEqual([])
+  })
+
   it('lists one fixed bounded page and replaces the provider token with an opaque ref', async () => {
     const execute = vi.fn().mockResolvedValue({
       ok: true,
