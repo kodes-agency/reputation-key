@@ -31,45 +31,48 @@ export const CAPABILITY_POLICY_VERSION = 'beta-local-10'
 
 // ── Capability definitions ──────────────────────────────────────────
 
-export type Capability =
-  | 'identity.invite'
-  | 'identity.custom_roles'
-  | 'identity.register'
-  | 'organization.create'
-  | 'property.create'
-  | 'property.erase'
-  | 'property.connect_gbp'
-  | 'property.import_gbp_v2'
-  | 'property.read_gbp_performance'
-  | 'property.publish_reply'
-  | 'notification.send_email'
-  | 'notification.in_app'
-  | 'portal.read'
-  | 'portal.write'
-  | 'portal.upload'
-  | 'portal.public_read'
-  | 'portal.guest_response'
-  | 'portal.guest_text'
-  | 'portal.guest_contact'
-  | 'portal.guest_media'
-  | 'team.use'
-  | 'goal.use'
-  | 'badge.use'
-  | 'leaderboard.use'
-  | 'ai.analyze'
-  | 'ai.generate_reply'
-  | 'ai.detect_trends'
-  | 'gbp.reply.auto_publish'
-  | 'gbp.ai.cross_property_summary'
-  | 'gbp.review_solicitation_gamification'
+export const CAPABILITIES = [
+  'identity.invite',
+  'identity.custom_roles',
+  'identity.register',
+  'organization.create',
+  'property.create',
+  'property.erase',
+  'property.connect_gbp',
+  'property.import_gbp_v2',
+  'property.read_gbp_performance',
+  'property.publish_reply',
+  'notification.send_email',
+  'notification.in_app',
+  'portal.read',
+  'portal.write',
+  'portal.upload',
+  'portal.public_read',
+  'portal.guest_response',
+  'portal.guest_text',
+  'portal.guest_contact',
+  'portal.guest_media',
+  'team.use',
+  'goal.use',
+  'badge.use',
+  'leaderboard.use',
+  'ai.analyze',
+  'ai.generate_reply',
+  'ai.detect_trends',
+  'gbp.reply.auto_publish',
+  'gbp.ai.cross_property_summary',
+  'gbp.review_solicitation_gamification',
   // BQR-4.1: explicit surface capabilities for master-plan enabled contexts
-  | 'review.use'
-  | 'inbox.use'
-  | 'dashboard.use'
-  | 'staff.use'
-  | 'integration.use'
-  | 'activity.use'
-  | 'metric.internal'
+  'review.use',
+  'inbox.use',
+  'dashboard.use',
+  'staff.use',
+  'integration.use',
+  'activity.use',
+  'metric.internal',
+] as const
+
+export type Capability = (typeof CAPABILITIES)[number]
 
 /**
  * Core capabilities are ON by default for all authenticated users in beta.
@@ -593,30 +596,7 @@ export function listBlockedCapabilities(): ReadonlyArray<Capability> {
 
 /** Complete capability vocabulary used by policy administration and guards. */
 export function listAllCapabilities(): ReadonlyArray<Capability> {
-  const nonCore: ReadonlyArray<Capability> = [
-    'identity.custom_roles',
-    'identity.register',
-    'organization.create',
-    'property.import_gbp_v2',
-    'property.read_gbp_performance',
-    'notification.send_email',
-    'portal.read',
-    'portal.write',
-    'portal.upload',
-    'portal.public_read',
-    'portal.guest_response',
-    'portal.guest_text',
-    'portal.guest_contact',
-    'portal.guest_media',
-    'team.use',
-    'goal.use',
-    'badge.use',
-    'leaderboard.use',
-    'ai.analyze',
-    'ai.generate_reply',
-    'ai.detect_trends',
-  ]
-  return [...new Set([...CORE_CAPABILITIES, ...BLOCKED_CAPABILITIES, ...nonCore])].sort()
+  return [...CAPABILITIES].sort()
 }
 
 /**

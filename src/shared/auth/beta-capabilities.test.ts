@@ -2,6 +2,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
+  CAPABILITIES,
   checkBetaCapability,
   checkScopedCapability,
   assertBetaCapability,
@@ -13,6 +14,8 @@ import {
   isBlockedCapability,
   isCapabilityJobEnabled,
   listAllCapabilities,
+  listCoreCapabilities,
+  listBlockedCapabilities,
   checkGlobalCapability,
   type CapabilityPolicyStore,
 } from './beta-capabilities'
@@ -356,9 +359,14 @@ describe('BetaCapabilities', () => {
   })
 
   describe('capability metadata', () => {
-    it('publishes each capability exactly once', () => {
+    it('publishes the complete catalogue exactly once in sorted order', () => {
       const capabilities = listAllCapabilities()
-      expect(new Set(capabilities).size).toBe(capabilities.length)
+
+      expect(capabilities).toHaveLength(CAPABILITIES.length)
+      expect(new Set(capabilities).size).toBe(CAPABILITIES.length)
+      expect(capabilities).toEqual([...CAPABILITIES].sort())
+      expect(capabilities).toEqual(expect.arrayContaining([...listCoreCapabilities()]))
+      expect(capabilities).toEqual(expect.arrayContaining([...listBlockedCapabilities()]))
     })
 
     it('identifies core capabilities', () => {
