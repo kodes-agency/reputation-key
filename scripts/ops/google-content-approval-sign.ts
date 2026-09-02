@@ -24,8 +24,19 @@
  *
  * Usage:
  *   pnpm ops:google-content-approval-sign --operator <id> \
- *     --reason <text> --ticket <ref>
+ *     --reason <text> --ticket <ref> [--release-sha <40-hex>]
  *
+ * `--release-sha` re-attests the approval against a different deployed release.
+ * Without it the binding keeps the release the CURRENT row names, which is the
+ * historical behaviour and pins the approval to whichever release was approved
+ * first. The start authority requires `approval.release_sha = p_release_sha`
+ * (drizzle/0175_google_core_capability_start_authority.sql:80) against the
+ * admission service's RELEASE_SHA, so an approval that cannot follow the
+ * deployed release makes "approved" and "runnable" mutually exclusive as soon
+ * as the release moves. There is no default and no inference from git: this is
+ * the value the five role signatures attest, so the operator states it.
+ *
+
  * It reads the current approval rows and writes only private local artifacts;
  * it does not change the database or Railway. `--apply` is deliberately
  * refused before any database write. The exact-target release controller owns
@@ -264,12 +275,13 @@ function buildBinding(
   manifestSha256: string,
   approvedAt: string,
   expiresAt: string,
+  releaseSha: string,
 ): GoogleContentApprovalBinding {
   return {
     capability: row.capability,
     targetPhase: row.target_phase,
     environmentProfile: row.environment_profile,
-    releaseSha: row.release_sha,
+    releaseSha,
     evidenceManifestSha256: manifestSha256,
     evidenceIndexSha256: row.evidence_index_sha256,
     deploymentAttestationSha256: row.deployment_attestation_sha256,
@@ -353,8 +365,35 @@ async function main(): Promise<void> {
   }
   if (!operator || !reason || !ticket) {
     fail(
-      'Usage: pnpm ops:google-content-approval-sign --operator <id> --reason <text> --ticket <ref> [--apply]',
+      'Usage: pnpm ops:google-content-approval-sign --operator <id> --reason <text> --ticket <ref> [--release-sha <40-hex>]',
     )
+  }
+  // Re-signing the release the approval covers.
+  //
+  // `release_sha` is an approval-bound value like any other, and refreshing a
+  // signature when such a value moves is exactly what this command is for. It
+  // was the one that could not move: the binding copied `row.release_sha`, so
+  // every re-sign re-attested the release the FIRST approval named.
+  //
+  // That pinned this deployment to e7ab6376 (2026-08-15) permanently. The
+  // start authority requires `approval.release_sha = p_release_sha`
+  // (drizzle/0175_google_core_capability_start_authority.sql:80), where the
+  // right-hand side is the admission service's RELEASE_SHA — so every Google
+  // call fails once the deployed release moves, and the only way to satisfy it
+  // was to run a build from 2026-08-15. That build predates
+  // services/google-peer-identities.ts, so it can no longer complete an mTLS
+  // call to the current egress gateway. Approved and runnable had become
+  // mutually exclusive.
+  //
+  // The operator must state the release explicitly: there is no default and no
+  // inference from git, because this value is what the five role signatures
+  // attest. Everything else — the evidence index, the deployment attestation,
+  // the cohort and residual-risk digests — is environment-scoped and still
+  // copied verbatim from the approved row, so this widens WHICH release the
+  // existing evidence covers and mints nothing.
+  const releaseShaFlag = flag('release-sha')
+  if (releaseShaFlag !== undefined && !/^[0-9a-f]{40}$/.test(releaseShaFlag)) {
+    fail('--release-sha must be a lowercase 40-character git object id')
   }
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) fail('DATABASE_URL is required')
@@ -406,7 +445,9 @@ async function main(): Promise<void> {
   rows = rows.filter((row) =>
     scope.capabilities.includes(row.capability as GoogleContentCapability),
   )
-  process.stderr.write(`re-signing ${scope.capabilities.join(', ')}\n`)
+  process.stderr.write(
+    `re-signing ${scope.capabilities.join(', ')}${releaseShaFlag ? ` for release ${releaseShaFlag}` : ''}\n`,
+  )
 
   const now = new Date()
   const approvedAt = now.toISOString()
@@ -428,7 +469,8 @@ async function main(): Promise<void> {
     // signatures (and therefore the role/index digests) change.
     const manifest = { evidenceIndexSha256: row.evidence_index_sha256 }
     const manifestSha256 = canonicalGoogleContentSha256(manifest)
-    const binding = buildBinding(row, manifestSha256, approvedAt, expiresAt)
+    const releaseSha = releaseShaFlag ?? row.release_sha
+    const binding = buildBinding(row, manifestSha256, approvedAt, expiresAt, releaseSha)
     const roleDocuments = GOOGLE_CONTENT_APPROVAL_ROLES.map(
       (role: GoogleContentApprovalRole) =>
         signRoleDocument(keys, role, binding, manifestSha256, approverIdentity),
