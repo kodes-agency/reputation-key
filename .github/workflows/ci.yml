@@ -22,7 +22,95 @@ permissions:
   checks: write
   security-events: write
 jobs:
-  check:
+  # ~5.3m measured: independent source and policy gates need no services.
+  static:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # BQC-6.9: the changed-code budget diffs added src files against
+          # origin/main — the check job needs full history.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # BQC-7.7: supply-chain gates — hard failures (no continue-on-error).
+      # Thresholds + exception policy: docs/operations/security-ci-policy.md
+      - name: Dependency vulnerability audit
+        run: pnpm check:dependency-audit
+
+      - name: License policy
+        run: pnpm check:licenses
+
+      - name: Action/image pin policy
+        run: pnpm check:action-pins
+
+      - name: Container image inventory and coverage policy
+        run: pnpm check:container-images
+
+      - name: Technology stack authority and reproducibility
+        run: pnpm check:technology-stack
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint:ci
+
+  # ~6.2m measured: coverage owns the pure unit project, which needs no services.
+  test-unit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # BQC-6.9: the changed-code budget diffs added src files against
+          # origin/main — the check job needs full history.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Pull requests and main run the identical governed test pair.
+      # `check:coverage` owns the unit project under v8 coverage; pairing it
+      # with the integration project covers the complete suite once and applies
+      # the BQC-6.9 floor + staleness ratchet before merge and after promotion.
+      - name: Test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          RESEND_API_KEY: re_ci_test_key_placeholder
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+        run: pnpm check:coverage
+
+  # ~4.6m measured test work plus migration gates: integration owns the shared
+  # scratch database; vitest.config.ts explicitly marks unit DB/Redis-free.
+  test-integration:
     runs-on: ubuntu-latest
 
     services:
@@ -67,32 +155,6 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-
-      # BQC-7.7: supply-chain gates — hard failures (no continue-on-error).
-      # Thresholds + exception policy: docs/operations/security-ci-policy.md
-      - name: Dependency vulnerability audit
-        run: pnpm check:dependency-audit
-
-      - name: License policy
-        run: pnpm check:licenses
-
-      - name: Action/image pin policy
-        run: pnpm check:action-pins
-
-      - name: Container image inventory and coverage policy
-        run: pnpm check:container-images
-
-      - name: Technology stack authority and reproducibility
-        run: pnpm check:technology-stack
-
-      - name: Format check
-        run: pnpm format:check
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint
-        run: pnpm lint:ci
 
       - name: Run migrations
         env:
@@ -168,9 +230,41 @@ jobs:
           GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: |
-          pnpm check:coverage
-          pnpm test:integration
+        run: pnpm test:integration
+
+  # ~48s measured: build output and every consumer/boundary stay in one chain.
+  # The booted security-header probe needs Redis, but no PostgreSQL.
+  artifacts:
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
+        image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # BQC-6.9: the changed-code budget diffs added src files against
+          # origin/main — the check job needs full history.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
 
       # BQC-6.9: changed-code budget — every src production file added by the
       # branch must carry a colocated test (diffs against origin/main; the
@@ -278,6 +372,20 @@ jobs:
           name: sbom-spdx
           path: sbom.spdx.json
           retention-days: 30
+
+  # Aggregate-only seam (no measured workload): retain the required status
+  # context without allowing a failed, cancelled, or skipped dependency to pass.
+  check:
+    needs: [static, test-unit, test-integration, artifacts]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every check shard to succeed
+        if: >-
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled') ||
+          contains(needs.*.result, 'skipped')
+        run: exit 1
 
   # BQC-7.1: the production containers are the single deploy build path
   # (nixpacks removed) — prove every classified image builds reproducibly on
