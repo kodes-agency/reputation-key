@@ -16,10 +16,12 @@ const lifecycleAction = () => idleAction<{ data: { propertyId: string } }>()
 
 const baseArgs = {
   responsibilityNeeded: false,
-  archiveAction: archiveAction(),
-  removeAction: archiveAction(),
-  restoreAction: lifecycleAction(),
-  disconnectAction: lifecycleAction(),
+  actions: {
+    archive: archiveAction(),
+    remove: archiveAction(),
+    restore: lifecycleAction(),
+    disconnect: lifecycleAction(),
+  },
   permissions: { archive: true, restore: true, disconnect: true },
 } as const
 

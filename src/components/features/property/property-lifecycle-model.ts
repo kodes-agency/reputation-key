@@ -17,7 +17,7 @@ export type PropertyLifecycleState =
 export type GoogleBindingState =
   'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
 
-type LifecycleControls = Readonly<{
+export type LifecycleControls = Readonly<{
   showArchive: boolean
   showRemove: boolean
   showRestore: boolean
@@ -63,4 +63,53 @@ export const formatPropertyRecoveryDeadline = (
     year: 'numeric',
     timeZone: 'UTC',
   }).format(date)
+}
+
+export type LifecyclePermissions = Readonly<{
+  archive: boolean
+  restore: boolean
+  disconnect: boolean
+}>
+
+export type LifecycleActionState = Readonly<{ show: boolean; disabled: boolean }>
+
+export type LifecycleActionStates = Readonly<{
+  archive: LifecycleActionState
+  remove: LifecycleActionState
+  restore: LifecycleActionState
+  disconnect: LifecycleActionState
+}>
+
+/**
+ * Whether each lifecycle control is offered, and whether it is usable. Kept
+ * here rather than inline in the card so every "can I press this?" rule is
+ * decided in one tested place instead of across four JSX expressions.
+ */
+export const getPropertyLifecycleActionStates = (
+  input: Readonly<{
+    controls: LifecycleControls
+    permissions: LifecyclePermissions
+    pending: boolean
+  }>,
+): LifecycleActionStates => {
+  const { controls, permissions, pending } = input
+  return {
+    archive: {
+      show: controls.showArchive,
+      disabled: !permissions.archive || pending,
+    },
+    // Removal archives and disconnects, so it needs both permissions.
+    remove: {
+      show: controls.showRemove,
+      disabled: !permissions.archive || !permissions.disconnect || pending,
+    },
+    restore: {
+      show: controls.showRestore,
+      disabled: !permissions.restore || pending || controls.restoreDisabled,
+    },
+    disconnect: {
+      show: controls.showDisconnect,
+      disabled: !permissions.disconnect || pending,
+    },
+  }
 }

@@ -1,18 +1,14 @@
 import { Archive, CalendarClock } from 'lucide-react'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Badge } from '#/components/ui/badge'
 import {
-  PropertyArchiveDialog,
-  PropertyGoogleDisconnectDialog,
-  PropertyRemoveDialog,
-  PropertyRestoreDialog,
-  type ArchiveLifecycleAction,
-  type TargetLifecycleAction,
-} from './property-lifecycle-dialogs'
+  PropertyLifecycleActions,
+  type PropertyLifecycleActionSet,
+} from './property-lifecycle-actions'
 import {
   formatPropertyRecoveryDeadline,
   getPropertyLifecycleControls,
   type GoogleBindingState,
+  type LifecyclePermissions,
   type PropertyLifecycleState,
 } from './property-lifecycle-model'
 
@@ -32,10 +28,7 @@ const googleBindingLabel = (state: GoogleBindingState): string => {
 export function PropertyLifecycleCard({
   property,
   responsibilityNeeded,
-  archiveAction,
-  removeAction,
-  restoreAction,
-  disconnectAction,
+  actions,
   permissions,
 }: Readonly<{
   property: Readonly<{
@@ -47,15 +40,8 @@ export function PropertyLifecycleCard({
     googleBindingState: GoogleBindingState
   }>
   responsibilityNeeded: boolean
-  archiveAction: ArchiveLifecycleAction
-  removeAction: ArchiveLifecycleAction
-  restoreAction: TargetLifecycleAction
-  disconnectAction: TargetLifecycleAction
-  permissions: Readonly<{
-    archive: boolean
-    restore: boolean
-    disconnect: boolean
-  }>
+  actions: PropertyLifecycleActionSet
+  permissions: LifecyclePermissions
 }>) {
   const controls = getPropertyLifecycleControls({
     lifecycleState: property.lifecycleState,
@@ -63,11 +49,6 @@ export function PropertyLifecycleCard({
     responsibilityNeeded,
   })
   const recoveryDeadline = formatPropertyRecoveryDeadline(property.purgeScheduledFor)
-  const pending =
-    archiveAction.isPending ||
-    removeAction.isPending ||
-    restoreAction.isPending ||
-    disconnectAction.isPending
 
   return (
     <section
@@ -119,51 +100,11 @@ export function PropertyLifecycleCard({
           </div>
         )}
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          {controls.showArchive && (
-            <PropertyArchiveDialog
-              propertyId={property.id}
-              propertyName={property.name}
-              action={archiveAction}
-              disabled={!permissions.archive || pending}
-            />
-          )}
-
-          {controls.showRemove && (
-            <PropertyRemoveDialog
-              propertyId={property.id}
-              propertyName={property.name}
-              action={removeAction}
-              disabled={!permissions.archive || !permissions.disconnect || pending}
-            />
-          )}
-
-          {controls.showRestore && (
-            <PropertyRestoreDialog
-              propertyId={property.id}
-              propertyName={property.name}
-              action={restoreAction}
-              disabled={!permissions.restore || pending || controls.restoreDisabled}
-            />
-          )}
-
-          {controls.showDisconnect && (
-            <PropertyGoogleDisconnectDialog
-              propertyId={property.id}
-              propertyName={property.name}
-              action={disconnectAction}
-              disabled={!permissions.disconnect || pending}
-            />
-          )}
-        </div>
-
-        <FormErrorBanner
-          error={
-            archiveAction.error ??
-            removeAction.error ??
-            restoreAction.error ??
-            disconnectAction.error
-          }
+        <PropertyLifecycleActions
+          property={property}
+          controls={controls}
+          permissions={permissions}
+          actions={actions}
         />
       </div>
     </section>
