@@ -72,22 +72,19 @@ import { createGoogleContentAuthorityRepository } from '../../src/contexts/ident
 
 const ENVIRONMENT = 'google-closed-beta'
 /**
- * Every service that resolves a Google Content approval from the runtime
- * binding, not just the ones that serve requests.
+ * The services that hold a Google Content runtime binding.
  *
- * `google-execution-admission` was missing here, and the omission is not
- * cosmetic: it holds its own GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON and runs its
- * own `authority.admit()` for every provider call. Activating web and worker
- * alone left it pinned to a binding from a previous generation, so web passed
- * preauthorization and then every call died one hop later — the egress gateway
- * reports any failure to reach or satisfy admission as
- * `admission_denied / coordination_unavailable` (google-egress-gateway/service.ts),
- * which reads like a transient coordination fault rather than a stale binding.
- * Observed live on 2026-09-01: import, the performance panel on every property,
- * and the OAuth token refresh all failed this way AFTER the approval itself was
- * correctly repaired.
+ * `google-execution-admission` is deliberately NOT here. An earlier revision of
+ * this file added it, on the theory that it resolves approvals from its own
+ * binding — which was true of the build deployed at the time (2026-08-24) and
+ * is false of the current one. `assertGoogleAdmissionEnvironmentIsIsolated`
+ * (services/google-execution-admission/environment.ts) refuses to start if ANY
+ * variable outside its allowlist is present, and GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON
+ * is not on that allowlist: the current service resolves the approval from the
+ * permit it is handed, not from a binding of its own. Adding it back would take
+ * the service down at boot.
  */
-const SERVICES = ['web', 'worker', 'google-execution-admission'] as const
+const SERVICES = ['web', 'worker'] as const
 const MAX_INPUT_BYTES = 5 * 1024 * 1024
 
 function fail(message: string): never {
