@@ -116,9 +116,8 @@ export const createServingStats = (deps: {
         )
 
       return {
-        // F132: Defensive null fallback — avgRating is null when no reviews exist
         count: Number(rows[0]?.count ?? 0),
-        avgRating: rows[0]?.avgRating != null ? Number(rows[0].avgRating) : 0,
+        avgRating: rows[0]?.avgRating != null ? Number(rows[0].avgRating) : null,
       }
     })
   },

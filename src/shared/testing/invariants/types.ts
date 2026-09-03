@@ -19,8 +19,6 @@ export type InvariantContext = Readonly<{
   organizationId: string
   /** Properties to check (optional — omit for all). */
   propertyIds?: ReadonlyArray<string>
-  /** Response SLA in hours (for SLA consistency checks). Default: 48. */
-  slaHours?: number
 }>
 
 export type InvariantCheckerResult = ReadonlyArray<InvariantViolation>

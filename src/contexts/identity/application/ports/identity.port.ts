@@ -46,7 +46,6 @@ export type OrganizationRecord = Readonly<{
   logo: string | null
   createdAt: Date
   contactEmail: string | null
-  responseSlaHours: number
 }>
 
 /** Port for identity operations — wraps better-auth API calls. */

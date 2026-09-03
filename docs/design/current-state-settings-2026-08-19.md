@@ -55,6 +55,15 @@ The copy compounds the confusion inside the page: the "Language and timezone" ca
 
 ### Collision 3 — `responseSlaHours` has two server write paths
 
+> **Resolved 2026-09-03.** The legacy path was deleted: `organizations.response-sla.ts`,
+> `updateOrgResponseSlaFn`, `getOrgResponseSlaFn` and `ResponseSlaCard` no longer exist, and
+> `responseSlaHours` was dropped from the Identity organization API and from the
+> `OrganizationSettingsForm` patch. Inbox Response Targets are now the single response-timer
+> authority; Property and Fleet attention read overdue counts from
+> `InboxPublicApi.getGoogleReviewTargetCountsByProperty`. The `organization.responseSlaHours`
+> column remains as dormant schema pending CNV-01 contraction. The record below describes the
+> state on 2026-08-19 and is left intact.
+
 | Path                       | Entry point              | Validator                                                                    | Authorisation                 |
 | -------------------------- | ------------------------ | ---------------------------------------------------------------------------- | ----------------------------- |
 | `ResponseSlaCard`          | `updateOrgResponseSlaFn` | `z.number().int().min(1).max(720)` (`organizations.response-sla.ts:54`)      | `organization.update` (`:65`) |

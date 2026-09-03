@@ -8,7 +8,12 @@ import {
   inboxResponseTargetReminders,
 } from '#/shared/db/schema/inbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
-import { inboxItemId, organizationId, propertyId } from '#/shared/domain/ids'
+import {
+  inboxItemId,
+  organizationId,
+  propertyId,
+  type PropertyId,
+} from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -789,6 +794,61 @@ export const createResponseTargetStore = (
         legacyUnknownExcludedCount: row?.legacy_unknown_excluded_count ?? 0,
         averageTimeToResponseMinutes: row?.average_time_to_response_minutes ?? null,
       } satisfies GoogleReviewTargetAnalytics
+    }),
+
+  getGoogleReviewTargetCountsByProperty: async ({
+    organizationId: orgId,
+    propertyIds,
+    now,
+  }) =>
+    trace('inbox.responseTarget.getGoogleReviewTargetCountsByProperty', async () => {
+      const counts = new Map<
+        PropertyId,
+        Readonly<{ activeCount: number; overdueCount: number }>
+      >()
+      for (const id of propertyIds) {
+        counts.set(id, { activeCount: 0, overdueCount: 0 })
+      }
+      if (propertyIds.length === 0) return counts
+
+      const rows = await db.execute<{
+        property_id: string
+        active_count: number
+        overdue_count: number
+      }>(sql`
+        SELECT
+          target.property_id,
+          count(*) FILTER (
+            WHERE target.completion_at IS NULL
+              AND head.current_cycle_number = target.cycle_number
+              AND head.status = 'open'
+          )::integer AS active_count,
+          count(*) FILTER (
+            WHERE target.completion_at IS NULL
+              AND head.current_cycle_number = target.cycle_number
+              AND head.status = 'open'
+              AND target.due_at <= ${now}
+          )::integer AS overdue_count
+        FROM ${inboxHandlingCycleResponseTargets} target
+        INNER JOIN ${inboxHandlingCycleHeads} head
+          ON head.inbox_item_id = target.inbox_item_id
+        INNER JOIN inbox_handling_cycles cycle
+          ON cycle.inbox_item_id = target.inbox_item_id
+         AND cycle.cycle_number = target.cycle_number
+        WHERE target.organization_id = ${orgId}
+          AND target.target_kind = 'google_review_response'
+          AND target.performance_eligibility = 'measured'
+          AND target.property_id = ANY(${sql.param(propertyIds)}::uuid[])
+        GROUP BY target.property_id
+      `)
+
+      for (const row of rows.rows) {
+        counts.set(propertyId(row.property_id), {
+          activeCount: row.active_count,
+          overdueCount: row.overdue_count,
+        })
+      }
+      return counts
     }),
 
   releaseDueReminders: async ({ now, limit }) =>

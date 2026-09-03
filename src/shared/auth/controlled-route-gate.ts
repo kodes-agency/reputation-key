@@ -7,16 +7,22 @@
 
 import { redirect } from '@tanstack/react-router'
 import { checkControlledRoute, type ControlledRouteInput } from './controlled-route-check'
+import type { CapabilityDecision } from './beta-capabilities'
+import { refusalCategory } from './capability-refusal-category'
 
 /** Convert a plain capability decision into the owning router transition. */
 export function redirectDeniedControlledRoute(
-  decision: Readonly<{ allowed: boolean }>,
+  decision: CapabilityDecision,
   input: ControlledRouteInput,
 ): void {
   if (!decision.allowed) {
     throw redirect({
       to: '/unavailable',
-      search: { feature: input.featureLabel },
+      search: {
+        feature: input.featureLabel,
+        category: refusalCategory(decision) ?? undefined,
+        propertyId: input.propertyId,
+      },
     })
   }
 }

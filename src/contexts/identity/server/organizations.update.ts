@@ -29,7 +29,6 @@ export const updateOrganizationInputSchema = z
     slug: z.string().min(1).optional(),
     logo: z.string().nullable().optional(),
     contactEmail: nullableEmailInput,
-    responseSlaHours: z.number().int().min(1).max(720).optional(),
   })
   .strict()
 

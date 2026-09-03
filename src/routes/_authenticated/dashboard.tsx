@@ -9,9 +9,14 @@ import {
   useSuspenseInfiniteQuery,
   useSuspenseQuery,
 } from '@tanstack/react-query'
+import { z } from 'zod/v4'
 import { getFleetOverviewFn } from '#/contexts/dashboard/server/fleet-overview'
 import { getSetupChecklistFn } from '#/contexts/dashboard/server/setup-checklist'
 import type { SetupChecklist } from '#/contexts/dashboard/application/public-api'
+import {
+  timeRangePreset,
+  type TimeRangePreset,
+} from '#/contexts/dashboard/application/dto/dashboard.dto'
 import { can } from '#/shared/domain/permissions'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
@@ -26,6 +31,7 @@ import {
   SetupChecklistLanding,
   SetupChecklistPanel,
 } from '#/components/features/dashboard/setup-checklist'
+import { TimeRangePicker } from '#/components/features/dashboard/time-range-picker'
 
 // Shared query options — the loader (ensureInfiniteQueryData) and component
 // (useSuspenseInfiniteQuery) reference the SAME options object so the primed
@@ -37,31 +43,33 @@ import {
 // fleet of more than fifty properties silently ended at fifty with nothing on
 // screen to say so. The cursor is server-produced and opaque, so `pageParam`
 // goes straight back — no client-side encoding, unlike the inbox list.
-const FLEET_TIME_RANGE = '30d' as const
 const setupChecklistQuery = queryOptions({
   queryKey: dashboardKeys.setup(),
   queryFn: () => getSetupChecklistFn(),
   staleTime: 30_000,
 })
-const fleetQuery = infiniteQueryOptions({
-  queryKey: dashboardKeys.fleet(FLEET_TIME_RANGE),
-  queryFn: ({ pageParam }) =>
-    getFleetOverviewFn({
-      data: { timeRange: FLEET_TIME_RANGE, ...(pageParam ? { cursor: pageParam } : {}) },
-    }),
-  initialPageParam: undefined as string | undefined,
-  getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-  staleTime: 60_000,
-})
+const fleetQuery = (timeRange: TimeRangePreset) =>
+  infiniteQueryOptions({
+    queryKey: dashboardKeys.fleet(timeRange),
+    queryFn: ({ pageParam }) =>
+      getFleetOverviewFn({
+        data: { timeRange, ...(pageParam ? { cursor: pageParam } : {}) },
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    staleTime: 60_000,
+  })
 
 export const Route = createFileRoute('/_authenticated/dashboard')({
+  validateSearch: z.object({ timeRange: timeRangePreset.default('30d') }),
   beforeLoad: ({ context }) => {
     // Fleet dashboard is a manager surface (dashboard.fleet_read).
     // Staff have dashboard.read for their own staff dashboard, not the fleet view.
     const { role } = context as AuthRouteContext
     if (!can(role, 'dashboard.fleet_read')) throw redirect({ to: '/home' })
   },
-  loader: async ({ context }) => {
+  loaderDeps: ({ search }) => ({ timeRange: search.timeRange }),
+  loader: async ({ context, deps: { timeRange } }) => {
     const [{ properties }, checklist] = await Promise.all([
       context.queryClient.ensureQueryData(propertiesQuery),
       context.queryClient.ensureQueryData(setupChecklistQuery),
@@ -73,7 +81,7 @@ export const Route = createFileRoute('/_authenticated/dashboard')({
       })
     }
     if (properties.length > 1) {
-      await context.queryClient.ensureInfiniteQueryData(fleetQuery)
+      await context.queryClient.ensureInfiniteQueryData(fleetQuery(timeRange))
     }
   },
   // Fleet data is operational; refresh on revisit or after invalidate().
@@ -107,7 +115,9 @@ function FleetDashboard({
 }: Readonly<{
   checklist: SetupChecklist
 }>) {
-  const fleet = useSuspenseInfiniteQuery(fleetQuery)
+  const { timeRange } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const fleet = useSuspenseInfiniteQuery(fleetQuery(timeRange))
 
   const pages = fleet.data.pages
   // Totals are org-wide and identical on every page — they come from the
@@ -118,13 +128,21 @@ function FleetDashboard({
     nextCursor: pages[pages.length - 1]?.nextCursor ?? null,
   }
   return (
-    <FleetOverview
-      data={data}
-      setup={<SetupChecklistPanel checklist={checklist} />}
-      isFetchingNextPage={fleet.isFetchingNextPage}
-      onLoadMore={() => {
-        void fleet.fetchNextPage()
-      }}
-    />
+    <>
+      <TimeRangePicker
+        timeRange={timeRange}
+        onChange={(value) => {
+          void navigate({ search: { timeRange: value } })
+        }}
+      />
+      <FleetOverview
+        data={data}
+        setup={<SetupChecklistPanel checklist={checklist} />}
+        isFetchingNextPage={fleet.isFetchingNextPage}
+        onLoadMore={() => {
+          void fleet.fetchNextPage()
+        }}
+      />
+    </>
   )
 }

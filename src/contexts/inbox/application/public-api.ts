@@ -1,3 +1,5 @@
+import type { ResponseTargetStore } from './ports/response-target.store'
+
 /**
  * Public API for external consumers (components, routes).
  * Re-exports domain types. Per boundary rules: components may import
@@ -48,6 +50,10 @@ export {
   type FeedbackHandlingOutcomeFact,
   type PrivateFeedbackHandlingOutcome,
 } from '../domain/feedback-handling'
+// The manager-facing conflict message. Components match rejected mutations on
+// it because the client cannot read `code` off a deserialized server-function
+// error; keeping the literal here gives it one authority.
+export { REVISION_CONFLICT_MESSAGE } from '../domain/errors'
 
 // IBX-01 cutover classification. Pure and read-only: it reports what the legacy
 // rows prove and never infers an outcome or an on-time result from `closedAt`.
@@ -123,6 +129,7 @@ export type InboxPublicApi = Readonly<{
   markFeedbackHandled: import('./use-cases/mark-feedback-handled').MarkFeedbackHandled
   correctFeedbackHandlingOutcome: import('./use-cases/correct-feedback-handling-outcome').CorrectFeedbackHandlingOutcome
   getGoogleReviewTargetAnalytics: import('./use-cases/get-response-targets').GetGoogleReviewTargetAnalytics
+  getGoogleReviewTargetCountsByProperty: ResponseTargetStore['getGoogleReviewTargetCountsByProperty']
   getPrivateFeedbackTargetAnalytics: import('./use-cases/get-response-targets').GetPrivateFeedbackTargetAnalytics
   getResponseTargetPolicySettings: import('./use-cases/get-response-targets').GetResponseTargetPolicySettings
   setResponseTargetPolicy: import('./use-cases/set-response-target-policy').SetResponseTargetPolicy

@@ -223,8 +223,6 @@ interface and does not expose the grant repository.
 | `updateUserImageFn`     | POST   | authenticated            | Update user image URL                                                                        |
 | `listUserInvitations`   | GET    | authenticated            | List user's pending invitations                                                              |
 | `listUserOrganizations` | GET    | authenticated            | List user's organizations                                                                    |
-| `getOrgResponseSla`     | GET    | `dashboard.read`         | Get organization response SLA                                                                |
-| `updateOrgResponseSla`  | POST   | `organization.update`    | Update organization response SLA                                                             |
 | `submitBetaFeedbackFn`  | POST   | `feedback.respond`       | Native Bug/Suggestion intake; content-free local receipt before restricted provider delivery |
 
 ### Closure Center (LIF-01-T17/T18)
@@ -262,7 +260,7 @@ The internal `ops:triage-beta-feedback` command is report-first and ticketed. It
 
 Identity context uses the following permissions from `shared/domain/permissions.ts`:
 
-- `organization.update` — Update beta organization settings (name, slug, contact, response target); dormant billing metadata is neither accepted nor returned
+- `organization.update` — Update beta organization identity settings (name, slug, logo, contact); dormant billing metadata is neither accepted nor returned
 - `member.update` — Change member roles
 - `member.delete` — Remove members from organization
 - `member.list` — List organization members

@@ -15,8 +15,6 @@ import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/errors'
 import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
 import { assertDashboardPropertyAccessible } from './assert-property-access'
-import { getAuth } from '#/shared/auth/auth'
-import { extractResponseSlaHours } from '#/shared/domain/response-sla'
 import type { DashboardData } from '../domain/types'
 
 import { resolvePropertyPeriod } from './resolve-property-period'
@@ -110,8 +108,6 @@ export const getPropertyOverviewFn = createServerFn({ method: 'GET' })
             actor: ctx,
             action: 'dashboard.fleet_read',
           })
-          const org = await getAuth().api.getFullOrganization({ headers })
-          const slaHours = extractResponseSlaHours(org)
           const { dashboardPublicApi, clock, staffPublicApi, propertyPublicApi } =
             getContainer()
           await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
@@ -129,7 +125,6 @@ export const getPropertyOverviewFn = createServerFn({ method: 'GET' })
             organizationId: ctx.organizationId,
             propertyId: pid,
             portalId: data.portalId ? portalId(data.portalId) : null,
-            slaHours,
             startDate,
             endDate,
             timeRange: data.timeRange,

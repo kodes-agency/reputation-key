@@ -1,28 +1,30 @@
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
 
-export type PortalRatingPresentationInput = Readonly<{
+export type RatingPresentationInput = Readonly<{
   value: number | null
   comparison: number | null
   sampleCount: number
   priorSampleCount: number
 }>
 
-export type PortalRatingPresentation = Readonly<{
+export type RatingPresentation = Readonly<{
   value: string
   comparison: string
   direction: 'up' | 'down' | 'neutral'
   evidence: string
 }>
 
-export function portalRatingPresentation(
-  rating: PortalRatingPresentationInput,
+export function ratingPresentation(
+  rating: RatingPresentationInput,
   timeRange: TimeRangePreset,
-): PortalRatingPresentation {
+): RatingPresentation {
   const comparison = rating.comparison
   const direction =
     comparison === null || comparison === 0 ? 'neutral' : comparison > 0 ? 'up' : 'down'
   const comparisonText =
-    comparison === null ? '—' : `${comparison > 0 ? '+' : ''}${comparison.toFixed(1)}`
+    comparison === null
+      ? '—'
+      : `${comparison > 0 ? '+' : comparison < 0 ? '−' : ''}${Math.abs(comparison).toFixed(1)}`
   const sample = `${rating.sampleCount.toLocaleString()} eligible ${rating.sampleCount === 1 ? 'rating' : 'ratings'}.`
   const explanation =
     timeRange === 'all'

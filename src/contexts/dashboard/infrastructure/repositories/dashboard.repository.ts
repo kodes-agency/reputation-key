@@ -28,7 +28,11 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { reviewId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
-import { computeTrend, DEFAULT_RECENT_REVIEWS_LIMIT } from '../../application/utils'
+import {
+  computeTrend,
+  DEFAULT_RECENT_REVIEWS_LIMIT,
+  ratingComparison,
+} from '../../application/utils'
 
 /**
  * KPI assembly — single source for getKPIs/getKPIsForPortals (BQC-5.9 E4).
@@ -40,6 +44,7 @@ function computeKpis(input: {
   priorReviews: ReviewPeriodStats | null
   currentMetrics: readonly MetricSumRow[]
   priorMetrics: readonly MetricSumRow[] | null
+  currentPeriodEnd: Date
 }): KPIs {
   const { currentReviews, priorReviews, currentMetrics, priorMetrics } = input
   const reviewComparisonAvailable = priorReviews !== null
@@ -47,7 +52,7 @@ function computeKpis(input: {
   const curReviewCount = currentReviews.count
   const priorReviewCount = priorReviews?.count ?? 0
   const curAvgRating = currentReviews.avgRating
-  const priorAvgRating = priorReviews?.avgRating ?? 0
+  const priorAvgRating = priorReviews?.avgRating ?? null
 
   const missingEvidence = (): MetricKPIPeriodEvidence => ({
     state: 'updating',
@@ -58,7 +63,14 @@ function computeKpis(input: {
   const evidenceFor = (row: MetricSumRow | undefined): MetricKPIPeriodEvidence => {
     if (!row) return missingEvidence()
     return {
-      state: row.state === 'available' && row.total === null ? 'unavailable' : row.state,
+      state:
+        row.state === 'available'
+          ? row.total === null
+            ? 'temporarily_unavailable'
+            : 'ready'
+          : row.state === 'unavailable'
+            ? 'temporarily_unavailable'
+            : 'updating',
       definitionVersionId: row.definitionVersionId,
       sampleCount: row.sampleCount,
       minimumSample: row.minimumSample,
@@ -70,11 +82,11 @@ function computeKpis(input: {
     const currentEvidence = evidenceFor(current)
     const priorEvidence = priorMetrics === null ? null : evidenceFor(prior)
     const value =
-      currentEvidence.state === 'available' && current?.total !== null
+      currentEvidence.state === 'ready' && current?.total !== null
         ? (current?.total ?? null)
         : null
     const priorValue =
-      priorEvidence?.state === 'available' && prior?.total !== null
+      priorEvidence?.state === 'ready' && prior?.total !== null
         ? (prior?.total ?? null)
         : null
 
@@ -98,9 +110,22 @@ function computeKpis(input: {
     avgRating: {
       value: curAvgRating,
       priorValue: priorAvgRating,
-      trend: reviewComparisonAvailable
-        ? computeTrend(curAvgRating, priorAvgRating)
+      comparison: reviewComparisonAvailable
+        ? ratingComparison(curAvgRating, curReviewCount, priorAvgRating, priorReviewCount)
         : null,
+      sampleCount: curReviewCount,
+      priorSampleCount: priorReviewCount,
+      evidence: {
+        definitionVersionId: null,
+        state: curReviewCount === 0 ? 'insufficient_data' : 'ready',
+        verifiedThrough: input.currentPeriodEnd,
+        latestActivity: null,
+        computedAt: input.currentPeriodEnd,
+        completeness: 1,
+        availabilityReason: null,
+        correctionHead: null,
+        sampleCount: curReviewCount,
+      },
     },
     scans: metricKpi('portal.scan'),
     feedback: metricKpi('portal.feedback'),
@@ -167,7 +192,13 @@ export const createDashboardRepository = (
           : Promise.resolve(null),
       ])
 
-      return computeKpis({ currentReviews, priorReviews, currentMetrics, priorMetrics })
+      return computeKpis({
+        currentReviews,
+        priorReviews,
+        currentMetrics,
+        priorMetrics,
+        currentPeriodEnd: endDate,
+      })
     })
   },
   async getKPIsForPortals(input): Promise<KPIs> {
@@ -218,7 +249,13 @@ export const createDashboardRepository = (
           : Promise.resolve(null),
       ])
 
-      return computeKpis({ currentReviews, priorReviews, currentMetrics, priorMetrics })
+      return computeKpis({
+        currentReviews,
+        priorReviews,
+        currentMetrics,
+        priorMetrics,
+        currentPeriodEnd: endDate,
+      })
     })
   },
   async getRatingDistribution(input): Promise<RatingDistribution> {

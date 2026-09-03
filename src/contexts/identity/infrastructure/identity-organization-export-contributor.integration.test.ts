@@ -45,9 +45,9 @@ async function seedFixture(): Promise<Fixture> {
   users.add(fixture.userId)
   await lease.pool.query(
     `INSERT INTO organization (
-       id, name, slug, logo, "createdAt", "contactEmail", "responseSlaHours"
+       id, name, slug, logo, "createdAt", "contactEmail"
      ) VALUES ($1, 'Identity Export Fixture', $1, 'https://cdn.example.test/logo',
-               $2, 'manager@example.test', 12)`,
+               $2, 'manager@example.test')`,
     [fixture.organizationId, preciseCreatedAt],
   )
   await lease.pool.query(
@@ -219,7 +219,6 @@ describe.sequential('Identity Organization Export contributor', () => {
         id: fixture.organizationId,
         name: 'Identity Export Fixture',
         contact_email: 'manager@example.test',
-        response_sla_hours: 12,
         created_at: fixture.preciseCreatedAt,
       },
       members: [

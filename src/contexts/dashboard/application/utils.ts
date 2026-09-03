@@ -2,12 +2,6 @@
 import type { TimeRangePreset } from './dto/dashboard.dto'
 import { shiftPropertyLocalDays } from '#/shared/domain/property-calendar'
 export const MS_PER_DAY = 86_400_000
-const MS_PER_HOUR = 3_600_000
-
-/** SLA cutoff: reviews received before this instant are past SLA.
- *  Pure function of `now` so the SLA window is fast-forward testable (ADR 0017). */
-export const slaCutoff = (now: Date, slaHours: number): Date =>
-  new Date(now.getTime() - slaHours * MS_PER_HOUR)
 
 /** Convert a time-range preset to concrete start/end dates relative to `now`.
  *  `now` is injected so callers can fast-forward time (ADR 0017). */
@@ -43,12 +37,14 @@ export const RATING_DROP_THRESHOLD = 0.3
 
 /** Absolute star delta, available only for statistically usable periods. */
 export function ratingComparison(
-  currentAverage: number,
+  currentAverage: number | null,
   currentCount: number,
-  priorAverage: number,
+  priorAverage: number | null,
   priorCount: number,
 ): number | null {
   if (
+    currentAverage === null ||
+    priorAverage === null ||
     currentCount < MIN_RATING_COMPARISON_SAMPLE ||
     priorCount < MIN_RATING_COMPARISON_SAMPLE
   ) {

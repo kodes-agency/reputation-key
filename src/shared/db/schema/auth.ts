@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 
 // ─── Better Auth tables ────────────────────────────────────────────
 // Column names must be camelCase to match Better Auth's defaults.
@@ -93,7 +93,11 @@ export const organization = pgTable('organization', {
   billingCity: text('billingCity'),
   billingPostalCode: text('billingPostalCode'),
   billingCountry: text('billingCountry'),
-  responseSlaHours: integer('responseSlaHours'),
+  // `responseSlaHours` was retired with the legacy Response SLA authority (S5).
+  // Better Auth owns this table's DDL from org-schema.ts additionalFields, so
+  // dropping the field there already removes the column from newly migrated
+  // databases; the column that still exists in already-migrated databases is
+  // dropped under CNV-01 after one verified release.
 })
 
 // Custom role definitions (Better Auth organizationRole). Read-only Drizzle mirror —

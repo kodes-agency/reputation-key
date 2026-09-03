@@ -15,8 +15,6 @@ import { Link } from '@tanstack/react-router'
 import type { LucideIcon } from 'lucide-react'
 import { SidebarMenuButton, SidebarMenuItem } from '#/components/ui/sidebar'
 
-export const NOT_IN_BETA_TOOLTIP = 'Not available in this beta'
-
 /** Destination of a live row: path plus whichever of params/search it needs. */
 export type NavLinkTarget = Readonly<{
   to: string

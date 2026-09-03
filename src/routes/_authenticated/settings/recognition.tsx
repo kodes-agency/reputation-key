@@ -13,9 +13,11 @@ const recognitionSettingsSearch = z.object({
 export const Route = createFileRoute('/_authenticated/settings/recognition')({
   validateSearch: recognitionSettingsSearch,
   beforeLoad: () => {
+    // `badge.use` is legacy_blocked in CAPABILITY_FATE, so the refusal category
+    // is fixed and needs no policy read.
     throw redirect({
       to: '/unavailable',
-      search: { feature: 'Recognition' },
+      search: { feature: 'Recognition', category: 'not_in_beta' },
     })
   },
 })

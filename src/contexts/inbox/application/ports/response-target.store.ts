@@ -76,6 +76,15 @@ export type ResponseTargetStore = Readonly<{
       now: Date
     }>,
   ): Promise<GoogleReviewTargetAnalytics>
+  getGoogleReviewTargetCountsByProperty(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyIds: ReadonlyArray<PropertyId>
+      now: Date
+    }>,
+  ): Promise<
+    ReadonlyMap<PropertyId, Readonly<{ activeCount: number; overdueCount: number }>>
+  >
   releaseDueReminders(
     input: Readonly<{
       now: Date

@@ -9,13 +9,11 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { getAuth } from '#/shared/auth/auth'
 import { timeRangePreset } from '../application/dto/dashboard.dto'
 import { isDashboardError } from '../domain/errors'
-import { extractResponseSlaHours } from '#/shared/domain/response-sla'
 import { scopeForPermission } from '#/shared/domain/permissions'
 import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
 import { standardErrorStatus as fleetOverviewErrorStatus } from '#/shared/http/status'
@@ -42,11 +40,6 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
           await requireExecutionAllowed({ actor: ctx, action: 'dashboard.read' })
           await requireExecutionAllowed({ actor: ctx, action: 'dashboard.fleet_read' })
 
-          // Resolve the org-level response SLA (defaults to 48h when unset/no org).
-          const auth = getAuth()
-          const org = await auth.api.getFullOrganization({ headers })
-          const slaHours = extractResponseSlaHours(org)
-
           const { dashboardPublicApi } = getContainer()
 
           const capabilityScope = { organizationId: ctx.organizationId }
@@ -60,7 +53,6 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
             portalReadEnabled: checkScopedCapability(capabilityScope, 'portal.read')
               .allowed,
             goalReadEnabled: checkScopedCapability(capabilityScope, 'goal.use').allowed,
-            slaHours,
             timeRange: data.timeRange,
             cursor: data.cursor,
           })

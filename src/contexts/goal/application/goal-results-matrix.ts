@@ -1,3 +1,4 @@
+import { match } from 'ts-pattern'
 import type {
   GoalMetric,
   GoalMetricEvaluation,
@@ -6,7 +7,7 @@ import type {
 import type { GoalProgramBundle } from './ports/goal-program.repository'
 
 export type GoalResultsMatrixAvailability =
-  'ready' | 'updating' | 'insufficient' | 'unavailable'
+  'ready' | 'updating' | 'insufficient_data' | 'temporarily_unavailable'
 
 export type GoalResultsMatrixEvidence =
   | Readonly<{
@@ -85,10 +86,12 @@ const scopeOrder: Readonly<Record<GoalSubject['kind'], number>> = {
 function availabilityFor(
   state: GoalMetricEvaluation['state'],
 ): GoalResultsMatrixAvailability {
-  if (state === 'eligible') return 'ready'
-  if (state === 'updating') return 'updating'
-  if (state === 'insufficient_data') return 'insufficient'
-  return 'unavailable'
+  return match(state)
+    .with('eligible', () => 'ready' as const)
+    .with('updating', () => 'updating' as const)
+    .with('insufficient_data', () => 'insufficient_data' as const)
+    .with('unavailable', 'quarantined', () => 'temporarily_unavailable' as const)
+    .exhaustive()
 }
 
 function evidenceFor(

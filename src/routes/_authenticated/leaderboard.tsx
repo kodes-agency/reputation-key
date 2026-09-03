@@ -14,9 +14,11 @@ const achievementBoardSearch = z.object({
 export const Route = createFileRoute('/_authenticated/leaderboard')({
   validateSearch: achievementBoardSearch,
   beforeLoad: () => {
+    // `leaderboard.use` is legacy_blocked in CAPABILITY_FATE, so the refusal
+    // category is fixed and needs no policy read.
     throw redirect({
       to: '/unavailable',
-      search: { feature: 'Achievement Board' },
+      search: { feature: 'Achievement Board', category: 'not_in_beta' },
     })
   },
 })

@@ -37,9 +37,6 @@ describe('product-state remount boundaries', () => {
     ).toContain('key={importId}')
     expect(
       source('src/components/features/organization/organization-settings-page.tsx'),
-    ).toContain('key={responseSlaHours}')
-    expect(
-      source('src/components/features/organization/organization-settings-page.tsx'),
     ).toContain(
       "key={`${organization.name}:${organization.slug}:${organization.contactEmail ?? 'no-contact-email'}`}",
     )

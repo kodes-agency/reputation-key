@@ -10,8 +10,9 @@
 //   - console-error     console.error(...) output not matched by the allowlist
 //   - mutation-status   non-2xx response to a CRITICAL MUTATION: a POST to
 //                       /_server* (TanStack server-fn RPC) or a mutating
-//                       POST/PUT/PATCH/DELETE to /api/auth/* (better-auth) —
-//                       except allowlisted endpoint+status pairs
+//                       POST/PUT/PATCH/DELETE to /api/auth/* (better-auth).
+//                       Allowlisted statuses are excluded; a 409 is held until
+//                       teardown and retired only by a later 2xx at the same URL.
 //   - request-failed    net-level failure (DNS / refused / aborted) on those
 //                       same mutation paths
 //
@@ -237,6 +238,7 @@ export function attachErrorDetection(
   // "Document-status correlation" in the file header.
   const documentStatusKeys = new Set<string>()
   const unmatchedStatusEchoes = new Map<Detection, string>()
+  const pendingConflicts = new Map<string, number>()
 
   /** Record a deliberate document status and retire any echo that preceded it. */
   const recordDocumentStatus = (key: string) => {
@@ -366,8 +368,15 @@ export function attachErrorDetection(
     }
     const method = request.method()
     if (!isCriticalMutation(method, url)) return
-    if (status >= 200 && status < 300) return
     const fullUrl = response.url()
+    if (status >= 200 && status < 300) {
+      if (pendingConflicts.has(fullUrl)) pendingConflicts.delete(fullUrl)
+      return
+    }
+    if (status === 409) {
+      pendingConflicts.set(fullUrl, (pendingConflicts.get(fullUrl) ?? 0) + 1)
+      return
+    }
     const statusMatch = findAllowlistMatch(
       allowlist,
       'mutation-status',
@@ -428,6 +437,14 @@ export function attachErrorDetection(
       return [...detections]
     },
     async assertEmpty(testInfo?: TestInfo) {
+      for (const url of pendingConflicts.keys()) {
+        detections.push({
+          kind: 'mutation-status',
+          message: `POST ${url} → HTTP 409 with no successful retry`,
+          pageUrl: page.url(),
+        })
+      }
+      pendingConflicts.clear()
       if (detections.length === 0) return
       const report = formatDetections(detections, testInfo?.title)
       const body = `${report}\n\n── transcript (detections + console warning/error) ──\n${

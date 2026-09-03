@@ -9,7 +9,7 @@ import { InboxDetailContent } from './inbox-detail-content'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
-import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
+import type { addInboxNoteFn, getInboxItemDetailFn } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 import type {
@@ -94,6 +94,10 @@ const notes: ReadonlyArray<InboxNoteView> = [
 
 // mockServerFn + cast bridges the server-fn brand (same as bulk-actions stories).
 const detailFns = {
+  getInboxItemDetail: mockServerFn(
+    async ({ data }: Parameters<typeof getInboxItemDetailFn>[0]) =>
+      data.inboxItemId === feedbackItem.id ? feedbackDetail : reviewDetail,
+  ) as unknown as typeof getInboxItemDetailFn,
   getActivityTimeline: mockServerFn(
     async () => [],
   ) as unknown as typeof getActivityTimelineFn,

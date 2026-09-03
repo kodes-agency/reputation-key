@@ -58,7 +58,6 @@ type MainRow = Readonly<{
   feedback_watermark: Date | string | null
   feedback_correction_count: string | number | null
   feedback_source_policies: readonly string[] | null
-  unanswered: string | number | null
   items_to_triage: string | number | null
   escalated: string | number | null
   goals_behind_pace: string | number | null
@@ -390,8 +389,8 @@ export const createFleetOverviewProjectionAdapter = (
               coalesce(readings.review_count, 0) AS review_count,
               coalesce(readings.review_total_count, 0) AS review_total_count,
               coalesce(readings.prior_review_count, 0) AS prior_review_count,
-              coalesce(readings.avg_rating, 0) AS avg_rating,
-              coalesce(readings.prior_avg_rating, 0) AS prior_avg_rating,
+              readings.avg_rating AS avg_rating,
+              readings.prior_avg_rating AS prior_avg_rating,
               readings.review_watermark,
               coalesce(readings.review_correction_count, 0) AS review_correction_count,
               coalesce(readings.review_source_policies, '{}'::varchar[]) AS review_source_policies,
@@ -442,24 +441,6 @@ export const createFleetOverviewProjectionAdapter = (
             SELECT * FROM ordered
             ORDER BY lower(name), property_id
             LIMIT ${FLEET_PAGE_SIZE}
-          ), unanswered_review_items AS MATERIALIZED (
-            SELECT reviews.property_id, reviews.id AS review_id
-            FROM reviews
-            WHERE reviews.organization_id = ${input.organizationId}
-              AND reviews.property_id IN (SELECT property_id FROM scoped)
-              AND reviews.content_expires_at IS NOT NULL
-              AND reviews.content_expires_at > ${input.now}
-              AND reviews.reviewed_at < ${input.slaCutoff}
-              AND NOT EXISTS (
-                SELECT 1 FROM replies
-                WHERE replies.review_id = reviews.id
-                  AND replies.organization_id = ${input.organizationId}
-                  AND replies.status = 'published'
-              )
-          ), review_attention AS MATERIALIZED (
-            SELECT property_id, count(*) AS unanswered
-            FROM unanswered_review_items
-            GROUP BY property_id
           ), inbox_attention_items AS MATERIALIZED (
             SELECT inbox_items.property_id::uuid AS property_id,
               inbox_items.source_type,
@@ -544,9 +525,6 @@ export const createFleetOverviewProjectionAdapter = (
           ), attention_work AS MATERIALIZED (
             SELECT property_id, count(*) AS needs_attention
             FROM (
-              SELECT property_id, 'review:' || review_id::text AS work_key
-              FROM unanswered_review_items
-              UNION
               SELECT property_id, source_type::text || ':' || source_id::text
                 AS work_key
               FROM inbox_attention_items
@@ -589,7 +567,6 @@ export const createFleetOverviewProjectionAdapter = (
             page.feedback_watermark,
             page.feedback_correction_count,
             page.feedback_source_policies,
-            coalesce(review_attention.unanswered, 0) AS unanswered,
             coalesce(inbox_attention.items_to_triage, 0) AS items_to_triage,
             coalesce(inbox_attention.escalated, 0) AS escalated,
             coalesce(goal_attention.goals_behind_pace, 0) AS goals_behind_pace,
@@ -603,7 +580,6 @@ export const createFleetOverviewProjectionAdapter = (
           FROM summary
           CROSS JOIN totals
           LEFT JOIN page ON true
-          LEFT JOIN review_attention USING (property_id)
           LEFT JOIN inbox_attention USING (property_id)
           LEFT JOIN goal_attention USING (property_id)
           LEFT JOIN attention_work USING (property_id)
@@ -641,11 +617,13 @@ export const createFleetOverviewProjectionAdapter = (
         timezone: row.timezone,
         reviewCount: numeric(row.review_count),
         priorReviewCount: numeric(row.prior_review_count),
-        avgRating: numeric(row.avg_rating),
-        priorAvgRating: numeric(row.prior_avg_rating),
+        avgRating: row.avg_rating === null ? null : Number(row.avg_rating),
+        priorAvgRating:
+          row.prior_avg_rating === null ? null : Number(row.prior_avg_rating),
         scanCount: numeric(row.scan_count),
         feedbackCount: numeric(row.feedback_count),
-        unanswered: numeric(row.unanswered),
+        // Inbox replaces this neutral value in the Fleet use-case boundary.
+        overdue: 0,
         itemsToTriage: numeric(row.items_to_triage),
         escalated: numeric(row.escalated),
         goalsBehindPace: numeric(row.goals_behind_pace),

@@ -1,20 +1,18 @@
 // Shared desktop/mobile Inbox detail hook. Query owns cache, dedup, and
 // cancellation; InboxCachePolicy owns invalidation and polling decisions.
 import { useCallback, useEffect, useState } from 'react'
-import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { Action } from '#/components/hooks/use-action'
-import { inboxKeys } from '#/shared/queries/query-keys'
+import { inboxCachePolicy, type InboxReplyCacheChange } from './inbox-cache-policy'
 import {
-  inboxCachePolicy,
-  replyRefetchInterval,
-  type InboxReplyCacheChange,
-} from './inbox-cache-policy'
+  useInboxDetailQueries,
+  withFreshCommandRevision,
+} from './use-inbox-detail-queries'
 import {
   createInboxItemStatusObserver,
   type InboxItemStatusObserver,
 } from './inbox-item-status-observer'
-import { useTargetDeadlineRefresh } from './response-target-deadline-refresh'
 import { useFeedbackHandlingMutations } from './use-feedback-handling-mutations'
 import type {
   updateInboxStatusFn,
@@ -73,46 +71,6 @@ export type InboxDetailState = Readonly<{
   lastMarkedId: string | null
 }>
 
-/** Detail + notes queries and their result shaping (loading/error/refetch). */
-function useInboxDetailQueries(
-  inboxFns: Pick<InboxServerFns, 'getInboxItemDetail' | 'getInboxNotes'>,
-  id: string,
-  enabled: boolean,
-  fallbackItem: InboxItem | null,
-) {
-  const detailQuery = useQuery({
-    queryKey: inboxKeys.detail(id),
-    queryFn: () => inboxFns.getInboxItemDetail({ data: { inboxItemId: id } }),
-    enabled,
-    staleTime: 0,
-    // Poll while a reply publish is pending (approved → published happens
-    // asynchronously via BullMQ) — the predicate lives in the cache policy.
-    refetchInterval: (query) => replyRefetchInterval(query.state.data?.reply),
-  })
-  const notesQuery = useQuery({
-    queryKey: inboxKeys.notes(id),
-    queryFn: () => inboxFns.getInboxNotes({ data: { inboxItemId: id } }),
-    enabled,
-    staleTime: 0,
-  })
-  useTargetDeadlineRefresh(enabled, detailQuery.data?.responseTarget, detailQuery.refetch)
-
-  const detail = detailQuery.data ?? null
-  return {
-    detail,
-    notes: notesQuery.data ?? [],
-    isLoading: detailQuery.isLoading || notesQuery.isLoading,
-    currentItem: detail?.item ?? fallbackItem,
-    error: detailQuery.error ? 'Failed to load detail. Try again.' : null,
-    refetch: () => {
-      void detailQuery.refetch()
-      void notesQuery.refetch()
-    },
-    /** Live item status — feeds auto-close detection while polling. */
-    polledStatus: detailQuery.data?.item.status,
-  }
-}
-
 /** Detect a server-side status transition (auto-close during reply-publish polling). */
 function useInboxAutoCloseDetection(
   qc: QueryClient,
@@ -131,8 +89,9 @@ function useInboxAutoCloseDetection(
 function useInboxStatusMutations(
   inboxFns: Pick<
     InboxServerFns,
-    'updateInboxStatus' | 'escalateInboxItem' | 'resolveEscalation'
+    'getInboxItemDetail' | 'updateInboxStatus' | 'escalateInboxItem' | 'resolveEscalation'
   >,
+  id: string,
   qc: QueryClient,
   statusObserver: InboxItemStatusObserver,
   onItemStatusChanged?: (updated: InboxItem) => void,
@@ -147,17 +106,21 @@ function useInboxStatusMutations(
     },
     [qc, statusObserver, onItemStatusChanged],
   )
+  const recover = withFreshCommandRevision(qc, id, inboxFns.getInboxItemDetail)
   const updateStatus = useActionMutation(inboxFns.updateInboxStatus, {
     successMessage: 'Status updated',
     onSuccess: handleStatusChanged,
+    recover,
   })
   const escalate = useActionMutation(inboxFns.escalateInboxItem, {
     successMessage: 'Escalated',
     onSuccess: handleStatusChanged,
+    recover,
   })
   const resolveEscalation = useActionMutation(inboxFns.resolveEscalation, {
     successMessage: 'Escalation resolved',
     onSuccess: handleStatusChanged,
+    recover,
   })
   return { updateStatus, escalate, resolveEscalation }
 }
@@ -187,6 +150,7 @@ export function useInboxDetail(
   useInboxAutoCloseDetection(qc, id, queries.polledStatus, statusObserver)
   const mutations = useInboxStatusMutations(
     inboxFns,
+    id,
     qc,
     statusObserver,
     onItemStatusChanged,

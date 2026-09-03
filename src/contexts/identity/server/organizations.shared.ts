@@ -67,9 +67,4 @@ export type AuthOrganizationResponse = Readonly<{
   logo: string | null
   createdAt: Date
   contactEmail: string | null
-  responseSlaHours: number
 }>
-// ── Response SLA (from the shared kernel) ───────────────────────────
-// Defined in shared/domain so the dashboard context can read it without
-// importing from identity's server layer.
-export { DEFAULT_RESPONSE_SLA_HOURS } from '#/shared/domain/response-sla'

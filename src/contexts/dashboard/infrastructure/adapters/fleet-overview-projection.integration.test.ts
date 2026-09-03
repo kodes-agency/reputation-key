@@ -6,6 +6,7 @@ import type { Database } from '#/shared/db'
 import * as schema from '#/shared/db/schema'
 import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
+import type { PropertyId } from '#/shared/domain/ids'
 import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
 import { getFleetOverview } from '../../application/use-cases/get-fleet-overview'
 import { createFleetOverviewProjectionAdapter } from './fleet-overview-projection.adapter'
@@ -33,6 +34,17 @@ function fleetProperties(count = PROPERTY_COUNT) {
 }
 
 const properties = fleetProperties()
+const inboxTargets = {
+  getGoogleReviewTargetCountsByProperty: async (input: {
+    propertyIds: ReadonlyArray<PropertyId>
+  }) =>
+    new Map(
+      input.propertyIds.map((id) => {
+        const overdueCount = id === properties[0]!.propertyId ? 1 : 0
+        return [id, { activeCount: overdueCount, overdueCount }]
+      }),
+    ),
+}
 let pool: Pool
 let statementCount = 0
 let db: Database
@@ -308,6 +320,7 @@ describe('fleet overview projection integration', () => {
       projection,
       resolveAccessiblePropertyIds: async () => null,
       clock: () => NOW,
+      inboxTargets,
     })
     const input = {
       organizationId: ORG,
@@ -317,7 +330,6 @@ describe('fleet overview projection integration', () => {
       },
       portalReadEnabled: true,
       goalReadEnabled: true,
-      slaHours: 48,
       timeRange: '30d' as const,
     }
 
@@ -370,7 +382,7 @@ describe('fleet overview projection integration', () => {
         correctionCount: 0,
       },
       attentionSignals: {
-        unanswered: 1,
+        overdue: 1,
         itemsToTriage: 2,
         escalated: 3,
         goalsBehindPace: 1,
@@ -392,6 +404,7 @@ describe('fleet overview projection integration', () => {
       projection: createFleetOverviewProjectionAdapter(db),
       resolveAccessiblePropertyIds: async () => null,
       clock: () => new Date('2026-03-20T16:00:00.000Z'),
+      inboxTargets,
     })
 
     const result = await getFleet({
@@ -402,7 +415,6 @@ describe('fleet overview projection integration', () => {
       },
       portalReadEnabled: true,
       goalReadEnabled: true,
-      slaHours: 48,
       timeRange: '30d',
     })
 
@@ -438,6 +450,7 @@ describe('fleet overview projection integration', () => {
       projection: createFleetOverviewProjectionAdapter(db),
       resolveAccessiblePropertyIds: async () => [scopedProperty.propertyId],
       clock: () => NOW,
+      inboxTargets,
     })
 
     const result = await getFleet({
@@ -448,7 +461,6 @@ describe('fleet overview projection integration', () => {
       },
       portalReadEnabled: true,
       goalReadEnabled: true,
-      slaHours: 48,
       timeRange: '30d',
     })
 

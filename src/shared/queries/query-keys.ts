@@ -88,7 +88,6 @@ export const notificationKeys = {
 export const identityKeys = {
   all: ['identity'] as const,
   activeOrg: () => [...identityKeys.all, 'active-org'] as const,
-  responseSla: () => [...identityKeys.all, 'response-sla'] as const,
   members: () => [...identityKeys.all, 'members'] as const,
   invitations: () => [...identityKeys.all, 'invitations'] as const,
   userInvitations: () => [...identityKeys.invitations(), 'user'] as const,

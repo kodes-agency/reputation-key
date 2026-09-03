@@ -9,21 +9,12 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { FleetLoadMore } from './fleet-load-more'
 import { StripStat } from './fleet-totals-strip'
 import { Building2, AlertCircle, Star } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { LoadingState, ErrorState } from '#/components/layout/page-states'
-import {
-  Stars,
-  TrendIndicator,
-} from '#/components/features/property/property-dashboard-helpers'
-import type {
-  FleetEntry,
-  FleetMetricEvidence,
-  FleetOverviewData,
-} from '#/contexts/dashboard/application/public-api'
-import { FleetAttentionBreakdown } from './fleet-attention-breakdown'
+import type { FleetOverviewData } from '#/contexts/dashboard/application/public-api'
+import { FleetRow, formatRating } from './fleet-row'
 
 /** Shared shell + header so every fleet state (loading/error/empty/data) is consistent. */
 function Shell({ children }: Readonly<{ children: ReactNode }>) {
@@ -34,10 +25,6 @@ function Shell({ children }: Readonly<{ children: ReactNode }>) {
     </PageShell>
   )
 }
-
-const formatRating = (r: number): string => (r > 0 ? r.toFixed(1) : '—')
-const formatRatingComparison = (comparison: number | null): string =>
-  comparison === null ? '—' : `${comparison > 0 ? '+' : ''}${comparison.toFixed(1)} stars`
 
 export function FleetOverviewLoading() {
   return (
@@ -137,88 +124,5 @@ export function FleetOverview({
         onLoadMore={onLoadMore}
       />
     </Shell>
-  )
-}
-
-function metricEvidenceTitle(evidence: FleetMetricEvidence): string {
-  const completeness = Math.round(evidence.completeness * 100)
-  const watermark = evidence.watermark?.toISOString() ?? 'No eligible reading'
-  const sources =
-    evidence.sourcePolicies.length > 0 ? evidence.sourcePolicies.join(', ') : 'None'
-  return [
-    `Definition ${evidence.definitionVersionId}`,
-    `Completeness ${completeness}%`,
-    `Watermark ${watermark}`,
-    `Timezone ${evidence.timezone}`,
-    `Corrections ${evidence.correctionCount}`,
-    `Sources ${sources}`,
-  ].join(' · ')
-}
-
-function EvidenceBadge({
-  label,
-  evidence,
-}: Readonly<{ label: string; evidence: FleetMetricEvidence }>) {
-  const freshnessLabel =
-    evidence.freshness === 'insufficient_data' ? 'insufficient data' : evidence.freshness
-  return (
-    <Badge
-      variant={evidence.freshness === 'fresh' ? 'secondary' : 'outline'}
-      title={metricEvidenceTitle(evidence)}
-    >
-      {label} {freshnessLabel}
-    </Badge>
-  )
-}
-
-function FleetRow({ entry }: Readonly<{ entry: FleetEntry }>) {
-  return (
-    <Link
-      to="/properties/$propertyId"
-      params={{ propertyId: entry.propertyId }}
-      // BQC-6.8 reflow: flex-wrap lets the attention badge drop below the
-      // property stats instead of forcing horizontal overflow at 400% zoom.
-      className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-lg border p-4 transition-colors hover:bg-accent"
-    >
-      <div className="flex flex-col gap-1">
-        <p className="font-semibold">{entry.name}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="flex items-center gap-1 text-sm tabular-nums">
-            <Stars rating={entry.avgRating} />
-            {formatRating(entry.avgRating)}
-          </span>
-          <span className="text-sm text-muted-foreground">
-            {entry.reviewCount} reviews
-          </span>
-          <span className="flex items-center gap-0.5 text-xs tabular-nums text-muted-foreground">
-            <TrendIndicator trend={entry.avgRatingComparison} />
-            {formatRatingComparison(entry.avgRatingComparison)}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <EvidenceBadge label="Reviews" evidence={entry.reviewEvidence} />
-          {entry.scanEvidence ? (
-            <>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {entry.scanCount} scans
-              </span>
-              <EvidenceBadge label="Scans" evidence={entry.scanEvidence} />
-            </>
-          ) : null}
-          {entry.feedbackEvidence ? (
-            <>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {entry.feedbackCount} responses
-              </span>
-              <EvidenceBadge label="Responses" evidence={entry.feedbackEvidence} />
-            </>
-          ) : null}
-        </div>
-      </div>
-      <FleetAttentionBreakdown
-        signals={entry.attentionSignals}
-        totalAttention={entry.totalAttention}
-      />
-    </Link>
   )
 }

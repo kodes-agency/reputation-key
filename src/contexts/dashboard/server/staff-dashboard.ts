@@ -22,7 +22,7 @@ import { resolvePropertyPeriod } from './resolve-property-period'
 const getStaffDashboardDataDto = z.object({
   propertyId: z.uuid(),
   portalId: z.uuid().optional(),
-  timeRange: timeRangePreset.default('all'),
+  timeRange: timeRangePreset.default('30d'),
 })
 
 export const getStaffDashboardDataFn = createServerFn({ method: 'GET' })

@@ -18,9 +18,9 @@ describe('Portal lifetime reconciliation presentation', () => {
     ).toEqual({
       summary: 'All-time totals passed their latest consistency check.',
       revision: 'Revision 12',
-      lastCheck: '14 Aug 2026, 09:00',
+      lastCheck: '14 Aug 2026, 09:00 UTC',
       anonymousBaseline: 'Through 1 Jul 2026',
-      lastRetentionCheckpoint: '1 Aug 2026, 08:00',
+      lastRetentionCheckpoint: '1 Aug 2026, 08:00 UTC',
     })
   })
 

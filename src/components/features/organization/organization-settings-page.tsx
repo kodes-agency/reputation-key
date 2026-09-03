@@ -6,7 +6,6 @@ import { Badge } from '#/components/ui/badge'
 import { ImageUploadField } from '#/components/forms/image-upload-field'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { OrganizationSettingsForm } from './organization-settings-form'
-import { ResponseSlaCard } from './response-sla-card'
 import { ResponseTargetSettingsCard } from './response-target-settings-card'
 import type {
   GoogleReviewTargetAnalytics,
@@ -29,11 +28,6 @@ type OrgData = Readonly<{
 }>
 type Props = Readonly<{
   organization: OrgData
-  responseSlaHours: number
-  updateResponseSla: Action<
-    Readonly<{ data: Readonly<{ responseSlaHours: number }> }>,
-    { responseSlaHours: number }
-  >
   responseTargetSettings: ResponseTargetPolicySettings
   privateFeedbackTargetAnalytics: PrivateFeedbackTargetAnalytics
   googleReviewTargetAnalytics: GoogleReviewTargetAnalytics
@@ -97,8 +91,6 @@ function OrganizationLogoEditor({
 
 export function OrganizationSettingsPage({
   organization,
-  responseSlaHours,
-  updateResponseSla,
   responseTargetSettings,
   privateFeedbackTargetAnalytics,
   googleReviewTargetAnalytics,
@@ -135,11 +127,6 @@ export function OrganizationSettingsPage({
         }}
         isPending={updateOrganization.isPending}
         error={updateOrganization.error}
-      />
-      <ResponseSlaCard
-        key={responseSlaHours}
-        responseSlaHours={responseSlaHours}
-        updateSla={updateResponseSla}
       />
       <ResponseTargetSettingsCard
         settings={responseTargetSettings}

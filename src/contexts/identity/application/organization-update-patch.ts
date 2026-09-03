@@ -11,15 +11,12 @@
 //   slug               truthy         as-is
 //   logo               always         null → undefined
 //   contactEmail       defined        null → undefined
-//   responseSlaHours   defined        as-is
 
 export type UpdateOrganizationInput = Readonly<{
   name?: string
   slug?: string
   logo?: string | null
   contactEmail?: string | null
-  /** Response SLA in hours for unanswered-review alerts. Positive integer. */
-  responseSlaHours?: number
 }>
 
 type Inclusion = 'truthy' | 'defined' | 'always'
@@ -35,7 +32,6 @@ const FIELD_SPECS: ReadonlyArray<FieldSpec> = [
   { field: 'slug', include: 'truthy', nullToUndefined: false },
   { field: 'logo', include: 'always', nullToUndefined: true },
   { field: 'contactEmail', include: 'defined', nullToUndefined: true },
-  { field: 'responseSlaHours', include: 'defined', nullToUndefined: false },
 ]
 
 function shouldInclude(spec: FieldSpec, value: unknown): boolean {

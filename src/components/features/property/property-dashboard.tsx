@@ -1,23 +1,26 @@
 import { Link } from '@tanstack/react-router'
 import { MessageSquare, Star, ScanLine, MessageCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { cn } from '#/lib/utils'
 import type {
   AttentionSignals,
   DashboardData,
 } from '#/contexts/dashboard/application/public-api'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
-import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import type { PropertyPerformancePreset } from '#/shared/google-performance-report-contract'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { KPICard, RatingDistributionChart } from './property-dashboard-helpers'
+import {
+  KPICard,
+  RatingDistributionChart,
+  RatingKPICard,
+} from './property-dashboard-helpers'
 import { StatGrid } from './property-stat-grid'
 import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
 import { ReviewRow } from './property-dashboard-review-row'
 import { AttentionBand } from './attention-band'
 import { GooglePerformanceSection } from './google-performance-section'
 import type { GooglePerformanceServerFns } from './use-google-performance'
+import { TimeRangePicker } from '#/components/features/dashboard/time-range-picker'
 import {
   PropertyAiTrendSection,
   type PropertyAiTrendServerFn,
@@ -76,44 +79,18 @@ export function PropertyDashboard({
           { label: property.name },
           { label: 'Overview' },
         ]}
-        actions={
-          <div
-            role="group"
-            aria-label="Time range"
-            className="inline-flex h-9 min-w-0 shrink-0 flex-wrap items-center justify-center gap-1 rounded-lg bg-muted p-[3px] text-muted-foreground"
-          >
-            {TIME_RANGE_OPTIONS.map((opt) => {
-              const isActive = opt.value === timeRange
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  aria-pressed={isActive}
-                  onClick={() => onTimeRangeChange(opt.value)}
-                  className={cn(
-                    'inline-flex h-[calc(100%-1px)] items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all hover:text-foreground',
-                    isActive
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-foreground/60',
-                  )}
-                >
-                  {opt.label}
-                </button>
-              )
-            })}
-          </div>
-        }
+        actions={<TimeRangePicker timeRange={timeRange} onChange={onTimeRangeChange} />}
       />
 
       <AttentionBand signals={signals} propertyId={propertyId} />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <KPICard label="Reviews" kpi={kpis.reviews} icon={MessageSquare} />
-        <KPICard
+        <RatingKPICard
           label="Avg Rating"
           kpi={kpis.avgRating}
           icon={Star}
-          formatValue={(v) => v.toFixed(1)}
+          timeRange={timeRange}
         />
         <KPICard label="Scans" kpi={kpis.scans} icon={ScanLine} />
         <KPICard label="Feedback" kpi={kpis.feedback} icon={MessageCircle} />

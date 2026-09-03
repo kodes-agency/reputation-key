@@ -242,7 +242,7 @@ describe('context-layer filename standards matrix proof', () => {
       dashboard: [7, '7ea6222b1880ab6322a4b4230640b040e942e7aeba1f7ba71b8f8b89c88a93b0'],
       goal: [27, 'd898c7dddb7aae32be87fc568744a14fbb868abb2a68e4c103414f43e0efe2f0'],
       guest: [26, '5625f323d214e0b0ef21a6cc45f6dc60ee195be4a6f7eaef2cf7c28a95063fce'],
-      identity: [47, '0498ef3fa8015e5ee244276c3fa449fafa2ab175f3ee882e30b2c8323ac65b0e'],
+      identity: [46, 'fb8ce6b918dffb60e1a3d8c5460e29acefec2dfc1e0d18ffb1df998955c8aa78'],
       inbox: [23, '974f080ca2c210e507fa97d9039560a3b135dda052d39b4ee67a155a9f3ea828'],
       integration: [
         17,

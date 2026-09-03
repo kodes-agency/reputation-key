@@ -64,6 +64,12 @@ const ctx = createScopedAuthContext({
 
 const store = (): ResponseTargetStore => ({
   getCycleTarget: vi.fn(async () => null),
+  getGoogleReviewTargetCountsByProperty: vi.fn(
+    async ({
+      propertyIds,
+    }: Parameters<ResponseTargetStore['getGoogleReviewTargetCountsByProperty']>[0]) =>
+      new Map(propertyIds.map((id) => [id, { activeCount: 0, overdueCount: 0 }])),
+  ),
   getPrivateFeedbackAnalytics: vi.fn(async () => ({
     targetKind: 'private_feedback_handling' as const,
     measuredCycleCount: 0,

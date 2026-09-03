@@ -14,13 +14,13 @@ const metricKpi = (value: number, priorValue: number, trend: number): MetricKPIV
   trend,
   evidence: {
     current: {
-      state: 'available',
+      state: 'ready',
       definitionVersionId: 'overview-current',
       sampleCount: value,
       minimumSample: 1,
     },
     prior: {
-      state: 'available',
+      state: 'ready',
       definitionVersionId: 'overview-prior',
       sampleCount: priorValue,
       minimumSample: 1,
@@ -33,13 +33,30 @@ describe('getPropertyOverview', () => {
     const repo = createInMemoryDashboardRepository()
     repo.kpisOverride = {
       reviews: { value: 12, priorValue: 10, trend: 20 },
-      avgRating: { value: 4, priorValue: 4.4, trend: -9 },
+      avgRating: {
+        value: 4,
+        priorValue: 4.4,
+        comparison: -0.4,
+        sampleCount: 12,
+        priorSampleCount: 10,
+        evidence: {
+          definitionVersionId: null,
+          state: 'ready',
+          verifiedThrough: NOW,
+          latestActivity: NOW,
+          computedAt: NOW,
+          completeness: 1,
+          availabilityReason: null,
+          correctionHead: null,
+          sampleCount: 12,
+        },
+      },
       scans: metricKpi(100, 80, 25),
       feedback: metricKpi(20, 15, 33),
     }
     const attention: AttentionSignalsPort = {
       getAttentionCounts: async () => ({
-        unanswered: 3,
+        overdue: 99,
         itemsToTriage: 4,
         escalated: 2,
         goalsBehindPace: 1,
@@ -49,13 +66,28 @@ describe('getPropertyOverview', () => {
     const getOverview = getPropertyOverview({
       getDashboardData: getDashboardData({ repo }),
       attention,
+      inboxTargets: {
+        getGoogleReviewTargetCountsByProperty: async (input) => {
+          expect(input).toEqual({
+            organizationId: organizationId('org-overview'),
+            propertyIds: [propertyId('a0000000-0000-4000-8000-000000000001')],
+            now: NOW,
+          })
+          return new Map([
+            [
+              propertyId('a0000000-0000-4000-8000-000000000001'),
+              { activeCount: 3, overdueCount: 3 },
+            ],
+          ])
+        },
+      },
+      clock: () => NOW,
     })
 
     const result = await getOverview({
       organizationId: organizationId('org-overview'),
       propertyId: propertyId('a0000000-0000-4000-8000-000000000001'),
       portalId: null,
-      slaHours: 48,
       startDate: new Date('2026-07-26T12:00:00.000Z'),
       endDate: NOW,
       timeRange: '30d',
@@ -64,7 +96,7 @@ describe('getPropertyOverview', () => {
 
     expect(result.dashboard.kpis).toBe(repo.kpisOverride)
     expect(result.signals).toEqual({
-      unanswered: 3,
+      overdue: 3,
       itemsToTriage: 4,
       escalated: 2,
       goalsBehindPace: 1,

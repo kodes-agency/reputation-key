@@ -130,7 +130,14 @@ describe('authenticated route', () => {
     getSession.mockResolvedValue(SESSION)
     getActiveOrganization.mockResolvedValue(ACTIVE_ORGANIZATION)
     getCapabilitySet.mockRejectedValue(
-      redirect({ to: '/unavailable', search: { feature: 'Capability' } }),
+      redirect({
+        to: '/unavailable',
+        search: {
+          feature: 'Capability',
+          category: 'needs_admin_enablement',
+          propertyId: 'property-1',
+        },
+      }),
     )
 
     const beforeLoad = Route.options.beforeLoad
@@ -141,7 +148,11 @@ describe('authenticated route', () => {
     ).rejects.toMatchObject({
       options: {
         to: '/unavailable',
-        search: { feature: 'Capability' },
+        search: {
+          feature: 'Capability',
+          category: 'needs_admin_enablement',
+          propertyId: 'property-1',
+        },
       },
     })
   })

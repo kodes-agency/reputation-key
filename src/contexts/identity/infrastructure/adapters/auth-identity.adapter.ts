@@ -38,7 +38,6 @@ import {
   listOrganizationsResponseSchema,
   betterAuthOrganizationSchema,
 } from './better-auth-schemas'
-import { extractResponseSlaHours } from '#/shared/domain/response-sla'
 import { runWithRegistrationAuthIds } from '#/shared/auth/registration-user-id'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
 import type { RequestContextPort } from '../../application/ports/request-context.port'
@@ -82,7 +81,6 @@ function toOrganizationRecord(org: {
   logo?: string | null | undefined
   createdAt: Date
   contactEmail?: string | null | undefined
-  responseSlaHours?: number | null | undefined
 }): OrganizationRecord {
   return {
     id: org.id,
@@ -91,7 +89,6 @@ function toOrganizationRecord(org: {
     logo: org.logo ?? null,
     createdAt: org.createdAt,
     contactEmail: org.contactEmail ?? null,
-    responseSlaHours: extractResponseSlaHours(org),
   }
 }
 

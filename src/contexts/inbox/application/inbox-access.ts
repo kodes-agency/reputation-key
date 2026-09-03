@@ -11,7 +11,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext, type Permission } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
-import { inboxError } from '../domain/errors'
+import { inboxError, REVISION_CONFLICT_MESSAGE } from '../domain/errors'
 
 const SOURCE_READ_PERMISSION = {
   review: 'review.read',
@@ -146,7 +146,7 @@ export const assertExpectedCommandRevision = (
   expectedCommandRevision: number,
 ): void => {
   if (item.commandRevision === expectedCommandRevision) return
-  throw inboxError('revision_conflict', 'Inbox item changed; reload current state', {
+  throw inboxError('revision_conflict', REVISION_CONFLICT_MESSAGE, {
     expectedCommandRevision,
     currentCommandRevision: item.commandRevision,
     currentStatus: item.status,

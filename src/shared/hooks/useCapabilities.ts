@@ -1,5 +1,5 @@
 // Client-side capability hook — reads the capability set resolved in the
-// `_authenticated` route context and exposes has().
+// `_authenticated` route context and exposes has() and refusal().
 //
 // Capabilities are NOT permissions. Permissions are role-based ("may this role
 // do X?") and stay in usePermissions(); capabilities are feature-gate-based
@@ -13,11 +13,13 @@
 import { useRouteContext } from '@tanstack/react-router'
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { CapabilitySet } from '#/shared/auth/capability-set'
+import type { CapabilityRefusalCategory } from '#/shared/auth/capability-refusal-category'
 
 type RouteCtx = { capabilities: CapabilitySet | undefined }
 
 export type Capabilities = Readonly<{
   has: (capability: Capability) => boolean
+  refusal: (capability: Capability) => CapabilityRefusalCategory | null
   /** Allowed capabilities for the property in scope; empty when unresolved. */
   all: ReadonlyArray<Capability>
 }>
@@ -32,9 +34,12 @@ export function useCapabilities(): Capabilities {
   // worse bug than one that is shown and then refused by the gate — and the
   // gate is the boundary. Once a set exists, absence of a capability means off.
   const resolved = capabilities?.allowed
+  const refused = capabilities?.refused
   return {
     has: (capability: Capability) =>
       resolved === undefined || resolved.includes(capability),
+    refusal: (capability: Capability) =>
+      refused?.find((entry) => entry.capability === capability)?.category ?? null,
     all: resolved ?? [],
   }
 }

@@ -10,12 +10,11 @@ describe('updateOrganizationInputSchema beta contract', () => {
     expect(result.success).toBe(false)
   })
 
-  it('retains active identity, logo, and response settings', () => {
+  it('retains active identity and logo settings', () => {
     expect(
       updateOrganizationInputSchema.safeParse({
         name: 'Meridian Hotels',
         logo: null,
-        responseSlaHours: 24,
       }).success,
     ).toBe(true)
   })

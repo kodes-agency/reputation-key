@@ -124,7 +124,6 @@ describe('parseBetterAuthResponse', () => {
         billingCity: 'Sofia',
         billingPostalCode: '1000',
         billingCountry: 'BG',
-        responseSlaHours: 48,
       },
       'org_setup_failed',
       'bad',
@@ -136,7 +135,6 @@ describe('parseBetterAuthResponse', () => {
       slug: 'test-org',
       createdAt: new Date('2026-01-01'),
       contactEmail: 'ops@example.test',
-      responseSlaHours: 48,
     })
   })
 })

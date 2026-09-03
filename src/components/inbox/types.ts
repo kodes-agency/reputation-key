@@ -47,8 +47,11 @@ export type InboxServerFns = Readonly<{
   generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 
-/** The 2 fns the inbox detail content subtree consumes (timeline, notes). */
+/** Functions consumed by the Inbox detail content subtree. */
 export type InboxDetailFns = Pick<
   InboxServerFns,
-  'getActivityTimeline' | 'addInboxNote' | 'generateReplySuggestion'
+  | 'getInboxItemDetail'
+  | 'getActivityTimeline'
+  | 'addInboxNote'
+  | 'generateReplySuggestion'
 >

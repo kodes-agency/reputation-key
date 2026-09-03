@@ -5,7 +5,7 @@
  */
 export type {
   KPIValue,
-  MetricKPIDataState,
+  MetricAvailabilityState,
   MetricKPIPeriodEvidence,
   MetricKPIValue,
   KPIs,
@@ -14,9 +14,8 @@ export type {
   DashboardData,
   PortalKPIs,
   PortalCountKPIValue,
-  PortalMetricDataState,
   PortalMetricEvidence,
-  PortalRatingKPIValue,
+  RatingKPIValue,
   PortalAnalyticsData,
   PortalLifetimeReconciliationState,
   PortalResponseIntegritySummary,

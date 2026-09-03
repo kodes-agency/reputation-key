@@ -22,7 +22,6 @@ export type FleetOverviewProjectionInput = Readonly<{
   /** Null means the unbounded All Time period; otherwise local calendar days. */
   periodDays: number | null
   now: Date
-  slaCutoff: Date
 }>
 
 export type FleetOverviewProjectionRow = Readonly<{
@@ -32,15 +31,15 @@ export type FleetOverviewProjectionRow = Readonly<{
   timezone: string
   reviewCount: number
   priorReviewCount: number
-  avgRating: number
-  priorAvgRating: number
+  avgRating: number | null
+  priorAvgRating: number | null
   scanCount: number
   feedbackCount: number
-  unanswered: number
+  overdue: number
   itemsToTriage: number
   escalated: number
   goalsBehindPace: number
-  /** Distinct unanswered/Inbox/Goal work anchors, before rating-drop signal. */
+  /** Distinct Inbox/Goal work anchors, before rating-drop signal. */
   needsAttention: number
   reviewEvidence: FleetMetricEvidence
   scanEvidence: FleetMetricEvidence | null

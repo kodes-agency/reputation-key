@@ -56,13 +56,13 @@ const matrix: GoalResultsMatrixModel = {
           explanation: 'Updating: 7 is the last verified value; no outcome yet.',
           dataThrough: new Date('2026-07-20T04:00:00.000Z'),
         }),
-        row('insufficient', {
+        row('insufficient-data', {
           scope: 'portal',
           subject: { kind: 'portal', portalId: 'portal-1' },
           subjectName: 'Breakfast cards',
           ungroupedPortal: true,
           metric: 'portal_rating_average',
-          availability: 'insufficient',
+          availability: 'insufficient_data',
           outcome: 'pending',
           evidence: {
             kind: 'average',
@@ -72,12 +72,12 @@ const matrix: GoalResultsMatrixModel = {
           },
           explanation: 'Insufficient data: 6 of 10 required eligible ratings are ready.',
         }),
-        row('unavailable', {
+        row('temporarily-unavailable', {
           scope: 'portal',
           subject: { kind: 'portal', portalId: 'portal-2' },
           subjectName: 'Lobby NFC',
           metric: 'portal_rating_count',
-          availability: 'unavailable',
+          availability: 'temporarily_unavailable',
           outcome: 'pending',
           evidence: { kind: 'count', value: null, sampleCount: 0 },
           explanation:
@@ -110,7 +110,12 @@ export const AllEvidenceStates: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Goal Results Matrix')).toBeVisible()
-    for (const label of ['Ready', 'Updating', 'Insufficient', 'Unavailable']) {
+    for (const label of [
+      'Ready',
+      'Updating',
+      'Insufficient data',
+      'Temporarily unavailable',
+    ]) {
       await expect(canvas.getByText(label)).toBeVisible()
     }
     await expect(canvas.getByText('Ungrouped Portal')).toBeVisible()

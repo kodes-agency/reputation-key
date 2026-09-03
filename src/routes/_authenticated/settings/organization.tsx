@@ -11,10 +11,6 @@ import {
   finalizeOrgLogoUpload,
 } from '#/contexts/identity/server/organizations'
 import {
-  getOrgResponseSlaFn,
-  updateOrgResponseSlaFn,
-} from '#/contexts/identity/server/organizations.response-sla'
-import {
   getGoogleReviewTargetAnalyticsFn,
   getPrivateFeedbackTargetAnalyticsFn,
   getResponseTargetPolicySettingsFn,
@@ -27,12 +23,6 @@ import { identityKeys, inboxKeys } from '#/shared/queries/query-keys'
 const activeOrgQuery = queryOptions({
   queryKey: identityKeys.activeOrg(),
   queryFn: () => getActiveOrganization(),
-  staleTime: 60_000,
-})
-
-const responseSlaQuery = queryOptions({
-  queryKey: identityKeys.responseSla(),
-  queryFn: () => getOrgResponseSlaFn(),
   staleTime: 60_000,
 })
 
@@ -64,7 +54,6 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
   loader: async ({ context }) => {
     await Promise.all([
       context.queryClient.ensureQueryData(activeOrgQuery),
-      context.queryClient.ensureQueryData(responseSlaQuery),
       context.queryClient.ensureQueryData(responseTargetPolicyQuery),
       context.queryClient.ensureQueryData(privateFeedbackTargetAnalyticsQuery),
       context.queryClient.ensureQueryData(googleReviewTargetAnalyticsQuery),
@@ -78,7 +67,6 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
 function OrganizationSettingsRoute() {
   const queryClient = useQueryClient()
   const { data: orgResult } = useSuspenseQuery(activeOrgQuery)
-  const { data: slaResult } = useSuspenseQuery(responseSlaQuery)
   const { data: responseTargetSettings } = useSuspenseQuery(responseTargetPolicyQuery)
   const { data: privateFeedbackTargetAnalytics } = useSuspenseQuery(
     privateFeedbackTargetAnalyticsQuery,
@@ -87,11 +75,6 @@ function OrganizationSettingsRoute() {
     googleReviewTargetAnalyticsQuery,
   )
   const organization = orgResult.organization
-  const responseSlaHours = slaResult.responseSlaHours
-  const updateResponseSla = useActionMutation(updateOrgResponseSlaFn, {
-    successMessage: 'Response SLA updated',
-    invalidateKeys: [identityKeys.responseSla(), identityKeys.activeOrg()],
-  })
   const updateResponseTargetPolicy = useActionMutation(setResponseTargetPolicyFn, {
     successMessage: 'Response target updated',
     invalidateKeys: [inboxKeys.responseTargetPolicies()],
@@ -110,8 +93,6 @@ function OrganizationSettingsRoute() {
       {organization ? (
         <OrganizationSettingsPage
           organization={organization}
-          responseSlaHours={responseSlaHours}
-          updateResponseSla={updateResponseSla}
           responseTargetSettings={responseTargetSettings}
           privateFeedbackTargetAnalytics={privateFeedbackTargetAnalytics}
           googleReviewTargetAnalytics={googleReviewTargetAnalytics}

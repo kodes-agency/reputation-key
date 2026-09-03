@@ -6,7 +6,6 @@ describe('Better Auth organization input surface', () => {
     const fields = organizationSchema.organization.additionalFields
 
     expect(fields.contactEmail).toMatchObject({ input: true })
-    expect(fields.responseSlaHours).toMatchObject({ input: true })
     for (const field of [
       fields.billingCompanyName,
       fields.billingAddress,

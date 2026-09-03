@@ -16,7 +16,7 @@ export function createInMemoryDashboardRepository(): DashboardRepository & {
 } {
   const calls: string[] = []
 
-  const availableMetricKpi = (
+  const readyMetricKpi = (
     value: number,
     priorValue: number,
     trend: number | null,
@@ -26,13 +26,13 @@ export function createInMemoryDashboardRepository(): DashboardRepository & {
     trend,
     evidence: {
       current: {
-        state: 'available',
+        state: 'ready',
         definitionVersionId: 'in-memory-current-version',
         sampleCount: Math.max(value, 1),
         minimumSample: 1,
       },
       prior: {
-        state: 'available',
+        state: 'ready',
         definitionVersionId: 'in-memory-prior-version',
         sampleCount: Math.max(priorValue, 1),
         minimumSample: 1,
@@ -42,9 +42,26 @@ export function createInMemoryDashboardRepository(): DashboardRepository & {
 
   const defaultKPIs: KPIs = {
     reviews: { value: 10, priorValue: 8, trend: 25 },
-    avgRating: { value: 4.5, priorValue: 4.2, trend: 7 },
-    scans: availableMetricKpi(100, 80, 25),
-    feedback: availableMetricKpi(20, 15, 33),
+    avgRating: {
+      value: 4.5,
+      priorValue: 4.2,
+      comparison: 0.3,
+      sampleCount: 10,
+      priorSampleCount: 10,
+      evidence: {
+        definitionVersionId: null,
+        state: 'ready',
+        verifiedThrough: new Date('2026-05-20T12:00:00.000Z'),
+        latestActivity: new Date('2026-05-20T10:00:00.000Z'),
+        computedAt: new Date('2026-05-20T12:00:00.000Z'),
+        completeness: 1,
+        availabilityReason: null,
+        correctionHead: null,
+        sampleCount: 10,
+      },
+    },
+    scans: readyMetricKpi(100, 80, 25),
+    feedback: readyMetricKpi(20, 15, 33),
   }
 
   // Use a mutable container so tests can set kpisOverride and engagementFunnelOverride
@@ -56,7 +73,12 @@ export function createInMemoryDashboardRepository(): DashboardRepository & {
 
   const withoutComparison = (kpis: KPIs): KPIs => ({
     reviews: { ...kpis.reviews, priorValue: 0, trend: null },
-    avgRating: { ...kpis.avgRating, priorValue: 0, trend: null },
+    avgRating: {
+      ...kpis.avgRating,
+      priorValue: null,
+      comparison: null,
+      priorSampleCount: 0,
+    },
     scans: {
       ...kpis.scans,
       priorValue: null,

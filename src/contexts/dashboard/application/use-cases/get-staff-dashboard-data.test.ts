@@ -8,7 +8,7 @@ import { organizationId, propertyId, portalId, userId } from '#/shared/domain/id
 import type { PortalId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { StaffPortalResolverPort } from '../ports/staff-portal-resolver.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { MetricKPIValue } from '../../domain/types'
+import type { MetricKPIValue, RatingKPIValue } from '../../domain/types'
 
 const MS_PER_DAY = 86_400_000
 
@@ -27,19 +27,37 @@ const metricKpi = (value: number, priorValue: number, trend: number): MetricKPIV
   trend,
   evidence: {
     current: {
-      state: 'available',
+      state: 'ready',
       definitionVersionId: 'staff-test-current',
       sampleCount: value,
       minimumSample: 1,
     },
     prior: {
-      state: 'available',
+      state: 'ready',
       definitionVersionId: 'staff-test-prior',
       sampleCount: priorValue,
       minimumSample: 1,
     },
   },
 })
+const ratingKpi: RatingKPIValue = {
+  value: 3.8,
+  priorValue: 3.5,
+  comparison: 0.3,
+  sampleCount: 12,
+  priorSampleCount: 10,
+  evidence: {
+    definitionVersionId: null,
+    state: 'ready',
+    verifiedThrough: new Date('2025-06-15T12:00:00.000Z'),
+    latestActivity: null,
+    computedAt: new Date('2025-06-15T12:00:00.000Z'),
+    completeness: 1,
+    availabilityReason: null,
+    correctionHead: null,
+    sampleCount: 12,
+  },
+}
 
 type TestResolver = StaffPortalResolverPort & {
   setPortals: (portals: ReadonlyArray<PortalId>) => void
@@ -88,11 +106,12 @@ describe('getStaffDashboardData (use case)', () => {
     expect(result.kpis.reviews.value).toBe(0)
     expect(result.kpis.reviews.priorValue).toBe(0)
     expect(result.kpis.reviews.trend).toBeNull()
-    expect(result.kpis.avgRating.value).toBe(0)
+    expect(result.kpis.avgRating.value).toBeNull()
+    expect(result.kpis.avgRating.evidence.state).toBe('insufficient_data')
     expect(result.kpis.scans.value).toBeNull()
-    expect(result.kpis.scans.evidence.current.state).toBe('unavailable')
+    expect(result.kpis.scans.evidence.current.state).toBe('temporarily_unavailable')
     expect(result.kpis.feedback.value).toBeNull()
-    expect(result.kpis.feedback.evidence.current.state).toBe('unavailable')
+    expect(result.kpis.feedback.evidence.current.state).toBe('temporarily_unavailable')
   })
 
   it('returns KPIs from repo when portals exist', async () => {
@@ -140,7 +159,7 @@ describe('getStaffDashboardData (use case)', () => {
     // Override KPIs to have distinct values for testing
     repo.kpisOverride = {
       reviews: { value: 5, priorValue: 3, trend: 67 },
-      avgRating: { value: 3.8, priorValue: 3.5, trend: 9 },
+      avgRating: ratingKpi,
       scans: metricKpi(50, 40, 25),
       feedback: metricKpi(10, 8, 25),
     }
@@ -206,7 +225,7 @@ describe('getStaffDashboardData (use case)', () => {
     expect(result.hasAssignments).toBe(true)
     expect(result.kpis.reviews.value).toBe(0)
     expect(result.kpis.scans.value).toBeNull()
-    expect(result.kpis.scans.evidence.current.state).toBe('unavailable')
+    expect(result.kpis.scans.evidence.current.state).toBe('temporarily_unavailable')
   })
 
   it('does not present all-time KPI self-comparisons as real trends', async () => {
@@ -238,11 +257,9 @@ describe('getStaffDashboardData (use case)', () => {
     expect(result.hasAssignments).toBe(true)
     expect(repo.calls).toContain('getKPIsForPortals')
     expect(result.kpis.reviews.value).toBeGreaterThan(0)
-    expect(Object.values(result.kpis).map((kpi) => kpi.trend)).toEqual([
-      null,
-      null,
-      null,
-      null,
-    ])
+    expect(result.kpis.reviews.trend).toBeNull()
+    expect(result.kpis.avgRating.comparison).toBeNull()
+    expect(result.kpis.scans.trend).toBeNull()
+    expect(result.kpis.feedback.trend).toBeNull()
   })
 })

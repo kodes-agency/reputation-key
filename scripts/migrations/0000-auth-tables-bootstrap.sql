@@ -45,7 +45,6 @@ CREATE TABLE IF NOT EXISTS "organization" (
     "billingCity" text,
     "billingPostalCode" text,
     "billingCountry" text,
-    "responseSlaHours" integer,
     CONSTRAINT organization_pkey PRIMARY KEY (id),
     CONSTRAINT organization_slug_key UNIQUE (slug)
 );

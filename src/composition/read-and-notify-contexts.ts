@@ -29,6 +29,7 @@ import type { buildPortalContext } from '#/contexts/portal/build'
 import type { buildGuestContext } from '#/contexts/guest/build'
 import type { buildReviewContext } from '#/contexts/review/build'
 import type { buildIdentityContext } from '#/contexts/identity/build'
+import type { InboxContextApi } from '#/contexts/inbox/build'
 
 export type ReadAndNotifyContextsInput = Readonly<{
   db: Database
@@ -44,6 +45,7 @@ export type ReadAndNotifyContextsInput = Readonly<{
   guest: ReturnType<typeof buildGuestContext>
   review: ReturnType<typeof buildReviewContext>
   identity: ReturnType<typeof buildIdentityContext>
+  inbox: InboxContextApi
   /** Review-owned governed serving reads, forwarded to Dashboard. */
   reviewServingStats: ReturnType<typeof buildReviewContext>['lookups']['servingStats']
 }>
@@ -99,6 +101,7 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
     staffPublicApi: input.staff.publicApi,
     clock: input.clock,
     reviewServingStats: input.reviewServingStats,
+    inboxTargets: input.inbox.publicApi,
     guestResponseIntegrity: input.guest.publicApi,
     portalMetrics: metricApi.publicApi.portalAnalytics,
     portalLifetime: metricApi.publicApi.portalLifetime,

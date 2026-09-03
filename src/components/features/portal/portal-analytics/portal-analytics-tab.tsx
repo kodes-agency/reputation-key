@@ -9,7 +9,7 @@ import {
   type TimeRangePreset,
 } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
-import { TimeRangePicker } from './portal-analytics-time-range-picker'
+import { TimeRangePicker } from '#/components/features/dashboard/time-range-picker'
 import { BarChart3, MessageCircle, MousePointerClick, ScanLine } from 'lucide-react'
 import {
   ChartCard,
@@ -124,10 +124,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
   if (!hasData && !hasPendingState) {
     return (
       <div className="space-y-6">
-        <TimeRangePicker
-          timeRange={timeRange}
-          onChange={(v) => setTimeRange(v as TimeRangePreset)}
-        />
+        <TimeRangePicker timeRange={timeRange} onChange={setTimeRange} />
         {data.lifetimeReconciliation !== null && (
           <PortalLifetimeReconciliationSummary
             state={data.lifetimeReconciliation}
@@ -147,10 +144,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
 
   return (
     <div className="space-y-8">
-      <TimeRangePicker
-        timeRange={timeRange}
-        onChange={(v) => setTimeRange(v as TimeRangePreset)}
-      />
+      <TimeRangePicker timeRange={timeRange} onChange={setTimeRange} />
       {data.lifetimeReconciliation !== null && (
         <PortalLifetimeReconciliationSummary
           state={data.lifetimeReconciliation}

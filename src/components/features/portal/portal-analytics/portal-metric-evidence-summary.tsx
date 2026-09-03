@@ -1,13 +1,13 @@
-import type { PortalMetricEvidenceView } from './portal-metric-evidence-presentation'
+import type { PortalMetricEvidence } from '#/contexts/dashboard/application/public-api'
 import {
   formatEvidenceTime,
-  portalMetricAvailabilityDetail,
-  portalMetricStateLabel,
-} from './portal-metric-evidence-presentation'
+  metricAvailabilityDetail,
+  metricStateLabel,
+} from '#/components/features/dashboard/metric-availability-presentation'
 
 type EvidenceEntry = Readonly<{
   label: string
-  evidence: PortalMetricEvidenceView
+  evidence: PortalMetricEvidence
 }>
 
 export function PortalMetricEvidenceSummary({
@@ -43,7 +43,7 @@ export function PortalMetricEvidenceSummary({
             {entries.map(({ label, evidence }) => (
               <tr key={label} className="border-t">
                 <th className="py-2 pr-4 font-medium">{label}</th>
-                <td className="py-2 pr-4">{portalMetricStateLabel(evidence.state)}</td>
+                <td className="py-2 pr-4">{metricStateLabel(evidence.state)}</td>
                 <td className="py-2 pr-4 tabular-nums">
                   {formatEvidenceTime(evidence.verifiedThrough, undefined, timeZone)}
                 </td>
@@ -57,7 +57,7 @@ export function PortalMetricEvidenceSummary({
                   {Math.round(evidence.completeness * 100)}%
                 </td>
                 <td className="py-2">
-                  {portalMetricAvailabilityDetail(evidence.availabilityReason)}
+                  {metricAvailabilityDetail(evidence.availabilityReason)}
                 </td>
               </tr>
             ))}

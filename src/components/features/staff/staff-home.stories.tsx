@@ -9,7 +9,7 @@
 // States: Populated (KPIs + recent activity), Loading
 // (suspense pending), Empty (property selected but no portal responsibility →
 // StaffEmptyState), Error (a query rejects → error boundary).
-import type { Meta, StoryObj } from '@storybook/react'
+import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import { Component, Suspense, useState, type ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -28,7 +28,11 @@ import { mockServerFn } from '../../../../.storybook/mocks/mock-action'
 import type { getStaffDashboardDataFn } from '#/contexts/dashboard/server/staff-dashboard'
 import type { listStaffPortals } from '#/contexts/staff/server/staff-portals'
 import type { getStaffRecentActivity } from '#/contexts/review/server/staff-recent-activity'
-import type { KPIs, MetricKPIValue } from '#/contexts/dashboard/application/public-api'
+import type {
+  KPIs,
+  MetricKPIValue,
+  RatingKPIValue,
+} from '#/contexts/dashboard/application/public-api'
 import type { StaffPortalEntry } from '#/contexts/staff/application/public-api'
 import type { StaffRecentReview } from '#/contexts/review/application/public-api'
 import { portalId } from '#/shared/domain/ids'
@@ -37,7 +41,7 @@ import { portalId } from '#/shared/domain/ids'
 
 const PORTAL_ID = portalId('portal-00000000-0000-0000-0000-000000000051')
 
-const availableMetricKpi = (
+const readyMetricKpi = (
   value: number,
   priorValue: number,
   trend: number,
@@ -47,13 +51,13 @@ const availableMetricKpi = (
   trend,
   evidence: {
     current: {
-      state: 'available',
+      state: 'ready',
       definitionVersionId: 'staff-story-current',
       sampleCount: Math.max(value, 1),
       minimumSample: 1,
     },
     prior: {
-      state: 'available',
+      state: 'ready',
       definitionVersionId: 'staff-story-prior',
       sampleCount: Math.max(priorValue, 1),
       minimumSample: 1,
@@ -61,13 +65,13 @@ const availableMetricKpi = (
   },
 })
 
-const unavailableMetricKpi: MetricKPIValue = {
+const temporarilyUnavailableMetricKpi: MetricKPIValue = {
   value: null,
   priorValue: null,
   trend: null,
   evidence: {
     current: {
-      state: 'unavailable',
+      state: 'temporarily_unavailable',
       definitionVersionId: null,
       sampleCount: 0,
       minimumSample: null,
@@ -76,11 +80,38 @@ const unavailableMetricKpi: MetricKPIValue = {
   },
 }
 
+const readyRatingEvidence: RatingKPIValue['evidence'] = {
+  definitionVersionId: null,
+  state: 'ready',
+  verifiedThrough: new Date('2026-07-20T12:00:00.000Z'),
+  latestActivity: new Date('2026-07-20T10:00:00.000Z'),
+  computedAt: new Date('2026-07-20T12:00:00.000Z'),
+  completeness: 1,
+  availabilityReason: null,
+  correctionHead: null,
+  sampleCount: 42,
+}
+
+const insufficientRatingEvidence: RatingKPIValue['evidence'] = {
+  ...readyRatingEvidence,
+  state: 'insufficient_data',
+  verifiedThrough: null,
+  latestActivity: null,
+  sampleCount: 0,
+}
+
 const populatedKpis: KPIs = {
   reviews: { value: 42, priorValue: 35, trend: 20 },
-  avgRating: { value: 4.3, priorValue: 4.1, trend: 4.9 },
-  scans: availableMetricKpi(128, 140, -8.6),
-  feedback: availableMetricKpi(7, 5, 40),
+  avgRating: {
+    value: 4.3,
+    priorValue: 4.1,
+    comparison: 0.2,
+    sampleCount: 42,
+    priorSampleCount: 35,
+    evidence: readyRatingEvidence,
+  },
+  scans: readyMetricKpi(128, 140, -8.6),
+  feedback: readyMetricKpi(7, 5, 40),
 }
 
 const portals: ReadonlyArray<StaffPortalEntry> = [
@@ -305,9 +336,16 @@ export const Empty: Story = {
       getStaffDashboardData: mockServerFn(async () => ({
         kpis: {
           reviews: { value: 0, priorValue: 0, trend: null },
-          avgRating: { value: 0, priorValue: 0, trend: null },
-          scans: unavailableMetricKpi,
-          feedback: unavailableMetricKpi,
+          avgRating: {
+            value: null,
+            priorValue: null,
+            comparison: null,
+            sampleCount: 0,
+            priorSampleCount: 0,
+            evidence: insufficientRatingEvidence,
+          },
+          scans: temporarilyUnavailableMetricKpi,
+          feedback: temporarilyUnavailableMetricKpi,
         },
         hasAssignments: false,
       })) as unknown as typeof getStaffDashboardDataFn,

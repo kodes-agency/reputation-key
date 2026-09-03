@@ -27,7 +27,7 @@ export class ServerFunctionError extends Error {
  */
 export function throwContextError(
   errorName: string,
-  e: { code: string; message: string },
+  e: { code: string; message: string; context?: Record<string, unknown> },
   status: number,
 ): never {
   const ctx = getRequestContext()
@@ -40,6 +40,10 @@ export function throwContextError(
       code: e.code,
       status,
       message: e.message,
+      // The wire error deliberately carries no context (it can name internal
+      // state), but an operator diagnosing a refusal needs it — a conflict
+      // without the two revisions is unactionable.
+      ...(e.context ? { context: e.context } : {}),
     },
     `← THROW ${errorName}(${e.code}) → ${status}`,
   )

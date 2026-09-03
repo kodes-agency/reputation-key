@@ -50,19 +50,15 @@ export function AttentionBand({ signals, propertyId }: AttentionBandProps) {
   // use `sourceType` only when the signal itself is source-specific.
   const chips: ReactNode[] = []
 
-  if (signals.unanswered > 0) {
+  if (signals.overdue > 0) {
     chips.push(
       <Link
-        key="unanswered"
+        key="overdue"
         to="/inbox"
         search={{ propertyId, sourceType: 'review' }}
         className={cn(CHIP_BASE, TONE_CLASS.destructive)}
       >
-        <ChipContent
-          icon={Clock}
-          count={signals.unanswered}
-          label={signals.unanswered === 1 ? 'review unanswered' : 'reviews unanswered'}
-        />
+        <ChipContent icon={Clock} count={signals.overdue} label="Overdue" />
       </Link>,
     )
   }

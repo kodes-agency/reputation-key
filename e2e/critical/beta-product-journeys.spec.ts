@@ -23,15 +23,27 @@ import {
   seedGoogleConnection,
 } from '../helpers/fixtures'
 import { mailStubControl } from '../fixtures/mail-stub'
+import {
+  REFUSAL_COPY,
+  type CapabilityRefusalCategory,
+} from '../../src/shared/auth/capability-refusal-category'
 
 const seed = requireE2eSeedState()
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
 const BASE_HOST = new URL(BASE_ORIGIN).host
 
-async function expectControlledUnavailable(page: Page, feature: string) {
+async function expectControlledUnavailable(
+  page: Page,
+  feature: string,
+  category: CapabilityRefusalCategory,
+) {
   await expect(page).toHaveURL(/\/unavailable/)
-  expect(new URL(page.url()).searchParams.get('feature')).toBe(feature)
-  await expect(page.getByText(`${feature} is not available in this beta`)).toBeVisible()
+  const search = new URL(page.url()).searchParams
+  expect(search.get('feature')).toBe(feature)
+  expect(search.get('category')).toBe(category)
+  const copy = REFUSAL_COPY[category]
+  await expect(page.getByText(copy.title(feature))).toBeVisible()
+  await expect(page.getByText(copy.description)).toBeVisible()
 }
 
 /**
@@ -322,9 +334,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
 
     await page.goto(`/properties/${seed.p2PropertyId}/portals`)
-    await expectControlledUnavailable(page, 'Portals')
+    await expectControlledUnavailable(page, 'Portals', 'needs_admin_enablement')
     await page.goto(`/properties/${seed.p3PropertyId}/portals`)
-    await expectControlledUnavailable(page, 'Portals')
+    await expectControlledUnavailable(page, 'Portals', 'needs_admin_enablement')
     await page.goto(`/p/${seed.p2PortalToken}`)
     await expectPublicUnavailable(page)
     await expect(page.getByText('E2E Guest Portal P2')).toHaveCount(0)
@@ -346,16 +358,24 @@ test.describe('Critical: beta-local-1 product journeys', () => {
   }) => {
     await signIn(page, seed.lockedManagerEmail, seed.lockedManagerPassword, BASE_ORIGIN)
 
-    for (const [url, feature] of [
-      [`/properties/${seed.p3PropertyId}/portals`, 'Portals'],
-      [`/properties/${seed.p3PropertyId}/goals`, 'Goals'],
+    for (const [url, feature, category] of [
+      [`/properties/${seed.p3PropertyId}/portals`, 'Portals', 'needs_admin_enablement'],
+      [`/properties/${seed.p3PropertyId}/goals`, 'Goals', 'needs_admin_enablement'],
       [
         `/leaderboard?propertyId=${seed.p3PropertyId}&portalGroupId=${seed.portalGroupId}`,
         'Achievement Board',
+        // leaderboard.use is legacy_blocked, and the blocked check precedes
+        // every tenancy check — so this is a beta-scope refusal, not an
+        // enablement one.
+        'not_in_beta',
       ],
-    ] as const) {
+    ] as const satisfies readonly (readonly [
+      string,
+      string,
+      CapabilityRefusalCategory,
+    ])[]) {
       await page.goto(url)
-      await expectControlledUnavailable(page, feature)
+      await expectControlledUnavailable(page, feature, category)
     }
 
     const emailDenial = await callServerFnExpectError(page, {
@@ -395,7 +415,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     })
     try {
       await page.goto(`/properties/${seed.p1PropertyId}/portals`)
-      await expectControlledUnavailable(page, 'Portals')
+      // The property is suspended, and the suspension check precedes tenancy.
+      await expectControlledUnavailable(page, 'Portals', 'temporarily_unavailable')
       await page.goto(`/p/${seed.portalToken}`)
       await expectPublicUnavailable(page)
     } finally {
@@ -529,9 +550,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByText(activeGoalName, { exact: true })).toBeVisible()
 
     await page.goto(`/properties/${seed.p2PropertyId}/goals`)
-    await expectControlledUnavailable(page, 'Goals')
+    await expectControlledUnavailable(page, 'Goals', 'needs_admin_enablement')
     await page.goto(`/properties/${seed.p3PropertyId}/goals/${governedGoalDefinitionId}`)
-    await expectControlledUnavailable(page, 'Goals')
+    await expectControlledUnavailable(page, 'Goals', 'needs_admin_enablement')
   })
 
   test('manager creates, revises, pauses, resumes, and cancels a governed P1 group Goal', async ({
@@ -657,11 +678,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
   }) => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
     await page.goto(`/settings/recognition?propertyId=${seed.p1PropertyId}`)
-    await expectControlledUnavailable(page, 'Recognition')
+    await expectControlledUnavailable(page, 'Recognition', 'not_in_beta')
     await page.goto(
       `/leaderboard?propertyId=${seed.p1PropertyId}&portalGroupId=${seed.portalGroupId}`,
     )
-    await expectControlledUnavailable(page, 'Achievement Board')
+    await expectControlledUnavailable(page, 'Achievement Board', 'not_in_beta')
 
     expect(
       [
@@ -894,9 +915,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByText('E2E Locked Hotel P3', { exact: true })).toHaveCount(0)
 
     await p1Row.click()
+    // S4: the property dashboard opens on the bounded, comparable 30-day
+    // period, not the unbounded all-time one.
     await expect(page).toHaveURL(
       new RegExp(
-        `/properties/${seed.p1PropertyId}\\?timeRange=all&performanceRange=30d$`,
+        `/properties/${seed.p1PropertyId}\\?timeRange=30d&performanceRange=30d$`,
       ),
     )
     await page.goBack()

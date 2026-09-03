@@ -215,7 +215,6 @@ async function readPayload(
               "billingCity" AS billing_city,
               "billingPostalCode" AS billing_postal_code,
               "billingCountry" AS billing_country,
-              "responseSlaHours" AS response_sla_hours,
               to_char("createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at
             FROM organization
             WHERE id = ${organizationId}`,

@@ -42,10 +42,10 @@ const signalsOf = (signals: AttentionSignals): readonly Signal[] =>
       urgent: true,
     },
     {
-      key: 'unanswered',
+      key: 'overdue',
       icon: Clock,
-      count: signals.unanswered,
-      label: signals.unanswered === 1 ? 'unanswered' : 'unanswered',
+      count: signals.overdue,
+      label: 'overdue',
       urgent: false,
     },
     {

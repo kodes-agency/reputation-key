@@ -4,27 +4,42 @@
 import { createFileRoute, Link, useSearch } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 import { AuthCard } from '#/components/layout/auth-layout'
+import { REFUSAL_COPY } from '#/shared/auth/capability-refusal-category'
 
 const unavailableSearch = z.object({
   feature: z.string().optional(),
   reason: z.literal('workspace_access').optional(),
+  category: z
+    .enum(['not_in_beta', 'needs_admin_enablement', 'temporarily_unavailable'])
+    .optional(),
+  propertyId: z.string().optional(),
 })
 
 type UnavailableSearch = z.infer<typeof unavailableSearch>
+
+type UnavailableLink =
+  | Readonly<{
+      label: string
+      to: '/accept-invitation' | '/dashboard'
+    }>
+  | Readonly<{
+      label: string
+      to: '/properties/$propertyId/settings'
+      params: Readonly<{ propertyId: string }>
+    }>
 
 type UnavailablePageContent = Readonly<{
   title: string
   description: string
   guidance: string | null
-  link: Readonly<{
-    label: string
-    to: '/home' | '/accept-invitation'
-  }>
+  link: UnavailableLink
 }>
 
 export function unavailablePageContent({
   feature,
   reason,
+  category,
+  propertyId,
 }: UnavailableSearch): UnavailablePageContent {
   if (reason === 'workspace_access') {
     return {
@@ -40,6 +55,25 @@ export function unavailablePageContent({
     }
   }
 
+  if (category !== undefined) {
+    const copy = REFUSAL_COPY[category]
+    const link: UnavailableLink =
+      copy.next === 'property_settings' && propertyId
+        ? {
+            label: 'Open property settings',
+            to: '/properties/$propertyId/settings',
+            params: { propertyId },
+          }
+        : { label: 'Back to dashboard', to: '/dashboard' }
+
+    return {
+      title: copy.title(feature ?? 'This feature'),
+      description: copy.description,
+      guidance: null,
+      link,
+    }
+  }
+
   return {
     title: feature
       ? `${feature} is not available in this beta`
@@ -48,7 +82,7 @@ export function unavailablePageContent({
       ? `${feature} is not part of the current beta experience.`
       : 'This part of the product is disabled for the internal beta.',
     guidance: null,
-    link: { label: 'Back to home', to: '/home' },
+    link: { label: 'Back to dashboard', to: '/dashboard' },
   }
 }
 
@@ -56,6 +90,23 @@ export const Route = createFileRoute('/unavailable')({
   validateSearch: unavailableSearch,
   component: UnavailablePage,
 })
+
+function UnavailablePageLink({ link }: Readonly<{ link: UnavailableLink }>) {
+  const className = 'text-primary underline underline-offset-4'
+  if (link.to === '/properties/$propertyId/settings') {
+    return (
+      <Link to={link.to} params={link.params} className={className}>
+        {link.label}
+      </Link>
+    )
+  }
+
+  return (
+    <Link to={link.to} className={className}>
+      {link.label}
+    </Link>
+  )
+}
 
 function UnavailablePage() {
   const content = unavailablePageContent(useSearch({ from: '/unavailable' }))
@@ -67,9 +118,7 @@ function UnavailablePage() {
         </p>
       )}
       <p className="text-sm">
-        <Link to={content.link.to} className="text-primary underline underline-offset-4">
-          {content.link.label}
-        </Link>
+        <UnavailablePageLink link={content.link} />
       </p>
     </AuthCard>
   )
