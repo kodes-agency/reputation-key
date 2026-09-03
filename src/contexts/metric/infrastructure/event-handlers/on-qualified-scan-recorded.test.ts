@@ -59,6 +59,10 @@ describe('Qualified Scan metric projection', () => {
       portalGroupId: GROUP_AT_EVENT_TIME,
       definitionVersionId: '11111111-1111-4111-8111-111111111301',
       sourceEventId: event.eventId,
+      sourceReceipt: {
+        eventId: event.eventId,
+        consumerName: 'metric.guest-analytics',
+      },
       sourcePolicy: 'first_party_guest_gateway_metric',
       scope: 'portal',
       value: 1,

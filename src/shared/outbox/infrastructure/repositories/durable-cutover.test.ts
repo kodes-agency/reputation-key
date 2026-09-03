@@ -779,23 +779,17 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       occurredAt: T4,
     })
     await db.transaction((tx) => insertOutboxRow(tx, e4))
-    // Both compatibility paths are deliberately inert. Compare them in place
-    // so this receipt-only proof does not tear down and recreate the Inbox row
-    // (which would also tear down its immutable Handling Cycle anchor).
+    // Both compatibility paths are deliberately inert; the durable path records
+    // only its delivery receipt.
     await busBus.emit(e4)
-    const busPublishedOutcome = await projectionSnapshot(R3)
+    expect(await projectionSnapshot(R3)).toMatchObject({
+      status: 'open',
+      firstReplyPublishedAt: null,
+      closedAt: null,
+    })
     consumerNow = T4
     await relayNow.poll()
     await waitForReceipts([e4.eventId], PUBLISHED_CONSUMER)
-    const durablePublishedOutcome = await projectionSnapshot(R3)
-    shadowCollector.record(
-      compareInboxProjection({
-        family: 'review.reply.published',
-        eventId: e4.eventId,
-        bus: busPublishedOutcome,
-        durable: durablePublishedOutcome,
-      }),
-    )
     const receiptOnlyProjection = await projectionSnapshot(R3)
     expect(receiptOnlyProjection).toMatchObject({
       status: 'open',
@@ -851,10 +845,10 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       { consumer_name: OBSERVED_CONSUMER, status: 'applied' },
     ])
 
-    // ── Shadow summary: every compared family matches ─────────────────
+    // ── Shadow summary: the retained dual-path family matches ─────────
     const summary = shadowCollector.summary()
-    expect(summary).toMatchObject({ compared: 2, matched: 2, mismatched: 0 })
-    expect(shadowLogLines).toHaveLength(2)
+    expect(summary).toMatchObject({ compared: 1, matched: 1, mismatched: 0 })
+    expect(shadowLogLines).toHaveLength(1)
     for (const line of shadowLogLines) {
       expect(line.outcome).toBe('match')
       expect(line.mismatchFields).toEqual([])

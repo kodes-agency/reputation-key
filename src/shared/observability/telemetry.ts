@@ -152,6 +152,7 @@ export interface ErrorCaptureContext {
     | 'sidecar-process'
     | 'sidecar-startup'
     | 'sidecar-dependency'
+    | 'alert-dispatcher'
   readonly trigger?:
     | 'SIGTERM'
     | 'SIGINT'
@@ -478,7 +479,7 @@ function isDeployedProductionCell(env: ObservabilityEnvironment): boolean {
   return (
     env.NODE_ENV === 'production' &&
     typeof env.RAILWAY_ENVIRONMENT_NAME === 'string' &&
-    env.RAILWAY_ENVIRONMENT_NAME.startsWith('cell-')
+    env.RAILWAY_ENVIRONMENT_NAME.length > 0
   )
 }
 
@@ -500,7 +501,7 @@ export function buildObservabilityConfig(
 ): ObservabilityConfig {
   if (isDeployedProductionCell(env) && !env.SENTRY_DSN) {
     throw new Error(
-      '[CONFIG] SENTRY_DSN is required for every deployed production Data Cell',
+      '[CONFIG] SENTRY_DSN is required for every deployed Railway production environment',
     )
   }
   if (env.NODE_ENV === 'production' && env.SENTRY_DSN) {
@@ -599,7 +600,7 @@ export function createErrorMonitor(deps: {
         log(
           'info',
           { service: config.service },
-          'Error monitoring disabled outside a deployed production Data Cell',
+          'Error monitoring disabled outside a deployed Railway production environment',
         )
         return state
       }

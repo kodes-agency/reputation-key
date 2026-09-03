@@ -6,6 +6,8 @@
 //   2. Happy path: the reading row and the outbox_events row commit together
 //      with the same eventId, and the fact's readingId matches the row id
 //      (the store inserts the use-case-assigned id explicitly).
+//   3. Qualified Scan delivery commits its reading and consumer receipt exactly
+//      once, while a missing source event commits neither.
 
 import { randomUUID } from 'node:crypto'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
@@ -21,10 +23,22 @@ import {
   portalId,
   propertyId,
   metricReadingId,
+  portalAccessArtifactId,
+  qualifiedScanId,
 } from '#/shared/domain/ids'
-import { createReading, type MetricReading } from '../../domain/metric-reading'
+import {
+  createReading,
+  type MetricReading,
+  type ReadingResult,
+} from '../../domain/metric-reading'
 import { metricRecorded, type MetricRecorded } from '../../domain/events'
 import { createAtomicMetricCommandStore } from '../metric-command-store'
+import type { GuestQualifiedScanRecorded } from '#/contexts/guest/application/public-api'
+import { recordMetric } from '../../application/use-cases/record-metric'
+import { createMetricRegistryRepository } from './metric-registry.repository'
+import { createPropertyLocalDateResolver } from './property-local-date'
+import { onQualifiedScanRecordedDurably } from '../event-handlers/on-qualified-scan-recorded'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const ORG_ID = organizationId('org-metriccmd-0000-0000-0000-000000000001')
 const PROP_ID = propertyId('4d000000-0000-0000-0000-000000000001')
@@ -42,6 +56,11 @@ const STAFF_ATTRIBUTION = {
   effectiveFrom: STAFF_EFFECTIVE_FROM,
   effectiveTo: null,
 } as const
+const QUALIFIED_EVENT_ID = '4f000000-0000-4000-8000-000000000021'
+const MISSING_SOURCE_EVENT_ID = '4f000000-0000-4000-8000-000000000022'
+const QUALIFIED_SCAN_ID = qualifiedScanId('4f000000-0000-4000-8000-000000000023')
+const ACCESS_ARTIFACT_ID = portalAccessArtifactId('4f000000-0000-4000-8000-000000000024')
+const QUALIFIED_AT = new Date('2026-09-01T12:00:00.000Z')
 
 let pool: Pool
 const db = getDb()
@@ -101,6 +120,10 @@ async function truncateAll(p: Pool) {
      WHERE reading_id IN (
        SELECT id FROM metric_readings WHERE organization_id = $1
      )`,
+    [ORG_ID],
+  )
+  await p.query(
+    'DELETE FROM portal_metric_lifetime_aggregates WHERE organization_id = $1',
     [ORG_ID],
   )
   await p.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG_ID])
@@ -233,6 +256,118 @@ describe.sequential('metricCommandStore (integration)', () => {
       [ORG_ID, event.eventId],
     )
     expect(facts.rows).toHaveLength(1)
+  })
+
+  it('commits the qualified-scan reading and consumer receipt once or neither', async () => {
+    const sourceEvent: GuestQualifiedScanRecorded = {
+      _tag: 'guest.qualified_scan.recorded',
+      eventId: QUALIFIED_EVENT_ID,
+      correlationId: null,
+      qualifiedScanId: QUALIFIED_SCAN_ID,
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      portalId: PORTAL_ID,
+      portalGroupId: null,
+      accessArtifactId: ACCESS_ARTIFACT_ID,
+      staffAttribution: null,
+      occurredAt: QUALIFIED_AT,
+    }
+    await pool.query(
+      `INSERT INTO outbox_events (
+         id, event_type, event_version, payload, organization_id, property_id,
+         source_context, source_aggregate_id
+       ) VALUES ($1, $2, 1, $3::jsonb, $4, $5, 'guest', $6)`,
+      [
+        sourceEvent.eventId,
+        sourceEvent._tag,
+        JSON.stringify({
+          organizationId: sourceEvent.organizationId,
+          propertyId: sourceEvent.propertyId,
+          portalId: sourceEvent.portalId,
+          qualifiedScanId: sourceEvent.qualifiedScanId,
+          portalGroupId: sourceEvent.portalGroupId,
+          accessArtifactId: sourceEvent.accessArtifactId,
+          staffAttribution: sourceEvent.staffAttribution,
+          occurredAt: sourceEvent.occurredAt.toISOString(),
+        }),
+        ORG_ID,
+        PROP_ID,
+        QUALIFIED_SCAN_ID,
+      ],
+    )
+
+    const outcomes: ReadingResult[] = []
+    const project = recordMetric({
+      commandStore: createAtomicMetricCommandStore(db, silentEvents, randomUUID),
+      registry: createMetricRegistryRepository(db),
+      clock: () => QUALIFIED_AT,
+      idGen: () => metricReadingId(randomUUID()),
+      resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
+    })
+    const handler = onQualifiedScanRecordedDurably({
+      recordMetric: async (input) => {
+        const outcome = await project(input)
+        outcomes.push(outcome)
+        return outcome
+      },
+      findGroupForPortal: async () => null,
+      logger: createMockLogger(),
+    })
+
+    await handler(sourceEvent)
+    await handler(sourceEvent)
+
+    const first = outcomes[0]
+    expect(first?.status).toBe('recorded')
+    if (!first || first.status !== 'recorded') {
+      throw new Error('qualified scan was not recorded')
+    }
+    expect(outcomes[1]).toEqual({
+      status: 'duplicate',
+      existingReadingId: first.reading.id,
+    })
+
+    const readings = await pool.query(
+      `SELECT id, metric_key
+       FROM metric_readings
+       WHERE source_event_id = $1`,
+      [sourceEvent.eventId],
+    )
+    expect(readings.rows).toEqual([
+      { id: first.reading.id as string, metric_key: 'portal.qualified_scan' },
+    ])
+    const receipts = await pool.query(
+      `SELECT event_id, consumer_name, status
+       FROM event_consumer_receipts
+       WHERE event_id = $1 AND consumer_name = 'metric.guest-analytics'`,
+      [sourceEvent.eventId],
+    )
+    expect(receipts.rows).toEqual([
+      {
+        event_id: sourceEvent.eventId,
+        consumer_name: 'metric.guest-analytics',
+        status: 'applied',
+      },
+    ])
+
+    const missingSourceEvent: GuestQualifiedScanRecorded = {
+      ...sourceEvent,
+      eventId: MISSING_SOURCE_EVENT_ID,
+      qualifiedScanId: qualifiedScanId('4f000000-0000-4000-8000-000000000025'),
+    }
+    await expect(handler(missingSourceEvent)).rejects.toThrow(/Failed query/u)
+    const partial = await pool.query(
+      `SELECT
+         (
+           SELECT count(*)::int FROM metric_readings WHERE source_event_id = $1
+         ) AS reading_count,
+         (
+           SELECT count(*)::int FROM event_consumer_receipts
+           WHERE event_id = $1::uuid AND consumer_name = 'metric.guest-analytics'
+         ) AS receipt_count`,
+      [missingSourceEvent.eventId],
+    )
+    expect(partial.rows).toEqual([{ reading_count: 0, receipt_count: 0 }])
   })
 
   it('recordMetric rolls back the reading when the fact insert fails (unregistered type)', async () => {

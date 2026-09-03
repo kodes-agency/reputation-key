@@ -147,6 +147,13 @@ async function seedPublishedArtifact(): Promise<void> {
 
 async function cleanMetricState(): Promise<void> {
   await getPool().query(
+    `DELETE FROM event_consumer_receipts
+     WHERE event_id IN (
+       SELECT id FROM outbox_events WHERE organization_id = $1
+     )`,
+    [ORG],
+  )
+  await getPool().query(
     `DELETE FROM metric_corrections
      WHERE reading_id IN (
        SELECT id FROM metric_readings WHERE organization_id = $1
@@ -362,6 +369,30 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       accessArtifactId: ARTIFACT,
       occurredAt: EVENT_TIME,
     })
+    await getPool().query(
+      `INSERT INTO outbox_events (
+         id, event_type, event_version, payload, organization_id, property_id,
+         source_context, source_aggregate_id
+       ) VALUES ($1, $2, 1, $3::jsonb, $4, $5, 'guest', $6)`,
+      [
+        fact.eventId,
+        fact._tag,
+        JSON.stringify({
+          organizationId: fact.organizationId,
+          propertyId: fact.propertyId,
+          portalId: fact.portalId,
+          qualifiedScanId: fact.qualifiedScanId,
+          portalGroupId: fact.portalGroupId,
+          accessArtifactId: fact.accessArtifactId,
+          staffAttribution: fact.staffAttribution,
+          occurredAt: fact.occurredAt.toISOString(),
+        }),
+        ORG,
+        PROPERTY,
+        fact.qualifiedScanId,
+      ],
+    )
+
     const recordedHandler = onQualifiedScanRecordedDurably({
       recordMetric: record,
       findGroupForPortal: async () => {

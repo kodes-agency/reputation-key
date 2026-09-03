@@ -8,9 +8,12 @@ import { requireE2eSeedState } from '../helpers/seed-state'
 import { attachRequestLog } from '../helpers/request-log'
 import {
   dbQuery,
+  drainFixtureQueue,
+  enqueueGoalProgramMaintenance,
   refreshPortalDestinationApproval,
   resetGuestRateLimits,
   softDeleteFixturePortals,
+  waitForQueuesIdle,
   waitFor,
 } from '../helpers/fixtures'
 import {
@@ -94,6 +97,12 @@ test.describe('Critical: beta-local-1 product journeys', () => {
   test.describe.configure({ mode: 'serial' })
   test.use({ baseURL: BASE_ORIGIN })
   let governedGoalDefinitionId: string | null = null
+  let qualifiedScanPortal: Readonly<{
+    id: string
+    groupId: string
+    path: string
+    accessArtifactId: string
+  }> | null = null
   const activeGoalName = `E2E Active Governed Goal ${e2eRunId.slice(-8)}`
 
   test('P1 Portal management and opaque public URL survive reload', async ({ page }) => {
@@ -286,13 +295,27 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       },
     })
     expect(published.portal.publicationState).toBe('published')
-    const rotated = await callServerFn<{ rawToken: string; version: number }>(page, {
+    const rotated = await callServerFn<{
+      rawToken: string
+      version: number
+      publicUrls: Readonly<{ qr: string; nfc: string }>
+    }>(page, {
       file: 'src/contexts/portal/server/portals.ts',
       exportName: 'rotatePortalToken',
       data: { portalId: created.portal.id },
     })
     expect(rotated.version).toBe(2)
     expect(rotated.rawToken).not.toBe(issued.rawToken)
+    const qualifiedUrl = new URL(rotated.publicUrls.qr)
+    const accessArtifactId = qualifiedUrl.searchParams.get('accessArtifact')
+    expect(accessArtifactId).toBeTruthy()
+    if (!accessArtifactId) throw new Error('Rotated Portal QR URL has no Access Artifact')
+    qualifiedScanPortal = {
+      id: created.portal.id,
+      groupId: grouped.group.id,
+      path: `${qualifiedUrl.pathname}${qualifiedUrl.search}`,
+      accessArtifactId,
+    }
 
     await page.goto(`/properties/${seed.p1PropertyId}/portals`)
     await expect(page.getByRole('link', { name: portalName, exact: true })).toBeVisible()
@@ -521,9 +544,163 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     log.assertNoExternalHosts([BASE_HOST])
   })
 
-  test('manager creates an active governed P1 goal while P2 direct navigation is denied', async ({
+  test('qualified guest scans project into an evaluated governed P1 goal while P2 direct navigation is denied', async ({
     page,
+    context,
   }) => {
+    // This joined journey crosses the guest projector and the scheduled Goal
+    // worker. Both are awaited on durable rows; the budget covers those two
+    // production queue boundaries plus the manager UI assertions.
+    test.setTimeout(90_000)
+    const portal = qualifiedScanPortal
+    expect(portal).not.toBeNull()
+    if (!portal) throw new Error('The per-run published Portal was not created')
+
+    const qualifiedScanCount = 2
+    await resetGuestRateLimits()
+    await drainFixtureQueue()
+    await waitForQueuesIdle()
+
+    const [{ count: existingFactCount }] = await dbQuery<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM guest_qualified_scans
+       WHERE organization_id = $1 AND property_id = $2::uuid
+         AND portal_id = $3::uuid AND access_artifact_id = $4::uuid`,
+      [seed.organizationId, seed.p1PropertyId, portal.id, portal.accessArtifactId],
+    )
+    expect(Number(existingFactCount)).toBe(0)
+
+    for (let index = 0; index < qualifiedScanCount; index += 1) {
+      if (index > 0) {
+        await page.evaluate(() => {
+          localStorage.clear()
+          sessionStorage.clear()
+        })
+      }
+      await context.clearCookies()
+      await page.goto(portal.path)
+      await expect(
+        page.getByRole('heading', { name: 'How was your stay?' }),
+      ).toBeVisible()
+      const notice = page.getByRole('region', { name: 'Portal analytics information' })
+      if (await notice.isVisible()) {
+        await notice.getByRole('button', { name: 'Got it' }).click()
+      }
+      await waitFor(
+        async () => {
+          const [{ count }] = await dbQuery<{ count: string }>(
+            `SELECT count(*)::text AS count
+             FROM guest_qualified_scans
+             WHERE organization_id = $1 AND property_id = $2::uuid
+               AND portal_id = $3::uuid AND access_artifact_id = $4::uuid`,
+            [seed.organizationId, seed.p1PropertyId, portal.id, portal.accessArtifactId],
+          )
+          return Number(count) === index + 1 ? count : null
+        },
+        {
+          timeoutMs: 10_000,
+          description: `qualified scan fact ${index + 1} of ${qualifiedScanCount}`,
+        },
+      )
+    }
+
+    const projectedScans = await waitFor(
+      async () => {
+        const rows = await dbQuery<{ id: string; source_event_id: string }>(
+          `SELECT id, source_event_id
+           FROM metric_readings
+           WHERE organization_id = $1 AND property_id = $2::uuid
+             AND portal_id = $3::uuid AND group_id = $4::uuid
+             AND metric_key = 'portal.qualified_scan'
+           ORDER BY event_at, id`,
+          [seed.organizationId, seed.p1PropertyId, portal.id, portal.groupId],
+        )
+        return rows.length === qualifiedScanCount ? rows : null
+      },
+      {
+        description: `${qualifiedScanCount} qualified scan metric projections`,
+        diagnose: async () => ({
+          facts: await dbQuery(
+            `SELECT id, source_event_id, occurred_at
+             FROM guest_qualified_scans
+             WHERE organization_id = $1 AND portal_id = $2::uuid
+             ORDER BY occurred_at, id`,
+            [seed.organizationId, portal.id],
+          ),
+          readings: await dbQuery(
+            `SELECT id, source_event_id, event_at
+             FROM metric_readings
+             WHERE organization_id = $1 AND portal_id = $2::uuid
+               AND metric_key = 'portal.qualified_scan'
+             ORDER BY event_at, id`,
+            [seed.organizationId, portal.id],
+          ),
+        }),
+      },
+    )
+    expect(projectedScans).toHaveLength(qualifiedScanCount)
+
+    /*
+     * Goal Programs only evaluate complete property-local months. A browser
+     * test cannot wait until October, so place these newly produced facts in
+     * the previous complete month and give the real create command a matching
+     * temporal version/result head. No metric value or result is seeded: the
+     * queued production maintenance job must still derive both from the real
+     * guest facts and their metric projections.
+     */
+    const [period] = await dbQuery<{
+      period_start: Date
+      period_end: Date
+      occurred_at: Date
+      property_local_date: string
+    }>(
+      `SELECT
+         ((date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month')
+           AT TIME ZONE timezone) AS period_start,
+         (date_trunc('month', now() AT TIME ZONE timezone)
+           AT TIME ZONE timezone) AS period_end,
+         ((date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month'
+           + interval '12 hours') AT TIME ZONE timezone) AS occurred_at,
+         to_char(
+           date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month',
+           'YYYY-MM-DD'
+         ) AS property_local_date
+       FROM properties
+       WHERE organization_id = $1 AND id = $2::uuid`,
+      [seed.organizationId, seed.p1PropertyId],
+    )
+    expect(period).toBeTruthy()
+    if (!period) throw new Error('The seeded Property has no timezone')
+
+    const readingIds = projectedScans.map((row) => row.id)
+    const sourceEventIds = projectedScans.map((row) => row.source_event_id)
+    const shiftedReadings = await dbQuery<{ id: string }>(
+      `UPDATE metric_readings
+       SET event_at = $2::timestamptz,
+           recorded_at = $2::timestamptz,
+           property_local_date = $3
+       WHERE id = ANY($1::uuid[])
+       RETURNING id`,
+      [readingIds, period.occurred_at, period.property_local_date],
+    )
+    const shiftedEvents = await dbQuery<{ id: string }>(
+      `UPDATE outbox_events
+       SET payload = jsonb_set(payload, '{occurredAt}', to_jsonb($2::text), false)
+       WHERE id = ANY($1::uuid[])
+       RETURNING id`,
+      [sourceEventIds, period.occurred_at.toISOString()],
+    )
+    const shiftedFacts = await dbQuery<{ id: string }>(
+      `UPDATE guest_qualified_scans
+       SET occurred_at = $2::timestamptz
+       WHERE source_event_id = ANY($1::uuid[])
+       RETURNING id`,
+      [sourceEventIds, period.occurred_at],
+    )
+    expect(shiftedReadings).toHaveLength(qualifiedScanCount)
+    expect(shiftedEvents).toHaveLength(qualifiedScanCount)
+    expect(shiftedFacts).toHaveLength(qualifiedScanCount)
+
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
     await endOpenGoalPrograms(page, seed.p1PropertyId)
     const created = await callServerFn<{ program: { id: string; status: string } }>(
@@ -534,20 +711,201 @@ test.describe('Critical: beta-local-1 product journeys', () => {
         data: {
           propertyId: seed.p1PropertyId,
           name: activeGoalName,
-          description: 'Active goal program visible to scoped Staff.',
+          description: 'Active goal program backed by joined qualified scan facts.',
           metric: 'qualified_scans',
           targetValue: 20,
-          subjects: [{ kind: 'portal_group', portalGroupId: seed.portalGroupId }],
+          subjects: [{ kind: 'portal_group', portalGroupId: portal.groupId }],
         },
       },
     )
     governedGoalDefinitionId = created.program.id
-    expect(created.program.status).toBeTruthy()
+    expect(created.program.status).toBe('scheduled')
+
+    const temporalized = await dbQuery<{ id: string }>(
+      `WITH original_version AS MATERIALIZED (
+         SELECT *
+         FROM goal_program_versions
+         WHERE organization_id = $1 AND property_id = $2::uuid
+           AND program_id = $3::uuid AND version = 1
+       ),
+       closed_assignments AS (
+         UPDATE goal_subject_assignments AS assignment
+         SET effective_to = assignment.effective_from
+         FROM original_version
+         WHERE assignment.organization_id = $1
+           AND assignment.property_id = $2::uuid
+           AND assignment.program_id = $3::uuid
+           AND assignment.program_version_id = original_version.id
+         RETURNING assignment.*
+       ),
+       closed_version AS (
+         UPDATE goal_program_versions AS version
+         SET effective_to = version.effective_from
+         FROM original_version
+         WHERE version.id = original_version.id
+         RETURNING version.*
+       ),
+       inserted_version AS (
+         INSERT INTO goal_program_versions (
+           id, program_id, organization_id, property_id, version,
+           metric_definition_id, metric_definition_version_id, metric_key,
+           metric_minimum_sample, target_value, property_timezone,
+           effective_from, effective_to, change_reason, created_by, created_at
+         )
+         SELECT
+           gen_random_uuid(), program_id, organization_id, property_id, 2,
+           metric_definition_id, metric_definition_version_id, metric_key,
+           metric_minimum_sample, target_value, property_timezone,
+           $4::timestamptz, NULL, 'E2E previous complete month', created_by, now()
+         FROM closed_version
+         RETURNING *
+       ),
+       inserted_assignment AS (
+         INSERT INTO goal_subject_assignments (
+           id, program_id, program_version_id, organization_id, property_id,
+           metric_key, subject_kind, property_subject_id, portal_group_id,
+           portal_id, effective_from, effective_to, created_by, created_at
+         )
+         SELECT
+           gen_random_uuid(), prior.program_id, version.id, prior.organization_id,
+           prior.property_id, prior.metric_key, prior.subject_kind,
+           prior.property_subject_id, prior.portal_group_id, prior.portal_id,
+           $4::timestamptz, NULL, prior.created_by, now()
+         FROM closed_assignments AS prior
+         CROSS JOIN inserted_version AS version
+         RETURNING *
+       ),
+       inserted_result AS (
+         INSERT INTO goal_monthly_results (
+           id, assignment_id, program_id, program_version_id, organization_id,
+           property_id, period_start, period_end, property_timezone,
+           status, evaluation_state, sample_count, reason
+         )
+         SELECT
+           gen_random_uuid(), assignment.id, assignment.program_id, version.id,
+           assignment.organization_id, assignment.property_id,
+           $4::timestamptz, $5::timestamptz, version.property_timezone,
+           'open', 'updating', 0, 'period_open'
+         FROM inserted_assignment AS assignment
+         CROSS JOIN inserted_version AS version
+         RETURNING id
+       )
+       UPDATE goal_programs AS program
+       SET status = 'active',
+           status_reason = NULL,
+           current_version = 2,
+           updated_at = now()
+       WHERE program.organization_id = $1
+         AND program.property_id = $2::uuid
+         AND program.id = $3::uuid
+         AND program.status = 'scheduled'
+         AND EXISTS (SELECT 1 FROM inserted_result)
+       RETURNING program.id`,
+      [
+        seed.organizationId,
+        seed.p1PropertyId,
+        created.program.id,
+        period.period_start,
+        period.period_end,
+      ],
+    )
+    expect(temporalized).toEqual([{ id: created.program.id }])
+
+    const metricVersionId = '11111111-1111-4111-8111-111111111301'
+    const [metricVersion] = await dbQuery<{ effective_from: Date }>(
+      `SELECT effective_from
+       FROM metric_definition_versions
+       WHERE id = $1::uuid`,
+      [metricVersionId],
+    )
+    expect(metricVersion).toBeTruthy()
+    if (!metricVersion) throw new Error('Qualified scan metric version is missing')
+
+    let evaluated: {
+      evaluation_state: string
+      value: string | null
+      sample_count: number
+    }
+    await dbQuery(
+      `UPDATE metric_definition_versions
+       SET effective_from = $2::timestamptz
+       WHERE id = $1::uuid`,
+      [metricVersionId, period.period_start],
+    )
+    try {
+      await enqueueGoalProgramMaintenance({
+        organizationId: seed.organizationId,
+        propertyId: seed.p1PropertyId,
+      })
+      evaluated = await waitFor(
+        async () => {
+          const [result] = await dbQuery<{
+            evaluation_state: string
+            value: string | null
+            sample_count: number
+          }>(
+            `SELECT evaluation_state, value::text, sample_count
+             FROM goal_monthly_results
+             WHERE organization_id = $1 AND property_id = $2::uuid
+               AND program_id = $3::uuid
+               AND period_start = $4::timestamptz
+               AND period_end = $5::timestamptz`,
+            [
+              seed.organizationId,
+              seed.p1PropertyId,
+              created.program.id,
+              period.period_start,
+              period.period_end,
+            ],
+          )
+          return result?.evaluation_state === 'eligible' &&
+            Number(result.value) === qualifiedScanCount &&
+            result.sample_count === qualifiedScanCount
+            ? result
+            : null
+        },
+        {
+          description: 'goal maintenance evaluates the projected qualified scans',
+          diagnose: async () => ({
+            results: await dbQuery(
+              `SELECT status, evaluation_state, value, sample_count, reason
+               FROM goal_monthly_results
+               WHERE program_id = $1::uuid`,
+              [created.program.id],
+            ),
+            backgroundJobs: await dbQuery(
+              `SELECT event_type, published_at
+               FROM outbox_events
+               WHERE source_aggregate_id = $1
+               ORDER BY created_at, id`,
+              [created.program.id],
+            ),
+          }),
+        },
+      )
+    } finally {
+      await dbQuery(
+        `UPDATE metric_definition_versions
+         SET effective_from = $2::timestamptz
+         WHERE id = $1::uuid`,
+        [metricVersionId, metricVersion.effective_from],
+      )
+    }
+    expect(Number(evaluated.value)).toBe(qualifiedScanCount)
+    expect(evaluated.sample_count).toBe(qualifiedScanCount)
 
     await page.goto(`/properties/${seed.p1PropertyId}/goals`)
-    await expect(page.getByText(activeGoalName, { exact: true })).toBeVisible()
+    const resultRow = page
+      .getByRole('row')
+      .filter({ hasText: activeGoalName })
+      .filter({ hasText: `${qualifiedScanCount} verified qualified scans` })
+    await expect(resultRow).toHaveCount(1)
+    await expect(resultRow).toContainText('Ready')
+    await expect(resultRow).toContainText(
+      `${qualifiedScanCount} verified qualified scans`,
+    )
     await page.reload()
-    await expect(page.getByText(activeGoalName, { exact: true })).toBeVisible()
+    await expect(resultRow).toHaveCount(1)
 
     await page.goto(`/properties/${seed.p2PropertyId}/goals`)
     await expectControlledUnavailable(page, 'Goals', 'needs_admin_enablement')

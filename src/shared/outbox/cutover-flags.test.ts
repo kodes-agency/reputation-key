@@ -10,11 +10,9 @@
 //                 NOT registered (legacy path retired for that family).
 //
 // Env encoding (simplest honest form — no JSON):
-//   DURABLE_CUTOVER_INBOX                       group default for all four
+//   DURABLE_CUTOVER_INBOX                       group default for both
 //   DURABLE_CUTOVER_INBOX_REVIEW_CREATED        per-family override
-//   DURABLE_CUTOVER_INBOX_REVIEW_UPDATED        per-family override
 //   DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED        per-family override
-//   DURABLE_CUTOVER_INBOX_REVIEW_REPLY_PUBLISHED per-family override
 // Precedence: per-family var > group var > 'record-only'. An unrecognized
 // non-empty value fails closed (throw) — a typo'd cutover flag must never
 // silently resolve to a state the operator did not ask for.
@@ -28,27 +26,16 @@ import {
 } from './cutover-flags'
 
 describe('cutover flags (BQC-3.9)', () => {
-  it('declares the four inbox projection families', () => {
-    expect([...INBOX_CUTOVER_FAMILIES]).toEqual([
-      'review.created',
-      'review.updated',
-      'review.expired',
-      'review.reply.published',
-    ])
+  it('declares the two dual-path inbox projection families', () => {
+    expect([...INBOX_CUTOVER_FAMILIES]).toEqual(['review.created', 'review.expired'])
   })
 
   it('maps each family to its per-family env var name', () => {
     expect(cutoverEnvVarFor('review.created')).toBe(
       'DURABLE_CUTOVER_INBOX_REVIEW_CREATED',
     )
-    expect(cutoverEnvVarFor('review.updated')).toBe(
-      'DURABLE_CUTOVER_INBOX_REVIEW_UPDATED',
-    )
     expect(cutoverEnvVarFor('review.expired')).toBe(
       'DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED',
-    )
-    expect(cutoverEnvVarFor('review.reply.published')).toBe(
-      'DURABLE_CUTOVER_INBOX_REVIEW_REPLY_PUBLISHED',
     )
   })
 
@@ -86,8 +73,6 @@ describe('cutover flags (BQC-3.9)', () => {
     expect(resolveCutoverState('review.expired', env)).toBe('record-only')
     expect(listActiveCutoverFamilies(env)).toEqual([
       { family: 'review.created', state: 'shadow' },
-      { family: 'review.updated', state: 'shadow' },
-      { family: 'review.reply.published', state: 'shadow' },
     ])
   })
 

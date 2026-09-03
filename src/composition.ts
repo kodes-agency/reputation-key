@@ -87,6 +87,7 @@ import { buildInfrastructure } from './composition/infrastructure'
 import { buildReadAndNotifyContexts } from './composition/read-and-notify-contexts'
 import type { CreateContainerOptions } from './composition/container-options'
 import { buildOperationalReadout } from './composition/operational-readout'
+import { reportAlertToObservability } from './composition/alert-reporter'
 import { composeOrganizationLifecycle } from '#/composition/organization-export-contributors'
 import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
 import { buildIdentityPolicyDeps } from './composition/identity-policy'
@@ -599,10 +600,7 @@ export function createContainer(options?: CreateContainerOptions) {
       resolveCutoverState(family, {
         DURABLE_CUTOVER_INBOX: env.DURABLE_CUTOVER_INBOX,
         DURABLE_CUTOVER_INBOX_REVIEW_CREATED: env.DURABLE_CUTOVER_INBOX_REVIEW_CREATED,
-        DURABLE_CUTOVER_INBOX_REVIEW_UPDATED: env.DURABLE_CUTOVER_INBOX_REVIEW_UPDATED,
         DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED: env.DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED,
-        DURABLE_CUTOVER_INBOX_REVIEW_REPLY_PUBLISHED:
-          env.DURABLE_CUTOVER_INBOX_REVIEW_REPLY_PUBLISHED,
       }),
     staffPublicApi: staff.publicApi,
     authorizeCommand: createInboxCommandAuthority({
@@ -750,13 +748,13 @@ export function createContainer(options?: CreateContainerOptions) {
     dataCellExecutionFence,
     aiPublicApi: ai.publicApi,
     aiWorkerRuntime: ai.worker,
-    // BQC-7.4: the alert dispatch port — composition-owned so the
-    // health-check job (and any future evaluation point) shares the ONE
-    // dispatcher (error-level ALERT log + optional ALERT_WEBHOOK_URL POST).
+    // BQC-7.4: one composition-owned dispatcher shares the structured log,
+    // Sentry reporter, and optional ALERT_WEBHOOK_URL across evaluation points.
     alertDispatcher: createAlertDispatcher({
       logger,
       clock,
       webhookUrl: env.ALERT_WEBHOOK_URL,
+      report: reportAlertToObservability,
     }),
     // ARC-03-T6: the container's owned release seam. Everything a build()
     // starts for the life of the process registers here, so the web

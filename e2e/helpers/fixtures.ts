@@ -20,6 +20,7 @@ import { createCipheriv, createHash, randomBytes, randomUUID } from 'node:crypto
 import { hashPassword } from 'better-auth/crypto'
 import type { Page } from '@playwright/test'
 import { testEnvironment } from '../../src/shared/testing/test-environment'
+import { EXECUTION_POLICY_VERSION } from '../../src/shared/auth/execution-policy'
 import { computeAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
 import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '../../src/shared/domain/data-cell-catalogue'
 import { googleReplyTextDigest } from '../../src/shared/domain/google-reply-text'
@@ -1866,6 +1867,27 @@ export async function enqueuePurgeExpiredReviews(): Promise<void> {
   await fixtureQueue('background').add(
     'purge-expired-reviews',
     {},
+    {
+      removeOnComplete: { count: 100 },
+      removeOnFail: { count: 50 },
+    },
+  )
+}
+
+/** The canonical Goal maintenance sweep, invoked through its production queue. */
+export async function enqueueGoalProgramMaintenance(data: {
+  organizationId: string
+  propertyId: string
+}): Promise<void> {
+  await fixtureQueue('background').add(
+    'goal-program.maintain',
+    {
+      organizationId: data.organizationId,
+      propertyId: data.propertyId,
+      capability: 'goal.use',
+      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
+      initiator: { kind: 'system', id: 'e2e:goal-program.maintain' },
+    },
     {
       removeOnComplete: { count: 100 },
       removeOnFail: { count: 50 },

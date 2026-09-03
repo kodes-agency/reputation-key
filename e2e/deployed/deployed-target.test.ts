@@ -69,12 +69,12 @@ describe('deployed target guard', () => {
   })
 })
 
-describe('deployed suite isolation', () => {
+describe('deployed probe isolation', () => {
   const deployedDir = resolve('e2e/deployed')
   const files = readdirSync(deployedDir).filter((name) => name.endsWith('.ts'))
 
-  it('contains the spec the Gate F evidence schema names', () => {
-    expect(files).toContain('closed-beta-critical-journeys.spec.ts')
+  it('contains the read-only probe spec the Gate F evidence schema names', () => {
+    expect(files).toContain('closed-beta-deployed-probes.spec.ts')
   })
 
   it('cannot reach any mutating seed or fixture helper', () => {
@@ -104,7 +104,7 @@ describe('deployed suite isolation', () => {
     expect(DEPLOYED_CRITICAL_PLAYWRIGHT_PROJECT).not.toHaveProperty('dependencies')
     expect(
       DEPLOYED_CRITICAL_PLAYWRIGHT_PROJECT.testMatch.test(
-        'e2e/deployed/closed-beta-critical-journeys.spec.ts',
+        'e2e/deployed/closed-beta-deployed-probes.spec.ts',
       ),
     ).toBe(true)
   })

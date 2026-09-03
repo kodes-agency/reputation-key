@@ -14,9 +14,10 @@
 //       a registered handler: it is a queue-level worker created with its own
 //       dispatch closure, so it never appears in the registry;
 //   (c) when the durable dispatcher is enabled, every catalogued durable
-//       consumer ref is registered. While OUTBOX_DISPATCHER_ENABLED is off
-//       the consumers are intentionally inert (BQR-0 containment) — the check
-//       is skipped and logged at info.
+//       consumer ref is registered unless its cutover family is record-only.
+//       Record-only deliberately has no durable consumer; shadow and switch
+//       require one. While OUTBOX_DISPATCHER_ENABLED is off the remaining
+//       consumer check is skipped and logged at info.
 
 import {
   EVENT_FAMILY_ROWS,
@@ -24,11 +25,19 @@ import {
 } from '#/shared/governance/event-job-catalogue'
 import type { ConsumerListing } from '#/shared/outbox'
 import {
+  INBOX_CUTOVER_FAMILIES,
   listActiveCutoverFamilies,
   type ActiveCutoverFamily,
 } from '#/shared/outbox/cutover-flags'
 import type { JobRegistry } from './registry'
 import { validateOperationalCatalogueCoverage } from './operational-catalogue'
+
+const INBOX_CUTOVER_CONSUMER_BY_FAMILY: Readonly<
+  Record<(typeof INBOX_CUTOVER_FAMILIES)[number], string>
+> = {
+  'review.created': 'inbox.on-review-created',
+  'review.expired': 'inbox.on-review-expired',
+}
 
 export type JobReadinessOptions = Readonly<{
   /** Validate durable consumer registration (only when the dispatcher runs). */
@@ -79,15 +88,27 @@ function assertHandlersRegistered(registry: JobRegistry): void {
 
 function assertDurableConsumersRegistered(
   listConsumers: JobReadinessOptions['listConsumers'],
+  activeCutoverFamilies: ReadonlyArray<ActiveCutoverFamily>,
 ): void {
   const registered = new Set(
-    listConsumers().map((c) => `${c.eventType}::${c.consumerName}`),
+    listConsumers().map((consumer) => `${consumer.eventType}::${consumer.consumerName}`),
   )
-  const missing = EVENT_FAMILY_ROWS.flatMap((r) =>
-    r.consumers
-      .filter((c) => c.kind === 'durable')
-      .map((c) => `${r.eventType}::${c.name}`),
-  ).filter((key) => !registered.has(key))
+  const activeCutover = new Set(activeCutoverFamilies.map(({ family }) => family))
+  const missing = EVENT_FAMILY_ROWS.flatMap((row) => {
+    const cutoverFamily = INBOX_CUTOVER_FAMILIES.find(
+      (family) => family === row.eventType,
+    )
+    const omittedRecordOnlyConsumer =
+      cutoverFamily && !activeCutover.has(cutoverFamily)
+        ? INBOX_CUTOVER_CONSUMER_BY_FAMILY[cutoverFamily]
+        : null
+    return row.consumers
+      .filter(
+        (consumer) =>
+          consumer.kind === 'durable' && consumer.name !== omittedRecordOnlyConsumer,
+      )
+      .map((consumer) => `${row.eventType}::${consumer.name}`)
+  }).filter((key) => !registered.has(key))
 
   if (missing.length > 0) {
     throw new Error(
@@ -126,14 +147,14 @@ export function assertJobReadiness(
   options: JobReadinessOptions,
 ): void {
   validateOperationalCatalogueCoverage()
-  assertCutoverDispatcher(
-    (options.activeCutoverFamilies ?? listActiveCutoverFamilies)(),
-    options.dispatcherEnabled === true,
-  )
+  const activeCutoverFamilies = (
+    options.activeCutoverFamilies ?? listActiveCutoverFamilies
+  )()
+  assertCutoverDispatcher(activeCutoverFamilies, options.dispatcherEnabled === true)
   assertHandlersRegistered(registry)
 
   if (options.dispatcherEnabled) {
-    assertDurableConsumersRegistered(options.listConsumers)
+    assertDurableConsumersRegistered(options.listConsumers, activeCutoverFamilies)
     logger.info(
       { handlers: registry.getAll().size, dispatcherEnabled: true },
       'job readiness OK — handlers and durable consumers match the catalogue',

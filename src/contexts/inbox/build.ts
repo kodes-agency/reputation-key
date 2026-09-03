@@ -15,7 +15,11 @@ import {
 } from './application/inbox-assignment-runtime'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { CutoverFamily, CutoverState } from '#/shared/outbox/cutover-flags'
+import {
+  INBOX_CUTOVER_FAMILIES,
+  type CutoverFamily,
+  type CutoverState,
+} from '#/shared/outbox/cutover-flags'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type {
   ReviewReplyObservationAuthority,
@@ -398,7 +402,21 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   // start; wiring stays a single assignment in the composition root while
   // the deps stay captured here.
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
-    registerInboxConsumers(consumerRegistry, {
+    // Keep the three states operationally distinct: record-only has only the
+    // bus path, shadow has both paths, and switch has only the durable path.
+    const cutoverAwareRegistry: ConsumerRegistry = {
+      ...consumerRegistry,
+      registerConsumer: (registration) => {
+        const family = INBOX_CUTOVER_FAMILIES.find(
+          (candidate) => candidate === registration.eventType,
+        )
+        if (family !== undefined && input.cutoverState(family) === 'record-only') {
+          return
+        }
+        consumerRegistry.registerConsumer(registration)
+      },
+    }
+    registerInboxConsumers(cutoverAwareRegistry, {
       commandStore,
       handlingCycleStore,
       replyObservationAuthority,

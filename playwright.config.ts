@@ -110,15 +110,15 @@ export default defineConfig({
       testMatch: /^(?!.*\/critical\/).*\.spec\.ts$/,
       // REL-01: `deployed/` MUST stay in this ignore list. The testMatch above
       // only excludes `critical/`, so without this entry the local full run
-      // would load e2e/deployed/closed-beta-critical-journeys.spec.ts, whose
+      // would load e2e/deployed/closed-beta-deployed-probes.spec.ts, whose
       // target guard throws — and, if DEPLOYED_BASE_URL happened to be
       // exported, would point the local suite at production.
       testIgnore: [/compatibility\/.*\.spec\.ts/, /deployed\/.*\.spec\.ts/],
       dependencies: ['setup'],
     },
-    // REL-01 deployed critical journeys: retries 0, workers 1, and no `setup`
+    // REL-01 deployed read-only probes: retries 0, workers 1, and no `setup`
     // dependency (the local seed state neither exists nor may exist for a
-    // production target). Only `pnpm release:deployed-journeys` invokes it.
+    // production target). Only `pnpm release:deployed-journeys` invokes them.
     DEPLOYED_CRITICAL_PLAYWRIGHT_PROJECT,
     ...COMPATIBILITY_PROJECTS,
   ],

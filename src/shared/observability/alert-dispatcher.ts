@@ -1,19 +1,20 @@
 // BQC-7.4 — alert dispatch.
 //
-// The AlertDispatcher port + the default production implementation. Two
+// The AlertDispatcher port + the default production implementation. Three
 // destinations:
 //
 //   1. A schema-conformant structured ALERT log at error level (always) —
 //      the fields are exactly the AlertEvent contract plus firedAt; all
 //      content-free (no 7.3 banned keys; the injection suite walks every
 //      dispatched field through isBannedLogKey).
-//   2. An optional operator webhook POST when ALERT_WEBHOOK_URL is set —
+//   2. The injected error-monitoring sink for P1/P2 alerts.
+//   3. An optional operator webhook POST when ALERT_WEBHOOK_URL is set —
 //      the payload IS the log payload (one redaction surface), 3s timeout,
 //      fire-and-log-on-failure.
 //
-// Dispatch NEVER throws into the evaluator path: webhook failures degrade
-// to a warn log. The error-level log line is the durable signal — the
-// webhook is best-effort operator wiring on top.
+// Dispatch never throws for webhook delivery failures: they degrade to a warn
+// log. The error-level log remains the durable signal; the error-monitoring and
+// webhook sinks are operator notification wiring on top.
 
 import type pino from 'pino'
 import type { AlertEvent } from './alert-definitions'
@@ -39,6 +40,8 @@ export type AlertFetchFn = (
 export type AlertDispatcherDeps = Readonly<{
   logger: pino.Logger
   clock: () => Date
+  /** Forward P1/P2 alerts to the configured error-monitoring sink. */
+  report?: (event: AlertEvent) => void
   /**
    * Optional operator webhook (env ALERT_WEBHOOK_URL — the BQC-7.4 wiring
    * point; absent = log-only dispatch, which is the always-on substrate).
@@ -73,6 +76,7 @@ export function createAlertDispatcher(deps: AlertDispatcherDeps): AlertDispatche
     dispatch: async (event) => {
       const payload = toPayload(event, deps.clock().toISOString())
       deps.logger.error(payload, `[alert] ${event.name} firing (${event.severity})`)
+      if (event.severity === 'P1' || event.severity === 'P2') deps.report?.(event)
 
       if (!deps.webhookUrl || !fetchFn) return
       try {
