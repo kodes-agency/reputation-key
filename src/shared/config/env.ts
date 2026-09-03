@@ -324,9 +324,7 @@ const baseEnvSchema = z.object({
   // cutover resolver at composition so invalid states fail startup closed.
   DURABLE_CUTOVER_INBOX: z.string().optional(),
   DURABLE_CUTOVER_INBOX_REVIEW_CREATED: z.string().optional(),
-  DURABLE_CUTOVER_INBOX_REVIEW_UPDATED: z.string().optional(),
   DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED: z.string().optional(),
-  DURABLE_CUTOVER_INBOX_REVIEW_REPLY_PUBLISHED: z.string().optional(),
   // Org slugs/IDs suspended from the beta (B0.5 operator controls).
   BETA_SUSPENDED_ORGS: z.string().optional(),
   // Deployed request-edge contract. Production defaults to Railway's documented

@@ -64,7 +64,7 @@ describe('compareInboxProjection (BQC-3.9)', () => {
 
   it('flags each diverging projection field by NAME only', () => {
     const result = compareInboxProjection({
-      family: 'review.reply.published',
+      family: 'review.expired',
       eventId: 'evt-4',
       bus: {
         ...OPEN_ITEM,
@@ -86,9 +86,9 @@ describe('compareInboxProjection (BQC-3.9)', () => {
     expect(JSON.stringify(result)).not.toContain('closed"')
   })
 
-  it('flags sourceDate/platform drift (review.updated refresh)', () => {
+  it('flags sourceDate drift', () => {
     const result = compareInboxProjection({
-      family: 'review.updated',
+      family: 'review.created',
       eventId: 'evt-5',
       bus: { ...OPEN_ITEM, sourceDate: '2026-06-03T00:00:00.000Z' },
       durable: OPEN_ITEM,

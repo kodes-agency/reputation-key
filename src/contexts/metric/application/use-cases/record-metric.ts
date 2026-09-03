@@ -18,7 +18,10 @@ import type {
   MetricScope,
   SourcePolicyClass,
 } from '../../domain/metric-registry'
-import type { MetricCommandStore } from '../ports/metric-command-store.port'
+import type {
+  MetricCommandStore,
+  MetricSourceReceipt,
+} from '../ports/metric-command-store.port'
 import type { MetricRegistryRepository } from '../ports/metric-registry.repository.port'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 import {
@@ -48,6 +51,8 @@ export type RecordMetricInput = Readonly<{
   staffAttribution?: PrimaryStaffAttributionSnapshot | null
   /** Required only for a qualified destination-selection fact. */
   destinationKind?: PortalDestinationKind | null
+  /** Source-consumer settlement committed atomically with the reading. */
+  sourceReceipt?: MetricSourceReceipt
 }>
 
 export type RecordMetricDeps = Readonly<{
@@ -201,6 +206,7 @@ export const recordMetric =
     return deps.commandStore.recordMetric({
       reading,
       supersedesSourceEventId: input.supersedesSourceEventId ?? null,
+      sourceReceipt: input.sourceReceipt,
       portalLifetimeFact,
       event: metricRecorded({
         readingId: reading.id,

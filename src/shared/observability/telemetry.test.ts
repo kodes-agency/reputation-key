@@ -576,6 +576,20 @@ describe('error monitoring runtime', () => {
     expect(JSON.stringify(sentry.captureException.mock.calls)).not.toContain('secret')
   })
 
+  it('records alert dispatcher captures under their dedicated runtime source', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize(baseConfig)
+
+    monitor.captureException(new Error('P1 alert fired'), {
+      source: 'alert-dispatcher',
+    })
+
+    expect(sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
+      tags: { runtime_source: 'alert-dispatcher' },
+    })
+  })
+
   it('allows only bounded machine-readable queue and job tags', () => {
     const sentry = sdk()
     const monitor = createErrorMonitor({ sentry, logger: logger() })
@@ -647,11 +661,11 @@ describe('error monitoring runtime', () => {
     )
   })
 
-  it('requires the US ingestion host and a DSN in a deployed production cell', () => {
+  it('requires the US ingestion host and a DSN in a Railway production environment', () => {
     const deployed = {
       NODE_ENV: 'production' as const,
       PROCESSING_CELL: 'us',
-      RAILWAY_ENVIRONMENT_NAME: 'cell-us',
+      RAILWAY_ENVIRONMENT_NAME: 'google-closed-beta',
       RELEASE_SHA: 'b'.repeat(40),
       RAILWAY_GIT_COMMIT_SHA: undefined,
       SENTRY_TRACES_SAMPLE_RATE: 0.1,
@@ -679,10 +693,23 @@ describe('error monitoring runtime', () => {
         SENTRY_DSN: 'https://public@o1.ingest.us.sentry.io/1',
       }),
     ).toMatchObject({
-      environment: 'cell-us',
+      environment: 'google-closed-beta',
       processingCell: 'us',
       release: 'b'.repeat(40),
       service: 'ai-egress-gateway',
     })
+  })
+
+  it('covers legacy Railway production names without the cell prefix', () => {
+    expect(() =>
+      buildObservabilityConfig('worker', {
+        NODE_ENV: 'production',
+        PROCESSING_CELL: 'eu',
+        RAILWAY_ENVIRONMENT_NAME: 'legacy-production',
+        RELEASE_SHA: 'c'.repeat(40),
+        RAILWAY_GIT_COMMIT_SHA: undefined,
+        SENTRY_TRACES_SAMPLE_RATE: 0.1,
+      }),
+    ).toThrow('SENTRY_DSN is required')
   })
 })

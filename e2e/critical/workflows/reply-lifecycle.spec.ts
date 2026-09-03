@@ -27,11 +27,10 @@ import {
   cleanupE2eData,
   seedGoogleConnection,
   seedProperty,
-  seedReview,
-  seedReviewInboxItemWithCycle,
   seedAmbiguousReply,
   getUserByEmail,
   getReplyForReview,
+  getInboxItemForReview,
   callServerFn,
   waitFor,
 } from '../../helpers/fixtures'
@@ -109,26 +108,36 @@ test.describe('Critical workflow: reply lifecycle', () => {
         locationId: locationId(name),
       },
     })
-    const { reviewId } = await seedReview({
-      organizationId: seed.organizationId,
+    // GBP does not expose a review language. Configure the Property's supported
+    // manual-reply language so the real imported review can be drafted.
+    await dbQuery(
+      `UPDATE properties
+       SET default_reply_language = 'en-Latn', updated_at = now()
+       WHERE organization_id = $1 AND id = $2::uuid`,
+      [seed.organizationId, propertyId],
+    )
+    await enqueueReviewSync({
       propertyId,
-      externalId: `${name}-r1-${e2eRunId}`,
-      rating: 5,
-      text: `Reply scenario ${name} review body`,
-      reviewerName: `Reply Reviewer ${name}`,
-      googleConnectionId: connectionId,
-      externalLocationId: locationName,
-    })
-    // IBX-01-T9: the Handling Cycle variant. Scenario (a) drives the reply UX
-    // from `/inbox?itemId=`, and every serving read resolves status from the
-    // cycle head — a bare `inbox_items` row would render an empty detail panel.
-    // (b)-(d) drive the same scenario through RPC, so they take the same
-    // realistic projection rather than a shape production never produces.
-    const { inboxItemId } = await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
-      propertyId,
-      reviewId,
+      connectionId,
+      locationName,
     })
+    const arrivedReview = await waitFor(
+      async () => {
+        const [review] = await dbQuery<{ id: string }>(
+          'SELECT id FROM reviews WHERE organization_id = $1 AND property_id = $2::uuid AND external_id = $3',
+          [seed.organizationId, propertyId, `${name}-r1-${e2eRunId}`],
+        )
+        return review ?? null
+      },
+      { timeoutMs: 30_000, description: `arrived review ${name}` },
+    )
+    const reviewId = arrivedReview.id
+    const inboxItem = await waitFor(() => getInboxItemForReview(reviewId), {
+      timeoutMs: 15_000,
+      description: `inbox item for arrived review ${name}`,
+    })
+    const inboxItemId = inboxItem.id as string
     return { connectionId, propertyId, reviewId, inboxItemId, locationName, reviewName }
   }
 

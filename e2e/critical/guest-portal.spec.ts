@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { test, expect } from '../helpers/error-detection'
+import { signIn } from '../helpers/auth'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { attachRequestLog } from '../helpers/request-log'
 import {
@@ -7,8 +8,11 @@ import {
   callServerFnExpectError,
   callServerFnGet,
   dbQuery,
+  e2eRunId,
+  getFeedbackHandlingOutcomes,
   refreshPortalDestinationApproval,
   resetGuestRateLimits,
+  waitFor,
 } from '../helpers/fixtures'
 import { settleGuestConsent } from '../helpers/guest-consent'
 
@@ -144,6 +148,101 @@ test.describe('Critical: public Portal basics', () => {
     await page.reload()
     await expect(page.getByText('Your response was withdrawn')).toBeVisible()
     await expect(page.getByText('You rated this experience')).toHaveCount(0)
+  })
+
+  test('private feedback reaches the manager Inbox and can be marked handled', async ({
+    page,
+  }) => {
+    const feedbackBody = `Joined guest feedback ${e2eRunId}: the room heater needs attention.`
+    const existingResponseIds = new Set(
+      (
+        await dbQuery<{ response_id: string }>(
+          `SELECT response_id::text AS response_id
+           FROM guest_response_private_feedback
+           WHERE portal_id = $1::uuid AND body = $2`,
+          [seed.portalId, feedbackBody],
+        )
+      ).map((row) => row.response_id),
+    )
+
+    await page.goto(`/p/${seed.portalToken}`)
+    await settleGuestConsent(page)
+    await selectRating(page, 2)
+    await page.getByRole('button', { name: 'Submit private rating' }).click()
+    await expect(
+      page.getByText('Thank you. Your private rating was submitted.'),
+    ).toBeVisible()
+    await page.getByRole('textbox', { name: 'Private feedback' }).fill(feedbackBody)
+    await page.getByRole('button', { name: 'Send private feedback' }).click()
+    await expect(
+      page.getByText('Your private feedback was sent to the property team.', {
+        exact: true,
+      }),
+    ).toBeVisible()
+
+    const responseId = await waitFor(
+      async () => {
+        const rows = await dbQuery<{ response_id: string }>(
+          `SELECT response_id::text AS response_id
+           FROM guest_response_private_feedback
+           WHERE portal_id = $1::uuid AND body = $2
+           ORDER BY submitted_at DESC`,
+          [seed.portalId, feedbackBody],
+        )
+        return rows.find((row) => !existingResponseIds.has(row.response_id))?.response_id
+      },
+      { timeoutMs: 10_000, description: 'new private feedback response persisted' },
+    )
+    const inboxItem = await waitFor(
+      async () => {
+        const rows = await dbQuery<{ id: string }>(
+          `SELECT id::text AS id
+           FROM inbox_items
+           WHERE organization_id = $1 AND property_id = $2
+             AND source_type = 'feedback' AND source_id = $3::uuid`,
+          [seed.organizationId, seed.p1PropertyId, responseId],
+        )
+        return rows[0] ?? null
+      },
+      {
+        description: 'manager Inbox item for submitted private feedback',
+        diagnose: () =>
+          dbQuery(
+            `SELECT event_type, published_at, payload
+             FROM outbox_events
+             WHERE organization_id = $1 AND payload::text LIKE $2
+             ORDER BY created_at DESC`,
+            [seed.organizationId, `%${responseId}%`],
+          ),
+      },
+    )
+
+    await signIn(page)
+    await page.goto(`/inbox?itemId=${inboxItem.id}`)
+    await expect(
+      page.getByRole('heading', { name: 'Feedback handling', exact: true }),
+    ).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: 'Mark as handled' }).click()
+    const markDialog = page.getByRole('dialog')
+    await expect(markDialog.getByText('Mark feedback as handled')).toBeVisible()
+    await markDialog.getByRole('combobox').first().click()
+    await page.getByRole('option', { name: 'Follow-up completed' }).click()
+    await markDialog
+      .getByPlaceholder('Add context that will help other managers')
+      .fill('Called the guest and arranged a heater inspection.')
+    await markDialog.getByRole('button', { name: 'Mark as handled' }).click()
+    const outcomes = await waitFor(
+      async () => {
+        const rows = await getFeedbackHandlingOutcomes(inboxItem.id)
+        return rows.length === 1 ? rows : null
+      },
+      { timeoutMs: 10_000, description: 'handling outcome recorded' },
+    )
+    expect(outcomes).toHaveLength(1)
+    expect(outcomes[0]).toMatchObject({
+      outcome: 'follow_up_completed',
+      outcome_revision: 1,
+    })
   })
 
   // Media is gone from the guest gateway -- issueGuestMediaFn and

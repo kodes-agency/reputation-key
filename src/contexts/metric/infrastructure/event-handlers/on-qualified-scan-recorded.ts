@@ -11,6 +11,7 @@ const options = {
   sourcePolicy: 'first_party_guest_gateway_metric',
   span: 'metric.event.onQualifiedScanRecorded',
   portalGroupId: (event: GuestQualifiedScanRecorded) => event.portalGroupId,
+  sourceReceiptConsumer: 'metric.guest-analytics',
 } as const
 
 export const onQualifiedScanRecorded =

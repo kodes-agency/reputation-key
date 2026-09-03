@@ -42,7 +42,7 @@ Every `ops:*` command runs through the operator-command harness
 The commands:
 
 - `ops:queue <status|pause|resume> <queue>` — pause/resume a BullMQ queue (containment; jobs preserved). §3/§7
-- `ops:quarantine <list|redrive <id>>` — failure-quarantine inspection + redrive to the original queue. §4/§7
+- `ops:quarantine <list|redrive <id>|discard <id>>` — inspect failure quarantine, redrive enabled work, or discard blocked/quarantined work without execution. §4/§7
 - `ops:refresh reviews` — enqueue one bounded Review refresh-sweep run. §3/§4
 - `ops:purge <reviews|reviews-shadow|retention>` — report Review lifecycle eligibility, Review expand/cache parity, or the static-rule retention backlog. Review targets are content-free and report-only even when enqueued; they never grant destructive apply. `retention --apply` remains destructive and requires typed confirmation. Do not treat local Review reports as production erasure or parity evidence. Inspect Google import lifecycle separately. §10
 - `ops:rebuild-projection --org <id> [--property <id>]` — repair the inbox projection (bounded, dry-run report first). §5
@@ -538,11 +538,11 @@ surface dark); network-level restriction of the ops surface is platform-owned
 2. The quarantine reason. Region/routing denials (`routing_blocked:*`, `wrong_cell`) are a policy problem, not a handler bug — see §12 and the `routing.region-attempts` alert. Anything else is a handler that threw past its retry budget.
 3. `queue.quarantine.oldest_age_ms` versus `QUARANTINE_TTL_DAYS`. This tells you how much time is left before the TTL sweep deletes the evidence along with the work.
 
-**Remediate:** fix the underlying handler failure FIRST (a redrive into a broken handler just re-quarantines), then `ops:quarantine redrive <id>` per entry — the redrive returns the job to its original queue. For `pending_failure`, the apply path first reads the original job and proceeds only when BullMQ still reports it as `failed`; that proof idempotently confirms the staged copy. A recovered, active, waiting, completed, or missing original is refused and must not be force-redriven. Invitation-event and invitation-Activity payloads are sanitized again at this move boundary, so a concurrent privacy-verification scan cannot miss content moved between queues. If the payload is genuinely undeliverable, record the identifiers in the incident before the TTL sweep removes it, because after that there is no record of what was lost.
+**Remediate:** fix the underlying handler failure FIRST (a redrive into a broken handler just re-quarantines), then match each entry's job family to the event-job catalogue. For an enabled family, first run `ops:quarantine redrive <id> --operator <registered-operator>` for the dry-run report, then add `--reason <incident-reason> --apply`; redrive returns the job to its original queue. For a blocked or quarantined family, never redrive: first run `ops:quarantine discard <id> --operator <registered-operator>`, record the identifiers and disposition in the incident, then add `--reason <incident-reason> --apply`. Discard permanently removes the quarantined job without executing or re-enqueuing it. For `pending_failure`, the redrive apply path first reads the original job and proceeds only when BullMQ still reports it as `failed`; that proof idempotently confirms the staged copy. A recovered, active, waiting, completed, or missing original is refused and must not be force-redriven. Invitation-event and invitation-Activity payloads are sanitized again at the redrive boundary, so a concurrent privacy-verification scan cannot miss content moved between queues.
 
-**Verification:** `queue.quarantine.depth` returns to 0 and the redriven jobs complete in their original queue.
+**Verification:** `queue.quarantine.depth` returns to 0, redriven jobs complete in their original queue, and discarded jobs were never executed or re-enqueued.
 
-**Escalation:** Bozhidar Denev. Any quarantined entry that cannot be redriven is a data-loss event and needs written sign-off.
+**Escalation:** Bozhidar Denev. Any quarantined entry that cannot be safely redriven or deliberately discarded is a data-loss event and needs written sign-off.
 
 ---
 
@@ -828,8 +828,11 @@ no tenant or payload content.
    a recent heartbeat or an empty queue.
 2. For `handler_missing` or `scheduler_missing`, compare the deployed release
    identity and capability policy with the row's processor/capability/schedule.
-   A dark family with a handler, scheduler, queued item, or post-boot execution
-   is a containment failure; do not redrive it.
+   A dark/quarantined family with a handler, scheduler, queued item, or
+   post-boot execution is a containment failure; do not redrive it. Review the
+   entry, then dry-run `pnpm ops:quarantine discard <id> --operator
+<registered-operator>` before applying it with `--reason <incident-reason>
+--apply`.
 3. For missed objectives, stalled work, repair-required state, or dead letters,
    inspect the original queue and run `pnpm ops:quarantine list --operator
 <registered-operator>` before applying the row's exact repair command.
@@ -837,7 +840,7 @@ no tenant or payload content.
 **Remediate:** repair configuration/handler/scheduler drift by promoting a
 reviewed immutable release; never register an ad-hoc handler or repeat entry in
 Redis. Remove forbidden dark/quarantined schedules through normal scheduler
-reconciliation and disposition their queued work without executing it. For an
+reconciliation and discard their queued work without executing it. For an
 active poison item, fix the handler cause first, review the quarantine report,
 then execute the row's report-linked redrive command. A domain-specific
 reconciliation or rebuild remains authoritative when its runbook says replaying

@@ -22,11 +22,9 @@
 //
 // Env encoding — deliberately the simplest honest form (no JSON document):
 //
-//   DURABLE_CUTOVER_INBOX                        group default for all four
+//   DURABLE_CUTOVER_INBOX                        group default for both
 //   DURABLE_CUTOVER_INBOX_REVIEW_CREATED         per-family override
-//   DURABLE_CUTOVER_INBOX_REVIEW_UPDATED         per-family override
 //   DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED         per-family override
-//   DURABLE_CUTOVER_INBOX_REVIEW_REPLY_PUBLISHED per-family override
 //
 // Precedence: per-family var > group var > 'record-only'. Values parse
 // case-insensitively; an unrecognized non-empty value THROWS (fail-closed —
@@ -37,12 +35,7 @@
 export type CutoverState = 'record-only' | 'shadow' | 'switch'
 
 /** The inbox projection families that cut over to durable dispatch. */
-export const INBOX_CUTOVER_FAMILIES = [
-  'review.created',
-  'review.updated',
-  'review.expired',
-  'review.reply.published',
-] as const
+export const INBOX_CUTOVER_FAMILIES = ['review.created', 'review.expired'] as const
 
 export type CutoverFamily = (typeof INBOX_CUTOVER_FAMILIES)[number]
 

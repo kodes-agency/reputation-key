@@ -12,9 +12,9 @@ import {
 export const DEPLOYED_CRITICAL_JOURNEY_EVIDENCE_VERSION =
   'repkey-deployed-critical-journeys-1' as const
 
-/** Deliberately distinct from the mutating, seed-backed local beta suite. */
+/** Read-only deployed probes; historical evidence identifiers remain unchanged. */
 export const DEPLOYED_CRITICAL_JOURNEY_SPEC =
-  'e2e/deployed/closed-beta-critical-journeys.spec.ts' as const
+  'e2e/deployed/closed-beta-deployed-probes.spec.ts' as const
 
 const testCaseSchema = z
   .object({
@@ -200,6 +200,6 @@ export function parseDeployedCriticalJourneyEvidence(
   return parseCanonicalReleaseEvidence({
     content,
     schema: deployedCriticalJourneyEvidenceSchema,
-    label: 'Deployed critical-journey evidence',
+    label: 'Deployed read-only probe evidence',
   })
 }

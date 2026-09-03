@@ -5008,7 +5008,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:quarantine — list/redrive exhausted jobs from the BQC-3.6 failure quarantine via createRedriveJob (the BQC-3 contract); report-first, --apply + --reason to redrive (BQC-7.5)',
+        'ops:quarantine — list/redrive/discard exhausted jobs from the BQC-3.6 failure quarantine; redrive uses createRedriveJob, discard removes without execution; both mutations are report-first and require --apply + --reason (BQC-7.5)',
     },
   ),
   ops(
@@ -6250,7 +6250,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     {
       notes:
-        'release:deployed-journeys — REL-01 deployed critical-journey runner: drives the isolated read-only deployed-critical browser project with no retries against the production cell-us origin and writes one candidate-bound journey artifact; checks the authorization window before launching a browser',
+        'release:deployed-journeys — REL-01 deployed read-only probe runner: drives the isolated read-only deployed-critical browser project with no retries against the production cell-us origin and writes one candidate-bound probe evidence artifact; checks the authorization window before launching a browser; historical command, project, and evidence identifiers remain unchanged for digest compatibility',
     },
   ),
   ops(

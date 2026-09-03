@@ -6,6 +6,7 @@ import {
   metricQuarantine,
   metricReadings,
 } from '#/shared/db/schema/metric.schema'
+import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -225,6 +226,59 @@ function expectedPortalLifetimeFactFor(
 type ReadingInsertion =
   Readonly<{ inserted: true }> | Readonly<{ inserted: false; existingReadingId: string }>
 
+async function existingReadingId(
+  tx: MetricTx,
+  command: RecordMetricCommand,
+): Promise<string | null> {
+  const existing = await tx
+    .select({
+      id: metricReadings.id,
+      attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
+      attributedStaffParticipationId: metricReadings.attributedStaffParticipationId,
+      attributionResponsibilityId: metricReadings.attributionResponsibilityId,
+      staffAttributionEffectiveFrom: metricReadings.staffAttributionEffectiveFrom,
+      staffAttributionEffectiveTo: metricReadings.staffAttributionEffectiveTo,
+    })
+    .from(metricReadings)
+    .where(
+      and(
+        eq(metricReadings.organizationId, unbrand(command.reading.organizationId)),
+        eq(metricReadings.propertyId, unbrand(command.reading.propertyId)),
+        eq(metricReadings.definitionVersionId, command.reading.definitionVersionId),
+        eq(metricReadings.sourceEventId, command.reading.sourceEventId),
+      ),
+    )
+    .limit(1)
+  if (
+    existing[0] &&
+    !primaryStaffAttributionEquals(
+      staffAttributionFromColumns(existing[0]),
+      command.reading.staffAttribution,
+    )
+  ) {
+    throw new Error('Duplicate metric reading Staff attribution does not match')
+  }
+  return existing[0]?.id ?? null
+}
+
+async function reserveSourceReceipt(
+  tx: MetricTx,
+  receipt: NonNullable<RecordMetricCommand['sourceReceipt']>,
+): Promise<boolean> {
+  const rows = await tx
+    .insert(eventConsumerReceipts)
+    .values({
+      eventId: receipt.eventId,
+      consumerName: receipt.consumerName,
+      status: 'applied',
+    })
+    .onConflictDoNothing({
+      target: [eventConsumerReceipts.eventId, eventConsumerReceipts.consumerName],
+    })
+    .returning({ eventId: eventConsumerReceipts.eventId })
+  return rows.length === 1
+}
+
 /**
  * Insert the governed reading. A conflicting row is only a duplicate when it
  * carries the same Staff attribution.
@@ -265,36 +319,11 @@ async function insertReadingOrDescribeDuplicate(
     .returning({ id: metricReadings.id })
   if (rows[0]) return { inserted: true }
 
-  const existing = await tx
-    .select({
-      id: metricReadings.id,
-      attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
-      attributedStaffParticipationId: metricReadings.attributedStaffParticipationId,
-      attributionResponsibilityId: metricReadings.attributionResponsibilityId,
-      staffAttributionEffectiveFrom: metricReadings.staffAttributionEffectiveFrom,
-      staffAttributionEffectiveTo: metricReadings.staffAttributionEffectiveTo,
-    })
-    .from(metricReadings)
-    .where(
-      and(
-        eq(metricReadings.definitionVersionId, command.reading.definitionVersionId),
-        eq(metricReadings.sourceEventId, command.reading.sourceEventId),
-      ),
-    )
-    .limit(1)
-  if (
-    existing[0] &&
-    !primaryStaffAttributionEquals(
-      staffAttributionFromColumns(existing[0]),
-      command.reading.staffAttribution,
-    )
-  ) {
-    throw new Error('Duplicate metric reading Staff attribution does not match')
+  const existingId = await existingReadingId(tx, command)
+  if (!existingId) {
+    throw new Error('Metric reading insert conflicted without an existing source reading')
   }
-  return {
-    inserted: false,
-    existingReadingId: existing[0]?.id ?? unbrand(command.reading.id),
-  }
+  return { inserted: false, existingReadingId: existingId }
 }
 
 /**
@@ -389,7 +418,29 @@ export const createAtomicMetricCommandStore = (
         ) {
           throw new Error('Metric fact Staff attribution does not match its reading')
         }
+        if (
+          command.sourceReceipt &&
+          command.sourceReceipt.eventId !== command.reading.sourceEventId
+        ) {
+          throw new Error('Metric source receipt event does not match its reading')
+        }
         const committed = await db.transaction(async (tx) => {
+          if (
+            command.sourceReceipt &&
+            !(await reserveSourceReceipt(tx, command.sourceReceipt))
+          ) {
+            const existingId = await existingReadingId(tx, command)
+            if (!existingId) {
+              throw new Error('Metric source receipt exists without its source reading')
+            }
+            return {
+              result: {
+                status: 'duplicate' as const,
+                existingReadingId: existingId,
+              },
+              correctionEvent: null,
+            }
+          }
           const superseded = command.supersedesSourceEventId
             ? await resolveSupersededReading(tx, command, command.supersedesSourceEventId)
             : null

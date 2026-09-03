@@ -14,6 +14,11 @@ import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 import type { PortalLifetimeFact } from '../../domain/portal-lifetime-aggregate'
 
+export type MetricSourceReceipt = Readonly<{
+  eventId: string
+  consumerName: string
+}>
+
 /**
  * Reading insert + metric.recorded fact in one transaction. The reading id
  * is assigned by the use case (idGen) and inserted explicitly so the fact's
@@ -24,6 +29,8 @@ export type RecordMetricCommand = Readonly<{
   supersedesSourceEventId?: string | null
   portalLifetimeFact?: PortalLifetimeFact | null
   event: MetricRecorded
+  /** Optional source-consumer receipt committed with the reading. */
+  sourceReceipt?: MetricSourceReceipt
 }>
 
 export type QuarantineMetricCommand = Readonly<{

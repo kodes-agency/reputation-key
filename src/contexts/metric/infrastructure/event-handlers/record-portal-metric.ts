@@ -55,6 +55,8 @@ export type PortalMetricHandlerOptions<E extends PortalMetricEvent> = Readonly<{
    * recomputed from current Portal membership during replay. */
   portalGroupId?: (event: E) => PortalGroupId | null
   destinationKind?: (event: E) => PortalDestinationKind
+  /** Consumer receipt to commit with this source reading. */
+  sourceReceiptConsumer?: string
 }>
 
 async function recordPortalMetrics<E extends PortalMetricEvent>(
@@ -109,6 +111,14 @@ async function recordPortalMetrics<E extends PortalMetricEvent>(
       occurredAt: event.occurredAt,
       attributionQuality,
       staffAttribution: event.staffAttribution ?? null,
+      ...(opts.sourceReceiptConsumer
+        ? {
+            sourceReceipt: {
+              eventId: event.eventId,
+              consumerName: opts.sourceReceiptConsumer,
+            },
+          }
+        : {}),
       ...(opts.destinationKind ? { destinationKind: opts.destinationKind(event) } : {}),
     })
     if (

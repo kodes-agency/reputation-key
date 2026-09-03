@@ -9,7 +9,7 @@
 // durable consumers at once, so it is an ops decision with blast radius far
 // beyond notifications. This sweep closes the hole TODAY, under the flags as
 // they actually ship. Note the DURABLE_CUTOVER_INBOX* flags are NOT involved:
-// they govern the four review.* inbox projection families, not
+// they govern the two dual-path review.* inbox projection families, not
 // inbox.inbox_item.created.
 //
 // Shape follows discover-new-reviews.job.ts:

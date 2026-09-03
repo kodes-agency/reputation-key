@@ -1,20 +1,22 @@
-// REL-01 Promotion step 4 — the deployed critical-journey spec.
+// REL-01 Promotion step 4 — read-only deployed probes.
 //
-// `DEPLOYED_CRITICAL_JOURNEY_SPEC` in deployed-critical-journey-evidence.ts has
-// named this file since the schema was written; this is that file.
+// These are not business journeys. They make GET-only observations against the
+// production cell-us origin: liveness, readiness, private metrics staying dark,
+// the unauthenticated landing page rendering, the sign-in page rendering without
+// a session, and denial of an unknown guest Portal token. There is no sign-in
+// action, form submission, seed, fixture, or database handle.
 //
-// It is READ-ONLY by construction. Every journey here is a GET against the
-// production cell-us origin: no sign-in, no form submission, no seed, no
-// fixture, no database handle. That is the only safe shape for a suite whose
-// target is a live tenant-bearing deployment, and it is why the runner can
-// report `cleanup.orphanedSyntheticResources: 0` honestly — the run creates
-// nothing to orphan.
+// The release evidence identifier `repkey-deployed-critical-journeys-1`, the
+// Playwright project `deployed-critical`, and digest-bound evidence vocabulary
+// intentionally retain their historical critical-journey names. Renaming them
+// would invalidate existing release evidence; only this spec filename and the
+// human-facing evidence label change.
 //
-// The run also writes two artifacts the release runner binds as evidence
+// The probes write two artifacts the release runner binds as evidence
 // dependencies: an observed-request log (proving no unexpected external origin
 // was contacted) and a cleanup report (proving nothing was created). Both paths
-// come from the runner; without them the spec fails rather than skipping,
-// because unwritten evidence is missing evidence.
+// come from the runner; without them the spec fails rather than skipping. The
+// run creates nothing, so `cleanup.orphanedSyntheticResources: 0` is truthful.
 
 import { expect, test } from '@playwright/test'
 import { writeFileSync } from 'node:fs'

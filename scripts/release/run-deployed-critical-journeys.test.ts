@@ -254,7 +254,7 @@ describe('run-deployed-critical-journeys CLI', () => {
     expect(built.evidence.outcome).toBe('failed')
   })
 
-  it('binds the on-disk spec and Playwright config digests as retained siblings', async () => {
+  it('binds the on-disk read-only probe spec and Playwright config digests as retained siblings', async () => {
     const space = workspace()
     const dependencies = deps(space)
     expect(await runDeployedCriticalJourneysCli(space.args, dependencies)).toBe(0)

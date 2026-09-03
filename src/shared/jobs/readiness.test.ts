@@ -15,6 +15,7 @@ import {
   JOB_FAMILY_ROWS,
   EVENT_FAMILY_ROWS,
 } from '#/shared/governance/event-job-catalogue'
+import { INBOX_CUTOVER_FAMILIES } from '#/shared/outbox/cutover-flags'
 
 function fakeLogger() {
   return { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }
@@ -40,6 +41,19 @@ function allCatalogueDurableConsumers() {
       .map((c) => ({ eventType: r.eventType, consumerName: c.name })),
   )
 }
+
+const CUTOVER_CONSUMER_CASES = [
+  {
+    family: 'review.created',
+    state: 'shadow',
+    consumerName: 'inbox.on-review-created',
+  },
+  {
+    family: 'review.expired',
+    state: 'switch',
+    consumerName: 'inbox.on-review-expired',
+  },
+] as const
 
 describe('assertJobReadiness (BQC-3.6)', () => {
   it('passes when every enabled row has a handler and none are extra', () => {
@@ -174,9 +188,11 @@ describe('assertJobReadiness (BQC-3.6)', () => {
   it('throws when the dispatcher is enabled and a catalogued durable consumer is unregistered', () => {
     const logger = fakeLogger()
     const durable = allCatalogueDurableConsumers()
-    expect(durable.length).toBeGreaterThan(0)
-    const missing = durable[0]!
-    const rest = durable.slice(1)
+    const missing = durable.find(
+      ({ eventType }) => !INBOX_CUTOVER_FAMILIES.some((family) => family === eventType),
+    )
+    if (!missing) throw new Error('test precondition: a non-cutover consumer exists')
+    const rest = durable.filter((consumer) => consumer !== missing)
 
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
@@ -229,21 +245,64 @@ describe('assertJobReadiness (BQC-3.6)', () => {
         listConsumers: () => allCatalogueDurableConsumers(),
         activeCutoverFamilies: () => [
           { family: 'review.created', state: 'switch' },
-          { family: 'review.updated', state: 'shadow' },
+          { family: 'review.expired', state: 'shadow' },
         ],
       }),
     ).not.toThrow()
   })
 
-  it('BQC-3.9: record-only everywhere needs no dispatcher (explicit empty cutover)', () => {
+  it('BQC-3.9: record-only families need no durable consumer', () => {
     const logger = fakeLogger()
+    const recordOnlyRegistrations = allCatalogueDurableConsumers().filter(
+      (consumer) =>
+        !CUTOVER_CONSUMER_CASES.some(
+          ({ family, consumerName }) =>
+            consumer.eventType === family && consumer.consumerName === consumerName,
+        ),
+    )
 
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
-        dispatcherEnabled: false,
-        listConsumers: () => [],
+        dispatcherEnabled: true,
+        listConsumers: () => recordOnlyRegistrations,
         activeCutoverFamilies: () => [],
       }),
     ).not.toThrow()
   })
+
+  it.each(CUTOVER_CONSUMER_CASES)(
+    'BQC-3.9: $state requires the $family durable consumer',
+    ({ family, state, consumerName }) => {
+      const logger = fakeLogger()
+      const recordOnlyRegistrations = allCatalogueDurableConsumers().filter(
+        (consumer) =>
+          !CUTOVER_CONSUMER_CASES.some(
+            (cutover) =>
+              consumer.eventType === cutover.family &&
+              consumer.consumerName === cutover.consumerName,
+          ),
+      )
+      const activeConsumers = allCatalogueDurableConsumers().filter(
+        (consumer) =>
+          consumer.eventType === family && consumer.consumerName === consumerName,
+      )
+      expect(activeConsumers).toHaveLength(1)
+
+      expect(() =>
+        assertJobReadiness(fullyRegisteredRegistry(), logger, {
+          dispatcherEnabled: true,
+          listConsumers: () => recordOnlyRegistrations,
+          activeCutoverFamilies: () => [{ family, state }],
+        }),
+      ).toThrow(new RegExp(`${family}::${consumerName}`))
+
+      expect(() =>
+        assertJobReadiness(fullyRegisteredRegistry(), logger, {
+          dispatcherEnabled: true,
+          listConsumers: () => [...recordOnlyRegistrations, ...activeConsumers],
+          activeCutoverFamilies: () => [{ family, state }],
+        }),
+      ).not.toThrow()
+    },
+  )
 })
