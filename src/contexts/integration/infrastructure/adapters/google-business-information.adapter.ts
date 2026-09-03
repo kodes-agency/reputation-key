@@ -1,6 +1,7 @@
 import { z } from 'zod/v4'
 import type {
   GbpLocationCandidate,
+  GbpLocationVerification,
   GoogleBusinessInformationPort,
 } from '../../application/google-provider-contract'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
@@ -41,7 +42,10 @@ const locationSchema = z
       .passthrough()
       .optional(),
     metadata: z
-      .object({ newReviewUri: z.string().min(1).max(2_048).optional() })
+      .object({
+        newReviewUri: z.string().min(1).max(2_048).optional(),
+        hasVoiceOfMerchant: z.boolean().optional(),
+      })
       .passthrough()
       .optional(),
   })
@@ -67,10 +71,33 @@ function addressFrom(
   return parts.length === 0 ? null : parts.join(', ')
 }
 
+/**
+ * Google omits `hasVoiceOfMerchant` entirely when a location does not have it,
+ * exactly as it omits a zero review total — so an absent flag is indistinguishable
+ * from a field this account is not served at all. Reading absence as a denial
+ * would therefore risk withholding every location the moment Google changed what
+ * it returns. A page only earns the right to call absence "unverified" once some
+ * location on it proves the flag is being served.
+ */
+function pageVerificationIsObservable(
+  raws: readonly z.infer<typeof locationSchema>[],
+): boolean {
+  return raws.some((raw) => raw.metadata?.hasVoiceOfMerchant === true)
+}
+
+function verificationOf(
+  raw: z.infer<typeof locationSchema>,
+  observable: boolean,
+): GbpLocationVerification {
+  if (raw.metadata?.hasVoiceOfMerchant === true) return 'verified'
+  return observable ? 'unverified' : 'unknown'
+}
+
 function parseLocation(
   raw: z.infer<typeof locationSchema>,
   accountId: string,
   accountDisplayName: string,
+  verification: GbpLocationVerification,
 ): GbpLocationCandidate | null {
   const locationId = parseGoogleProviderResourceSuffix(raw.name, 'locations/')
   if (!locationId) return null
@@ -86,6 +113,7 @@ function parseLocation(
     primaryCategory: raw.categories?.primaryCategory?.displayName ?? null,
     countryCode: raw.storefrontAddress?.regionCode?.toUpperCase() ?? null,
     googleReviewUri,
+    verification,
   })
 }
 
@@ -124,11 +152,14 @@ export const createGoogleBusinessInformationAdapter = (
       }
       const items: GbpLocationCandidate[] = []
       const seen = new Set<string>()
-      for (const rawLocation of parsed.data.locations ?? []) {
+      const rawLocations = parsed.data.locations ?? []
+      const observable = pageVerificationIsObservable(rawLocations)
+      for (const rawLocation of rawLocations) {
         const location = parseLocation(
           rawLocation,
           input.accountId,
           input.accountDisplayName,
+          verificationOf(rawLocation, observable),
         )
         if (!location || seen.has(location.binding.locationId)) {
           throw createGbpApiError('listLocations', 'parse_error')

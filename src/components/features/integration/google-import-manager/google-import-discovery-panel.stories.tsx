@@ -53,6 +53,17 @@ const candidates: readonly ImportCandidateDto[] = [
       propertyId: '10000000-0000-4000-8000-000000000001' as never,
     },
   },
+  {
+    candidateId: 'candidate-unverified',
+    candidateRef: null,
+    accountRef: 'account.north',
+    accountDisplayName: 'North region',
+    businessName: 'Lantern Lane Language School',
+    address: '14 Lantern Lane, Berkeley, CA',
+    primaryCategory: 'Language school',
+    countryCode: 'US',
+    eligibility: { kind: 'verification_required' },
+  },
 ]
 
 function DiscoveryHarness() {

@@ -24,6 +24,7 @@ const candidate = (
   locationId: string,
   accountId = 'account-1',
   countryCode: string | null = 'US',
+  verification: GbpLocationCandidate['verification'] = 'verified',
 ): GbpLocationCandidate => ({
   binding: { accountId, locationId },
   accountDisplayName: 'Primary account',
@@ -31,6 +32,7 @@ const candidate = (
   address: '1 Main Street',
   primaryCategory: 'Restaurant',
   countryCode,
+  verification,
 })
 
 const view = (
@@ -154,6 +156,52 @@ describe('Google import Property candidate classifier', () => {
         candidates: [candidate('new')],
       }),
     ).resolves.toMatchObject([{ eligibility: { kind: 'unavailable' } }])
+  })
+
+  it('withholds an unverified location from import and reports why', async () => {
+    const classify = createGoogleImportPropertyClassifier({
+      readByLocationIds: vi.fn(async () => []),
+      isAllowed: vi.fn(async () => true),
+    })
+
+    await expect(
+      classify({
+        actor,
+        connectionId: selectedConnectionId,
+        candidates: [candidate('unverified', 'account-1', 'US', 'unverified')],
+      }),
+    ).resolves.toMatchObject([{ eligibility: { kind: 'verification_required' } }])
+  })
+
+  it('reports verification ahead of an unprocessable region', async () => {
+    // Verification is the blocker the operator can clear themselves, in Google.
+    const classify = createGoogleImportPropertyClassifier({
+      readByLocationIds: vi.fn(async () => []),
+      isAllowed: vi.fn(async () => true),
+    })
+
+    await expect(
+      classify({
+        actor,
+        connectionId: selectedConnectionId,
+        candidates: [candidate('both', 'account-1', 'JP', 'unverified')],
+      }),
+    ).resolves.toMatchObject([{ eligibility: { kind: 'verification_required' } }])
+  })
+
+  it('still offers a location whose verification could not be observed', async () => {
+    const classify = createGoogleImportPropertyClassifier({
+      readByLocationIds: vi.fn(async () => []),
+      isAllowed: vi.fn(async () => true),
+    })
+
+    await expect(
+      classify({
+        actor,
+        connectionId: selectedConnectionId,
+        candidates: [candidate('unknown-state', 'account-1', 'US', 'unknown')],
+      }),
+    ).resolves.toMatchObject([{ eligibility: { kind: 'create' } }])
   })
 
   it('treats an account with no locations as an empty page, not a failure', async () => {

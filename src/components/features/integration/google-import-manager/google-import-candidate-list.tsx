@@ -33,6 +33,8 @@ function eligibilityLabel(candidate: ImportCandidateDto): string {
       return 'Linked elsewhere'
     case 'region_unavailable':
       return 'Region unavailable'
+    case 'verification_required':
+      return 'Needs Google verification'
     case 'unavailable':
       return 'Unavailable'
   }
