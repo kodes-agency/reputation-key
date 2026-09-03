@@ -5278,7 +5278,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:refresh — bounded re-run of a refresh sweep (reviews / metrics-*) by enqueueing via jobEnqueueOptions (BQC-3 producer contract; dispatch re-authorizes) (BQC-7.5)',
+        'ops:refresh — bounded re-run of the Review refresh sweep by enqueueing via jobEnqueueOptions (BQC-3 producer contract; dispatch re-authorizes) (BQC-7.5)',
     },
   ),
   ops('scripts/ops/enqueue-purge.ts', 'scripts/ops/enqueue-purge.ts', 'tenant_cross', {
@@ -5637,10 +5637,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'check:runtime-environment-contract — digests the files that decide what a DEPLOYED service must supply at boot and fails when they move, so a contract change cannot pass a repository-only CI and crash-loop production (739ccbc9 sidecar port split); writes the snapshot only under --update',
     },
   ),
-  ops('scripts/ci/gate.ts', 'scripts/ci/gate.ts', 'none', {
-    notes:
-      'pnpm gate <id> — reads the gate policy registry and runs a gate only if the current release posture arms it; the bridge for YAML and husky, which cannot import TypeScript. Mutates nothing itself: it spawns the gate’s own declared command and returns its exit code. An UNKNOWN gate id exits non-zero rather than skipping, because a typo that silently skips a gate leaves CI green with the gate never having run',
-  }),
   ops(
     'scripts/review/baseline-inventory.ts',
     'scripts/review/baseline-inventory.ts',
@@ -6022,12 +6018,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'scripts/migrations/2026-07-06-permission-version-triggers.sql',
     'tenant_cross',
     { notes: 'DIRECT-DB (psql): DAC permission-version triggers + last-owner guard' },
-  ),
-  ops(
-    'scripts/migrations/add-materialized-views-and-gbp-index.sql',
-    'scripts/migrations/add-materialized-views-and-gbp-index.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): db:matviews — 3 materialized views + GBP unique index' },
   ),
   ops(
     'scripts/migrations/google-import-contract.sql',

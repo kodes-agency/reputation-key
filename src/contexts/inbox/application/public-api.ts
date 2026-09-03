@@ -11,19 +11,10 @@ export type {
   InboxItemDetail,
   InboxStatus,
   SourceType,
-  ReviewHandlingCycle,
-  ReviewHandlingCycleHead,
-  ReviewHandlingCycleOpenReason,
   ManualReopenReason,
 } from '../domain/types'
 export type {
-  ReviewHandlingCycleExpectation,
-  ReviewHandlingCycleResult,
-} from './ports/review-handling-cycle.store'
-export type {
   FeedbackHandlingCommandResult,
-  FeedbackHandlingCorrectionExpectation,
-  FeedbackHandlingExpectation,
   FeedbackHandlingState,
 } from './ports/feedback-handling.store'
 export type {
@@ -32,22 +23,11 @@ export type {
   ResponseTargetView,
 } from './ports/response-target.store'
 export type {
-  ResponseTargetPolicyStore,
   ResponseTargetPolicySettings,
   ResponseTargetPolicyWriteResult,
 } from './ports/response-target-policy.store'
-export type {
-  ResponseTargetEligibility,
-  ResponseTargetEvaluation,
-  ResponseTargetKind,
-  ResponseTargetPolicySource,
-  ResponseTargetReminderKind,
-  ResponseTargetResult,
-} from '../domain/response-target'
 export {
   PRIVATE_FEEDBACK_HANDLING_OUTCOMES,
-  type FeedbackHandlingDeadlineResult,
-  type FeedbackHandlingOutcomeFact,
   type PrivateFeedbackHandlingOutcome,
 } from '../domain/feedback-handling'
 // The manager-facing conflict message. Components match rejected mutations on
@@ -57,58 +37,16 @@ export { REVISION_CONFLICT_MESSAGE } from '../domain/errors'
 
 // IBX-01 cutover classification. Pure and read-only: it reports what the legacy
 // rows prove and never infers an outcome or an on-time result from `closedAt`.
-export {
-  INBOX_HANDLING_CUTOVER_REPORT_VERSION,
-  INBOX_LEGACY_CLASSIFICATIONS,
-  INBOX_LEGACY_REASON_CODES,
-  canonicalInboxHandlingCutoverReport,
-  classifyInboxLegacyRelationship,
-  type InboxHandlingCutoverReport,
-  type InboxHandlingCutoverReportInput,
-  type InboxHandlingCutoverReportPayload,
-  type InboxLegacyClassification,
-  type InboxLegacyCycleRow,
-  type InboxLegacyHeadRow,
-  type InboxLegacyItemRow,
-  type InboxLegacyNoteRow,
-  type InboxLegacyOutcomeRow,
-  type InboxLegacyReasonCode,
-  type InboxLegacyRelationship,
-  type InboxLegacyRelationshipInput,
-  type InboxLegacySourceAnchorRow,
-  type InboxLegacyTransitionRow,
-} from './inbox-handling-cutover'
+export { canonicalInboxHandlingCutoverReport } from './inbox-handling-cutover'
 
 // Application-layer detail result (includes the review reply) — used by the
 // client detail state. See get-inbox-item-detail use case.
 export type { InboxItemDetailResult } from './use-cases/get-inbox-item-detail'
 export type { InboxNoteView } from './use-cases/get-inbox-notes'
-export type { GetInboxItemHistoryResult } from './use-cases/get-inbox-item-history'
-
-// IBX-01-T5: the manager Handling History record. Components render these
-// types, so they are published here rather than imported from domain/.
-export type {
-  InboxAssignmentReason,
-  InboxHistoryAssignmentDetail,
-  InboxHistoryCycleOpenedDetail,
-  InboxHistoryCycleTransitionDetail,
-  InboxHistoryDetail,
-  InboxHistoryEntry,
-  InboxHistoryEscalationDetail,
-  InboxHistoryKind,
-  InboxHistoryOutcomeDetail,
-} from '../domain/handling-history'
-export { INBOX_HISTORY_KINDS } from '../domain/handling-history'
-export type { InboxHistoryPage } from './ports/inbox-history.repository'
-export type { InboxError, InboxErrorCode } from '../domain/errors'
-export { isInboxError } from '../domain/errors'
+export type { InboxError } from '../domain/errors'
 export { INBOX_BULK_LIMIT } from './dto/inbox.dto'
 export type { Cursor, InboxSort } from './ports/inbox.repository'
-export type {
-  InboxReviewAnalysis,
-  ReviewAttention,
-  ReviewCategory,
-} from './ports/ai-review-insights.port'
+export type { InboxReviewAnalysis, ReviewCategory } from './ports/ai-review-insights.port'
 
 /** Request-facing Inbox capabilities. Persistence and construction stay private. */
 export type InboxPublicApi = Readonly<{
@@ -145,7 +83,6 @@ export type {
   InboxItemUnassigned,
   InboxNoteAdded,
   InboxItemBulkStatusChanged,
-  InboxBulkAssignmentTransition,
   InboxBulkAssignmentCompleted,
   InboxHandlingCycleOpened,
   InboxHandlingCycleClosed,

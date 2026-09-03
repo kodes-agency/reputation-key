@@ -6,7 +6,9 @@ import {
   aiReplyBrandProfile,
   digestAiReplyBrandDisplayName,
 } from '#/shared/ai-reply-brand-profile.server'
-import type { PortalAiReplyBrandProfilePublicApi } from '../application/public-api'
+import type { AiReplyBrandProfile } from '#/shared/ai-reply-brand-profile'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { Tx } from '#/shared/outbox/commit'
 
 function parsedProfile(
   row:
@@ -25,10 +27,11 @@ function parsedProfile(
   }
 }
 
-export const createPortalAiReplyBrandProfileAuthority = (
-  db: Database,
-): PortalAiReplyBrandProfilePublicApi => ({
-  async readCurrentAiReplyBrandProfile(organizationId, propertyId) {
+export const createPortalAiReplyBrandProfileAuthority = (db: Database) => ({
+  async readCurrentAiReplyBrandProfile(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+  ): Promise<AiReplyBrandProfile | null> {
     const [row] = await db
       .select({
         displayName: propertyPortalBrandProfiles.displayName,
@@ -45,7 +48,15 @@ export const createPortalAiReplyBrandProfileAuthority = (
     return parsedProfile(row)
   },
 
-  async isCurrentAiReplyBrandProfile(tx, input) {
+  async isCurrentAiReplyBrandProfile(
+    tx: Tx,
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      version: number
+      displayNameDigest: string
+    }>,
+  ): Promise<boolean> {
     if (
       !Number.isSafeInteger(input.version) ||
       input.version < 1 ||

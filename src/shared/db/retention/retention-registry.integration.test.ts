@@ -19,6 +19,7 @@ import { buildRetentionRegistryReport } from './report-retention-registry'
 import {
   assertRetentionRegistryApplyAllowed,
   RETENTION_REGISTRY,
+  retentionRegistryContractionViolations,
 } from './retention-registry'
 
 let lease: TestLease
@@ -173,14 +174,35 @@ describe('retention registry report-only mode', () => {
       .map(({ ruleId }) => ruleId)
     expect(countable).toEqual([
       'google.import_discovery',
+      'google.import_discovery_invalidations',
+      'review.sync_runs',
+      'review.refresh_runs',
+      'integration.inbound_webhook_receipts',
       'guest.session_pseudonym',
+      'guest.destination_action_session_pseudonym',
+      'guest.qualified_scan_session_pseudonym',
       'guest.abuse_pseudonym',
       'guest.network_pseudonym',
+      'guest.legacy_scan_events.abuse_pseudonym',
+      'guest.legacy_scan_events.session_pseudonym',
+      'guest.legacy_ratings.abuse_pseudonym',
+      'guest.legacy_ratings.session_pseudonym',
+      'guest.legacy_feedback.abuse_pseudonym',
+      'guest.legacy_feedback.session_pseudonym',
       'guest.optional_contact',
       'guest.private_feedback_text',
       'guest.deidentified_facts',
       'notification.delivery_records',
+      'notification.terminal_digest_batches',
+      'notification.terminal_email_queue',
       'activity.recent_activity',
+      'activity.replay_facts',
+      'activity.actor_label_redactions',
+      'platform.published_outbox_events',
+      'platform.event_consumer_receipts',
+      'identity.invited_registration_attempts',
+      'platform.policy_decision_audit',
+      'platform.audit_logs',
       'integration.provider_tokens',
     ])
 
@@ -192,6 +214,10 @@ describe('retention registry report-only mode', () => {
     )
     expect(uncountable).toEqual({
       'google.source_content': 'no counsel-approved horizon exists',
+      'guest.deidentified_qualified_scan_facts': 'no counsel-approved horizon exists',
+      'metric.deidentified_destination_click_facts': 'no counsel-approved horizon exists',
+      'metric.deidentified_correction_withdrawal_facts':
+        'no counsel-approved horizon exists',
       'metric.lifetime_aggregates': 'retained while its owning aggregate exists',
       'activity.operational_action_history': 'no counsel-approved horizon exists',
       'platform.logs_sentry_replay_screenshots': 'no counsel-approved horizon exists',
@@ -212,16 +238,12 @@ describe('retention registry report-only mode', () => {
     }
   })
 
-  it('never names a table the contraction inventory is still counting', async () => {
-    const candidates = new Set(contractionCandidateTableNames())
-    const report = await buildRetentionRegistryReport({
-      db,
-      registry: RETENTION_REGISTRY,
-      generatedAt: GENERATED_AT,
-    })
-    const targeted = report.rules
-      .filter((row) => row.sourceKind === 'table' && candidates.has(row.source))
-      .map(({ ruleId }) => ruleId)
-    expect(targeted).toEqual([])
+  it('never names a contraction candidate beyond the exact redaction allowlist', () => {
+    expect(
+      retentionRegistryContractionViolations(
+        RETENTION_REGISTRY,
+        contractionCandidateTableNames(),
+      ),
+    ).toEqual([])
   })
 })

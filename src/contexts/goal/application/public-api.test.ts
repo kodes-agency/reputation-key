@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest'
 // we verify the runtime exports are callable/exist at import time.
 
 import { goalCompleted } from '../domain/events'
-import { deriveEntityScope } from './public-api'
+import { deriveEntityScope } from './dto/goal.dto'
 import { goalId, organizationId, propertyId, userId } from '#/shared/domain/ids'
 
 describe('GoalPublicApi', () => {

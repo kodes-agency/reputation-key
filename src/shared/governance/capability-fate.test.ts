@@ -57,6 +57,7 @@ describe('accepted beta capability fate authority', () => {
   })
 
   it('makes the settled high-risk decisions explicit', () => {
+    // @proof GOAL_RECOGNITION_RUNTIME#1
     expect(listCapabilitiesByFate('legacy_blocked')).toEqual([
       'badge.use',
       'leaderboard.use',

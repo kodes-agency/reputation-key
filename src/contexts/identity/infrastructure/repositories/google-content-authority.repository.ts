@@ -579,7 +579,12 @@ export const createGoogleContentAuthorityRepository = (
           completedAt: permit.completedAt,
           fencedAt: permit.fencedAt,
         })
-        .where(eq(authorizationExecutionPermits.id, permit.id))
+        .where(
+          and(
+            eq(authorizationExecutionPermits.id, permit.id),
+            eq(authorizationExecutionPermits.organizationId, permit.organizationId),
+          ),
+        )
     },
 
     denyCapability: async (tx, capability, input) => {

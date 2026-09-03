@@ -3,17 +3,14 @@
  *
  * The program rule this module encodes is one sentence: **Engineering cannot
  * self-approve this gate.** Prose said so; nothing enforced it. Here the rule
- * is executable in three ways.
+ * is executable in two ways.
  *
  * 1. Approval is bound to bytes. The registry records the sha256 of each
  *    document, so an approved file that is edited afterwards fails the check
  *    instead of silently carrying counsel's name over text counsel never saw.
  *    Drafts are held to the same digest discipline for the mirror-image
  *    reason: counsel must be reviewing exactly the bytes in the repository.
- * 2. Approval cannot be claimed for a draft. `requireApprovedLegalDocument`
- *    throws and names the blocking id, so no code path can read a draft as
- *    permission to publish.
- * 3. The approver must be external. A counsel-owned document approved by an
+ * 2. The approver must be external. A counsel-owned document approved by an
  *    engineering role, by a prohibited individual, or by the operating
  *    company itself is rejected — the operator cannot sign its own consent.
  *
@@ -180,20 +177,4 @@ export function legalPublicationBlockers(
     // clean list from the closed phase.
     return document.kind === 'operator_acknowledged'
   })
-}
-
-export function requireApprovedLegalDocument(
-  id: string,
-  registry: LegalDocumentRegistry = LEGAL_DOCUMENT_REGISTRY,
-): LegalDocument {
-  const document = registry.documents.find((candidate) => candidate.id === id)
-  if (document === undefined) {
-    throw new Error(`legal document ${id} is not registered and cannot be approved`)
-  }
-  if (document.status !== 'approved' || document.approver === null) {
-    throw new Error(
-      `legal document ${id} is not approved (status ${document.status}); publication is blocked`,
-    )
-  }
-  return document
 }

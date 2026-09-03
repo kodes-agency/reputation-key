@@ -128,6 +128,21 @@ describe('assertJobReadiness (BQC-3.6)', () => {
         registration: 'quarantined',
       },
       {
+        jobName: 'refresh-daily-metrics',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+      {
+        jobName: 'refresh-weekly-metrics',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+      {
+        jobName: 'refresh-daily-inbox-metrics',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+      {
         jobName: 'advance-organization-lifecycle',
         capability: 'none',
         registration: 'quarantined',

@@ -24,7 +24,6 @@ export type {
   PortalRatingTrendPoint,
   PortalMetricEvidence,
   PortalMetricEvidenceSet,
-  PortalMetricFamily,
 } from './ports/portal-analytics.repository'
 
 /**
@@ -35,13 +34,7 @@ export type {
 export type { MetricRecorded, MetricEvent } from '../domain/events'
 export { METRIC_VERSION_IDS } from '../domain/metric-registry'
 export type { GovernedMetricVersion } from '../domain/metric-registry'
-export type {
-  PortalLifetimeAggregate,
-  PortalLifetimeAggregatePort,
-  PortalLifetimeInspection,
-  PortalLifetimeReconciliation,
-  PortalLifetimeScope,
-} from './ports/portal-lifetime-aggregate.port'
+export type { PortalLifetimeAggregatePort } from './ports/portal-lifetime-aggregate.port'
 
 /** Cross-context lifetime reads. Projection repair and retention sealing stay
  * behind Metric-owned maintenance/lifecycle authorities. */
@@ -49,12 +42,7 @@ export type PortalLifetimeReadApi = Readonly<Pick<PortalLifetimeAggregatePort, '
 export type {
   FindGoalMetricCorrectionImpactsInput,
   GoalMetricCorrectionImpact,
-  GoalMetricCorrectionImpactLookup,
 } from './ports/goal-metric-correction-impact.lookup'
-export type {
-  CurrentOnGoogleReputationSnapshot,
-  VerifiedGoogleReputationSnapshotFact,
-} from './ports/current-google-reputation-snapshot.port'
 
 export type MetricPublicApi = Readonly<{
   /**

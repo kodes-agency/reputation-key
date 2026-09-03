@@ -43,7 +43,7 @@ import { RELEASE_POSTURES, type ReleasePosture } from './release-posture'
 
 export const GATE_F_EVIDENCE_VERSION = 'repkey-gate-f-evidence-1' as const
 
-export const GATE_F_REQUIRED_GATE_IDS = [
+const GATE_F_GATE_IDS = [
   'candidate.clean_ci',
   'candidate.independent_review',
   'candidate.defect_disposition',
@@ -63,6 +63,16 @@ export const GATE_F_REQUIRED_GATE_IDS = [
   'promotion.dormant_cell_denial',
   'opening.cohort_readiness',
 ] as const
+
+type GateFGateId = (typeof GATE_F_GATE_IDS)[number]
+
+const CLOSED_BETA_REQUIRED_GATE_IDS: readonly GateFGateId[] = GATE_F_GATE_IDS.filter(
+  (id) => id !== 'candidate.independent_review' && id !== 'opening.cohort_readiness',
+)
+
+export function gateFRequiredGateIdsFor(posture: ReleasePosture): readonly GateFGateId[] {
+  return posture === 'closed-beta' ? CLOSED_BETA_REQUIRED_GATE_IDS : GATE_F_GATE_IDS
+}
 
 /**
  * Who a release is exposed to, which decides how many humans must approve it.
@@ -91,10 +101,9 @@ export { RELEASE_POSTURES, type ReleasePosture } from './release-posture'
 /**
  * A closed beta is approved by the founder alone.
  *
- * This is narrower than it looks. It removes the SIGNATURES, not the evidence:
- * every gate in `GATE_F_REQUIRED_GATE_IDS` still has to be produced, still has
- * to bind its digests, and the approval still has to be a real signature over
- * the manifest and legal digests. What changes is how many people sign.
+ * This narrows signatures independently from the posture-scoped evidence list:
+ * closed beta requires the founder signature, while wider postures restore the
+ * complete approval role set.
  */
 const CLOSED_BETA_APPROVAL_ROLES = ['founder'] as const
 
@@ -158,7 +167,7 @@ const evidenceReferenceSchema = z
 
 const gateSchema = z
   .object({
-    id: z.enum(GATE_F_REQUIRED_GATE_IDS),
+    id: z.enum(GATE_F_GATE_IDS),
     status: z.literal('passed'),
     evidence: z.array(evidenceReferenceSchema).min(1),
   })
@@ -245,14 +254,15 @@ const gateFEvidenceObjectSchema = z
 
 type GateFEvidenceShape = z.infer<typeof gateFEvidenceObjectSchema>
 
-/** The eighteen gates must be present exactly once each, in canonical order. */
+/** Every gate required by the declared posture must appear once, in canonical order. */
 function refineGateSet(value: GateFEvidenceShape, context: z.RefinementCtx): void {
+  const requiredGateIds = gateFRequiredGateIdsFor(value.release.posture)
   const gateIds = value.gates.map(({ id }) => id)
   const uniqueGateIds = new Set(gateIds)
   if (uniqueGateIds.size !== gateIds.length) {
     context.addIssue({ code: 'custom', path: ['gates'], message: 'duplicate gate id' })
   }
-  for (const id of GATE_F_REQUIRED_GATE_IDS) {
+  for (const id of requiredGateIds) {
     if (!uniqueGateIds.has(id)) {
       context.addIssue({
         code: 'custom',
@@ -262,13 +272,13 @@ function refineGateSet(value: GateFEvidenceShape, context: z.RefinementCtx): voi
     }
   }
   if (
-    gateIds.length !== GATE_F_REQUIRED_GATE_IDS.length ||
-    gateIds.some((id, index) => id !== GATE_F_REQUIRED_GATE_IDS[index])
+    gateIds.length !== requiredGateIds.length ||
+    gateIds.some((id, index) => id !== requiredGateIds[index])
   ) {
     context.addIssue({
       code: 'custom',
       path: ['gates'],
-      message: 'Gate F gate set and canonical order must be exact',
+      message: `Gate F gate set and canonical order must be exact for posture ${value.release.posture}`,
     })
   }
 }

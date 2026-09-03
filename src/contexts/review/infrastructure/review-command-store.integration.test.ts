@@ -282,6 +282,7 @@ describe('atomic review re-observation', () => {
   })
 
   it('preserves staff-authored reply history while advancing the source lifecycle', async () => {
+    // @proof REVIEW_REOBSERVATION_IDENTITY#1
     const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
     const initial = review(EXPIRED_AT)
     const created = await store.upsertAndRecord(

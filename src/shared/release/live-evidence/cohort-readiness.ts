@@ -13,6 +13,7 @@
  */
 
 import { z } from 'zod/v4'
+import { CURRENT_RELEASE_POSTURE } from '../gate-policy'
 import {
   parseCanonicalReleaseEvidence,
   releaseEvidenceIdentitySchema,
@@ -124,7 +125,10 @@ const cohortReadinessEvidenceSchema = liveEvidenceBaseSchema(
         message: 'cohortReference must be a pseudonym, not an organization name',
       })
     }
-    if (value.supportOwner === value.incidentOwner) {
+    if (
+      CURRENT_RELEASE_POSTURE !== 'closed-beta' &&
+      value.supportOwner === value.incidentOwner
+    ) {
       context.addIssue({
         code: 'custom',
         path: ['incidentOwner'],

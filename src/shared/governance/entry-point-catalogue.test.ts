@@ -16,7 +16,7 @@
 //      dynamic-import aliases, and composed metric loops
 //   4. consumers — registration tables plus the production composition call
 //      site (or an explicit declared-only classification)
-//   5. schedules — the single operational job authority consumed by the worker
+//   5. schedules — the operational job authority plus explicit CNV-01 removal tombstones
 //   6. operator commands — scripts/ file walk + package.json script coverage
 //
 // The policy test: every row's beta posture is re-derived from the
@@ -580,6 +580,12 @@ function discoverSchedules(): ReadonlyArray<string> {
     .sort()
 }
 
+const RETAINED_CNV_01_SCHEDULE_ROWS: Readonly<Record<string, true>> = {
+  'refresh-daily-metrics-recurring': true,
+  'refresh-weekly-metrics-recurring': true,
+  'refresh-daily-inbox-metrics-recurring': true,
+}
+
 // ── 6. Operator commands ────────────────────────────────────────────
 
 const OPERATOR_SCRIPT_PREFIX = /^(seed|simulate|db:|auth:|audit:|perf:|bqc:|ops:)/
@@ -704,9 +710,8 @@ describe('BQC-2.1 entry-point catalogue', () => {
     // Both digests are asserted TOGETHER, as one object, deliberately.
     //
     // As two separate `expect`s the first throw aborted the test and the second
-    // digest was never evaluated — so adding one catalogue row cost two full
-    // runs of a 5-second suite: fix digest A, re-run, discover digest B, fix it,
-    // re-run. Measured on 2026-08-31 while registering `scripts/ci/gate.ts`.
+    // digest was never evaluated, so one catalogue-row change cost two full
+    // runs: fix digest A, re-run, discover digest B, fix it, re-run.
     //
     // Compared as an object, one run prints both actual values and the
     // `Received` block is literally what you paste back in. Same assertion,
@@ -719,9 +724,9 @@ describe('BQC-2.1 entry-point catalogue', () => {
         ),
       ),
     }).toEqual({
-      full: 'abe84771d5fac1ab01427ac885599a68a92cfd55e4d2c28f386beb2257ad8b6d',
+      full: '72b67464f10f46de61d98efe76b4a0e27ea10004b27ee75d448ded039e47ab19',
       withoutOutboxConsumers:
-        '038d3382d5d3f1b2b2186f2cfa6ba202902a1ac48ac973772c3ccfc6d593ad1a',
+        '88503a7da8fbf4f535772a720e7770c209f4d3bf61cbe095591439d0cca0c49a',
     })
 
     const invalid = {
@@ -1334,11 +1339,26 @@ describe('BQC-2.1 entry-point catalogue', () => {
       `schedules missing from the catalogue: ${missing.join(', ')}`,
     ).toEqual([])
 
-    const stale = rows.filter((r) => !discovered.includes(r.name))
+    const stale = rows.filter(
+      (row) =>
+        !discovered.includes(row.name) && !(row.name in RETAINED_CNV_01_SCHEDULE_ROWS),
+    )
     expect(
       stale.map(rowKey),
       `stale schedule rows: ${stale.map(rowKey).join(', ')}`,
     ).toEqual([])
+
+    for (const name of Object.keys(RETAINED_CNV_01_SCHEDULE_ROWS)) {
+      expect(
+        rows.some((row) => row.name === name),
+        name,
+      ).toBe(true)
+      const jobName = name.slice(0, -'-recurring'.length)
+      expect(
+        JOB_OPERATIONAL_CONTRACTS.find((contract) => contract.jobName === jobName),
+        name,
+      ).toMatchObject({ posture: 'quarantined', schedule: 'none' })
+    }
 
     const worker = read(join(ROOT, 'src/worker/index.ts'))
     expect(worker).toContain('createOperationalSchedulerPlan()')

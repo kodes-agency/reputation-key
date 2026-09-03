@@ -150,8 +150,10 @@ describe('standards exception register', () => {
       CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory),
     )
     const dimensions = new Set<string>(CONTEXT_STANDARD_DIMENSIONS.map(({ id }) => id))
+    const today = new Date().toISOString().slice(0, 10)
     for (const entry of register.entries) {
       expect(entry.expiresAt > entry.reviewedAt, entry.id).toBe(true)
+      expect(entry.expiresAt >= today, entry.id).toBe(true)
       expect(contextDirectories.has(entry.context), entry.id).toBe(true)
       expect(dimensions.has(entry.dimension), entry.id).toBe(true)
       expect(

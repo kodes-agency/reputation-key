@@ -115,9 +115,8 @@ property/
 
 Exported from `application/public-api.ts`:
 
-- Types: `PropertySlugLookupResult`, `PropertyLookupResult`, `PropertyPublicApi`, `PropertyFactsPublicApi`, `PropertyGoogleBindingPublicApi`, `PropertyGoogleReviewDestinationPublicApi`, `PropertyLifecyclePublicApi`
+- Types: `PropertyPublicApi`, `PropertyFactsPublicApi`, `PropertyGoogleBindingPublicApi`, `PropertyGoogleReviewDestinationPublicApi`, `PropertyLifecyclePublicApi`, `GoogleBindingState`
 - Lifecycle contract: `isPropertyActive`, used by cross-context request-time and external-effect gates to fail closed even before asynchronous projections settle.
-- Binding contract: `GOOGLE_BINDING_STATES`, `PROPERTY_GOOGLE_BINDING_CHANGED_EVENT`, `isGoogleBindingState`
 
 ## Server functions
 

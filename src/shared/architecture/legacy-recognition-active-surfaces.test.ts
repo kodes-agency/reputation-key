@@ -48,6 +48,7 @@ const LEGACY_CONTEXT_BUILDS = [
 // registers no consumer or job, and is deliberately unreachable from the inert
 // build boundary asserted below. Adding a row here widens the retained-source
 // inventory by exactly that one reader — it does not relax any darkness rule.
+// @proof GOAL_RECOGNITION_RUNTIME#3
 const RETAINED_RECOGNITION_PRODUCTION_SOURCES = [
   'src/contexts/badge/application/public-api.ts',
   'src/contexts/badge/build.ts',
@@ -84,6 +85,7 @@ function legacyRecognitionReferences(path: string): string[] {
 
 describe('legacy recognition stays out of active beta surfaces', () => {
   it('retains only historical decoding and content-free inventory code', () => {
+    // @proof GOAL_RECOGNITION_RUNTIME#1
     const retainedSources = [
       ...sourceFiles(join(SRC, 'contexts', 'badge')),
       ...sourceFiles(join(SRC, 'contexts', 'leaderboard')),
@@ -233,6 +235,7 @@ describe('legacy recognition stays out of active beta surfaces', () => {
   })
 
   it('removes legacy network and consumer declarations completely', () => {
+    // @proof GOAL_RECOGNITION_RUNTIME#2
     const removedDeclarations = [
       'src/contexts/badge/server/badges.ts',
       'src/contexts/badge/infrastructure/event-handlers/index.ts',

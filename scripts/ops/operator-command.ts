@@ -14,11 +14,10 @@
 // src/shared/ops/operator-command.ts with its unit tests — scripts/ sits
 // outside tsconfig/eslint, so this file is wiring only.
 //
-// Commands needing use cases (projection rebuild, policy admin, …) call
-// getContainer() inside their action. ARC-03-T8: building that container no
-// longer re-installs the policy singletons, so the boot-time runtime below
-// stays authoritative for the whole command instead of being silently
-// replaced mid-run.
+// Commands receive one operator-projected Application Container on
+// `ctx.container`. The harness builds it only after installing the policy
+// runtime, so every command shares one bounded maintenance surface and cannot
+// cold-boot the web singleton mid-run.
 
 import { getDb } from '../../src/shared/db'
 import { closePool } from '../../src/shared/db/pool'
@@ -26,6 +25,9 @@ import { getEnv } from '../../src/shared/config/env'
 import { getLogger } from '../../src/shared/observability/logger'
 import { initPersistedCapabilityPolicyStore } from '../../src/contexts/identity/infrastructure/policy-store-init'
 import type { ExecutionPolicy } from '../../src/shared/auth/execution-policy'
+import { createOperatorContainer } from '../../src/composition/deployables'
+import { closeJobQueueConnections } from '../../src/shared/jobs/queue'
+import type { OperatorContainer } from '../../src/composition/container-partition'
 import {
   bindProcessPolicies,
   releaseProcessPolicies,
@@ -34,8 +36,9 @@ import { createPropertyRoutingLoader } from '../../src/contexts/property/infrast
 import { createDataCellExecutionFence } from '../../src/shared/routing/data-cell-execution-fence'
 import {
   runOperatorCommand as runCore,
-  type OperatorAction,
+  type OperatorArgs,
   type OperatorCommandResult,
+  type OperatorContext,
   type OperatorIO,
   type OperatorCommandSpec,
   type OperatorRuntime,
@@ -43,15 +46,17 @@ import {
 
 type OperatorBoot = Readonly<{
   runtime: OperatorRuntime
+  container: OperatorContainer
   /** The instance the runtime closure decides on — flushed before exit. */
   decidingPolicy: ExecutionPolicy
   cleanup: () => void
 }>
 
-/** Boot the minimal operator policy runtime (capability store + both policies). */
+/** Boot the policy runtime, then the bounded operator Application Container. */
 async function bootOperatorRuntime(): Promise<OperatorBoot> {
   const db = getDb()
   const env = getEnv()
+  const logger = getLogger(process.stderr)
   const dataCellExecutionFence = createDataCellExecutionFence({
     localCell: env.PROCESSING_CELL,
     loadPropertyRouting: createPropertyRoutingLoader({ db }),
@@ -60,7 +65,7 @@ async function bootOperatorRuntime(): Promise<OperatorBoot> {
     db,
     env,
     clock: () => new Date(),
-    logger: getLogger(),
+    logger,
     admitPropertyExecution: dataCellExecutionFence.decideProperty,
   })
   // ARC-03-T8: this is the ops process's ONE policy installation. The
@@ -69,12 +74,14 @@ async function bootOperatorRuntime(): Promise<OperatorBoot> {
   // binding would silently evaluate operator commands against the env-only
   // fallback store.
   bindProcessPolicies(handle)
+  const container = createOperatorContainer()
   // Strong read: operator decisions see persisted tenant state (suspensions,
   // allowlists), not just the env seed the bootstrap window runs on.
   await handle.refresh()
   return {
     runtime: { decide: (request) => handle.executionPolicy.decide(request) },
     decidingPolicy: handle.executionPolicy,
+    container,
     cleanup: () => {
       handle.stopPolling()
       releaseProcessPolicies(handle)
@@ -82,38 +89,60 @@ async function bootOperatorRuntime(): Promise<OperatorBoot> {
   }
 }
 
+/** Existing action contract enriched with the harness-owned operator surface. */
+export type OpsAction = (
+  ctx: OperatorContext & Readonly<{ container: OperatorContainer }>,
+  args: OperatorArgs,
+  io: OperatorIO,
+) => Promise<number | void>
+
 /**
- * Run an operator command through the harness against the real policy
- * runtime. Returns the exit code — the script owns process.exit.
+ * Run an operator command through the real policy runtime. The action receives
+ * the same operator-projected container that this harness shuts down, so it
+ * cannot cold-boot a second, web-projected container.
  *
- * The finally-block flushes the decision audit writes, then drains the
- * shared pool: the ExecutionPolicy's audit write is fire-and-forget BY
- * DESIGN in the long-lived app process, but a CLI exits right after the
- * decision — without the flush, process.exit would race the INSERT and the
- * command's compliance record could be lost.
- *
- * The flush targets the boot instance the runtime actually decided on, held
- * on the boot handle rather than re-read from the process singleton. Before
- * ARC-03-T8 an action that called getContainer() re-installed the
- * ExecutionPolicy, so a getExecutionPolicy() read in this finally returned the
- * NEW instance (empty pending set) while the invocation's audit write on the
- * boot instance raced exit — observed as a missing compliance row on
- * fast-refusing commands (BQC-7.8 drill). A second container can no longer
- * re-install, and this no longer depends on that being true.
+ * The decision audit is fire-and-forget in the long-lived application, but a
+ * CLI exits immediately. Flush that exact deciding policy before releasing
+ * the container and shared pool so the command's compliance row cannot race
+ * process exit.
  */
 export async function runOperatorCommand(
   spec: OperatorCommandSpec,
-  action: OperatorAction,
+  action: OpsAction,
   argv: ReadonlyArray<string> = process.argv.slice(2),
   io?: OperatorIO,
 ): Promise<OperatorCommandResult> {
   const boot = await bootOperatorRuntime()
   const decidingPolicy = boot.decidingPolicy
   try {
-    return await runCore(spec, action, boot.runtime, argv, io)
+    return await runCore(
+      spec,
+      (ctx, args, actionIO) =>
+        action({ ...ctx, container: boot.container }, args, actionIO),
+      boot.runtime,
+      argv,
+      io,
+    )
   } finally {
     boot.cleanup()
-    await decidingPolicy.flushAudits()
-    await closePool()
+    try {
+      await decidingPolicy.flushAudits()
+    } finally {
+      const queues = new Set([
+        boot.container.jobQueue,
+        boot.container.backgroundQueue,
+        boot.container.opsQueues.background,
+        boot.container.opsQueues.domainEvents,
+        boot.container.opsQueues.quarantine,
+      ])
+      try {
+        await boot.container.shutdown.run()
+        await Promise.all(Array.from(queues, (queue) => queue?.close()))
+        await boot.container.providerEphemeralRedis?.quit()
+      } finally {
+        await closeJobQueueConnections()
+        await closePool()
+      }
+    }
   }
 }

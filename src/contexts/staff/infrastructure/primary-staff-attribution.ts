@@ -6,11 +6,18 @@ import {
   staffParticipants,
   staffParticipations,
 } from '#/shared/db/schema'
-import type {
-  PrimaryStaffAttribution,
-  ResolvePrimaryStaffAttributionInput,
-} from '../application/public-api'
-import { primaryStaffAttributionContains } from '#/shared/domain/primary-staff-attribution'
+import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
+import {
+  primaryStaffAttributionContains,
+  type PrimaryStaffAttributionSnapshot,
+} from '#/shared/domain/primary-staff-attribution'
+
+export type ResolvePrimaryStaffAttributionInput = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  observedAt: Date
+}>
 
 export class PrimaryStaffAttributionCorruptionError extends Error {
   readonly code = 'primary_staff_attribution_corrupt'
@@ -45,7 +52,7 @@ export type PrimaryStaffAttributionRow = Readonly<{
 export function decidePrimaryStaffAttribution(
   rows: readonly PrimaryStaffAttributionRow[],
   observedAt: Date,
-): PrimaryStaffAttribution | null {
+): PrimaryStaffAttributionSnapshot | null {
   if (rows.length === 0) return null
   if (rows.length !== 1 || Number.isNaN(observedAt.getTime())) {
     throw new PrimaryStaffAttributionCorruptionError()
@@ -87,7 +94,7 @@ export function decidePrimaryStaffAttribution(
 export const createPrimaryStaffAttributionResolver = (db: Database) =>
   async function resolvePrimaryStaffAttribution(
     input: ResolvePrimaryStaffAttributionInput,
-  ): Promise<PrimaryStaffAttribution | null> {
+  ): Promise<PrimaryStaffAttributionSnapshot | null> {
     if (Number.isNaN(input.observedAt.getTime())) {
       throw new PrimaryStaffAttributionCorruptionError()
     }

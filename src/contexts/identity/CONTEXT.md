@@ -177,13 +177,11 @@ interface and does not expose the grant repository.
 ## Public API
 
 - `src/contexts/identity/application/public-api.ts`
-  - Defines the exact `IdentityPublicApi` runtime contract as four frozen facades: `managerFacts` (`IdentityManagerFactsPublicApi`, exposing `listActiveManagers` over `ManagerMembership`), `accountAdminAuthority` (`IdentityAccountAdminAuthorityPublicApi`, exposing `isCurrentAccountAdmin`), an offboarding-facts facade (`IdentityOffboardingFactsPublicApi`, the read-only transfer worklist a departing member must clear — LIF-01-T21), and request-facing `requests` (`IdentityRequestApi`).
-  - Property and Portal receive only `managerFacts`; Guest receives the two authority facades separately; the complete facade remains available only to Identity delivery handlers.
+  - Exports `IdentityManagerFactsPublicApi`, exposing `listActiveManagers` over `ManagerMembership`, and `IdentityAccountAdminAuthorityPublicApi`, exposing `isCurrentAccountAdmin`. These are separate read-only authority facades rather than one catch-all runtime contract.
+  - Exports the delivery-boundary facade the composition root publishes as the identity public API: `IdentityPublicApi` composes the manager-facts and account-admin authority facades, `IdentityOffboardingFactsPublicApi` (the LIF-01-T21 transfer worklist — read-only and identifier-only) and `IdentityRequestApi` (the request-facing operations; infrastructure and worker controls stay private).
   - Re-exports event types: `IdentityOrganizationCreated`, `IdentityMemberInvited`, `IdentityInvitationAccepted`, `IdentityInvitationCanceled`, `IdentityMemberRemoved`, `IdentityMemberRoleChanged`, `IdentityMerchantAiChanged`, `IdentityOrganizationLifecycleChanged`, `IdentityEvent`
-  - Re-exports event constructors: `identityOrganizationCreated`, `identityMemberInvited`, `identityInvitationAccepted`, `identityInvitationCanceled`, `identityMemberRemoved`, `identityMemberRoleChanged`, `identityMerchantAiChanged`, `identityOrganizationLifecycleChanged`
-  - Re-exports organization lifecycle vocabulary: `OrganizationLifecycleState`, `OrganizationLifecycleStatus`, `OrganizationClosureRequestReasonCode`, `OrganizationClosureCancelReasonCode`
   - Re-exports merchant AI authorization vocabulary: `CURRENT_MERCHANT_AI_CAPABILITIES`, `CurrentMerchantAiCapability`, `MerchantAiCapability`, `MerchantAiSnapshot`, `MerchantAiState`
-  - Re-exports port types: `IdentityPort`, `MemberRecord`, `InvitationRecord`, `OrganizationRecord`
+  - Re-exports port and record types: `IdentityPort`, `MemberRecord`, `InvitationRecord`, `OrganizationRecord`, `ManagerMembership`
 
 ## Internal runtime API
 

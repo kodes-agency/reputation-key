@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 const source = (path: string) => readFileSync(path, 'utf8')
@@ -97,6 +98,41 @@ describe('sidecar executable operational wiring', () => {
       expect(contents, path).toContain('resolveSidecarRuntimePorts(process.env)')
       expect(contents, path).not.toContain("process.once('SIGTERM'")
       expect(contents, path).not.toContain("process.once('SIGINT'")
+    }
+  })
+
+  it('requires an explicit peer identity resolver on every internal mTLS server', () => {
+    const constructions = sidecarModules().flatMap((path) => {
+      const contents = source(path)
+      const sourceFile = ts.createSourceFile(
+        path,
+        contents,
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.TS,
+      )
+      const inputs: Array<Readonly<{ path: string; value: string }>> = []
+      const visit = (node: ts.Node): void => {
+        if (
+          ts.isCallExpression(node) &&
+          ts.isIdentifier(node.expression) &&
+          node.expression.text === 'createInternalMtlsWebServer'
+        ) {
+          const input = node.arguments[0]
+          inputs.push({
+            path,
+            value: input?.getText(sourceFile) ?? '',
+          })
+        }
+        ts.forEachChild(node, visit)
+      }
+      visit(sourceFile)
+      return inputs
+    })
+
+    expect(constructions.length).toBeGreaterThan(0)
+    for (const construction of constructions) {
+      expect(construction.value, construction.path).toMatch(/\bresolvePeerIdentity\s*:/u)
     }
   })
 

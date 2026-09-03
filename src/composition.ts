@@ -96,6 +96,12 @@ import {
   createMemberAuthorityLifecycle,
 } from './composition/member-authority-lifecycle'
 import type { StaffPortalLookupPort } from '#/contexts/staff/application/ports/portal-lookup.port'
+import {
+  claimDeployable,
+  projectContainer,
+  releaseDeployableClaim,
+  type WebContainer,
+} from './composition/container-partition'
 
 export {
   applyProviderEndpointOverrides,
@@ -906,25 +912,22 @@ export type SimulationContainer = BuiltContainer & {
   simulationRuntime: NonNullable<BuiltContainer['simulationRuntime']>
 }
 
-// BQC-7.1: the production build bundles this module twice (nitro app chunk +
-// lazy SSR chunk) — a module-level singleton would give each copy its own
-// container (and its own BullMQ queue connections). The Symbol.for key
-// shares one container process-wide so the graceful-shutdown plugin closes
-// the queues the request path actually created.
+// BQC-7.1: the production build bundles this module twice, so the singleton is
+// keyed by `Symbol.for` — see `composition/container-partition` for the same
+// reasoning applied to the process claim.
 const CONTAINER_KEY = Symbol.for('repkey.composition.container')
-type ContainerStore = { [CONTAINER_KEY]?: Container }
+type ContainerStore = { [CONTAINER_KEY]?: WebContainer }
 
 function containerStore(): ContainerStore {
   return globalThis as ContainerStore
 }
 
-/** Get or create the singleton container. */
-export function getContainer(): Container {
+/** The singleton, projected to the web deployable and claiming the process. */
+export function getContainer(): WebContainer {
   const store = containerStore()
-  if (!store[CONTAINER_KEY]) {
-    store[CONTAINER_KEY] = createContainer()
-  }
-  return store[CONTAINER_KEY]
+  if (store[CONTAINER_KEY]) return store[CONTAINER_KEY]
+  claimDeployable('web')
+  return (store[CONTAINER_KEY] = projectContainer(createContainer(), 'web'))
 }
 
 /**
@@ -942,6 +945,7 @@ export async function closeContainer(): Promise<void> {
   const store = containerStore()
   const container = store[CONTAINER_KEY]
   store[CONTAINER_KEY] = undefined
+  releaseDeployableClaim()
   if (!container) return
   // ARC-03-T6: release container-owned background work FIRST. The policy
   // poller re-reads the database on every tick, so stopping it before the

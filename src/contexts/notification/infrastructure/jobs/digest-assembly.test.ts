@@ -32,6 +32,7 @@ describe('immutable digest batch fingerprints (ADR 0046 r.5)', () => {
   })
 
   it('is stable only for the same persisted batch identity', () => {
+    // @proof DIGEST_BATCH_IDEMPOTENCY#1
     expect(keyFor()).toBe(keyFor())
     expect(keyFor()).toMatch(/^rk-digest-v2:[a-f0-9]{64}$/)
     expect(keyFor({ batchId: '22222222-2222-4222-8222-222222222222' })).not.toBe(keyFor())

@@ -240,11 +240,11 @@ portal/
 
 Exported from `application/public-api.ts`:
 
-- Ports: `StoragePort`, `PortalStoragePort`, `IssuedPortalUploadStoragePort`, `LinkResolverPort`
-- Types: `Portal`, `PortalContextResult`, `PortalPublicApi`, `PortalGroupSummary`, `PortalTokenStatus` (token existence/metadata for management surfaces — never token material), `PortalPublicationHistory`, `PortalPublicationHistoryItem`
-- Public-load types: `PublicPortalResult`, `PublicPortalByTokenOutcome` (every unavailable posture collapses to one outcome), `PublicGoogleReviewDestination`, `PublicPortalResponseConfiguration` (submission evidence the guest browser projection omits)
+- Ports: `StoragePort`, `PortalStoragePort`
+- Types: `Portal`, `PortalPublicApi`, `PortalTokenStatus` (token existence/metadata for management surfaces — never token material), `PortalPublicationHistory`, `PortalPublicationHistoryItem`
+- Public-load types: `PublicPortalResult`, `PublicGoogleReviewDestination`
 - `PortalPublicApi.getResponsibleManagerUserIds` returns only current assignments that remain role/access/participation eligible at read/delivery time.
-- Authority facades: `PortalContactRequestManagerAuthorityPublicApi` with `PortalContactRequestManagerAuthorityFacts`, and `PortalAiReplyBrandProfilePublicApi` for the one Property Brand field permitted in AI Reply Drafting.
+- Authority facades: `PortalContactRequestManagerAuthorityPublicApi` and `PortalAiReplyBrandProfilePublicApi`
 - `PortalContactRequestManagerAuthorityPublicApi.getContactRequestManagerAuthorityFacts` returns only the exact Portal's Property ID, creator ID, and current eligible assigned-manager IDs. Guest combines these identifier-only facts with current Identity membership and Property access; Portal never reads contact material or grants contact permission.
 - Types: `PortalGroupPublicApi` (exposes `findGroupForPortal`)
 - Functions: `isValidExternalUrl` (https-only link-destination guard, used by the public redirect route)

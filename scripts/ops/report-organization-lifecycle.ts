@@ -2,7 +2,6 @@
 // lifecycle authority plus production composition readiness; it cannot waive,
 // cancel, begin purge, reactivate, generate an export, or delete an object.
 
-import { getContainer } from '../../src/composition'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
@@ -16,7 +15,7 @@ async function main(): Promise<void> {
       usage: USAGE,
     },
     async (ctx, _args, io) => {
-      const container = getContainer()
+      const { container } = ctx
       const organizationId = ctx.organizationId as string
       const status =
         await container.identityLifecycleRuntime.operator.readStatus(organizationId)

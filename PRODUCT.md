@@ -9,12 +9,12 @@ product
 Three distinct audiences, each with their own context:
 
 - **Property managers** monitor incoming reviews, track staff performance metrics, and review property-level statistics. They work in focused sessions, often daily, comparing performance across staff and properties. Primarily desktop, occasional tablet. Often in low-light environments — evening review sessions, dim offices.
-- **Staff members** check their own progress, team progress, earned badges, and leaderboard positions. Quick check-in sessions, often on mobile between tasks. Glancing, not studying.
+- **Staff participants** are manager-maintained profiles attributed to Portal performance; a Staff login and self-service progress view are deferred beyond the beta.
 - **Clients** (guests/tenants) use public-facing portals to leave reviews and browse property link-tree pages. Brief, low-commitment visits, almost always mobile.
 
 ## Product Purpose
 
-Reputation management platform that closes the loop between service quality and feedback. Managers get visibility into what guests say and how staff perform. Staff get motivation through transparent progress tracking. Clients get a frictionless way to be heard. Success means higher review volumes, better staff engagement, and actionable reputation insights.
+Reputation management platform that closes the loop between service quality and feedback. Managers get visibility into what guests say and how staff perform. Staff performance is attributed to Portals for the managers who run them. Clients get a frictionless way to be heard. Success means higher review volumes, better staff engagement, and actionable reputation insights.
 
 ## Brand Personality
 
@@ -38,8 +38,8 @@ The interface feels like a precision instrument: every element earns its place, 
 1. **Tool-like precision** — Every surface is intentional. Spacing, type scale, and alignment signal craft without decoration. The interface reads as a well-made tool, not a styled page.
 2. **Surface for the task** — Every screen answers one primary question well. Supporting information is available but never competes. Density matches the user's need in that moment.
 3. **Breathe between sections** — Generous spacing is structural, not decorative. Information density comes from thoughtful grouping, not tighter gaps.
-4. **Mobile-native for staff and clients** — Responsive is not a fallback. Staff checking badges on their phone deserves the same craft as a manager on desktop.
-5. **Transparent motivation** — Progress, badges, and leaderboards feel earned and honest, not gamified or manipulative.
+4. **Mobile-native for staff and clients** — Responsive is not a fallback. A guest scanning a Portal on their phone deserves the same craft as a manager on desktop.
+5. **Transparent attribution** — Portal performance and goals feel earned and honest, not gamified; competitive ranking and badges are not part of the beta.
 
 ## Accessibility & Inclusion
 

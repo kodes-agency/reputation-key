@@ -11,12 +11,10 @@
 // Requires DATABASE_URL. The use case is idempotent (repairs converge); the
 // report is content-free (scanned/created/closed/milestones counts).
 //
-// Metric projection note: there is NO metric-rollup rebuild/watermark-reset
-// operation in this slice — `ops:refresh metrics-*` re-runs the bounded
-// incremental rollups; a destructive watermark reset is registered for the
-// metric owner (see the slice report).
+// Metric rollup note: legacy rollup mutation is quarantined; there is no
+// refresh or watermark-reset operator. Inspect retained rows with
+// `pnpm ops:report-legacy-rollups` pending CNV-01 contraction.
 
-import { getContainer } from '../../src/composition'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { runOperatorCommand } from './operator-command'
 
@@ -34,7 +32,7 @@ async function main(): Promise<void> {
       usage: USAGE,
     },
     async (ctx, _args, io) => {
-      const container = getContainer()
+      const { container } = ctx
       const report = await container.inboxMaintenanceRuntime.rebuildInboxProjection({
         organizationId: organizationId(ctx.organizationId as string),
         propertyId: ctx.propertyId ? propertyId(ctx.propertyId) : undefined,

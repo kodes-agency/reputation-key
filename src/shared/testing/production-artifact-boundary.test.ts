@@ -38,6 +38,7 @@ afterEach(() => {
 
 describe('production artifact boundary', () => {
   it('keeps local-only executables outside the production worker bundle', () => {
+    // @proof PRODUCTION_ARTIFACT_BOUNDARY#1
     const productionConfig = projectFile('tsup.config.ts')
     const localToolsConfig = projectFile('tsup.local-tools.config.ts')
 
@@ -132,6 +133,7 @@ describe('production artifact boundary', () => {
       JSON.stringify({ sources: ['../src/components/ui/button.stories.tsx'] }),
     ],
   ])('rejects %s in a serving artifact', (_case, relativePath, contents) => {
+    // @proof PRODUCTION_ARTIFACT_BOUNDARY#2
     const root = artifactRoot()
     const path = join(root, relativePath)
     mkdirSync(join(path, '..'), { recursive: true })

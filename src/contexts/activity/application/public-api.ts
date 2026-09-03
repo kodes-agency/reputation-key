@@ -8,12 +8,7 @@ import type {
 import type { OperationalActionHistoryPage } from '../ports/operational-action-history-store.port'
 import type { ResourceType } from '../domain/types'
 
-export type {
-  RecentActivityEntry,
-  ActivityAction,
-  ResourceType,
-  ActivityPayload,
-} from '../domain/types'
+export type { RecentActivityEntry } from '../domain/types'
 
 export type ActivityPublicApi = Readonly<{
   getActivityTimeline(

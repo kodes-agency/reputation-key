@@ -274,11 +274,17 @@ const insertReplayAuthority = async (
 const loadReplayAuthority = async (
   tx: ActivityTransaction,
   replayKey: string,
+  organizationId: RecentActivityReplayFact['organizationId'],
 ): Promise<RecentActivityReplayFact> => {
   const rows = await tx
     .select()
     .from(recentActivityReplayFacts)
-    .where(eq(recentActivityReplayFacts.replayKey, replayKey))
+    .where(
+      and(
+        eq(recentActivityReplayFacts.replayKey, replayKey),
+        eq(recentActivityReplayFacts.organizationId, organizationId),
+      ),
+    )
     .limit(1)
   if (!rows[0]) {
     throw new Error('Recent Activity replay authority disappeared during capture')
@@ -314,7 +320,12 @@ const promoteLegacySnapshot = async (
   const rows = await tx
     .update(recentActivityReplayFacts)
     .set(valuesForReplayFact(promotedOverLegacySnapshot(existing, incoming)))
-    .where(eq(recentActivityReplayFacts.replayKey, incoming.replayKey))
+    .where(
+      and(
+        eq(recentActivityReplayFacts.replayKey, incoming.replayKey),
+        eq(recentActivityReplayFacts.organizationId, incoming.organizationId),
+      ),
+    )
     .returning()
   if (!rows[0]) throw new Error('Recent Activity replay promotion did not apply')
   return replayFactFromRow(rows[0])
@@ -352,7 +363,12 @@ const applyRedeliveredRedaction = async (
       actorSubjectId: null,
       actorLabelRedactedAt: incoming.actorLabelRedactedAt,
     })
-    .where(eq(recentActivityReplayFacts.replayKey, incoming.replayKey))
+    .where(
+      and(
+        eq(recentActivityReplayFacts.replayKey, incoming.replayKey),
+        eq(recentActivityReplayFacts.organizationId, incoming.organizationId),
+      ),
+    )
   return redactedExisting
 }
 
@@ -364,7 +380,11 @@ const ensureReplayAuthority = async (
   const inserted = await insertReplayAuthority(tx, privacyFencedIncoming)
   if (inserted) return inserted
 
-  const stored = await loadReplayAuthority(tx, privacyFencedIncoming.replayKey)
+  const stored = await loadReplayAuthority(
+    tx,
+    privacyFencedIncoming.replayKey,
+    privacyFencedIncoming.organizationId,
+  )
   if (
     stored.sourceKind === 'legacy_projection_snapshot' &&
     privacyFencedIncoming.sourceKind === 'durable_fact'

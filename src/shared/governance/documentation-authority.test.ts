@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -78,4 +78,38 @@ describe('documentation execution authority', () => {
       )
     },
   )
+
+  it.each([
+    [
+      'keeps no security audit report at the repository root',
+      () => {
+        expect(existsSync(resolve(ROOT, 'SECURITY-AUDIT-REPORT.md'))).toBe(false)
+      },
+    ],
+    [
+      'cites only paths that exist from docs/security',
+      () => {
+        const directory = resolve(ROOT, 'docs/security')
+        const documents = readdirSync(directory, { withFileTypes: true }).filter(
+          (entry) => entry.isFile() && entry.name.endsWith('.md'),
+        )
+
+        for (const document of documents) {
+          const contents = read(`docs/security/${document.name}`)
+          const citedPaths = [
+            ...contents.matchAll(/`((?:src|scripts|services|server)\/[^`]+)`/gu),
+          ].map((match) => match[1]!)
+
+          for (const path of citedPaths) {
+            expect(
+              existsSync(resolve(ROOT, path)),
+              `docs/security/${document.name}: ${path}`,
+            ).toBe(true)
+          }
+        }
+      },
+    ],
+  ] as const)('%s', (_name, assertion) => {
+    assertion()
+  })
 })

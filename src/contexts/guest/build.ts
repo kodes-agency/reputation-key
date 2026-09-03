@@ -28,8 +28,6 @@ import { createGuestSessionManager } from './server/guest-session'
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import { qualifiedScanId, scanEventId } from '#/shared/domain/ids'
 import { createFeedbackPortalAttributionLookup } from './infrastructure/feedback-portal-attribution'
-import type { GuestFeedbackAttributionPublicApi } from './application/public-api'
-import type { GuestResponseIntegrityPublicApi } from './application/public-api'
 import { getPortalResponseIntegritySummary } from './application/use-cases/get-portal-response-integrity-summary'
 import type { PrimaryStaffAttributionResolver } from './application/ports/primary-staff-attribution.port'
 import { createGuestNetworkPressureStore } from './infrastructure/guest-network-pressure.store'
@@ -159,10 +157,10 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       hashNetworkPseudonym: createGuestNetworkPseudonymHasher(deps.sessionSecret),
     },
   } as const
-  const attributionPublicApi: GuestFeedbackAttributionPublicApi = {
+  const attributionPublicApi = {
     findPortalIdForFeedback,
   }
-  const integrityPublicApi: GuestResponseIntegrityPublicApi = {
+  const integrityPublicApi = {
     getPortalResponseIntegritySummary:
       getPortalResponseIntegritySummary(guestResponseRepo),
   }

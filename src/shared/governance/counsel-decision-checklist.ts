@@ -225,14 +225,12 @@ export type CounselDecisionValidationInput = Readonly<{
 export type CounselDecisionValidationResult =
   Readonly<{ ok: true }> | Readonly<{ ok: false; errors: readonly string[] }>
 
-/** Every decision category must retain at least one open extracted decision. */
+/** Every decision category must retain at least one extracted decision. */
 function categoryCoverageErrors(checklist: CounselDecisionChecklist): readonly string[] {
   const errors: string[] = []
   for (const category of COUNSEL_DECISION_CATEGORIES) {
-    const open = checklist.items.filter(
-      (item) => item.category === category && item.status === 'open',
-    )
-    if (open.length === 0) {
+    const extracted = checklist.items.filter((item) => item.category === category)
+    if (extracted.length === 0) {
       errors.push(`category ${category} has no extracted decision`)
     }
   }

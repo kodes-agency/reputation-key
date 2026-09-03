@@ -12,7 +12,6 @@
 // other invocation (harness decision row, reason 'read'). Output is
 // identifiers and decision states only — content-free.
 
-import { getContainer } from '../../src/composition'
 import { hasPermissionCapability } from '../../src/shared/auth/capability-for-permission'
 import type { Permission } from '../../src/shared/domain/permissions'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
@@ -44,7 +43,7 @@ async function main(): Promise<void> {
       usage: USAGE,
     },
     async (ctx, _args, io) => {
-      const container = getContainer()
+      const { container } = ctx
       if (sub === 'region') {
         const diagnostic = await container.policyAdmin.getRegionDiagnostic({
           organizationId: ctx.organizationId as string,

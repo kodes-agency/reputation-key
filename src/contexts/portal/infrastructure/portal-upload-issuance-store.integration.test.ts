@@ -314,6 +314,7 @@ describe.sequential('Portal upload issuance store (real PostgreSQL)', () => {
   })
 
   it('prevents a stale worker from replacing the newer upload derivative', async () => {
+    // @proof PORTAL_UPLOAD_FOREIGN_KEY#1
     const store = createPortalUploadIssuanceStore(getDb())
     await store.create(makeIssuance(UPLOAD_A))
     await store.create(makeIssuance(UPLOAD_B))

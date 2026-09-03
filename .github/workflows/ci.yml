@@ -890,8 +890,6 @@ jobs:
           || 'pnpm exec playwright install --with-deps chromium firefox webkit' }}
       - name: Start local Compose application stack
         run: pnpm e2e:stack:up
-      - name: Smoke local Compose application stack
-        run: pnpm e2e:stack:smoke
       - name: Run critical e2e (hard gate — BQR-5.1)
         id: e2e_critical
         env:

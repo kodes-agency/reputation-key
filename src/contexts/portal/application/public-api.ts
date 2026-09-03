@@ -2,12 +2,7 @@
  * Public API for external consumers (components, routes, other contexts).
  * Re-exports ports for cross-context dependency injection.
  */
-export type {
-  StoragePort,
-  PortalStoragePort,
-  IssuedPortalUploadStoragePort,
-} from './ports/storage.port'
-export type { LinkResolverPort } from './ports/link-resolver.port'
+export type { StoragePort, PortalStoragePort } from './ports/storage.port'
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events.
 export type {
@@ -47,10 +42,8 @@ import type { PortalContactRequestManagerAuthorityFacts } from './use-cases/port
 import type { AiReplyBrandProfile } from '#/shared/ai-reply-brand-profile'
 import type { Tx } from '#/shared/outbox/commit'
 
-export type { PortalContactRequestManagerAuthorityFacts } from './use-cases/portal-contact-request-authority'
-
 /** Result of resolving a portal's context (org + property) by portal ID. */
-export type PortalContextResult = Readonly<{
+type PortalContextResult = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
 }>
@@ -63,7 +56,7 @@ export type PublicGoogleReviewDestination =
  * Internal submission evidence. Guest's browser projection deliberately omits
  * this object; the Guest context persists it with the private rating.
  */
-export type PublicPortalResponseConfiguration = Readonly<{
+type PublicPortalResponseConfiguration = Readonly<{
   publicationState: 'published'
   publicationSnapshotId: string
   publicationVersion: number
@@ -113,7 +106,7 @@ export type PublicPortalResult = Readonly<{
   propertyId: string
 }>
 
-export type PublicPortalByTokenOutcome =
+type PublicPortalByTokenOutcome =
   | Readonly<{ status: 'found'; result: PublicPortalResult }>
   | Readonly<{ status: 'unavailable' }>
 
@@ -241,7 +234,7 @@ export type PortalPublicApi = Readonly<{
 }>
 
 /** Minimal portal group info for cross-context consumers. */
-export type PortalGroupSummary = Readonly<{
+type PortalGroupSummary = Readonly<{
   id: PortalGroupId
   propertyId: PropertyId
   name: string

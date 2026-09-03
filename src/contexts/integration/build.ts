@@ -32,9 +32,11 @@ import type {
 } from '#/contexts/property/application/public-api'
 import type {
   GoogleReviewApiPort,
+  TargetedGoogleReviewReferenceResolver,
+} from '#/contexts/review/application/public-api'
+import type {
   ReviewQueuePort,
   TargetedGoogleReviewQueuePort,
-  TargetedGoogleReviewReferenceResolver,
 } from '#/contexts/review/application/public-api'
 import {
   connectGoogleAccount,

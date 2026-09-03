@@ -10,11 +10,6 @@ import type {
 } from '#/contexts/property/application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
-import type {
-  PortalAiReplyBrandProfilePublicApi,
-  PortalContactRequestManagerAuthorityPublicApi,
-  PortalPublicApi,
-} from './application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
 import {
@@ -29,7 +24,10 @@ import { createPortalTokenRepository } from './infrastructure/repositories/porta
 import { createPortalPublicationRepository } from './infrastructure/repositories/portal-publication.repository'
 import { createPortalScopeRepository } from './infrastructure/repositories/portal-scope.repository'
 import { createPortalResponsibleManagerRepository } from './infrastructure/repositories/portal-responsible-manager.repository'
-import { createPortalAccessArtifactRepository } from './infrastructure/repositories/portal-access-artifact.repository'
+import {
+  createPortalAccessArtifactRepository,
+  type ResolvePublishedAccessArtifactInput,
+} from './infrastructure/repositories/portal-access-artifact.repository'
 import { createPortalApprovedDestinationRepository } from './infrastructure/repositories/portal-approved-destination.repository'
 import { createPortalExperienceRepository } from './infrastructure/repositories/portal-experience.repository'
 import { createPortalHealthRepository } from './infrastructure/repositories/portal-health.repository'
@@ -66,7 +64,11 @@ import { removePortalFromGroup } from './application/use-cases/remove-portal-fro
 import { issuePortalToken } from './application/use-cases/issue-portal-token'
 import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
 import { revokePortalTokens } from './application/use-cases/revoke-portal-tokens'
-import { resolvePublicPortalToken } from './application/use-cases/resolve-public-portal-token'
+import {
+  resolvePublicPortalToken,
+  type GuestLocalePreference,
+  type ResolvePublicPortalTokenOutcome,
+} from './application/use-cases/resolve-public-portal-token'
 import { completeContentReview } from './application/use-cases/complete-content-review'
 import {
   listPortalResponsibleManagers,
@@ -77,7 +79,14 @@ import { createPortalWorkflowFactStore } from './infrastructure/portal-workflow-
 import { createAtomicPortalCommandStore } from './infrastructure/portal-command-store'
 import { createPortalUploadIssuanceStore } from './infrastructure/portal-upload-issuance-store'
 import { decidePublicExecution } from '#/shared/auth/execution-policy'
-import { portalId, portalGroupId } from '#/shared/domain/ids'
+import {
+  portalGroupId,
+  portalId,
+  type OrganizationId,
+  type PortalGroupId,
+  type PortalId,
+  type PropertyId,
+} from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createProcessIssuedPortalImage } from './infrastructure/jobs/process-image.job'
 import { registerPortalConsumers } from './infrastructure/outbox-consumers'
@@ -126,6 +135,19 @@ type PortalContextDeps = Readonly<{
    * in-memory storage; absent = the S3 adapter built from storageConfig). */
   storage?: PortalStoragePort
 }>
+
+type ResolvePublishedAccessArtifactRequest = Omit<
+  ResolvePublishedAccessArtifactInput,
+  'tokenDigest'
+> &
+  Readonly<{ rawToken: string }>
+
+type PublicPortalByTokenResult =
+  | Readonly<{
+      status: 'found'
+      result: Extract<ResolvePublicPortalTokenOutcome, { status: 'found' }>['data']
+    }>
+  | Readonly<{ status: 'unavailable' }>
 
 export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
@@ -486,23 +508,28 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
     })
 
-  const publicApi: PortalPublicApi &
-    PortalContactRequestManagerAuthorityPublicApi &
-    PortalAiReplyBrandProfilePublicApi = {
-    resolvePortalContext: (portalIdParam) =>
+  const publicApi = {
+    resolvePortalContext: (portalIdParam: PortalId) =>
       portalRepo.resolvePortalContext(portalIdParam),
-    getPortalInfo: (orgId, pid) =>
+    getPortalInfo: (orgId: OrganizationId, pid: PortalId) =>
       portalRepo
         .findById(orgId, pid)
         .then((p) =>
           p ? { id: p.id, name: p.name, publicationState: p.publicationState } : null,
         ),
-    listPortalIdsByProperty: async (orgId, pid) =>
+    listPortalIdsByProperty: async (orgId: OrganizationId, pid: PropertyId) =>
       (await portalRepo.listByProperty(orgId, pid)).map((p) => p.id),
-    listCurrentPortalIds: async (orgId, propertyId, limit) => {
+    listCurrentPortalIds: async (
+      orgId: OrganizationId,
+      propertyId: PropertyId,
+      limit: number,
+    ) => {
       return listCurrentPortalIds(orgId, propertyId, limit)
     },
-    findPublicPortalByToken: async (rawToken, preference) => {
+    findPublicPortalByToken: async (
+      rawToken: string,
+      preference?: GuestLocalePreference,
+    ): Promise<PublicPortalByTokenResult> => {
       const outcome = await resolvePublicPortalToken({
         tokenCodec: portalTokenCodec,
         portalPublicationRepo,
@@ -533,7 +560,10 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         ? { status: 'found', result: outcome.data }
         : { status: 'unavailable' }
     },
-    resolvePublishedAccessArtifact: ({ rawToken, ...input }) => {
+    resolvePublishedAccessArtifact: ({
+      rawToken,
+      ...input
+    }: ResolvePublishedAccessArtifactRequest) => {
       const tokenDigest = portalTokenCodec.digest(rawToken)
       return tokenDigest
         ? portalAccessArtifactRepo.resolvePublished({ ...input, tokenDigest })
@@ -544,11 +574,11 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       aiReplyBrandProfileAuthority.readCurrentAiReplyBrandProfile,
     isCurrentAiReplyBrandProfile:
       aiReplyBrandProfileAuthority.isCurrentAiReplyBrandProfile,
-    getResponsibleManagerUserIds: async (orgId, pid) => {
+    getResponsibleManagerUserIds: async (orgId: OrganizationId, pid: PortalId) => {
       const facts = await contactRequestManagerAuthorityFacts(orgId, pid)
       return facts?.responsibleManagerUserIds ?? []
     },
-    findPortalHealthNotificationFacts: async (orgId, pid) => {
+    findPortalHealthNotificationFacts: async (orgId: OrganizationId, pid: PortalId) => {
       const portal = await portalRepo.findById(orgId, pid)
       if (!portal) return null
       const health = await portalHealthRepo.getCurrent(orgId, portal.propertyId, pid)
@@ -563,8 +593,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     },
   }
 
-  const portalGroupPublicApi: import('./application/public-api').PortalGroupPublicApi = {
-    findGroupForPortal: async (orgId, pid, asOf) => {
+  const portalGroupPublicApi = {
+    findGroupForPortal: async (orgId: OrganizationId, pid: PortalId, asOf?: Date) => {
       const group = await portalGroupRepo.findGroupForPortal(
         orgId,
         pid,
@@ -573,11 +603,17 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       if (!group) return null
       return { id: group.id, propertyId: group.propertyId, name: group.name }
     },
-    getGroupPortalIds: (orgId, groupId) =>
+    getGroupPortalIds: (orgId: OrganizationId, groupId: PortalGroupId) =>
       portalGroupRepo.getGroupPortalIds(orgId, groupId),
-    findGroupIdsByPortalIds: (orgId, portalIds) =>
-      portalGroupRepo.findGroupIdsByPortalIds(orgId, portalIds),
-    portalGroupBelongsToProperty: async (orgId, pid, groupId) => {
+    findGroupIdsByPortalIds: (
+      orgId: OrganizationId,
+      portalIds: ReadonlyArray<PortalId>,
+    ) => portalGroupRepo.findGroupIdsByPortalIds(orgId, portalIds),
+    portalGroupBelongsToProperty: async (
+      orgId: OrganizationId,
+      pid: PropertyId,
+      groupId: PortalGroupId,
+    ) => {
       const group = await portalGroupRepo.findById(orgId, groupId)
       return group?.propertyId === pid
     },

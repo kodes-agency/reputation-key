@@ -6,7 +6,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { isDashboardError } from '../application/public-api'
+import { isDashboardError } from '../domain/errors'
 import { standardErrorStatus as setupChecklistErrorStatus } from '#/shared/http/status'
 
 /** One authenticated, role-aware authority for the resumable setup projection. */

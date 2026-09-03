@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   GATE_POLICY,
+  REQUIRED_CI_JOBS,
+  REQUIRED_STATUS_CONTEXTS,
   armedGates,
   dormantGates,
   gateById,
@@ -163,10 +165,36 @@ describe('gate policy registry', () => {
     })
 
     it('returns undefined for an unknown id rather than throwing', () => {
-      // The CLI bridge distinguishes "unknown gate" from "dormant gate" and
-      // must fail loudly on the first — a typo that silently skips a gate is
-      // the worst possible outcome of this design.
+      // Unknown records must stay distinguishable from deliberately dormant
+      // records for every policy consumer.
       expect(gateById('nope', [record()])).toBeUndefined()
+    })
+  })
+
+  describe('CI manifest', () => {
+    it('keeps required workflow jobs and branch contexts in one policy module', () => {
+      expect(REQUIRED_CI_JOBS).toEqual({
+        ci: [
+          'check',
+          'docker',
+          'secrets',
+          'storybook',
+          'storybook-test',
+          'e2e',
+          'beta-acceptance',
+        ],
+        fallow: ['audit'],
+        codeql: ['analyze'],
+        simulation: ['simulate'],
+      })
+      expect(REQUIRED_STATUS_CONTEXTS).toEqual([
+        'check',
+        'docker',
+        'e2e',
+        'secrets',
+        'audit',
+        'Analyze (javascript-typescript)',
+      ])
     })
   })
 

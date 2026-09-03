@@ -570,6 +570,7 @@ describe('publish-reply job handler', () => {
   })
 
   it('§6 failure AFTER provider success BEFORE local outcome persistence: retry reads back and never blindly sends a second PUT', async () => {
+    // @proof REPLY_PUBLICATION_CRASH#1
     // Stateful fake: the row persists publication_state across the two runs,
     // exactly as the atomic store would leave it ('sending' after run 1's
     // claim; the failed markPublished never committed).

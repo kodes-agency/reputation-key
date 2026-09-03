@@ -68,7 +68,7 @@ export type ResolvePublicPortalTokenDeps = Readonly<{
   clock: () => Date
 }>
 
-type GuestLocalePreference = Readonly<{
+export type GuestLocalePreference = Readonly<{
   requestedLocale?: string | null
   sessionLocale?: string | null
   acceptLanguage?: string | null

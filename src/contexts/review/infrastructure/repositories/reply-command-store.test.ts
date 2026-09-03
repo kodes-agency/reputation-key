@@ -196,6 +196,7 @@ beforeEach(async () => {
 
 describe.sequential('replyCommandStore (integration)', () => {
   it('recovers the committed authorization after interruption before direct queue admission', async () => {
+    // @proof REPLY_PUBLICATION_CRASH#1
     const db = getDb()
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())
@@ -492,6 +493,7 @@ describe.sequential('replyCommandStore (integration)', () => {
   })
 
   it('rolls back authorization and its lifecycle fact when the publication-intent insert fails', async () => {
+    // @proof REPLY_PUBLICATION_CRASH#2
     const db = getDb()
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())

@@ -1,7 +1,7 @@
 # Threat Model — Reputation Key Beta
 
-**Date:** 2026-07-14
-**Scope:** Internal-team beta with real Google Business Profile properties
+**Date:** 2026-09-03
+**Scope:** Invitation-only external closed beta (cohort railway-closed-beta-1) with real Google Business Profile properties and publicly reachable guest Portals
 **Method:** STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege)
 **Accountable owner:** Bozhidar Denev
 
@@ -49,13 +49,13 @@
 
 ### Tampering
 
-| Threat                                 | Mitigation                                                                                                                                    | Status                                   |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Attacker modifies another org's data   | Organization + property scoping in every repository query; negative cross-tenant tests                                                        | ✅ Partial (tests pending full coverage) |
-| Attacker bypasses authorization        | `AuthorizationPolicy.authorize()` required for mutations; role checks deprecated                                                              | 🔄 Migration in progress                 |
-| Replay of outbox events                | `event_consumer_receipts` for idempotency; lease-based claiming                                                                               | ✅ Enforced                              |
-| Review content modified after fetch    | `content_hash` column; source content TTL enforcement                                                                                         | ✅ Enforced                              |
-| Beta feedback triage history rewritten | Revision guard, optimistic concurrency, immutable transition trigger, unique reference/revision evidence, and idempotent exact transition IDs | ✅ Enforced                              |
+| Threat                                 | Mitigation                                                                                                                                    | Status      |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| Attacker modifies another org's data   | 84 repository test files carry two-organization fixtures; `src/shared/architecture/tenant-predicate-canary.test.ts` is the mechanical floor   | ✅ Enforced |
+| Attacker bypasses authorization        | Server functions use `requireExecutionAllowed` (`src/shared/auth/execution-policy.ts`) or purpose-built seams; no direct role gates           | ✅ Enforced |
+| Replay of outbox events                | `event_consumer_receipts` for idempotency; lease-based claiming                                                                               | ✅ Enforced |
+| Review content modified after fetch    | `content_hash` column; source content TTL enforcement                                                                                         | ✅ Enforced |
+| Beta feedback triage history rewritten | Revision guard, optimistic concurrency, immutable transition trigger, unique reference/revision evidence, and idempotent exact transition IDs | ✅ Enforced |
 
 ### Repudiation
 
@@ -82,32 +82,31 @@
 
 ### Denial of Service
 
-| Threat                             | Mitigation                                                                                                                                                                                            | Status                 |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| Burst of reviews overwhelms sync   | BullMQ bounded concurrency; outbox SKIP LOCKED claiming                                                                                                                                               | ✅ Enforced            |
-| Dashboard query timeout under load | Incremental rollup tables; dashboard cache with TTL                                                                                                                                                   | ✅ Implemented         |
-| GBP rate limit (429)               | Retry with backoff; sync paused on rate limit                                                                                                                                                         | ✅ Enforced            |
-| Large payload body                 | Body size limits at proxy layer                                                                                                                                                                       | 🔄 Proxy config needed |
-| Guest public-action flood          | Signed-session and Portal-scoped Redis budgets precede a serialized PostgreSQL pressure authority; submissions fail closed, qualified scans retry, and navigation remains available without analytics | ✅ Enforced            |
-| Beta feedback submission flood     | Shared Redis actor-first 5/hour and Organization 20/day budgets; production fails closed                                                                                                              | ✅ Enforced            |
+| Threat                             | Mitigation                                                                                                                                                                                            | Status         |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| Burst of reviews overwhelms sync   | BullMQ bounded concurrency; outbox SKIP LOCKED claiming                                                                                                                                               | ✅ Enforced    |
+| Dashboard query timeout under load | Incremental rollup tables; dashboard cache with TTL                                                                                                                                                   | ✅ Implemented |
+| GBP rate limit (429)               | Retry with backoff; sync paused on rate limit                                                                                                                                                         | ✅ Enforced    |
+| Large payload body                 | `REQUEST_BODY_LIMIT_BYTES` enforced pre-routing (`server/plugins/request-guard.ts`) and proved 413 against the booted artifact                                                                        | ✅ Enforced    |
+| Guest public-action flood          | Signed-session and Portal-scoped Redis budgets precede a serialized PostgreSQL pressure authority; submissions fail closed, qualified scans retry, and navigation remains available without analytics | ✅ Enforced    |
+| Beta feedback submission flood     | Shared Redis actor-first 5/hour and Organization 20/day budgets; production fails closed                                                                                                              | ✅ Enforced    |
 
 ### Elevation of Privilege
 
-| Threat                                   | Mitigation                                                                              | Status                   |
-| ---------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------ |
-| Non-owner accesses admin functions       | Built-in role matrix; sensitive operations require owner role                           | ✅ Enforced              |
-| Custom role grants unexpected permission | Custom roles disabled (`ENABLE_CUSTOM_ROLES` gate); `data_scope` limits property access | ✅ Enforced              |
-| Last owner removed/demoted               | `member_last_owner_upd` trigger prevents removal                                        | ✅ Enforced              |
-| Worker job runs for disabled capability  | Jobs re-check capability before side effects                                            | ✅ Enforced              |
-| API route discovered despite UI disabled | Routes require capability; API routes check authorization                               | 🔄 Full coverage pending |
+| Threat                                   | Mitigation                                                                                               | Status                                                                         |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Non-owner accesses admin functions       | AccountAdmin / PropertyManager beta roles (`isBetaInteractiveMemberRoleToken`) plus per-permission scope | ✅ Enforced                                                                    |
+| Custom role grants unexpected permission | Provider `dynamicAccessControl: { enabled: false }`; custom-role schema remains dormant                  | ✅ Enforced                                                                    |
+| Last owner removed/demoted               | `member_last_owner_upd` trigger prevents removal                                                         | ✅ Enforced                                                                    |
+| Worker job runs for disabled capability  | Jobs re-check capability before side effects                                                             | ✅ Enforced                                                                    |
+| API route discovered despite UI disabled | Routes and APIs require capability and authorization checks                                              | ✅ Enforced (dark-capability-enforcement.test.ts, dark-context-matrix.test.ts) |
 
 ## Residual risks
 
-1. **Full negative cross-tenant test coverage** — not every repository has negative tests yet; BETA-1 completes this.
-2. **Body/time limits** — proxy-level request size limits not yet configured.
-3. **Auth endpoint abuse** — the shared Redis limiter guards sign-in, registration, invitation send/resend, guest submissions and the better-auth catch-all, and fails closed in production; Better Auth's native limiter also uses atomic Redis storage across replicas (`docs/operations/runbooks.md` §Security posture). Raw self-service sign-up is refused at the HTTP boundary (invite-only beta). Residual: no proxy-level rate limiting in front of the app.
-4. **Supply chain** — Dependabot configured but initial advisory scan returned 0 vulnerabilities; continuous monitoring needed.
-5. **Manager-entered feedback content and provider proof** — a manager can
+1. **Tenant-isolation regression floor** — 84 repository test files carry two-organization fixtures; `src/shared/architecture/tenant-predicate-canary.test.ts` is the mechanical floor.
+2. **Auth endpoint abuse** — the shared Redis limiter guards sign-in, registration, invitation send/resend, guest submissions and the better-auth catch-all, and fails closed in production; Better Auth's native limiter also uses atomic Redis storage across replicas (`docs/operations/runbooks.md` §Security posture). Raw self-service sign-up is refused at the HTTP boundary (invite-only beta). Residual: no proxy-level rate limiting in front of the app.
+3. **Supply chain** — Dependabot configured but initial advisory scan returned 0 vulnerabilities; continuous monitoring needed.
+4. **Manager-entered feedback content and provider proof** — a manager can
    disregard the notice and type personal/customer content that pattern
    scrubbers cannot reliably classify. The optional Bug layout is locally
    limited to quantized geometry and cannot carry pixels/text/values/media, but
@@ -118,15 +117,15 @@
 
 ## OWASP ASVS 5.0 mapping
 
-| ASVS area             | Coverage                                                                          |
-| --------------------- | --------------------------------------------------------------------------------- |
-| V1 (Architecture)     | Bounded contexts, authorization policy, capability controls                       |
-| V2 (Authentication)   | Better Auth, email verification, session management                               |
-| V3 (Session)          | httpOnly/secure cookies, session expiry, cookie cache                             |
-| V4 (Access Control)   | AuthorizationPolicy, property scoping, negative tests                             |
-| V5 (Validation)       | Zod env validation, input validation at API boundaries                            |
-| V7 (Logging)          | Structured logging, redaction patterns, operational records                       |
-| V8 (Data Protection)  | Encryption at rest (OAuth tokens), TTL on review content                          |
-| V9 (Communications)   | TLS via proxy, CSP, HSTS                                                          |
-| V12 (Files/Resources) | Upload capability disabled; private `cell-us` Railway bucket objects when enabled |
-| V14 (Configuration)   | Env validation, least-privilege CI, CODEOWNERS                                    |
+| ASVS area             | Coverage                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| V1 (Architecture)     | Bounded contexts, authorization policy, capability controls                                             |
+| V2 (Authentication)   | Better Auth, email verification, session management                                                     |
+| V3 (Session)          | httpOnly/secure cookies, session expiry, per-request permission_version re-read (cookie cache disabled) |
+| V4 (Access Control)   | AuthorizationPolicy, property scoping, negative tests                                                   |
+| V5 (Validation)       | Zod env validation, input validation at API boundaries                                                  |
+| V7 (Logging)          | Structured logging, redaction patterns, operational records                                             |
+| V8 (Data Protection)  | Encryption at rest (OAuth tokens), TTL on review content                                                |
+| V9 (Communications)   | TLS via proxy, CSP, HSTS                                                                                |
+| V12 (Files/Resources) | Upload capability disabled; private `cell-us` Railway bucket objects when enabled                       |
+| V14 (Configuration)   | Env validation, least-privilege CI, CODEOWNERS                                                          |

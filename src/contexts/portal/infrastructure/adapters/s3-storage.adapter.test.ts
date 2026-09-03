@@ -52,6 +52,7 @@ describe('buildS3ClientConfigs', () => {
 
 describe('portalDerivativeObjectKey', () => {
   it('derives new public variant keys from the opaque issuance, not from caller input', () => {
+    // @proof PORTAL_UPLOAD_FOREIGN_KEY#1
     const issuance = createPortalHeroUploadIssuance({
       id: '70000000-0000-4000-8000-000000000001',
       organizationId: organizationId('org-1'),
@@ -73,6 +74,7 @@ describe('portalDerivativeObjectKey', () => {
   })
 
   it('makes the browser upload first-write-only and binds worker reads to the verified ETag', () => {
+    // @proof PORTAL_UPLOAD_FOREIGN_KEY#2
     const issuance = createPortalHeroUploadIssuance({
       id: '70000000-0000-4000-8000-000000000001',
       organizationId: organizationId('org-1'),

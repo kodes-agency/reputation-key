@@ -18,7 +18,6 @@ import {
   isLegalLinkPublishable,
   legalLinkTargetErrors,
   merchantAiNoticeLinkTargets,
-  unpublishableLegalLinkTargets,
 } from './legal-link-targets'
 
 const ROOT = resolve(import.meta.dirname, '../../..')
@@ -64,7 +63,6 @@ describe('in-product legal link targets', () => {
     expect(findLegalLinkTarget('/privacy#contact')?.documentId).toBe('privacy-notice')
     expect(isLegalLinkPublishable('/privacy')).toBe(false)
     expect(isLegalLinkPublishable('/settings/ai')).toBe(true)
-    expect(unpublishableLegalLinkTargets()).toEqual(['/privacy', '/privacy#contact'])
   })
 
   it('becomes publishable only when the backing document is approved', () => {

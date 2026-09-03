@@ -233,11 +233,11 @@ activity/
 
 `application/public-api.ts` exports the `ActivityPublicApi` facade carrying the
 two manager Recent Activity reads and the restricted history list/export seam,
-plus the read vocabulary it returns: `RecentActivityEntry`, `ActivityAction`,
-`ActivityPayload`, and `ResourceType`. Recovery, append, lifecycle, and
-readiness remain worker/operator-internal and are deliberately absent from the
-facade. Consumers must never use Recent Activity rows to authorize actions,
-prove external effects, or reconstruct Operational Action History.
+plus the `RecentActivityEntry` read vocabulary it returns. Recovery, append,
+lifecycles, and readiness remain worker/operator-internal and are deliberately
+absent from the facade. Consumers must never use Recent Activity rows to
+authorize actions, prove external effects, or reconstruct Operational Action
+History.
 
 ## Verification authority
 

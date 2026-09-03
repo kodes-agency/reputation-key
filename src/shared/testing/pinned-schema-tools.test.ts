@@ -36,7 +36,6 @@ describe('schema tool supply-chain posture', () => {
       'auth:generate',
       'auth:migrate',
       'db:bootstrap-auth',
-      'db:matviews',
       'audit:auth-schema',
     ]) {
       expect(manifest.scripts[script], script).not.toMatch(/\bnpx\b/u)

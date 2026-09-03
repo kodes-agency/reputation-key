@@ -36,7 +36,6 @@
 // report names the per-connection outcome. `topic_unset` there means
 // GBP_PUBSUB_TOPIC is empty in THIS process's environment.
 
-import { getContainer } from '../../src/composition'
 import { createGbpSubscribeOperatorAction } from '../../src/contexts/integration/application/use-cases/gbp-subscribe-backfill'
 import { runOperatorCommand } from './operator-command'
 
@@ -52,7 +51,7 @@ async function main(): Promise<void> {
       usage: USAGE,
     },
     async (ctx, args, io) => {
-      const container = getContainer()
+      const { container } = ctx
       return createGbpSubscribeOperatorAction(
         container.integrationMaintenanceRuntime.subscribeNotifications,
         COMMAND_NAME,

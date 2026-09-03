@@ -6,20 +6,16 @@
 export type {
   KPIValue,
   MetricAvailabilityState,
-  MetricKPIPeriodEvidence,
   MetricKPIValue,
   KPIs,
   RecentReview,
   DashboardReplyStatus,
   DashboardData,
-  PortalKPIs,
-  PortalCountKPIValue,
   PortalMetricEvidence,
   RatingKPIValue,
   PortalAnalyticsData,
   PortalLifetimeReconciliationState,
   PortalResponseIntegritySummary,
-  StaffDashboardData,
   PortalRatingTrendPoint,
   // The two series `DashboardData` already carries. Absent from this list until
   // now, which is why nothing outside the context could name them and the
@@ -29,23 +25,16 @@ export type {
   AttentionSignals,
   FleetEntry,
   FleetOverviewData,
-  FleetMetricFreshness,
   FleetMetricEvidence,
   FleetTotals,
 } from '../domain/types'
-export type { PropertyOverviewData } from './use-cases/get-property-overview'
 export type {
-  GetSetupChecklist,
   SetupChecklist,
   SetupChecklistAction,
-  SetupChecklistActionKind,
   SetupChecklistStep,
-  SetupChecklistStepStatus,
 } from './use-cases/get-setup-checklist'
-export type { SetupChecklistStepKey } from './ports/setup-checklist.repository'
 
-// ── Error type re-exports (server functions must import from public-api, not domain/errors) ──
-export type { DashboardErrorCode, DashboardError } from '../domain/errors'
+export type { DashboardError } from '../domain/errors'
 
 export {
   GOOGLE_PERFORMANCE_ERROR_CODES,
@@ -62,4 +51,3 @@ export type {
   PropertyGooglePerformanceResultV1,
   PropertyPerformancePreset,
 } from '../../../shared/google-performance-report-contract'
-export { isDashboardError } from '../domain/errors'

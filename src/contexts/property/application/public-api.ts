@@ -5,7 +5,6 @@
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { PropertyGoogleBindingStore } from './ports/property-google-binding.port'
 export { buildGoogleImportedProperty } from './build-google-imported-property'
-export type { BuildGoogleImportedPropertyInput } from './build-google-imported-property'
 export type {
   PropertyArchived,
   PropertyCreated,
@@ -16,13 +15,13 @@ export type {
 } from '../domain/events'
 
 /** Minimal property info returned for cross-context slug lookups (e.g., guest portal resolution). */
-export type PropertySlugLookupResult = Readonly<{
+type PropertySlugLookupResult = Readonly<{
   id: string
   organizationId: string
 }>
 
 /** Minimal property info returned for cross-context lookups (e.g., webhook resolution). */
-export type PropertyLookupResult = Readonly<{
+type PropertyLookupResult = Readonly<{
   id: string
   organizationId: string
   googleConnectionId: string | null
@@ -150,36 +149,4 @@ export type PropertyPublicApi = Readonly<{
   ) => Promise<string | null>
 }>
 
-/** Kept separate so ordinary Property readers do not acquire notification policy. */
-export type PropertyResponsibleManagerPublicApi = Readonly<{
-  /** Current explicit managers, revalidated against role/access/participation. */
-  getResponsibleManagerUserIds: (
-    orgId: OrganizationId,
-    propertyId: PropertyId,
-  ) => Promise<ReadonlyArray<import('#/shared/domain/ids').UserId>>
-  /** Eligibility check for direct work recipients such as Inbox assignees. */
-  isEligibleResponsibleManagerUserId: (
-    orgId: OrganizationId,
-    propertyId: PropertyId,
-    userId: import('#/shared/domain/ids').UserId,
-  ) => Promise<boolean>
-}>
-
-/** Optional product preference kept separate from the widely mocked core API. */
-export type PropertyReplyLanguagePublicApi = Readonly<{
-  getPropertyReplyLanguage: (
-    orgId: OrganizationId,
-    propertyId: PropertyId,
-  ) => Promise<string | null>
-}>
-
-export {
-  GOOGLE_BINDING_STATES,
-  PROPERTY_GOOGLE_BINDING_CHANGED_EVENT,
-  isGoogleBindingState,
-} from '../domain/google-binding-contract'
-export type {
-  GoogleBindingState,
-  GoogleLocationBinding,
-  PropertyGoogleBindingChangedV1,
-} from '../domain/google-binding-contract'
+export type { GoogleBindingState } from '../domain/google-binding-contract'

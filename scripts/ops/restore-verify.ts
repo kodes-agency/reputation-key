@@ -25,7 +25,6 @@
 // UNSET RESTORE_MODE, and redeploy; normal PITR sibling boot re-verifies it.
 
 import { sql } from 'drizzle-orm'
-import { getContainer } from '../../src/composition'
 import { getEnv } from '../../src/shared/config/env'
 import {
   RESTORE_VERIFY_PURGE_SUBJECT,
@@ -51,7 +50,7 @@ import { runOperatorCommand } from './operator-command'
 async function main(): Promise<void> {
   const result = await runOperatorCommand(RESTORE_VERIFY_SPEC, async (ctx, _args, io) => {
     const env = getEnv()
-    const container = getContainer()
+    const { container } = ctx
     const approvalContent = env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON
     const approvalBundleSha256 = env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256
     const approvalPublicKeys = env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON

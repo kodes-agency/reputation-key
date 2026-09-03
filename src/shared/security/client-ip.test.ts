@@ -21,6 +21,7 @@ describe('client-ip (B0.7)', () => {
     })
 
     it('rejects a chain shorter than the configured proxy count', () => {
+      // @proof TRUSTED_PROXY_HOP#1
       const result = getClientIpFromForwardedFor('203.0.113.5', 3)
       expect(result).toBeUndefined()
     })
@@ -114,6 +115,7 @@ describe('client-ip (B0.7)', () => {
     })
 
     it('spoofed leftmost XFF yields the trusted hop, not the spoofed value', () => {
+      // @proof TRUSTED_PROXY_HOP#2
       // TRUSTED_PROXY_COUNT defaults to 1: the rightmost hop is the source IP
       // appended by the one trusted proxy; caller-prepended values stay left.
       process.env.TRUSTED_PROXY_MODE = 'xff'
@@ -151,6 +153,7 @@ describe('client-ip (B0.7)', () => {
     })
 
     it('uses Railway X-Real-IP and ignores a spoofed XFF in railway-edge mode', () => {
+      // @proof TRUSTED_PROXY_HOP#3
       process.env.TRUSTED_PROXY_MODE = 'railway-edge'
       resetEnv()
       const headers = new Headers({

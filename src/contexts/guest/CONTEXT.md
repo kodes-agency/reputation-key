@@ -147,11 +147,9 @@ guest/
 
 Exported from `application/public-api.ts`:
 
-- Types: `ScanEvent`, `QualifiedScan`, `Rating`, `Feedback`, `ScanSource`
-- Cross-context API: `findPortalIdForFeedback(organizationId, feedbackId)` returns only the source `PortalId` (or null), with canonical-response precedence and legacy-read compatibility.
-- Cross-context API: `getPortalResponseIntegritySummary(...)` returns only `Accepted`, `Filtered automatically`, `Under review`, and total counts for an exact scope/period.
+- Types: `ScanEvent`, `Rating`, `Feedback`, `PortalResponseIntegritySummary`
 - Event types: `GuestScanRecorded`, `GuestQualifiedScanRecorded`, `GuestQualifiedScanRetracted`, `GuestRatingSubmitted`, `GuestRatingRetracted`, `GuestFeedbackSubmitted`, `GuestFeedbackRetracted`, `GuestReviewLinkClicked`, `GuestEvent`
-- Event constructors: `guestScanRecorded`, `guestQualifiedScanRecorded`, `guestQualifiedScanRetracted`, `guestRatingSubmitted`, `guestRatingRetracted`, `guestFeedbackSubmitted`, `guestFeedbackRetracted`, `guestReviewLinkClicked`
+- Event constructors: `guestScanRecorded`, `guestRatingSubmitted`, `guestFeedbackSubmitted`, `guestFeedbackRetracted`
 
 ## Server functions
 

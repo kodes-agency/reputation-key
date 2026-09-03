@@ -20,8 +20,7 @@
 // writes nothing. Requires DATABASE_URL. Deliberately NOT capability-gated —
 // it repairs the very allowlist a capability gate would consult.
 
-import { getDb } from '../../src/shared/db'
-import { bindPropertyCapabilityProvisioning } from '../../src/composition'
+import { bindPropertyCapabilityProvisioning } from '../../src/composition/property-capability-provisioning'
 import {
   createPropertyCapabilityOperatorAction,
   parsePropertyCapabilityCommand,
@@ -53,18 +52,15 @@ async function main(): Promise<void> {
       usage: USAGE,
     },
     async (ctx, args, io) => {
-      // `getDb()`, not `getContainer()`: the composition root demands a job
-      // queue (QUEUE_REDIS_URL), and Redis is only reachable inside the deployment,
-      // so booting it here makes the command unrunnable from an operator
-      // workstation. Nothing in this command needs the queue.
-      //
-      // The no-op refresh is deliberate: every write goes through
+      // Bind the command-specific provisioning seam to the harness-owned
+      // operator container's database. The no-op refresh is deliberate:
+      // every write goes through
       // `provisionPropertyCapabilitiesFromOrganization`, which bumps
       // `policy_version` in the SAME statement, and that bump is the
       // cross-process invalidation contract every running service polls.
       // Refreshing this short-lived process's own snapshot cache would change
       // nothing.
-      const ops = bindPropertyCapabilityProvisioning(getDb(), async () => {})
+      const ops = bindPropertyCapabilityProvisioning(ctx.container.db, async () => {})
       await createPropertyCapabilityOperatorAction(ops, command, COMMAND_NAME)(
         ctx,
         args,

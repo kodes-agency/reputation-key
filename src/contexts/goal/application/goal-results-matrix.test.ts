@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { GoalMetric, GoalSubject } from '../domain/goal-program'
-import type { GoalMetricEvaluation, GoalProgramBundle } from './public-api'
+import type {
+  GoalMetric,
+  GoalMetricEvaluation,
+  GoalSubject,
+} from '../domain/goal-program'
+import type { GoalProgramBundle } from './ports/goal-program.repository'
 import { buildGoalResultsMatrix } from './goal-results-matrix'
 
 const periodStart = new Date('2026-07-01T04:00:00.000Z')

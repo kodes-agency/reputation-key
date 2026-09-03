@@ -113,7 +113,7 @@ components:
 
 Reputation Key's interface is built like a well-made tool — every element earns its place, every surface is purposeful. The dark-first palette uses tinted violet-graphite neutrals with a single Spectral Violet accent, eliminating visual noise so users focus on the task. No glass, no gradients, no decorative textures. Hierarchy is communicated through type scale, weight contrast, and spacing rhythm alone.
 
-The system is designed for three distinct contexts: property managers working in focused evening sessions on desktop, staff checking progress on mobile between tasks, and clients leaving reviews in brief mobile visits. Each context gets the same level of craft — responsive is not a fallback, it's the design.
+The system is designed for three distinct contexts: property managers working in focused evening sessions on desktop, managers checking the Inbox on mobile between tasks, and clients leaving reviews in brief mobile visits. Each context gets the same level of craft — responsive is not a fallback, it's the design.
 
 This system explicitly rejects: SaaS dashboard clichés (hero metric cards, gradient accents, glassmorphism), Linear's specific cool-black-and-blue identity, over-designed admin tools with decorative motion, and the warm-cream AI default. What remains is a tool that disappears into the task.
 

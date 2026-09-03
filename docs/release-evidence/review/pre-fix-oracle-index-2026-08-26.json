@@ -71,24 +71,22 @@
           "path": "src/contexts/portal/application/use-cases/finalize-upload.test.ts",
           "project": "unit",
           "contains": [
-            "rejects a cross-Portal issuance without inspecting its object",
-            "atomically records an ETag-bound processing fact without exposing an object key"
+            "@proof PORTAL_UPLOAD_FOREIGN_KEY#1",
+            "@proof PORTAL_UPLOAD_FOREIGN_KEY#2"
           ]
         },
         {
           "path": "src/contexts/portal/infrastructure/adapters/s3-storage.adapter.test.ts",
           "project": "unit",
           "contains": [
-            "derives new public variant keys from the opaque issuance, not from caller input",
-            "makes the browser upload first-write-only and binds worker reads to the verified ETag"
+            "@proof PORTAL_UPLOAD_FOREIGN_KEY#1",
+            "@proof PORTAL_UPLOAD_FOREIGN_KEY#2"
           ]
         },
         {
           "path": "src/contexts/portal/infrastructure/portal-upload-issuance-store.integration.test.ts",
           "project": "integration",
-          "contains": [
-            "prevents a stale worker from replacing the newer upload derivative"
-          ]
+          "contains": ["@proof PORTAL_UPLOAD_FOREIGN_KEY#1"]
         }
       ],
       "resolution": "partial",
@@ -126,9 +124,9 @@
           "path": "src/start.test.ts",
           "project": "unit",
           "contains": [
-            "it.each(['cross-site', 'same-site'])",
-            "allows a same-origin server-function request",
-            "rejects a sibling-subdomain Origin when Fetch Metadata is absent"
+            "@proof SERVER_FN_CSRF#1",
+            "@proof SERVER_FN_CSRF#2",
+            "@proof SERVER_FN_CSRF#3"
           ]
         }
       ],
@@ -168,9 +166,7 @@
         {
           "path": "src/contexts/review/infrastructure/review-command-store.integration.test.ts",
           "project": "integration",
-          "contains": [
-            "preserves staff-authored reply history while advancing the source lifecycle"
-          ]
+          "contains": ["@proof REVIEW_REOBSERVATION_IDENTITY#1"]
         }
       ],
       "resolution": "partial",
@@ -210,7 +206,7 @@
         {
           "path": "src/shared/db/pool.test.ts",
           "project": "unit",
-          "contains": ["never retries pool.query after an ambiguous connection failure"]
+          "contains": ["@proof AMBIGUOUS_POOL_WRITE#1"]
         }
       ],
       "resolution": "closed",
@@ -248,9 +244,9 @@
           "path": "src/shared/security/client-ip.test.ts",
           "project": "unit",
           "contains": [
-            "rejects a chain shorter than the configured proxy count",
-            "spoofed leftmost XFF yields the trusted hop, not the spoofed value",
-            "uses Railway X-Real-IP and ignores a spoofed XFF in railway-edge mode"
+            "@proof TRUSTED_PROXY_HOP#1",
+            "@proof TRUSTED_PROXY_HOP#2",
+            "@proof TRUSTED_PROXY_HOP#3"
           ]
         }
       ],
@@ -288,14 +284,14 @@
         {
           "path": "src/contexts/notification/infrastructure/jobs/digest-assembly.test.ts",
           "project": "unit",
-          "contains": ["is stable only for the same persisted batch identity"]
+          "contains": ["@proof DIGEST_BATCH_IDEMPOTENCY#1"]
         },
         {
           "path": "src/contexts/notification/infrastructure/jobs/digest-notification.job.test.ts",
           "project": "unit",
           "contains": [
-            "uses a bounded opaque key bound to the immutable batch",
-            "fails closed instead of reusing a provider key when retry content changes"
+            "@proof DIGEST_BATCH_IDEMPOTENCY#1",
+            "@proof DIGEST_BATCH_IDEMPOTENCY#2"
           ]
         }
       ],
@@ -392,34 +388,35 @@
         {
           "path": "src/contexts/portal/domain/safe-link.test.ts",
           "project": "unit",
-          "contains": ["rejects credentials in URL", "rejects private IP addresses"]
+          "contains": [
+            "@proof PUBLIC_REDIRECT_AND_ABUSE#1",
+            "@proof PUBLIC_REDIRECT_AND_ABUSE#2"
+          ]
         },
         {
           "path": "src/contexts/guest/application/use-cases/resolve-link-and-track.test.ts",
           "project": "unit",
           "contains": [
-            "resolves a link owned by the policy-authorized token Portal without tracking a GET",
-            "tracks only an explicitly qualified signed-session mutation"
+            "@proof PUBLIC_REDIRECT_AND_ABUSE#1",
+            "@proof PUBLIC_REDIRECT_AND_ABUSE#2"
           ]
         },
         {
           "path": "src/contexts/guest/server/guest-session.test.ts",
           "project": "unit",
-          "contains": [
-            "always includes a network-and-Portal layer alongside a session layer"
-          ]
+          "contains": ["@proof PUBLIC_REDIRECT_AND_ABUSE#1"]
         },
         {
           "path": "src/contexts/guest/application/use-cases/record-scan.test.ts",
           "project": "unit",
-          "contains": ["records at most one scan per Portal-scoped guest session"]
+          "contains": ["@proof PUBLIC_REDIRECT_AND_ABUSE#1"]
         },
         {
           "path": "src/contexts/guest/infrastructure/repositories/guest-observation-store.test.ts",
           "project": "unit",
           "contains": [
-            "serializes concurrent scans to one source row and one fact",
-            "serializes a session/destination action to one receipt and one fact"
+            "@proof PUBLIC_REDIRECT_AND_ABUSE#1",
+            "@proof PUBLIC_REDIRECT_AND_ABUSE#2"
           ]
         }
       ],
@@ -474,10 +471,12 @@
         {
           "path": "src/shared/architecture/guest-public-response-security.test.ts",
           "project": "unit",
-          "contains": [
-            "marks the nonce-bearing public Portal response private and non-cacheable",
-            "requires the configured origin and signed-session CSRF before public mutations"
-          ]
+          "contains": ["@proof PUBLIC_CACHE_PRIVACY#1"]
+        },
+        {
+          "path": "src/shared/architecture/guest-public-response-security.test.ts",
+          "project": "unit",
+          "contains": ["@proof PUBLIC_CACHE_PRIVACY#2"]
         }
       ],
       "resolution": "partial",
@@ -540,29 +539,27 @@
         {
           "path": "src/contexts/review/infrastructure/reply-command-store.test.ts",
           "project": "unit",
-          "contains": [
-            "approval: commits state + lifecycle fact + durable publication intent in one tx"
-          ]
+          "contains": ["@proof REPLY_PUBLICATION_CRASH#1"]
         },
         {
           "path": "src/contexts/review/infrastructure/jobs/publish-reply.job.test.ts",
           "project": "unit",
-          "contains": ["failure AFTER provider success BEFORE local outcome persistence"]
+          "contains": ["@proof REPLY_PUBLICATION_CRASH#1"]
         },
         {
           "path": "src/contexts/review/infrastructure/repositories/reply-command-store.test.ts",
           "project": "integration",
           "contains": [
-            "recovers the committed authorization after interruption before direct queue admission",
-            "rolls back authorization and its lifecycle fact when the publication-intent insert fails"
+            "@proof REPLY_PUBLICATION_CRASH#1",
+            "@proof REPLY_PUBLICATION_CRASH#2"
           ]
         },
         {
           "path": "src/contexts/review/infrastructure/outbox-consumers.test.ts",
           "project": "unit",
           "contains": [
-            "delivers the committed cycle with a deterministic job identity",
-            "marks a superseded cycle obsolete without admitting it"
+            "@proof REPLY_PUBLICATION_CRASH#1",
+            "@proof REPLY_PUBLICATION_CRASH#2"
           ]
         }
       ],
@@ -615,26 +612,26 @@
           "path": "src/shared/architecture/dark-consumer-gating.test.ts",
           "project": "unit",
           "contains": [
-            "pins the known dark consumer/job pairings",
-            "expect(pairings).not.toHaveProperty('badge.event-handlers')",
-            "expect(pairings).not.toHaveProperty('leaderboard.event-handlers')",
-            "keeps the legacy Goal handler disconnected and Recognition consumers removed",
-            "expect(composition).not.toContain('registerGoalEventHandlers')"
+            "@proof GOAL_RECOGNITION_RUNTIME#1",
+            "@proof GOAL_RECOGNITION_RUNTIME#2",
+            "@proof GOAL_RECOGNITION_RUNTIME#3",
+            "@proof GOAL_RECOGNITION_RUNTIME#4",
+            "@proof GOAL_RECOGNITION_RUNTIME#5"
           ]
         },
         {
           "path": "src/shared/architecture/legacy-recognition-active-surfaces.test.ts",
           "project": "unit",
           "contains": [
-            "retains only historical decoding and content-free inventory code",
-            "removes legacy network and consumer declarations completely",
-            "RETAINED_RECOGNITION_PRODUCTION_SOURCES"
+            "@proof GOAL_RECOGNITION_RUNTIME#1",
+            "@proof GOAL_RECOGNITION_RUNTIME#2",
+            "@proof GOAL_RECOGNITION_RUNTIME#3"
           ]
         },
         {
           "path": "src/shared/governance/capability-fate.test.ts",
           "project": "unit",
-          "contains": ["expect(listCapabilitiesByFate('legacy_blocked')).toEqual"]
+          "contains": ["@proof GOAL_RECOGNITION_RUNTIME#1"]
         }
       ],
       "resolution": "partial",
@@ -702,26 +699,26 @@
           "path": "src/shared/architecture/cross-context-public-api.test.ts",
           "project": "unit",
           "contains": [
-            "flags context build.ts → foreign infrastructure",
-            "flags application → foreign non-public-api application",
-            "flags dynamic imports of foreign context infrastructure"
+            "@proof ARCHITECTURE_BOUNDARY_IMPORTS#1",
+            "@proof ARCHITECTURE_BOUNDARY_IMPORTS#2",
+            "@proof ARCHITECTURE_BOUNDARY_IMPORTS#3"
           ]
         },
         {
           "path": "src/shared/architecture/outbox-import-boundary.test.ts",
           "project": "unit",
           "contains": [
-            "BQR-1.3: outbox import boundary",
-            "detects a deliberately invalid application import of outbox internals"
+            "@proof ARCHITECTURE_BOUNDARY_IMPORTS#1",
+            "@proof ARCHITECTURE_BOUNDARY_IMPORTS#2"
           ]
         },
         {
           "path": "src/shared/architecture/composition-container-boundary.test.ts",
           "project": "unit",
           "contains": [
-            "detects a deliberately exposed infrastructure repository",
-            "routes the AI server through context public APIs instead of the Review repository",
-            "keeps simulation tooling behind narrow capabilities instead of repositories"
+            "@proof ARCHITECTURE_BOUNDARY_IMPORTS#1",
+            "@proof ARCHITECTURE_BOUNDARY_IMPORTS#2",
+            "@proof ARCHITECTURE_BOUNDARY_IMPORTS#3"
           ]
         }
       ],
@@ -772,8 +769,8 @@
           "path": "src/shared/testing/production-artifact-boundary.test.ts",
           "project": "unit",
           "contains": [
-            "keeps local-only executables outside the production worker bundle",
-            "rejects %s in a serving artifact"
+            "@proof PRODUCTION_ARTIFACT_BOUNDARY#1",
+            "@proof PRODUCTION_ARTIFACT_BOUNDARY#2"
           ]
         }
       ],
@@ -857,8 +854,8 @@
           "path": "src/shared/governance/gate-wiring.test.ts",
           "project": "unit",
           "contains": [
-            "runs the changed-code budget on every check run",
-            "runs the same coverage ratchet before merge and on main without a second unit run"
+            "@proof BASELINE_GATE_INTERRUPTION#1",
+            "@proof BASELINE_GATE_INTERRUPTION#2"
           ]
         }
       ],

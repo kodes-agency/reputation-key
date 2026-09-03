@@ -7,7 +7,7 @@
 // No network, no Redis, no provider: `redis: undefined` explicitly disables
 // ambient Redis, and every queue handle is in-memory.
 
-import type { Container } from '#/composition'
+import type { WebContainer, WorkerContainer } from '#/composition/deployables'
 import type { Clock } from '#/shared/domain/clock'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
@@ -44,7 +44,9 @@ export function deterministicContainerOptions() {
  * Named long-lived handles the container holds. Names only — a handle's
  * configuration is never part of a boot report.
  */
-export function openHandleNames(container: Container): readonly string[] {
+export function openHandleNames(
+  container: WebContainer | WorkerContainer,
+): readonly string[] {
   const names: string[] = []
   if (container.db) names.push('database')
   if (container.pool) names.push('database-pool')

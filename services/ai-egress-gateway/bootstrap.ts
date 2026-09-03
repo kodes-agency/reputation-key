@@ -99,7 +99,7 @@ export async function startAiEgressGateway(
       dnsName: null,
       extendedKeyUsages: ['clientAuth'],
     })
-    const resolvePeerIdentity: InternalPeerIdentityResolver = (certificate) =>
+    const peerIdentityResolver: InternalPeerIdentityResolver = (certificate) =>
       webPeer(certificate) ?? workerPeer(certificate)
 
     const derived = consumeAiGatewayRuntimeSecrets(process.env, (runtimeSecrets) => {
@@ -184,7 +184,7 @@ export async function startAiEgressGateway(
       port: protectedMtlsPort,
       tls,
       maxRequestBytes: AI_TREND_ROUTE_MAX_BYTES,
-      resolvePeerIdentity,
+      resolvePeerIdentity: peerIdentityResolver,
       streamRequestBody: true,
       shutdownDrainTimeoutMs: AI_SERVICE_HANDLER_DRAIN_TIMEOUT_MILLIS_V1,
       preflight: preflightAiEgressGatewayIncomingRequest,

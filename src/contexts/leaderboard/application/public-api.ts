@@ -1,13 +1,3 @@
 // Leaderboard/Recognition has no beta product API. This boundary exposes only
 // the content-free export/restore inventory retained for bounded contraction.
-export {
-  LEGACY_RECOGNITION_TABLES,
-  buildLegacyRecognitionInventoryReport,
-  canonicalLegacyRecognitionInventoryReport,
-} from './legacy-recognition-inventory'
-export type {
-  LegacyRecognitionForeignKey,
-  LegacyRecognitionInventoryInput,
-  LegacyRecognitionInventoryReport,
-  LegacyRecognitionTableName,
-} from './legacy-recognition-inventory'
+export { canonicalLegacyRecognitionInventoryReport } from './legacy-recognition-inventory'

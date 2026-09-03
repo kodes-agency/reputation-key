@@ -19,9 +19,6 @@ import { createdAtColumn, updatedAtColumn } from '../columns'
  * row records the exact, preallocated auth user ID before provider work starts,
  * which lets recovery distinguish this interrupted attempt from every other
  * account without persisting a password, name, email, or session credential.
- *
- * This schema is intentionally not exported from migratable.ts until its
- * sequential migration slot is available.
  */
 export const invitedRegistrationAttempts = pgTable(
   'invited_registration_attempts',

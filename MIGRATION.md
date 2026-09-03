@@ -2,39 +2,21 @@
 
 This project uses two separate migration systems that must be run in the correct order.
 
-## Migration Order
+## Migration Authority
 
-**Auth tables must exist before business tables.** Run migrations in this order:
-
-1. **Auth migrations** (Better Auth tables):
-
-   ```bash
-   pnpm auth:migrate
-   ```
-
-   This creates the `user`, `session`, `account`, `verification`, `organization`, `member`, and `invitation` tables.
-
-2. **Business migrations** (Drizzle tables):
-   ```bash
-   pnpm db:migrate
-   ```
-   This creates `properties`, `teams`, `staff_assignments`, and `audit` tables. Some business tables have foreign keys referencing auth tables.
-
-## First-Time Setup
+Use the production-equivalent migration authority for first-time setup and CI:
 
 ```bash
-# 1. Generate auth migration (if not already generated)
-pnpm auth:generate
-
-# 2. Apply auth migrations
-pnpm auth:migrate
-
-# 3. Generate business migration
-pnpm db:generate
-
-# 4. Apply business migrations
-pnpm db:migrate
+DEPLOY_MIGRATE=1 pnpm db:migrate-deploy
 ```
+
+Railway deployments invoke the same `pnpm db:migrate-deploy` runner under
+platform identity rather than setting `DEPLOY_MIGRATE`.
+
+This provisions the pinned Better Auth tables, applies the staged Drizzle
+journal, runs registered sidecars, and performs provider-subject initialization.
+On an empty database, also set one sealed
+`REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS` entry before running the command.
 
 ## Development Workflow
 
@@ -57,4 +39,4 @@ the authoritative migration journal and can conceal deploy-time drift.
 
 ## CI/CD
 
-In CI/CD pipelines, always run `pnpm auth:migrate` before `pnpm db:migrate` to respect the dependency order.
+CI runs `pnpm db:migrate-deploy` (see `.github/workflows/ci.yml` Predeploy migration parity).

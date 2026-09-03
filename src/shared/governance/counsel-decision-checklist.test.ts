@@ -60,12 +60,27 @@ describe('counsel decision checklist', () => {
     ])
   })
 
-  it('extracts at least one open decision for every category', () => {
+  it('extracts at least one decision for every category', () => {
     for (const category of COUNSEL_DECISION_CATEGORIES) {
-      expect(
-        items.filter((item) => item.category === category && item.status === 'open'),
-      ).not.toEqual([])
+      expect(items.filter((item) => item.category === category)).not.toEqual([])
     }
+  })
+
+  it('accepts a category whose extracted decisions are all decided', () => {
+    const withDecidedRoles = items.map((item) =>
+      item.category === 'roles'
+        ? {
+            ...item,
+            status: 'decided' as const,
+            decision: 'Accepted as written.',
+            decidedBy: 'External Counsel',
+            decidedOn: '2026-09-03',
+            evidenceRef: item.repositoryFactRef,
+          }
+        : item,
+    )
+
+    expect(validate(withDecidedRoles)).toEqual([])
   })
 
   it('fails when a category has no extracted decision', () => {

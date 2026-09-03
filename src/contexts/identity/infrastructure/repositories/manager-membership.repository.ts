@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { member } from '#/shared/db/schema/auth'
-import type { ManagerMembership } from '../../application/public-api'
+import type { ManagerMembership } from '../../application/ports/identity.port'
 
 export type ManagerPropertyAuthorityResolver = (
   input: Readonly<{

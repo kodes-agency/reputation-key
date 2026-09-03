@@ -5,7 +5,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { isStaffError } from '../application/public-api'
+import { isStaffError } from '../domain/errors'
 import { staffErrorStatus } from './staff-shared'
 import {
   archiveStaffParticipationInputSchema,

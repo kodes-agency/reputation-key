@@ -43,7 +43,7 @@ The commands:
 
 - `ops:queue <status|pause|resume> <queue>` — pause/resume a BullMQ queue (containment; jobs preserved). §3/§7
 - `ops:quarantine <list|redrive <id>>` — failure-quarantine inspection + redrive to the original queue. §4/§7
-- `ops:refresh <reviews|metrics-daily|metrics-weekly|metrics-inbox>` — enqueue one bounded refresh-sweep run. §3/§4
+- `ops:refresh reviews` — enqueue one bounded Review refresh-sweep run. §3/§4
 - `ops:purge <reviews|reviews-shadow|retention>` — report Review lifecycle eligibility, Review expand/cache parity, or the static-rule retention backlog. Review targets are content-free and report-only even when enqueued; they never grant destructive apply. `retention --apply` remains destructive and requires typed confirmation. Do not treat local Review reports as production erasure or parity evidence. Inspect Google import lifecycle separately. §10
 - `ops:rebuild-projection --org <id> [--property <id>]` — repair the inbox projection (bounded, dry-run report first). §5
 - `ops:rebuild-metric-projection <portalId> --org <id> --property <id>` — inspect or repair one anonymous Portal lifetime projection from its sealed baseline plus retained governed facts. Dry-run is the default; apply requires `--reason`. §7
@@ -218,8 +218,9 @@ never be sent to Google.
 
 <!-- google-provider-identifiers-v1:end -->
 
-Registered gaps (owned elsewhere, do NOT improvise in an incident): metric-rollup
-watermark reset (metric owner — use `ops:refresh metrics-*` for a bounded re-run),
+Registered gaps (owned elsewhere, do NOT improvise in an incident): legacy
+metric-rollup contraction (metric owner — inspect retained rows with
+`pnpm ops:report-legacy-rollups`; no refresh or watermark-reset mutation remains),
 ENCRYPTION_KEY rotation (platform owner — runbook §2 manual), PITR execution
 (platform owner — `ops:restore-preflight` plus the report-first, independently
 approved `ops:restore-verify` are the current app-side surface; the Railway

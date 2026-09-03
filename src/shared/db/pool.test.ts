@@ -158,6 +158,7 @@ describe('getPool / closePool (BQC-7.1)', () => {
   })
 
   it('never retries pool.query after an ambiguous connection failure', async () => {
+    // @proof AMBIGUOUS_POOL_WRITE#1
     const pool = getPool() as FakePoolInstance
     const ambiguous = Object.assign(new Error('Connection terminated during query'), {
       code: 'ECONNRESET',

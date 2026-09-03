@@ -7,11 +7,8 @@
 //   pnpm ops:refresh <target> --operator <id>                          — dry-run report
 //   pnpm ops:refresh <target> --operator <id> --reason <text> --apply  — enqueue one run
 //
-// Targets (background queue, bounded internally by the sweeps themselves):
-//   reviews         — refresh-expiring-reviews (hourly sweep, cursor-bounded)
-//   metrics-daily   — refresh-daily-metrics (incremental rollup)
-//   metrics-weekly  — refresh-weekly-metrics (incremental rollup)
-//   metrics-inbox   — refresh-daily-inbox-metrics (incremental rollup)
+// Target (background queue, bounded internally by the sweep):
+//   reviews — refresh-expiring-reviews (hourly sweep, cursor-bounded)
 //
 // Requires QUEUE_REDIS_URL + DATABASE_URL. The enqueue is audited by the harness
 // (decision row) and re-authorized by the BQC-3 dispatch gate at execution.
@@ -23,12 +20,6 @@ import { runOperatorCommand } from './operator-command'
 
 const TARGETS = {
   reviews: { jobName: 'refresh-expiring-reviews', capability: 'review.use' },
-  'metrics-daily': { jobName: 'refresh-daily-metrics', capability: 'metric.internal' },
-  'metrics-weekly': { jobName: 'refresh-weekly-metrics', capability: 'metric.internal' },
-  'metrics-inbox': {
-    jobName: 'refresh-daily-inbox-metrics',
-    capability: 'metric.internal',
-  },
 } as const
 
 type Target = keyof typeof TARGETS

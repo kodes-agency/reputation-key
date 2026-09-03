@@ -1295,3 +1295,31 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
 }
 
 export type GoalProgramService = ReturnType<typeof createGoalProgramService>
+
+/** Request-facing Goal Program commands. Each invocation receives its scoped policy. */
+export type GoalProgramRequestApi = Readonly<{
+  create: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramService['create']>
+  ) => ReturnType<GoalProgramService['create']>
+  revise: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramService['revise']>
+  ) => ReturnType<GoalProgramService['revise']>
+  changeAssignments: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramService['changeAssignments']>
+  ) => ReturnType<GoalProgramService['changeAssignments']>
+  changeStatus: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramService['changeStatus']>
+  ) => ReturnType<GoalProgramService['changeStatus']>
+  get: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramService['get']>
+  ) => ReturnType<GoalProgramService['get']>
+  list: (
+    policy: GoalExecutionPolicy,
+    ...args: Parameters<GoalProgramService['list']>
+  ) => ReturnType<GoalProgramService['list']>
+}>

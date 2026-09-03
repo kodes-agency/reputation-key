@@ -47,16 +47,15 @@ History coverage.
 
 Team exposes no active cross-context beta API. `build.ts` returns an empty
 `publicApi` and empty internal groups without constructing retained code.
-`application/public-api.ts` is a historical type/event barrel that must not gain a
-new consumer during quarantine: `TeamId`, `TeamPublicApi`, the event types
-`TeamCreated`, `TeamUpdated`, `TeamDeleted` and their `TeamEvent` union, and the
-constructors `teamCreated`, `teamUpdated`, `teamDeleted`. The constructors are
-retained only so historical rows stay decodable; nothing in the beta calls them.
+`application/public-api.ts` is a historical decoding boundary containing only
+`Team`, `TeamId`, `TeamCreated`, `TeamUpdated`, `TeamDeleted`, and `TeamEvent`.
+The source is contracted to reconciliation, export, restore, and lifecycle
+readers; it contains no Team command use case or server surface.
 
 ## Why code and data remain
 
-The package retains domain types, tables, repositories, legacy application source,
-and event schemas for a bounded migration window. They provide:
+The package retains domain types, tables, reconciliation repositories and
+event schemas for a bounded migration window. They provide:
 
 - deterministic inspection of historical Team and membership rows;
 - `exact`, `mappable`, `conflict`, `orphan`, and `unsafe` reconciliation evidence;
@@ -72,14 +71,14 @@ type import plus explicitly catalogued operator/release reconciliation commands.
 ```
 team/
   domain/              historical Team/membership types, rules, events, errors
-  application/         retained legacy source and public types; never composed
+  application/         reconciliation inventory and historical decoding types
   infrastructure/      repositories plus people/Team reconciliation
   build.ts             inert empty inventory boundary; not called in production
 ```
 
-The former `server/` network surface has been removed. Reconciliation remains
-reachable only through the separately catalogued operator/release commands, which
-use the retained repository directly and do not expose tenant-facing Team actions.
+The former command use cases and `server/` network surface have been removed.
+Reconciliation remains reachable only through separately catalogued
+operator/release readers; none exposes a tenant-facing Team action.
 
 ## Organization Export contribution
 

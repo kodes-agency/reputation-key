@@ -1212,13 +1212,20 @@ export default tseslint.config(
             // server, the Nitro plugin and operator scripts are all allowed to
             // resolve the composition root — and the worker container builder
             // lives inside it. Deny it globally and re-open it only for the
-            // worker entry point and the process fixtures that assert the
-            // partition.
+            // process entry points and the fixtures that assert the partition:
+            // the worker bootstrap, the operator CLI harness (one process, one
+            // operator container, then shutdown), and the process fixtures.
+            // Callers that only need the narrowed container TYPES import
+            // `src/composition/container-partition.ts`, which cannot build one.
             {
               disallow: { to: fileCategory('deployable-containers') },
             },
             {
               from: elementTypes('top-level', 'test-helpers'),
+              allow: { to: fileCategory('deployable-containers') },
+            },
+            {
+              from: elementType('script-operator'),
               allow: { to: fileCategory('deployable-containers') },
             },
 

@@ -30,10 +30,11 @@ Leaderboard defines no cross-context domain events and retains no refresh path.
 
 ## Public API
 
-`application/public-api.ts` exposes only the content-free 13-table inventory
-model and canonical report formatter. It has no ranking or Recognition product
-operation. The production container does not construct or expose Leaderboard,
-and no Leaderboard server operation exists.
+`application/public-api.ts` exposes only
+`canonicalLegacyRecognitionInventoryReport`, the canonical content-free
+inventory report formatter. It has no ranking or Recognition product operation.
+The production container does not construct or expose Leaderboard, and no
+Leaderboard server operation exists.
 
 ## Prohibited beta behavior
 

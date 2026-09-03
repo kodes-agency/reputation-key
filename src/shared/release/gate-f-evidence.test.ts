@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   GATE_F_REQUIRED_APPROVAL_ROLES,
-  GATE_F_REQUIRED_GATE_IDS,
   canonicalGateFEvidence,
+  gateFApprovalRolesFor,
   gateFDecisionSha256,
   gateFEvidenceSha256,
+  gateFRequiredGateIdsFor,
   parseGateFEvidence,
   validateGateFEvidenceBundle,
   type GateFEvidence,
@@ -26,6 +27,9 @@ import { canonicalLegalRevisionSetEvidence } from './legal-revision-set-evidence
 
 const digest = (value: string): string => value.repeat(64).slice(0, 64)
 
+const CLOSED_BETA_GATE_IDS = gateFRequiredGateIdsFor('closed-beta')
+const ALL_GATE_IDS = gateFRequiredGateIdsFor('open-beta')
+
 /**
  * LEG-01: the legal revision set is validated against the legal document
  * registry, and every counsel row in the SHIPPED registry is a draft. The
@@ -45,7 +49,7 @@ type GateFFixture = Readonly<{
 }>
 
 /**
- * REL-01-T11: the fixture is now the COMPLETE eighteen-gate bundle, produced
+ * REL-01-T11: the fixture is now the complete posture-scoped bundle, produced
  * by the real producer functions and signed with ephemeral Ed25519 role keys.
  * The previous version filled fifteen gates with `"<id> passed"`, which is the
  * exact fail-open this wave closes.
@@ -91,9 +95,27 @@ describe('Gate F release evidence', () => {
       ok: true,
       digest: gateFEvidenceSha256(fixture.content),
     })
-    expect(fixture.evidence.gates.map(({ id }) => id)).toEqual(GATE_F_REQUIRED_GATE_IDS)
+    // The default fixture is the widest posture, so this pins the complete
+    // eighteen-gate, six-role contract.
+    expect(fixture.evidence.gates.map(({ id }) => id)).toEqual(
+      gateFRequiredGateIdsFor('ga'),
+    )
     expect(fixture.evidence.approvals.map(({ role }) => role)).toEqual(
-      GATE_F_REQUIRED_APPROVAL_ROLES,
+      gateFApprovalRolesFor('ga'),
+    )
+  })
+
+  it('accepts the narrowed closed-beta gate and approval sets', () => {
+    const fixture = gateFFixture(undefined, { posture: 'closed-beta' })
+
+    expect(validateFixture(fixture)).toMatchObject({ ok: true })
+    expect(fixture.evidence.gates.map(({ id }) => id)).toEqual(CLOSED_BETA_GATE_IDS)
+    expect(CLOSED_BETA_GATE_IDS).not.toContain('candidate.independent_review')
+    expect(CLOSED_BETA_GATE_IDS).not.toContain('opening.cohort_readiness')
+    // The CI readback is NOT waived by a narrower audience.
+    expect(CLOSED_BETA_GATE_IDS).toContain('candidate.clean_ci')
+    expect(fixture.evidence.approvals.map(({ role }) => role)).toEqual(
+      gateFApprovalRolesFor('closed-beta'),
     )
   })
 
@@ -119,7 +141,7 @@ describe('Gate F release evidence', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.errors.join('\n')).toContain(
-        `missing required Gate F gate ${GATE_F_REQUIRED_GATE_IDS[0]}`,
+        `missing required Gate F gate ${CLOSED_BETA_GATE_IDS[0]}`,
       )
     }
   })
@@ -393,8 +415,9 @@ describe('Gate F typed producers cover every required key (REL-01-T6)', () => {
   // for Gate F" unenforceable for 83% of the join.
   const PLACEHOLDER = '{"status":"passed"}\n'
 
-  it.each(GATE_F_REQUIRED_GATE_IDS)('rejects an opaque placeholder for %s', (gateId) => {
+  it.each(ALL_GATE_IDS)('rejects an opaque placeholder for %s', (gateId) => {
     const fixture = gateFFixture(undefined, {
+      posture: 'open-beta',
       gateArtifacts: { [gateId]: PLACEHOLDER },
     })
     const result = validateFixture(fixture)
@@ -448,7 +471,7 @@ describe('Gate F approval envelope (REL-01-T7)', () => {
   })
 
   it.each(GATE_F_REQUIRED_APPROVAL_ROLES)('rejects an unsigned %s approval', (role) => {
-    const fixture = gateFFixture(undefined, { unsignedRoles: [role] })
+    const fixture = gateFFixture(undefined, { posture: 'ga', unsignedRoles: [role] })
     const result = validateFixture(fixture)
 
     expect(result.ok).toBe(false)
@@ -462,7 +485,10 @@ describe('Gate F approval envelope (REL-01-T7)', () => {
   it.each(GATE_F_REQUIRED_APPROVAL_ROLES)(
     'rejects a %s approval signed by a key enrolled for nobody',
     (role) => {
-      const fixture = gateFFixture(undefined, { strangerSignedRoles: [role] })
+      const fixture = gateFFixture(undefined, {
+        posture: 'ga',
+        strangerSignedRoles: [role],
+      })
       const result = validateFixture(fixture)
 
       expect(result.ok).toBe(false)
@@ -479,6 +505,7 @@ describe('Gate F approval envelope (REL-01-T7)', () => {
     // the signature actually covers is different. Without the decision digest
     // in the signed payload this substitution would be invisible.
     const fixture = gateFFixture(undefined, {
+      posture: 'ga',
       counselDecisionSha256: digest('9'),
     })
     const result = validateFixture(fixture)

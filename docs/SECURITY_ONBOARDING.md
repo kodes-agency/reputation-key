@@ -79,28 +79,19 @@ Then rotate all secrets (§1) — once pushed to a remote, consider them comprom
 
 These are **acceptable for local development** but must be resolved before going live:
 
-### 4.1 Email verification is disabled
+### 4.1 Email verification is environment-driven
 
-`src/shared/auth/auth.ts`:
+`EMAIL_VERIFICATION_REQUIRED` (`src/shared/config/env.ts`) defaults to `true` in
+production and `false` in development and test; there is no code toggle to flip.
+Public registration is refused at the HTTP boundary
+(`src/routes/api/auth/$.ts`) and by the compile-time-blocked
+`identity.register` capability.
 
-```ts
-emailAndPassword: {
-  requireEmailVerification: false,   // ← MUST be true in production
-}
-```
+### 4.2 HTTPS cookie enforcement
 
-**Why it matters:** Anyone can register with any email address. Password resets can be triggered for unverified addresses.
-
-**Prerequisites to enable:**
-
-1. Verify Resend domain ownership (not sandbox)
-2. Test `sendVerificationEmail` flow end-to-end
-3. Update login/register UX to show "check your email" state
-4. Add unverified-user reminder UI
-
-### 4.2 No HTTPS enforcement
-
-Better Auth cookies should set `secure: true` in production. Verify in `auth.ts`.
+Cookies are `Secure` whenever `BETTER_AUTH_URL` is HTTPS
+(`src/shared/auth/auth.ts`). Deployed production requires an HTTPS public origin;
+only loopback production rehearsals have a documented HTTP exception.
 
 ### 4.3 Redis is optional in dev
 
@@ -130,13 +121,3 @@ If secrets are leaked:
 2. **Check the `cell-us` Railway PostgreSQL service logs and RepKey policy/action audit records** for unauthorized access
 3. **Check Resend logs** for unauthorized email sends
 4. **Invalidate Better Auth sessions** by rotating `BETTER_AUTH_SECRET` (forces all users to re-authenticate)
-
-## 7. Email Verification
-
-Email verification is currently disabled (`requireEmailVerification: false`). To enable:
-
-1. Verify Resend domain ownership
-2. Run `scripts/migrations/verify-existing-emails.sql` against the database
-3. Test full signup → verify → sign-in flow
-4. Set `requireEmailVerification: true` in `src/shared/auth/auth.ts`
-5. Uncomment the `emailVerification` block in `createAuth()`
