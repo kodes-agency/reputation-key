@@ -1,5 +1,7 @@
 # Security & Multi-Tenancy Audit Report
 
+**Status:** superseded — see docs/security/beta-threat-model.md and the SAFE-01..05 completion records in docs/release-evidence/review/. Three files it cites no longer exist.
+
 **Date**: 2026-05-22  
 **Scope**: 10 contexts, 15+ repository files, 14 server function files, 1 webhook route  
 **Auditor**: Automated audit via Hermes Agent

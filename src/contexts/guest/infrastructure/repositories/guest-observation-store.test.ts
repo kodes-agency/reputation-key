@@ -118,6 +118,7 @@ describe.sequential('atomic Guest observations', () => {
   })
 
   it('serializes concurrent scans to one source row and one fact', async () => {
+    // @proof PUBLIC_REDIRECT_AND_ABUSE#1
     const events = createCapturingEventBus()
     const store = createAtomicGuestObservationStore(db, events)
     const candidates = Array.from({ length: 8 }, (_, index) => scan(index + 1))
@@ -212,6 +213,7 @@ describe.sequential('atomic Guest observations', () => {
   })
 
   it('serializes a session/destination action to one receipt and one fact', async () => {
+    // @proof PUBLIC_REDIRECT_AND_ABUSE#2
     const events = createCapturingEventBus()
     const store = createAtomicGuestObservationStore(db, events)
     const fact = guestReviewLinkClicked({

@@ -139,43 +139,30 @@ describe('raw built-in-role decision catalogue', () => {
     expect(new Set(governedPaths).size).toBe(governedPaths.length)
   })
 
-  it('confines retained decisions to one vocabulary, presentation, or dark contexts', () => {
+  it('confines retained decisions to product vocabulary or presentation', () => {
     for (const row of RAW_ROLE_DECISION_CATALOGUE) {
       if (row.disposition === 'central_product_vocabulary') {
         expect([
           'src/shared/domain/beta-interactive-role.ts',
           'src/shared/domain/roles.ts',
         ]).toContain(row.path)
-      } else if (row.disposition === 'presentation_only') {
-        expect(row.path).toMatch(/^src\/components\//u)
       } else {
-        expect(row.path).toMatch(/^src\/contexts\/(?:badge|leaderboard|team)\//u)
+        expect(row.path).toMatch(/^src\/components\//u)
       }
       expect(row.authority.trim().length).toBeGreaterThan(0)
     }
   })
 
-  it('pins every legacy-dark raw-role decision to its fail-closed capability seam', () => {
-    expect(
-      RAW_ROLE_DECISION_CATALOGUE.filter((row) => row.disposition === 'legacy_dark').map(
-        (row) => ({
-          path: row.path,
-          capability: row.capability,
-          enforcement: row.enforcement,
-          publicSeam: row.publicSeam,
-        }),
-      ),
-    ).toEqual([
-      {
-        path: 'src/contexts/team/application/use-cases/team-memberships.ts',
-        capability: 'team.use',
-        enforcement: 'inert_context_build',
-        publicSeam: 'src/contexts/team/build.ts',
-      },
-    ])
+  it('keeps the legacy-dark decision catalogue empty after Team contraction', () => {
+    // Deleting Team's membership use cases removed the final legacy-dark row.
+    const legacyDarkRows = RAW_ROLE_DECISION_CATALOGUE.filter(
+      (row) => 'capability' in row,
+    )
+
+    expect(legacyDarkRows).toEqual([])
   })
 
-  it('keeps the contracted Leaderboard and catalogued Team builds inert', () => {
+  it('keeps the contracted Leaderboard and Team builds inert', () => {
     const leaderboardBuild = readFileSync(
       join(ROOT, 'src/contexts/leaderboard/build.ts'),
       'utf8',

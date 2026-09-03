@@ -300,6 +300,7 @@ describe('digest subject and body', () => {
 
 describe('digest idempotency (ADR 0046 r.5)', () => {
   it('uses a bounded opaque key bound to the immutable batch', async () => {
+    // @proof DIGEST_BATCH_IDEMPOTENCY#1
     const deps = baseDeps()
 
     await runHandler(deps)
@@ -403,6 +404,7 @@ describe('digest idempotency (ADR 0046 r.5)', () => {
   })
 
   it('fails closed instead of reusing a provider key when retry content changes', async () => {
+    // @proof DIGEST_BATCH_IDEMPOTENCY#2
     const first = baseDeps()
     await runHandler(first)
     const openBatch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)

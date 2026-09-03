@@ -5,13 +5,12 @@
 // each gate that cares to import `CURRENT_RELEASE_POSTURE` and branch on it.
 // That works and is smaller, and it loses the two properties that matter.
 // First, the gate set stops being visible: "which gates are dormant right now"
-// becomes a grep rather than a command, and a policy nobody can read is a
-// policy nobody audits. Second, a NEW gate can silently forget that posture
-// exists — it just runs everywhere, which is the safe direction but means the
-// registry drifts out of date exactly when someone is moving fast.
+// becomes repeated source inspection rather than one typed policy read. Second,
+// a NEW gate can silently forget that posture exists — it just runs everywhere,
+// which is the safe direction but lets the registry drift under deadline pressure.
 //
-// So the registry is the authority and the gates consult it. `scripts/ci/gate.ts`
-// is the bridge for anything invoked from YAML, which cannot import TypeScript.
+// So the registry remains the TypeScript authority for posture-sensitive policy
+// decisions even though CI no longer routes commands through a posture-aware CLI.
 //
 // THE RULE THIS FILE ENFORCES. A gate is `audience-dependent` only if its
 // answer genuinely changes when the only user is the owner. Everything else is
@@ -29,6 +28,32 @@ import {
   isPostureAtLeast,
   type ReleasePosture,
 } from './release-posture'
+
+export { CURRENT_RELEASE_POSTURE }
+
+export const REQUIRED_CI_JOBS = {
+  ci: [
+    'check',
+    'docker',
+    'secrets',
+    'storybook',
+    'storybook-test',
+    'e2e',
+    'beta-acceptance',
+  ],
+  fallow: ['audit'],
+  codeql: ['analyze'],
+  simulation: ['simulate'],
+} as const
+
+export const REQUIRED_STATUS_CONTEXTS = [
+  'check',
+  'docker',
+  'e2e',
+  'secrets',
+  'audit',
+  'Analyze (javascript-typescript)',
+] as const
 
 /** Where a gate runs, which decides how it is switched off when dormant. */
 export type GateSurface =
@@ -67,7 +92,7 @@ export type GateRecord = Readonly<{
   armedFrom: ReleasePosture
   /** Why the classification holds, grounded in what the gate checks. */
   rationale: string
-  /** The shell command `pnpm gate <id>` runs when armed, where one exists. */
+  /** The check command associated with this policy record, where one exists. */
   command?: string
 }>
 

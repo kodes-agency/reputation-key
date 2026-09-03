@@ -7,7 +7,7 @@ import { disarmPathSwap } from '../../src/shared/testing/descriptor-race.test-ha
 import { armRebindOnFirstCheck } from '../../src/shared/testing/descriptor-rebind.test-harness'
 import {
   GATE_F_REQUIRED_APPROVAL_ROLES,
-  GATE_F_REQUIRED_GATE_IDS,
+  gateFRequiredGateIdsFor,
 } from '../../src/shared/release/gate-f-evidence'
 import {
   completeGateFBundle,
@@ -22,6 +22,9 @@ import {
 } from '../../src/shared/release/legal-revision-set-evidence.test-fixtures'
 import { completeBundleCandidate } from '../../src/shared/release/gate-f-complete-evidence.test-fixtures'
 import { runReleaseValidationCli } from './validate-bundle'
+
+const CLOSED_BETA_GATE_IDS = gateFRequiredGateIdsFor('closed-beta')
+const ALL_GATE_IDS = gateFRequiredGateIdsFor('open-beta')
 
 // Lets a test rebind a path the instant the CLI first checks or opens it, which
 // is the only way to tell a path-based file-shape guard apart from one that
@@ -265,7 +268,7 @@ describe('release evidence validation CLI', () => {
     expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain('release.legalRevisionSet:')
     expect(result.stderr).not.toContain('approvals.')
-    for (const gateId of GATE_F_REQUIRED_GATE_IDS) {
+    for (const gateId of CLOSED_BETA_GATE_IDS) {
       expect(result.stderr).not.toContain(`gates.${gateId}.evidence.0`)
     }
   })
@@ -283,10 +286,11 @@ describe('release evidence validation CLI', () => {
     expect(result.stderr).toContain('role_key_not_enrolled')
   })
 
-  it.each(GATE_F_REQUIRED_GATE_IDS)(
+  it.each(ALL_GATE_IDS)(
     'exits 1 and names %s when its artifact is replaced by a placeholder',
     (gateId) => {
       const bundle = layOutBundle({
+        posture: 'open-beta',
         gateArtifacts: { [gateId]: '{"status":"passed"}\n' },
       })
       const result = runWithCapturedStderr(bundle.args)
@@ -299,7 +303,7 @@ describe('release evidence validation CLI', () => {
   it.each(GATE_F_REQUIRED_APPROVAL_ROLES)(
     'exits 1 when the %s approval signature is removed',
     (role) => {
-      const bundle = layOutBundle({ unsignedRoles: [role] })
+      const bundle = layOutBundle({ posture: 'ga', unsignedRoles: [role] })
       const result = runWithCapturedStderr(bundle.args)
 
       expect(result.exitCode).toBe(1)

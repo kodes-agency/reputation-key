@@ -7,18 +7,14 @@ import type { ConsumerRegistry } from '#/shared/outbox'
 
 import type { PropertyRepository } from './application/ports/property.repository'
 import { createPropertyResponsibilityRuntime } from './application/property-responsibility-runtime'
-import type {
-  PropertyFactsPublicApi,
-  PropertyProcessingScopePublicApi,
-  PropertyPublicApi,
-  PropertyResponsibleManagerPublicApi,
-  PropertyGoogleReviewDestinationPublicApi,
-  PropertyReplyLanguagePublicApi,
-  PropertyLifecyclePublicApi,
-} from './application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
-import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
+import type {
+  GoogleConnectionId,
+  OrganizationId,
+  PropertyId,
+  UserId,
+} from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createProperty } from './application/use-cases/create-property'
@@ -34,7 +30,6 @@ import type { RegionMoveAuditWriter } from './application/ports/region-move-requ
 import { createAtomicPropertyCommandStore } from './infrastructure/property-command-store'
 import { createPropertyGoogleBindingStore } from './infrastructure/property-google-binding-store'
 import { createPropertyLifecycleCommandStore } from './infrastructure/property-lifecycle-command-store'
-import type { PropertyGoogleBindingPublicApi } from './application/public-api'
 import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consumers'
 import { createRegionMoveRepository } from './infrastructure/repositories/region-move.repository'
 import { createRegionMoveRequestCommandStore } from './infrastructure/adapters/region-move-request-command-store.adapter'
@@ -108,7 +103,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
   // operator decision. The transition store then owns guarded authority swaps.
   const regionMoveStore = createRegionMoveRepository(deps.db)
   const regionMoveRequestCommandStore = createRegionMoveRequestCommandStore(deps.db)
-  const bindingApi: PropertyGoogleBindingPublicApi = createPropertyGoogleBindingStore(
+  const bindingApi = createPropertyGoogleBindingStore(
     deps.db,
     deps.events,
     deps.localCell,
@@ -216,14 +211,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     }),
   } as const
 
-  const propertyFactsApi: PropertyPublicApi &
-    PropertyFactsPublicApi &
-    PropertyProcessingScopePublicApi &
-    PropertyReplyLanguagePublicApi &
-    PropertyGoogleReviewDestinationPublicApi &
-    PropertyLifecyclePublicApi &
-    PropertyResponsibleManagerPublicApi &
-    PropertyGoogleBindingPublicApi = {
+  const propertyFactsApi = {
     ...bindingApi,
     propertyExists: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
@@ -333,7 +321,11 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         (userId): userId is import('#/shared/domain/ids').UserId => userId !== null,
       )
     },
-    isEligibleResponsibleManagerUserId: async (orgId, pid, managerId) => {
+    isEligibleResponsibleManagerUserId: async (
+      orgId: OrganizationId,
+      pid: PropertyId,
+      managerId: UserId,
+    ) => {
       if (!(await deps.repo.findById(orgId, pid))) return false
       return isEligiblePropertyManager(managerEligibility, orgId, pid, managerId)
     },

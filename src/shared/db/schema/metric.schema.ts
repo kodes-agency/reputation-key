@@ -190,6 +190,11 @@ export const metricReadings = pgTable(
       t.occurredAt,
     ),
     index('metric_readings_org_property_idx').on(t.organizationId, t.propertyId),
+    foreignKey({
+      name: 'metric_readings_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('cascade'),
     index('metric_readings_org_portal_idx').on(t.organizationId, t.portalId),
     index('metric_readings_org_prop_recorded_idx').on(
       t.organizationId,

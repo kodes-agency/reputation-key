@@ -38,6 +38,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   })
 
   it('flags application → foreign non-public-api application', async () => {
+    // @proof ARCHITECTURE_BOUNDARY_IMPORTS#2
     const messages = await lintSnippet(
       `import type { SourceContentPurge } from '#/contexts/review/application/ports/source-content-purge.port'\nexport type { SourceContentPurge }\n`,
       'src/contexts/integration/application/use-cases/sample.ts',
@@ -94,6 +95,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   })
 
   it('flags context build.ts → foreign infrastructure', async () => {
+    // @proof ARCHITECTURE_BOUNDARY_IMPORTS#1
     const messages = await lintSnippet(
       `import { createSourceContentPurge } from '#/contexts/review/infrastructure/source-content-purge'\nexport const factory = createSourceContentPurge\n`,
       'src/contexts/integration/build.ts',
@@ -126,6 +128,7 @@ describe('BQC-5.1: cross-context public-api rule', () => {
   })
 
   it('flags dynamic imports of foreign context infrastructure', async () => {
+    // @proof ARCHITECTURE_BOUNDARY_IMPORTS#3
     const messages = await lintSnippet(
       `export async function load() {\n  return import('#/contexts/review/infrastructure/source-content-purge')\n}\n`,
       'src/contexts/property/application/sample.ts',

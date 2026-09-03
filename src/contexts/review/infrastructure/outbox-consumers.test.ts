@@ -123,6 +123,7 @@ describe('reply publication requested durable consumer', () => {
   })
 
   it('delivers the committed cycle with a deterministic job identity', async () => {
+    // @proof REPLY_PUBLICATION_CRASH#1
     const subject = deps()
 
     await expect(
@@ -150,6 +151,7 @@ describe('reply publication requested durable consumer', () => {
   })
 
   it('marks a superseded cycle obsolete without admitting it', async () => {
+    // @proof REPLY_PUBLICATION_CRASH#2
     const subject = deps(reply({ publicationCycle: 5 }))
 
     await expect(

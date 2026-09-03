@@ -26,6 +26,9 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
+  await getPool().query('DELETE FROM retention_runs WHERE subject = $1', [
+    'guest_network_pressure_records.expired',
+  ])
   await getPool().query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, 'Network A', 'network-pressure-a', 'UTC'),

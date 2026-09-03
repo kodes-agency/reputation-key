@@ -19,6 +19,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { REQUIRED_CI_JOBS } from '../release/gate-policy'
 
 const ROOT = resolve(import.meta.dirname, '../../..')
 
@@ -31,7 +32,7 @@ const containerPolicy = JSON.parse(read('security/container-images.json')) as {
   images: ReadonlyArray<unknown>
 }
 const ciWorkflow = read('.github/workflows/ci.yml')
-const prePush = read('.husky/pre-push')
+const releaseImagesWorkflow = read('.github/workflows/release-images.yml')
 const runBaseline = read('scripts/bqc/run-baseline.ts')
 const playwrightConfig = read('playwright.config.ts')
 
@@ -73,19 +74,15 @@ describe('lint chain', () => {
 
 describe('coverage and changed-code gates', () => {
   it('runs the changed-code budget on every check run', () => {
+    // @proof BASELINE_GATE_INTERRUPTION#1
     expect(packageJson.scripts['check:changed-code']).toBe(
       'node scripts/check-changed-code.mjs',
     )
     expect(ciWorkflow).toContain('run: pnpm check:changed-code')
   })
 
-  // DO NOT RENAME. This title is a pinned regression marker: oracle
-  // `BASELINE_GATE_INTERRUPTION` in
-  // docs/release-evidence/review/pre-fix-oracle-index-2026-08-26.json requires
-  // it verbatim at `currentRegressionProofs[0].contains[1]`, and that index is
-  // sha256-attested release evidence. Renaming it here fails
-  // scripts/review/pre-fix-oracles.test.ts, which is how I found out.
-  it('runs the same coverage ratchet before merge and on main without a second unit run', () => {
+  it('runs the unit ratchet and integration exactly once each, unconditionally', () => {
+    // @proof BASELINE_GATE_INTERRUPTION#2
     expect(packageJson.scripts['check:coverage']).toBe('node scripts/check-coverage.mjs')
 
     // 2026-09-02 (#375): the serial `check` job was split into `static`,
@@ -140,9 +137,8 @@ describe('coverage and changed-code gates', () => {
 
 describe('legal approval gate', () => {
   // LEG-01: `check:legal-registry` binds counsel approval to document bytes.
-  // A validator nothing runs is not a gate, so the wiring is pinned in three
-  // places — the script itself, the CI lint chain, and the pre-push hook —
-  // and the producer script is pinned so it cannot be silently deleted.
+  // A validator nothing runs is not a gate, so the addressable command and its
+  // unconditional CI wiring are both pinned.
   it('keeps the registry checker addressable under its exact command', () => {
     expect(packageJson.scripts['check:legal-registry']).toBe(
       'tsx scripts/review/legal-document-registry.ts',
@@ -159,31 +155,26 @@ describe('legal approval gate', () => {
     expect(packageJson.scripts['lint:ci']).toMatch(/^pnpm lint\s+&&\s+\S/)
   })
 
-  it('runs the legal registry gate on pre-push when legal inputs change', () => {
-    // Same conditional-artifact-gate pattern as the AI/Google attestations: a
-    // normal push pays nothing, a push that edits a legal document or the
-    // approval authority fails in seconds instead of later in CI.
-    expect(prePush).toContain('*docs/legal/*')
-    expect(prePush).toContain('*src/shared/governance/legal-*')
-    expect(prePush).toContain('pnpm check:legal-registry')
-  })
-
   it('reaches CI through the existing lint:ci step rather than a new workflow step', () => {
     expect(ciWorkflow).toContain('run: pnpm lint:ci')
   })
 })
 
-describe('local hooks', () => {
-  it('typechecks on pre-push, including the release scripts project', () => {
-    expect(prePush).toContain('pnpm typecheck')
-    expect(packageJson.scripts.typecheck).toContain('tsconfig.scripts.json')
-  })
-
-  it('runs the artifact gates on pre-push only when their inputs change', () => {
-    // Conditional, so a normal push pays ~0 for them and a push that touches
-    // hash-pinned inputs fails in seconds instead of ~7 minutes later in CI.
-    expect(prePush).toContain('git diff --name-only origin/main...HEAD')
-    for (const gate of ARTIFACT_GATES) expect(prePush).toContain(gate)
+describe('release preflight gate manifest', () => {
+  it('binds release preflight to the gate manifest', () => {
+    expect(releaseImagesWorkflow).toContain(
+      `for required_job in ${REQUIRED_CI_JOBS.ci.join(' ')}; do`,
+    )
+    const workflowJobs = [
+      ['.github/workflows/fallow.yml', REQUIRED_CI_JOBS.fallow],
+      ['.github/workflows/codeql.yml', REQUIRED_CI_JOBS.codeql],
+      ['.github/workflows/simulation.yml', REQUIRED_CI_JOBS.simulation],
+    ] as const
+    for (const [workflowPath, jobs] of workflowJobs) {
+      expect(releaseImagesWorkflow).toContain(
+        `require_workflow_job "${workflowPath}" "${jobs.join(' ')}"`,
+      )
+    }
   })
 })
 

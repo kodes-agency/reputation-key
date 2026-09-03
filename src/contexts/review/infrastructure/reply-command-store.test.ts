@@ -504,6 +504,7 @@ describe('createAtomicReplyCommandStore', () => {
 
   describe('markPublicationAuthorized (BQC-3.8)', () => {
     it('approval: commits state + lifecycle fact + durable publication intent in one tx', async () => {
+      // @proof REPLY_PUBLICATION_CRASH#1
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const setPayloads: Array<Record<string, unknown>> = []

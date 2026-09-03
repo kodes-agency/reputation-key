@@ -81,31 +81,37 @@ export function isPrettyTransportAvailable(
   }
 }
 
-export function getLogger(): pino.Logger {
+export function getLogger(destination?: pino.DestinationStream): pino.Logger {
   if (!_logger) {
     const env = getEnv()
-    const usePretty = env.NODE_ENV === 'development' && isPrettyTransportAvailable()
-    _logger = pino({
-      level: env.LOG_LEVEL,
-      hooks: {
-        logMethod(args, method) {
-          method.apply(this, sanitizeLogArgs(args) as Parameters<typeof method>)
+    const usePretty =
+      destination === undefined &&
+      env.NODE_ENV === 'development' &&
+      isPrettyTransportAvailable()
+    _logger = pino(
+      {
+        level: env.LOG_LEVEL,
+        hooks: {
+          logMethod(args, method) {
+            method.apply(this, sanitizeLogArgs(args) as Parameters<typeof method>)
+          },
         },
+        // Mixin merges request-scoped span attrs (role/useCase — content-free,
+        // loggers. Read dynamically from ALS at log-call time, so attrs
+        // enriched after logger creation (e.g. after resolveTenantContext)
+        // still appear.
+        mixin: () => getSpanAttrs(),
+        ...(usePretty
+          ? {
+              transport: {
+                target: 'pino-pretty',
+                options: { colorize: true },
+              },
+            }
+          : {}),
       },
-      // Mixin merges request-scoped span attrs (role/useCase — content-free,
-      // loggers. Read dynamically from ALS at log-call time, so attrs
-      // enriched after logger creation (e.g. after resolveTenantContext)
-      // still appear.
-      mixin: () => getSpanAttrs(),
-      ...(usePretty
-        ? {
-            transport: {
-              target: 'pino-pretty',
-              options: { colorize: true },
-            },
-          }
-        : {}),
-    })
+      destination,
+    )
   }
   return _logger
 }

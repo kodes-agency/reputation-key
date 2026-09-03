@@ -6,13 +6,10 @@
 // is deliberately absent from runtime composition.
 
 import type { Database } from '#/shared/db'
+import type { AuthContext } from '#/shared/domain/auth-context'
 import type { AccessiblePropertyLookupPort } from './application/ports/accessible-property-lookup.port'
 import { trace } from '#/shared/observability/trace'
 import type { StaffPortalLookupPort } from './application/ports/portal-lookup.port'
-import type {
-  PrimaryStaffAttributionPublicApi,
-  StaffPublicApi,
-} from './application/public-api'
 import {
   portalId,
   type OrganizationId,
@@ -77,7 +74,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     },
   } as const
 
-  const staffFactsApi: StaffPublicApi & PrimaryStaffAttributionPublicApi = {
+  const staffFactsApi = {
     getAccessiblePropertyIds: async (
       orgId: OrganizationId,
       userId: UserId,
@@ -93,7 +90,10 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
         deps.accessiblePropertyLookup(orgId, userId),
       )
     },
-    getAssignedPortals: async (input, ctx) => {
+    getAssignedPortals: async (
+      input: Readonly<{ userId: UserId; propertyId: PropertyId }>,
+      ctx: AuthContext,
+    ) => {
       return responsibilityLookup.listAssignedPortalIds(
         ctx.organizationId,
         input.userId,
@@ -101,11 +101,16 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
       )
     },
     resolvePrimaryStaffAttribution,
-    findParticipationById: (organizationId, staffParticipationId) =>
-      participationRepo.findById(organizationId, staffParticipationId),
-    findActiveParticipation: (organizationId, propertyId, userId) =>
-      participationRepo.findActiveByUser(organizationId, propertyId, userId),
-    listActiveParticipations: (organizationId, propertyId) =>
+    findParticipationById: (
+      organizationId: OrganizationId,
+      staffParticipationId: string,
+    ) => participationRepo.findById(organizationId, staffParticipationId),
+    findActiveParticipation: (
+      organizationId: OrganizationId,
+      propertyId: PropertyId,
+      userId: UserId,
+    ) => participationRepo.findActiveByUser(organizationId, propertyId, userId),
+    listActiveParticipations: (organizationId: OrganizationId, propertyId: PropertyId) =>
       participationRepo.list(organizationId, { propertyId, activeOnly: true }),
   }
 

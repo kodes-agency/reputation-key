@@ -1,12 +1,13 @@
 /**
  * `candidate.independent_review` — the human review of the exact candidate.
  *
- * "Independent" is the whole claim, so it is the thing enforced: the reviewer
- * may not be an author of any reviewed change, and the review must cover the
- * candidate SHA rather than an earlier revision of the same branch.
+ * At postures wider than closed beta, the reviewer may not be an author of any
+ * reviewed change, and the review must cover the candidate SHA rather than an
+ * earlier revision of the same branch.
  */
 
 import { z } from 'zod/v4'
+import { CURRENT_RELEASE_POSTURE } from '../gate-policy'
 import {
   parseCanonicalReleaseEvidence,
   releaseEvidenceIdentitySchema,
@@ -55,7 +56,10 @@ const independentReviewEvidenceSchema = liveEvidenceBaseSchema(
       })
     }
     for (const [index, change] of value.changes.entries()) {
-      if (change.authorIdentity === value.reviewerIdentity) {
+      if (
+        CURRENT_RELEASE_POSTURE !== 'closed-beta' &&
+        change.authorIdentity === value.reviewerIdentity
+      ) {
         context.addIssue({
           code: 'custom',
           path: ['changes', index, 'authorIdentity'],

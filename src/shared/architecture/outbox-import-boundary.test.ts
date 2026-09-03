@@ -50,6 +50,7 @@ function forbiddenHits(source: string): string[] {
 }
 
 describe('BQR-1.3: outbox import boundary', () => {
+  // @proof ARCHITECTURE_BOUNDARY_IMPORTS#1
   const applicationFiles = walkTsFiles(CONTEXTS, (rel) => rel.includes('/application/'))
   const domainFiles = walkTsFiles(CONTEXTS, (rel) => rel.includes('/domain/'))
 
@@ -59,6 +60,7 @@ describe('BQR-1.3: outbox import boundary', () => {
   })
 
   it('detects a deliberately invalid application import of outbox internals', () => {
+    // @proof ARCHITECTURE_BOUNDARY_IMPORTS#2
     const invalidApplicationSource =
       "import { registerConsumer } from '#/shared/outbox/dispatcher'"
 

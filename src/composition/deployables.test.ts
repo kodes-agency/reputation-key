@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
-import { createContainer, type Container } from '#/composition'
+import { closeContainer, createContainer, getContainer } from '#/composition'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -18,6 +18,11 @@ import {
   deployablesFor,
   DUPLICATE_CONTAINER_ERROR,
   occupyingDeployable,
+  OPERATOR_ONLY_KEYS,
+  WORKER_ONLY_KEYS,
+  type OperatorContainer,
+  type WebContainer,
+  type WorkerContainer,
 } from './deployables'
 
 const FIXED_DATE = new Date('2026-01-15T12:00:00.000Z')
@@ -46,9 +51,11 @@ function options() {
   } as const
 }
 
-const keysOf = (container: Container): string[] => Object.keys(container).sort()
+type ProjectedContainer = WebContainer | WorkerContainer | OperatorContainer
 
-async function release(container: Container | undefined): Promise<void> {
+const keysOf = (container: object): string[] => Object.keys(container).sort()
+
+async function release(container: ProjectedContainer | undefined): Promise<void> {
   await container?.shutdown.run()
 }
 
@@ -57,7 +64,7 @@ beforeEach(() => {
 })
 
 describe('per-deployable container surfaces', () => {
-  let container: Container | undefined
+  let container: ProjectedContainer | undefined
 
   afterEach(async () => {
     await release(container)
@@ -134,6 +141,23 @@ describe('per-deployable container surfaces', () => {
     for (const key of full) {
       expect(deployablesFor(key).length, key).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('lazy web singleton', () => {
+  afterEach(async () => {
+    await closeContainer()
+  })
+
+  it('projects the lazily built singleton as the web deployable', async () => {
+    const container = getContainer()
+
+    expect(WORKER_ONLY_KEYS.filter((key) => key in container)).toEqual([])
+    expect(OPERATOR_ONLY_KEYS.filter((key) => key in container)).toEqual([])
+    expect(occupyingDeployable()).toBe('web')
+
+    await closeContainer()
+    expect(occupyingDeployable()).toBeUndefined()
   })
 })
 

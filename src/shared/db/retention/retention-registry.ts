@@ -16,12 +16,11 @@
  *    `assertRetentionRegistryApplyAllowed` refuses apply for all of them.
  *    Report-only is the only reachable mode.
  *
- * 2. No rule may name a compatibility mirror or bounded-contraction table.
- *    Those tables are contraction candidates blocked until one verified release
- *    plus a restore proof. A retention rule that deleted their rows would do
- *    the contraction early and quietly, destroying the very inventory the
- *    contraction decision is supposed to rest on. `retention_classes.
- *    unresolved_legacy_compatibility_rows` is still an open counsel question.
+ * 2. No deleting rule may name a compatibility mirror or bounded-contraction
+ *    table. The only registry entries over those tables are the six exact
+ *    row-preserving pseudonym redactions already executed by the sweep.
+ *    Deleting rows would perform contraction early and destroy the inventory
+ *    the contraction decision rests on.
  *
  * 3. A content deadline is anchored on the original submission or creation
  *    column (or an absolute deadline stamped at submission). Reading,
@@ -135,6 +134,10 @@ export type RetentionRegistryRule = Readonly<{
   sourceKind: RetentionSourceKind
   /** Physical table name, object class, or named external system. */
   source: string
+  /** Declarative operation. Omitted entries are destructive row deletion. */
+  operation?: 'delete' | 'redact'
+  /** Columns cleared by a row-preserving redaction. */
+  redactColumns?: ReadonlyArray<string>
   eligibility: RetentionEligibility
   /** `retention_runs.subject`, or a named external evidence record. */
   evidenceSubject: string
@@ -221,6 +224,81 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     blockingCounselDecisions: ['retention_classes.expiring_google_cache'],
   }),
   rule({
+    id: 'google.import_discovery_invalidations',
+    dataClass: 'google_source_content',
+    ownerContext: 'integration',
+    ownerRole: 'Integration context owner',
+    sourceKind: 'table',
+    source: 'google_import_discovery_invalidations',
+    eligibility: {
+      anchorColumn: 'expires_at',
+      horizon: { kind: 'row_deadline' },
+      predicate: null,
+      query:
+        'Delete google_import_discovery_invalidations after their stamped expires_at deadline.',
+      implementedBoundary:
+        'Live as the scheduled google_import_discovery_invalidations.expired subject.',
+    },
+    evidenceSubject: 'google_import_discovery_invalidations.expired',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.expiring_google_cache'],
+  }),
+  rule({
+    id: 'review.sync_runs',
+    dataClass: 'operational_action_history',
+    ownerContext: 'review',
+    ownerRole: 'Review context owner',
+    sourceKind: 'table',
+    source: 'review_sync_runs',
+    eligibility: {
+      anchorColumn: 'started_at',
+      horizon: { kind: 'days', days: 30 },
+      predicate: null,
+      query: 'Delete review_sync_runs whose run started more than 30 days ago.',
+      implementedBoundary: 'Live as the scheduled review_sync_runs subject.',
+    },
+    evidenceSubject: 'review_sync_runs',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.published_outbox_facts'],
+  }),
+  rule({
+    id: 'review.refresh_runs',
+    dataClass: 'operational_action_history',
+    ownerContext: 'review',
+    ownerRole: 'Review context owner',
+    sourceKind: 'table',
+    source: 'review_refresh_runs',
+    eligibility: {
+      anchorColumn: 'started_at',
+      horizon: { kind: 'days', days: 30 },
+      predicate: null,
+      query: 'Delete review_refresh_runs whose run started more than 30 days ago.',
+      implementedBoundary: 'Live as the scheduled review_refresh_runs subject.',
+    },
+    evidenceSubject: 'review_refresh_runs',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.published_outbox_facts'],
+  }),
+  rule({
+    id: 'integration.inbound_webhook_receipts',
+    dataClass: 'operational_action_history',
+    ownerContext: 'integration',
+    ownerRole: 'Integration context owner',
+    sourceKind: 'table',
+    source: 'inbound_webhook_receipts',
+    eligibility: {
+      anchorColumn: 'received_at',
+      horizon: { kind: 'days', days: 30 },
+      predicate: null,
+      query:
+        'Delete inbound_webhook_receipts whose provider message was received more than 30 days ago.',
+      implementedBoundary: 'Live as the scheduled inbound_webhook_receipts subject.',
+    },
+    evidenceSubject: 'inbound_webhook_receipts',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.published_outbox_facts'],
+  }),
+  rule({
     id: 'guest.session_pseudonym',
     dataClass: 'guest_session_pseudonym',
     ownerContext: 'guest',
@@ -242,6 +320,46 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       'retention_classes.guest_session_pseudonyms',
       'retention_classes.guest_response_session_binding',
     ],
+  }),
+  rule({
+    id: 'guest.destination_action_session_pseudonym',
+    dataClass: 'guest_session_pseudonym',
+    ownerContext: 'guest',
+    ownerRole: 'Guest context owner',
+    sourceKind: 'table',
+    source: 'guest_destination_action_receipts',
+    eligibility: {
+      anchorColumn: 'expires_at',
+      horizon: { kind: 'row_deadline' },
+      predicate: null,
+      query:
+        'SELECT id FROM guest_destination_action_receipts WHERE expires_at < now(). The deadline is stamped when the first qualified destination action commits.',
+      implementedBoundary:
+        'Live: the scheduled subject guest_destination_action_receipts.expired deletes the signed-session dedupe receipt at its absolute deadline.',
+    },
+    evidenceSubject: 'guest_destination_action_receipts.expired',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.guest_response_session_binding'],
+  }),
+  rule({
+    id: 'guest.qualified_scan_session_pseudonym',
+    dataClass: 'guest_session_pseudonym',
+    ownerContext: 'guest',
+    ownerRole: 'Guest context owner',
+    sourceKind: 'table',
+    source: 'guest_qualified_scan_receipts',
+    eligibility: {
+      anchorColumn: 'expires_at',
+      horizon: { kind: 'row_deadline' },
+      predicate: null,
+      query:
+        'SELECT id FROM guest_qualified_scan_receipts WHERE expires_at < now(). The database fixes the deadline at 24 hours after receipt creation.',
+      implementedBoundary:
+        'Live: the scheduled subject guest_qualified_scan_receipts.expired deletes the signed-session dedupe receipt at its absolute deadline.',
+    },
+    evidenceSubject: 'guest_qualified_scan_receipts.expired',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.guest_response_session_binding'],
   }),
   rule({
     id: 'guest.abuse_pseudonym',
@@ -283,6 +401,50 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
     blockingCounselDecisions: ['retention_classes.guest_network_pressure_records'],
   }),
+  ...(['scan_events', 'ratings', 'feedback'] as const).flatMap((source) => [
+    rule({
+      id: `guest.legacy_${source}.abuse_pseudonym`,
+      dataClass: 'guest_abuse_pseudonym',
+      ownerContext: 'guest',
+      ownerRole: 'Guest context owner',
+      sourceKind: 'table',
+      source,
+      operation: 'redact',
+      redactColumns: ['ip_hash'],
+      eligibility: {
+        anchorColumn: 'created_at',
+        horizon: { kind: 'days', days: 7 },
+        predicate: 'ip_hash IS NOT NULL',
+        query: `Redact ip_hash from ${source} rows created more than seven days ago; retain every compatibility row for contraction inventory.`,
+        implementedBoundary:
+          'Live as a row-preserving scheduled redaction at exactly seven days.',
+      },
+      evidenceSubject: `${source}.abuse_pseudonym`,
+      restoreImplication: RESTORE_REPLAYS_REDACTION,
+      blockingCounselDecisions: ['retention_classes.guest_session_pseudonyms'],
+    }),
+    rule({
+      id: `guest.legacy_${source}.session_pseudonym`,
+      dataClass: 'guest_session_pseudonym',
+      ownerContext: 'guest',
+      ownerRole: 'Guest context owner',
+      sourceKind: 'table',
+      source,
+      operation: 'redact',
+      redactColumns: ['session_id'],
+      eligibility: {
+        anchorColumn: 'created_at',
+        horizon: { kind: 'days', days: 7 },
+        predicate: 'session_id IS NOT NULL',
+        query: `Redact session_id from ${source} rows created more than 24 hours ago; retain every compatibility row for contraction inventory.`,
+        implementedBoundary:
+          'Stricter than the seven-day counsel-facing horizon: live as a row-preserving scheduled redaction after 24 hours.',
+      },
+      evidenceSubject: `${source}.guest_session_pseudonym`,
+      restoreImplication: RESTORE_REPLAYS_REDACTION,
+      blockingCounselDecisions: ['retention_classes.guest_session_pseudonyms'],
+    }),
+  ]),
   rule({
     id: 'guest.optional_contact',
     dataClass: 'guest_optional_contact',
@@ -342,17 +504,71 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'guest_responses.deidentified_fact',
     restoreImplication:
       'A restore reinstates purged facts AND desynchronises the lifetime aggregate, because corrections and withdrawals applied before the purge are replayed against rows that already carry them. The aggregate must be reconciled against the restored facts before the cell is reopened.',
-    coveredFacts: [
-      'rating',
-      'qualified_scan',
-      'destination_click',
-      'correction',
-      'withdrawal',
-    ],
-    blockingCounselDecisions: [
-      'retention_classes.canonical_guest_response_fact',
-      'retention_classes.unresolved_base_guest_metric_facts',
-    ],
+    coveredFacts: ['rating'],
+    blockingCounselDecisions: ['retention_classes.canonical_guest_response_fact'],
+  }),
+  rule({
+    id: 'guest.deidentified_qualified_scan_facts',
+    dataClass: 'guest_deidentified_facts',
+    ownerContext: 'guest',
+    ownerRole: 'Guest context owner with the Metric context owner',
+    sourceKind: 'table',
+    source: 'guest_qualified_scans',
+    eligibility: {
+      anchorColumn: 'occurred_at',
+      horizon: { kind: 'counsel_undecided' },
+      predicate: null,
+      query:
+        'Inventory guest_qualified_scans by occurred_at. No deletion cutoff is armed until counsel decides the separately stored Qualified Scan horizon.',
+      implementedBoundary:
+        'No executing retention rule exists for this identifier-only fact table.',
+    },
+    evidenceSubject: 'guest_qualified_scans.retention_undecided',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    coveredFacts: ['qualified_scan'],
+    blockingCounselDecisions: ['retention_classes.unresolved_base_guest_metric_facts'],
+  }),
+  rule({
+    id: 'metric.deidentified_destination_click_facts',
+    dataClass: 'guest_deidentified_facts',
+    ownerContext: 'metric',
+    ownerRole: 'Metric context owner with the Guest context owner',
+    sourceKind: 'table',
+    source: 'metric_readings',
+    eligibility: {
+      anchorColumn: 'event_at',
+      horizon: { kind: 'counsel_undecided' },
+      predicate: "metric_key = 'portal.review_link_click'",
+      query:
+        "Inventory metric_readings WHERE metric_key = 'portal.review_link_click' by event_at. No deletion cutoff is armed until counsel decides the separately stored click-fact horizon.",
+      implementedBoundary:
+        'No executing retention rule exists for retained destination-click readings.',
+    },
+    evidenceSubject: 'metric_readings.destination_click_retention_undecided',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    coveredFacts: ['destination_click'],
+    blockingCounselDecisions: ['retention_classes.unresolved_base_guest_metric_facts'],
+  }),
+  rule({
+    id: 'metric.deidentified_correction_withdrawal_facts',
+    dataClass: 'guest_deidentified_facts',
+    ownerContext: 'metric',
+    ownerRole: 'Metric context owner with the Guest context owner',
+    sourceKind: 'table',
+    source: 'metric_corrections',
+    eligibility: {
+      anchorColumn: 'event_at',
+      horizon: { kind: 'counsel_undecided' },
+      predicate: "kind IN ('retract', 'replace', 'adjust')",
+      query:
+        'Inventory metric_corrections by event_at. No deletion cutoff is armed until counsel decides the correction and withdrawal fact horizon.',
+      implementedBoundary:
+        'No executing retention rule exists for retained correction and withdrawal facts.',
+    },
+    evidenceSubject: 'metric_corrections.retention_undecided',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    coveredFacts: ['correction', 'withdrawal'],
+    blockingCounselDecisions: ['retention_classes.unresolved_base_guest_metric_facts'],
   }),
   rule({
     id: 'metric.lifetime_aggregates',
@@ -396,6 +612,47 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     blockingCounselDecisions: ['retention_classes.terminal_notification_evidence'],
   }),
   rule({
+    id: 'notification.terminal_digest_batches',
+    dataClass: 'notifications',
+    ownerContext: 'notification',
+    ownerRole: 'Notification context owner',
+    sourceKind: 'table',
+    source: 'notification_digest_batches',
+    eligibility: {
+      anchorColumn: 'updated_at',
+      horizon: { kind: 'days', days: 90 },
+      predicate: "state IN ('accepted', 'terminal')",
+      query:
+        'Delete notification_digest_batches older than 90 days only when state is accepted or terminal; retain open retry work.',
+      implementedBoundary:
+        'Live as the scheduled notification_digest_batches subject with the terminal-state predicate.',
+    },
+    evidenceSubject: 'notification_digest_batches',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.terminal_notification_evidence'],
+  }),
+  rule({
+    id: 'notification.terminal_email_queue',
+    dataClass: 'notifications',
+    ownerContext: 'notification',
+    ownerRole: 'Notification context owner',
+    sourceKind: 'table',
+    source: 'notification_email_queue',
+    eligibility: {
+      anchorColumn: 'created_at',
+      horizon: { kind: 'days', days: 90 },
+      predicate:
+        "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed')",
+      query:
+        'Delete terminal notification_email_queue rows older than 90 days; retain open retry work.',
+      implementedBoundary:
+        'Live as the scheduled notification_email_queue subject with the terminal-status predicate.',
+    },
+    evidenceSubject: 'notification_email_queue',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.terminal_notification_evidence'],
+  }),
+  rule({
     id: 'activity.recent_activity',
     dataClass: 'recent_activity',
     ownerContext: 'activity',
@@ -414,6 +671,139 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'recent_activity_entries',
     restoreImplication: RESTORE_REPLAYS_DELETION,
     blockingCounselDecisions: ['retention_classes.recent_activity_storage'],
+  }),
+  rule({
+    id: 'activity.replay_facts',
+    dataClass: 'recent_activity',
+    ownerContext: 'activity',
+    ownerRole: 'Activity context owner',
+    sourceKind: 'table',
+    source: 'recent_activity_replay_facts',
+    eligibility: {
+      anchorColumn: 'source_occurred_at',
+      horizon: { kind: 'days', days: 90 },
+      predicate: null,
+      query:
+        'Delete recent_activity_replay_facts whose source occurred more than 90 days ago.',
+      implementedBoundary: 'Live as the scheduled recent_activity_replay_facts subject.',
+    },
+    evidenceSubject: 'recent_activity_replay_facts',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.recent_activity_storage'],
+  }),
+  rule({
+    id: 'activity.actor_label_redactions',
+    dataClass: 'recent_activity',
+    ownerContext: 'activity',
+    ownerRole: 'Activity context owner',
+    sourceKind: 'table',
+    source: 'recent_activity_actor_label_redactions',
+    eligibility: {
+      anchorColumn: 'expires_at',
+      horizon: { kind: 'row_deadline' },
+      predicate: null,
+      query:
+        'Delete recent_activity_actor_label_redactions after their stamped expires_at deadline.',
+      implementedBoundary:
+        'Live as the scheduled recent_activity_actor_label_redactions.expired subject.',
+    },
+    evidenceSubject: 'recent_activity_actor_label_redactions.expired',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.recent_activity_storage'],
+  }),
+  rule({
+    id: 'platform.published_outbox_events',
+    dataClass: 'operational_action_history',
+    ownerContext: 'shared',
+    ownerRole: 'Platform operations owner',
+    sourceKind: 'table',
+    source: 'outbox_events',
+    eligibility: {
+      anchorColumn: 'published_at',
+      horizon: { kind: 'days', days: 30 },
+      predicate: 'published_at IS NOT NULL',
+      query:
+        'Delete outbox_events more than 30 days after publication; unpublished delivery work is retained.',
+      implementedBoundary:
+        'Live as the scheduled outbox_events.published subject with the published-at predicate.',
+    },
+    evidenceSubject: 'outbox_events.published',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.published_outbox_facts'],
+  }),
+  rule({
+    id: 'platform.event_consumer_receipts',
+    dataClass: 'operational_action_history',
+    ownerContext: 'shared',
+    ownerRole: 'Platform operations owner',
+    sourceKind: 'table',
+    source: 'event_consumer_receipts',
+    eligibility: {
+      anchorColumn: 'created_at',
+      horizon: { kind: 'days', days: 30 },
+      predicate: null,
+      query: 'Delete event_consumer_receipts created more than 30 days ago.',
+      implementedBoundary: 'Live as the scheduled event_consumer_receipts subject.',
+    },
+    evidenceSubject: 'event_consumer_receipts',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.published_outbox_facts'],
+  }),
+  rule({
+    id: 'identity.invited_registration_attempts',
+    dataClass: 'operational_action_history',
+    ownerContext: 'identity',
+    ownerRole: 'Identity context owner',
+    sourceKind: 'table',
+    source: 'invited_registration_attempts',
+    eligibility: {
+      anchorColumn: 'updated_at',
+      horizon: { kind: 'days', days: 90 },
+      predicate: "state IN ('accepted', 'compensated')",
+      query:
+        'Delete invited_registration_attempts older than 90 days only after they reach accepted or compensated state.',
+      implementedBoundary:
+        'Live as the scheduled invited_registration_attempts.settled subject; prepared and manual-review attempts remain recoverable.',
+    },
+    evidenceSubject: 'invited_registration_attempts.settled',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.unresolved_account_deletion'],
+  }),
+  rule({
+    id: 'platform.policy_decision_audit',
+    dataClass: 'operational_action_history',
+    ownerContext: 'shared',
+    ownerRole: 'Compliance owner with Platform operations',
+    sourceKind: 'table',
+    source: 'policy_decision_audit',
+    eligibility: {
+      anchorColumn: 'occurred_at',
+      horizon: { kind: 'days', days: 365 },
+      predicate: null,
+      query: 'Delete policy_decision_audit records older than 365 days.',
+      implementedBoundary: 'Live as the scheduled policy_decision_audit subject.',
+    },
+    evidenceSubject: 'policy_decision_audit',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.policy_decision_records'],
+  }),
+  rule({
+    id: 'platform.audit_logs',
+    dataClass: 'operational_action_history',
+    ownerContext: 'shared',
+    ownerRole: 'Compliance owner with Platform operations',
+    sourceKind: 'table',
+    source: 'audit_logs',
+    eligibility: {
+      anchorColumn: 'created_at',
+      horizon: { kind: 'days', days: 365 },
+      predicate: null,
+      query: 'Delete audit_logs records older than 365 days.',
+      implementedBoundary: 'Live as the scheduled audit_logs subject.',
+    },
+    evidenceSubject: 'audit_logs',
+    restoreImplication: RESTORE_REPLAYS_DELETION,
+    blockingCounselDecisions: ['retention_classes.policy_decision_records'],
   }),
   rule({
     id: 'activity.operational_action_history',
@@ -590,11 +980,9 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
 /**
  * Pseudonym redactions that still run against pre-beta compatibility mirrors.
  *
- * They are recorded here and NOT in the registry on purpose. A mirror may not
- * be a retention source, but the mirrors do hold `ip_hash` and `session_id`
- * pseudonyms and the seven-day §3.3.10 default has to reach them. Redaction
- * satisfies both: the pseudonym goes, every row stays, and the contraction
- * inventory still counts exactly what it counted before.
+ * They are represented in the registry as row-preserving `redact` operations.
+ * The pseudonyms disappear, every row stays, and the contraction inventory
+ * still counts exactly what it counted before.
  *
  * The invariant the test enforces is that these are the ONLY sweep rules
  * touching a contraction candidate, and that every one of them is `redact`.
@@ -604,13 +992,13 @@ export const LEGACY_MIRROR_PSEUDONYM_REDACTIONS = Object.freeze(
     Object.freeze({
       subject: `${table}.abuse_pseudonym`,
       table,
-      registryRuleId: 'guest.abuse_pseudonym',
+      registryRuleId: `guest.legacy_${table}.abuse_pseudonym`,
       redactedColumn: 'ip_hash',
     }),
     Object.freeze({
       subject: `${table}.guest_session_pseudonym`,
       table,
-      registryRuleId: 'guest.session_pseudonym',
+      registryRuleId: `guest.legacy_${table}.session_pseudonym`,
       redactedColumn: 'session_id',
     }),
   ]),
@@ -665,21 +1053,36 @@ export type RetentionRegistryContractionViolation = Readonly<{
 }>
 
 /**
- * A retention rule over a compatibility mirror or bounded-contraction table
- * would perform the contraction early — before the one verified release plus
- * restore proof that gates it — and would erase the inventory the decision
- * rests on. The candidate set is passed in so this module does not have to pull
- * the whole Drizzle schema graph into every consumer.
+ * A deleting retention rule over a compatibility mirror or bounded-contraction
+ * table would perform contraction before the one verified release plus restore
+ * proof that gates it, erasing the inventory the decision rests on. Exact
+ * row-preserving redactions remain allowed.
  */
 export function retentionRegistryContractionViolations(
   registry: ReadonlyArray<RetentionRegistryRule>,
   contractionCandidateTables: ReadonlyArray<string>,
 ): ReadonlyArray<RetentionRegistryContractionViolation> {
   const candidates = new Set(contractionCandidateTables)
+  const allowedRedactions = new Set(
+    LEGACY_MIRROR_PSEUDONYM_REDACTIONS.map(
+      ({ registryRuleId, table, redactedColumn }) =>
+        `${registryRuleId}:${table}:${redactedColumn}`,
+    ),
+  )
   // Matched on the source name alone, NOT on sourceKind: relabelling a mirror
   // as an object store would otherwise walk straight through this guard.
   return registry
-    .filter((rule) => candidates.has(rule.source))
+    .filter((rule) => {
+      if (!candidates.has(rule.source)) return false
+      const redactedColumn =
+        rule.redactColumns?.length === 1 ? rule.redactColumns[0] : null
+      const exactAllowedRedaction =
+        rule.sourceKind === 'table' &&
+        rule.operation === 'redact' &&
+        redactedColumn !== null &&
+        allowedRedactions.has(`${rule.id}:${rule.source}:${redactedColumn}`)
+      return !exactAllowedRedaction
+    })
     .map(({ id, source }) => Object.freeze({ ruleId: id, source }))
 }
 

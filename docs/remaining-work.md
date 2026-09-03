@@ -88,9 +88,9 @@ it is not part of the normal provisioning sequence. Full runbook in
 
 **Status:** Resolved. `crypto.randomUUID()` centralized into `newEventId()` (`src/shared/domain/event-id.ts`) across all 11 `domain/events.ts` files (50 call sites, commit `cff1ee4`). Single mockable source; no direct crypto in domain code.
 
-### 7. Materialized views are not Drizzle-managed — ✅ DONE (provisioned, not Drizzle)
+### 7. Materialized-view provisioning is Drizzle-managed — ✅ DONE
 
-**Status:** Resolved via provisioning, not Drizzle. `pnpm db:matviews` applies the 3 matviews + unique indexes + GBP place-id partial index (idempotent). Added as step 4 of the fresh-DB runbook in `docs/auth-migrations.md`. Raw SQL is necessary: the aggregations (`COALESCE`/`date_trunc`/`FILTER`/casts) can't be cleanly expressed in Drizzle's matview DSL, and adding to `tablesFilter` risks the destructive drift that blocked the DAC tables. Verified idempotent on Neon.
+**2026-09-03 update:** The standalone materialized-view provisioning command is retired. Its schema work is already tracked by Drizzle migration `0004_materialized-views-and-gbp-index.sql`; the unused rollup writer and schedules are quarantined pending CNV-01 contraction.
 
 ### 8. Goal completion-policy layering
 

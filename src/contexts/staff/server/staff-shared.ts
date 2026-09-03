@@ -13,7 +13,7 @@
 
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
-import type { StaffErrorCode } from '../application/public-api'
+import type { StaffErrorCode } from '../domain/errors'
 
 export const staffErrorStatus = (code: StaffErrorCode): number =>
   match(code)

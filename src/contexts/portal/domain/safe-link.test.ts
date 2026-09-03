@@ -26,6 +26,7 @@ describe('SafeLink', () => {
     })
 
     it('rejects credentials in URL', () => {
+      // @proof PUBLIC_REDIRECT_AND_ABUSE#1
       const result = validateExternalLink('https://user:pass@www.google.com/maps')
       expect(result.valid).toBe(false)
       if (!result.valid) expect(result.error.code).toBe('has_credentials')
@@ -38,6 +39,7 @@ describe('SafeLink', () => {
     })
 
     it('rejects private IP addresses', () => {
+      // @proof PUBLIC_REDIRECT_AND_ABUSE#2
       const result = validateExternalLink('https://127.0.0.1/admin')
       expect(result.valid).toBe(false)
       if (!result.valid) expect(result.error.code).toBe('is_private_ip')

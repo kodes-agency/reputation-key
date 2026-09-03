@@ -169,13 +169,9 @@ export function createAuth() {
           admin,
           member: memberRole,
         },
-        // Dynamic per-org roles enabled. The `organizationRole` table is
-        // provisioned by the better-auth migration (auth:generate / auth:migrate,
-        // Drizzle adapter). Custom-role admin UI is still TBD (ADR 0001 Phase 4);
-        // until then this makes the infrastructure functional, with the 3 static
-        // roles (owner/admin/member) as the built-in fallback.
+        // §3.1.3: runtime custom roles are off for the beta. The organizationRole table stays as dormant schema.
         dynamicAccessControl: {
-          enabled: true,
+          enabled: false,
         },
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
         // Use the same validated/defaulted policy as password signup. Reading

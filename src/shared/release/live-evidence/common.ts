@@ -26,6 +26,7 @@
  */
 
 import { z } from 'zod/v4'
+import { CURRENT_RELEASE_POSTURE } from '../gate-policy'
 import {
   releaseCandidateBindingSchema,
   releaseEvidenceIdentitySchema,
@@ -53,8 +54,8 @@ export const liveEvidenceTextSchema = z.string().trim().min(1).max(1024)
 
 /**
  * Who captured this, who countersigned it, and under which change record.
- * `capturedBy !== attestedBy` is enforced by every importer: a single person
- * cannot both produce and attest a release proof.
+ * Wider-audience releases require distinct capture and attestation identities;
+ * the single operator may fill both roles while the product remains closed beta.
  */
 const liveEvidenceAuthoritySchema = z
   .object({
@@ -119,7 +120,10 @@ export function liveEvidenceCommonIssues(
   value: LiveEvidenceCommon,
   context: z.RefinementCtx,
 ): void {
-  if (value.authority.capturedBy === value.authority.attestedBy) {
+  if (
+    CURRENT_RELEASE_POSTURE !== 'closed-beta' &&
+    value.authority.capturedBy === value.authority.attestedBy
+  ) {
     context.addIssue({
       code: 'custom',
       path: ['authority', 'attestedBy'],

@@ -27,6 +27,8 @@ export type RetentionRegistryRuleReport = Readonly<{
   ownerContext: string
   sourceKind: string
   source: string
+  operation: 'delete' | 'redact'
+  redactColumns: ReadonlyArray<string>
   approvalState: string
   applyBlocked: boolean
   blockingCounselDecisions: ReadonlyArray<string>
@@ -140,6 +142,8 @@ export async function buildRetentionRegistryReport(
       ownerContext: rule.ownerContext,
       sourceKind: rule.sourceKind,
       source: rule.source,
+      operation: rule.operation ?? 'delete',
+      redactColumns: rule.redactColumns ?? [],
       approvalState: rule.approvalState,
       applyBlocked: rule.approvalState === 'pending_counsel',
       blockingCounselDecisions: rule.blockingCounselDecisions,

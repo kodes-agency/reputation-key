@@ -1,24 +1,10 @@
-// Metric context — incremental rollup refresh job handlers
-// PRE17C: Replaced REFRESH MATERIALIZED VIEW with incremental rollup
-// computation. Only partitions with new data since the last watermark
-// are recomputed — O(changed) instead of O(total).
+// Metric context — quarantined rollup job handlers.
 //
-// Job names are exported as constants so worker/index.ts and bootstrap.ts
-// share a single source of truth.
+// Job names remain registered so readiness and quarantine tooling can identify
+// legacy work while scheduling is denied pending CNV-01 contraction.
 
 import type { Job } from 'bullmq'
-import type { Database } from '#/shared/db'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import {
-  refreshDailyMetricsIncrementally,
-  refreshWeeklyMetricsIncrementally,
-  refreshDailyInboxMetricsIncrementally,
-} from '../incremental-rollup'
-
-export type RefreshRollupDeps = Readonly<{
-  db: Database
-  logger: Pick<LoggerPort, 'debug' | 'info'>
-}>
 
 export const JOB_NAMES = {
   refreshDailyMetrics: 'refresh-daily-metrics',
@@ -26,14 +12,11 @@ export const JOB_NAMES = {
   refreshDailyInboxMetrics: 'refresh-daily-inbox-metrics',
 } as const
 
-const refreshFns = {
-  dailyMetrics: refreshDailyMetricsIncrementally,
-  weeklyMetrics: refreshWeeklyMetricsIncrementally,
-  dailyInboxMetrics: refreshDailyInboxMetricsIncrementally,
-} as const
-
-export const createRefreshRollupHandler =
-  (deps: RefreshRollupDeps, rollupType: keyof typeof refreshFns) => async (_job: Job) => {
-    const result = await refreshFns[rollupType](deps.db, deps.logger)
-    deps.logger.info({ rollupType, result }, 'Incrementally refreshed rollup table')
+export const createQuarantinedRollupHandler =
+  (jobName: string, logger: Pick<LoggerPort, 'warn'>) =>
+  async (_job: Job): Promise<void> => {
+    logger.warn(
+      { job: jobName },
+      'quarantined rollup job invoked; no mutation (CNV-01 contraction pending)',
+    )
   }

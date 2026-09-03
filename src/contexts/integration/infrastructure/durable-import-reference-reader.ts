@@ -109,6 +109,10 @@ export const createDurableImportReferenceReader = (
           and(
             eq(googleImportDiscoveryRecords.referenceKey, loaded.record.referenceKey),
             eq(
+              googleImportDiscoveryRecords.organizationId,
+              input.authorization.organizationId,
+            ),
+            eq(
               googleImportDiscoveryRecords.remainingRedemptions,
               loaded.record.remainingRedemptions,
             ),

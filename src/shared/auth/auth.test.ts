@@ -29,7 +29,7 @@ describe('Auth configuration', () => {
     process.env.RESEND_API_KEY = original ?? 're_test_key'
   })
 
-  it('createAuth returns an auth instance with email+password enabled', async () => {
+  it('enables credentials and disables runtime custom roles', async () => {
     const { resetEnv } = await import('#/shared/config/env')
     resetEnv()
 
@@ -43,6 +43,17 @@ describe('Auth configuration', () => {
     expect(options.emailAndPassword?.enabled).toBe(true)
     expect(options.emailAndPassword?.requireEmailVerification).toBe(false)
     expect(options.emailAndPassword?.revokeSessionsOnPasswordReset).toBe(true)
+
+    const organizationPlugin = auth.options.plugins?.find(
+      (plugin) => plugin.id === 'organization',
+    ) as
+      | Readonly<{
+          options?: Readonly<{
+            dynamicAccessControl?: Readonly<{ enabled?: boolean }>
+          }>
+        }>
+      | undefined
+    expect(organizationPlugin?.options?.dynamicAccessControl?.enabled).toBe(false)
   })
 
   it('session configuration has correct expiry', async () => {

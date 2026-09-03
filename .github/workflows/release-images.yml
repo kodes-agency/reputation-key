@@ -62,6 +62,23 @@ jobs:
               'any(.jobs[]; .name == $name and .conclusion == "success")' \
               <<<"$jobs_json" >/dev/null
           done
+          require_workflow_job() {
+            local workflow_path="$1"
+            local required_job="$2"
+            local workflow_file="${workflow_path##*/}"
+            local workflow_runs_json run_id workflow_jobs_json
+            workflow_runs_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow_file}/runs?head_sha=${EXPECTED_SHA}&status=success&per_page=100")
+            run_id=$(jq -er --arg sha "$EXPECTED_SHA" --arg path "$workflow_path" \
+              'first(.workflow_runs[] | select(.head_sha == $sha and .conclusion == "success" and .path == $path and .run_attempt == 1)) | .id' \
+              <<<"$workflow_runs_json")
+            workflow_jobs_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")
+            jq -e --arg name "$required_job" \
+              'any(.jobs[]; ((.name | ascii_downcase) == ($name | ascii_downcase) or (.name | ascii_downcase | startswith(($name | ascii_downcase) + " ("))) and .conclusion == "success")' \
+              <<<"$workflow_jobs_json" >/dev/null
+          }
+          require_workflow_job ".github/workflows/fallow.yml" "audit"
+          require_workflow_job ".github/workflows/codeql.yml" "analyze"
+          require_workflow_job ".github/workflows/simulation.yml" "simulate"
           artifacts_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${CI_RUN_ID}/artifacts?per_page=100")
           expected_beta_artifact="beta-local-smoke-${BETA_EVIDENCE_MANIFEST_SHA256}"
           beta_artifacts=$(jq -c --arg name "$expected_beta_artifact" \
@@ -100,7 +117,6 @@ jobs:
   build:
     needs: preflight
     runs-on: ubuntu-24.04
-    environment: release-signing
     strategy:
       fail-fast: false
       matrix:
@@ -278,7 +294,6 @@ jobs:
   manifest:
     needs: [preflight, build]
     runs-on: ubuntu-24.04
-    environment: release-signing
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

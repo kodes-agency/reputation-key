@@ -62,14 +62,14 @@ describe('live evidence importers', () => {
   )
 
   it.each(LIVE_EVIDENCE_GATE_IDS)(
-    '%s refuses an artifact the capturer attested to itself',
+    '%s permits the closed-beta operator to capture and attest the same artifact',
     (gateId) => {
       const selfAttested = mutate(artifact(gateId), (draft) => {
         const authority = draft.authority as Record<string, unknown>
         authority.attestedBy = authority.capturedBy
       })
 
-      expect(parse(gateId, selfAttested)).toMatchObject({ ok: false })
+      expect(parse(gateId, selfAttested)).toMatchObject({ ok: true })
     },
   )
 
@@ -304,12 +304,12 @@ describe('cohort readiness', () => {
     }
   })
 
-  it('requires separately named support and incident owners', () => {
+  it('permits one owner to cover support and incidents during closed beta', () => {
     const merged = mutate(artifact('opening.cohort_readiness'), (draft) => {
       draft.incidentOwner = draft.supportOwner
     })
 
-    expect(parse('opening.cohort_readiness', merged)).toMatchObject({ ok: false })
+    expect(parse('opening.cohort_readiness', merged)).toMatchObject({ ok: true })
   })
 
   it('refuses an unsatisfied readiness check', () => {
@@ -324,18 +324,16 @@ describe('cohort readiness', () => {
 })
 
 describe('independent review and defect disposition', () => {
-  it('refuses a review by an author of a reviewed change', () => {
+  it('permits the closed-beta operator to review their own change', () => {
     const selfReviewed = mutate(artifact('candidate.independent_review'), (draft) => {
       const changes = draft.changes as Record<string, unknown>[]
       const first = changes[0]
       if (first) first.authorIdentity = draft.reviewerIdentity
     })
-    const parsed = parse('candidate.independent_review', selfReviewed)
 
-    expect(parsed).toMatchObject({ ok: false })
-    if (!parsed.ok) {
-      expect(parsed.errors.join('\n')).toContain('cannot be an author')
-    }
+    expect(parse('candidate.independent_review', selfReviewed)).toMatchObject({
+      ok: true,
+    })
   })
 
   it('refuses a deferred defect with no target release', () => {

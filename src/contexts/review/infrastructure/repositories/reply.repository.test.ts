@@ -17,6 +17,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 const ORG_A = organizationId('org-rpl-test-aaaa-3333333333333333')
 const ORG_B = organizationId('org-rpl-test-bbbb-4444444444444444')
 const PROP_A = propertyId('2a000000-0000-0000-0000-000000000001')
+const PROP_B = propertyId('72b00000-0000-4000-8000-000000000002')
 
 let pool: Pool
 
@@ -59,6 +60,12 @@ async function seedProperties(pool: Pool) {
      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
      ON CONFLICT (id) DO NOTHING`,
     [PROP_A, ORG_A, 'Test Property A', 'test-prop-a', 'UTC'],
+  )
+  await pool.query(
+    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [PROP_B, ORG_B, 'Test Property B', 'test-rpl-prop-b', 'UTC'],
   )
 }
 
@@ -467,14 +474,21 @@ describe.sequential('replyRepository (integration)', () => {
   })
 
   describe('tenant isolation', () => {
-    it('same reviewId, different org → separate replies', async () => {
+    it('keeps replies isolated across tenant-owned reviews', async () => {
       const db = getDb()
-      await seedReview(db)
+      const reviewA = await seedReview(db)
+      const reviewB = await seedReview(db, {
+        id: reviewId('3b000000-0000-0000-0000-000000000002'),
+        organizationId: ORG_B,
+        propertyId: PROP_B,
+        externalId: 'rpl-ext-tenant-b',
+      })
       const repo = createReplyRepository(db, () => new Date())
 
       await repo.upsert(
         makeReply({
           id: '2a000000-0000-0000-0000-000000000001',
+          reviewId: reviewA.id,
           organizationId: ORG_A,
           text: 'Reply from org A',
         }),
@@ -483,25 +497,23 @@ describe.sequential('replyRepository (integration)', () => {
         makeReply({
           id: '2a000000-0000-0000-0000-000000000002',
           organizationId: ORG_B,
-          reviewId: reviewId('3a000000-0000-0000-0000-000000000001'),
+          reviewId: reviewB.id,
           text: 'Reply from org B',
           status: 'draft',
         }),
       )
 
-      const foundA = await repo.findByReviewId(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        ORG_A,
-      )
-      const foundB = await repo.findByReviewId(
-        reviewId('3a000000-0000-0000-0000-000000000001'),
-        ORG_B,
-      )
+      const foundA = await repo.findByReviewId(reviewA.id, ORG_A)
+      const foundB = await repo.findByReviewId(reviewB.id, ORG_B)
+      const crossTenantA = await repo.findByReviewId(reviewA.id, ORG_B)
+      const crossTenantB = await repo.findByReviewId(reviewB.id, ORG_A)
 
       expect(foundA).toHaveLength(1)
       expect(foundB).toHaveLength(1)
       expect(foundA[0].text).toBe('Reply from org A')
       expect(foundB[0].text).toBe('Reply from org B')
+      expect(crossTenantA).toEqual([])
+      expect(crossTenantB).toEqual([])
     })
   })
 

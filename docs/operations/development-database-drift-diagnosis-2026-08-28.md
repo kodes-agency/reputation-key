@@ -100,8 +100,12 @@ psql "$ADMIN_DATABASE_URL" -c 'DROP DATABASE repkey_dev'
 psql "$ADMIN_DATABASE_URL" -c 'CREATE DATABASE repkey_dev'
 ```
 
+> **2026-09-03 update:** The standalone materialized-view command was retired
+> because its schema work is already in the staged Drizzle journal. Use the
+> current deploy migration authority:
+
 ```bash
-pnpm db:bootstrap-auth && pnpm auth:migrate && pnpm db:migrate && pnpm db:matviews
+DEPLOY_MIGRATE=1 pnpm db:migrate-deploy
 ```
 
 Then confirm the ledger matches the journal:

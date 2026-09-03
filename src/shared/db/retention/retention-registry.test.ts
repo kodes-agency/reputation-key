@@ -171,16 +171,33 @@ describe('retention registry — §3.3.10 default horizons', () => {
     })
   })
 
-  it('holds the de-identified rating, qualified-scan, click, correction and withdrawal facts at exactly 24 months', () => {
+  it('keeps the live rating fact at 24 months and marks separately stored facts undecided', () => {
     const facts = ruleById('guest.deidentified_facts')
     expect(facts.eligibility.horizon).toEqual({ kind: 'months', months: 24 })
-    expect(facts.coveredFacts).toEqual([
-      'rating',
-      'qualified_scan',
-      'destination_click',
-      'correction',
-      'withdrawal',
-    ])
+    expect(facts.coveredFacts).toEqual(['rating'])
+
+    for (const [id, source, coveredFacts] of [
+      [
+        'guest.deidentified_qualified_scan_facts',
+        'guest_qualified_scans',
+        ['qualified_scan'],
+      ],
+      [
+        'metric.deidentified_destination_click_facts',
+        'metric_readings',
+        ['destination_click'],
+      ],
+      [
+        'metric.deidentified_correction_withdrawal_facts',
+        'metric_corrections',
+        ['correction', 'withdrawal'],
+      ],
+    ] as const) {
+      const rule = ruleById(id)
+      expect(rule.source, id).toBe(source)
+      expect(rule.eligibility.horizon, id).toEqual({ kind: 'counsel_undecided' })
+      expect(rule.coveredFacts, id).toEqual(coveredFacts)
+    }
   })
 })
 
@@ -195,14 +212,14 @@ describe('retention registry — compatibility mirrors are untouchable', () => {
     expect(candidates).toContain('portal_group_members')
   })
 
-  it('names no compatibility mirror or bounded-contraction table as a retention source', () => {
+  it('allows only row-preserving redactions against contraction candidates', () => {
     const violations = retentionRegistryContractionViolations(
       RETENTION_REGISTRY,
       candidates,
     )
     expect(
       violations,
-      'a retention rule over a contraction candidate would perform the contraction early, before the one verified release plus restore proof that gates it',
+      'a deleting retention rule over a contraction candidate would perform the contraction early, before the one verified release plus restore proof that gates it',
     ).toEqual([])
   })
 
@@ -229,6 +246,19 @@ describe('retention registry — compatibility mirrors are untouchable', () => {
     ])
   })
 
+  it('rejects an overbroad redaction against a compatibility mirror', () => {
+    const overbroad: RetentionRegistryRule = {
+      ...ruleById('guest.legacy_feedback.abuse_pseudonym'),
+      redactColumns: ['comment'],
+    }
+    expect(retentionRegistryContractionViolations([overbroad], candidates)).toEqual([
+      {
+        ruleId: 'guest.legacy_feedback.abuse_pseudonym',
+        source: 'feedback',
+      },
+    ])
+  })
+
   it('never deletes from a contraction candidate in the executable sweep either', () => {
     const deleting = RETENTION_RULES.filter(
       (rule) =>
@@ -251,6 +281,12 @@ describe('retention registry — compatibility mirrors are untouchable', () => {
       const rule = RETENTION_RULES.find(({ subject }) => subject === entry.subject)
       expect(rule?.operation, entry.subject).toBe('redact')
       expect(rule?.table, entry.subject).toBe(entry.table)
+      const registryRule = RETENTION_REGISTRY.find(
+        (candidate) =>
+          candidate.source === entry.table && candidate.evidenceSubject === entry.subject,
+      )
+      expect(registryRule?.operation, entry.subject).toBe('redact')
+      expect(registryRule?.redactColumns, entry.subject).toEqual([entry.redactedColumn])
     }
   })
 })

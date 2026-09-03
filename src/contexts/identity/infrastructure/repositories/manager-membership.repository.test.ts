@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { getDb, type Database } from '#/shared/db'
-import type { ManagerMembership } from '../../application/public-api'
+import type { ManagerMembership } from '../../application/ports/identity.port'
 import { createManagerMembershipRepository } from './manager-membership.repository'
 
 describe('manager membership repository', () => {

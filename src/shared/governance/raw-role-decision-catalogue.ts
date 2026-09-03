@@ -62,13 +62,4 @@ export const RAW_ROLE_DECISION_CATALOGUE = Object.freeze([
     disposition: 'presentation_only',
     authority: 'Maps an already-authorized role value to short or full display copy.',
   },
-  {
-    path: 'src/contexts/team/application/use-cases/team-memberships.ts',
-    disposition: 'legacy_dark',
-    capability: 'team.use',
-    enforcement: 'inert_context_build',
-    publicSeam: 'src/contexts/team/build.ts',
-    authority:
-      'The Team build is inert and production composition has no Team import, so this retained membership source has no tenant-facing or runtime public seam.',
-  },
 ] as const satisfies ReadonlyArray<RawRoleDecisionRow>)

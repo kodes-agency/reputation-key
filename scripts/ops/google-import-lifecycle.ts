@@ -1,4 +1,3 @@
-import { getContainer } from '../../src/composition'
 import { getPool } from '../../src/shared/db/pool'
 import { closeJobQueueConnections, createJobQueue } from '../../src/shared/jobs/queue'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
@@ -142,7 +141,7 @@ async function main(): Promise<void> {
         return
       }
 
-      const container = getContainer()
+      const { container } = ctx
       if (action === 'inspect') {
         const inspect = container.integrationMaintenanceRuntime.imports.inspectBacklog
         if (!inspect) throw new Error('Google import v2 lifecycle unavailable')

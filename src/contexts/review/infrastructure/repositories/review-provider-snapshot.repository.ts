@@ -120,7 +120,12 @@ async function failLockedRun(
       confirmationCursorRef: null,
       updatedAt: sql`transaction_timestamp()`,
     })
-    .where(eq(reviewProviderSnapshotRuns.id, row.id))
+    .where(
+      and(
+        eq(reviewProviderSnapshotRuns.id, row.id),
+        eq(reviewProviderSnapshotRuns.organizationId, row.organizationId),
+      ),
+    )
     .returning()
   if (!terminal[0])
     throw domainError(

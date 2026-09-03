@@ -129,12 +129,6 @@ import {
   type ManagerPropertyAuthorityRequirement,
   type MemberPropertyAuthorityDatabase,
 } from './infrastructure/repositories/member-property-authority'
-import type {
-  IdentityAccountAdminAuthorityPublicApi,
-  IdentityManagerFactsPublicApi,
-  IdentityPublicApi,
-  IdentityRequestApi,
-} from './application/public-api'
 
 /** Callback invoked after an invitation is accepted.
  * The composition root provides the implementation that creates
@@ -875,14 +869,13 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     organizationLifecycle,
   } as const
 
-  const merchantAiRequestApi: IdentityRequestApi['merchantAiAuthorization'] =
-    Object.freeze({
-      get: useCases.merchantAiAuthorization.get,
-      enable: useCases.merchantAiAuthorization.enable,
-      change: useCases.merchantAiAuthorization.change,
-      revoke: useCases.merchantAiAuthorization.revoke,
-    })
-  const requestApi: IdentityRequestApi = Object.freeze({
+  const merchantAiRequestApi = Object.freeze({
+    get: useCases.merchantAiAuthorization.get,
+    enable: useCases.merchantAiAuthorization.enable,
+    change: useCases.merchantAiAuthorization.change,
+    revoke: useCases.merchantAiAuthorization.revoke,
+  })
+  const requestApi = Object.freeze({
     inviteMember: useCases.inviteMember,
     updateMemberRole: useCases.updateMemberRole,
     removeMember: useCases.removeMember,
@@ -899,16 +892,16 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     deleteCustomRole: useCases.deleteCustomRole,
     merchantAiAuthorization: merchantAiRequestApi,
   })
-  const managerFacts: IdentityManagerFactsPublicApi = Object.freeze({
+  const managerFacts = Object.freeze({
     listActiveManagers: managerMembershipRepo.listActiveManagers,
   })
-  const accountAdminAuthority: IdentityAccountAdminAuthorityPublicApi = Object.freeze({
+  const accountAdminAuthority = Object.freeze({
     isCurrentAccountAdmin: managerMembershipRepo.isCurrentAccountAdmin,
   })
   const offboardingFacts = Object.freeze({
     listOutstanding: memberOffboarding.listOutstanding,
   })
-  const publicApi: IdentityPublicApi = Object.freeze({
+  const publicApi = Object.freeze({
     managerFacts,
     accountAdminAuthority,
     offboardingFacts,

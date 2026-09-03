@@ -49,6 +49,7 @@ function serverFnRequest(headers: HeadersInit = {}): Request {
 }
 
 describe('TanStack Start request CSRF boundary', () => {
+  // @proof SERVER_FN_CSRF#1
   it.each(['cross-site', 'same-site'])(
     'rejects %s server-function requests before the handler',
     async (secFetchSite) => {
@@ -63,6 +64,7 @@ describe('TanStack Start request CSRF boundary', () => {
   )
 
   it('allows a same-origin server-function request', async () => {
+    // @proof SERVER_FN_CSRF#2
     const { result, next } = await invokeFirstRequestMiddleware(
       serverFnRequest({ 'Sec-Fetch-Site': 'same-origin' }),
     )
@@ -72,6 +74,7 @@ describe('TanStack Start request CSRF boundary', () => {
   })
 
   it('rejects a sibling-subdomain Origin when Fetch Metadata is absent', async () => {
+    // @proof SERVER_FN_CSRF#3
     const { result, next } = await invokeFirstRequestMiddleware(
       serverFnRequest({ Origin: 'https://attacker.repkey.example' }),
     )

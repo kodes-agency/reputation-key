@@ -305,7 +305,7 @@ function liveCommon(
     expiresAt: LIVE_EXPIRES_AT,
     authority: {
       capturedBy: 'release-operator',
-      attestedBy: 'release-reviewer',
+      attestedBy: 'release-operator',
       changeRecord: 'CHG-REL-01-001',
       sourceArtifactSha256: deps.sha256('source'),
     },
@@ -358,7 +358,7 @@ function independentReview(candidate: ReleaseCandidateBinding): GateFLiveEvidenc
       {
         reference: 'PR-4821',
         headSha: candidate.releaseSha,
-        authorIdentity: 'release-engineer',
+        authorIdentity: 'independent-reviewer',
         approvedAt: '2026-08-28T07:50:00.000Z',
       },
     ],
@@ -578,7 +578,7 @@ function cohortReadiness(candidate: ReleaseCandidateBinding): GateFLiveEvidenceF
     organizationCount: 1,
     seatCount: 8,
     supportOwner: 'support-owner',
-    incidentOwner: 'incident-owner',
+    incidentOwner: 'support-owner',
     changeRecord: 'CHG-REL-01-001',
     openingWindow: {
       opensAt: '2026-08-29T09:00:00.000Z',

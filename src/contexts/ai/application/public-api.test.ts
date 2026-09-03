@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import {
   EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST,
+  isReviewAnalysisRevisionSetEvidence,
+} from './ports/ai-review-analysis-enrollment.port'
+import {
   aiPropertyTrendGenerationRequested,
   aiReviewAnalysisBackfillRequested,
-  isReviewAnalysisRevisionSetEvidence,
-  isAiError,
-} from './public-api'
+} from '../domain/events'
+import { isAiError } from '../domain/errors'
 
 describe('AI application public API', () => {
   it('exposes the supported identifier-only event constructors', () => {

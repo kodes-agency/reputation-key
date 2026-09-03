@@ -16,7 +16,6 @@
 // Requires DATABASE_URL. Containment command: deliberately NOT
 // capability-gated — it must work while the org/property is suspended.
 
-import { getContainer } from '../../src/composition'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'
 
@@ -48,7 +47,7 @@ async function main(): Promise<void> {
         )
         return
       }
-      const container = getContainer()
+      const { container } = ctx
       await container.policyAdmin.setPropertySuspension({
         organizationId: ctx.organizationId as string,
         propertyId: ctx.propertyId as string,

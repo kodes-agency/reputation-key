@@ -17,7 +17,6 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { CutoverFamily, CutoverState } from '#/shared/outbox/cutover-flags'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { InboxPublicApi } from './application/public-api'
 import type {
   ReviewReplyObservationAuthority,
   ReviewSourceTransitionAuthority,
@@ -156,8 +155,36 @@ type InboxUseCases = Readonly<{
   releaseDueResponseTargetReminders: ReleaseDueResponseTargetReminders
 }>
 
+type InboxRequestApi = Readonly<
+  Pick<
+    InboxUseCases,
+    | 'updateInboxStatus'
+    | 'bulkUpdateInboxStatus'
+    | 'bulkAssignInboxItems'
+    | 'escalateInboxItem'
+    | 'resolveEscalation'
+    | 'assignInboxItem'
+    | 'getInboxItems'
+    | 'addInboxNote'
+    | 'getLastVisitCount'
+    | 'stampLastInboxView'
+    | 'getInboxItemDetail'
+    | 'getInboxNotes'
+    | 'getInboxItemHistory'
+    | 'getInboxFolderCounts'
+    | 'markFeedbackHandled'
+    | 'correctFeedbackHandlingOutcome'
+    | 'getGoogleReviewTargetAnalytics'
+    | 'getPrivateFeedbackTargetAnalytics'
+    | 'getResponseTargetPolicySettings'
+    | 'setResponseTargetPolicy'
+  > & {
+    getGoogleReviewTargetCountsByProperty: ResponseTargetStore['getGoogleReviewTargetCountsByProperty']
+  }
+>
+
 export type InboxContextApi = Readonly<{
-  publicApi: InboxPublicApi
+  publicApi: InboxRequestApi
   /** Event and cross-context workflow capabilities. These are deliberately
    * separate from request handlers and operator repair commands. */
   lifecycle: Readonly<{
@@ -323,7 +350,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     clock: input.clock,
     idGen: input.idGen,
   })
-  const publicApi: InboxPublicApi = Object.freeze({
+  const publicApi: InboxRequestApi = Object.freeze({
     updateInboxStatus: useCases.updateInboxStatus,
     bulkUpdateInboxStatus: useCases.bulkUpdateInboxStatus,
     bulkAssignInboxItems: useCases.bulkAssignInboxItems,

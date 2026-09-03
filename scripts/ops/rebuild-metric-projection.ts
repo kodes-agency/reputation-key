@@ -9,7 +9,6 @@
 //   pnpm ops:rebuild-metric-projection <portalId> --operator <id>
 //     --org <id> --property <id> --reason <text> --apply
 
-import { getContainer } from '../../src/composition'
 import { organizationId, portalId, propertyId } from '../../src/shared/domain/ids'
 import { runOperatorCommand } from './operator-command'
 
@@ -36,7 +35,8 @@ async function main(): Promise<void> {
         throw new Error('Organization and Property scope are required')
       }
 
-      const report = await getContainer().metricMaintenanceRuntime.repairPortalLifetime({
+      const { container } = ctx
+      const report = await container.metricMaintenanceRuntime.repairPortalLifetime({
         scope: {
           organizationId: organizationId(ctx.organizationId),
           propertyId: propertyId(ctx.propertyId),

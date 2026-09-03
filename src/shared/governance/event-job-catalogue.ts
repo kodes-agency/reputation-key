@@ -2767,10 +2767,14 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       queue: 'background',
       capability: 'none',
       action: 'system:metric.refresh',
-      schedule: 'cron:0 * * * *',
-      registration: 'enabled',
+      schedule: 'none',
+      registration: 'quarantined',
     },
-    { timeoutMs: 300_000, notes: 'incremental rollup; 5m bounds a stalled refresh' },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'CNV-01 quarantine: no product reader; schema contraction after one verified release and restore proof',
+    },
   ),
   job(
     'refresh-weekly-metrics',
@@ -2779,10 +2783,14 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       queue: 'background',
       capability: 'none',
       action: 'system:metric.refresh',
-      schedule: 'every:86400000',
-      registration: 'enabled',
+      schedule: 'none',
+      registration: 'quarantined',
     },
-    { timeoutMs: 300_000, notes: 'incremental rollup; 5m bounds a stalled refresh' },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'CNV-01 quarantine: no product reader; schema contraction after one verified release and restore proof',
+    },
   ),
   job(
     'refresh-daily-inbox-metrics',
@@ -2791,10 +2799,14 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       queue: 'background',
       capability: 'none',
       action: 'system:metric.refresh',
-      schedule: 'cron:5 * * * *',
-      registration: 'enabled',
+      schedule: 'none',
+      registration: 'quarantined',
     },
-    { timeoutMs: 300_000, notes: 'incremental rollup; 5m bounds a stalled refresh' },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'CNV-01 quarantine: no product reader; schema contraction after one verified release and restore proof',
+    },
   ),
   job(
     'goal-program.maintain',

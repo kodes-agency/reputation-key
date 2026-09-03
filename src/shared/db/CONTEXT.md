@@ -8,11 +8,11 @@
 up the deployed schema:
 
 1. **Drizzle journal track** — `drizzle/0000_init.sql` …
-   `0140_single_us_beta_data_cell.sql` with
-   `drizzle/meta/_journal.json` (141 entries). The migratable barrel currently
-   owns 195 application tables. Managed by `pnpm db:generate` /
-   `pnpm db:migrate`; the count is derived from that barrel, never maintained
-   as a second allowlist.
+   `0179_magenta_sharon_carter.sql` with `drizzle/meta/_journal.json` (180
+   entries). The migratable barrel currently owns 229 application tables.
+   Managed by `pnpm db:generate` / `pnpm db:migrate`; the count is derived from
+   that barrel, never maintained as a second allowlist. Recount when touching
+   migrations.
 2. **Better Auth schema track** — `pnpm auth:migrate`
    (`scripts/better-auth-schema.ts` using the exact pinned `better-auth`
    runtime and `src/shared/auth/auth-cli.ts` config). Owns the 8 auth tables
@@ -107,8 +107,8 @@ phantom `invitation.teamId` and missing `organization.metadata`).
 - `columns.ts` — standard `created_at` / `updated_at` / `deleted_at` columns.
 - `schema-drift.ts` — model ↔ pg_catalog comparator (test + script consume).
 - `migration-verification.test.ts` — integration gate (presence + semantic parity).
-- `schema/index.ts` — barrel of all 203 modeled tables (195 app + 8 auth mirror).
-- `schema/migratable.ts` — barrel of the 195 Drizzle-managed tables;
+- `schema/index.ts` — barrel of all 237 modeled tables (229 app + 8 auth mirror).
+- `schema/migratable.ts` — barrel of the 229 Drizzle-managed tables;
   `drizzle.config.ts` points here. No `tablesFilter` whitelist.
 - `schema/db-only-constructs.ts` — the DB-only register (see above).
 - `retention/` — retention sweep subjects.

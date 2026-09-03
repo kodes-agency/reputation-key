@@ -27,8 +27,8 @@
 //                                     source detail via authorized Review lookup          applyOnce, outbox-consumers
 //   6  Dashboard    enabled/limited  governed bounded query/cache interface; no raw       attention-eligibility-equivalence,
 //                                     expired data or direct DB routes                    read-facade-timeout
-//   7  Metric       enabled/limited  idempotent content-free rollup; no review-derived    NEW rollup idempotency integration pin
-//                                     staff gamification                                  (metric/.../incremental-rollup-idempotency.test.ts)
+//   7  Metric       enabled/limited  canonical projections; legacy rollup writer          NEW no-mutation quarantine-handler pin
+//                                     quarantined; no review-derived staff gamification     (metric/.../refresh-materialized-view.job.test.ts)
 //   8  Notification enabled/limited  privacy-filtered in-app delivery; outbound non-auth  dark-capability-enforcement.test.ts,
 //                                     email absent/dark                                   dark-context-matrix.test.ts
 //   9  Activity     enabled/limited  collaboration facts separated from security audit;   activity-content-safety.test.ts,
@@ -161,8 +161,8 @@ const REUSED_PINS: Readonly<Record<string, string>> = {
   darkConsumerGating: 'src/shared/architecture/dark-consumer-gating.test.ts',
   contentFreeFacts: 'src/shared/architecture/content-free-facts.test.ts',
   crossContextPublicApi: 'src/shared/architecture/cross-context-public-api.test.ts',
-  metricRollupIdempotency:
-    'src/contexts/metric/infrastructure/repositories/incremental-rollup-idempotency.test.ts',
+  metricRollupQuarantine:
+    'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.test.ts',
 }
 
 /**

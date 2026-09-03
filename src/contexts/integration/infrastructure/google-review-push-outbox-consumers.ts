@@ -1,7 +1,5 @@
-import {
-  GBP_PUSH_SYNC_INITIATOR_ID,
-  type TargetedGoogleReviewQueuePort,
-} from '#/contexts/review/application/public-api'
+import { GBP_PUSH_SYNC_INITIATOR_ID } from '#/contexts/review/application/public-api'
+import type { TargetedGoogleReviewQueuePort } from '#/contexts/review/application/public-api'
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 

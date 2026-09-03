@@ -130,6 +130,12 @@ export const reviews = pgTable(
       t.propertyId,
       t.id,
     ),
+    uniqueIndex('reviews_org_id_key').on(t.organizationId, t.id),
+    foreignKey({
+      name: 'reviews_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('cascade'),
     index('reviews_property_idx').on(t.propertyId),
     index('reviews_org_idx').on(t.organizationId),
     index('reviews_expires_idx').on(t.expiresAt),
@@ -959,6 +965,11 @@ export const replies = pgTable(
       t.organizationId,
     ),
     uniqueIndex('replies_attempt_binding_unique').on(t.organizationId, t.reviewId, t.id),
+    foreignKey({
+      name: 'replies_review_tenant_fk',
+      columns: [t.organizationId, t.reviewId],
+      foreignColumns: [reviews.organizationId, reviews.id],
+    }).onDelete('restrict'),
     index('replies_review_idx').on(t.reviewId),
     index('replies_org_idx').on(t.organizationId),
     check(

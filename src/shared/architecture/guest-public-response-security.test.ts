@@ -17,6 +17,7 @@ const privacySource = readFileSync(
 
 describe('guest public response security', () => {
   it('marks the nonce-bearing public Portal response private and non-cacheable', () => {
+    // @proof PUBLIC_CACHE_PRIVACY#1
     expect(source).toContain('applyGuestPublicResponsePrivacy()')
     expect(privacySource).toContain(
       "setResponseHeader('Cache-Control', 'private, no-store')",
@@ -31,6 +32,7 @@ describe('guest public response security', () => {
   })
 
   it('requires the configured origin and signed-session CSRF before public mutations', () => {
+    // @proof PUBLIC_CACHE_PRIVACY#2
     const originAdmission = mutationSource.indexOf(
       'if (origin !== useCases.guestPublicRuntime.expectedOrigin)',
     )

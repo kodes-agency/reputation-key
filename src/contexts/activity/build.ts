@@ -2,7 +2,6 @@ import type { Database } from '#/shared/db'
 import type { ConsumerRegistry } from '#/shared/outbox'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { ActivityPublicApi } from './application/public-api'
 import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createRecentActivityRepository } from './infrastructure/recent-activity-repository.drizzle'
@@ -109,7 +108,7 @@ export const buildActivityContext = (input: BuildInput) => {
     })
   }
 
-  const publicApi: ActivityPublicApi = {
+  const publicApi = {
     getActivityTimeline: timeline,
     listRecentActivity: orgActivity,
     listOperationalActionHistory: listHistory,

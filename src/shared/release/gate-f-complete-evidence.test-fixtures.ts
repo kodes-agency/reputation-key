@@ -47,8 +47,8 @@ import {
   GATE_F_EVIDENCE_VERSION,
   GATE_F_REQUIRED_APPROVAL_ROLES,
   gateFApprovalRolesFor,
+  gateFRequiredGateIdsFor,
   type ReleasePosture,
-  GATE_F_REQUIRED_GATE_IDS,
   canonicalGateFEvidence,
   gateFDecisionSha256,
   gateFEvidenceSha256,
@@ -224,9 +224,11 @@ export type CompleteGateFBundle = Readonly<{
 
 export type CompleteGateFBundleOverrides = Readonly<{
   /**
-   * Declare the release posture, which decides the required approval set.
-   * Defaults to 'ga' so every existing control keeps measuring the full
-   * six-role requirement.
+   * Declare the release posture, which decides the required gate and approval sets.
+   * Defaults to `ga`: these fixtures exist to prove the COMPLETE six-role,
+   * eighteen-gate requirement, so approval-integrity tests keep a counsel
+   * approval to mutate. Pass `posture: 'closed-beta'` to exercise the narrowed
+   * set explicitly.
    */
   posture?: ReleasePosture
   /**
@@ -300,6 +302,7 @@ function legalChecklistArtifact(
 export function completeGateFBundle(
   overrides: CompleteGateFBundleOverrides = {},
 ): CompleteGateFBundle {
+  const posture: ReleasePosture = overrides.posture ?? 'ga'
   const files = new Map<string, Uint8Array>()
   const addPayload = (
     path: string,
@@ -339,7 +342,7 @@ export function completeGateFBundle(
   )
 
   const typed = gateFLiveEvidenceFixtures(candidate)
-  const gates = GATE_F_REQUIRED_GATE_IDS.map((id) => {
+  const gates = gateFRequiredGateIdsFor(posture).map((id) => {
     const fixture = typed[id]
     if (!fixture) throw new Error(`no typed producer fixture for gate ${id}`)
     const primary = overrides.gateArtifacts?.[id] ?? fixture.content
@@ -366,9 +369,7 @@ export function completeGateFBundle(
       legalRevisionSet,
       legalApprovalChecklist: legalChecklist,
       releaseSha: manifest.releaseSha,
-      // Full six-role posture: these fixtures exist to prove the complete
-      // approval set, so they must not sit in the narrowed closed-beta case.
-      posture: overrides.posture ?? ('ga' as const),
+      posture,
       cell: 'us' as const,
       environment: 'cell-us' as const,
       deploymentProfile: 'production' as const,
@@ -401,8 +402,7 @@ export function completeGateFBundle(
   } as unknown as GateFEvidence)
 
   const keyRing = gateFApprovalKeyRing()
-  const signingRoles =
-    overrides.approvalRoles ?? gateFApprovalRolesFor(overrides.posture ?? 'ga')
+  const signingRoles = overrides.approvalRoles ?? gateFApprovalRolesFor(posture)
   const approvals = signingRoles.map((role) => {
     const approverIdentity = overrides.approverIdentities?.[role] ?? `${role}-approver`
     const signedDecision =

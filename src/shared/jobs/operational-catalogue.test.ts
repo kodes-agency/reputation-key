@@ -83,9 +83,9 @@ describe('job operational catalogue', () => {
       every: 86_400_000,
       offset: 10_800_000,
     })
-    expect(
-      desired.find((row) => row.jobName === 'refresh-daily-inbox-metrics')?.repeat,
-    ).toEqual({ pattern: '5 * * * *' })
+    expect(desired.find((row) => row.jobName === 'digest-notification')?.repeat).toEqual({
+      pattern: '0 * * * *',
+    })
   })
 
   it('keeps exhaustive Review Analysis enrollment recovery unconditional and bounded', () => {

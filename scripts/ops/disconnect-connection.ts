@@ -21,7 +21,6 @@
 // NOT in this slice: ENCRYPTION_KEY/token-key rotation (re-encrypt-at-rest)
 // stays runbook-manual (runbook §2) — registered for the platform owner.
 
-import { getContainer } from '../../src/composition'
 import { organizationId, userId } from '../../src/shared/domain/ids'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'
@@ -53,7 +52,7 @@ async function main(): Promise<void> {
         )
         return
       }
-      const container = getContainer()
+      const { container } = ctx
       const connection = await container.integrationPublicApi.connections.disconnect(
         { connectionId },
         {

@@ -15,14 +15,14 @@ approval record.
 
 ### 1. User Identity Data (PII)
 
-| Field               | Table                | Source               | Purpose             | Retention                | Deletion                  |
-| ------------------- | -------------------- | -------------------- | ------------------- | ------------------------ | ------------------------- |
-| User name           | `user.name`          | Sign-up / invitation | Display, greeting   | Account lifetime         | Cascade on user delete    |
-| User email          | `user.email`         | Sign-up / invitation | Auth, notifications | Account lifetime         | Cascade on user delete    |
-| Email verified flag | `user.emailVerified` | Auth flow            | Access control      | Account lifetime         | Cascade on user delete    |
-| User avatar URL     | `user.image`         | OAuth / upload       | Display             | Account lifetime         | Cascade on user delete    |
-| Session IP address  | `session.ipAddress`  | Auth middleware      | Security audit      | Session expiry (30 days) | Cascade on session delete |
-| Session user agent  | `session.userAgent`  | Auth middleware      | Security audit      | Session expiry           | Cascade on session delete |
+| Field               | Table                | Source               | Purpose                                                           | Retention                                                            | Deletion                  |
+| ------------------- | -------------------- | -------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------- |
+| User name           | `user.name`          | Sign-up / invitation | Display, greeting                                                 | Account lifetime                                                     | Cascade on user delete    |
+| User email          | `user.email`         | Sign-up / invitation | Auth, notifications                                               | Account lifetime                                                     | Cascade on user delete    |
+| Email verified flag | `user.emailVerified` | Auth flow            | Access control                                                    | Account lifetime                                                     | Cascade on user delete    |
+| User avatar URL     | `user.image`         | OAuth / upload       | Display                                                           | Account lifetime                                                     | Cascade on user delete    |
+| Session IP address  | `session.ipAddress`  | Auth middleware      | Written by Better Auth; no reader in the application (write-only) | Cascade on session delete; candidate for non-collection under CNV-01 | Cascade on session delete |
+| Session user agent  | `session.userAgent`  | Auth middleware      | Written by Better Auth; no reader in the application (write-only) | Cascade on session delete; candidate for non-collection under CNV-01 | Cascade on session delete |
 
 **Subprocessors:** Railway-hosted PostgreSQL and application services in
 `cell-us`.

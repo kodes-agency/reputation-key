@@ -520,7 +520,10 @@ function createSession(
             current_review_id = ${String(input.reviewId)}::uuid,
             current_emitted_at = ${input.occurredAt},
             updated_at = ${input.occurredAt}
-        WHERE id = ${input.runId}::uuid AND state = 'running'
+        WHERE id = ${input.runId}::uuid
+          AND organization_id = ${organizationId}
+          AND property_id = ${propertyId}::uuid
+          AND state = 'running'
       `)
     },
 
@@ -529,7 +532,10 @@ function createSession(
         UPDATE ai_review_analysis_backfill_runs
         SET skipped_review_count = skipped_review_count + 1,
             updated_at = ${input.occurredAt}
-        WHERE id = ${input.runId}::uuid AND state = 'running'
+        WHERE id = ${input.runId}::uuid
+          AND organization_id = ${organizationId}
+          AND property_id = ${propertyId}::uuid
+          AND state = 'running'
       `)
     },
 
@@ -538,7 +544,10 @@ function createSession(
         UPDATE ai_review_analysis_backfill_runs
         SET recovered_review_count = recovered_review_count + 1,
             updated_at = ${input.occurredAt}
-        WHERE id = ${input.runId}::uuid AND state = 'running'
+        WHERE id = ${input.runId}::uuid
+          AND organization_id = ${organizationId}
+          AND property_id = ${propertyId}::uuid
+          AND state = 'running'
       `)
     },
 
@@ -552,7 +561,10 @@ function createSession(
             current_review_id = NULL,
             current_emitted_at = NULL,
             updated_at = ${input.occurredAt}
-        WHERE id = ${input.runId}::uuid AND state = 'running'
+        WHERE id = ${input.runId}::uuid
+          AND organization_id = ${organizationId}
+          AND property_id = ${propertyId}::uuid
+          AND state = 'running'
       `)
     },
   }

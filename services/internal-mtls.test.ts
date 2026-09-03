@@ -258,7 +258,7 @@ describe('internal mTLS request lifetime', () => {
         '-subj',
         '/CN=localhost',
         '-addext',
-        'subjectAltName=DNS:localhost',
+        'subjectAltName=DNS:localhost,URI:spiffe://repkey.internal/localhost',
         '-addext',
         'basicConstraints=critical,CA:TRUE',
         '-addext',
@@ -286,6 +286,11 @@ describe('internal mTLS request lifetime', () => {
       port: 1,
       tls,
       maxRequestBytes: 1024,
+      resolvePeerIdentity: createExactSpiffePeerIdentityResolver({
+        uri: 'spiffe://repkey.internal/localhost',
+        dnsName: 'localhost',
+        extendedKeyUsages: ['clientAuth', 'serverAuth'],
+      }),
       streamRequestBody: true,
       async handle(request) {
         const path = new URL(request.url).pathname

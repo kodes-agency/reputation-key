@@ -82,11 +82,11 @@ Both events use the shared identifier-only envelope and are exported through
 ## Public API
 
 `application/public-api.ts` is the only cross-context interface. It exposes
-governed aggregate reads, on-demand Reply Drafting inputs/results, current
-Review Analysis and Property Trend read models, identifier-only event types and
-constructors, and the AI tagged-error guard. Provider adapters, persistence,
-jobs, admission controls, and source-content ports remain internal to the
-context and composition root.
+presentation-facing aggregate shapes, on-demand Reply Drafting inputs/results,
+the current Property Trend read model, and identifier-only event types.
+Provider adapters, persistence, constructors, jobs, admission controls, error
+guards, and source-content ports remain internal to the context and composition
+root.
 
 ## Durable facts and jobs
 

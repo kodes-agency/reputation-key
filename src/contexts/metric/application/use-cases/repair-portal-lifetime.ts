@@ -4,6 +4,11 @@ import type {
   PortalLifetimeScope,
 } from '../ports/portal-lifetime-aggregate.port'
 
+export type RepairPortalLifetimeInput = Readonly<{
+  scope: PortalLifetimeScope
+  mode: 'report' | 'apply'
+}>
+
 export type RepairPortalLifetimeResult = Readonly<{
   mode: 'report' | 'apply'
   matchedBefore: boolean
@@ -15,10 +20,7 @@ export type RepairPortalLifetimeResult = Readonly<{
 
 export async function repairPortalLifetime(
   deps: Readonly<{ lifetime: PortalLifetimeAggregatePort }>,
-  input: Readonly<{
-    scope: PortalLifetimeScope
-    mode: 'report' | 'apply'
-  }>,
+  input: RepairPortalLifetimeInput,
 ): Promise<RepairPortalLifetimeResult> {
   if (input.mode === 'report') {
     const inspection = await deps.lifetime.inspect(input.scope)

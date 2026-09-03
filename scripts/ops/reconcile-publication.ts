@@ -17,7 +17,6 @@
 // Identifier-only output (reply/org ids + outcomes) — content-free.
 
 import { pathToFileURL } from 'node:url'
-import { getContainer } from '../../src/composition'
 import { organizationId, replyId } from '../../src/shared/domain/ids'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import type {
@@ -388,7 +387,7 @@ async function main(): Promise<void> {
       usage: USAGE,
     },
     async (ctx, _args, io) => {
-      const container = getContainer()
+      const { container } = ctx
 
       if (singleReplyId) {
         if (ctx.dryRun) {

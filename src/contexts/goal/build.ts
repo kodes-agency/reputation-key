@@ -27,7 +27,7 @@ import {
 } from './infrastructure/jobs/goal-program-maintenance.job'
 import { createGoalOrganizationExportAdapter } from './infrastructure/adapters/goal-organization-export.adapter'
 import { createGoalOrganizationLifecycleAdapter } from './infrastructure/adapters/goal-organization-lifecycle.adapter'
-import type { GoalProgramRequestApi } from './application/public-api'
+import type { GoalProgramRequestApi } from './application/use-cases/goal-programs'
 
 export type GoalContextBuildInput = Readonly<{
   db: Database

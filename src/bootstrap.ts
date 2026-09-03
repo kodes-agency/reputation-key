@@ -5,7 +5,7 @@
 // Per architecture: "Keeping registration separate from construction
 // makes both easier to understand."
 
-import type { Container } from './composition'
+import type { WorkerContainer } from './composition/container-partition'
 import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.job'
 import { isDbHealthy } from '#/shared/health/db-probe'
 import { areRedisDependenciesHealthy } from '#/shared/health/redis-dependencies'
@@ -70,7 +70,7 @@ import { createAiAuthorizationErasureAdapter } from '#/contexts/ai/infrastructur
 import type { Env } from '#/shared/config/env'
 import { writeWorkerHeartbeat } from '#/shared/health/worker-heartbeat'
 import {
-  createRefreshRollupHandler,
+  createQuarantinedRollupHandler,
   JOB_NAMES,
 } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
@@ -144,7 +144,7 @@ type CapabilityGatedJobRegistrar = (
 ) => void
 
 export async function bootstrap(
-  container: Container,
+  container: WorkerContainer,
   options: Readonly<{
     runtime: BootstrapRuntimeConfig
     allowUnavailableGoogleImportV2Processor?: boolean
@@ -405,16 +405,17 @@ export async function bootstrap(
   // Example:
   //   container.eventBus.on('portal.created', (event) => { ... })
 
-  // ── Metric incremental rollup refresh jobs ─────────────────────────
-  const metricRollupDeps = { db: container.db, logger: container.logger }
-  for (const [queryKey, jobName] of [
-    ['dailyMetrics', JOB_NAMES.refreshDailyMetrics],
-    ['weeklyMetrics', JOB_NAMES.refreshWeeklyMetrics],
-    ['dailyInboxMetrics', JOB_NAMES.refreshDailyInboxMetrics],
+  // ── Quarantined metric rollup jobs ─────────────────────────────────
+  for (const jobName of [
+    JOB_NAMES.refreshDailyMetrics,
+    JOB_NAMES.refreshWeeklyMetrics,
+    JOB_NAMES.refreshDailyInboxMetrics,
   ] as const) {
-    const handler = createRefreshRollupHandler(metricRollupDeps, queryKey)
-    container.jobRegistry.register(jobName, handler)
-    logger.info({ job: jobName }, 'registered metric rollup refresh job handler')
+    container.jobRegistry.register(
+      jobName,
+      createQuarantinedRollupHandler(jobName, container.logger),
+    )
+    logger.info({ job: jobName }, 'registered quarantined metric rollup job handler')
   }
 
   // ── Canonical monthly Goal Program maintenance ───────────────────
@@ -676,7 +677,7 @@ export async function bootstrap(
  * family — nothing in the rest of the worker's registration reads them.
  */
 async function registerNotificationJobs(
-  container: Container,
+  container: WorkerContainer,
   runtime: BootstrapRuntimeConfig,
   registerCapabilityGatedJob: CapabilityGatedJobRegistrar,
 ): Promise<void> {

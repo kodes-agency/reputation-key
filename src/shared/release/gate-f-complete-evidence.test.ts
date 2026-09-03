@@ -15,7 +15,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   GATE_F_REQUIRED_APPROVAL_ROLES,
-  GATE_F_REQUIRED_GATE_IDS,
+  gateFRequiredGateIdsFor,
   validateGateFEvidenceBundle,
 } from './gate-f-evidence'
 import {
@@ -28,6 +28,9 @@ import { LIVE_EVIDENCE_PARSERS } from './live-evidence'
 import { PROMOTION_READBACK_GATE_F_IDS } from './promotion-readback-evidence'
 
 const GENERIC_PLACEHOLDER = '{"status":"passed"}\n'
+
+const CLOSED_BETA_GATE_IDS = gateFRequiredGateIdsFor('closed-beta')
+const ALL_GATE_IDS = gateFRequiredGateIdsFor('open-beta')
 
 function validate(overrides: CompleteGateFBundleOverrides = {}) {
   const bundle = completeGateFBundle(overrides)
@@ -44,7 +47,7 @@ function errorsOf(result: ReturnType<typeof validate>): string {
 }
 
 describe('complete Gate F bundle', () => {
-  it('validates when all eighteen keys carry real producer output', () => {
+  it('validates when all sixteen closed-beta keys carry real producer output', () => {
     const result = validate()
 
     expect(result).toMatchObject({ ok: true })
@@ -63,15 +66,15 @@ describe('complete Gate F bundle', () => {
     const live = Object.keys(LIVE_EVIDENCE_PARSERS)
     const covered = new Set([...wave2, ...readback, ...live])
 
-    for (const gateId of GATE_F_REQUIRED_GATE_IDS) {
+    for (const gateId of ALL_GATE_IDS) {
       expect(covered.has(gateId)).toBe(true)
     }
-    expect(covered.size).toBe(GATE_F_REQUIRED_GATE_IDS.length)
+    expect(covered.size).toBe(ALL_GATE_IDS.length)
   })
 })
 
 describe('per-gate negative controls', () => {
-  it.each(GATE_F_REQUIRED_GATE_IDS)(
+  it.each(CLOSED_BETA_GATE_IDS)(
     'names %s when its first artifact is a generic placeholder',
     (gateId) => {
       const errors = errorsOf(
@@ -87,7 +90,7 @@ describe('approval negative controls', () => {
   it.each(GATE_F_REQUIRED_APPROVAL_ROLES)(
     'fails when the %s signature is removed',
     (role) => {
-      const errors = errorsOf(validate({ unsignedRoles: [role] }))
+      const errors = errorsOf(validate({ posture: 'ga', unsignedRoles: [role] }))
 
       expect(errors).toContain(`approvals.${role}.evidence`)
       expect(errors).toContain('signature_invalid')
@@ -110,6 +113,16 @@ describe('approval negative controls', () => {
 })
 
 describe('release posture decides the approval set', () => {
+  it('requires sixteen gates while closed and restores all eighteen when widened', () => {
+    expect(CLOSED_BETA_GATE_IDS).toHaveLength(16)
+    expect(CLOSED_BETA_GATE_IDS).toContain('candidate.clean_ci')
+    expect(CLOSED_BETA_GATE_IDS).not.toContain('candidate.independent_review')
+    expect(CLOSED_BETA_GATE_IDS).not.toContain('opening.cohort_readiness')
+    expect(ALL_GATE_IDS).toHaveLength(18)
+    expect(ALL_GATE_IDS).toContain('candidate.independent_review')
+    expect(ALL_GATE_IDS).toContain('opening.cohort_readiness')
+  })
+
   it('accepts a closed beta approved by the founder alone', () => {
     const result = validate({ posture: 'closed-beta' })
 

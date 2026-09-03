@@ -116,8 +116,8 @@ permission to serve before item 7 is complete.
 
 1. GitHub `main` protection requires the repository CI workflow, including
    tests, builds, migration checks, action-pin checks, and security gates.
-2. The GitHub `release-signing` environment exists with required reviewer
-   protection. Only the release workflow may request its OIDC signing token.
+2. Signing jobs run without a protected GitHub environment until a second
+   reviewer exists; their OIDC token remains scoped to the release workflow.
 3. GHCR packages have controlled visibility and retention. If private, the
    Railway project is on a plan that supports authenticated private registries
    and has read-only pull credentials. Railway documents private-registry
@@ -656,10 +656,11 @@ fails rather than describing a tree that no longer exists.
 
 ## Produce the remaining Gate F keys
 
-All eighteen `GATE_F_REQUIRED_GATE_IDS` now have a producer. Gate F parses the
-first referenced artifact of every gate against that producer's schema, so a
-generic `{"status":"passed"}` file fails for every key, not only the three live
-promotion gates.
+All eighteen ids returned by `gateFRequiredGateIdsFor('open-beta')` have a
+producer; the current closed-beta set requires sixteen, omitting independent
+review and cohort readiness. Gate F parses the first referenced artifact of
+every required gate against that producer's schema, so a generic
+`{"status":"passed"}` file fails for every required key.
 
 ### `pnpm release:capture-readback`
 

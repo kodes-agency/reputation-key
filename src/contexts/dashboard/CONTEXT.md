@@ -111,9 +111,9 @@ dashboard/
 
 Exported from `application/public-api.ts`:
 
-- Types: `KPIValue`, `MetricKPIValue`, `MetricAvailabilityState`, `MetricKPIPeriodEvidence`, `RatingKPIValue`, `KPIs`, `RecentReview`, `DashboardReplyStatus`, `DashboardData`, `PropertyOverviewData`, `PortalKPIs`, `PortalAnalyticsData`, `StaffDashboardData`, `PortalRatingTrendPoint`, `AttentionSignals`, `FleetEntry`, `FleetOverviewData`, `FleetTotals`
-- Setup types: `SetupChecklist`, `SetupChecklistStep`, `SetupChecklistStepStatus`, `SetupChecklistAction`, `SetupChecklistStepKey`
-- Error types: `DashboardErrorCode`, `DashboardError`, `isDashboardError`
+- Types: `KPIValue`, `MetricKPIValue`, `MetricAvailabilityState`, `RatingKPIValue`, `KPIs`, `RecentReview`, `DashboardReplyStatus`, `DashboardData`, `PortalAnalyticsData`, `PortalLifetimeReconciliationState`, `PortalResponseIntegritySummary`, `PortalRatingTrendPoint`, `RatingTrendPoint`, `ReviewVolumePoint`, `AttentionSignals`, `FleetEntry`, `FleetOverviewData`, `FleetMetricEvidence`, `FleetTotals`
+- Setup types: `SetupChecklist`, `SetupChecklistStep`, `SetupChecklistAction`
+- Error type: `DashboardError`
 
 ## Server functions
 

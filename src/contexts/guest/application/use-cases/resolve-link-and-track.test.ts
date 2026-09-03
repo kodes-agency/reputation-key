@@ -54,6 +54,7 @@ const portal = {
 
 describe('resolveLinkAndTrack (token-bound public redirect)', () => {
   it('resolves a link owned by the policy-authorized token Portal without tracking a GET', async () => {
+    // @proof PUBLIC_REDIRECT_AND_ABUSE#1
     const tracked: unknown[] = []
     const useCase = resolveLinkAndTrack({
       publicPortalLookup: { findByToken: async () => portal },
@@ -69,6 +70,7 @@ describe('resolveLinkAndTrack (token-bound public redirect)', () => {
   })
 
   it('tracks only an explicitly qualified signed-session mutation', async () => {
+    // @proof PUBLIC_REDIRECT_AND_ABUSE#2
     const tracked: unknown[] = []
     const useCase = resolveLinkAndTrack({
       publicPortalLookup: { findByToken: async () => portal },

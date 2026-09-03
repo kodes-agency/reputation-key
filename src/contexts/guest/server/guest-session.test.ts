@@ -111,6 +111,7 @@ describe('guestRateLimitKey', () => {
   })
 
   it('always includes a network-and-Portal layer alongside a session layer', () => {
+    // @proof PUBLIC_REDIRECT_AND_ABUSE#1
     expect(guestRateLimitKeys('scan', 'session-1', 'ip-hash', 'portal-1')).toEqual({
       session: 'scan:session-1',
       networkPortal: 'scan:network:ip-hash:portal:portal-1',

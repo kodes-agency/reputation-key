@@ -1,14 +1,9 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import {
-  LEGAL_DOCUMENT_REGISTRY,
-  type LegalDocument,
-  type LegalDocumentRegistry,
-} from './legal-document-registry'
+import { type LegalDocument, type LegalDocumentRegistry } from './legal-document-registry'
 import {
   LEGAL_SELF_APPROVAL_PROHIBITED,
   legalPublicationBlockers,
-  requireApprovedLegalDocument,
   validateLegalDocumentRegistry,
 } from './legal-approval-authority'
 
@@ -121,21 +116,6 @@ describe('legal approval authority', () => {
     expect(errors).toContain(
       'privacy-notice: legal document cannot be read at docs/legal/privacy-notice.md',
     )
-  })
-
-  it('refuses to claim approval for a document the registry calls a draft', () => {
-    expect(() => requireApprovedLegalDocument('privacy-notice')).toThrow(
-      /privacy-notice.*not approved/u,
-    )
-    expect(() => requireApprovedLegalDocument('no-such-document')).toThrow(
-      /no-such-document/u,
-    )
-  })
-
-  it('returns the approved document once counsel has signed it', () => {
-    expect(
-      requireApprovedLegalDocument('privacy-notice', registryOf(approved())).id,
-    ).toBe('privacy-notice')
   })
 
   it('names every counsel-owned document that still blocks publication', () => {
@@ -292,11 +272,5 @@ describe('legal approval authority', () => {
     // Enough to RUN a closed beta, not enough to PUBLISH to outsiders — so
     // opening the beta surfaces it rather than inheriting a clean list.
     expect(legalPublicationBlockers(registryOf(acknowledged))).toContain('privacy-notice')
-  })
-
-  it('keeps the shipped registry internally consistent about who may approve', () => {
-    expect(
-      LEGAL_DOCUMENT_REGISTRY.documents.every((document) => document.approver === null),
-    ).toBe(true)
   })
 })

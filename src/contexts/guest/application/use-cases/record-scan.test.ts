@@ -123,6 +123,7 @@ describe('recordScan', () => {
   })
 
   it('records at most one scan per Portal-scoped guest session', async () => {
+    // @proof PUBLIC_REDIRECT_AND_ABUSE#1
     const harness = observationHarness()
     const useCase = recordScan(deps(harness))
 

@@ -77,16 +77,12 @@ function loadInternalMtlsMaterial(
 
 function peerIdentity(
   request: IncomingMessage,
-  resolver?: InternalPeerIdentityResolver,
+  resolver: InternalPeerIdentityResolver,
 ): string | null {
   const socket = request.socket as TLSSocket
   if (!socket.authorized) return null
   const certificate = socket.getPeerCertificate(true)
-  if (resolver) return resolver(certificate)
-  const commonName = certificate.subject?.CN
-  return typeof commonName === 'string' && /^[A-Za-z0-9._:@/-]{1,255}$/.test(commonName)
-    ? commonName
-    : null
+  return resolver(certificate)
 }
 
 function decodeBase64Material(value: string): Buffer {
@@ -376,7 +372,7 @@ export function createInternalMtlsWebServer(
     tls: InternalMtlsMaterial
     maxRequestBytes: number
     handle(request: Request, peerIdentity: string | null): Promise<Response>
-    resolvePeerIdentity?: InternalPeerIdentityResolver
+    resolvePeerIdentity: InternalPeerIdentityResolver
     streamRequestBody?: boolean
     shutdownDrainTimeoutMs?: number
     preflight?(
@@ -443,7 +439,7 @@ export function createInternalMtlsWebServer(
       try {
         const method = incoming.method ?? 'GET'
         const resolvedPeerIdentity = peerIdentity(incoming, input.resolvePeerIdentity)
-        if (input.resolvePeerIdentity && resolvedPeerIdentity === null) {
+        if (resolvedPeerIdentity === null) {
           throw new InternalPeerRejectedError()
         }
         if (
@@ -528,7 +524,7 @@ export function createInternalMtlsWebServer(
   server.on('checkContinue', (incoming, outgoing) => {
     const resolvedPeerIdentity = peerIdentity(incoming, input.resolvePeerIdentity)
     const accepted =
-      (!input.resolvePeerIdentity || resolvedPeerIdentity !== null) &&
+      resolvedPeerIdentity !== null &&
       (!input.preflight ||
         input.preflight({
           method: incoming.method ?? 'GET',

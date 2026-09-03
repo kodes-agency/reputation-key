@@ -117,11 +117,11 @@ integration/
 
 `application/public-api.ts` exports:
 
-- connection DTO/status/visibility contracts;
-- exact Google provider-route and Performance metric catalogues;
-- opaque discovery and import-v2 DTO/contracts;
+- connection DTO and status contracts;
+- the exact Google provider-route and Performance metric catalogues;
+- bounded import-v2 status and display DTOs;
 - provider-content view lifecycle policy and its stale-completion contract;
-- identifier-only import event contracts.
+- identifier-only Integration event types.
 
 ## Organization Export contribution
 

@@ -8,10 +8,8 @@
  *
  * Today `MERCHANT_AI_NOTICE_PAYLOAD` links a merchant to `/privacy` and
  * `/privacy#contact` before enabling AI processing. Neither is an application
- * route, and the notice they stand for (`privacy-notice`) is a candidate
- * draft. Prose could not say that; `unpublishableLegalLinkTargets()` says it
- * in a value, and it stops saying it the moment the registry row moves to
- * `approved`.
+ * route, so `LEGAL_LINK_TARGETS` binds both destinations to the candidate
+ * `privacy-notice` document instead of leaving their status implicit.
  *
  * Two design choices are deliberate:
  *
@@ -213,17 +211,4 @@ export function isLegalLinkPublishable(
     (candidate) => candidate.id === declared.documentId,
   )
   return document?.status === 'approved'
-}
-
-/**
- * The in-product links that currently point at unapproved legal text. While
- * this list is non-empty the product is showing a reader a promise nobody has
- * signed, so it is a launch blocker rather than a warning.
- */
-export function unpublishableLegalLinkTargets(
-  registry: LegalDocumentRegistry = LEGAL_DOCUMENT_REGISTRY,
-): readonly string[] {
-  return LEGAL_LINK_TARGETS.map((entry) => entry.target).filter(
-    (target) => !isLegalLinkPublishable(target, registry),
-  )
 }

@@ -783,6 +783,9 @@ describe('BQC-3.1 event/job family catalogue', () => {
     const quarantinedJobs = new Set([
       'expire-review-provider-source',
       'purge-expired-reviews',
+      'refresh-daily-metrics',
+      'refresh-weekly-metrics',
+      'refresh-daily-inbox-metrics',
       'advance-organization-lifecycle',
       'generate-organization-export',
       'purge-expired-organization-exports',

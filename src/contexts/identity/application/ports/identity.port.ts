@@ -48,6 +48,18 @@ export type OrganizationRecord = Readonly<{
   contactEmail: string | null
 }>
 
+/** Current manager membership facts exposed to read-only cross-context policies. */
+export type ManagerMembership = Readonly<{
+  userId: string
+  role: 'AccountAdmin' | 'PropertyManager'
+  /**
+   * Current Identity authority for Property reads. Consumers may display
+   * `role`, but must use this scope (plus grants when assigned-only) for
+   * access-sensitive decisions.
+   */
+  propertyAccessScope: 'organization' | 'assigned-properties'
+}>
+
 /** Port for identity operations — wraps better-auth API calls. */
 export type IdentityPort = Readonly<{
   /**

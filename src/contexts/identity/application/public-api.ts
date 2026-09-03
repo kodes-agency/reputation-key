@@ -2,9 +2,12 @@
 // Shared infrastructure (event bus) and other contexts consume event
 // types and port interfaces from this barrel. Per ADR-0001.
 
+import type { ManagerMembership } from './ports/identity.port'
+import type { OutstandingResponsibility } from './ports/member-offboarding.port'
 import type { InviteMember } from './use-cases/invite-member'
 import type { UpdateMemberRole } from './use-cases/update-member-role'
 import type { RemoveMember } from './use-cases/remove-member'
+import type { LeaveOrganization } from './use-cases/leave-organization'
 import type { ListInvitations } from './use-cases/list-invitations'
 import type { ResendInvitation } from './use-cases/resend-invitation'
 import type { AcceptInvitation } from './use-cases/accept-invitation'
@@ -16,19 +19,7 @@ import type { CreateCustomRole } from './use-cases/create-custom-role'
 import type { UpdateCustomRole } from './use-cases/update-custom-role'
 import type { DeleteCustomRole } from './use-cases/delete-custom-role'
 import type { MerchantAiAuthorization } from './use-cases/merchant-ai-authorization'
-import type { LeaveOrganization } from './use-cases/leave-organization'
-import type { OutstandingResponsibility } from './ports/member-offboarding.port'
 
-export {
-  identityOrganizationCreated,
-  identityMemberInvited,
-  identityInvitationAccepted,
-  identityInvitationCanceled,
-  identityMemberRemoved,
-  identityMemberRoleChanged,
-  identityMerchantAiChanged,
-  identityOrganizationLifecycleChanged,
-} from '../domain/events'
 export type {
   IdentityOrganizationCreated,
   IdentityMemberInvited,
@@ -41,13 +32,6 @@ export type {
   IdentityEvent,
 } from '../domain/events'
 
-export type {
-  OrganizationLifecycleState,
-  OrganizationLifecycleStatus,
-  OrganizationClosureRequestReasonCode,
-  OrganizationClosureCancelReasonCode,
-} from '../domain/organization-lifecycle'
-
 export {
   CURRENT_MERCHANT_AI_CAPABILITIES,
   type CurrentMerchantAiCapability,
@@ -58,21 +42,11 @@ export {
 
 export type {
   IdentityPort,
-  MemberRecord,
   InvitationRecord,
+  ManagerMembership,
+  MemberRecord,
   OrganizationRecord,
 } from './ports/identity.port'
-
-export type ManagerMembership = Readonly<{
-  userId: string
-  role: 'AccountAdmin' | 'PropertyManager'
-  /**
-   * Current Identity authority for Property reads. Consumers may display
-   * `role`, but must use this scope (plus grants when assigned-only) for
-   * access-sensitive decisions.
-   */
-  propertyAccessScope: 'organization' | 'assigned-properties'
-}>
 
 /** Current manager membership facts. This facade carries no mutation authority. */
 export type IdentityManagerFactsPublicApi = Readonly<{

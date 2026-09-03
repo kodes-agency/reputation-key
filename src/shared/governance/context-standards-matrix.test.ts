@@ -19,12 +19,10 @@ const DIMENSIONS = [
   'envelope',
   'assert',
   'union',
-  'triple',
   'errors',
   'build',
   'docs',
   'repositories',
-  'files',
   'factories',
 ] as const
 
@@ -74,7 +72,7 @@ function documentedEventTags(section: string): readonly string[] {
   )
 }
 
-describe('17-context by 11-rule standards matrix', () => {
+describe('17-context by 9-rule standards matrix', () => {
   it('has the exact authority rows, dimensions, and conservative outcomes', () => {
     expect(CONTEXT_STANDARD_DIMENSIONS.map(({ id }) => id)).toEqual(DIMENSIONS)
     expect(CONTEXT_STANDARDS_MATRIX.map(({ directory }) => directory)).toEqual(
@@ -90,11 +88,11 @@ describe('17-context by 11-rule standards matrix', () => {
       ),
     ).toEqual([])
     expect(summarizeContextStandardsMatrix(CONTEXT_STANDARDS_MATRIX)).toEqual({
-      acceptedExceptions: 43,
+      acceptedExceptions: 11,
       evidenced: 120,
-      notApplicable: 24,
+      notApplicable: 22,
       unresolved: 0,
-      total: 187,
+      total: 153,
     })
 
     expect(
@@ -261,7 +259,7 @@ describe('17-context by 11-rule standards matrix', () => {
     const incomplete = [{ ...CONTEXT_STANDARDS_MATRIX[0], standards: {} }]
     const issues = validateContextStandardsMatrixStructure(incomplete, ['activity'])
 
-    expect(issues).toHaveLength(11)
+    expect(issues).toHaveLength(9)
     expect(issues[0]).toBe('activity: missing dimension tags')
     expect(issues.at(-1)).toBe('activity: missing dimension factories')
   })

@@ -1,35 +1,25 @@
-import { describe, expect, it, vi } from 'vitest'
-
-const rollups = vi.hoisted(() => ({
-  daily: vi.fn().mockResolvedValue({ partitionsRecomputed: 1 }),
-  weekly: vi.fn().mockResolvedValue({ partitionsRecomputed: 0 }),
-  inbox: vi.fn().mockResolvedValue({ partitionsRecomputed: 0 }),
-}))
-
-vi.mock('../incremental-rollup', () => ({
-  refreshDailyMetricsIncrementally: rollups.daily,
-  refreshWeeklyMetricsIncrementally: rollups.weekly,
-  refreshDailyInboxMetricsIncrementally: rollups.inbox,
-}))
-
 import type { Job } from 'bullmq'
-import type { Database } from '#/shared/db'
-import { createRefreshRollupHandler } from './refresh-materialized-view.job'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  createQuarantinedRollupHandler,
+  JOB_NAMES,
+} from './refresh-materialized-view.job'
 
-describe('Metric rollup job runtime dependencies', () => {
-  it('passes the composition-owned logger into the selected rollup', async () => {
-    const db = {} as Database
-    const logger = { debug: vi.fn(), info: vi.fn() }
+describe('Metric rollup job quarantine', () => {
+  it.each(Object.values(JOB_NAMES))(
+    '%s logs its quarantine and performs no mutation',
+    async (jobName) => {
+      const logger = { warn: vi.fn() }
 
-    await createRefreshRollupHandler({ db, logger }, 'dailyMetrics')({} as Job)
+      await expect(
+        createQuarantinedRollupHandler(jobName, logger)({} as Job),
+      ).resolves.toBeUndefined()
 
-    expect(rollups.daily).toHaveBeenCalledWith(db, logger)
-    expect(logger.info).toHaveBeenCalledWith(
-      {
-        rollupType: 'dailyMetrics',
-        result: { partitionsRecomputed: 1 },
-      },
-      'Incrementally refreshed rollup table',
-    )
-  })
+      expect(logger.warn).toHaveBeenCalledTimes(1)
+      expect(logger.warn).toHaveBeenCalledWith(
+        { job: jobName },
+        'quarantined rollup job invoked; no mutation (CNV-01 contraction pending)',
+      )
+    },
+  )
 })

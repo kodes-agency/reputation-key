@@ -2,14 +2,10 @@ name: Simulation
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'scripts/seed.ts'
-      - 'scripts/simulate.ts'
-      - 'src/shared/testing/**'
-      - '.github/workflows/simulation.yml'
 
 # Superseded runs of this workflow are cancelled so they stop competing for
 # runners with the commit that replaced them. main is never cancelled: its runs

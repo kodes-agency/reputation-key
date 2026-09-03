@@ -33,17 +33,19 @@ export type PublishedAccessArtifact = Readonly<{
   channel: PortalAccessArtifactChannel
 }>
 
+export type ResolvePublishedAccessArtifactInput = Readonly<{
+  accessArtifactId: PortalAccessArtifactId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  publicationSnapshotId: string
+  tokenDigest: PortalTokenDigest
+  asOf: Date
+}>
+
 export type PortalAccessArtifactRepository = Readonly<{
   resolvePublished(
-    input: Readonly<{
-      accessArtifactId: PortalAccessArtifactId
-      organizationId: OrganizationId
-      propertyId: PropertyId
-      portalId: PortalId
-      publicationSnapshotId: string
-      tokenDigest: PortalTokenDigest
-      asOf: Date
-    }>,
+    input: ResolvePublishedAccessArtifactInput,
   ): Promise<PublishedAccessArtifact | null>
 }>
 

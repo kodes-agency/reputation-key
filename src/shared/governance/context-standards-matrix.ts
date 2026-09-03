@@ -1,7 +1,7 @@
 import { CONTEXT_STANDARDS_AUTHORITY } from './context-standards-authority'
 
 /**
- * Current-tree successor to the frozen 17-context x 11-rule audit. “Evidenced”
+ * Current-tree 17-context x 9-rule successor to the frozen standards audit. “Evidenced”
  * is deliberately narrow: it names a repository fact enforced by the focused
  * test, not blanket package or release closure. “Accepted exception” binds an
  * exact current-tree variance to the owned, expiring exception register;
@@ -26,11 +26,6 @@ export const CONTEXT_STANDARD_DIMENSIONS = Object.freeze([
     claim: 'context and master event unions',
   },
   {
-    id: 'triple',
-    authority: 'docs/standards.md §2.1',
-    claim: 'use-case Input, Deps, and return types',
-  },
-  {
     id: 'errors',
     authority: 'docs/standards.md §2.1; src/contexts/CONTEXT.md BQR-1.2',
     claim: 'layer-specific error flow',
@@ -49,11 +44,6 @@ export const CONTEXT_STANDARD_DIMENSIONS = Object.freeze([
     id: 'repositories',
     authority: 'docs/standards.md §5.1, §5.2',
     claim: 'repository ports and tenant-scoped signatures',
-  },
-  {
-    id: 'files',
-    authority: 'docs/standards.md §8.1, §8.2',
-    claim: 'context-layer file names',
   },
   {
     id: 'factories',
@@ -118,7 +108,6 @@ const EVIDENCED = {
   ],
   assert: EVENTFUL,
   union: EVENTFUL,
-  triple: [],
   errors: CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory)
     .filter((directory) => !CONTRACTED_RUNTIME_CONTEXTS.has(directory))
     .filter(
@@ -147,7 +136,6 @@ const EVIDENCED = {
     'staff',
     'team',
   ],
-  files: [],
   factories: [
     'activity',
     'ai',
@@ -173,35 +161,16 @@ const NOT_APPLICABLE = {
   envelope: [...EVENTLESS],
   assert: [...EVENTLESS],
   union: [...EVENTLESS],
-  triple: [...CONTRACTED_RUNTIME_CONTEXTS],
   errors: [...CONTRACTED_RUNTIME_CONTEXTS],
   build: [],
   docs: [],
   repositories: ['ai', 'identity', ...CONTRACTED_RUNTIME_CONTEXTS],
-  files: [],
   factories: [],
 } as const satisfies Record<ContextStandardDimension, readonly string[]>
 const ACCEPTED_EXCEPTIONS: Partial<
   Record<ContextStandardDimension, Readonly<Record<string, string>>>
 > = {
   tags: { portal: 'STD-MAINT-001' },
-  triple: {
-    activity: 'STD-MAINT-004',
-    ai: 'STD-MAINT-005',
-    dashboard: 'STD-MAINT-006',
-    goal: 'STD-MAINT-007',
-    guest: 'STD-MAINT-008',
-    identity: 'STD-MAINT-009',
-    inbox: 'STD-MAINT-010',
-    integration: 'STD-MAINT-011',
-    metric: 'STD-MAINT-012',
-    notification: 'STD-MAINT-013',
-    portal: 'STD-MAINT-014',
-    property: 'STD-MAINT-015',
-    review: 'STD-MAINT-016',
-    staff: 'STD-MAINT-017',
-    team: 'STD-MAINT-018',
-  },
   errors: {
     activity: 'STD-INV-037',
     goal: 'STD-INV-002',
@@ -210,25 +179,6 @@ const ACCEPTED_EXCEPTIONS: Partial<
     metric: 'STD-INV-040',
     notification: 'STD-INV-041',
     review: 'STD-INV-003',
-  },
-  files: {
-    activity: 'STD-MAINT-019',
-    ai: 'STD-MAINT-020',
-    dashboard: 'STD-MAINT-021',
-    goal: 'STD-MAINT-022',
-    guest: 'STD-MAINT-023',
-    identity: 'STD-MAINT-024',
-    inbox: 'STD-MAINT-025',
-    integration: 'STD-MAINT-026',
-    metric: 'STD-MAINT-027',
-    notification: 'STD-MAINT-028',
-    portal: 'STD-MAINT-029',
-    property: 'STD-MAINT-030',
-    review: 'STD-MAINT-031',
-    staff: 'STD-MAINT-032',
-    team: 'STD-MAINT-033',
-    badge: 'STD-MAINT-037',
-    leaderboard: 'STD-MAINT-038',
   },
   repositories: {
     activity: 'STD-MAINT-034',
@@ -243,8 +193,6 @@ const unresolvedRationale: Record<ContextStandardDimension, string> = {
     'No exhaustive check proves every event envelope, flat payload, and field name.',
   assert: 'No exhaustive check proves every constructor assertion and identifier owner.',
   union: 'Context or master-union membership is not mechanically evidenced.',
-  triple:
-    'Use-case type triples still have broad historical variance and no complete gate.',
   errors:
     'Mixed legacy error flows remain; narrow tagged-error gates do not prove all paths.',
   build:
@@ -252,8 +200,6 @@ const unresolvedRationale: Record<ContextStandardDimension, string> = {
   docs: 'The Events produced section is not exhaustively tabulated or explicitly absent.',
   repositories:
     'Repository names and tenant-scoped signatures lack an exhaustive context gate.',
-  files:
-    'The filename gate does not cover context layers, so current conformity is unresolved.',
   factories:
     'A legacy export-function infrastructure factory remains for touch-triggered migration.',
 }
@@ -325,10 +271,6 @@ function evidenceFor(
   if (['tags', 'envelope', 'assert', 'union'].includes(dimension)) {
     return eventDimensionEvidence(context, directory, dimension)
   }
-  if (dimension === 'triple')
-    return CONTRACTED_RUNTIME_CONTEXTS.has(directory)
-      ? [{ path: `${context}/build.ts`, kind: 'file', contains: ['useCases: {}'] }]
-      : [{ path: `${context}/application/use-cases`, kind: 'directory' }]
   if (dimension === 'errors')
     return CONTRACTED_RUNTIME_CONTEXTS.has(directory)
       ? [{ path: `${context}/build.ts`, kind: 'file', contains: ['publicApi: {}'] }]
@@ -339,7 +281,6 @@ function evidenceFor(
       { path: `${context}/CONTEXT.md`, kind: 'file', contains: ['## Events produced'] },
     ]
   if (dimension === 'repositories') return repositoryEvidence(context, directory)
-  if (dimension === 'files') return [{ path: context, kind: 'directory' }]
   if (dimension === 'factories' && directory === 'badge') {
     return [{ path: `${context}/build.ts`, kind: 'file', contains: ['repos: {}'] }]
   }
@@ -363,12 +304,6 @@ function notApplicableRationale(
 function acceptedExceptionRationale(dimension: ContextStandardDimension): string {
   if (dimension === 'tags') {
     return 'Portal retains its published legacy tag vocabulary until every durable consumer can migrate through a versioned compatibility window.'
-  }
-  if (dimension === 'triple') {
-    return 'The exact legacy use-case export variance is pinned by the exhaustive checker and migrates only when each public caller is changed with it.'
-  }
-  if (dimension === 'files') {
-    return 'The exact legacy layer filename and mirrored-test variance is pinned by the exhaustive checker; renames occur only with bounded ownership-aware changes.'
   }
   if (dimension === 'repositories') {
     return 'The exact legacy repository-port placement is pinned while its imports and implementing adapters await an owner-scoped rename.'

@@ -82,6 +82,7 @@ async function seedIssuedUpload(
 
 describe('finalizeUpload', () => {
   it('atomically records an ETag-bound processing fact without exposing an object key', async () => {
+    // @proof PORTAL_UPLOAD_FOREIGN_KEY#2
     const harness = setup()
     const ctx = buildTestAuthContext()
     const portal = buildTestPortal({ heroImageUrl: 'https://cdn.example.com/old.webp' })
@@ -166,6 +167,7 @@ describe('finalizeUpload', () => {
   })
 
   it('rejects a cross-Portal issuance without inspecting its object', async () => {
+    // @proof PORTAL_UPLOAD_FOREIGN_KEY#1
     const harness = setup()
     const ctx = buildTestAuthContext()
     const ownedPortal = buildTestPortal({})

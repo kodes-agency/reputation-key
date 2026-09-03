@@ -159,7 +159,12 @@ async function selectHeadObservation(
       googleReplyObservations,
       eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
     )
-    .where(eq(googleReplyObservationHeads.reviewId, input.reviewId))
+    .where(
+      and(
+        eq(googleReplyObservationHeads.organizationId, input.organizationId),
+        eq(googleReplyObservationHeads.reviewId, input.reviewId),
+      ),
+    )
     .limit(1)
   return rows[0]?.observation
 }
@@ -179,7 +184,12 @@ function selectCurrentHead(tx: Tx, input: RecordGoogleReplyObservation) {
       googleReplyObservations,
       eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
     )
-    .where(eq(googleReplyObservationHeads.reviewId, input.reviewId))
+    .where(
+      and(
+        eq(googleReplyObservationHeads.organizationId, input.organizationId),
+        eq(googleReplyObservationHeads.reviewId, input.reviewId),
+      ),
+    )
     .for('update', { of: googleReplyObservationHeads })
     .limit(1)
 }

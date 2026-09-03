@@ -14,8 +14,8 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
 const ORG_A = organizationId('org-rev-test-aaaa-1111111111111111')
 const ORG_B = organizationId('org-rev-test-bbbb-2222222222222222')
-const PROP_A = propertyId('1a000000-0000-0000-0000-000000000001')
-const PROP_B = propertyId('1b000000-0000-0000-0000-000000000002')
+const PROP_A = propertyId('71a00000-0000-4000-8000-000000000001')
+const PROP_B = propertyId('71b00000-0000-4000-8000-000000000002')
 
 let pool: Pool
 

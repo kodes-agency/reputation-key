@@ -147,11 +147,11 @@ One file per context: `domain/events.ts`. Monolithic. All event types, construct
 
 ---
 
-## 2. Use Case Standards (Invariant for authorization/errors; Maintainability for shape)
+## 2. Use Case Standards (Invariant for authorization/errors; Guidance for type shape)
 
-### 2.1 Type naming
+### 2.1 Type naming (Guidance — not gated)
 
-Every use case exports three types:
+This naming shape is guidance, not a gated requirement. New or materially modified use cases should export three types:
 
 ```ts
 type {UseCaseName}Input = Readonly<{ ... }>    // What the caller passes
@@ -169,7 +169,7 @@ export type AddInboxNote = ReturnType<typeof addInboxNote>
 
 **Shared deps:** Multiple use cases in the same file MAY share a single deps type if all dependencies are identical. Example: `ReplyDeps` for 6 reply operations.
 
-**Error contracts:** Pure domain validation and constructors return `Result<T, TaggedError>` and retain `neverthrow`. Application use cases throw real, enumerable tagged errors for business failures; do not propagate `Result` through async orchestration only for ceremony. Ordinary alternatives use explicit outcome unions. Infrastructure failures are translated only when the domain can handle them meaningfully. The delivery boundary maps tagged errors once to safe server errors and sanitizes unexpected programmer, configuration, or corrupt-state failures. See `src/contexts/CONTEXT.md` for the authoritative layer table.
+**Error contracts (Invariant):** Pure domain validation and constructors return `Result<T, TaggedError>` and retain `neverthrow`. Application use cases throw real, enumerable tagged errors for business failures; do not propagate `Result` through async orchestration only for ceremony. Ordinary alternatives use explicit outcome unions. Infrastructure failures are translated only when the domain can handle them meaningfully. The delivery boundary maps tagged errors once to safe server errors and sanitizes unexpected programmer, configuration, or corrupt-state failures. See `src/contexts/CONTEXT.md` for the authoritative layer table.
 
 ### 2.2 Steps in order
 
@@ -328,14 +328,14 @@ be named.
 ### 7.1 Executable conformance and accepted exceptions
 
 `src/shared/governance/context-standards-matrix.ts` is the current 17-context ×
-11-rule disposition authority. A cell is `evidenced` only when an exhaustive
+9-rule disposition authority. A cell is `evidenced` only when an exhaustive
 current-tree checker proves the stated rule. A known variance is never marked
 conformant: it is `accepted_exception` and must resolve to exactly one entry in
 `docs/governance/standards-exceptions.json` with its context, dimension, exact
 scope, rationale, owner, compensating check, review/expiry dates, and measurable
 sunset trigger.
 
-The application/file/repository checker pins the exact legacy issue inventory by
+The application-error/repository checker pins the exact legacy issue inventory by
 path or symbol and digest. Adding a variance, silently removing evidence, or
 leaving an exception without a matrix cell fails the focused gate. `unresolved`
 remains a fail-visible classification for a newly discovered rule gap; it is not
@@ -343,9 +343,9 @@ accepted release evidence.
 
 ---
 
-## 8. File Naming Standards (Maintainability)
+## 8. File Naming and Factory Standards
 
-### 8.1 File name conventions by layer
+### 8.1 File name conventions by layer (Guidance — not gated)
 
 | Layer                         | Convention                                        | Example                                                             |
 | ----------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- |
@@ -362,9 +362,9 @@ accepted release evidence.
 | Build function                | always `build.ts`                                 | `build.ts`                                                          |
 | Schema                        | kebab + `.schema.ts` (single word: dot-separated) | `property.schema.ts`, `google-connection.schema.ts`                 |
 
-### 8.2 Test file naming
+### 8.2 Test file naming (Guidance — not gated)
 
-Test files SHALL mirror the source file name with `.test.ts` / `.test.tsx` appended:
+Test files should mirror the source file name with `.test.ts` / `.test.tsx` appended:
 
 | Source                  | Test                         |
 | ----------------------- | ---------------------------- |
@@ -372,7 +372,7 @@ Test files SHALL mirror the source file name with `.test.ts` / `.test.tsx` appen
 | `get-dashboard-data.ts` | `get-dashboard-data.test.ts` |
 | `review.repository.ts`  | `review.repository.test.ts`  |
 
-### 8.3 Factory declaration style
+### 8.3 Factory declaration style (Maintainability)
 
 New or materially modified infrastructure factories (repos, adapters, mappers,
 job handlers) use arrow-const for local consistency. This is a Maintainability

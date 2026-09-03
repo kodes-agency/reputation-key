@@ -151,6 +151,14 @@ describe('pre-fix regression oracles', () => {
     )
   })
 
+  it('uses stable proof IDs for every current regression marker', () => {
+    const markers = readIndex().oracles.flatMap((oracle) =>
+      oracle.currentRegressionProofs.flatMap((proof) => proof.contains),
+    )
+
+    expect(markers.every((marker) => /^@proof [A-Z_]+#\d+$/.test(marker))).toBe(true)
+  })
+
   it('fails when current regression evidence is not an executable test or marker', () => {
     const path = readIndex()
     path.oracles[0]!.currentRegressionProofs[0]!.path = 'src/start.ts'

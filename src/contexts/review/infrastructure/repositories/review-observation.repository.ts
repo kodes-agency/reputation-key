@@ -299,6 +299,7 @@ async function findReplayedObservation(
     .from(reviewSourceObservations)
     .where(
       and(
+        eq(reviewSourceObservations.organizationId, input.review.organizationId),
         eq(reviewSourceObservations.reviewId, input.review.id),
         eq(reviewSourceObservations.sourceEpoch, input.review.sourceEpoch),
         eq(reviewSourceObservations.observationKey, observationKey),
@@ -358,7 +359,12 @@ async function recordOutOfOrderObservation(
       sourceObservationSequence: observationSequence,
       updatedAt: input.observedAt,
     })
-    .where(eq(reviews.id, existing.id))
+    .where(
+      and(
+        eq(reviews.id, existing.id),
+        eq(reviews.organizationId, existing.organizationId),
+      ),
+    )
   return {
     review: reviewFromRow(existing),
     observationSequence,

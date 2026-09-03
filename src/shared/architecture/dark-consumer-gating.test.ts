@@ -39,19 +39,21 @@ describe('architecture: dark-context consumers and jobs are capability-gated (BQ
   })
 
   it('pins the known dark consumer/job pairings', () => {
+    // @proof GOAL_RECOGNITION_RUNTIME#1
     const pairings = Object.fromEntries(darkRows.map((row) => [row.name, row.capability]))
     expect(pairings).toMatchObject({
       'process-image': 'portal.upload',
       'portal-upload-source-cleanup': 'none',
     })
-    expect(pairings).not.toHaveProperty('badge.event-handlers')
-    expect(pairings).not.toHaveProperty('leaderboard.event-handlers')
+    expect(pairings).not.toHaveProperty('badge.event-handlers') // @proof GOAL_RECOGNITION_RUNTIME#2
+    expect(pairings).not.toHaveProperty('leaderboard.event-handlers') // @proof GOAL_RECOGNITION_RUNTIME#3
   })
 
   it('keeps the legacy Goal handler disconnected and Recognition consumers removed', () => {
+    // @proof GOAL_RECOGNITION_RUNTIME#4
     const composition = readFileSync(resolve('src/composition.ts'), 'utf8')
 
-    expect(composition).not.toContain('registerGoalEventHandlers')
+    expect(composition).not.toContain('registerGoalEventHandlers') // @proof GOAL_RECOGNITION_RUNTIME#5
     expect(
       [
         'src/contexts/badge/infrastructure/event-handlers/index.ts',

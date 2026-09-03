@@ -23,11 +23,9 @@ export {
   changeGoalProgramAssignmentsSchema,
   createGoalProgramSchema,
 } from '../application/dto/goal-program.dto'
-import type {
-  GoalProgramBundle,
-  GoalProgramRequestApi,
-  GoalSubject,
-} from '../application/public-api'
+import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
+import type { GoalProgramRequestApi } from '../application/use-cases/goal-programs'
+import type { GoalSubject } from '../domain/goal-program'
 import { canForContext } from '#/shared/domain/permissions'
 
 export function scopeGoalProgramsForStaff<

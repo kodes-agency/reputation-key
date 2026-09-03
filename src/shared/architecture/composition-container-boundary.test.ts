@@ -18,6 +18,7 @@ function sourceFiles(directory: string): string[] {
 
 describe('composition container boundary evidence', () => {
   it('detects a deliberately exposed infrastructure repository', () => {
+    // @proof ARCHITECTURE_BOUNDARY_IMPORTS#1
     expect(
       directlyAccessedRepositories(
         'export const load = () => container.reviewRepo.findById("review-1")',
@@ -26,6 +27,7 @@ describe('composition container boundary evidence', () => {
   })
 
   it('routes the AI server through context public APIs instead of the Review repository', () => {
+    // @proof ARCHITECTURE_BOUNDARY_IMPORTS#2
     const aiServer = readFileSync(
       resolve('src/contexts/ai/server/reply-suggestion.ts'),
       'utf8',
@@ -40,6 +42,7 @@ describe('composition container boundary evidence', () => {
   })
 
   it('keeps simulation tooling behind narrow capabilities instead of repositories', () => {
+    // @proof ARCHITECTURE_BOUNDARY_IMPORTS#3
     const root = process.cwd()
     const testPath = 'src/shared/architecture/composition-container-boundary.test.ts'
     const directConsumers = sourceFiles(resolve('src'))
@@ -482,9 +485,9 @@ describe('composition container boundary evidence', () => {
     const composition = readFileSync(resolve('src/composition.ts'), 'utf8')
 
     expect(operatorScript).toContain(
-      'getContainer().metricMaintenanceRuntime.repairPortalLifetime',
+      'container.metricMaintenanceRuntime.repairPortalLifetime',
     )
-    expect(operatorScript).not.toContain('getContainer().useCases')
+    expect(operatorScript).not.toContain('container.useCases')
     expect(composition).toContain('metricMaintenanceRuntime: metricApi.maintenance')
     expect(composition).not.toContain('repairPortalLifetime: metricApi.internal.useCases')
 
