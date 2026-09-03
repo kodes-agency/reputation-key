@@ -3,8 +3,13 @@
 // Each inbox projection family moves through three states independently:
 //
 //   record-only — facts are recorded to the outbox atomically with the source
-//                 write; the in-process bus stays the primary projection path.
-//                 Today's production posture (the durable dispatcher is off).
+//                 write; the in-process bus stays the primary projection path
+//                 and the inbox registers NO durable consumer for the family.
+//                 Every family's default, and the posture the deployed
+//                 environment runs today — note that this is independent of
+//                 OUTBOX_DISPATCHER_ENABLED, which is true there: the relay
+//                 dispatches, and a family whose only catalogued durable
+//                 consumer is the inbox's simply finds none registered.
 //   shadow      — BOTH paths run: the durable dispatcher must be enabled and
 //                 the shadow-compare harness contrasts the projection outcome
 //                 of each path for the same event (match/mismatch, field names
@@ -97,4 +102,24 @@ export function listActiveCutoverFamilies(
     if (state !== 'record-only') active.push({ family, state })
   }
   return active
+}
+
+/**
+ * Whether this event type is an inbox cutover family that is deliberately
+ * record-only, i.e. one the inbox does NOT register a durable consumer for.
+ *
+ * The dispatcher needs this to tell a misconfigured deployment from an
+ * intentional posture. `review.expired` is the case that makes it load-bearing:
+ * the inbox is its ONLY catalogued durable consumer, so while it is record-only
+ * a dispatched envelope legitimately finds zero consumers. Without this the
+ * dispatcher would read that as a config failure, retry, and quarantine every
+ * expired review. `review.created` also has ai and metric durable consumers,
+ * which are independent of the inbox cutover and keep running.
+ */
+export function isRecordOnlyCutoverFamily(
+  eventType: string,
+  env: EnvLike = process.env,
+): boolean {
+  const family = INBOX_CUTOVER_FAMILIES.find((candidate) => candidate === eventType)
+  return family !== undefined && resolveCutoverState(family, env) === 'record-only'
 }

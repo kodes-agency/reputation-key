@@ -27,7 +27,9 @@ import {
   type RailwaySourceManagedService,
 } from './service-source-map.ts'
 
-const APPLICATION_SHARED_VARIABLES = [
+export const APPLICATION_SERVICE_NAMES = ['web', 'worker'] as const
+
+export const APPLICATION_SHARED_VARIABLES = [
   'BETTER_AUTH_SECRET',
   'RESEND_API_KEY',
   'RESEND_WEBHOOK_SECRET',

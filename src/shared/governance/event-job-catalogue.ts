@@ -389,7 +389,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       projectionOwner: 'inbox',
       repairCommand: 'reconcileReplyPublication',
       notes:
-        'atomic command-store outbox write (BQR-2.3); durable dispatch disabled (BQR-0 containment)',
+        'atomic command-store outbox write (BQR-2.3); OUTBOX_DISPATCHER_ENABLED is enabled in google-closed-beta, while this Inbox consumer remains governed by its family cutover state',
     },
   ),
   ev(
@@ -411,7 +411,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       projectionOwner: 'inbox',
       repairCommand: 'reconcileReplyPublication',
       notes:
-        'BQC-3.4 resolved the BQC-3.1 orphan: metadata-only projection refresh (sourceDate/platform) via the inbox command store; durable dispatch disabled (BQR-0 containment)',
+        'BQC-3.4 resolved the BQC-3.1 orphan: metadata-only projection refresh (sourceDate/platform) via the inbox command store; OUTBOX_DISPATCHER_ENABLED is enabled in google-closed-beta, while this Inbox consumer remains governed by its family cutover state',
     },
   ),
   ev(
@@ -2692,7 +2692,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     {
       timeoutMs: 120_000,
       notes:
-        'notification-gap healing sweep (100x5, keyset on inbox_items (created_at, id), 24h lookback, 5m grace); the live at-least-once repair for "a review arrived but nobody was told" while OUTBOX_DISPATCHER_ENABLED is false. Only enqueues items with ZERO notification rows, so a re-run cannot coalesce a second arrival onto an existing unread row',
+        'notification-gap healing sweep (100x5, keyset on inbox_items (created_at, id), 24h lookback, 5m grace); OUTBOX_DISPATCHER_ENABLED is enabled in google-closed-beta, so the notification durable consumer delivers and this remains the at-least-once repair sweep rather than the sole delivery path. Only enqueues items with ZERO notification rows, so a re-run cannot coalesce a second arrival onto an existing unread row',
     },
   ),
   job(

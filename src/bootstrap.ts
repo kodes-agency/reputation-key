@@ -825,11 +825,10 @@ async function registerNotificationJobs(
 
   // ── Notification-gap healing sweep ───────────────────────────────
   // `emitAfterCommit` catches and warns, so a throw in the inbox or
-  // notification handler used to leave a committed review with no notification
-  // and nothing retrying. This sweep finds those items and enqueues the
-  // notification they never got. It is the LIVE repair path: the durable
-  // consumer that would prevent the loss is registered but inert while
-  // OUTBOX_DISPATCHER_ENABLED is false.
+  // notification handler can leave a committed review with no notification.
+  // OUTBOX_DISPATCHER_ENABLED is enabled in google-closed-beta, making the
+  // notification durable consumer the ordinary prevention path. This sweep
+  // remains the live at-least-once repair for gaps that predate or exhaust it.
   const { JOB_NAME: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } =
     await import('#/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job')
   const reconcileMissingNotifications = container.reconcileMissingNotificationsHandler
