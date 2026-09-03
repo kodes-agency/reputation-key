@@ -312,10 +312,10 @@ const baseEnvSchema = z.object({
   // shared/auth/beta-capabilities.ts). The Playwright stack sets E2E=1
   // (compose.local.yml); production must never set it.
   E2E: z.literal('1').optional(),
-  // BQR-0: Outbox relay/dispatcher containment. The outbox path has known
-  // defects (non-atomic emit, relay/dispatcher envelope mismatch, empty
-  // consumer registry). Must NOT process real work until BQR-2 fixes them.
-  // Default: false (safe). Set to 'true' only in controlled test environments.
+  // Durable outbox relay/dispatcher deployment gate. Unset defaults to false,
+  // so each environment must opt in explicitly after its consumers and
+  // readiness contract are proven. google-closed-beta sets it to true across
+  // the application services.
   OUTBOX_DISPATCHER_ENABLED: z
     .string()
     .optional()

@@ -339,6 +339,28 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     expect(loggerMocks.error).toHaveBeenCalled()
   })
 
+  it('record-only cutover family whose only durable consumer is the inbox completes', async () => {
+    // `review.expired` is catalogued with exactly ONE durable consumer, the
+    // inbox's, and the inbox deliberately does not register it while the family
+    // is record-only (no DURABLE_CUTOVER_INBOX* set). Treating that as a config
+    // failure would retry and quarantine every expired review once the
+    // dispatcher is enabled — which it is in production.
+    const RECORD_ONLY_TYPE = 'review.expired'
+    registerEventSchema({
+      type: RECORD_ONLY_TYPE,
+      version: 1,
+      schema: z.object({ resourceId: z.string() }),
+    })
+
+    await expect(
+      createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
+        fakeJob(makeEnvelope({ eventType: RECORD_ONLY_TYPE })),
+      ),
+    ).resolves.toBeUndefined()
+
+    expect(loggerMocks.error).not.toHaveBeenCalled()
+  })
+
   it('genuinely bus-only event type completes with a debug log', async () => {
     // `metric.recorded` is the retained bus-only delivery family. Identity
     // membership facts now also feed durable Recent Activity, so they are no

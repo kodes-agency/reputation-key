@@ -98,6 +98,9 @@ const PURE_DIAGNOSTIC_COMMANDS = [
   'scripts/release/release-authority-digest.ts',
   'scripts/release/staged-railway-sources.ts',
   'scripts/release/railway-data-cell-plan.ts',
+  // Reads Railway variable values across the application services and reports
+  // divergence; prints no values and mutates nothing.
+  'scripts/release/railway-shared-variable-parity.ts',
   'scripts/beta/verify-gate-evidence.ts',
 ] as const
 

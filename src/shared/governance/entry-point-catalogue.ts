@@ -4285,7 +4285,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     ['inbox.inbox_item.created'],
     {
       notes:
-        'durable identifier-only fan-out to insert-notification jobs; receipt written after the enqueue and each job carries the deterministic id <eventId>-<userId>, so redelivery converges instead of coalescing a second arrival. Dispatch disabled today (OUTBOX_DISPATCHER_ENABLED=false) — reconcile-missing-notifications is the live repair path',
+        'durable identifier-only fan-out to insert-notification jobs; receipt written after the enqueue and each job carries the deterministic id <eventId>-<userId>, so redelivery converges instead of coalescing a second arrival. OUTBOX_DISPATCHER_ENABLED is enabled in google-closed-beta, so the notification durable consumer delivers; reconcile-missing-notifications remains the at-least-once repair sweep rather than the sole delivery path',
     },
   ),
   consumer(
@@ -5961,6 +5961,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'release:railway-data-cell-plan — fail-closed read-only Railway infrastructure plan wrapper bound to the requested project and data-cell environment',
+    },
+  ),
+  ops(
+    'scripts/release/railway-shared-variable-parity.ts',
+    'scripts/release/railway-shared-variable-parity.ts',
+    'none',
+    {
+      notes:
+        'infra:railway:check-shared-variables — read-only comparison of every IaC-declared application shared variable across the live Railway application services; values are never printed',
     },
   ),
   ops(

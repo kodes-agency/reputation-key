@@ -35,10 +35,10 @@ export const onInboxItemCreated =
       correlationId: event.correlationId,
       // The outbox row id IS the domain event id (outbox/commit.ts
       // `insertOutboxRow` sets `id: event.eventId`), so the durable consumer
-      // derives the SAME per-recipient job id from the same event. When
-      // OUTBOX_DISPATCHER_ENABLED is flipped both paths run, and this is what
-      // makes that dual delivery collapse to one insert-notification job
-      // instead of coalescing a second arrival onto the user's unread row.
+      // derives the SAME per-recipient job id from the same event. With
+      // OUTBOX_DISPATCHER_ENABLED=true in google-closed-beta both paths run,
+      // and this makes that dual delivery collapse to one insert-notification
+      // job instead of coalescing a second arrival onto the user's unread row.
       jobIdScope: event.eventId,
     })
   }

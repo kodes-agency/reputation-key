@@ -4,12 +4,11 @@
 // catches and warns, so a throw anywhere in the inbox or notification handler
 // left the review committed, the inbox item committed, and no notification —
 // with nothing retrying. The durable consumer in ../outbox-consumers.ts is the
-// structural fix, but it is inert until `OUTBOX_DISPATCHER_ENABLED` is true
-// (with QUEUE_REDIS_URL set) — flipping the dispatcher turns on every context's
-// durable consumers at once, so it is an ops decision with blast radius far
-// beyond notifications. This sweep closes the hole TODAY, under the flags as
-// they actually ship. Note the DURABLE_CUTOVER_INBOX* flags are NOT involved:
-// they govern the two dual-path review.* inbox projection families, not
+// structural prevention path. OUTBOX_DISPATCHER_ENABLED is enabled in
+// google-closed-beta (with QUEUE_REDIS_URL set), so that consumer delivers.
+// This sweep remains the bounded at-least-once repair for gaps that predate or
+// exhaust normal delivery. The DURABLE_CUTOVER_INBOX* flags are NOT involved:
+// they govern the dual-path review.* Inbox projection families, not
 // inbox.inbox_item.created.
 //
 // Shape follows discover-new-reviews.job.ts:

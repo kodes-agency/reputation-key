@@ -28,6 +28,7 @@ import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
 import type { OutboxRepository } from './infrastructure/outbox-repository'
 import { parseConsumerEvent, type ConsumerEvent } from './envelope'
+import { isRecordOnlyCutoverFamily } from './cutover-flags'
 import type { ConsumerRegistration, ConsumerRegistry } from './consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'
@@ -248,7 +249,24 @@ export function createDispatcherHandler(
         // deployment (durable consumer expected but never registered → fail
         // so BullMQ retries; a redeploy fixes it) or a genuinely bus-only
         // family (no durable dispatch expected → complete).
-        if (durableConsumersFor(eventType).length > 0) {
+        //
+        // A record-only inbox cutover family is the third case: the catalogue
+        // declares an inbox durable consumer AND the inbox deliberately does
+        // not register it, because record-only means the in-process bus is the
+        // projection path. Only the INBOX consumer is excused — `review.created`
+        // also has ai and metric durable consumers, which the inbox cutover
+        // does not gate, so their absence is still a config failure. What this
+        // rescues is a family whose only catalogued durable consumer is the
+        // inbox's (`review.expired` today): without it every expired review
+        // would retry and quarantine.
+        const stillExpected = durableConsumersFor(eventType).filter(
+          (candidate) =>
+            !(
+              isRecordOnlyCutoverFamily(eventType) &&
+              candidate.module.startsWith('src/contexts/inbox/')
+            ),
+        )
+        if (stillExpected.length > 0) {
           logger.error(
             { eventType, correlationId: event.correlationId ?? undefined },
             'No consumers registered for catalogued durable event type — deployment/config failure',
@@ -259,7 +277,7 @@ export function createDispatcherHandler(
         }
         logger.debug(
           { eventType, correlationId: event.correlationId ?? undefined },
-          'No durable consumers for event type (bus-only family) — completing',
+          'No durable consumers for event type (bus-only or record-only family) — completing',
         )
         return
       }

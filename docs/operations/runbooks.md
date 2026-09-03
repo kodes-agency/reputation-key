@@ -179,6 +179,16 @@ contract are in `immutable-release-promotion.md`. The dated
 `closed-beta-release-runbook-2026-08-19.md` records the superseded local-build
 procedure and must not be used for a `cell-*` environment. §8
 
+### Railway application shared-variable parity
+
+Run `pnpm infra:railway:check-shared-variables --environment <environment>`
+after any manual Railway variable change and before every release. The command
+reads every `APPLICATION_SHARED_VARIABLES` key from `web` and `worker`, prints
+only equality groups rather than values, and exits non-zero on drift. A
+mismatch means live service-scoped state no longer agrees with the repository's
+shared-variable graph; stop the release and reconcile the Railway variables
+before proceeding.
+
 ### Google import artifact cutover and rollback
 
 CI builds three independently content-addressed images: final web, final
@@ -581,7 +591,7 @@ The alert remains quiet when email is globally dark and the database contains on
 **First three things to check:**
 
 1. Worker logs for the notification handler around the affected window — look for the warn line from the after-commit emit (content-free: `correlationId`, counts, error class). That is where a lost notification leaves its only trace.
-2. Whether the durable path is carrying anything: `OUTBOX_DISPATCHER_ENABLED` and the notification family's cutover flag. While the family ships `record-only` the durable consumer is registered but inert, so the in-process bus is the only live delivery path and a single throw is a permanent loss.
+2. Confirm `OUTBOX_DISPATCHER_ENABLED` agrees across `web` and `worker` with `pnpm infra:railway:check-shared-variables --environment <environment>`. The notification durable consumer is not gated by `DURABLE_CUTOVER_INBOX*`; with the dispatcher enabled it is the normal prevention path, while `reconcile-missing-notifications` remains the repair sweep.
 3. `outbox.unpublished` / `queue.oldest-age` — if the outbox is backed up, the gap may be delivery lag rather than a lost notification, and §7 is the right runbook.
 
 **Remediate:** fix the throwing handler or stalled worker first, then let the bounded `reconcile-missing-notifications` sweep re-enqueue the affected items through the ordinary preference-aware path. If the sweep cannot resolve the candidates, use a bounded report-first replay of the affected source facts. The active durable consumers are the primary prevention path; do not disable them or manufacture rows directly.

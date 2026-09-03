@@ -3,10 +3,12 @@
 // projection values. The event has no source epoch/revision, so it must never
 // decide the status of possibly re-observed current work.
 //
-// Expand-phase dual path (the durable dispatcher is off in production): the
-// durable inbox.on-review-expired consumer performs the same projection via
-// the command store; this bus handler keeps the legacy in-process behavior
-// (bus emit only — it never received an outboxRepo).
+// Expand-phase compatibility path: OUTBOX_DISPATCHER_ENABLED is enabled in
+// google-closed-beta, while activation of the durable inbox.on-review-expired
+// consumer remains governed by this family's cutover state. That consumer
+// performs the same projection via the command store; this bus handler keeps
+// the legacy in-process behavior (bus emit only — it never received an
+// outboxRepo).
 
 import type { ReviewExpired } from '#/contexts/review/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'

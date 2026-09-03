@@ -26,7 +26,11 @@ import {
   readLegacyConfigFiles,
   reconcileLegacyConfigOwnership,
 } from './legacy-config-ownership'
-import { buildRailwayProject } from './railway'
+import {
+  APPLICATION_SERVICE_NAMES,
+  APPLICATION_SHARED_VARIABLES,
+  buildRailwayProject,
+} from './railway'
 import {
   CANONICAL_RAILWAY_FOUNDATION_SOURCE_INPUT,
   canonicalRailwayServiceSourceInput,
@@ -445,6 +449,26 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
       'RELEASE_MANIFEST_SHA256',
       'RELEASE_SHA',
     ])
+  })
+
+  it('applies every application-shared variable to every application service', () => {
+    expect(APPLICATION_SERVICE_NAMES).toEqual(['web', 'worker'])
+    for (const serviceName of APPLICATION_SERVICE_NAMES) {
+      const applicationService = resource(
+        definition,
+        'service',
+        serviceName,
+      ) as ServiceNode
+      for (const variableName of APPLICATION_SHARED_VARIABLES) {
+        expect(
+          applicationService.variables?.[variableName],
+          `${serviceName}.${variableName}`,
+        ).toEqual({
+          type: 'sharedReference',
+          name: variableName,
+        })
+      }
+    }
   })
 
   it('pins the cell identity, database, Redis split, and bucket references', () => {
