@@ -10,7 +10,7 @@ const PROPERTY = propertyId('a0000000-0000-4000-8000-000000000001')
 
 const signals: AttentionSignalsPort = {
   getAttentionCounts: async () => ({
-    unanswered: 0,
+    overdue: 0,
     itemsToTriage: 0,
     escalated: 0,
     goalsBehindPace: 0,
@@ -18,9 +18,14 @@ const signals: AttentionSignalsPort = {
   }),
 }
 
+const inboxTargets = {
+  getGoogleReviewTargetCountsByProperty: async () =>
+    new Map([[PROPERTY, { activeCount: 0, overdueCount: 0 }]]),
+}
+
 function reviewPeriods(
   current: ReviewPeriodStats,
-  prior: ReviewPeriodStats = { count: 0, avgRating: 0 },
+  prior: ReviewPeriodStats = { count: 0, avgRating: null },
 ) {
   let calls = 0
   return {
@@ -33,12 +38,13 @@ describe('getAttentionSignals', () => {
     const getSignals = getAttentionSignals({
       reviewStats: reviewPeriods({ count: 10, avgRating: 4 }),
       signals,
+      inboxTargets,
+      clock: () => NOW,
     })
 
     const result = await getSignals({
       organizationId: ORG,
       propertyId: PROPERTY,
-      slaHours: 48,
       startDate: new Date(0),
       endDate: NOW,
       timeRange: 'all',
@@ -52,7 +58,7 @@ describe('getAttentionSignals', () => {
   it('adds the rating-drop signal to the distinct work-anchor union', async () => {
     const overlappingSignals: AttentionSignalsPort = {
       getAttentionCounts: async () => ({
-        unanswered: 3,
+        overdue: 99,
         itemsToTriage: 4,
         escalated: 2,
         goalsBehindPace: 1,
@@ -65,20 +71,29 @@ describe('getAttentionSignals', () => {
         { count: 12, avgRating: 4.4 },
       ),
       signals: overlappingSignals,
+      inboxTargets: {
+        getGoogleReviewTargetCountsByProperty: async (input) => {
+          expect(input).toEqual({
+            organizationId: ORG,
+            propertyIds: [PROPERTY],
+            now: NOW,
+          })
+          return new Map([[PROPERTY, { activeCount: 3, overdueCount: 3 }]])
+        },
+      },
+      clock: () => NOW,
     })
-
     await expect(
       getSignals({
         organizationId: ORG,
         propertyId: PROPERTY,
-        slaHours: 48,
         startDate: new Date('2026-07-26T12:00:00.000Z'),
         endDate: NOW,
         timeRange: '30d',
         propertyTimezone: 'UTC',
       }),
     ).resolves.toEqual({
-      unanswered: 3,
+      overdue: 3,
       itemsToTriage: 4,
       escalated: 2,
       goalsBehindPace: 1,
@@ -94,12 +109,13 @@ describe('getAttentionSignals', () => {
         { count: 10, avgRating: 4.4 },
       ),
       signals,
+      inboxTargets,
+      clock: () => NOW,
     })
 
     const result = await getSignals({
       organizationId: ORG,
       propertyId: PROPERTY,
-      slaHours: 48,
       startDate: new Date('2026-07-26T12:00:00.000Z'),
       endDate: NOW,
       timeRange: '30d',

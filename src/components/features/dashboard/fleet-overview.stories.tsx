@@ -55,15 +55,21 @@ export const Default: Story = {
     // signals behind it are what a manager actually triages on.
     expect(canvas.getByText('1 escalated')).toBeVisible()
     expect(canvas.getByText('rating dropped')).toBeVisible()
-    expect(canvas.getByText('9 unanswered')).toBeVisible()
+    expect(canvas.getByText('9 overdue')).toBeVisible()
     expect(canvas.getByText('4 to triage')).toBeVisible()
     expect(canvas.getByText('2 goals behind')).toBeVisible()
     // The sum stays reachable for assistive tech and for scanning.
     expect(canvas.getByLabelText('16 needing attention')).toBeInTheDocument()
     expect(canvas.getByText('6 scans')).toBeVisible()
     expect(canvas.getByText('48 responses')).toBeVisible()
-    expect(canvas.getAllByText('Reviews fresh')).toHaveLength(3)
-    expect(canvas.getByText('Reviews insufficient data')).toBeVisible()
+    const readyReviewRows = canvas
+      .getAllByText('Ready')
+      .filter((label) => label.closest('[title]')?.textContent?.startsWith('Reviews'))
+    expect(readyReviewRows).toHaveLength(3)
+    const insufficientReviewRows = canvas
+      .getAllByText('Insufficient data')
+      .filter((label) => label.closest('[title]')?.textContent?.startsWith('Reviews'))
+    expect(insufficientReviewRows).toHaveLength(1)
   },
 }
 
@@ -118,7 +124,7 @@ export const SameTotalDifferentUrgency: Story = {
           name: 'Four Escalations',
           slug: 'four-escalations',
           attentionSignals: {
-            unanswered: 0,
+            overdue: 0,
             itemsToTriage: 0,
             goalsBehindPace: 0,
             ratingDrop: false,
@@ -133,7 +139,7 @@ export const SameTotalDifferentUrgency: Story = {
           name: 'Four Stale Goals',
           slug: 'four-stale-goals',
           attentionSignals: {
-            unanswered: 0,
+            overdue: 0,
             itemsToTriage: 0,
             goalsBehindPace: 4,
             ratingDrop: false,

@@ -8,7 +8,6 @@ import {
   computeTrend,
   priorPeriodDates,
   ratingComparison,
-  slaCutoff,
   MS_PER_DAY,
 } from './utils'
 
@@ -82,6 +81,11 @@ describe('ratingComparison', () => {
     expect(ratingComparison(4.4, 9, 4, 10)).toBeNull()
     expect(ratingComparison(4.4, 10, 4, 9)).toBeNull()
   })
+
+  it('withholds a comparison when either average is unavailable', () => {
+    expect(ratingComparison(null, 10, 4, 10)).toBeNull()
+    expect(ratingComparison(4.4, 10, null, 10)).toBeNull()
+  })
 })
 
 describe('priorPeriodDates', () => {
@@ -125,24 +129,5 @@ describe('priorPeriodDates', () => {
       priorStartDate: new Date('2026-01-19T17:00:00.000Z'),
       priorEndDate: startDate,
     })
-  })
-})
-
-describe('slaCutoff', () => {
-  it('returns now minus slaHours in milliseconds', () => {
-    const now = new Date('2026-06-19T12:00:00Z')
-    expect(slaCutoff(now, 48)).toEqual(new Date('2026-06-17T12:00:00Z'))
-  })
-
-  it('reviews older than the cutoff are past SLA', () => {
-    const now = new Date('2026-06-19T12:00:00Z')
-    const cutoff = slaCutoff(now, 24)
-    expect(new Date('2026-06-18T00:00:00Z') < cutoff).toBe(true)
-  })
-
-  it('reviews newer than the cutoff are within SLA', () => {
-    const now = new Date('2026-06-19T12:00:00Z')
-    const cutoff = slaCutoff(now, 24)
-    expect(new Date('2026-06-19T10:00:00Z') < cutoff).toBe(false)
   })
 })

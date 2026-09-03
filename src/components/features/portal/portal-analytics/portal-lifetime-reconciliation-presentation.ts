@@ -1,5 +1,5 @@
 import type { PortalLifetimeReconciliationState } from '#/contexts/dashboard/application/public-api'
-import { formatEvidenceTime } from './portal-metric-evidence-presentation'
+import { formatEvidenceTime } from '#/components/features/dashboard/metric-availability-presentation'
 
 export type PortalLifetimeReconciliationPresentation = Readonly<{
   summary: string

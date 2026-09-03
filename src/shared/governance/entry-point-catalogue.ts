@@ -290,7 +290,6 @@ const LOCAL_ONLY_IDENTITY_MUTATIONS = new Set([
   'resendInvitation',
   'signInUser',
   'setActiveOrganization',
-  'updateOrgResponseSlaFn',
   'createCustomRole',
   'updateCustomRole',
   'deleteCustomRole',
@@ -1634,22 +1633,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'none',
       'none',
       { canonicalOnly: true, notes: 'implicit better-auth session; no explicit assert' },
-    ),
-    sf(
-      'getOrgResponseSlaFn',
-      `${IDENTITY}/organizations.response-sla.ts`,
-      'dashboard.read',
-      'dashboard.use',
-      'organization',
-      { notes: 'tolerates no-active-org' },
-    ),
-    sf(
-      'updateOrgResponseSlaFn',
-      `${IDENTITY}/organizations.response-sla.ts`,
-      'organization.update',
-      'identity.invite',
-      'organization',
-      { notes: 'policy-wired in BQC-2.4 (organization.update); use case re-checks' },
     ),
     sf(
       'createCustomRole',
@@ -6119,12 +6102,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'scripts/migrations/add-invitation-property-ids.sql',
     'tenant_cross',
     { notes: 'DIRECT-DB (psql): invitation propertyIds JSON column' },
-  ),
-  ops(
-    'scripts/migrations/add-response-sla-hours.sql',
-    'scripts/migrations/add-response-sla-hours.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): organization response_sla_hours column' },
   ),
   // ── local beta stack ───────────────────────────────────────────────
   ops('scripts/local-stack/stack.ts', 'scripts/local-stack/stack.ts', 'tenant_cross', {

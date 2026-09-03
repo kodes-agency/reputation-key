@@ -72,7 +72,6 @@ function mainRows(items: readonly FleetProperty[], total: number) {
     feedback_watermark: NOW,
     feedback_correction_count: '0',
     feedback_source_policies: ['first_party_workflow'],
-    unanswered: '0',
     items_to_triage: '0',
     escalated: '0',
     goals_behind_pace: '0',
@@ -100,12 +99,19 @@ function fakeDatabase(getCount: () => number): {
   return { db, calls: () => calls }
 }
 
+const inboxTargets = {
+  getGoogleReviewTargetCountsByProperty: async (targetInput: {
+    propertyIds: readonly ReturnType<typeof propertyId>[]
+  }) =>
+    new Map(
+      targetInput.propertyIds.map((id) => [id, { activeCount: 0, overdueCount: 0 }]),
+    ),
+}
 const input = {
   organizationId: ORG,
   scope: { userId: USER, organizationWide: true },
   portalReadEnabled: true,
   goalReadEnabled: true,
-  slaHours: 48,
   timeRange: '30d' as const,
 }
 const resolveAccessiblePropertyIds = async (
@@ -124,6 +130,7 @@ describe('fleet overview bulk projection', () => {
       }),
       resolveAccessiblePropertyIds,
       clock: () => NOW,
+      inboxTargets,
     })
 
     const ten = await getFleet(input)
@@ -159,6 +166,7 @@ describe('fleet overview bulk projection', () => {
       projection: createFleetOverviewProjectionAdapter(fake.db),
       clock: () => NOW,
       resolveAccessiblePropertyIds,
+      inboxTargets,
     })
 
     const result = await getFleet({

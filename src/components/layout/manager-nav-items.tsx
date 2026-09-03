@@ -11,8 +11,9 @@ import { InboxVisitBadge } from '#/components/inbox/inbox-visit-badge'
 import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import type { Capabilities } from '#/shared/hooks/useCapabilities'
-import { InertNavItem, LinkNavItem, NOT_IN_BETA_TOOLTIP } from './nav-items-shared'
+import { InertNavItem, LinkNavItem } from './nav-items-shared'
 import type { Capability } from '#/shared/auth/beta-capabilities'
+import { REFUSAL_COPY } from '#/shared/auth/capability-refusal-category'
 
 type Props = Readonly<{
   propertyId: string | undefined
@@ -83,15 +84,18 @@ function ManagerNavRow({
   propertyId,
   activeSection,
   has,
+  refusal,
   getLastVisitCount,
 }: Readonly<{
   item: ManagerNavItem
   propertyId: string | undefined
   activeSection: string
   has: Capabilities['has']
+  refusal: Capabilities['refusal']
   getLastVisitCount: typeof getLastVisitCountFn
 }>) {
   const isUnavailable = item.capability !== undefined && !has(item.capability)
+  const category = item.capability === undefined ? null : refusal(item.capability)
 
   // Same disabled affordance the no-property case already uses — an
   // eligible-by-role manager sees why the destination is inert instead
@@ -101,7 +105,9 @@ function ManagerNavRow({
       <InertNavItem
         icon={item.icon}
         label={item.label}
-        tooltip={isUnavailable ? NOT_IN_BETA_TOOLTIP : item.label}
+        tooltip={
+          isUnavailable ? REFUSAL_COPY[category ?? 'not_in_beta'].tooltip : item.label
+        }
       />
     )
   }
@@ -124,7 +130,7 @@ function ManagerNavRow({
 }
 
 export function ManagerNavItems({ propertyId, activeSection, getLastVisitCount }: Props) {
-  const { has } = useCapabilities()
+  const { has, refusal } = useCapabilities()
 
   return (
     <SidebarMenu>
@@ -135,6 +141,7 @@ export function ManagerNavItems({ propertyId, activeSection, getLastVisitCount }
           propertyId={propertyId}
           activeSection={activeSection}
           has={has}
+          refusal={refusal}
           getLastVisitCount={getLastVisitCount}
         />
       ))}

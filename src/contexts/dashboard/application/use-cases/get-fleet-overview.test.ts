@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   decodeFleetCursor,
   encodeFleetCursor,
@@ -34,6 +34,11 @@ const PROP_B: FleetProperty = {
   slug: 'bravo',
   timezone: 'UTC',
 }
+const zeroInboxTargets = {
+  getGoogleReviewTargetCountsByProperty: async (input: {
+    propertyIds: readonly (typeof PROP_A.propertyId)[]
+  }) => new Map(input.propertyIds.map((id) => [id, { activeCount: 0, overdueCount: 0 }])),
+}
 
 const thirtyDayRange = {
   timeRange: '30d' as const,
@@ -54,7 +59,6 @@ const baseInput = {
   scope,
   portalReadEnabled: true,
   goalReadEnabled: true,
-  slaHours: 48,
   ...thirtyDayRange,
 }
 
@@ -70,7 +74,7 @@ function row(
     priorAvgRating: 4.5,
     scanCount: 100,
     feedbackCount: 20,
-    unanswered: 0,
+    overdue: 0,
     itemsToTriage: 0,
     escalated: 0,
     goalsBehindPace: 0,
@@ -98,6 +102,8 @@ function projection(
             item.needsAttention +
             (item.reviewCount >= 10 &&
             item.priorReviewCount >= 10 &&
+            item.avgRating !== null &&
+            item.priorAvgRating !== null &&
             item.priorAvgRating - item.avgRating >= RATING_DROP_THRESHOLD
               ? 1
               : 0),
@@ -106,8 +112,10 @@ function projection(
         overallAvgRating:
           ratingSampleCount === 0
             ? 0
-            : rows.reduce((sum, item) => sum + item.avgRating * item.reviewCount, 0) /
-              ratingSampleCount,
+            : rows.reduce(
+                (sum, item) => sum + (item.avgRating ?? 0) * item.reviewCount,
+                0,
+              ) / ratingSampleCount,
       },
       nextAnchor: null,
     }),
@@ -116,11 +124,17 @@ function projection(
 
 describe('getFleetOverview (use case)', () => {
   it('preserves the projection keyset order and fleet totals', async () => {
+    const readTargets = vi.fn(async () => {
+      return new Map([
+        [PROP_B.propertyId, { activeCount: 0, overdueCount: 0 }],
+        [PROP_A.propertyId, { activeCount: 3, overdueCount: 3 }],
+      ])
+    })
     const getFleet = getFleetOverview({
       projection: projection([
         row(PROP_B),
         row(PROP_A, {
-          unanswered: 3,
+          overdue: 0,
           itemsToTriage: 4,
           escalated: 2,
           goalsBehindPace: 1,
@@ -129,6 +143,9 @@ describe('getFleetOverview (use case)', () => {
       ]),
       resolveAccessiblePropertyIds,
       clock: () => NOW,
+      inboxTargets: {
+        getGoogleReviewTargetCountsByProperty: readTargets,
+      },
     })
 
     const result = await getFleet(baseInput)
@@ -140,7 +157,7 @@ describe('getFleetOverview (use case)', () => {
       { name: 'Alpha', totalAttention: 5 },
     ])
     expect(result.entries[1]?.attentionSignals).toMatchObject({
-      unanswered: 3,
+      overdue: 3,
       itemsToTriage: 4,
       escalated: 2,
       goalsBehindPace: 1,
@@ -153,6 +170,12 @@ describe('getFleetOverview (use case)', () => {
       ratingSampleCount: 20,
     })
     expect(result.nextCursor).toBeNull()
+    expect(readTargets).toHaveBeenCalledOnce()
+    expect(readTargets).toHaveBeenCalledWith({
+      organizationId: ORG,
+      propertyIds: [PROP_B.propertyId, PROP_A.propertyId],
+      now: NOW,
+    })
   })
   it('round-trips opaque keyset cursors and rejects malformed cursors', () => {
     const anchor = { lowerName: 'alpha', propertyId: PROP_A.propertyId }
@@ -177,6 +200,7 @@ describe('getFleetOverview (use case)', () => {
       projection: projection([row(PROP_A, { avgRating: 4, priorAvgRating: 4.4 })]),
       resolveAccessiblePropertyIds,
       clock: () => NOW,
+      inboxTargets: zeroInboxTargets,
     })
 
     const result = await getFleet(baseInput)
@@ -201,6 +225,7 @@ describe('getFleetOverview (use case)', () => {
       ]),
       resolveAccessiblePropertyIds,
       clock: () => NOW,
+      inboxTargets: zeroInboxTargets,
     })
 
     const result = await getFleet(baseInput)
@@ -217,6 +242,7 @@ describe('getFleetOverview (use case)', () => {
       projection: projection([row(PROP_A, { avgRating: 4, priorAvgRating: 4.4 })]),
       resolveAccessiblePropertyIds,
       clock: () => NOW,
+      inboxTargets: zeroInboxTargets,
     })
 
     const result = await getFleet({
@@ -231,14 +257,15 @@ describe('getFleetOverview (use case)', () => {
     })
   })
 
-  it('excludes zero-rated properties from the overall average', async () => {
+  it('keeps properties without reviews null while excluding them from the average', async () => {
     const getFleet = getFleetOverview({
       projection: projection([
-        row(PROP_A, { avgRating: 0, priorAvgRating: 0, reviewCount: 0 }),
-        row(PROP_B, { avgRating: 0, priorAvgRating: 0, reviewCount: 0 }),
+        row(PROP_A, { avgRating: null, priorAvgRating: null, reviewCount: 0 }),
+        row(PROP_B, { avgRating: null, priorAvgRating: null, reviewCount: 0 }),
       ]),
       resolveAccessiblePropertyIds,
       clock: () => NOW,
+      inboxTargets: zeroInboxTargets,
     })
 
     const result = await getFleet(baseInput)
@@ -248,6 +275,6 @@ describe('getFleetOverview (use case)', () => {
       overallAvgRating: 0,
       ratingSampleCount: 0,
     })
-    expect(result.entries.every((entry) => entry.avgRating === 0)).toBe(true)
+    expect(result.entries.every((entry) => entry.avgRating === null)).toBe(true)
   })
 })

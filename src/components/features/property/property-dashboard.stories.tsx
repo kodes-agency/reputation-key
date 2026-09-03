@@ -135,7 +135,8 @@ export const Default: Story = {
         within(timeRangeGroup).getByRole('button', { name: opt.label }),
       ).toBeVisible()
     }
-    expect(canvas.getByText(/reviews unanswered/i)).toBeVisible()
+    expect(canvas.getByText('+0.2 stars')).toBeVisible()
+    expect(canvas.getByText('Overdue')).toBeVisible()
     expect(canvas.getByText(/items to triage/i)).toBeVisible()
     expect(canvas.getByText('5★')).toBeVisible()
     expect(canvas.getByText('78%')).toBeVisible()
@@ -151,7 +152,7 @@ export const AllClear: Story = {
   args: { ...Default.args, signals: calmSignals },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.queryByText(/reviews unanswered/i)).toBeNull()
+    expect(canvas.queryByText('Overdue')).toBeNull()
     expect(canvas.queryByText(/items to triage/i)).toBeNull()
   },
 }
@@ -167,6 +168,11 @@ export const EmptyDashboard: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText(/no reviews yet/i)).toBeVisible()
+    const ratingCard = canvas.getByText('Avg Rating').closest('.rounded-lg')
+    expect(ratingCard).not.toBeNull()
+    expect(within(ratingCard as HTMLElement).getAllByText('—')).toHaveLength(2)
+    expect(within(ratingCard as HTMLElement).getByText('Insufficient data')).toBeVisible()
+    expect(within(ratingCard as HTMLElement).queryByText('0.0')).toBeNull()
   },
 }
 

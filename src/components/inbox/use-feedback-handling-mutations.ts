@@ -14,6 +14,13 @@ export function useFeedbackHandlingMutations(
   statusObserver: InboxItemStatusObserver,
   onItemStatusChanged?: (updated: InboxItem) => void,
 ) {
+  // No `recover` here, deliberately. A handling outcome is a human decision
+  // made against one specific cycle and state; replaying it against refreshed
+  // revisions would apply a judgement to state the manager never saw. A
+  // conflict here must reach the dialog as a visible refusal — proved by
+  // e2e/critical/workflows/inbox-handling-cycle.spec.ts:385 ("a stale second
+  // tab is refused with a visible conflict and overwrites nothing"). Only the
+  // status and note mutations, whose token moves for system reasons, recover.
   const markFeedbackHandled = useActionMutation(inboxFns.markFeedbackHandled, {
     successMessage: 'Feedback marked as handled',
     onSuccess: (result) => {

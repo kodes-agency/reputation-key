@@ -67,12 +67,6 @@ export const organizationSchema = {
         returned: false,
         required: false,
       },
-      // Feeds the dashboard "attention band" signal: unanswered reviews past SLA.
-      responseSlaHours: {
-        type: 'number' as const,
-        input: true,
-        required: false,
-      },
     },
   },
 } as const

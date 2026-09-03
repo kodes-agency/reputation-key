@@ -54,7 +54,6 @@ export const betterAuthOrganizationSchema = z.object({
   logo: z.string().nullable().optional(),
   createdAt: z.coerce.date(),
   contactEmail: z.string().nullable().optional(),
-  responseSlaHours: z.number().nullable().optional(),
 })
 
 // ── Response schemas ────────────────────────────────────────────────

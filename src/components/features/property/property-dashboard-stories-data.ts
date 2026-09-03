@@ -2,6 +2,7 @@ import type {
   AttentionSignals,
   DashboardData,
   MetricKPIValue,
+  RatingKPIValue,
 } from '#/contexts/dashboard/application/public-api'
 import { reviewId } from '#/shared/domain/ids'
 
@@ -21,13 +22,13 @@ const availableMetricKpi = (
   trend,
   evidence: {
     current: {
-      state: 'available',
+      state: 'ready',
       definitionVersionId: 'property-story-current',
       sampleCount: Math.max(value, 1),
       minimumSample: 1,
     },
     prior: {
-      state: 'available',
+      state: 'ready',
       definitionVersionId: 'property-story-prior',
       sampleCount: Math.max(priorValue, 1),
       minimumSample: 1,
@@ -49,11 +50,37 @@ const updatingMetricKpi: MetricKPIValue = {
     prior: null,
   },
 }
+const readyRatingEvidence: RatingKPIValue['evidence'] = {
+  definitionVersionId: null,
+  state: 'ready',
+  verifiedThrough: new Date('2026-07-01T12:00:00.000Z'),
+  latestActivity: new Date('2026-07-01T10:00:00.000Z'),
+  computedAt: new Date('2026-07-01T12:00:00.000Z'),
+  completeness: 1,
+  availabilityReason: null,
+  correctionHead: null,
+  sampleCount: 142,
+}
+
+const insufficientRatingEvidence: RatingKPIValue['evidence'] = {
+  ...readyRatingEvidence,
+  state: 'insufficient_data',
+  verifiedThrough: null,
+  latestActivity: null,
+  sampleCount: 0,
+}
 
 export const populatedDashboard: DashboardData = {
   kpis: {
     reviews: { value: 142, priorValue: 120, trend: 18.3 },
-    avgRating: { value: 4.3, priorValue: 4.1, trend: 4.9 },
+    avgRating: {
+      value: 4.3,
+      priorValue: 4.1,
+      comparison: 0.2,
+      sampleCount: 142,
+      priorSampleCount: 120,
+      evidence: readyRatingEvidence,
+    },
     scans: availableMetricKpi(980, 1100, -10.9),
     feedback: availableMetricKpi(56, 56, 0),
   },
@@ -95,7 +122,7 @@ export const populatedDashboard: DashboardData = {
 }
 
 export const activeSignals: AttentionSignals = {
-  unanswered: 3,
+  overdue: 3,
   itemsToTriage: 7,
   goalsBehindPace: 1,
   ratingDrop: false,
@@ -106,7 +133,14 @@ export const activeSignals: AttentionSignals = {
 export const emptyDashboard: DashboardData = {
   kpis: {
     reviews: { value: 0, priorValue: 0, trend: null },
-    avgRating: { value: 0, priorValue: 0, trend: null },
+    avgRating: {
+      value: null,
+      priorValue: null,
+      comparison: null,
+      sampleCount: 0,
+      priorSampleCount: 0,
+      evidence: insufficientRatingEvidence,
+    },
     scans: updatingMetricKpi,
     feedback: updatingMetricKpi,
   },
@@ -119,7 +153,7 @@ export const emptyDashboard: DashboardData = {
 }
 
 export const calmSignals: AttentionSignals = {
-  unanswered: 0,
+  overdue: 0,
   itemsToTriage: 0,
   goalsBehindPace: 0,
   ratingDrop: false,

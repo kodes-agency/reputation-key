@@ -1,6 +1,6 @@
 // Invariant harness tests — verifies the runner and the no-orphaned-jobs checker.
-// The review-inbox and SLA checkers require DB-backed repos and are exercised
-// through integration tests in Track 6 (scenario DSL).
+// The review-inbox checker requires DB-backed repos and is exercised through
+// integration tests in Track 6 (scenario DSL).
 
 import { describe, it, expect } from 'vitest'
 import { runInvariants } from './index'

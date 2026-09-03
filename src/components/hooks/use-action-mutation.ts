@@ -34,6 +34,14 @@ export interface ActionMutationOptions<TInput, TOutput> {
    * `staleTime: 0` the round trip is visible as a lagging row.
    */
   optimistic?: (input: TInput) => (() => void) | undefined
+  /**
+   * Recover a rejected mutation: given the submitted input and the rejection,
+   * return a rebuilt input to resubmit, or null to let the rejection stand.
+   * The domain owns BOTH the decision (which rejections are recoverable) and
+   * the user-facing message — this hook stays free of domain knowledge.
+   * Called once per rejection, up to `RECOVERY_LIMIT` attempts.
+   */
+  recover?: (input: TInput, error: unknown) => Promise<TInput | null>
   /** Runs AFTER invalidation + toast. Receives the output + the submitted input. */
   onSuccess?: (output: TOutput, input: TInput) => void | Promise<void>
   /** Navigate after success (create-and-redirect flows build params from output). */
@@ -46,6 +54,14 @@ export interface ActionMutationOptions<TInput, TOutput> {
 /** What `onMutate` hands to `onError` so a failed mutation can be undone. */
 type Rollback = Readonly<{ undo: (() => void) | undefined }>
 
+/**
+ * Bounded, not unbounded: a recovery is only worth repeating while it keeps
+ * producing a different input. Exhausting this means the underlying state is
+ * moving faster than the user can act, which is exactly when the rejection
+ * SHOULD reach them.
+ */
+const RECOVERY_LIMIT = 3
+
 export function useActionMutation<TInput, TOutput>(
   fn: (input: TInput) => Promise<TOutput>,
   options?: ActionMutationOptions<TInput, TOutput>,
@@ -56,7 +72,19 @@ export function useActionMutation<TInput, TOutput>(
     options ?? {}
 
   const mutation = useMutation<TOutput, Error, TInput, Rollback>({
-    mutationFn: (input: TInput) => fn(input),
+    mutationFn: async (input) => {
+      let attempt = input
+      for (let attempts = 0; ; attempts += 1) {
+        try {
+          return await fn(attempt)
+        } catch (error) {
+          if (attempts === RECOVERY_LIMIT || !options?.recover) throw error
+          const next = await options.recover(attempt, error)
+          if (next === null) throw error
+          attempt = next
+        }
+      }
+    },
     onMutate: (input) => ({ undo: optimistic?.(input) }),
     // The optimistic write is undone only on failure; on success the
     // invalidation below reconciles it against the server.

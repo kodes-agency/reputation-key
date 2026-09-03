@@ -351,6 +351,27 @@ describe.sequential('Review source event delivery-order convergence', () => {
     ).toBe(true)
   })
 
+  it('leaves the manager concurrency token untouched when a tick projects nothing new', async () => {
+    // `command_revision` is what the detail pane submits back with the next
+    // manager command. Convergence runs on every relay tick for the review, so
+    // bumping it on a tick that changes nothing invalidated an idle open page
+    // and made ordinary interactions fail with `revision_conflict`.
+    await cleanInboxProjection()
+    for (const candidate of sourceEvents) await deliver(candidate)
+
+    const readRevision = async (): Promise<string> => {
+      const rows = await pool.query<{ command_revision: string }>(
+        'SELECT command_revision FROM inbox_items WHERE organization_id = $1',
+        [ORG],
+      )
+      return rows.rows[0]!.command_revision
+    }
+    const settled = await readRevision()
+
+    for (const candidate of sourceEvents) await deliver(candidate)
+    expect(await readRevision()).toBe(settled)
+  })
+
   it('late creation after erasure keeps stable history closed and creates no targets', async () => {
     await pool.query(
       `UPDATE reviews SET

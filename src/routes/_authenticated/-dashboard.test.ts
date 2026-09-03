@@ -30,6 +30,7 @@ describe('Dashboard route loader', () => {
             ensureInfiniteQueryData,
           },
         },
+        deps: { timeRange: '30d' },
       } as never),
     ).rejects.toMatchObject({
       options: {
@@ -53,6 +54,7 @@ describe('Dashboard route loader', () => {
           ensureInfiniteQueryData,
         },
       },
+      deps: { timeRange: '30d' },
     } as never)
 
     expect(ensureInfiniteQueryData).toHaveBeenCalledOnce()
@@ -68,6 +70,7 @@ describe('Dashboard route loader', () => {
           ensureInfiniteQueryData,
         },
       },
+      deps: { timeRange: '30d' },
     } as never)
 
     expect(ensureInfiniteQueryData).not.toHaveBeenCalled()
@@ -84,6 +87,7 @@ describe('Dashboard route loader', () => {
     await expect(
       dashboardLoader()({
         context: { queryClient: { ensureQueryData, ensureInfiniteQueryData } },
+        deps: { timeRange: '30d' },
       } as never),
     ).resolves.toBeUndefined()
     expect(ensureInfiniteQueryData).not.toHaveBeenCalled()

@@ -34,7 +34,7 @@ describe('getDashboardDataDto', () => {
       propertyId: 'a0000000-0000-4000-8000-000000000001',
     })
     expect(result.portalId).toBeUndefined()
-    expect(result.timeRange).toBe('all') // default
+    expect(result.timeRange).toBe('30d') // default
   })
 
   it('rejects missing propertyId', () => {
@@ -67,11 +67,11 @@ describe('getPortalAnalyticsDto', () => {
     ).toThrow(ZodError)
   })
 
-  it('defaults timeRange to all', () => {
+  it('defaults timeRange to 30d', () => {
     const result = getPortalAnalyticsDto.parse({
       propertyId: 'a0000000-0000-4000-8000-000000000001',
       portalId: 'b0000000-0000-4000-8000-000000000001',
     })
-    expect(result.timeRange).toBe('all')
+    expect(result.timeRange).toBe('30d')
   })
 })

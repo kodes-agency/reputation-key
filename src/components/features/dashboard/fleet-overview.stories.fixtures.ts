@@ -43,7 +43,7 @@ export const entries: readonly FleetEntry[] = [
     scanEvidence,
     feedbackEvidence,
     attentionSignals: {
-      unanswered: 5,
+      overdue: 5,
       itemsToTriage: 2,
       goalsBehindPace: 1,
       ratingDrop: false,
@@ -66,7 +66,7 @@ export const entries: readonly FleetEntry[] = [
     scanEvidence,
     feedbackEvidence,
     attentionSignals: {
-      unanswered: 9,
+      overdue: 9,
       itemsToTriage: 4,
       goalsBehindPace: 2,
       ratingDrop: true,
@@ -89,7 +89,7 @@ export const entries: readonly FleetEntry[] = [
     scanEvidence,
     feedbackEvidence,
     attentionSignals: {
-      unanswered: 0,
+      overdue: 0,
       itemsToTriage: 0,
       goalsBehindPace: 0,
       ratingDrop: false,
@@ -103,7 +103,7 @@ export const entries: readonly FleetEntry[] = [
     name: 'Cedar & Vine Boutique',
     slug: 'cedar-vine',
     timezone: 'America/Denver',
-    avgRating: 0, // new property, no ratings yet
+    avgRating: null, // new property, no ratings yet
     avgRatingComparison: null, // no prior period
     reviewCount: 0,
     feedbackCount: 3,
@@ -117,7 +117,7 @@ export const entries: readonly FleetEntry[] = [
     scanEvidence,
     feedbackEvidence,
     attentionSignals: {
-      unanswered: 0,
+      overdue: 0,
       itemsToTriage: 3,
       goalsBehindPace: 0,
       ratingDrop: false,

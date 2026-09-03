@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '#/components/ui/table'
+import { AvailabilityLine } from '#/components/features/dashboard/availability-line'
 
 type Props = Readonly<{ matrix: GoalResultsMatrixModel }>
 
@@ -108,7 +109,12 @@ function MatrixRow({
       <TableCell className="max-w-80 whitespace-normal">
         <Badge variant="outline">
           {row.correction ? 'Corrected · ' : ''}
-          {availabilityLabel(row.availability)}
+          <AvailabilityLine
+            state={row.availability}
+            dataThrough={row.dataThrough}
+            reason={null}
+            timeZone={timezone}
+          />
         </Badge>
         <span className="mt-1 block text-xs text-muted-foreground">
           {row.explanation}
@@ -147,13 +153,6 @@ function evidenceLabel(evidence: GoalResultsMatrixEvidence, metric: string): str
   return metric === 'qualified_scans'
     ? `${evidence.value} verified qualified scans`
     : `${evidence.value} eligible private ratings`
-}
-
-function availabilityLabel(value: GoalResultsMatrixRow['availability']): string {
-  if (value === 'ready') return 'Ready'
-  if (value === 'updating') return 'Updating'
-  if (value === 'insufficient') return 'Insufficient'
-  return 'Unavailable'
 }
 
 function scopeLabel(row: GoalResultsMatrixRow): string {

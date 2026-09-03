@@ -25,19 +25,65 @@ import {
   type Capability,
 } from './beta-capabilities'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
+import type { CapabilityRefusalCategory } from './capability-refusal-category'
 
 /** Controlled capabilities and their effective default-posture deny reasons. */
 const DARK: ReadonlyArray<
-  Readonly<{ capability: Capability; reason: string; label: string }>
+  Readonly<{
+    capability: Capability
+    reason: string
+    label: string
+    category: CapabilityRefusalCategory
+  }>
 > = [
-  { capability: 'portal.write', reason: 'org_not_allowlisted', label: 'Portals' },
-  { capability: 'portal.upload', reason: 'capability_blocked', label: 'Portals' },
-  { capability: 'portal.read', reason: 'org_not_allowlisted', label: 'Portals' },
-  { capability: 'team.use', reason: 'capability_blocked', label: 'Teams' },
-  { capability: 'goal.use', reason: 'org_not_allowlisted', label: 'Goals' },
-  { capability: 'badge.use', reason: 'capability_blocked', label: 'Recognition' },
-  { capability: 'leaderboard.use', reason: 'capability_blocked', label: 'Leaderboard' },
-  { capability: 'ai.analyze', reason: 'org_not_allowlisted', label: 'AI' },
+  {
+    capability: 'portal.write',
+    reason: 'org_not_allowlisted',
+    label: 'Portals',
+    category: 'needs_admin_enablement',
+  },
+  {
+    capability: 'portal.upload',
+    reason: 'capability_blocked',
+    label: 'Portals',
+    category: 'temporarily_unavailable',
+  },
+  {
+    capability: 'portal.read',
+    reason: 'org_not_allowlisted',
+    label: 'Portals',
+    category: 'needs_admin_enablement',
+  },
+  {
+    capability: 'team.use',
+    reason: 'capability_blocked',
+    label: 'Teams',
+    category: 'not_in_beta',
+  },
+  {
+    capability: 'goal.use',
+    reason: 'org_not_allowlisted',
+    label: 'Goals',
+    category: 'needs_admin_enablement',
+  },
+  {
+    capability: 'badge.use',
+    reason: 'capability_blocked',
+    label: 'Recognition',
+    category: 'not_in_beta',
+  },
+  {
+    capability: 'leaderboard.use',
+    reason: 'capability_blocked',
+    label: 'Leaderboard',
+    category: 'not_in_beta',
+  },
+  {
+    capability: 'ai.analyze',
+    reason: 'org_not_allowlisted',
+    label: 'AI',
+    category: 'needs_admin_enablement',
+  },
 ]
 
 beforeEach(() => {
@@ -70,22 +116,32 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
   })
 
   describe('routes: gateControlledRoute enforces selected-property policy', () => {
-    for (const { capability, label } of DARK) {
+    for (const { capability, label, category } of DARK) {
       it(`${capability} (${label}) redirects to /unavailable`, async () => {
         try {
-          const data = { capability, featureLabel: label }
+          const propertyId = 'property-controlled-route'
+          const data = { capability, featureLabel: label, propertyId }
           const decision = checkScopedCapability(
-            { organizationId: 'org-controlled-route' },
+            { organizationId: 'org-controlled-route', propertyId },
             capability,
           )
           redirectDeniedControlledRoute(decision, data)
           expect.unreachable('gate must redirect while dark')
         } catch (err) {
           const redirect = err as {
-            options?: { to?: string; search?: { feature?: string } }
+            options?: {
+              to?: string
+              search?: {
+                feature?: string
+                category?: CapabilityRefusalCategory
+                propertyId?: string
+              }
+            }
           }
           expect(redirect.options?.to).toBe('/unavailable')
           expect(redirect.options?.search?.feature).toBe(label)
+          expect(redirect.options?.search?.category).toBe(category)
+          expect(redirect.options?.search?.propertyId).toBe('property-controlled-route')
         }
       })
     }
@@ -135,7 +191,14 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
         ),
       ),
     ).rejects.toMatchObject({
-      options: { to: '/unavailable', search: { feature: 'Goals' } },
+      options: {
+        to: '/unavailable',
+        search: {
+          feature: 'Goals',
+          category: 'needs_admin_enablement',
+          propertyId: 'property-p2',
+        },
+      },
     })
   })
 

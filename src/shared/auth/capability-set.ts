@@ -20,6 +20,10 @@ import {
   listAllCapabilities,
   type Capability,
 } from './beta-capabilities'
+import {
+  refusalCategory,
+  type CapabilityRefusalCategory,
+} from './capability-refusal-category'
 
 export type CapabilitySetInput = Readonly<{
   /**
@@ -39,12 +43,20 @@ export type CapabilitySet = Readonly<{
    * carried on the router context and has to survive SSR dehydration.
    */
   allowed: ReadonlyArray<Capability>
+  /** Denied capabilities paired with their client-facing refusal category. */
+  refused: ReadonlyArray<
+    Readonly<{
+      capability: Capability
+      category: CapabilityRefusalCategory
+    }>
+  >
 }>
 
 /** Empty posture — used when the caller has no tenant context yet. */
 export const EMPTY_CAPABILITY_SET: CapabilitySet = {
   propertyId: null,
   allowed: [],
+  refused: [],
 }
 
 /** Plain-data server boundary read by the `_authenticated` route context. */
@@ -53,10 +65,24 @@ export const getCapabilitySet = createServerFn({ method: 'GET' })
   .handler(async ({ data }): Promise<CapabilitySet> => {
     const headers = await headersFromContext()
     const ctx = await resolveTenantContext(headers)
+    const allowed: Capability[] = []
+    const refused: Array<
+      Readonly<{
+        capability: Capability
+        category: CapabilityRefusalCategory
+      }>
+    > = []
+
+    for (const capability of listAllCapabilities()) {
+      const decision = checkBetaCapability(ctx, capability, data.propertyId)
+      const category = refusalCategory(decision)
+      if (decision.allowed) allowed.push(capability)
+      if (category !== null) refused.push({ capability, category })
+    }
+
     return {
       propertyId: data.propertyId ?? null,
-      allowed: listAllCapabilities().filter(
-        (capability) => checkBetaCapability(ctx, capability, data.propertyId).allowed,
-      ),
+      allowed,
+      refused,
     }
   })

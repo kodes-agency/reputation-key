@@ -12,7 +12,6 @@ import { buildOrganizationUpdatePatch } from './organization-update-patch'
 //   slug               truthy         as-is
 //   logo               always         null → undefined
 //   contactEmail       defined        null → undefined
-//   responseSlaHours   defined        as-is
 
 describe('buildOrganizationUpdatePatch', () => {
   it('includes name and slug when provided', () => {
@@ -89,13 +88,5 @@ describe('buildOrganizationUpdatePatch', () => {
     expect(patch).not.toHaveProperty('billingCity')
     expect(patch).not.toHaveProperty('billingPostalCode')
     expect(patch).not.toHaveProperty('billingCountry')
-  })
-
-  it('passes responseSlaHours through as-is, and only when provided', () => {
-    expect(buildOrganizationUpdatePatch({ responseSlaHours: 24 }).responseSlaHours).toBe(
-      24,
-    )
-    expect(buildOrganizationUpdatePatch({}).responseSlaHours).toBeUndefined()
-    expect(buildOrganizationUpdatePatch({})).not.toHaveProperty('responseSlaHours')
   })
 })

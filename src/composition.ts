@@ -700,6 +700,7 @@ export function createContainer(options?: CreateContainerOptions) {
       guest,
       review,
       identity,
+      inbox,
       reviewServingStats: review.lookups.servingStats,
     })
 

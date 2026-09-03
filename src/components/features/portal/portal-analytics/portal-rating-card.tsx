@@ -1,24 +1,22 @@
 import { ArrowDownRight, ArrowUpRight, Minus, Star } from 'lucide-react'
 import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
 import {
-  portalRatingPresentation,
-  type PortalRatingPresentationInput,
-} from './portal-rating-presentation'
-import {
-  portalMetricEvidenceLine,
-  type PortalMetricEvidenceView,
-} from './portal-metric-evidence-presentation'
+  ratingPresentation,
+  type RatingPresentationInput,
+} from '#/components/features/dashboard/rating-presentation'
+import { metricEvidenceLine } from '#/components/features/dashboard/metric-availability-presentation'
+import type { PortalMetricEvidence } from '#/contexts/dashboard/application/public-api'
 
 export function PortalRatingCard({
   rating,
   timeRange,
   timeZone,
 }: {
-  rating: PortalRatingPresentationInput & Readonly<{ evidence: PortalMetricEvidenceView }>
+  rating: RatingPresentationInput & Readonly<{ evidence: PortalMetricEvidence }>
   timeRange: TimeRangePreset
   timeZone: string
 }) {
-  const presentation = portalRatingPresentation(rating, timeRange)
+  const presentation = ratingPresentation(rating, timeRange)
   const ComparisonIcon =
     presentation.direction === 'up'
       ? ArrowUpRight
@@ -53,7 +51,15 @@ export function PortalRatingCard({
         <p className="mt-1 text-xs text-muted-foreground">{presentation.evidence}</p>
       )}
       <p className="mt-1 text-xs text-muted-foreground">
-        {portalMetricEvidenceLine(rating.evidence, undefined, timeZone)}
+        {metricEvidenceLine(
+          {
+            basis: rating.evidence.basis,
+            state: rating.evidence.state,
+            dataThrough: rating.evidence.verifiedThrough,
+          },
+          undefined,
+          timeZone,
+        )}
       </p>
     </div>
   )

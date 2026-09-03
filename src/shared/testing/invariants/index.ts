@@ -5,7 +5,6 @@ import type { SimulationContainer } from '#/composition'
 import type { InvariantChecker, InvariantContext, InvariantReport } from './types'
 import type { InMemoryQueue } from '../in-memory-queue'
 import { reviewInboxConsistency } from './checkers/review-inbox-consistency'
-import { slaConsistency } from './checkers/sla-consistency'
 import { inboxStatusLegal } from './checkers/inbox-status-legal'
 import { noOrphanedJobs } from './checkers/no-orphaned-jobs'
 
@@ -28,11 +27,6 @@ export function createInvariantCheckers(
     reviewInboxConsistency({
       reviewRepo: container.simulationRuntime.review,
       inboxRepo: container.simulationRuntime.inbox,
-    }),
-    slaConsistency({
-      reviewRepo: container.simulationRuntime.review,
-      replyRepo: container.simulationRuntime.reply,
-      clock: container.clock,
     }),
     inboxStatusLegal({
       reviewRepo: container.simulationRuntime.review,

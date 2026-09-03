@@ -219,7 +219,6 @@ const SCHEMA_AND_COMPATIBILITY_COMMANDS = [
   'scripts/migrations/add-goals-parent-period-uniq.sql',
   'scripts/migrations/add-reply-unique-index.sql',
   'scripts/migrations/add-invitation-property-ids.sql',
-  'scripts/migrations/add-response-sla-hours.sql',
   'db:migrate',
   'db:push',
 ] as const

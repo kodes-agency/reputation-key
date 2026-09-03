@@ -15,7 +15,7 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 /** Stats for a single period (count + average rating). */
 export type ServingPeriodStats = Readonly<{
   count: number
-  avgRating: number
+  avgRating: number | null
 }>
 
 /** Star-rating bucket for distribution chart. */

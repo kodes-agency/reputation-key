@@ -254,8 +254,8 @@ describe('Goal Results Matrix', () => {
 
     expect(rows.map(({ availability }) => availability)).toEqual([
       'updating',
-      'insufficient',
-      'unavailable',
+      'insufficient_data',
+      'temporarily_unavailable',
     ])
     expect(rows[0]).toMatchObject({
       dataThrough: new Date('2026-07-20T04:00:00.000Z'),

@@ -899,6 +899,24 @@ async function convergeProjectedItemRow(
   }>,
 ): Promise<void> {
   const { item, itemRow, projection, finalStatus, active, erasedAt } = input
+  const closedAt =
+    finalStatus === 'closed' ? (active ? itemRow.closedAt : erasedAt) : null
+  // `commandRevision` is the manager's optimistic-concurrency token: the detail
+  // pane reads it and submits it back with the next command, and a mismatch is
+  // reported as "Inbox item changed; reload current state". Convergence runs on
+  // every relay tick for the review, including ticks that project nothing new —
+  // so an unconditional bump invalidated an idle manager's open page and made
+  // ordinary interactions fail with `revision_conflict`. Advance the token only
+  // when this write actually changes the projected row.
+  const projectedRowChanged = sql`(
+    ${inboxItems.sourceDate} IS DISTINCT FROM ${projection.sourceDate}
+    OR ${inboxItems.platform} IS DISTINCT FROM ${projection.platform}
+    OR ${inboxItems.status} IS DISTINCT FROM ${finalStatus}
+    OR ${inboxItems.closedAt} IS DISTINCT FROM ${closedAt}
+    OR ${inboxItems.rating} IS NOT NULL
+    OR ${inboxItems.snippet} IS NOT NULL
+    OR ${inboxItems.reviewerName} IS NOT NULL
+  )`
   const [updatedItem] = await tx
     .update(inboxItems)
     .set({
@@ -908,12 +926,20 @@ async function convergeProjectedItemRow(
       snippet: null,
       reviewerName: null,
       status: finalStatus,
-      closedAt: finalStatus === 'closed' ? (active ? itemRow.closedAt : erasedAt) : null,
-      commandRevision: sql<number>`LEAST(
-                ${inboxItems.commandRevision} + 1,
-                '9007199254740991'::bigint
-              )`,
-      updatedAt: input.now,
+      closedAt,
+      commandRevision: sql<number>`CASE
+                WHEN ${projectedRowChanged}
+                THEN LEAST(
+                  ${inboxItems.commandRevision} + 1,
+                  '9007199254740991'::bigint
+                )
+                ELSE ${inboxItems.commandRevision}
+              END`,
+      updatedAt: sql<Date>`CASE
+                WHEN ${projectedRowChanged}
+                THEN ${input.now}
+                ELSE ${inboxItems.updatedAt}
+              END`,
     })
     .where(
       and(

@@ -9,6 +9,7 @@
 import type { Database } from '#/shared/db'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { ReviewServingStats } from '#/contexts/review/application/public-api'
+import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
 import { createDashboardRepository } from './infrastructure/repositories/dashboard.repository'
 import { createMetricStatsAdapter } from './infrastructure/adapters/metric-stats.adapter'
 import { createAttentionSignalsAdapter } from './infrastructure/adapters/attention-signals.adapter'
@@ -42,6 +43,7 @@ export type DashboardContextBuildInput = Readonly<{
    * here; structurally satisfies ReviewStatsPort.
    */
   reviewServingStats: ReviewServingStats
+  inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
   guestResponseIntegrity: PortalResponseIntegrityPort
   /** Metric-owned governed Portal analytics public API. */
   portalMetrics: PortalMetricsPort
@@ -120,11 +122,15 @@ export const buildDashboardContext = (
   const getAttention = getAttentionSignals({
     signals: attentionSignals,
     reviewStats: input.reviewServingStats,
+    inboxTargets: input.inboxTargets,
+    clock: input.clock,
   })
 
   const getOverview = getPropertyOverview({
     getDashboardData: getDashboard,
     attention: attentionSignals,
+    inboxTargets: input.inboxTargets,
+    clock: input.clock,
   })
 
   const getFleet = getFleetOverview({
@@ -136,6 +142,7 @@ export const buildDashboardContext = (
         scope.organizationWide,
       ),
     clock: input.clock,
+    inboxTargets: input.inboxTargets,
   })
   const getSetup = getSetupChecklist({ repository: setupChecklistRepo })
 

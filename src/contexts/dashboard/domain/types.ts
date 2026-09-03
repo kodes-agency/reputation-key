@@ -20,10 +20,11 @@ export type KPIValue = Readonly<{
   trend: number | null
 }>
 
-export type MetricKPIDataState = 'available' | 'updating' | 'unavailable'
+export type MetricAvailabilityState =
+  'ready' | 'updating' | 'insufficient_data' | 'temporarily_unavailable'
 
 export type MetricKPIPeriodEvidence = Readonly<{
-  state: MetricKPIDataState
+  state: MetricAvailabilityState
   definitionVersionId: string | null
   sampleCount: number
   minimumSample: number | null
@@ -44,7 +45,7 @@ export type MetricKPIValue = Readonly<{
 
 export type KPIs = Readonly<{
   reviews: KPIValue
-  avgRating: KPIValue
+  avgRating: RatingKPIValue
   scans: MetricKPIValue
   feedback: MetricKPIValue
 }>
@@ -135,19 +136,16 @@ export type DashboardData = Readonly<{
 
 export type PortalKPIs = Readonly<{
   scans: PortalCountKPIValue
-  avgRating: PortalRatingKPIValue
+  avgRating: RatingKPIValue
   feedback: PortalCountKPIValue
   reviewLinkClicks: PortalCountKPIValue
 }>
-
-export type PortalMetricDataState =
-  'ready' | 'updating' | 'insufficient_data' | 'temporarily_unavailable'
 
 export type PortalMetricEvidence = Readonly<{
   /** Omitted means a bounded governed period; lifetime has no time series. */
   basis?: 'governed_period' | 'anonymous_lifetime'
   definitionVersionId: string | null
-  state: PortalMetricDataState
+  state: MetricAvailabilityState
   verifiedThrough: Date | null
   latestActivity: Date | null
   computedAt: Date
@@ -173,8 +171,8 @@ export type PortalCountKPIValue = Readonly<{
   evidence: PortalMetricEvidence
 }>
 
-export type PortalRatingKPIValue = Readonly<{
-  /** Eligible private-rating average. Null means there is no eligible sample. */
+export type RatingKPIValue = Readonly<{
+  /** Eligible rating average. Null means there is no eligible sample. */
   value: number | null
   priorValue: number | null
   /** Absolute star difference; shown only when both bounded periods have 10+ ratings. */
@@ -213,8 +211,8 @@ export type StaffDashboardData = Readonly<{
 
 /** Compact signal counts shown in the property dashboard attention band. */
 export type AttentionSignals = Readonly<{
-  /** Reviews with no published reply past the response SLA. */
-  unanswered: number
+  /** Open Google review handling cycles whose Response Target has passed. Inbox is the authority. */
+  overdue: number
   /** Current open Inbox work across Review and Private Feedback sources. */
   itemsToTriage: number
   /** Active goals whose progress is behind the pro-rated pace. */
@@ -250,7 +248,7 @@ export type FleetEntry = Readonly<{
   name: string
   slug: string
   timezone: string
-  avgRating: number
+  avgRating: number | null
   /** Absolute star delta vs prior period. Null when either sample is insufficient. */
   avgRatingComparison: number | null
   reviewCount: number

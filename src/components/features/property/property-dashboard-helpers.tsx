@@ -1,10 +1,16 @@
+import type { ComponentType } from 'react'
 import { Star, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import type {
-  KPIValue,
-  MetricKPIValue,
   DashboardReplyStatus,
+  KPIValue,
+  MetricAvailabilityState,
+  MetricKPIValue,
+  RatingKPIValue,
 } from '#/contexts/dashboard/application/public-api'
+import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import { AvailabilityLine } from '#/components/features/dashboard/availability-line'
+import { ratingPresentation } from '#/components/features/dashboard/rating-presentation'
 
 export function formatTrend(trend: number | null): string {
   if (trend === null) return '—'
@@ -18,13 +24,13 @@ export function TrendIndicator({ trend }: { trend: number | null }) {
   return <Minus className="size-3 text-muted-foreground" />
 }
 
-export function Stars({ rating }: { rating: number }) {
+export function Stars({ rating }: { rating: number | null }) {
   return (
     <span className="inline-flex gap-0.5">
       {Array.from({ length: 5 }, (_, i) => (
         <Star
           key={i}
-          className={`size-3 ${i < Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`}
+          className={`size-3 ${rating !== null && i < Math.round(rating) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`}
         />
       ))}
     </span>
@@ -44,27 +50,17 @@ export function KPICard({
   kpi,
   icon: Icon,
   formatValue,
-}: {
+}: Readonly<{
   label: string
   kpi: KPIValue | MetricKPIValue
-  icon: React.ComponentType<{ className?: string }>
-  formatValue?: (v: number) => string
-}) {
-  const metricState = 'evidence' in kpi ? kpi.evidence.current.state : 'available'
-  const stateLabel =
-    metricState === 'updating'
-      ? 'Updating'
-      : metricState === 'unavailable' || kpi.value === null
-        ? 'Temporarily unavailable'
-        : null
-  const display =
-    stateLabel !== null
-      ? stateLabel
-      : kpi.value === null
-        ? 'Temporarily unavailable'
-        : formatValue
-          ? formatValue(kpi.value)
-          : String(kpi.value)
+  icon: ComponentType<{ className?: string }>
+  formatValue?: (value: number) => string
+}>) {
+  const state: MetricAvailabilityState =
+    'evidence' in kpi ? kpi.evidence.current.state : 'ready'
+  const value =
+    kpi.value === null ? '—' : formatValue ? formatValue(kpi.value) : String(kpi.value)
+  const showTrend = state === 'ready' && kpi.value !== null
 
   return (
     <div className="rounded-lg border p-4">
@@ -73,21 +69,74 @@ export function KPICard({
         <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
       </div>
       <div className="mt-2 flex items-baseline gap-2">
-        <p
-          className={
-            stateLabel
-              ? 'text-sm font-medium text-muted-foreground'
-              : 'text-2xl font-semibold tabular-nums'
-          }
-        >
-          {display}
-        </p>
-        {stateLabel === null && (
+        <p className="text-2xl font-semibold tabular-nums">{value}</p>
+        {showTrend ? (
           <span className="flex items-center gap-0.5 text-xs tabular-nums text-muted-foreground">
             <TrendIndicator trend={kpi.trend} />
             {formatTrend(kpi.trend)}
           </span>
-        )}
+        ) : null}
+      </div>
+      <div className="mt-1">
+        <AvailabilityLine state={state} dataThrough={null} reason={null} />
+      </div>
+    </div>
+  )
+}
+
+export function RatingKPICard({
+  label,
+  kpi,
+  icon: Icon,
+  timeRange,
+}: Readonly<{
+  label: string
+  kpi: RatingKPIValue
+  icon: ComponentType<{ className?: string }>
+  timeRange: TimeRangePreset
+}>) {
+  const presentation = ratingPresentation(kpi, timeRange)
+  const ComparisonIcon =
+    presentation.direction === 'up'
+      ? ArrowUpRight
+      : presentation.direction === 'down'
+        ? ArrowDownRight
+        : Minus
+  // 12px text needs 4.5:1: emerald/red-500 measure 2.3:1 on the light surface,
+  // so each direction pairs a light-mode and a dark-mode ramp step.
+  const comparisonClass =
+    presentation.direction === 'up'
+      ? 'text-emerald-700 dark:text-emerald-400'
+      : presentation.direction === 'down'
+        ? 'text-red-700 dark:text-red-400'
+        : 'text-muted-foreground'
+
+  return (
+    <div className="rounded-lg border p-4">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Icon className="size-4" />
+        <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
+      </div>
+      <div className="mt-2 flex items-baseline gap-2">
+        <p className="text-2xl font-semibold tabular-nums">{presentation.value}</p>
+        <span
+          className={`flex items-center gap-0.5 text-xs tabular-nums ${comparisonClass}`}
+        >
+          <ComparisonIcon className="size-3" />
+          {kpi.comparison === null
+            ? presentation.comparison
+            : `${presentation.comparison} stars`}
+        </span>
+      </div>
+      {kpi.evidence.state === 'ready' ? (
+        <p className="mt-1 text-xs text-muted-foreground">{presentation.evidence}</p>
+      ) : null}
+      <div className="mt-1">
+        <AvailabilityLine
+          state={kpi.evidence.state}
+          dataThrough={kpi.evidence.verifiedThrough}
+          reason={kpi.evidence.availabilityReason}
+        />
       </div>
     </div>
   )

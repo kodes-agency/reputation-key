@@ -43,7 +43,6 @@
       "members": [
         "all",
         "activeOrg",
-        "responseSla",
         "members",
         "invitations",
         "userInvitations",
@@ -245,12 +244,6 @@
       "classification": "server_snapshot",
       "owner": "Organization logo editor",
       "policy": "OrganizationLogoEditor is keyed by the persisted logo, seeds its local upload/removal snapshot from that value, and restores it after failed removal; a changed server logo remounts only this editor, not the organization form."
-    },
-    {
-      "id": "src/components/features/organization/response-sla-card.tsx:useState(value)",
-      "classification": "server_draft",
-      "owner": "Organization response-SLA form",
-      "policy": "Seed from the persisted SLA and keep typing local; OrganizationSettingsPage keys the card by responseSlaHours, and the browser story proves a changed server value remounts the draft instead of leaving stale input on screen."
     },
     {
       "id": "src/components/features/portal/portal-analytics/portal-analytics-tab.tsx:useState(timeRange)",

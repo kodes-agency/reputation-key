@@ -500,7 +500,7 @@ describe('dashboardRepository (integration)', () => {
         trend: null,
         evidence: {
           current: {
-            state: 'available',
+            state: 'ready',
             definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
             sampleCount: 3,
             minimumSample: 1,
@@ -530,6 +530,17 @@ describe('dashboardRepository (integration)', () => {
             sampleCount: 0,
             minimumSample: null,
           },
+        },
+      })
+      expect(result.avgRating).toMatchObject({
+        value: 4.5,
+        priorValue: 4.5,
+        comparison: null,
+        sampleCount: 2,
+        priorSampleCount: 2,
+        evidence: {
+          state: 'ready',
+          sampleCount: 2,
         },
       })
     })
@@ -586,6 +597,17 @@ describe('dashboardRepository (integration)', () => {
       expect(result.scans.priorValue).toBeNull()
       expect(result.scans.trend).toBeNull()
       expect(result.scans.evidence.prior).toBeNull()
+      expect(result.avgRating).toMatchObject({
+        value: 4.5,
+        priorValue: null,
+        comparison: null,
+        sampleCount: 2,
+        priorSampleCount: 0,
+        evidence: {
+          state: 'ready',
+          sampleCount: 2,
+        },
+      })
     })
 
     it('returns review count, avg rating, scan count, and feedback count with prior period trend', async () => {
@@ -655,10 +677,17 @@ describe('dashboardRepository (integration)', () => {
       expect(result.reviews.priorValue).toBe(1)
       expect(result.reviews.trend).toBe(100)
 
-      // Avg rating: current (5+3)/2 = 4, prior 4 → 0%
+      // Avg rating: current (5+3)/2 = 4, prior 4; both periods are below the
+      // ten-rating comparison floor, so no star delta is presented.
       expect(result.avgRating.value).toBe(4)
       expect(result.avgRating.priorValue).toBe(4)
-      expect(result.avgRating.trend).toBe(0)
+      expect(result.avgRating.comparison).toBeNull()
+      expect(result.avgRating.sampleCount).toBe(2)
+      expect(result.avgRating.priorSampleCount).toBe(1)
+      expect(result.avgRating.evidence).toMatchObject({
+        state: 'ready',
+        sampleCount: 2,
+      })
 
       // Scans: 3 current, 2 prior → +50%
       expect(result.scans.value).toBe(3)
@@ -706,8 +735,10 @@ describe('dashboardRepository (integration)', () => {
       expect(result.reviews.trend).toBeNull()
 
       expect(result.avgRating.value).toBe(5)
-      expect(result.avgRating.priorValue).toBe(0)
-      expect(result.avgRating.trend).toBeNull()
+      expect(result.avgRating.priorValue).toBeNull()
+      expect(result.avgRating.comparison).toBeNull()
+      expect(result.avgRating.sampleCount).toBe(1)
+      expect(result.avgRating.priorSampleCount).toBe(0)
 
       expect(result.scans.value).toBe(1)
       expect(result.scans.priorValue).toBeNull()

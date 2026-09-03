@@ -36,7 +36,7 @@ const unavailableMetricKpi = {
   trend: null,
   evidence: {
     current: {
-      state: 'unavailable',
+      state: 'temporarily_unavailable',
       definitionVersionId: null,
       sampleCount: 0,
       minimumSample: null,
@@ -47,7 +47,24 @@ const unavailableMetricKpi = {
 
 const emptyKPIs: KPIs = {
   reviews: { value: 0, priorValue: 0, trend: null },
-  avgRating: { value: 0, priorValue: 0, trend: null },
+  avgRating: {
+    value: null,
+    priorValue: null,
+    comparison: null,
+    sampleCount: 0,
+    priorSampleCount: 0,
+    evidence: {
+      definitionVersionId: null,
+      state: 'insufficient_data',
+      verifiedThrough: null,
+      latestActivity: null,
+      computedAt: new Date(0),
+      completeness: 1,
+      availabilityReason: null,
+      correctionHead: null,
+      sampleCount: 0,
+    },
+  },
   scans: unavailableMetricKpi,
   feedback: unavailableMetricKpi,
 }

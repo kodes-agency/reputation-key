@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { portalRatingPresentation } from './portal-rating-presentation'
+import { ratingPresentation } from './rating-presentation'
 
-describe('portalRatingPresentation', () => {
+describe('ratingPresentation', () => {
   it('renders no eligible rating as unavailable, never zero stars', () => {
     expect(
-      portalRatingPresentation(
+      ratingPresentation(
         { value: null, comparison: null, sampleCount: 0, priorSampleCount: 0 },
         '30d',
       ),
@@ -18,7 +18,7 @@ describe('portalRatingPresentation', () => {
 
   it('formats an absolute star delta rather than a percentage', () => {
     expect(
-      portalRatingPresentation(
+      ratingPresentation(
         { value: 4.5, comparison: 0.5, sampleCount: 10, priorSampleCount: 12 },
         '30d',
       ),
@@ -30,9 +30,18 @@ describe('portalRatingPresentation', () => {
     })
   })
 
+  it('uses a typographic minus for a rating decline', () => {
+    expect(
+      ratingPresentation(
+        { value: 4, comparison: -0.4, sampleCount: 12, priorSampleCount: 12 },
+        '30d',
+      ).comparison,
+    ).toBe('−0.4')
+  })
+
   it('keeps All Time absolute and non-comparative', () => {
     expect(
-      portalRatingPresentation(
+      ratingPresentation(
         { value: 4, comparison: null, sampleCount: 1, priorSampleCount: 0 },
         'all',
       ),

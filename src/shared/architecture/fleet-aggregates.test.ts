@@ -149,10 +149,11 @@ describe('BQC-4.4: fleet/global views are content-free aggregates', () => {
     }
   })
 
-  it('the aggregate query files really query the content tables (guard is not vacuous)', () => {
+  it('the attention aggregate still counts Inbox and Goal work (guard is not vacuous)', () => {
     const attention = stripComments(read(AGGREGATE_QUERY_FILES[0]!))
-    expect(attention).toMatch(/\breviews\b/)
+    expect(attention).not.toMatch(/\breviews\b/)
     expect(attention).toMatch(/\binboxItems\b/)
+    expect(attention).toMatch(/\bgoalMonthlyResults\b/)
     expect(attention).toMatch(/\bcount\(/)
   })
 

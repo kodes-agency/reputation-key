@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { Lock, MessageSquare } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -10,6 +11,7 @@ import { ReplyToolbarProvider, ReplyToolbarSlot } from './reply-toolbar-slot'
 import { FeedbackHandlingCard } from './feedback-handling-card'
 import { ResponseTargetCard } from './response-target-card'
 import type { InboxDetailState } from './use-inbox-detail'
+import { withFreshCommandRevision } from './use-inbox-detail-queries'
 import type { InboxReplyCacheChange } from './inbox-cache-policy'
 import type { InboxDetailFns } from './types'
 import type {
@@ -41,6 +43,7 @@ export function InboxDetailContent({
   markFeedbackHandled,
   correctFeedbackHandlingOutcome,
 }: DetailContentProps) {
+  const queryClient = useQueryClient()
   const { can } = usePermissions()
   const canManageReplies = can('reply.manage')
   const canAddNotes = can('inbox.write')
@@ -49,6 +52,11 @@ export function InboxDetailContent({
       notes={notes}
       inboxItemId={currentItem.id}
       expectedCommandRevision={currentItem.commandRevision}
+      recoverConflict={withFreshCommandRevision(
+        queryClient,
+        currentItem.id,
+        detailFns.getInboxItemDetail,
+      )}
       onNoteAdded={onNoteAdded}
       addInboxNote={detailFns.addInboxNote}
       canAdd={canAddNotes}

@@ -7,12 +7,8 @@ import type { AttentionSignals, FleetEntry, FleetOverviewData } from '../../doma
 import type { OrganizationId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../dto/dashboard.dto'
-import {
-  ratingComparison,
-  RATING_DROP_THRESHOLD,
-  slaCutoff,
-  timeRangeDays,
-} from '../utils'
+import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
+import { ratingComparison, RATING_DROP_THRESHOLD, timeRangeDays } from '../utils'
 import { dashboardError } from '../../domain/errors'
 
 export type GetFleetOverviewInput = Readonly<{
@@ -20,7 +16,6 @@ export type GetFleetOverviewInput = Readonly<{
   scope: FleetProjectionScope
   portalReadEnabled: boolean
   goalReadEnabled: boolean
-  slaHours: number
   timeRange: TimeRangePreset
   cursor?: string
 }>
@@ -32,6 +27,7 @@ export type GetFleetOverviewDeps = Readonly<{
     scope: FleetProjectionScope,
   ): Promise<readonly import('#/shared/domain/ids').PropertyId[] | null>
   clock: () => Date
+  inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
 }>
 
 export type GetFleetOverview = (
@@ -71,14 +67,7 @@ export function decodeFleetCursor(cursor: string | undefined): FleetCursorAnchor
 export const getFleetOverview =
   (deps: GetFleetOverviewDeps): GetFleetOverview =>
   async (input) => {
-    const {
-      organizationId,
-      scope,
-      portalReadEnabled,
-      goalReadEnabled,
-      slaHours,
-      timeRange,
-    } = input
+    const { organizationId, scope, portalReadEnabled, goalReadEnabled, timeRange } = input
     const now = deps.clock()
     const periodDays = timeRangeDays(timeRange)
     const accessiblePropertyIds = await deps.resolveAccessiblePropertyIds(
@@ -93,7 +82,11 @@ export const getFleetOverview =
       cursor: decodeFleetCursor(input.cursor),
       periodDays,
       now,
-      slaCutoff: slaCutoff(now, slaHours),
+    })
+    const targetCounts = await deps.inboxTargets.getGoogleReviewTargetCountsByProperty({
+      organizationId,
+      propertyIds: projection.rows.map((row) => row.propertyId),
+      now,
     })
 
     const entries: FleetEntry[] = projection.rows.map((row) => {
@@ -109,7 +102,7 @@ export const getFleetOverview =
       const ratingDrop =
         avgRatingComparison !== null && avgRatingComparison <= -RATING_DROP_THRESHOLD
       const attentionSignals: AttentionSignals = {
-        unanswered: row.unanswered,
+        overdue: targetCounts.get(row.propertyId)?.overdueCount ?? 0,
         itemsToTriage: row.itemsToTriage,
         goalsBehindPace: row.goalsBehindPace,
         ratingDrop,

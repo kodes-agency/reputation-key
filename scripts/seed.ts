@@ -317,7 +317,7 @@ async function main(): Promise<void> {
   // ── Invariant check round 1 ──
   console.log('\n── Invariant Checks (pre-time-travel) ──')
   const checkers = createInvariantCheckers(container, queue)
-  const report1 = await runInvariants(checkers, { organizationId: orgId, slaHours: 48 })
+  const report1 = await runInvariants(checkers, { organizationId: orgId })
   printReport('Pre-time-travel', report1)
 
   // ── Round 2: Time-travel — advance clock 35 days + trigger jobs ──
@@ -342,7 +342,7 @@ async function main(): Promise<void> {
 
   // ── Invariant check round 2 ──
   console.log('\n── Invariant Checks (post-time-travel) ──')
-  const report2 = await runInvariants(checkers, { organizationId: orgId, slaHours: 48 })
+  const report2 = await runInvariants(checkers, { organizationId: orgId })
   printReport('Post-time-travel', report2)
 
   // ── Multi-tenant isolation check ──
@@ -350,7 +350,6 @@ async function main(): Promise<void> {
   const checkers2 = createInvariantCheckers(container, queue)
   const tenantReport = await runInvariants(checkers2, {
     organizationId: org2Id,
-    slaHours: 48,
   })
   printReport(`Org 2 (${org2Id})`, tenantReport)
 

@@ -180,7 +180,7 @@ Exported from `application/public-api.ts`:
 - Types: `InboxItem`, `InboxNote`, `InboxItemDetail`, `InboxStatus`, `SourceType`, `InboxSort`
 - Error types: `InboxError`, `InboxErrorCode`, `isInboxError`
 - Port types: `Cursor` and paginated results with `totalCount`
-- Constants: `INBOX_BULK_LIMIT` (100 item IDs per bulk status command), `PRIVATE_FEEDBACK_HANDLING_OUTCOMES`
+- Constants: `INBOX_BULK_LIMIT` (100 item IDs per bulk status command), `PRIVATE_FEEDBACK_HANDLING_OUTCOMES`, `REVISION_CONFLICT_MESSAGE` (the manager-facing optimistic-concurrency refusal; components match rejected mutations on this message because a deserialized server-function error no longer carries the error code)
 - Feedback handling types: outcome, deadline result, immutable outcome fact, expectations, state, and command result
 - Event types: `InboxItemCreated`, `InboxItemStatusChanged`, `InboxItemAssigned`, `InboxItemUnassigned`, `InboxItemEscalated`, `InboxNoteAdded`, `InboxItemBulkStatusChanged`, `InboxEvent`
 - Handling History (IBX-01-T5): `InboxHistoryEntry`, `InboxHistoryKind`, `INBOX_HISTORY_KINDS`, `InboxHistoryDetail`, `InboxHistoryCycleOpenedDetail`, `InboxHistoryCycleTransitionDetail`, `InboxHistoryAssignmentDetail`, `InboxHistoryEscalationDetail`, `InboxHistoryOutcomeDetail`, `InboxAssignmentReason`, `InboxHistoryPage`, `GetInboxItemHistoryResult`

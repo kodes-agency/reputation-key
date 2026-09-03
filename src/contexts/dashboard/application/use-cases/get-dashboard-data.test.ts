@@ -89,11 +89,9 @@ describe('getDashboardData (use case)', () => {
       propertyTimezone: 'UTC',
     })
 
-    expect(Object.values(result.kpis).map((kpi) => kpi.trend)).toEqual([
-      null,
-      null,
-      null,
-      null,
-    ])
+    expect(result.kpis.reviews.trend).toBeNull()
+    expect(result.kpis.avgRating.comparison).toBeNull()
+    expect(result.kpis.scans.trend).toBeNull()
+    expect(result.kpis.feedback.trend).toBeNull()
   })
 })

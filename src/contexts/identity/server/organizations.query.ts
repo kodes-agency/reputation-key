@@ -42,7 +42,6 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
             logo: org.logo,
             createdAt: org.createdAt,
             contactEmail: org.contactEmail,
-            responseSlaHours: org.responseSlaHours,
           },
           role: ctx.role,
           authz: serializeClientAuthz(ctx),

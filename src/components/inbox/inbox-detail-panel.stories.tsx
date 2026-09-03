@@ -10,7 +10,7 @@ import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { Action } from '#/components/hooks/use-action'
 import type { InboxDetailState } from './use-inbox-detail'
-import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
+import type { addInboxNoteFn, getInboxItemDetailFn } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
@@ -58,6 +58,11 @@ const unusedFeedbackAction = Object.assign(
 )
 
 const detailFns = {
+  // Never invoked in these stories: detailState is mocked, so the only caller
+  // (the revision-conflict retry) cannot run.
+  getInboxItemDetail: mockServerFn(async () => {
+    throw new Error('Story action only')
+  }) as unknown as typeof getInboxItemDetailFn,
   getActivityTimeline: mockServerFn(
     async () => [],
   ) as unknown as typeof getActivityTimelineFn,

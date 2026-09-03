@@ -160,6 +160,8 @@ const emptyFeedbackHandlingStore: FeedbackHandlingStore = {
 
 const emptyResponseTargetStore: ResponseTargetStore = {
   getCycleTarget: async () => null,
+  getGoogleReviewTargetCountsByProperty: async ({ propertyIds }) =>
+    new Map(propertyIds.map((id) => [id, { activeCount: 0, overdueCount: 0 }])),
   getPrivateFeedbackAnalytics: async () => ({
     targetKind: 'private_feedback_handling',
     measuredCycleCount: 0,
@@ -282,6 +284,8 @@ export function createInboxContainer() {
     markFeedbackHandled: useCases.markFeedbackHandled,
     correctFeedbackHandlingOutcome: useCases.correctFeedbackHandlingOutcome,
     getGoogleReviewTargetAnalytics: useCases.getGoogleReviewTargetAnalytics,
+    getGoogleReviewTargetCountsByProperty:
+      emptyResponseTargetStore.getGoogleReviewTargetCountsByProperty,
     getPrivateFeedbackTargetAnalytics: useCases.getPrivateFeedbackTargetAnalytics,
     getResponseTargetPolicySettings: useCases.getResponseTargetPolicySettings,
     setResponseTargetPolicy: useCases.setResponseTargetPolicy,

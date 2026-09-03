@@ -341,6 +341,8 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     markFeedbackHandled: useCases.markFeedbackHandled,
     correctFeedbackHandlingOutcome: useCases.correctFeedbackHandlingOutcome,
     getGoogleReviewTargetAnalytics: useCases.getGoogleReviewTargetAnalytics,
+    getGoogleReviewTargetCountsByProperty:
+      responseTargetStore.getGoogleReviewTargetCountsByProperty,
     getPrivateFeedbackTargetAnalytics: useCases.getPrivateFeedbackTargetAnalytics,
     getResponseTargetPolicySettings: useCases.getResponseTargetPolicySettings,
     setResponseTargetPolicy: useCases.setResponseTargetPolicy,

@@ -5,11 +5,11 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
 export type AttentionCounts = Readonly<{
-  unanswered: number
+  overdue: number
   itemsToTriage: number
   escalated: number
   goalsBehindPace: number
-  /** Distinct Review, Inbox-source, and Goal anchors. */
+  /** Distinct Inbox-source and Goal anchors. */
   attentionWork: number
 }>
 
@@ -18,6 +18,5 @@ export type AttentionSignalsPort = Readonly<{
   getAttentionCounts(
     organizationId: OrganizationId,
     propertyId: PropertyId,
-    slaHours: number,
   ): Promise<AttentionCounts>
 }>

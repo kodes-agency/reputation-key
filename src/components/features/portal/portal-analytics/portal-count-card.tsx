@@ -3,10 +3,8 @@ import {
   formatTrend,
   TrendIndicator,
 } from '#/components/features/property/property-dashboard-helpers'
-import {
-  portalMetricEvidenceLine,
-  type PortalMetricEvidenceView,
-} from './portal-metric-evidence-presentation'
+import { metricEvidenceLine } from '#/components/features/dashboard/metric-availability-presentation'
+import type { PortalMetricEvidence } from '#/contexts/dashboard/application/public-api'
 
 export function PortalCountCard({
   label,
@@ -20,7 +18,7 @@ export function PortalCountCard({
   kpi: Readonly<{
     value: number | null
     trend: number | null
-    evidence: PortalMetricEvidenceView
+    evidence: PortalMetricEvidence
   }>
 }) {
   return (
@@ -39,7 +37,15 @@ export function PortalCountCard({
         </span>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        {portalMetricEvidenceLine(kpi.evidence, undefined, timeZone)}
+        {metricEvidenceLine(
+          {
+            basis: kpi.evidence.basis,
+            state: kpi.evidence.state,
+            dataThrough: kpi.evidence.verifiedThrough,
+          },
+          undefined,
+          timeZone,
+        )}
       </p>
     </div>
   )

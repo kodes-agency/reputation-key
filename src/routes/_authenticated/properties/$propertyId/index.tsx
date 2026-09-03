@@ -11,11 +11,14 @@ import { getPropertyAiAggregatesFn } from '#/contexts/ai/server/property-aggrega
 import { PropertyDashboard } from '#/components/features/property/property-dashboard'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
-import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import {
+  timeRangePreset,
+  type TimeRangePreset,
+} from '#/contexts/dashboard/application/dto/dashboard.dto'
 import type { PropertyPerformancePreset } from '#/shared/google-performance-report-contract'
 
 const propertyDashboardSearch = z.object({
-  timeRange: z.enum(['7d', '30d', '60d', '90d', 'all']).default('all'),
+  timeRange: timeRangePreset.default('30d'),
   performanceRange: z.enum(['7d', '30d', '90d', '180d']).catch('30d').default('30d'),
 })
 

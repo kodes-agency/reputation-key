@@ -187,17 +187,15 @@ afterAll(async () => {
 })
 
 describe('attention signal work-set union', () => {
-  it('counts each work anchor once while preserving the overlapping signals', async () => {
+  it('counts Dashboard-owned work anchors while leaving overdue targets to Inbox', async () => {
     const adapter = createAttentionSignalsAdapter(db, () => NOW)
 
-    await expect(adapter.getAttentionCounts(ORGANIZATION, PROPERTY, 48)).resolves.toEqual(
-      {
-        unanswered: 2,
-        itemsToTriage: 2,
-        escalated: 3,
-        goalsBehindPace: 1,
-        attentionWork: 5,
-      },
-    )
+    await expect(adapter.getAttentionCounts(ORGANIZATION, PROPERTY)).resolves.toEqual({
+      overdue: 0,
+      itemsToTriage: 2,
+      escalated: 3,
+      goalsBehindPace: 1,
+      attentionWork: 4,
+    })
   })
 })
