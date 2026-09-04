@@ -90,7 +90,7 @@ Rules, enforced by the gates themselves:
    (dates are set ≤ ~3 months out), and the full exception set is re-audited
    during BQC-8 release-candidate promotion.
 
-### Current exceptions (2026-07-31)
+### Current exceptions (2026-09-04)
 
 - Dependency audit: **none** (empty file). Prod tree: 0 high/critical
   (1 moderate + 2 low, esbuild dev-server issues via `better-auth →
@@ -98,9 +98,10 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   all dev tooling (storybook/jest `brace-expansion`, `@tanstack/devtools-vite`
   `shell-quote`, shadcn CLI `fast-uri`/`postcss`, `sharp`, eslint
   `brace-expansion`); printed every run, burning down via Dependabot.
-- Licenses: 4 reviewed entries — `lightningcss*` (MPL-2.0, build-time CSS
+- Licenses: 5 reviewed entries — `lightningcss*` (MPL-2.0, build-time CSS
   transformer), `caniuse-lite` (CC-BY-4.0, build-time data), `axe-core`
-  (MPL-2.0, dev-only a11y engine), `@img/sharp-libvips-*` (LGPL-3.0-or-later,
+  (MPL-2.0, dev-only a11y engine), `@sentry/cli*` (FSL-1.1-MIT, dev-only
+  source-map uploader), and `@img/sharp-libvips-*` (LGPL-3.0-or-later,
   dev-only sharp binaries). Each carries owner/reason/expiry in
   `security/license-policy.json`.
 - Grype: 24 wont-fix/not-fixed Debian CVE entries + 2 Go-stdlib package

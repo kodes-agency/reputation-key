@@ -113,7 +113,14 @@ const config = defineConfig(({ mode }) => {
               // manifest pins the package by sha256 under `node_modules`
               // (ai-reply-language-verifier-v1.manifest.json), so runtime
               // resolution is the attested path, not a workaround.
-              rollupConfig: { external: [/^@sentry\//, /^cld3-asm(\/|$)/] },
+              rollupConfig: {
+                // Keep the Node SDK external so the preload, Nitro hook and
+                // bundled TanStack middleware share one runtime SDK instance.
+                // The TanStack wrapper itself is build-only and must remain
+                // bundled; externalizing all @sentry packages would ship its
+                // source-map uploader and @sentry/cli in production deps.
+                external: [/^@sentry\/node(?:\/|$)/, /^cld3-asm(\/|$)/],
+              },
               // serverDir scanning stays off (default false under TanStack
               // Start), so this explicit list is the ONLY plugin registration
               // path. Wired plugins (init order):

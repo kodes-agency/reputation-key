@@ -5,12 +5,17 @@ import { describe, expect, it } from 'vitest'
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8')
 
 describe('production error-monitoring wiring', () => {
-  it('pins both Node and TanStack Start SDKs as direct runtime dependencies', () => {
+  it('keeps the Node SDK at runtime and the TanStack wrapper build-only', () => {
     const manifest = JSON.parse(read('package.json')) as {
       dependencies?: Record<string, string>
+      devDependencies?: Record<string, string>
     }
+    // Bundle the wrapper so its build-only uploader never enters the prod
+    // dependency tree; keep @sentry/node external so the --import preload,
+    // Nitro hook and Start middlewares share one SDK instance.
     expect(manifest.dependencies?.['@sentry/node']).toBe('10.71.0')
-    expect(manifest.dependencies?.['@sentry/tanstackstart-react']).toBe('10.71.0')
+    expect(manifest.dependencies?.['@sentry/tanstackstart-react']).toBeUndefined()
+    expect(manifest.devDependencies?.['@sentry/tanstackstart-react']).toBe('10.71.0')
   })
 
   it('preloads monitoring before both production application entries', () => {
@@ -62,6 +67,12 @@ describe('production error-monitoring wiring', () => {
       requestMiddleware.indexOf('sentryGlobalRequestMiddleware'),
     )
     expect(start).toContain('functionMiddleware: [sentryGlobalFunctionMiddleware]')
+  })
+
+  it('externalizes only the shared Node SDK from the server bundle', () => {
+    const viteConfig = read('vite.config.ts')
+    expect(viteConfig).toContain(String.raw`/^@sentry\/node(?:\/|$)/`)
+    expect(viteConfig).not.toContain(String.raw`/^@sentry\//`)
   })
 
   it('registers the Nitro error hook before graceful shutdown', () => {
