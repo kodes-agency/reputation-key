@@ -134,7 +134,7 @@ describe('AI admission startup isolation', () => {
     expect(() =>
       assertAiAdmissionRequiredEnvironment({
         ...admissionEnvironment(),
-        SENTRY_DSN: 'https://public@ingest.de.sentry.io/1',
+        SENTRY_DSN: 'https://public@ingest.us.sentry.io/1',
         SENTRY_TRACES_SAMPLE_RATE: '0.1',
       }),
     ).not.toThrow()

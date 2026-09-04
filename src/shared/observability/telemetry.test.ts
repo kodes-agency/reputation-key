@@ -275,7 +275,7 @@ describe('telemetry PII scrubbing (B3.5)', () => {
 describe('error monitoring runtime', () => {
   const baseConfig = {
     service: 'worker' as const,
-    dsn: 'https://public@o1.ingest.de.sentry.io/1',
+    dsn: 'https://public@o1.ingest.us.sentry.io/1',
     environment: 'cell-us',
     release: 'a'.repeat(40),
     processingCell: 'us',
@@ -508,7 +508,7 @@ describe('error monitoring runtime', () => {
     'ai-execution-admission',
     'ai-egress-gateway',
   ] as const)(
-    'supports Germany error monitoring for the %s process without competing fatal handlers',
+    'supports error monitoring for the %s process without competing fatal handlers',
     (service) => {
       const sentry = sdk()
       const monitor = createErrorMonitor({ sentry, logger: logger() })
@@ -647,7 +647,7 @@ describe('error monitoring runtime', () => {
     )
   })
 
-  it('requires the Germany ingestion host and a DSN in a deployed production cell', () => {
+  it('requires the US ingestion host and a DSN in a deployed production cell', () => {
     const deployed = {
       NODE_ENV: 'production' as const,
       PROCESSING_CELL: 'us',
@@ -665,11 +665,18 @@ describe('error monitoring runtime', () => {
         ...deployed,
         SENTRY_DSN: 'https://public@o1.ingest.sentry.io/1',
       }),
-    ).toThrow('Germany ingestion host')
+    ).toThrow('US ingestion host')
+    // A DSN from another Sentry region is refused, not silently shipped there.
+    expect(() =>
+      buildObservabilityConfig('web', {
+        ...deployed,
+        SENTRY_DSN: 'https://public@o1.ingest.de.sentry.io/1',
+      }),
+    ).toThrow('US ingestion host')
     expect(
       buildObservabilityConfig('ai-egress-gateway', {
         ...deployed,
-        SENTRY_DSN: 'https://public@o1.ingest.de.sentry.io/1',
+        SENTRY_DSN: 'https://public@o1.ingest.us.sentry.io/1',
       }),
     ).toMatchObject({
       environment: 'cell-us',

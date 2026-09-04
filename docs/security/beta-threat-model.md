@@ -15,7 +15,7 @@
 6. **Application → Resend (email)** — API key in env; email capability off by default
 7. **Application → private Railway bucket (`sjc`)** — per-property object
    storage through Railway's S3-compatible API; no public bucket authority
-8. **Application → Sentry Germany** — mandatory production error monitoring and
+8. **Application → Sentry (US region)** — mandatory production error monitoring and
    manager-authored beta feedback; outbound payload allowlisted and scrubbed
 
 ## Assets
@@ -31,7 +31,7 @@
 | Guest network pressure     | Short-lived Portal-scoped pseudonym | `guest_network_pressure_records` table       |
 | Audit log details          | Operational metadata                | `audit_logs` table                           |
 | Notification body          | Content                             | `notifications` table                        |
-| Beta feedback text         | User-authored restricted content    | Germany-hosted Sentry project                |
+| Beta feedback text         | User-authored restricted content    | US-region Sentry project                     |
 | Optional masked Bug layout | Content-free visual geometry        | Restricted Sentry attachment, ≤30-day clock  |
 | Beta feedback correlation  | Pseudonymous identifier             | HMAC-only Sentry tags / Redis abuse budgets  |
 | Beta feedback triage       | Content-free support evidence       | PostgreSQL receipt + append-only transitions |
@@ -111,7 +111,7 @@
    disregard the notice and type personal/customer content that pattern
    scrubbers cannot reliably classify. The optional Bug layout is locally
    limited to quantized geometry and cannot carry pixels/text/values/media, but
-   Germany-project placement, inbound scrubbers, operator access, event
+   Sentry-project placement (US region), inbound scrubbers, operator access, event
    retention, attachment deletion within 30 days, alert receipt, and supported-
    device inspection remain external release evidence. SDK Replay and ordinary
    screenshots remain prohibited.

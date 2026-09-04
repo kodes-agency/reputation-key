@@ -7,7 +7,7 @@
 // and flush through the existing bounded shutdown paths.
 //
 // Monitoring is an operational control, not optional product analytics. A
-// deployed Railway Data Cell therefore refuses a missing or non-Germany DSN.
+// deployed Railway Data Cell therefore refuses a missing DSN or one outside the pinned Sentry region.
 // SDK/transport failures still fail open: an observability vendor outage must
 // never turn into a RepKey application outage.
 
@@ -482,11 +482,14 @@ function isDeployedProductionCell(env: ObservabilityEnvironment): boolean {
   )
 }
 
-function assertGermanyIngestionDsn(dsn: string): void {
+// The ingestion region is pinned so a DSN pasted from another Sentry region
+// fails closed instead of silently shipping events somewhere else. The
+// project lives in Sentry's US region (owner decision, 2026-09-04).
+function assertUsIngestionDsn(dsn: string): void {
   const hostname = new URL(dsn).hostname.toLowerCase()
-  if (hostname !== 'ingest.de.sentry.io' && !hostname.endsWith('.ingest.de.sentry.io')) {
+  if (hostname !== 'ingest.us.sentry.io' && !hostname.endsWith('.ingest.us.sentry.io')) {
     throw new Error(
-      '[CONFIG] SENTRY_DSN must use the Sentry Germany ingestion host (*.ingest.de.sentry.io)',
+      '[CONFIG] SENTRY_DSN must use the Sentry US ingestion host (*.ingest.us.sentry.io)',
     )
   }
 }
@@ -501,7 +504,7 @@ export function buildObservabilityConfig(
     )
   }
   if (env.NODE_ENV === 'production' && env.SENTRY_DSN) {
-    assertGermanyIngestionDsn(env.SENTRY_DSN)
+    assertUsIngestionDsn(env.SENTRY_DSN)
   }
 
   return {

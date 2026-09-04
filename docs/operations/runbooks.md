@@ -612,25 +612,25 @@ The alert remains quiet when email is globally dark and the database contains on
 > shutdown path, and remove competing SDK fatal handlers. Final route
 > exclusions and the consent/create/preview/remove/cancel flow are implemented
 > for the Bug-only masked-layout wireframe; ordinary screenshots and every
-> `Replay*` integration remain absent. Source-map upload, Germany-project and
+> `Replay*` integration remain absent. Source-map upload, Sentry-project and
 > provider-retention inspection, external journey monitoring, alert routing,
 > and the supported-device drill remain OBS-01/release evidence. Local bundle,
 > browser-story, migration, and scrubber tests are implementation evidence, not
-> live Germany-project delivery, expiry, or alert-routing evidence.
+> live Sentry-project delivery, expiry, or alert-routing evidence.
 
 **Trigger/Symptoms:** A Data Cell refuses startup with `SENTRY_DSN is required`
-or `Germany ingestion host`; logs contain `Error monitoring initialization
+or `US ingestion host`; logs contain `Error monitoring initialization
 failed`, `capture failed`, or `flush timed out`; or the Sentry project receives
 no web/worker/sidecar events for the deployed release.
 
 **Impact:** Application work continues when the SDK or ingestion transport
 fails, but automatic error diagnosis and incident alerting are degraded. A
-missing or non-Germany DSN is different: the affected Railway web, worker, or
+missing or out-of-region DSN is different: the affected Railway web, worker, or
 sidecar process refuses startup because monitoring is mandatory for beta Data
 Cells.
 
 **Prerequisites:** Named incident owner; access to the cell's Railway shared
-variables and Germany-hosted Sentry project; candidate release SHA. Never paste
+variables and the US-region Sentry project; candidate release SHA. Never paste
 the DSN, event payload, review text, contact data, or credentials into a ticket
 or chat transcript.
 
@@ -638,7 +638,8 @@ or chat transcript.
 
 1. Confirm `web`, `worker`, and all four retained sidecars use the same
    cell-scoped `SENTRY_DSN` and `SENTRY_TRACES_SAMPLE_RATE`, and that the DSN
-   host ends in `.ingest.de.sentry.io`. There is intentionally no
+   host ends in `.ingest.us.sentry.io` (owner decision 2026-09-04; the guard
+   pins the region so a DSN from another region fails closed). There is intentionally no
    `SENTRY_ENABLED` switch.
 2. Search content-safe boot logs by `releaseSha`, `processingCell`, and
    `service` for `Error monitoring initialized`. An SDK failure is logged as an
@@ -658,7 +659,7 @@ resource or startup instability, roll back to the last signed image digest;
 runtime SDK/transport exceptions already fail open. Treat any prohibited
 content found in an event as a tenant-data incident and follow §9 immediately.
 
-**Recovery:** Correct the shared Germany DSN or transport/project state and
+**Recovery:** Correct the shared Sentry DSN or transport/project state and
 redeploy the exact candidate through the normal promotion path. Do not add a
 second worker or sidecar process-level uncaught-error handler: RepKey owns their
 drain/exit and the matching Sentry defaults are deliberately removed to avoid
@@ -796,7 +797,7 @@ preview, remove, cancel, sensitive-route denial, and the exact 30-day envelope;
 inspect tags for raw IDs; exceed each Redis budget; stop capture and prove
 503/no delivered receipt; seed email/token/review/contact markers through every
 boundary; and exercise CAS plus exact transition retry on a fresh migrated
-PostgreSQL database. Full OBS-01 closure additionally requires the Germany
+PostgreSQL database. Full OBS-01 closure additionally requires the Sentry
 project inspection, one test event per process/cell, inbound scrubber and source
 map inspection, external alert receipt, supported-device manual journey,
 provider expiry proof, and legal/retention approval.

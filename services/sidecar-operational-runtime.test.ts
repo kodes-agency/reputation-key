@@ -40,6 +40,25 @@ describe('sidecar operational runtime', () => {
     expect(order).toEqual(['monitoring', 'runtime'])
   })
 
+  it('adopts the Railway git revision as RELEASE_SHA before monitoring starts', async () => {
+    vi.stubEnv('RELEASE_SHA', '')
+    vi.stubEnv('RAILWAY_GIT_COMMIT_SHA', '7aabe93ac8933626ca848cc09f8e46d405c476f4')
+    let releaseAtInitialize: string | undefined
+    try {
+      await runSidecarStartup('google-execution-admission', async () => {}, {
+        initialize: vi.fn(() => {
+          releaseAtInitialize = process.env.RELEASE_SHA
+          return 'enabled' as const
+        }),
+        capture: vi.fn(),
+        flush: vi.fn(async () => true),
+      })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+    expect(releaseAtInitialize).toBe('7aabe93ac8933626ca848cc09f8e46d405c476f4')
+  })
+
   it('captures, flushes, and terminates without rethrowing startup content', async () => {
     const failure = new Error('sensitive startup detail')
     const termination = new Error('test termination')
