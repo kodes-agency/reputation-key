@@ -70,7 +70,7 @@
     "prepare": "husky",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "test-storybook": "test-storybook --failOnConsole --testTimeout 45000",
+    "test-storybook": "test-storybook --failOnConsole",
     "test:storybook": "VITEST_STORYBOOK=true vitest run --project='storybook:**'",
     "perf:catalog": "tsx scripts/perf/load-test.ts --list",
     "perf:run": "tsx scripts/perf/load-test.ts",
