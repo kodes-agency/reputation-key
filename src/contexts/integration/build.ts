@@ -900,6 +900,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         authorizeGoogleImportCommand,
         replayKeys: deps.googleImportReplayKeys,
         clock: deps.clock,
+        logger: deps.logger,
         idGen: deps.idGen,
         ...(googleImportV2Lifecycle
           ? { cancelImportSaga: googleImportV2Lifecycle.cancelRequest }

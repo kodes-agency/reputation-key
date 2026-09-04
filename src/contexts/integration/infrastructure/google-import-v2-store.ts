@@ -84,6 +84,11 @@ function pgErrorCode(error: unknown): unknown {
 function isPgUniqueViolation(error: unknown): boolean {
   return pgErrorCode(error) === '23505'
 }
+function importCommitContractError(message: string): Error & {
+  readonly code: 'contract_rejected'
+} {
+  return Object.assign(new Error(message), { code: 'contract_rejected' as const })
+}
 
 function assertLifecycleSweepLimit(limit: number): void {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
@@ -136,7 +141,7 @@ function retentionReleasedEvent(
 function frozenText(vector: FrozenVector, key: string): string {
   const value = vector[key]
   if (typeof value !== 'string' || value.length === 0) {
-    throw new Error(`Import authorization vector is missing ${key}`)
+    throw importCommitContractError(`Import authorization vector is missing ${key}`)
   }
   return value
 }
@@ -144,7 +149,7 @@ function frozenText(vector: FrozenVector, key: string): string {
 function frozenCount(vector: FrozenVector, key: string): number {
   const value = vector[key]
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-    throw new Error(`Import authorization vector is missing ${key}`)
+    throw importCommitContractError(`Import authorization vector is missing ${key}`)
   }
   return value
 }
@@ -653,7 +658,7 @@ export const createGoogleImportV2Store = (
         new Set(batches.flatMap((batch) => batch.items.map((item) => item.id))).size !==
           batches.reduce((total, batch) => total + batch.items.length, 0)
       ) {
-        throw new Error('invalid Google import saga batch plan')
+        throw importCommitContractError('invalid Google import saga batch plan')
       }
       const totalCount = batches.reduce((total, batch) => total + batch.items.length, 0)
       try {

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import {
   isRegionProcessable,
@@ -26,6 +27,7 @@ import {
 } from './google-import-replay'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { planGoogleImportSagaBatches } from './google-import-saga'
+import { classifyGoogleImportCommitFailure } from './google-import-error-taxonomy'
 
 const EFFECT_DEADLINE_MS = 24 * 60 * 60 * 1_000
 type ImportInputItem = StartPropertyImportV2Input['items'][number]
@@ -35,7 +37,11 @@ type OrderedImportCandidate = Readonly<{
 }>
 
 export type GoogleImportTransactionErrorCode =
-  'unauthorized' | 'invalid_reference' | 'request_conflict' | 'temporarily_unavailable'
+  | 'unauthorized'
+  | 'invalid_reference'
+  | 'request_conflict'
+  | 'contract_rejected'
+  | 'temporarily_unavailable'
 
 export class GoogleImportTransactionError extends Error {
   readonly code: GoogleImportTransactionErrorCode
@@ -114,6 +120,7 @@ export function createGoogleImportTransaction(
     authorizeGoogleImportCommand: GoogleImportCommandAuthorizer
     replayKeys: VersionedHmacKeyring
     clock: () => Date
+    logger: LoggerPort
     idGen?: () => string
     /**
      * REG-01 gate. Until credential-home brokerage exists, a single Google
@@ -418,7 +425,18 @@ export function createGoogleImportTransaction(
       let committedResult
       try {
         committedResult = await deps.store.commitSaga(intent)
-      } catch {
+      } catch (error) {
+        const failureClass = classifyGoogleImportCommitFailure(error)
+        if (failureClass === 'unclassified') {
+          deps.logger.error(
+            { err: error, operation: 'commitSaga', requestId: input.requestId },
+            'Google import saga commit threw without a classified cause',
+          )
+        }
+        if (failureClass === 'contract_rejected') {
+          return fail('contract_rejected')
+        }
+
         let recovered
         try {
           recovered = await deps.store.findReplay(scope.organizationId, input.requestId)

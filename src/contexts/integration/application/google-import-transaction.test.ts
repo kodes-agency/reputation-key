@@ -8,6 +8,9 @@ import {
 } from '#/shared/domain/ids'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
+import { OutboxPayloadError } from '#/shared/outbox/event-adapter'
+import { isBannedLogKey } from '#/shared/observability/metrics-schema'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import type {
   ClaimedImportCandidate,
   GoogleImportReferenceStore,
@@ -296,6 +299,8 @@ function setup(
     authorization,
     accessToken: null,
   }))
+  const logError = vi.fn()
+  const logger = { ...createMockLogger(), error: logError }
   const transaction = createGoogleImportTransaction({
     store: stored.store,
     references: refs.references,
@@ -303,6 +308,7 @@ function setup(
     authorizeGoogleImportCommand,
     replayKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
     clock: () => NOW,
+    logger,
     ...(overrides?.cancelImportSaga
       ? { cancelImportSaga: overrides.cancelImportSaga }
       : {}),
@@ -313,7 +319,7 @@ function setup(
         : `10000000-0000-4000-8000-${String(generated).padStart(12, '0')}`
     },
   })
-  return { transaction, authorizeGoogleImportCommand, ...refs, ...stored }
+  return { transaction, authorizeGoogleImportCommand, logError, ...refs, ...stored }
 }
 
 async function expectCode(promise: Promise<unknown>, code: string): Promise<void> {
@@ -549,15 +555,63 @@ describe('Google import transaction', () => {
     expect(fixture.releaseCandidateClaims).not.toHaveBeenCalled()
   })
 
-  it('releases claims after a confirmed rolled-back database failure', async () => {
+  it('classifies a strict outbox-schema rejection as non-retryable', async () => {
     const fixture = setup()
-    fixture.commitSaga.mockRejectedValueOnce(new Error('database unavailable'))
+    fixture.commitSaga.mockRejectedValueOnce(
+      new OutboxPayloadError('invalid_payload', 'strict schema rejected the event'),
+    )
+
+    await expectCode(fixture.transaction.start(startInput(), actor), 'contract_rejected')
+    expect(fixture.releaseCandidateClaims).toHaveBeenCalledTimes(1)
+    expect(fixture.logError).not.toHaveBeenCalled()
+  })
+
+  it('classifies a wrapped database constraint rejection as non-retryable', async () => {
+    const fixture = setup()
+    fixture.commitSaga.mockRejectedValueOnce(
+      Object.assign(new Error('query failed'), {
+        cause: Object.assign(new Error('check constraint failed'), { code: '23514' }),
+      }),
+    )
+
+    await expectCode(fixture.transaction.start(startInput(), actor), 'contract_rejected')
+    expect(fixture.releaseCandidateClaims).toHaveBeenCalledTimes(1)
+    expect(fixture.logError).not.toHaveBeenCalled()
+  })
+
+  it('keeps a transient database connection failure retryable', async () => {
+    const fixture = setup()
+    fixture.commitSaga.mockRejectedValueOnce(
+      Object.assign(new Error('database connection failed'), { code: '08006' }),
+    )
 
     await expectCode(
       fixture.transaction.start(startInput(), actor),
       'temporarily_unavailable',
     )
     expect(fixture.releaseCandidateClaims).toHaveBeenCalledTimes(1)
+    expect(fixture.logError).not.toHaveBeenCalled()
+  })
+
+  it('logs an unclassified commit failure with bounded execution identity', async () => {
+    const fixture = setup()
+    const failure = new Error('unexpected commit failure')
+    fixture.commitSaga.mockRejectedValueOnce(failure)
+
+    await expectCode(
+      fixture.transaction.start(startInput(), actor),
+      'temporarily_unavailable',
+    )
+
+    expect(fixture.logError).toHaveBeenCalledOnce()
+    const [fields, message] = fixture.logError.mock.calls[0]!
+    expect(fields).toEqual({
+      err: failure,
+      operation: 'commitSaga',
+      requestId: REQUEST_ID,
+    })
+    expect(Object.keys(fields).filter(isBannedLogKey)).toEqual([])
+    expect(message).toBe('Google import saga commit threw without a classified cause')
   })
 
   it('retains claims when both commit and recovery reads are unavailable', async () => {

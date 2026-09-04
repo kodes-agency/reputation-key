@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ExecutionPolicyModule from '#/shared/auth/execution-policy'
 import type * as RequestRuntimeConfigModule from '#/shared/config/request-runtime-config'
 import type * as LoggerModule from '#/shared/observability/logger'
+import { GoogleImportTransactionError } from '../application/google-import-transaction'
 
 /** The standard-schema surface consumed by TanStack Start's server-function builder. */
 type StandardValidator = Readonly<{
@@ -152,6 +153,22 @@ describe('startPropertyImportV2 dispatcher admission', () => {
       requestId: REQUEST_ID,
     })
     expect(mocks.start).toHaveBeenCalledTimes(1)
+  })
+
+  it('surfaces a durable contract rejection as a non-availability failure', async () => {
+    mocks.requestRuntimeConfig.mockReturnValue({
+      nodeEnv: 'production',
+      outboxDispatcherEnabled: true,
+    })
+    mocks.start.mockRejectedValueOnce(
+      new GoogleImportTransactionError('contract_rejected'),
+    )
+
+    await expect(callStart()).rejects.toMatchObject({
+      name: 'GoogleImportTransactionError',
+      code: 'contract_rejected',
+      status: 500,
+    })
   })
 
   it('admits non-production imports regardless of the dispatcher flag', async () => {

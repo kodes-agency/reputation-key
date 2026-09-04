@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GoogleImportDiscoveryErrorCode } from '#/contexts/integration/application/google-import-discovery'
+import type { GoogleImportTransactionErrorCode } from '#/contexts/integration/application/google-import-transaction'
 import {
   connectionCallbackErrorMessage,
   discoveryErrorMessage,
@@ -69,6 +70,15 @@ describe('startErrorMessage', () => {
   it('keeps its own recovery-oriented copy for start failures', () => {
     expect(startErrorMessage(coded('request_conflict'))).toMatch(/already used/i)
     expect(startErrorMessage(coded('reauthentication_required'))).toMatch(/recover it/i)
+  })
+
+  it('does not present a permanent contract rejection as retryable', () => {
+    const code = 'contract_rejected' satisfies GoogleImportTransactionErrorCode
+    const message = startErrorMessage(coded(code))
+
+    expect(message).toMatch(/contact support/i)
+    expect(message).toMatch(/cannot be retried/i)
+    expect(message).not.toMatch(/recover it|try again|try shortly/i)
   })
 })
 

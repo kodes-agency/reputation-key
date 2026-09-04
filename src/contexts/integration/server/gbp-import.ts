@@ -86,6 +86,11 @@ function transactionErrorStatus(code: GoogleImportTransactionErrorCode): number 
       return 404
     case 'request_conflict':
       return 409
+    // The request passed browser validation, but its durable fact violated a
+    // server-owned contract. It cannot succeed unchanged and must not be sold
+    // to the caller as a retryable availability failure.
+    case 'contract_rejected':
+      return 500
     case 'temporarily_unavailable':
       return 503
   }
