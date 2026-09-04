@@ -1,5 +1,9 @@
 # syntax=docker/dockerfile:1
-ARG SOURCE_REVISION=unknown
+# Railway GitHub builds inject the built revision as RAILWAY_GIT_COMMIT_SHA;
+# CI passes SOURCE_REVISION explicitly (--build-arg) and keeps winning. Either
+# way the image bakes the revision it was built from, never a hand-set one.
+ARG RAILWAY_GIT_COMMIT_SHA
+ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 # ─────────────────────────────────────────────────────────────────────────────
 # BQC-7.1 — production WEB image (TanStack Start + Nitro, node-server preset).
 #
@@ -74,11 +78,13 @@ RUN pnpm install --frozen-lockfile
 
 # ── Build web bundle (.output) + worker/migrate bundles (dist-worker) ───────
 FROM deps AS build
+ARG SOURCE_REVISION
 COPY . .
 # Inert build-time placeholders (same values as ci.yml's Web build step) —
 # the env schema is evaluated at build time; nothing connects anywhere.
 # Inline on RUN so they never persist in image metadata/layers.
 RUN NODE_ENV=production \
+    SOURCE_REVISION=$SOURCE_REVISION \
     DATABASE_URL=postgresql://build:build@localhost:5432/build \
     BETTER_AUTH_SECRET=build-placeholder-secret-32-characters-xx \
     BETTER_AUTH_URL=http://localhost:3000 \

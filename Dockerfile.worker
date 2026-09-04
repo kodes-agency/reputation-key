@@ -1,5 +1,9 @@
 # syntax=docker/dockerfile:1
-ARG SOURCE_REVISION=unknown
+# Railway GitHub builds inject the built revision as RAILWAY_GIT_COMMIT_SHA;
+# CI passes SOURCE_REVISION explicitly (--build-arg) and keeps winning. Either
+# way the image bakes the revision it was built from, never a hand-set one.
+ARG RAILWAY_GIT_COMMIT_SHA
+ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 # ─────────────────────────────────────────────────────────────────────────────
 # BQC-7.1 — production WORKER image (BullMQ: job workers, schedules, outbox
 # relay). Shares the base/deps/build/prod-deps stages with the web Dockerfile

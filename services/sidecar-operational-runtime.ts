@@ -25,6 +25,7 @@ import {
   type SidecarServiceName,
   type SidecarTerminationTrigger,
 } from './process-lifecycle'
+import { adoptGitRevisionAsReleaseSha } from './sidecar-release-identity'
 
 type SidecarProcessTarget = Readonly<{
   once(event: string, listener: (...arguments_: unknown[]) => void): unknown
@@ -60,6 +61,8 @@ export async function runSidecarStartup(
   observability: SidecarStartupDependencies,
 ): Promise<void> {
   try {
+    // Before monitoring: the client tags every event with the release.
+    adoptGitRevisionAsReleaseSha(process.env)
     observability.initialize(service)
     await start()
   } catch (error) {

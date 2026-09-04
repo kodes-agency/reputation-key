@@ -129,7 +129,7 @@ describe('Google execution-admission startup isolation', () => {
         RAILWAY_REPLICA_REGION: 'europe-west4',
         RAILWAY_SERVICE_ID: 'service',
         RAILWAY_SERVICE_NAME: 'google-execution-admission',
-        SENTRY_DSN: 'https://public@ingest.de.sentry.io/1',
+        SENTRY_DSN: 'https://public@ingest.us.sentry.io/1',
         SENTRY_TRACES_SAMPLE_RATE: '0.1',
       }),
     ).not.toThrow()
