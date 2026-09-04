@@ -6,6 +6,11 @@ Owner: Platform/Operations
 
 Authority: `REG-03` in `docs/comprehensive-beta-implementation-program-2026-08-25.md`
 
+The existing `google-closed-beta` environment has a separate, non-promotional
+CI digest delivery path documented in
+[Closed-beta CI image delivery](closed-beta-ci-image-delivery.md). It does not
+change or satisfy any `cell-us` gate below.
+
 ## Safety contract
 
 A RepKey release is one canonical, Sigstore-signed promotion manifest produced

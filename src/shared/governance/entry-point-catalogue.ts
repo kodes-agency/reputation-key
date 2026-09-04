@@ -5766,6 +5766,16 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/deploy-ci-images.ts',
+    'scripts/ops/deploy-ci-images.ts',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'ops:deploy-ci-images — closed-beta-only report/apply controller for the seven exact digest-pinned production images emitted by the successful main push CI run; refuses incomplete or cross-revision maps and non-ancestor revisions, requires an explicit --live apply opt-in, and waits for Railway deployment and replica health. It cannot consume, weaken, or replace the signed cell-us promotion ceremony',
+    },
+  ),
+  ops(
     'scripts/ops/google-content-approval-sign.ts',
     'scripts/ops/google-content-approval-sign.ts',
     'tenant_cross',

@@ -130,6 +130,7 @@
     "check:runtime-environment-contract": "tsx scripts/ci/check-runtime-environment-contract.ts",
     "ops:queue": "tsx scripts/ops/queue-quarantine.ts",
     "ops:quarantine": "tsx scripts/ops/quarantine-redrive.ts",
+    "ops:deploy-ci-images": "tsx scripts/ops/deploy-ci-images.ts",
     "ops:reconcile-grants": "tsx scripts/ops/reconcile-staff-grants.ts",
     "ops:reconcile-regions": "tsx scripts/ops/reconcile-regions.ts",
     "ops:google-credential-home-backfill": "tsx scripts/ops/google-credential-home-backfill.ts",
