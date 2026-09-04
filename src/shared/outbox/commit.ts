@@ -11,7 +11,8 @@ import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { getLogger } from '#/shared/observability/logger'
-import { toOutboxEvent } from './event-adapter'
+import { getRequestContext } from '#/shared/observability/request-context'
+import { toOutboxEvent, withEnvelopeIdentifiers } from './event-adapter'
 
 /** Drizzle transaction handle — the `tx` inside db.transaction(...). */
 export type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
@@ -42,8 +43,9 @@ export async function insertOutboxRow(
   event: DomainEvent,
   options: Readonly<{ recordedAt?: Date }> = {},
 ): Promise<void> {
+  const contextualEvent = withEnvelopeIdentifiers(event, getRequestContext())
   await tx.insert(outboxEvents).values({
-    ...toOutboxEvent(event),
+    ...toOutboxEvent(contextualEvent),
     id: event.eventId,
     ...(options.recordedAt ? { createdAt: options.recordedAt } : {}),
   })
@@ -58,10 +60,11 @@ export async function insertOutboxRowIfNew(
   event: DomainEvent,
   options: Readonly<{ recordedAt?: Date }> = {},
 ): Promise<boolean> {
+  const contextualEvent = withEnvelopeIdentifiers(event, getRequestContext())
   const rows = await tx
     .insert(outboxEvents)
     .values({
-      ...toOutboxEvent(event),
+      ...toOutboxEvent(contextualEvent),
       id: event.eventId,
       ...(options.recordedAt ? { createdAt: options.recordedAt } : {}),
     })

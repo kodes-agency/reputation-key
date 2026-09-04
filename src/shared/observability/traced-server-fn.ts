@@ -41,25 +41,29 @@ export function tracedHandler<TInput, TOutput>(
     })
     const start = Date.now()
 
-    return runWithContext(requestId, async () => {
-      // Seed the span with the operation name so trace() spans and handler-body
-      // log calls carry it even before resolveTenantContext enriches the role.
-      // BQC-7.3: tenant identifiers are never span attrs — role only.
-      enrichSpan({ useCase: name ?? 'serverFn' })
-      try {
-        const result = await fn(ctx)
-        log.info({ duration: Date.now() - start }, 'request complete')
-        span.end()
-        return result
-      } catch (e) {
-        span.end(e)
-        // Already a ServerFunctionError (tagged by domain catch block) — just re-throw
-        if (e instanceof ServerFunctionError) {
-          throw e
+    return runWithContext(
+      requestId,
+      async () => {
+        // Seed the span with the operation name so trace() spans and handler-body
+        // log calls carry it even before resolveTenantContext enriches the role.
+        // BQC-7.3: tenant identifiers are never span attrs — role only.
+        enrichSpan({ useCase: name ?? 'serverFn' })
+        try {
+          const result = await fn(ctx)
+          log.info({ duration: Date.now() - start }, 'request complete')
+          span.end()
+          return result
+        } catch (e) {
+          span.end(e)
+          // Already a ServerFunctionError (tagged by domain catch block) — just re-throw
+          if (e instanceof ServerFunctionError) {
+            throw e
+          }
+          // Untagged error — log full detail and wrap as generic 500
+          catchUntagged(e)
         }
-        // Untagged error — log full detail and wrap as generic 500
-        catchUntagged(e)
-      }
-    }) as Promise<TOutput>
+      },
+      { commandId: requestId },
+    ) as Promise<TOutput>
   }
 }

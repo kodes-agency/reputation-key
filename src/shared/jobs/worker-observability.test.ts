@@ -51,6 +51,7 @@ vi.mock('bullmq', () => {
 
 import { Worker, type Job, type Queue } from 'bullmq'
 import { createJobWorker } from './worker'
+import { getRequestContext } from '#/shared/observability/request-context'
 
 type FakeWorker = Worker & {
   listeners: Map<string, (...args: unknown[]) => void>
@@ -84,6 +85,22 @@ describe('worker observability', () => {
       source: 'bullmq-worker',
       queue: 'default',
     })
+  })
+
+  it('installs the BullMQ job id as the durable-fact causation context', async () => {
+    let causationId: string | undefined
+    createJobWorker('default', async () => {
+      causationId = getRequestContext()?.causationId
+    })
+    const runtimeHandler = fakeWorkers().at(-1)!.handler as (job: Job) => Promise<unknown>
+
+    await runtimeHandler({
+      id: 'outbox-event-1',
+      name: 'review.created',
+      data: {},
+    } as Job)
+
+    expect(causationId).toBe('outbox-event-1')
   })
 
   it('captures only a job failure whose retry budget is exhausted', () => {

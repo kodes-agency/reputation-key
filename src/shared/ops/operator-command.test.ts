@@ -22,6 +22,7 @@ import {
   type OperatorRuntime,
 } from './operator-command'
 import type { DecisionRequest, ExecutionDecision } from '#/shared/auth/execution-policy'
+import { getRequestContext } from '#/shared/observability/request-context'
 
 const READ_SPEC: OperatorCommandSpec = {
   name: 'ops:inspect',
@@ -308,6 +309,25 @@ describe('runOperatorCommand', () => {
       dryRun: false,
     })
     expect(io.outLines.join('\n')).toContain('decision=allow')
+  })
+
+  it('uses the per-invocation correlation id as the operator command id', async () => {
+    const { runtime } = runtimeAllow()
+    const io = memoryIO()
+    let commandId: string | undefined
+
+    const result = await runOperatorCommand(
+      MUTATION_SPEC,
+      async () => {
+        commandId = getRequestContext()?.commandId
+      },
+      runtime,
+      ['--operator', 'op@x.io'],
+      io,
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(commandId).toBe('corr-unit-1')
   })
 
   it('mutation defaults to dry-run; --apply + --reason executes', async () => {

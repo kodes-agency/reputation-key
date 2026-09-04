@@ -41,6 +41,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { DecisionRequest, ExecutionDecision } from '#/shared/auth/execution-policy'
+import { runWithCommandContext } from '#/shared/outbox/command-context'
 
 /** The catalogue action every operator command evaluates (entry-point catalogue). */
 export const OPERATOR_ACTION = 'system:ops'
@@ -397,25 +398,27 @@ export async function runOperatorCommand(
   const args = parsed.args
 
   const correlationId = runtime.newCorrelationId?.() ?? randomUUID()
-  const dryRun = spec.mutation ? !args.apply : false
-  const decision = await runtime.decide(
-    decisionRequestFor(spec, args, correlationId, runtime.now?.() ?? new Date()),
-  )
-  io.out(headerLine(spec, args, correlationId, dryRun, decision))
-
-  if (!decision.allowed) {
-    return { exitCode: 1, correlationId, decision }
-  }
-
-  try {
-    const code = await action(
-      contextFor(spec, args, correlationId, dryRun, decision),
-      args,
-      io,
+  return runWithCommandContext(correlationId, async () => {
+    const dryRun = spec.mutation ? !args.apply : false
+    const decision = await runtime.decide(
+      decisionRequestFor(spec, args, correlationId, runtime.now?.() ?? new Date()),
     )
-    return { exitCode: code ?? 0, correlationId, decision }
-  } catch (err) {
-    io.err(`${spec.name} failed: ${err instanceof Error ? err.message : String(err)}`)
-    return { exitCode: 1, correlationId, decision }
-  }
+    io.out(headerLine(spec, args, correlationId, dryRun, decision))
+
+    if (!decision.allowed) {
+      return { exitCode: 1, correlationId, decision }
+    }
+
+    try {
+      const code = await action(
+        contextFor(spec, args, correlationId, dryRun, decision),
+        args,
+        io,
+      )
+      return { exitCode: code ?? 0, correlationId, decision }
+    } catch (err) {
+      io.err(`${spec.name} failed: ${err instanceof Error ? err.message : String(err)}`)
+      return { exitCode: 1, correlationId, decision }
+    }
+  })
 }

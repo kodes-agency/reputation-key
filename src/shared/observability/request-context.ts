@@ -4,9 +4,9 @@
 // "Import Protection" — file markers.
 import '@tanstack/react-start/server-only'
 
-// Request-scoped context via AsyncLocalStorage.
-// Set once per request at the server function or route loader boundary.
-// Downstream code (logger, trace) reads from ALS — no parameter threading.
+// Execution-scoped context via AsyncLocalStorage.
+// Set once per request, operator command, or BullMQ job. Downstream code
+// (logger, trace, durable-fact adapter) reads from ALS — no parameter threading.
 
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { randomUUID } from 'node:crypto'
@@ -30,6 +30,10 @@ export interface SpanAttrs {
 
 export interface RequestContext {
   readonly requestId: string
+  /** ARC-01: direct cause for durable facts emitted in this execution. */
+  readonly causationId?: string
+  /** ARC-01: root command identifier propagated across its durable fact chain. */
+  readonly commandId?: string
   /** Mutable span attributes — enriched after tenant resolution. */
   spanAttrs: SpanAttrs
   /** Per-request memo for resolveTenantContext (AC-03). Avoids re-work within one server fn. */
@@ -60,8 +64,12 @@ export function getSpanAttrs(): SpanAttrs {
   return asyncLocalStorage.getStore()?.spanAttrs ?? {}
 }
 
-export function runWithContext<T>(requestId: string, fn: () => Promise<T>): Promise<T> {
-  return asyncLocalStorage.run({ requestId, spanAttrs: {} }, fn)
+export function runWithContext<T>(
+  requestId: string,
+  fn: () => Promise<T>,
+  identifiers: Readonly<{ causationId?: string; commandId?: string }> = {},
+): Promise<T> {
+  return asyncLocalStorage.run({ requestId, spanAttrs: {}, ...identifiers }, fn)
 }
 
 export function generateRequestId(): string {

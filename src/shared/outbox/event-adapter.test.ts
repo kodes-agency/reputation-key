@@ -1,7 +1,13 @@
 // BQR-2.5 — allowlist validation at outbox insert.
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { toOutboxEvent, tryToOutboxEvent, OutboxPayloadError } from './event-adapter'
+import {
+  extractAggregateId,
+  OutboxPayloadError,
+  toOutboxEvent,
+  tryToOutboxEvent,
+  withEnvelopeIdentifiers,
+} from './event-adapter'
 import {
   clearEventSchemas,
   isEventRegistered,
@@ -67,7 +73,7 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     })
   })
 
-  it('stores only allowlisted fields (no content, no envelope meta)', () => {
+  it('stores only allowlisted fields plus identifier-only envelope metadata', () => {
     const row = toOutboxEvent(makeReviewCreated())
     expect(row.eventType).toBe('review.created')
     expect(row.payload).toEqual({
@@ -94,6 +100,83 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     const event = { ...makeReviewCreated(), correlationId: 'corr-123' } as DomainEvent
     const row = toOutboxEvent(event)
     expect(row.payload).toHaveProperty('correlationId', 'corr-123')
+  })
+
+  it('re-attaches causation and command identifiers after schema validation', () => {
+    const event = {
+      ...makeReviewCreated(),
+      causationId: 'cause-123',
+      commandId: 'command-123',
+    } as unknown as DomainEvent
+    const row = toOutboxEvent(event)
+
+    expect(row.payload).toMatchObject({
+      correlationId: null,
+      causationId: 'cause-123',
+      commandId: 'command-123',
+    })
+  })
+
+  it('keeps fact-authored identifiers ahead of ambient context', () => {
+    const event = {
+      ...makeReviewCreated(),
+      causationId: 'explicit-cause',
+      commandId: 'explicit-command',
+    } as unknown as DomainEvent
+
+    expect(
+      withEnvelopeIdentifiers(event, {
+        causationId: 'ambient-cause',
+        commandId: 'ambient-command',
+      }),
+    ).toMatchObject({
+      causationId: 'explicit-cause',
+      commandId: 'explicit-command',
+    })
+  })
+
+  it.each([
+    ['reviewId', 'review'],
+    ['runId', 'run'],
+    ['replyId', 'reply'],
+    ['inboxItemId', 'inbox_item'],
+    ['monthlyResultId', 'monthly_result'],
+    ['noteId', 'note'],
+    ['scheduleId', 'schedule'],
+    ['uploadId', 'upload'],
+    ['propertyId', 'property'],
+    ['portalId', 'portal'],
+    ['portalGroupId', 'portal_group'],
+    ['portalLinkId', 'portal_link'],
+    ['portalLinkCategoryId', 'portal_link_category'],
+    ['teamId', 'team'],
+    ['staffId', 'staff'],
+    ['goalId', 'goal'],
+    ['invitationId', 'invitation'],
+    ['importJobId', 'import_job'],
+    ['connectionId', 'connection'],
+    ['scanId', 'scan'],
+    ['ratingId', 'rating'],
+    ['feedbackId', 'feedback'],
+    ['linkId', 'link'],
+    ['userId', 'user'],
+    ['memberUserId', 'member_user'],
+    ['closureLineageId', 'closure_lineage'],
+  ] as const)('derives aggregate type %s as %s', (field, type) => {
+    const id = `${type}-1`
+    expect(extractAggregateId({ eventId: 'evt-fallback', [field]: id })).toEqual({
+      id,
+      type,
+    })
+  })
+
+  it('uses the explicit event aggregate sentinel when no candidate field matches', () => {
+    expect(
+      extractAggregateId({ eventId: 'evt-fallback', resourceId: 'resource-1' }),
+    ).toEqual({
+      id: 'evt-fallback',
+      type: 'event',
+    })
   })
 
   it('persists connected events only as canonical identifier-only v3', () => {

@@ -12,8 +12,9 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import type { OutboxRepository } from './infrastructure/outbox-repository'
-import { tryToOutboxEvent } from './event-adapter'
+import { tryToOutboxEvent, withEnvelopeIdentifiers } from './event-adapter'
 import { getLogger } from '#/shared/observability/logger'
+import { getRequestContext } from '#/shared/observability/request-context'
 
 /**
  * Emit a domain event to the in-process bus AND record it in the outbox
@@ -29,7 +30,8 @@ export async function emitAndRecord(
   await events.emit(event)
   if (!outboxRepo) return
 
-  const row = tryToOutboxEvent(event)
+  const contextualEvent = withEnvelopeIdentifiers(event, getRequestContext())
+  const row = tryToOutboxEvent(contextualEvent)
   if (!row) {
     getLogger().debug(
       { eventType: event._tag, correlationId: event.correlationId ?? undefined },
