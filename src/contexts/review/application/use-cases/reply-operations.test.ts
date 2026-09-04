@@ -1081,7 +1081,7 @@ describe('retryPublish', () => {
     expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
   })
 
-  it('rejects retry for non-failed reply', async () => {
+  it('treats provider-confirmed publication as an idempotent retry when reconciliation wins the race', async () => {
     const published = makeReply({ status: 'published', publicationState: 'published' })
     const deps = makeDeps({
       replyRepo: {
@@ -1089,9 +1089,53 @@ describe('retryPublish', () => {
         findInternalByReviewId: vi.fn(async () => published),
       } as unknown as ReplyRepository,
     })
+
+    await expect(retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)).resolves.toBe(
+      published,
+    )
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when published status lacks settled publication state', async () => {
+    const inconsistent = makeReply({
+      status: 'published',
+      publicationState: 'ambiguous',
+      publicationCycle: 1,
+      publicationAttempts: 1,
+      publicationLastErrorClass: 'ambiguous',
+      reconcileDueAt: NOW,
+    })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => inconsistent),
+        findById: vi.fn(async () => inconsistent),
+      } as unknown as ReplyRepository,
+    })
+
     await expect(
       retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+    expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  })
+
+  it('rejects retry for an ineligible non-failed reply', async () => {
+    const draft = makeReply({ status: 'draft', publicationState: null })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => draft),
+      } as unknown as ReplyRepository,
+    })
+
+    await expect(
+      retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
+    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
   // BQC-3.8 §6: reconcile-before-retry — an ambiguous publication may have
@@ -1149,6 +1193,85 @@ describe('retryPublish', () => {
     })
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
     expect(deps.googleReplyObservationStore.record).toHaveBeenCalledTimes(1)
+  })
+
+  it('returns the published reply when reconciliation wins after retry reads ambiguity', async () => {
+    const ambiguous = makeReply({
+      status: 'publish_failed',
+      publicationState: 'ambiguous',
+      publicationCycle: 1,
+      publicationAttempts: 1,
+      publicationLastErrorClass: 'ambiguous',
+      reconcileDueAt: NOW,
+    })
+    const published = {
+      ...ambiguous,
+      status: 'published' as const,
+      publicationState: 'published' as const,
+      publishedAt: NOW,
+    }
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => ambiguous),
+        findById: vi.fn(async () => published),
+      } as unknown as ReplyRepository,
+    })
+
+    await expect(retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)).resolves.toBe(
+      published,
+    )
+    expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
+    expect(deps.replyRepo.conditionalUpdate).not.toHaveBeenCalled()
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
+  })
+
+  it('returns the published reply when reauthorization CAS loses to reconciliation', async () => {
+    const ambiguous = makeReply({
+      status: 'publish_failed',
+      publicationState: 'ambiguous',
+      publicationCycle: 1,
+      publicationAttempts: 1,
+      publicationLastErrorClass: 'ambiguous',
+      reconcileDueAt: NOW,
+    })
+    const published = {
+      ...ambiguous,
+      status: 'published' as const,
+      publicationState: 'published' as const,
+      publishedAt: NOW,
+    }
+    const conditionalUpdate = vi.fn(async () => null)
+    const reviewWithConnection = makeReview({
+      googleConnectionId: 'conn-1' as never,
+      externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+      externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+    })
+    const deps = makeDeps({
+      replyRepo: {
+        ...makeDeps().replyRepo,
+        findInternalByReviewId: vi.fn(async () => ambiguous),
+        findById: vi.fn().mockResolvedValueOnce(ambiguous).mockResolvedValue(published),
+        conditionalUpdate,
+      } as unknown as ReplyRepository,
+      reviewRepo: {
+        findById: vi.fn(async () => reviewWithConnection),
+      } as unknown as ReviewRepository,
+    })
+    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
+      status: 'found',
+      review: {
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+        replyText: null,
+      } as never,
+    })
+
+    await expect(retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)).resolves.toBe(
+      published,
+    )
+    expect(conditionalUpdate).toHaveBeenCalledTimes(1)
+    expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
   it('ambiguous + provider does NOT show the reply → proceeds with re-approve + enqueue', async () => {

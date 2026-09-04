@@ -114,6 +114,12 @@ async function requireAccessibleReply(
   return { reply, review }
 }
 
+function isSettledPublishedReply(
+  reply: Reply | null,
+): reply is Reply & { status: 'published'; publicationState: 'published' } {
+  return reply?.status === 'published' && reply.publicationState === 'published'
+}
+
 async function resolvePublicationAuthorizationFence(
   deps: ReplyDeps,
   review: Review,
@@ -604,6 +610,11 @@ export const retryPublish =
     // D6-001: scope reply mutations to the caller's assigned properties.
     const { reply, review } = await requireAccessibleReply(deps, ctx, input.reviewId)
 
+    // Provider-snapshot reconciliation is asynchronous. If it settled this
+    // publication before the operator's retry arrived, the command is already
+    // satisfied and must not begin another publication cycle.
+    if (isSettledPublishedReply(reply)) return reply
+
     // BQC-3.8: reconcile-before-retry for an AMBIGUOUS publication. The
     // previous send may have landed on Google — re-read provider state first:
     //   provider shows the reply → heal to published and STOP (no re-enqueue,
@@ -618,7 +629,13 @@ export const retryPublish =
         observationStore: deps.googleReplyObservationStore,
         clock: deps.clock,
       })({ replyId: reply.id, organizationId: ctx.organizationId })
-      if (reconciled.isErr()) throw reconciled.error
+      if (reconciled.isErr()) {
+        // Another reconciler may have committed published after our first
+        // read but before this reconciliation acquired its state.
+        const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
+        if (isSettledPublishedReply(current)) return current
+        throw reconciled.error
+      }
       if (reconciled.value.outcome === 'confirmed_on_google') {
         const healed = await deps.replyRepo.findById(reply.id, ctx.organizationId)
         if (!healed) throw reviewError('reply_not_found', 'Reply not found')
@@ -656,7 +673,13 @@ export const retryPublish =
         now,
       ),
     )
-    if (backToApprovedResult.isErr()) throw backToApprovedResult.error
+    if (backToApprovedResult.isErr()) {
+      // The authorization CAS can lose to the same legitimate publication
+      // transition. Durable published state means the requested outcome won.
+      const current = await deps.replyRepo.findById(reply.id, ctx.organizationId)
+      if (isSettledPublishedReply(current)) return current
+      throw backToApprovedResult.error
+    }
     const backToApproved = backToApprovedResult.value
 
     // Post-commit enqueue (no new fact — re-approval reuses the approved
