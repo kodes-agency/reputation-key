@@ -79,30 +79,34 @@ export async function settlePortalVisitOnce({
   sessionKey,
   onPortalVisit,
 }: Readonly<{
-  storage: PortalVisitStorage
+  storage: PortalVisitStorage | null
   scopeKey: string
   sessionKey: string
   onPortalVisit: GuestAnalyticsNoticeProps['onPortalVisit']
 }>): Promise<void> {
   const recordedKey = portalVisitStorageKey(scopeKey, sessionKey)
-  try {
-    if (storage.getItem(recordedKey) === 'recorded') return
-    // A stale `pending` marker means the prior page closed before confirmation;
-    // retry it. The component's in-memory guard prevents effect duplication.
-    storage.setItem(recordedKey, 'pending')
-  } catch {
-    // Storage may be unavailable in hardened browsers. The component's in-memory
-    // guard still protects this mount; the server owns authoritative dedupe.
+  if (storage !== null) {
+    try {
+      if (storage.getItem(recordedKey) === 'recorded') return
+      // A stale `pending` marker means the prior page closed before confirmation;
+      // retry it. The component's in-memory guard prevents effect duplication.
+      storage.setItem(recordedKey, 'pending')
+    } catch {
+      // Storage may be unavailable in hardened browsers. The component's in-memory
+      // guard still protects this mount; the server owns authoritative dedupe.
+    }
   }
 
   const settled = await settlePortalVisit(onPortalVisit)
-  try {
-    if (settled) storage.setItem(recordedKey, 'recorded')
-    else if (storage.getItem(recordedKey) === 'pending') {
-      storage.removeItem(recordedKey)
+  if (storage !== null) {
+    try {
+      if (settled) storage.setItem(recordedKey, 'recorded')
+      else if (storage.getItem(recordedKey) === 'pending') {
+        storage.removeItem(recordedKey)
+      }
+    } catch {
+      // A future mount can still retry when storage is unavailable.
     }
-  } catch {
-    // A future mount can still retry when storage is unavailable.
   }
 }
 
@@ -129,8 +133,14 @@ export function GuestAnalyticsNotice({
   const recordPortalVisit = useCallback(() => {
     if (notifiedThisMount.current) return
     notifiedThisMount.current = true
+    let storage: PortalVisitStorage | null = null
+    try {
+      storage = sessionStorage
+    } catch {
+      // Accessing the Storage object itself can throw in hardened browsers.
+    }
     void settlePortalVisitOnce({
-      storage: sessionStorage,
+      storage,
       scopeKey,
       sessionKey,
       onPortalVisit,
