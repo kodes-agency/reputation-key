@@ -234,6 +234,7 @@ describe('alert registry contract (BQC-7.4)', () => {
       'routing.region-attempts',
       'security.scan',
       'source.freshness-deadline',
+      'sync.failed-nonzero',
       'sync.sweep-lag',
       'web.availability',
       'worker.heartbeat.stale',
@@ -383,6 +384,17 @@ const BREACHES: readonly Breach[] = [
       // Deliberately under the 24h SLA so this injection does not also trip
       // queue.quarantine-growth — the two alerts must be separable.
       s.quarantine = { count: 2, oldestAgeMs: 20 * 60 * 1000 }
+    },
+  },
+  {
+    name: 'sync.failed-nonzero',
+    severity: 'P2',
+    runbook: 'runbooks.md §13',
+    threshold: 0,
+    windowMs: 5 * 60 * 1000,
+    value: 2,
+    apply: (s) => {
+      s.sync = { ...s.sync, failedSyncCount: 2 }
     },
   },
   {

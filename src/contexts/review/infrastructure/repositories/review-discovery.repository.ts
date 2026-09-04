@@ -173,8 +173,6 @@ export const createReviewDiscoveryRepository = (
           set: {
             nextIncrementalAt: nextDueAt,
             lastSuccessAt: now,
-            errorClass: null,
-            errorRetryAt: null,
             updatedAt: now,
           },
         })
@@ -201,5 +199,22 @@ export const createReviewDiscoveryRepository = (
             updatedAt: now,
           },
         })
+    }),
+
+  markSyncSucceeded: async (propertyId) =>
+    trace('review.discovery.markSyncSucceeded', async () => {
+      await db
+        .update(reviewSyncState)
+        .set({
+          errorClass: null,
+          errorRetryAt: null,
+          updatedAt: sql`transaction_timestamp()`,
+        })
+        .where(
+          and(
+            eq(reviewSyncState.propertyId, propertyId),
+            eq(reviewSyncState.source, DISCOVERY_SOURCE),
+          ),
+        )
     }),
 })

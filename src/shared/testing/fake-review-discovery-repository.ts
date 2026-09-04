@@ -30,6 +30,7 @@ export type FakeDiscoveryPropertyRow = {
   /** review_sync_state.next_incremental_at — null = never polled. */
   nextDueAt: Date | null
   errorClass: string | null
+  errorRetryAt: Date | null
   lastSuccessAt: Date | null
   /** review_sync_state.last_new_review_at (migration 0071). */
   lastNewReviewAt: Date | null
@@ -92,7 +93,6 @@ export const createFakeReviewDiscoveryRepository = (
       if (!row) return
       row.nextDueAt = nextDueAt
       row.lastSuccessAt = now
-      row.errorClass = null
     },
 
     markDiscoveryDeferred: async (propertyId, _now, nextDueAt, errorClass) => {
@@ -100,6 +100,14 @@ export const createFakeReviewDiscoveryRepository = (
       if (!row) return
       row.nextDueAt = nextDueAt
       row.errorClass = errorClass
+      row.errorRetryAt = nextDueAt
+    },
+
+    markSyncSucceeded: async (propertyId) => {
+      const row = rows.find((r) => r.propertyId === propertyId)
+      if (!row) return
+      row.errorClass = null
+      row.errorRetryAt = null
     },
   }
   return { rows, ...base, ...overrides }
@@ -121,6 +129,7 @@ export const fakeDiscoveryProperty = (
   credentialUseState: 'active',
   nextDueAt: null,
   errorClass: null,
+  errorRetryAt: null,
   lastSuccessAt: null,
   lastNewReviewAt: null,
   lastNotificationAt: null,

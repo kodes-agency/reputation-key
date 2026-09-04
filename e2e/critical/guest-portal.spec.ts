@@ -431,7 +431,9 @@ test.describe('Critical: public Portal basics', () => {
     await page.goto(`/p/${seed.portalToken}`)
     await settleGuestConsent(page)
     await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
-    await expect.poll(countScans, { timeout: 10_000 }).toBe(before + 1)
+    // Main run 33685556953 exhausted 10s (expected 8, received 7), then passed
+    // on retry: the durable path includes a 5s relay tick plus cold BullMQ startup.
+    await expect.poll(countScans, { timeout: 20_000 }).toBe(before + 1)
 
     await page.reload()
     await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()

@@ -303,6 +303,24 @@ describe('queue.quarantine-nonempty', () => {
   })
 })
 
+describe('sync.failed-nonzero', () => {
+  it('fires when any coded sync failure has reached its retry time', () => {
+    const s = healthy()
+    s.sync = { ...s.sync, failedSyncCount: 2 }
+
+    expect(evaluateOne('sync.failed-nonzero', s)).toMatchObject({
+      name: 'sync.failed-nonzero',
+      severity: 'P2',
+      value: 2,
+      threshold: 0,
+    })
+  })
+
+  it('stays silent when no sync failure is due', () => {
+    expect(evaluateOne('sync.failed-nonzero', healthy())).toBeNull()
+  })
+})
+
 // ── sync freshness: new reviews not arriving ──────────────────────
 
 describe('sync.sweep-lag', () => {

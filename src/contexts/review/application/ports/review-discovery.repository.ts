@@ -10,6 +10,7 @@
 // Content-free: identifiers, timestamps, and an error class only.
 
 import type { DiscoveryActivity } from '../../domain/discovery-backoff'
+import type { ReviewProviderSnapshotFailureCode } from './review-provider-snapshot.repository'
 
 export type ReviewDiscoveryCandidate = Readonly<{
   propertyId: string
@@ -45,21 +46,20 @@ export type ReviewDiscoveryRepository = Readonly<{
     limit: number,
   ): Promise<readonly ReviewDiscoveryCandidate[]>
 
-  /**
-   * A sync job was enqueued for this property: clear the error state and
-   * push the next poll to `nextDueAt`.
-   */
+  /** A sync job was accepted for this property: push the next poll to `nextDueAt`. */
   markDiscoveryScheduled(propertyId: string, now: Date, nextDueAt: Date): Promise<void>
 
   /**
-   * The enqueue failed for this property: record the error class and defer
-   * the next poll to `nextDueAt`. Deferring on failure is what keeps one
-   * broken property from consuming every batch of every subsequent run.
+   * Discovery enqueue or provider execution failed for this property: record
+   * the bounded failure class and defer the next poll to `nextDueAt`.
    */
   markDiscoveryDeferred(
     propertyId: string,
     now: Date,
     nextDueAt: Date,
-    errorClass: string,
+    errorClass: ReviewProviderSnapshotFailureCode | 'enqueue_failed',
   ): Promise<void>
+
+  /** A provider snapshot completed: clear its durable failure state. */
+  markSyncSucceeded(propertyId: string): Promise<void>
 }>

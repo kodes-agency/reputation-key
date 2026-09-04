@@ -625,6 +625,43 @@ describe('runReviewProviderSnapshot', () => {
     )
   })
 
+  it.each(['authorization_denied', 'runtime_unavailable', 'stale_source'] as const)(
+    'preserves the Review sync authorization cause %s',
+    async (code) => {
+      const deps = makeDeps()
+      vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(
+        Object.assign(new Error(code), { code }),
+      )
+
+      await expect(
+        runReviewProviderSnapshot(deps)({ ...request, runId }),
+      ).resolves.toEqual({
+        status: 'failed',
+        runId,
+        code,
+      })
+      expect(deps.logger.error).not.toHaveBeenCalled()
+    },
+  )
+
+  it('logs a code-less provider failure with its bounded execution identity', async () => {
+    const deps = makeDeps()
+    const error = new Error('uncoded provider failure')
+    vi.mocked(deps.googleReviewApi.listReviewsPage).mockRejectedValue(error)
+
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      {
+        status: 'failed',
+        runId,
+        code: 'provider_failure',
+      },
+    )
+    expect(deps.logger.error).toHaveBeenCalledWith(
+      { err: error, runId, propertyId },
+      'review snapshot failed without a coded cause',
+    )
+  })
+
   it('applies only the fixed 100-row deletion batch and resumes until complete', async () => {
     const deps = makeDeps({ currentRun: run({ state: 'deleting', phase: 'apply' }) })
     vi.mocked(deps.repository.applyDeletionBatch).mockResolvedValue({

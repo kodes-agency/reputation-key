@@ -150,6 +150,18 @@ describe('quarantineExhaustedJob (BQC-3.6)', () => {
     expect(env.policyReason).toBeUndefined()
   })
 
+  it('keeps a named Review snapshot failure content-free in failedReason', async () => {
+    const quarantine = fakeQueue()
+    const error = Object.assign(new Error('authorization_denied'), {
+      name: 'ReviewProviderSnapshotFailure',
+    })
+
+    await quarantineExhaustedJob(quarantine, fakeJob(), error)
+
+    const env = envelopeOf(quarantine.added[0]!)
+    expect(env.failedReason).toBe('ReviewProviderSnapshotFailure: authorization_denied')
+  })
+
   it('redacts the payload of unknown jobs (content-safety proof)', async () => {
     const quarantine = fakeQueue()
     const result = await quarantineExhaustedJob(

@@ -5,6 +5,7 @@ import {
   GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
 } from '../../application/ports/review-queue.port'
 import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
+import type { ReviewDiscoveryRepository } from '../../application/ports/review-discovery.repository'
 import { createSyncPropertyReviewsHandler } from './sync-property-reviews.job'
 
 vi.mock('#/shared/observability/trace', () => ({
@@ -30,8 +31,20 @@ const makeSyncActivity = (): ReviewSyncActivityRecorder => ({
   recordPushObserved: vi.fn(async () => undefined),
 })
 
-const ladderDeps = (syncActivity: ReviewSyncActivityRecorder) => ({
+const makeDiscoveryState = (): Pick<
+  ReviewDiscoveryRepository,
+  'markDiscoveryDeferred' | 'markSyncSucceeded'
+> => ({
+  markDiscoveryDeferred: vi.fn(async () => undefined),
+  markSyncSucceeded: vi.fn(async () => undefined),
+})
+
+const ladderDeps = (
+  syncActivity: ReviewSyncActivityRecorder,
+  discoveryRepo = makeDiscoveryState(),
+) => ({
   syncActivity,
+  discoveryRepo,
   clock: () => NOW,
   hotIntervalMs: HOT_INTERVAL_MS,
 })
@@ -66,6 +79,52 @@ describe('sync-property-reviews snapshot handler', () => {
       runId: '44444444-4444-4444-8444-444444444444',
     })
     expect(JSON.stringify(enqueueContinuation.mock.calls)).not.toContain('pageToken')
+  })
+
+  it('records the coded failure before throwing a content-free named error', async () => {
+    const discoveryRepo = makeDiscoveryState()
+    const handler = createSyncPropertyReviewsHandler({
+      runSnapshot: vi.fn(async () => ({
+        status: 'failed' as const,
+        runId: '44444444-4444-4444-8444-444444444444',
+        code: 'authorization_denied' as const,
+      })),
+      propertyRouting,
+      enqueueContinuation: vi.fn(async () => undefined),
+      ...ladderDeps(makeSyncActivity(), discoveryRepo),
+    })
+
+    await expect(
+      handler({ id: 'job-coded-failure', data: JOB_DATA } as never),
+    ).rejects.toMatchObject({
+      name: 'ReviewProviderSnapshotFailure',
+      message: 'authorization_denied',
+    })
+    expect(discoveryRepo.markDiscoveryDeferred).toHaveBeenCalledWith(
+      JOB_DATA.propertyId,
+      NOW,
+      new Date(NOW.getTime() + HOT_INTERVAL_MS),
+      'authorization_denied',
+    )
+    expect(discoveryRepo.markSyncSucceeded).not.toHaveBeenCalled()
+  })
+
+  it('clears prior sync failure state only after a completed run', async () => {
+    const discoveryRepo = makeDiscoveryState()
+    const handler = createSyncPropertyReviewsHandler({
+      runSnapshot: vi.fn(async () => ({
+        status: 'completed' as const,
+        runId: '44444444-4444-4444-8444-444444444444',
+      })),
+      propertyRouting,
+      enqueueContinuation: vi.fn(async () => undefined),
+      ...ladderDeps(makeSyncActivity(), discoveryRepo),
+    })
+
+    await handler({ id: 'job-completed', data: JOB_DATA } as never)
+
+    expect(discoveryRepo.markSyncSucceeded).toHaveBeenCalledWith(JOB_DATA.propertyId)
+    expect(discoveryRepo.markDiscoveryDeferred).not.toHaveBeenCalled()
   })
 
   it('marks initial Google property import observations as historical onboarding', async () => {
