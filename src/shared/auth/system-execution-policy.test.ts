@@ -94,7 +94,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
 
     const decision = await policy.decide({
       principal: { kind: 'system', id: 'worker:default' },
-      action: 'system:metric.refresh',
+      action: 'system:review.reconcile',
       organizationId: 'org-fixture',
       executionKind: 'worker',
       capabilityAtEnqueue: 'goal.use',
@@ -113,8 +113,8 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
 
     const decision = await policy.decide({
-      principal: { kind: 'system', id: 'schedule:metrics' },
-      action: 'system:metric.refresh',
+      principal: { kind: 'system', id: 'schedule:review-reconciliation' },
+      action: 'system:review.reconcile',
       organizationId: 'tenant-cross',
       executionKind: 'schedule',
       now: new Date(),
@@ -160,7 +160,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     )
     expect(requiresFreshRead('system:review.sync')).toBe(true)
     expect(requiresFreshRead('system:reply.publish')).toBe(true)
-    expect(requiresFreshRead('system:metric.refresh')).toBe(false)
+    expect(requiresFreshRead('system:review.reconcile')).toBe(false)
     expect(requiresFreshRead('system:inbox.update')).toBe(false)
   })
 
@@ -173,7 +173,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     })
     const decision = await policy.decide({
       principal: { kind: 'system', id: 'worker:default' },
-      action: 'system:metric.refresh',
+      action: 'system:review.reconcile',
       organizationId: 'org-fixture',
       executionKind: 'schedule',
       policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
@@ -186,7 +186,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
       actorType: 'system',
       actorId: 'worker:default',
       organizationId: 'org-fixture',
-      action: 'system:metric.refresh',
+      action: 'system:review.reconcile',
       executionKind: 'schedule',
       decision: 'allow',
       policyVersion: EXECUTION_POLICY_VERSION,

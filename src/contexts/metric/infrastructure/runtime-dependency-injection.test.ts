@@ -17,7 +17,7 @@ const productionFiles = (directory = ''): string[] =>
   })
 
 describe('Metric runtime dependency injection', () => {
-  it('keeps handlers, rollups, and jobs independent from ambient runtime state', () => {
+  it('keeps handlers, stores, and jobs independent from ambient runtime state', () => {
     for (const file of productionFiles()) {
       const source = read(file)
       expect(source, file).not.toMatch(/\bgetLogger\s*\(/u)

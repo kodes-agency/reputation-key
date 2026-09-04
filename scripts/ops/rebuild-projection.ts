@@ -11,10 +11,6 @@
 // Requires DATABASE_URL. The use case is idempotent (repairs converge); the
 // report is content-free (scanned/created/closed/milestones counts).
 //
-// Metric rollup note: legacy rollup mutation is quarantined; there is no
-// refresh or watermark-reset operator. Inspect retained rows with
-// `pnpm ops:report-legacy-rollups` pending CNV-01 contraction.
-
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { runOperatorCommand } from './operator-command'
 

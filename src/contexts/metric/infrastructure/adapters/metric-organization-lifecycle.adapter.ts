@@ -9,11 +9,9 @@
 //
 // What Metric owns, and why each phase looks the way it does:
 //
-//   * Metric records governed readings from OTHER contexts' facts. Every one
-//     of its writers is an event handler or durable outbox consumer fed by
-//     Guest/Portal/Review; Metric owns no provider credential, no outbound
-//     call and no per-tenant schedule (`refresh-*-metrics` is a tenant-cross
-//     projection refresh derived from `metric_readings`).
+//   * Metric records governed readings from OTHER contexts' facts. Its writers
+//     are event handlers or durable outbox consumers fed by Guest/Portal/Review;
+//     Metric owns no provider credential, outbound call, or per-tenant schedule.
 //   * `portal_metric_lifetime_aggregates` is the anonymous All Time
 //     projection. It is anonymous with respect to GUESTS — no response,
 //     session, contact or activity timestamp — which is exactly why LIF-01
@@ -24,8 +22,7 @@
 //   * `metric_definitions` / `metric_definition_versions` have no
 //     organization column at all. They are the platform governance catalogue
 //     seeded by migration and shared by every tenant, so purging one tenant
-//     must not touch them. `_rollup_watermarks` is likewise a single global
-//     refresh cursor keyed by rollup name.
+//     must not touch them.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -53,9 +50,6 @@ export const METRIC_PURGE_TABLES = Object.freeze([
   'metric_source_watermarks',
   'metric_current_google_reputation_snapshots',
   'portal_metric_lifetime_aggregates',
-  'rollup_daily_metrics',
-  'rollup_weekly_metrics',
-  'rollup_daily_inbox_metrics',
 ] as const)
 
 /**
@@ -68,8 +62,6 @@ export const METRIC_RETAINED_TABLES = Object.freeze([
   'metric_definitions',
   // Immutable governed versions that Badge, Leaderboard and Goal pin by id.
   'metric_definition_versions',
-  // One global refresh cursor per rollup name; not tenant-scoped.
-  '_rollup_watermarks',
 ] as const)
 
 /** A correction chain is short; the guard turns a cycle into a loud failure. */
@@ -116,12 +108,6 @@ async function countTenantRows(tx: Tx, organization: string): Promise<number> {
       )
       + (
         SELECT count(*) FROM portal_metric_lifetime_aggregates
-        WHERE organization_id = ${organization}
-      )
-      + (SELECT count(*) FROM rollup_daily_metrics WHERE organization_id = ${organization})
-      + (SELECT count(*) FROM rollup_weekly_metrics WHERE organization_id = ${organization})
-      + (
-        SELECT count(*) FROM rollup_daily_inbox_metrics
         WHERE organization_id = ${organization}
       ) AS rows
   `)
@@ -303,15 +289,6 @@ const purge = async (
     DELETE FROM portal_metric_lifetime_aggregates
     WHERE organization_id = ${organization}
   `)
-  await tx.execute(
-    sql`DELETE FROM rollup_daily_metrics WHERE organization_id = ${organization}`,
-  )
-  await tx.execute(
-    sql`DELETE FROM rollup_weekly_metrics WHERE organization_id = ${organization}`,
-  )
-  await tx.execute(
-    sql`DELETE FROM rollup_daily_inbox_metrics WHERE organization_id = ${organization}`,
-  )
 
   return {
     outcome: 'complete',

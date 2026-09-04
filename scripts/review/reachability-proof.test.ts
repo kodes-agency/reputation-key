@@ -258,9 +258,6 @@ describe('reachability proof harness', () => {
     ).toMatchObject({ recommendation: 'unexport', safeToDelete: false })
 
     expect(
-      contractionProtection('src/shared/db/schema/rollup.schema.ts', 'anything'),
-    ).not.toBeNull()
-    expect(
       contractionProtection('src/shared/governance/example.ts', 'goalProgress'),
     ).not.toBeNull()
     expect(

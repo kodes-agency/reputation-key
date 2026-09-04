@@ -68,7 +68,7 @@ if (bundledCopies.length > 0) {
   fail(
     `${PACKAGE} was bundled into .output/server/_libs (${bundledCopies.join(', ')}). ` +
       `Its emscripten loader breaks when bundled; keep it in the nitro ` +
-      `rollupConfig.external list in vite.config.ts.`,
+      `bundler external list in vite.config.ts.`,
   )
 }
 

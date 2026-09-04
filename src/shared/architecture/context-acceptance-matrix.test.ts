@@ -27,8 +27,8 @@
 //                                     source detail via authorized Review lookup          applyOnce, outbox-consumers
 //   6  Dashboard    enabled/limited  governed bounded query/cache interface; no raw       attention-eligibility-equivalence,
 //                                     expired data or direct DB routes                    read-facade-timeout
-//   7  Metric       enabled/limited  canonical projections; legacy rollup writer          NEW no-mutation quarantine-handler pin
-//                                     quarantined; no review-derived staff gamification     (metric/.../refresh-materialized-view.job.test.ts)
+//   7  Metric       enabled/limited  governed canonical projections; no                   metric command-store suites;
+//                                     review-derived staff gamification                    NEW call-site gap pin (this file)
 //   8  Notification enabled/limited  privacy-filtered in-app delivery; outbound non-auth  dark-capability-enforcement.test.ts,
 //                                     email absent/dark                                   dark-context-matrix.test.ts
 //   9  Activity     enabled/limited  collaboration facts separated from security audit;   activity-content-safety.test.ts,
@@ -161,8 +161,6 @@ const REUSED_PINS: Readonly<Record<string, string>> = {
   darkConsumerGating: 'src/shared/architecture/dark-consumer-gating.test.ts',
   contentFreeFacts: 'src/shared/architecture/content-free-facts.test.ts',
   crossContextPublicApi: 'src/shared/architecture/cross-context-public-api.test.ts',
-  metricRollupQuarantine:
-    'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.test.ts',
 }
 
 /**
@@ -283,7 +281,7 @@ describe('row 6 — Dashboard (enabled/limited): governed bounded query/cache in
   })
 })
 
-describe('row 7 — Metric (enabled/limited): idempotent content-free rollup; no staff gamification', () => {
+describe('row 7 — Metric (enabled/limited): governed readings; no staff gamification', () => {
   it('registered gap: isGamificationViolation still has no production call-site (owner: Metric)', () => {
     const callers = offendersMatching(
       /\bisGamificationViolation\b/,

@@ -149,7 +149,6 @@
     "ops:report-legacy-goals": "tsx scripts/ops/report-legacy-goals.ts",
     "ops:report-legacy-people-team": "tsx scripts/ops/report-legacy-people-team.ts",
     "ops:report-legacy-recognition": "tsx scripts/ops/report-legacy-recognition.ts",
-    "ops:report-legacy-rollups": "tsx scripts/ops/report-legacy-rollups.ts",
     "ops:report-legacy-import-control": "tsx scripts/ops/report-legacy-import-control.ts",
     "ops:report-legacy-custom-roles": "tsx scripts/ops/report-legacy-custom-roles.ts",
     "ops:report-legacy-multi-org": "tsx scripts/ops/report-legacy-multi-org.ts",

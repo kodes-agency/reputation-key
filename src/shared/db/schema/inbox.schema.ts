@@ -98,7 +98,7 @@ export const inboxItems = pgTable(
       t.sourceType,
       t.sourceId,
     ),
-    // Migration 0008: cross-org date-ordered scan for incremental rollups.
+    // Migration 0008: cross-org date-ordered scan for aggregate refreshes.
     index('inbox_items_source_date_idx').on(t.sourceDate),
     // Cross-tenant keyset scan for the notification-gap reconciliation sweep
     // (reconcile-missing-notifications): "items created in the last N hours"

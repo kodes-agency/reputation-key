@@ -290,7 +290,7 @@ async function seedTenantRows(
   await lease.pool.query(
     `INSERT INTO goal_progress
        (id, goal_id, organization_id, current_value, last_computed_at, computed_source)
-     VALUES (gen_random_uuid(), $1::uuid, $2, 3, $3, 'rollup')`,
+     VALUES (gen_random_uuid(), $1::uuid, $2, 3, $3, 'reconciliation')`,
     [goalId, organizationId, CLOSED_AT],
   )
 

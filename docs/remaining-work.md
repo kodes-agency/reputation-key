@@ -90,7 +90,7 @@ it is not part of the normal provisioning sequence. Full runbook in
 
 ### 7. Materialized-view provisioning is Drizzle-managed — ✅ DONE
 
-**2026-09-03 update:** The standalone materialized-view provisioning command is retired. Its schema work is already tracked by Drizzle migration `0004_materialized-views-and-gbp-index.sql`; the unused rollup writer and schedules are quarantined pending CNV-01 contraction.
+**2026-09-03 update:** The standalone materialized-view provisioning command is retired. Its schema work is already tracked by Drizzle migration `0004_materialized-views-and-gbp-index.sql`. **2026-09-04 update:** CNV-01 completed the evidence gate and removed the unused rollup writer, schedules, models, tools, and tables.
 
 ### 8. Goal completion-policy layering
 

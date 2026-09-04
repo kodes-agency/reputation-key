@@ -76,7 +76,6 @@ const PURE_DIAGNOSTIC_COMMANDS = [
   'scripts/ops/report-legacy-custom-roles.ts',
   'scripts/ops/report-legacy-multi-org.ts',
   'scripts/ops/report-legacy-guest-compatibility.ts',
-  'scripts/ops/report-legacy-rollups.ts',
   'scripts/ops/report-legacy-import-control.ts',
   'scripts/ops/report-compatibility-read-surfaces.ts',
   'scripts/ops/report-non-fk-references.ts',

@@ -378,11 +378,6 @@ function discoverJobs(): DiscoveredJobs {
       const name = resolveJobName(m[1], m[2], undefined, imports, m[3], content)
       if (name) names.add(name)
     }
-    // Metric rollup loop: register(jobName) over JOB_NAMES.x entries.
-    for (const m of content.matchAll(/JOB_NAMES\.(\w+)/g)) {
-      const name = resolveJobName(undefined, undefined, m[1], imports)
-      if (name) names.add(name)
-    }
   }
   return { names: [...names].sort(), registrationGates }
 }
@@ -783,9 +778,6 @@ describe('BQC-3.1 event/job family catalogue', () => {
     const quarantinedJobs = new Set([
       'expire-review-provider-source',
       'purge-expired-reviews',
-      'refresh-daily-metrics',
-      'refresh-weekly-metrics',
-      'refresh-daily-inbox-metrics',
       'advance-organization-lifecycle',
       'generate-organization-export',
       'purge-expired-organization-exports',

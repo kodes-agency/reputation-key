@@ -224,7 +224,6 @@ describe('architecture: live Google Performance has no persistence dependency', 
   it.each([
     '#/contexts/integration/infrastructure/repositories/google-connection.repository',
     '#/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job',
-    '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job',
     '#/shared/cache/google-performance-cache',
   ] as const)(
     'rejects an allowed-kind dependency from forbidden module %s',

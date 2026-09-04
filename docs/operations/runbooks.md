@@ -228,10 +228,12 @@ never be sent to Google.
 
 <!-- google-provider-identifiers-v1:end -->
 
-Registered gaps (owned elsewhere, do NOT improvise in an incident): legacy
-metric-rollup contraction (metric owner — inspect retained rows with
-`pnpm ops:report-legacy-rollups`; no refresh or watermark-reset mutation remains),
-ENCRYPTION_KEY rotation (platform owner — runbook §2 manual), PITR execution
+CNV-01's legacy Metric contraction completed on 2026-09-04; the retained gate
+evidence and recovery decision are recorded in
+`docs/operations/legacy-rollup-contraction.md`.
+
+Registered gaps (owned elsewhere, do NOT improvise in an incident):
+ENCRYPTION_KEY rotation (platform owner — runbook §2 manual), and PITR execution
 (platform owner — `ops:restore-preflight` plus the report-first, independently
 approved `ops:restore-verify` are the current app-side surface; the Railway
 apply/cutover drill and evidence remain external work; procedure:

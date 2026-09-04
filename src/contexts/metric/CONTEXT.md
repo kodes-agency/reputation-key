@@ -130,7 +130,6 @@ metric/
                        on-qualified-scan-recorded.ts, on-qualified-scan-retracted.ts,
                        on-rating-submitted.ts,
                        on-feedback-submitted.ts, on-review-link-clicked.ts, index.ts
-    jobs/              refresh-materialized-view.job.ts
   build.ts             composition root
 ```
 
@@ -164,8 +163,5 @@ None. Metric is a system-internal context with no HTTP surface and no own permis
 
 ## Background jobs
 
-- **`refresh-materialized-view.job.ts`** — Periodically refreshes metric materialized views for query performance.
-
-The materialized/rollup subsystem currently has no production reader. Its
-deletion or replacement remains MET-01 work; this job is not a serving
-authority merely because its retained source still exists.
+None. Metric serving and projection maintenance run through durable event
+consumers and explicit use cases rather than scheduled jobs.

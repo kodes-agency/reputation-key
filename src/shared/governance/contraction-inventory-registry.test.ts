@@ -18,7 +18,6 @@ const ROOT = process.cwd()
  * and given a command in the same change.
  */
 const EXPECTED_CANDIDATE_TABLES = [
-  '_rollup_watermarks',
   'badge_awards',
   'badge_definition_versions',
   'badge_definitions',
@@ -43,9 +42,6 @@ const EXPECTED_CANDIDATE_TABLES = [
   'recognition_board_entries',
   'recognition_board_snapshots',
   'recognition_reconciliation_events',
-  'rollup_daily_inbox_metrics',
-  'rollup_daily_metrics',
-  'rollup_weekly_metrics',
   'scan_events',
   'staff_assignments',
   'team_memberships',
@@ -69,8 +65,8 @@ const tableInventoryCommand = (
   })
 
 describe('contraction inventory registry', () => {
-  it('resolves the exact 33 contraction candidate tables from the data-fate authority', () => {
-    expect(candidates).toHaveLength(33)
+  it('resolves the exact 29 contraction candidate tables from the data-fate authority', () => {
+    expect(candidates).toHaveLength(29)
     expect(candidates.map(({ tableName }) => tableName).sort()).toEqual(
       EXPECTED_CANDIDATE_TABLES,
     )
@@ -111,8 +107,8 @@ describe('contraction inventory registry', () => {
     expect(coverage.uncoveredTables).toEqual([])
     expect(coverage.multiplyClaimedTables).toEqual([])
     expect(coverage.unclassifiedClaimedTables).toEqual([])
-    expect(coverage.candidateCount).toBe(33)
-    expect(coverage.coveredCount).toBe(33)
+    expect(coverage.candidateCount).toBe(29)
+    expect(coverage.coveredCount).toBe(29)
     expect(coverage.complete).toBe(true)
   })
 

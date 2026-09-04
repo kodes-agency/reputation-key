@@ -173,7 +173,7 @@ async function seedFixture(): Promise<Fixture> {
     ],
   )
 
-  // Maintenance and dead-projection surfaces the archive must never reach.
+  // Maintenance state the archive must never reach.
   await lease.pool.query(
     `INSERT INTO metric_quarantine (
        source_event_id, organization_id, property_id, reason, payload_hash
@@ -184,13 +184,6 @@ async function seedFixture(): Promise<Fixture> {
       fixture.propertyId,
       'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
     ],
-  )
-  await lease.pool.query(
-    `INSERT INTO rollup_daily_metrics (
-       organization_id, property_id, metric_key, date, count, sum_value, avg_value
-     ) VALUES ($1, $2, 'never_export_rollup_marker', TIMESTAMPTZ '2026-08-27T00:00:00Z',
-               9, 9, 9)`,
-    [organizationId, fixture.propertyId],
   )
 
   return fixture
@@ -229,7 +222,6 @@ describe.sequential('Metric Organization Export contributor', () => {
       'metric_source_watermarks',
       'portal_metric_lifetime_aggregates',
       'metric_current_google_reputation_snapshots',
-      'rollup_daily_metrics',
       'portals',
       'properties',
     ]) {
@@ -331,15 +323,14 @@ describe.sequential('Metric Organization Export contributor', () => {
     })
 
     const archiveText = first.entries.map(({ bytes }) => decode(bytes)).join('\n')
-    // Non-export-permitted definition versions, the maintenance surface, the
-    // dead rollups, and every ingestion correlation id stay out.
+    // Non-export-permitted definition versions, the maintenance surface, and
+    // every ingestion correlation id stay out.
     expect(archiveText).not.toContain('property.review')
     expect(archiveText).not.toContain('portal.scan')
     expect(archiveText).not.toContain(fixture.googleDerivedReadingId)
     expect(archiveText).not.toContain(fixture.analyticsOnlyReadingId)
     expect(archiveText).not.toContain('NEVER-EXPORT-SOURCE-EVENT-')
     expect(archiveText).not.toContain('never_export_quarantine_marker')
-    expect(archiveText).not.toContain('never_export_rollup_marker')
   })
 
   it('answers no_data for an Organization with no governed metric result', async () => {

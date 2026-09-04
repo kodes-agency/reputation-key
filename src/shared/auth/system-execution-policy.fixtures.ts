@@ -117,12 +117,12 @@ export const DELAYED_CONTRACT_FIXTURES: ReadonlyArray<DelayedContractFixture> = 
     expect: { outcome: 'deny', reason: 'missing_scope', freshRead: true },
   },
   {
-    name: 'allow — tenant-cross rollup needs no property scope and no fresh read',
+    name: 'allow — tenant-cross reconciliation needs no property scope or fresh read',
     env: {},
     request: {
       ...BASE,
-      principal: { kind: 'system', id: 'schedule:metrics' },
-      action: 'system:metric.refresh',
+      principal: { kind: 'system', id: 'schedule:review-reconciliation' },
+      action: 'system:review.reconcile',
       executionKind: 'schedule',
       policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     },

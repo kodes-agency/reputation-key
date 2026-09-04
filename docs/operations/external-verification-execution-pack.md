@@ -134,7 +134,6 @@ owner. Having the confirmation is not the same as having it as evidence.
 | Command                                  | Answers                                                     |
 | ---------------------------------------- | ----------------------------------------------------------- |
 | `ops:report-inbox-handling-cutover`      | exact / mappable / ambiguous / orphan legacy classification |
-| `ops:report-legacy-rollups`              | legacy Metric rollup row counts and foreign keys            |
 | `ops:report-legacy-import-control`       | legacy Google import control inventory                      |
 | `ops:report-compatibility-read-surfaces` | the seven mirrors, with an active reader count each         |
 | `ops:report-non-fk-references`           | references no foreign key would catch                       |

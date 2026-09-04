@@ -1,4 +1,4 @@
-// BQR-1.1: Executable schema parity for migrations 0006–0008.
+// BQR-1.1: Executable schema parity for migrations 0006–0007 and later additions.
 //
 // Ensures the canonical Drizzle model includes tables and columns that
 // already exist in the migrated database. Prevents silent dual-truth where
@@ -15,19 +15,13 @@ import {
   reviewSyncRuns,
   inboundWebhookReceipts,
 } from './review-sync.schema'
-import {
-  rollupDailyMetrics,
-  rollupWeeklyMetrics,
-  rollupDailyInboxMetrics,
-  rollupWatermarks,
-} from './rollup.schema'
 import { regionMoves } from './region-move.schema'
 
 function columnNames(table: Parameters<typeof getTableColumns>[0]): string[] {
   return Object.values(getTableColumns(table)).map((c) => c.name)
 }
 
-describe('BQR-1.1: schema parity with migrations 0006–0008', () => {
+describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions', () => {
   describe('migration 0006 — property processing profile', () => {
     it('exposes properties table name', () => {
       expect(getTableName(properties)).toBe('properties')
@@ -99,46 +93,6 @@ describe('BQR-1.1: schema parity with migrations 0006–0008', () => {
       expect(cols.has('provider')).toBe(true)
       expect(cols.has('topic')).toBe(true)
       expect(cols.has('message_id')).toBe(true)
-    })
-  })
-
-  describe('migration 0008 — incremental rollup tables', () => {
-    it('registers rollup_daily_metrics', () => {
-      expect(getTableName(rollupDailyMetrics)).toBe('rollup_daily_metrics')
-      const cols = new Set(columnNames(rollupDailyMetrics))
-      for (const name of [
-        'organization_id',
-        'property_id',
-        'portal_id',
-        'metric_key',
-        'date',
-        'count',
-        'sum_value',
-        'avg_value',
-      ]) {
-        expect(cols.has(name), `rollup_daily_metrics missing ${name}`).toBe(true)
-      }
-    })
-
-    it('registers rollup_weekly_metrics', () => {
-      expect(getTableName(rollupWeeklyMetrics)).toBe('rollup_weekly_metrics')
-      expect(columnNames(rollupWeeklyMetrics)).toContain('week')
-    })
-
-    it('registers rollup_daily_inbox_metrics', () => {
-      expect(getTableName(rollupDailyInboxMetrics)).toBe('rollup_daily_inbox_metrics')
-      const cols = new Set(columnNames(rollupDailyInboxMetrics))
-      expect(cols.has('open_count')).toBe(true)
-      expect(cols.has('closed_count')).toBe(true)
-      expect(cols.has('escalated_count')).toBe(true)
-    })
-
-    it('registers _rollup_watermarks', () => {
-      expect(getTableName(rollupWatermarks)).toBe('_rollup_watermarks')
-      const cols = new Set(columnNames(rollupWatermarks))
-      expect(cols.has('name')).toBe(true)
-      expect(cols.has('watermark')).toBe(true)
-      expect(cols.has('updated_at')).toBe(true)
     })
   })
 

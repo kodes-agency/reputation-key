@@ -1,0 +1,56 @@
+{
+  "formatVersion": 1,
+  "capturedAt": "2026-09-04T20:54:00Z",
+  "environment": "google-closed-beta",
+  "gateStep": 4,
+  "claim": "The governed source tables reproduce every retained rollup row exactly.",
+  "method": "The deleted incremental writer (src/contexts/metric/infrastructure/incremental-rollup.ts, recovered from 4085491e^) defines each aggregate. Its unbounded form was executed against the live source tables and compared to the stored rollup rows key-for-key and value-for-value.",
+  "sources": {
+    "rollup_daily_metrics": "metric_readings",
+    "rollup_weekly_metrics": "metric_readings",
+    "rollup_daily_inbox_metrics": "inbox_items"
+  },
+  "results": [
+    {
+      "table": "rollup_daily_metrics",
+      "storedRows": 6,
+      "rebuiltRows": 6,
+      "onlyStored": 0,
+      "onlyRebuilt": 0,
+      "valueMismatches": 0
+    },
+    {
+      "table": "rollup_weekly_metrics",
+      "storedRows": 6,
+      "rebuiltRows": 6,
+      "onlyStored": 0,
+      "onlyRebuilt": 0,
+      "valueMismatches": 0
+    },
+    {
+      "table": "rollup_daily_inbox_metrics",
+      "storedRows": 9,
+      "rebuiltRows": 9,
+      "onlyStored": 0,
+      "onlyRebuilt": 0,
+      "valueMismatches": 0
+    }
+  ],
+  "ddlRehearsal": {
+    "method": "BEGIN; DROP TABLE x4 CASCADE; inspect; ROLLBACK — executed against the live database, which leaves it unchanged.",
+    "rollupTablesBefore": 4,
+    "rollupTablesAfterDrop": 0,
+    "otherPublicTablesWhileDropped": 239,
+    "residualCatalogDependencies": 0,
+    "afterRollback": {
+      "tables": 4,
+      "rows": {
+        "rollup_daily_metrics": 6,
+        "rollup_weekly_metrics": 6,
+        "rollup_daily_inbox_metrics": 9,
+        "_rollup_watermarks": 3
+      }
+    }
+  },
+  "retainedArtifacts": ["rollup-inventory.json", "rollup-export.json"]
+}

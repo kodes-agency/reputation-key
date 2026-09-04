@@ -158,7 +158,7 @@ export const SCENARIOS = {
   },
   reconciliation: {
     name: 'Reconciliation',
-    description: '35-day rollup repair while traffic continues',
+    description: '35-day aggregate repair while traffic continues',
     slo: {
       boundedImpact: true,
       exactRepair: true,

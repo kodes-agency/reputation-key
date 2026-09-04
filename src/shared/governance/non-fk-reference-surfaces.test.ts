@@ -113,13 +113,7 @@ describe('non-FK reference surfaces', () => {
     // identifier: nothing textual elsewhere can name one of their rows.
     expect(
       NON_FK_UNREFERENCEABLE_CANDIDATES.map(({ tableName }) => tableName).sort(),
-    ).toEqual([
-      '_rollup_watermarks',
-      'legacy_import_control',
-      'rollup_daily_inbox_metrics',
-      'rollup_daily_metrics',
-      'rollup_weekly_metrics',
-    ])
+    ).toEqual(['legacy_import_control'])
     for (const exemption of NON_FK_UNREFERENCEABLE_CANDIDATES) {
       expect(exemption.reason.trim().length, exemption.tableName).toBeGreaterThan(20)
     }
@@ -147,11 +141,7 @@ describe('non-FK reference surfaces', () => {
     expect(coverage.complete).toBe(false)
     // An exemption for a table nobody classified is equally a defect.
     expect([...nonFkReferenceCoverage(['teams']).unknownExemptions].sort()).toEqual([
-      '_rollup_watermarks',
       'legacy_import_control',
-      'rollup_daily_inbox_metrics',
-      'rollup_daily_metrics',
-      'rollup_weekly_metrics',
     ])
   })
 
@@ -217,7 +207,6 @@ describe('non-FK reference surfaces', () => {
       'outbox_events.payload',
       'notifications.payload',
     ])
-    expect(resolveNonFkProbes('_rollup_watermarks', CANDIDATES)).toEqual([])
   })
 
   it('reports counts and column identifiers only, with a stable fingerprint', () => {

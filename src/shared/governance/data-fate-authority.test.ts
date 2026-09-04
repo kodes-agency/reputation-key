@@ -163,7 +163,7 @@ describe('persisted-model lifecycle authority', () => {
         disposition === 'bounded_contraction' || disposition === 'compatibility_read',
     )
 
-    expect(candidates).toHaveLength(33)
+    expect(candidates).toHaveLength(29)
     expect(
       candidates.filter(({ disposition }) => disposition === 'compatibility_read'),
     ).toHaveLength(7)
