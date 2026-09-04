@@ -89,10 +89,13 @@ describe('BQC-3.5: atomic family outbox producers', () => {
         // Post-commit bus emit is best-effort via emitAfterCommit
         expect(src).toContain('emitAfterCommit')
         const txIdx = src.indexOf('db.transaction')
-        // Call site after the transaction closes (not the helper definition)
-        const afterCommitCall = src.indexOf(
-          'await emitAfterCommit(events, command.event)',
-        )
+        // Call site after the transaction closes (not the helper definition).
+        // The emitted event is matched by shape, not by one argument spelling:
+        // a store that commits N facts in one transaction emits each of them
+        // (metric's batch path emits `reading.event` per entry), which is the
+        // same post-commit contract as a single `command.event`.
+        const afterCommitCall =
+          /await emitAfterCommit\(events, [^)]+\)/u.exec(src)?.index ?? -1
         expect(txIdx).toBeGreaterThan(-1)
         expect(afterCommitCall).toBeGreaterThan(txIdx)
       })
