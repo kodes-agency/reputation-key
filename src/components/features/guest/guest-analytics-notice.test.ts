@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   portalVisitStorageKey,
   settlePortalVisit,
+  settlePortalVisitFromStorage,
   settlePortalVisitOnce,
 } from './guest-analytics-notice'
 
@@ -50,17 +51,33 @@ describe('settlePortalVisit', () => {
     expect(attempt).toHaveBeenCalledTimes(2)
   })
 
-  it('records when browser storage itself is unavailable', async () => {
+  it('settles when the storage accessor throws and skips marker writes', async () => {
+    const setItem = vi.fn()
+    const fallbackStorage = {
+      getItem: vi.fn(() => null),
+      setItem,
+      removeItem: vi.fn(),
+    }
+    const getStorage = vi
+      .fn<() => typeof fallbackStorage>()
+      .mockImplementationOnce(() => {
+        throw new DOMException('Storage is unavailable', 'SecurityError')
+      })
+      .mockReturnValue(fallbackStorage)
     const attempt = vi.fn(async () => 'recorded' as const)
 
-    await settlePortalVisitOnce({
-      storage: null,
-      scopeKey: 'portal-token',
-      sessionKey: 'session-a',
-      onPortalVisit: attempt,
-    })
+    await expect(
+      settlePortalVisitFromStorage({
+        getStorage,
+        scopeKey: 'portal-token',
+        sessionKey: 'session-a',
+        onPortalVisit: attempt,
+      }),
+    ).resolves.toBeUndefined()
 
+    expect(getStorage).toHaveBeenCalledOnce()
     expect(attempt).toHaveBeenCalledOnce()
+    expect(setItem).not.toHaveBeenCalled()
   })
 
   it('does not let a stale completion suppress a replacement signed session', async () => {
