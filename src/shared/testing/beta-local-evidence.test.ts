@@ -3,11 +3,12 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   BETA_LOCAL_APPROVAL_VERSION,
@@ -19,6 +20,7 @@ import {
   promoteLocalEvidence,
   validatePromotionEvidence,
   validatePromotedLocalEvidence,
+  type BetaCommandRunner,
   type BetaGatePlan,
   type BetaLocalApproval,
   type BetaSmokeIdentity,
@@ -30,12 +32,16 @@ import {
   REQUIRED_BETA_LOCAL_GATE_IDS,
 } from './release-bundle'
 import {
+  BETA_SMOKE_SCENARIO_GROUPS,
+  betaSmokeScenarioGroupDefinition,
   buildBetaSmokeIdentity,
   createBetaSmokeGatePlan,
-  createStackAcceptanceCommand,
+  createStackScenarioCommand,
   runBetaSmokeCli,
 } from '../../../scripts/beta/smoke'
 import { createPreCutoverDump } from '../../../scripts/beta/create-pre-cutover-dump'
+
+const ROOT = resolve(import.meta.dirname, '../../..')
 
 const identity: BetaSmokeIdentity = {
   releaseSha: 'a'.repeat(40),
@@ -207,17 +213,30 @@ describe('buildBetaSmokeIdentity', () => {
 })
 
 describe('createBetaSmokeGatePlan', () => {
-  it('owns the exact stack acceptance and promoted browser journey sequence', () => {
+  it('partitions every beta-only scenario and gate exactly once', () => {
     const exactPlan = createBetaSmokeGatePlan(identity)
+    const definitions = BETA_SMOKE_SCENARIO_GROUPS.map((group) =>
+      betaSmokeScenarioGroupDefinition(group),
+    )
+    const scenarios = definitions.flatMap(
+      ({ scenarios: groupScenarios }) => groupScenarios,
+    )
+    const stagedGates = definitions.flatMap(({ gates }) => gates)
 
     expect(exactPlan.map((gate) => gate.id)).toEqual(REQUIRED_BETA_LOCAL_GATE_IDS)
-    expect(createStackAcceptanceCommand('/fixtures/pre-cutover.sql')).toEqual({
+    expect(scenarios).toEqual(['clean-smoke', 'faults', 'scale', 'upgrade'])
+    expect(new Set(scenarios).size).toBe(scenarios.length)
+    expect([...stagedGates, 'migration-upgrade', 'release-bundle'].sort()).toEqual(
+      [...REQUIRED_BETA_LOCAL_GATE_IDS].sort(),
+    )
+    expect(new Set(stagedGates).size).toBe(stagedGates.length)
+    expect(createStackScenarioCommand('upgrade', '/fixtures/pre-cutover.sql')).toEqual({
       executable: 'pnpm',
       args: [
         'exec',
         'tsx',
         'scripts/local-stack/stack.ts',
-        'acceptance',
+        'upgrade',
         '--mode=beta',
         '--pre-cutover-dump=/fixtures/pre-cutover.sql',
       ],
@@ -241,10 +260,6 @@ describe('createBetaSmokeGatePlan', () => {
       'test-results/beta-smoke-work/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/product-journeys.json',
       'test-results/beta-smoke-work/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/product-journeys.json.report.json',
     ])
-    // The quality phase is gone: it re-ran format/lint/typecheck/unit/
-    // integration/builds/storybook/both e2e projects that beta-acceptance's own
-    // `needs` already prove on the same SHA. Assert it stays gone, so nobody
-    // reintroduces the long pole by accident.
     expect(exactPlan.map((gate) => gate.id)).not.toContain('quality')
     expect(exactPlan.find((gate) => gate.id === 'migration-upgrade')?.evidence).toEqual([
       'test-results/local-stack/beta/acceptance/clean-smoke.json',
@@ -252,30 +267,183 @@ describe('createBetaSmokeGatePlan', () => {
     ])
   })
 })
+
 describe('runBetaSmokeCli', () => {
-  it('writes no success manifest when stack acceptance fails', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'beta-smoke-failure-'))
+  it('merges the three groups into one exact manifest and evidence set', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'beta-smoke-groups-'))
+    const releaseSha = 'b'.repeat(40)
+    const acceptanceRoot = join(ROOT, 'test-results', 'local-stack', 'beta', 'acceptance')
+    const fragmentRoot = join(ROOT, 'test-results', 'beta-smoke-fragments', releaseSha)
+    const workRoot = join(ROOT, 'test-results', 'beta-smoke-work', releaseSha)
+    const outputRoot = join(root, 'evidence')
+    const imageIds = {
+      web: `sha256:${'5'.repeat(64)}`,
+      worker: `sha256:${'6'.repeat(64)}`,
+      provider: `sha256:${'7'.repeat(64)}`,
+      perf: `sha256:${'8'.repeat(64)}`,
+    }
+    const scenarioInvocations: string[] = []
+    const writeChecksummedEvidence = (path: string, value: unknown): void => {
+      const content = typeof value === 'string' ? value : canonicalJson(value)
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, content)
+      writeFileSync(`${path}.sha256`, `${sha256(content)}  ${basename(path)}\n`)
+    }
+    const scenarioEvidence: Readonly<Record<string, Record<string, unknown>>> = {
+      'clean-smoke': {
+        sourceRevision: releaseSha,
+        migrationHead: { expectedTag: '0180_parallel_beta' },
+      },
+      faults: { sourceRevision: releaseSha },
+      scale: {
+        sourceRevision: releaseSha,
+        scaleFixtureFileSha256: 'c'.repeat(64),
+        fleetFixtureFileSha256: 'd'.repeat(64),
+      },
+      upgrade: {
+        sourceRevision: releaseSha,
+        upgradedHead: { expectedTag: '0180_parallel_beta' },
+        images: Object.fromEntries(
+          Object.entries(imageIds).map(([name, imageId]) => [
+            name,
+            { imageId, revisionLabel: releaseSha },
+          ]),
+        ),
+      },
+    }
+    const runner: BetaCommandRunner = async (command) => {
+      if (command.executable === 'git') {
+        return { exitCode: 0, stdout: `${releaseSha}\n`, stderr: '' }
+      }
+      const stackIndex = command.args.indexOf('scripts/local-stack/stack.ts')
+      if (stackIndex >= 0) {
+        const scenario = command.args[stackIndex + 1] ?? ''
+        scenarioInvocations.push(scenario)
+        writeChecksummedEvidence(
+          join(acceptanceRoot, `${scenario}.json`),
+          scenarioEvidence[scenario],
+        )
+        return { exitCode: 0, stdout: `${scenario} passed`, stderr: '' }
+      }
+      if (command.executable === 'docker') {
+        const tag = command.args[2] ?? ''
+        const image = Object.entries(imageIds).find(([name]) =>
+          tag.includes(`repkey-local-${name}:`),
+        )
+        return {
+          exitCode: image ? 0 : 1,
+          stdout: image ? `${image[1]}\n` : '',
+          stderr: image ? '' : `unknown image ${tag}`,
+        }
+      }
+      const vitestOutput = command.args.find((argument) =>
+        argument.startsWith('--outputFile='),
+      )
+      if (vitestOutput) {
+        writeChecksummedEvidence(
+          resolve(vitestOutput.slice('--outputFile='.length)),
+          '{"success":true}\n',
+        )
+      }
+      const productOutput = command.args.find((argument) =>
+        argument.startsWith('--output='),
+      )
+      if (productOutput) {
+        const output = resolve(productOutput.slice('--output='.length))
+        writeChecksummedEvidence(output, '{"passed":true}\n')
+        writeFileSync(`${output}.report.json`, '{"passed":true}\n')
+      }
+      return { exitCode: 0, stdout: 'gate passed', stderr: '' }
+    }
+
+    rmSync(acceptanceRoot, { recursive: true, force: true })
+    rmSync(fragmentRoot, { recursive: true, force: true })
+    rmSync(workRoot, { recursive: true, force: true })
     try {
-      const dump = join(root, 'pre-cutover.sql')
-      writeFileSync(dump, 'SELECT 1;')
+      for (const group of BETA_SMOKE_SCENARIO_GROUPS) {
+        const args = [`--release-sha=${releaseSha}`, `--group=${group}`]
+        if (group === 'upgrade-product') {
+          args.push(`--pre-cutover-dump=${join(root, 'pre-cutover.sql')}`)
+        }
+        expect(await runBetaSmokeCli(args, runner)).toBe(0)
+      }
+      expect(
+        await runBetaSmokeCli(
+          [`--release-sha=${releaseSha}`, '--finalize', `--output-root=${outputRoot}`],
+          runner,
+        ),
+      ).toBe(0)
+
+      expect(scenarioInvocations).toEqual(['clean-smoke', 'faults', 'scale', 'upgrade'])
+      const releaseEntries = readdirSync(join(outputRoot, releaseSha), {
+        withFileTypes: true,
+      })
+      expect(releaseEntries.filter((entry) => entry.isDirectory())).toHaveLength(1)
+      const digest = releaseEntries.find((entry) => entry.isDirectory())?.name
+      expect(digest).toMatch(/^[0-9a-f]{64}$/u)
+      const manifestDirectory = join(outputRoot, releaseSha, digest ?? '')
+      expect(readdirSync(manifestDirectory).sort()).toEqual([
+        'manifest.json',
+        'manifest.sha256',
+      ])
+      const emitted = JSON.parse(
+        readFileSync(join(manifestDirectory, 'manifest.json'), 'utf8'),
+      ) as BetaSmokeManifest
+      expect(emitted.gates.map(({ id }) => id)).toEqual(REQUIRED_BETA_LOCAL_GATE_IDS)
+      expect(parseBetaSmokeManifest(canonicalJson(emitted)).errors).toEqual([])
+      expect(existsSync(join(workRoot, 'product-journeys.json.sha256'))).toBe(true)
+      expect(
+        readdirSync(acceptanceRoot).filter((name) => name === 'acceptance-index.json'),
+      ).toHaveLength(1)
+    } finally {
+      rmSync(acceptanceRoot, { recursive: true, force: true })
+      rmSync(fragmentRoot, { recursive: true, force: true })
+      rmSync(workRoot, { recursive: true, force: true })
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+  it('writes no success manifest when a scenario group fails', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'beta-smoke-failure-'))
+    const releaseSha = 'a'.repeat(40)
+    try {
       let invocation = 0
       const exitCode = await runBetaSmokeCli(
         [
-          `--release-sha=${'a'.repeat(40)}`,
-          `--pre-cutover-dump=${dump}`,
+          `--release-sha=${releaseSha}`,
+          '--group=clean-faults',
           `--output-root=${join(root, 'evidence')}`,
         ],
         async () => {
           invocation += 1
           return invocation === 1
-            ? { exitCode: 0, stdout: `${'a'.repeat(40)}\n`, stderr: '' }
-            : { exitCode: 9, stdout: '', stderr: 'acceptance failed' }
+            ? { exitCode: 0, stdout: `${releaseSha}\n`, stderr: '' }
+            : { exitCode: 9, stdout: '', stderr: 'clean smoke failed' }
         },
       )
 
       expect(exitCode).toBe(1)
-      expect(existsSync(join(root, 'evidence', 'a'.repeat(40)))).toBe(false)
+      expect(existsSync(join(root, 'evidence', releaseSha))).toBe(false)
+      expect(
+        existsSync(
+          join(
+            ROOT,
+            'test-results',
+            'beta-smoke-fragments',
+            releaseSha,
+            'groups',
+            'clean-faults.json',
+          ),
+        ),
+      ).toBe(false)
     } finally {
+      rmSync(join(ROOT, 'test-results', 'beta-smoke-work', releaseSha), {
+        recursive: true,
+        force: true,
+      })
+      rmSync(join(ROOT, 'test-results', 'beta-smoke-fragments', releaseSha), {
+        recursive: true,
+        force: true,
+      })
       rmSync(root, { recursive: true, force: true })
     }
   })

@@ -26,9 +26,9 @@ import { DEPLOYED_CRITICAL_PLAYWRIGHT_PROJECT } from './e2e/deployed/deployed-ta
 // tax to learn what the first attempt already showed. Locally retries stay 0.
 // Every occurrence goes in docs/operations/e2e-flake-register.md.
 //
-// Diagnostics stay failure-retained (trace/screenshot/video on the first
-// failing run, uploaded by the ci.yml e2e job) rather than 'on-first-retry',
-// so the artifact exists whether or not the retry saves the run.
+// Diagnostics keep the first failing attempt's trace, screenshot, and video.
+// CI uploads the directory before the next suite starts, so a successful retry
+// cannot erase the evidence that made the run flaky.
 //
 // BETA-LOCAL — Playwright is a pure browser client. The Docker application
 // stack owns both production-profile web processes, the worker, migrations,
@@ -82,10 +82,10 @@ export default defineConfig({
   outputDir: 'test-results/playwright',
   use: {
     baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:3000',
-    // BQC-6.4: failure-retained diagnostics on the first (only) attempt.
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    // BQC-6.4: retain the original failure even when retry 1 passes.
+    trace: 'retain-on-first-failure',
+    screenshot: 'on-first-failure',
+    video: 'retain-on-first-failure',
   },
   projects: [
     {

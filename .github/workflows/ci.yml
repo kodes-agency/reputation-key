@@ -427,86 +427,76 @@ jobs:
   # (nixpacks removed) — prove every classified image builds reproducibly on
   # every PR and satisfies its explicit runtime contract.
   #
-  # Each matrix entry owns one daemon and performs that image's build, complete
-  # smoke contract, SBOM generation, and SBOM scan. This keeps every assertion
-  # beside the image it checks while allowing all ten evidence chains to run in
-  # parallel. Production-profile boot remains owned by the `e2e` job.
+  # Main run 33891370093 measured uncached builds at web 70s, worker 54s,
+  # compatibility 52s, perf 45s, four sidecars 26–33s, sandbox 23s, and Redis
+  # 4s. These three groups balance at 126s/122s/121s of measured build work,
+  # keep web and worker apart, and reduce ten runner allocations to three.
+  # Every descriptor still owns its build, smoke, SBOM, and Grype evidence.
   docker-images:
-    name: docker image (${{ matrix.image.name }})
+    name: docker image group (${{ matrix.group }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
-        image:
-          - name: web
-            dockerfile: Dockerfile
-            tag: repkey-web:ci
-          - name: worker
-            dockerfile: Dockerfile.worker
-            tag: repkey-worker:ci
-          - name: google-provider-redis
-            dockerfile: Dockerfile.google-provider-redis
-            tag: repkey-google-provider-redis:ci
-          - name: ai-execution-admission
-            dockerfile: Dockerfile.ai-execution-admission
-            tag: repkey-ai-execution-admission:ci
-          - name: ai-egress-gateway
-            dockerfile: Dockerfile.ai-egress-gateway
-            tag: repkey-ai-egress-gateway:ci
-          - name: google-execution-admission
-            dockerfile: Dockerfile.google-execution-admission
-            tag: repkey-google-execution-admission:ci
-          - name: google-egress-gateway
-            dockerfile: Dockerfile.google-egress-gateway
-            tag: repkey-google-egress-gateway:ci
-          - name: google-import-compatibility
-            dockerfile: Dockerfile.google-import-compatibility
-            tag: repkey-google-import-compatibility:ci
-          - name: provider-sandbox
-            dockerfile: Dockerfile.sandbox
-            tag: repkey-provider-sandbox:ci
-          - name: perf-runner
-            dockerfile: Dockerfile.perf-runner
-            tag: repkey-perf-runner:ci
+        include:
+          - group: web-compatibility
+            images: >-
+              [{"name":"web","dockerfile":"Dockerfile","tag":"repkey-web:ci","publish":true},{"name":"google-import-compatibility","dockerfile":"Dockerfile.google-import-compatibility","tag":"repkey-google-import-compatibility:ci","publish":false},{"name":"google-provider-redis","dockerfile":"Dockerfile.google-provider-redis","tag":"repkey-google-provider-redis:ci","publish":true}]
+          - group: worker-tools
+            images: >-
+              [{"name":"worker","dockerfile":"Dockerfile.worker","tag":"repkey-worker:ci","publish":true},{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
+          - group: sidecars
+            images: >-
+              [{"name":"google-execution-admission","dockerfile":"Dockerfile.google-execution-admission","tag":"repkey-google-execution-admission:ci","publish":true},{"name":"google-egress-gateway","dockerfile":"Dockerfile.google-egress-gateway","tag":"repkey-google-egress-gateway:ci","publish":true},{"name":"ai-execution-admission","dockerfile":"Dockerfile.ai-execution-admission","tag":"repkey-ai-execution-admission:ci","publish":true},{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
-      # The web builder alone receives Sentry's upload credentials. A separate
-      # non-web step keeps the secret and project variables out of every worker
-      # and sidecar matrix entry.
-      - name: Build web image
-        if: matrix.image.name == 'web'
+      - name: Build grouped images
+        env:
+          IMAGE_GROUP_JSON: ${{ matrix.images }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
-          docker build \
-            --build-arg SOURCE_REVISION="$GITHUB_SHA" \
-            --build-arg SENTRY_AUTH_TOKEN="${{ secrets.SENTRY_AUTH_TOKEN }}" \
-            --build-arg SENTRY_ORG="${{ vars.SENTRY_ORG }}" \
-            --build-arg SENTRY_PROJECT="${{ vars.SENTRY_PROJECT }}" \
-            -f "${{ matrix.image.dockerfile }}" \
-            -t "${{ matrix.image.tag }}" \
-            .
-
-      - name: Build non-web image
-        if: matrix.image.name != 'web'
-        run: >-
-          docker build
-          --build-arg SOURCE_REVISION="$GITHUB_SHA"
-          -f "${{ matrix.image.dockerfile }}"
-          -t "${{ matrix.image.tag }}"
-          .
+          set -euo pipefail
+          jq -e 'type == "array" and length > 0 and length <= 4 and all(.[]; (.name | type == "string") and (.dockerfile | type == "string") and (.tag | type == "string") and (.publish | type == "boolean"))' <<<"$IMAGE_GROUP_JSON" >/dev/null
+          while IFS= read -r image; do
+            name=$(jq -r '.name' <<<"$image")
+            dockerfile=$(jq -r '.dockerfile' <<<"$image")
+            tag=$(jq -r '.tag' <<<"$image")
+            build_args=(--build-arg "SOURCE_REVISION=$GITHUB_SHA")
+            if [[ "$name" == "web" ]]; then
+              build_args+=(
+                --build-arg "SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN"
+                --build-arg "SENTRY_ORG=$SENTRY_ORG"
+                --build-arg "SENTRY_PROJECT=$SENTRY_PROJECT"
+              )
+            fi
+            docker buildx build \
+              --load \
+              --cache-from "type=gha,scope=ci-image-${name}" \
+              --cache-to "type=gha,mode=max,scope=ci-image-${name}" \
+              "${build_args[@]}" \
+              -f "$dockerfile" \
+              -t "$tag" \
+              .
+          done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
 
       - name: Smoke images (contract, non-root, prod-deps purity)
         env:
-          IMAGE_NAME: ${{ matrix.image.name }}
-          IMAGE_TAG: ${{ matrix.image.tag }}
+          IMAGE_GROUP_JSON: ${{ matrix.images }}
         run: |
+          set -euo pipefail
+          jq -e 'type == "array" and length > 0 and length <= 4' <<<"$IMAGE_GROUP_JSON" >/dev/null
+          while IFS= read -r image; do
+            IMAGE_NAME=$(jq -r '.name' <<<"$image")
+            IMAGE_TAG=$(jq -r '.tag' <<<"$image")
           case "$IMAGE_NAME" in
             web)
               docker run --rm repkey-web:ci node -e "process.exit(0)"
@@ -635,35 +625,45 @@ jobs:
             echo "### Governed image digest — $IMAGE_NAME"
             echo "\`$IMAGE_TAG@$(docker image inspect "$IMAGE_TAG" --format '{{.Id}}')\`"
           } >> "$GITHUB_STEP_SUMMARY"
+          done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
 
-      # BQC-7.7: every built image gets an SPDX JSON inventory. Each matrix row
-      # stages its file under a unique artifact name; the `docker` aggregate job
-      # merges all ten into the governed 30-day `sbom-images-spdx` artifact.
-      - name: SBOM matrix image
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+      # BQC-7.7: every built image gets an SPDX JSON inventory. Each bounded
+      # group stages its files under one unique artifact; the `docker`
+      # aggregate job still proves and publishes the exact ten-file set.
+      - name: Install pinned Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
-          image: ${{ matrix.image.tag }}
-          format: spdx-json
-          output-file: sbom-${{ matrix.image.name }}.spdx.json
+          syft-version: v1.42.3
 
-      - name: Stage image SBOM
+      - name: Generate grouped image SBOMs
+        env:
+          IMAGE_GROUP_JSON: ${{ matrix.images }}
+          SYFT_CMD: ${{ steps.syft.outputs.cmd }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r image; do
+            name=$(jq -r '.name' <<<"$image")
+            tag=$(jq -r '.tag' <<<"$image")
+            "$SYFT_CMD" scan "$tag" -o "spdx-json=sbom-${name}.spdx.json"
+          done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
+
+      - name: Stage grouped image SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: sbom-image-${{ matrix.image.name }}-spdx
-          path: sbom-${{ matrix.image.name }}.spdx.json
+          name: sbom-image-group-${{ matrix.group }}-spdx
+          path: sbom-*.spdx.json
           if-no-files-found: error
           retention-days: 1
 
       # BQC-7.7: hard fail on HIGH+ findings. Scanning the just-generated SBOM
-      # avoids re-cataloguing the image: the ten SBOMs from main run
-      # 33875276446 produced identical findings in 10.6s total with grype
-      # 0.116.1, versus 731s for the image inputs. The explicit config keeps
-      # every reviewed exception in the fail-closed gate.
+      # avoids re-cataloguing each image. Main run 33875276446 measured the ten
+      # SBOM scans at 10.6s total with Grype 0.116.1, versus 731s for image
+      # inputs. The explicit config keeps every reviewed exception in the
+      # fail-closed gate.
       #
-      # scan-action v7.4.0 hardcodes `grype-db-v0.116.1` when `cache-db` is on,
-      # so that immutable entry ages past grype's five-day limit. Own the cache
-      # explicitly and rotate its exact key once per UTC day; no restore prefix
-      # may fall back to a stale prior-day DB.
+      # Own the database cache and rotate its exact key once per UTC day; no
+      # restore prefix may fall back to a stale prior-day DB.
       - name: Resolve Grype DB cache date
         id: grype-db-date
         run: echo "utc=$(date -u +%F)" >> "$GITHUB_OUTPUT"
@@ -674,27 +674,99 @@ jobs:
           path: ~/.cache/grype/db
           key: grype-db-v0.116.1-${{ steps.grype-db-date.outputs.utc }}
 
-      - name: Vulnerability scan matrix image (grype)
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+      - name: Install pinned Grype
+        id: grype
+        uses: anchore/scan-action/download-grype@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
-          sbom: sbom-${{ matrix.image.name }}.spdx.json
-          fail-build: true
-          severity-cutoff: high
           grype-version: v0.116.1
-          config: .grype.yaml
 
-  # Keep the protected `docker` context stable while the ten image checks fan
-  # out above. The final artifact is assembled here because upload-artifact v4+
-  # forbids concurrent jobs from mutating one shared artifact.
+      - name: Vulnerability scan grouped images (grype)
+        env:
+          GRYPE_CMD: ${{ steps.grype.outputs.cmd }}
+          IMAGE_GROUP_JSON: ${{ matrix.images }}
+        run: |
+          set -euo pipefail
+          while IFS= read -r image; do
+            name=$(jq -r '.name' <<<"$image")
+            "$GRYPE_CMD" \
+              -v \
+              -o sarif \
+              --file "grype-${name}.sarif" \
+              --fail-on high \
+              -c .grype.yaml \
+              "sbom:sbom-${name}.spdx.json"
+          done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
+
+      # Each group pushes its scanned bytes under a unique run/attempt staging
+      # tag. The source-SHA tags are created only by the aggregate after all
+      # three groups pass, preventing a failed row from stranding a partial set.
+      - name: Authenticate production image stager
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Stage scanned production images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          IMAGE_GROUP_JSON: ${{ matrix.images }}
+        run: |
+          set -euo pipefail
+          mkdir -p staged-image-digests
+          owner=$(tr '[:upper:]' '[:lower:]' <<<"$GITHUB_REPOSITORY_OWNER")
+          while IFS= read -r image; do
+            [[ "$(jq -r '.publish' <<<"$image")" == "true" ]] || continue
+            IMAGE_NAME=$(jq -r '.name' <<<"$image")
+            IMAGE_TAG=$(jq -r '.tag' <<<"$image")
+            repository="ghcr.io/${owner}/repkey-${IMAGE_NAME}"
+            staged_reference="${repository}:ci-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            if docker buildx imagetools inspect "$staged_reference" >/dev/null 2>&1; then
+              echo "::error::run-scoped staging tag already exists: $staged_reference"
+              exit 1
+            fi
+            test "$(docker image inspect "$IMAGE_TAG" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+            docker tag "$IMAGE_TAG" "$staged_reference"
+            docker push "$staged_reference"
+            digest=$(docker buildx imagetools inspect "$staged_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            jq -S -n \
+              --arg image "$IMAGE_NAME" \
+              --arg repository "$repository" \
+              --arg stagedReference "$staged_reference" \
+              --arg digest "$digest" \
+              --arg sourceRevision "$GITHUB_SHA" \
+              '{image:$image,repository:$repository,stagedReference:$stagedReference,digest:$digest,sourceRevision:$sourceRevision}' \
+              > "staged-image-digests/${IMAGE_NAME}.json"
+          done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
+
+      - name: Stage scanned image descriptors
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-image-digests-${{ matrix.group }}-${{ github.sha }}
+          path: staged-image-digests/*.json
+          if-no-files-found: error
+          retention-days: 90
+
+  # Keep the protected `docker` context stable while three measured image
+  # groups fan out above. The final artifacts are assembled here because
+  # upload-artifact v4+ forbids concurrent jobs mutating one shared artifact.
   docker:
     needs: [docker-images]
     if: always()
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
+      - name: Require every image matrix entry to succeed
+        if: needs.docker-images.result != 'success'
+        run: exit 1
+
       - name: Download staged image SBOMs
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: sbom-image-*-spdx
+          pattern: sbom-image-group-*-spdx
           path: image-sboms
           merge-multiple: true
 
@@ -709,9 +781,113 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Require every image matrix entry to succeed
-        if: needs.docker-images.result != 'success'
-        run: exit 1
+      - name: Download staged production image descriptors
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: ci-image-digests-*-${{ github.sha }}
+          path: staged-image-digests
+          merge-multiple: true
+
+      - name: Validate complete staged production image set
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          test "$(find staged-image-digests -maxdepth 1 -type f -name '*.json' | wc -l)" -eq 7
+          jq -sS \
+            --arg revision "$GITHUB_SHA" \
+            --arg runId "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
+            'sort_by(.image) as $entries
+            | ["ai-egress-gateway","ai-execution-admission","google-egress-gateway","google-execution-admission","google-provider-redis","web","worker"] as $expected
+            | ($entries | map(.image)) as $observed
+            | if $observed != $expected then error("staged image set is incomplete or unexpected") else . end
+            | if any($entries[];
+                .sourceRevision != $revision
+                or (.digest | test("^sha256:[0-9a-f]{64}$") | not)
+                or .repository != ("ghcr.io/kodes-agency/repkey-" + .image)
+                or .stagedReference != (.repository + ":ci-run-" + $runId + "-" + $runAttempt)
+              )
+              then error("staged image repository, digest, source revision, or run reference is invalid")
+              else $entries
+              end' \
+            staged-image-digests/*.json > validated-image-digests.json
+
+      - name: Authenticate production image promoter
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Promote complete production image set
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          # Preflight every staged digest and every existing immutable tag
+          # before creating any source-SHA tag.
+          while IFS= read -r image; do
+            repository=$(jq -r '.repository' <<<"$image")
+            staged_reference=$(jq -r '.stagedReference' <<<"$image")
+            expected_digest=$(jq -r '.digest' <<<"$image")
+            staged_digest=$(docker buildx imagetools inspect "$staged_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
+            test "$staged_digest" = "$expected_digest"
+            final_reference="${repository}:${GITHUB_SHA}"
+            if docker buildx imagetools inspect "$final_reference" >/dev/null 2>&1; then
+              final_digest=$(docker buildx imagetools inspect "$final_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
+              if [[ "$final_digest" != "$expected_digest" ]]; then
+                echo "::error::immutable image tag has a conflicting digest: $final_reference"
+                exit 1
+              fi
+            fi
+          done < <(jq -c '.[]' validated-image-digests.json)
+
+          while IFS= read -r image; do
+            repository=$(jq -r '.repository' <<<"$image")
+            expected_digest=$(jq -r '.digest' <<<"$image")
+            final_reference="${repository}:${GITHUB_SHA}"
+            if ! docker buildx imagetools inspect "$final_reference" >/dev/null 2>&1; then
+              docker buildx imagetools create \
+                --prefer-index=false \
+                --tag "$final_reference" \
+                "${repository}@${expected_digest}"
+            fi
+          done < <(jq -c '.[]' validated-image-digests.json)
+
+          # The release map is written only after all seven final tags resolve
+          # to the staged digests.
+          while IFS= read -r image; do
+            repository=$(jq -r '.repository' <<<"$image")
+            expected_digest=$(jq -r '.digest' <<<"$image")
+            final_reference="${repository}:${GITHUB_SHA}"
+            final_digest=$(docker buildx imagetools inspect "$final_reference" --format '{{json .Manifest.Digest}}' | tr -d '"')
+            test "$final_digest" = "$expected_digest"
+          done < <(jq -c '.[]' validated-image-digests.json)
+
+          jq -S \
+            --arg revision "$GITHUB_SHA" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            '{
+              version:"repkey-ci-image-digest-map-1",
+              sourceRevision:$revision,
+              source:{
+                repository:$repository,
+                ref:"refs/heads/main",
+                workflow:".github/workflows/ci.yml",
+                runId:env.GITHUB_RUN_ID,
+                runAttempt:(env.GITHUB_RUN_ATTEMPT | tonumber)
+              },
+              images:(map({key:.image,value:{repository:.repository,digest:.digest,sourceRevision:.sourceRevision}}) | from_entries)
+            }' \
+            validated-image-digests.json > ci-image-digest-map.json
+
+      - name: Upload production image digest map
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-image-digest-map-${{ github.sha }}
+          path: ci-image-digest-map.json
+          if-no-files-found: error
+          retention-days: 90
 
   # BQC-7.7: secret scanning incl. full git history (gitleaks). Separate job:
   # runs in parallel with check (no pnpm install needed) and its failure is a
@@ -865,14 +1041,12 @@ jobs:
         id: e2e_critical
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-critical-report.json
-        run: pnpm test:e2e --project=critical ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
-      # BQC-6.4: retain failure diagnostics (trace/screenshot/video, written to
-      # test-results/playwright/ only by failed tests). `if: failure()` is correct HERE:
-      # the critical run has no continue-on-error, so its failure fails the job
-      # and this fires. Playwright empties outputDir at the start of each run,
-      # so this must upload before the full suite runs.
-      - name: Upload critical e2e failure artifacts
-        if: failure()
+        run: pnpm test:e2e --project=critical --max-failures=1 ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
+      # BQC-6.4: stop scheduling critical journeys after the first failure, but
+      # preserve that attempt's trace even when the configured retry succeeds.
+      # This upload runs before the full suite clears Playwright's outputDir.
+      - name: Upload critical e2e first-failure artifacts
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-artifacts-critical
@@ -935,23 +1109,23 @@ jobs:
         if: always()
         run: pnpm e2e:stack:down
 
-  # Final controlled-beta gate. beta:smoke checks out and builds its own source,
-  # owns the hermetic beta-profile Compose cycles for clean/upgrade/scale/fault/
-  # product evidence, and consumes no output or artifact from check, docker,
-  # Storybook, or e2e. It deliberately has no `needs`, so it starts near t=0;
-  # the final down step is defensive cleanup if the orchestrator is interrupted.
-  #
-  # NOT run on every PR commit. It is not a required PR status, so it now runs
-  # on every push to main (preserving release evidence), on workflow dispatch,
-  # and on demand for a PR carrying the `beta-acceptance` label when a change
-  # needs the full hermetic run before it merges.
-  beta-acceptance:
+  # The old beta job's 811-second sequential smoke owned the entire critical
+  # path. Main run 33891370093 measured clean/fault, scale/source, and
+  # upgrade/product work as three independent, balanced lanes. Each lane owns
+  # hermetic Compose cycles and stages checksum-protected fragments; no lane
+  # consumes another job's mutable runtime.
+  beta-acceptance-groups:
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       contains(github.event.pull_request.labels.*.name, 'beta-acceptance')
+    name: beta acceptance (${{ matrix.group }})
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [clean-faults, scale-source, upgrade-product]
     services:
       postgres:
         # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
@@ -989,23 +1163,84 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Chromium was downloaded from scratch in every job that needs it. Key the
-      # cache on the resolved @playwright/test version so a bump invalidates it.
+      # Only product journeys launch a browser. The other two lanes no longer
+      # pay the Chromium install tax.
       - name: Resolve Playwright version
+        if: matrix.group == 'upgrade-product'
         id: pw
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.group == 'upgrade-product'
         id: pw-cache
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium
       - name: Install Playwright browser
+        if: matrix.group == 'upgrade-product'
         run: >-
           ${{ steps.pw-cache.outputs.cache-hit == 'true'
           && 'pnpm exec playwright install-deps chromium'
           || 'pnpm exec playwright install --with-deps chromium' }}
-      - name: Run authoritative local beta smoke
-        run: pnpm beta:smoke -- --release-sha=${{ github.sha }}
+      - name: Run beta smoke scenario group
+        run: pnpm beta:smoke -- --release-sha=${{ github.sha }} --group=${{ matrix.group }}
+      - name: Stage beta smoke fragment
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: beta-smoke-fragment-${{ matrix.group }}-${{ github.sha }}
+          path: test-results/beta-smoke-fragments/${{ github.sha }}/
+          if-no-files-found: error
+          retention-days: 1
+      - name: Collect beta Compose diagnostics
+        if: always()
+        run: pnpm exec tsx scripts/local-stack/stack.ts logs --mode=beta
+      - name: Upload beta group diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: beta-local-smoke-diagnostics-${{ matrix.group }}-${{ github.sha }}
+          path: |
+            test-results/beta-smoke-work/**
+            test-results/local-stack/**
+            test-results/playwright/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Tear down beta Compose stack
+        if: always()
+        run: pnpm local:beta:down
+
+  # Preserve the required `beta-acceptance` context as a small, fail-closed
+  # aggregate. It validates all three markers against the authoritative plan,
+  # reconstructs the exact legacy evidence contract, runs cross-lane gates,
+  # and emits the single immutable manifest.
+  beta-acceptance:
+    needs: [beta-acceptance-groups]
+    if: >-
+      always() && (
+        github.event_name == 'push' ||
+        github.event_name == 'workflow_dispatch' ||
+        contains(github.event.pull_request.labels.*.name, 'beta-acceptance')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Require every beta scenario group to succeed
+        if: needs.beta-acceptance-groups.result != 'success'
+        run: exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Download beta smoke fragments
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: beta-smoke-fragment-*-${{ github.sha }}
+          path: test-results/beta-smoke-fragments/${{ github.sha }}
+          merge-multiple: true
+      - name: Finalize authoritative local beta smoke
+        run: pnpm beta:smoke -- --release-sha=${{ github.sha }} --finalize
       - name: Resolve beta manifest digest
         id: beta_manifest
         shell: bash
@@ -1015,10 +1250,7 @@ jobs:
           test "${#checksums[@]}" -eq 1
           manifest_dir="$(dirname "${checksums[0]}")"
           echo "digest=$(basename "$manifest_dir")" >> "$GITHUB_OUTPUT"
-      - name: Collect beta Compose diagnostics
-        if: always()
-        run: pnpm exec tsx scripts/local-stack/stack.ts logs --mode=beta
-      - name: Upload beta smoke evidence and diagnostics
+      - name: Upload beta smoke evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -1027,10 +1259,7 @@ jobs:
             test-results/beta-smoke/**
             test-results/beta-smoke-work/**
             test-results/local-stack/**
-            test-results/playwright/**
+            test-results/beta-smoke-fragments/**
           if-no-files-found: ignore
           overwrite: false
           retention-days: 30
-      - name: Tear down beta Compose stack
-        if: always()
-        run: pnpm local:beta:down
