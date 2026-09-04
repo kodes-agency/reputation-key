@@ -26,6 +26,20 @@ export type ContainerImagePolicy = Readonly<{
   images: readonly ContainerImagePolicyRow[]
 }>
 
+// CI publishes the seven continuously deployed production runtimes. The
+// Google import compatibility image remains a governed release-candidate
+// rollout tool, but is promoted by release-images.yml rather than every main
+// build; sandbox and perf-runner never leave CI.
+const CI_PUBLISHED_IMAGE_IDS = [
+  'ai-egress-gateway',
+  'ai-execution-admission',
+  'google-egress-gateway',
+  'google-execution-admission',
+  'google-provider-redis',
+  'web',
+  'worker',
+] as const
+
 const IGNORED_DIRECTORIES = new Set([
   '.git',
   '.output',
@@ -147,7 +161,16 @@ export function validateDockerfileInventory(
 }
 
 type WorkflowStep = Readonly<{ name: string; content: string }>
-type CiImageMatrixRow = Readonly<{ name: string; dockerfile: string; ciImage: string }>
+type CiImageMatrixRow = Readonly<{
+  name: string
+  dockerfile: string
+  ciImage: string
+  publish: boolean
+}>
+type CiImageMatrixGroup = Readonly<{
+  name: string
+  images: readonly CiImageMatrixRow[]
+}>
 
 function workflowSteps(workflow: string): readonly WorkflowStep[] {
   const lines = workflow.split('\n')
@@ -160,7 +183,7 @@ function workflowSteps(workflow: string): readonly WorkflowStep[] {
   }))
 }
 
-function ciImageMatrixRows(workflow: string): readonly CiImageMatrixRow[] {
+function ciImageMatrixGroups(workflow: string): readonly CiImageMatrixGroup[] {
   const job = /^ {2}docker-images:\s*$([\s\S]*?)(?=^ {2}[a-z0-9-]+:\s*$)/mu.exec(
     workflow,
   )?.[1]
@@ -168,13 +191,39 @@ function ciImageMatrixRows(workflow: string): readonly CiImageMatrixRow[] {
 
   return [
     ...job.matchAll(
-      /^\s{10}- name:\s*(\S+)\s*\n\s{12}dockerfile:\s*(\S+)\s*\n\s{12}tag:\s*(\S+)\s*$/gmu,
+      /^\s{10}- group:\s*(\S+)\s*\n\s{12}images:\s*>-\s*\n\s{14}(\[.*\])\s*$/gmu,
     ),
-  ].map((match) => ({
-    name: match[1],
-    dockerfile: match[2],
-    ciImage: match[3],
-  }))
+  ].map((match) => {
+    let candidates: unknown = []
+    try {
+      candidates = JSON.parse(match[2]) as unknown
+    } catch {
+      // A malformed descriptor becomes an empty group and fails coverage below.
+    }
+    const images = Array.isArray(candidates)
+      ? candidates.flatMap((candidate): readonly CiImageMatrixRow[] => {
+          if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
+            return []
+          const row = candidate as Record<string, unknown>
+          if (
+            typeof row.name !== 'string' ||
+            typeof row.dockerfile !== 'string' ||
+            typeof row.tag !== 'string' ||
+            typeof row.publish !== 'boolean'
+          )
+            return []
+          return [
+            {
+              name: row.name,
+              dockerfile: row.dockerfile,
+              ciImage: row.tag,
+              publish: row.publish,
+            },
+          ]
+        })
+      : []
+    return { name: match[1], images }
+  })
 }
 
 function listDifference(
@@ -199,18 +248,20 @@ export function validateCiContainerCoverage(
   workflow: string,
 ): readonly string[] {
   const expectedImages = policy.images.map(({ ciImage }) => ciImage)
-  const matrixRows = ciImageMatrixRows(workflow)
+  const matrixGroups = ciImageMatrixGroups(workflow)
+  const matrixRows = matrixGroups.flatMap(({ images }) => images)
   const steps = workflowSteps(workflow)
-  const webBuild = steps.find(({ name }) => name === 'Build web image')
-  const nonWebBuild = steps.find(({ name }) => name === 'Build non-web image')
+  const build = steps.find(({ name }) => name === 'Build grouped images')
   const buildsFromMatrix =
-    webBuild?.content.includes("if: matrix.image.name == 'web'") === true &&
-    nonWebBuild?.content.includes("if: matrix.image.name != 'web'") === true &&
-    [webBuild, nonWebBuild].every(
-      (step) =>
-        step?.content.includes('-f "${{ matrix.image.dockerfile }}"') === true &&
-        step.content.includes('-t "${{ matrix.image.tag }}"'),
-    )
+    workflow.includes(
+      'uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c',
+    ) &&
+    build?.content.includes('docker buildx build') === true &&
+    build.content.includes('--load') &&
+    build.content.includes('--cache-from "type=gha,scope=ci-image-${name}"') &&
+    build.content.includes('--cache-to "type=gha,mode=max,scope=ci-image-${name}"') &&
+    build.content.includes('-f "$dockerfile"') &&
+    build.content.includes('-t "$tag"')
 
   const violations: string[] = [
     ...listDifference(
@@ -225,7 +276,37 @@ export function validateCiContainerCoverage(
       matrixRows.map(({ name, ciImage }) => `${name}=>${ciImage}`),
       'CI image matrix bindings',
     ),
+    ...listDifference(
+      policy.images.map(
+        ({ id }) =>
+          `${id}=>${CI_PUBLISHED_IMAGE_IDS.includes(
+            id as (typeof CI_PUBLISHED_IMAGE_IDS)[number],
+          )}`,
+      ),
+      matrixRows.map(({ name, publish }) => `${name}=>${publish}`),
+      'CI image publish bindings',
+    ),
   ]
+
+  if (matrixGroups.length !== 3)
+    violations.push(
+      `CI image matrix must use exactly 3 bounded groups, found ${matrixGroups.length}`,
+    )
+  for (const group of matrixGroups) {
+    if (group.images.length < 1 || group.images.length > 4) {
+      violations.push(
+        `CI image group ${group.name} must contain 1-4 images, found ${group.images.length}`,
+      )
+    }
+  }
+  const webGroup = matrixGroups.find(({ images }) =>
+    images.some(({ name }) => name === 'web'),
+  )?.name
+  const workerGroup = matrixGroups.find(({ images }) =>
+    images.some(({ name }) => name === 'worker'),
+  )?.name
+  if (webGroup !== undefined && webGroup === workerGroup)
+    violations.push('CI image groups must keep web and worker in separate runner rows')
 
   const smoke = steps.find(({ name }) => name.startsWith('Smoke images'))
   if (!smoke) {
@@ -250,27 +331,105 @@ export function validateCiContainerCoverage(
     }
   }
 
-  const sbom = steps.find(({ name }) => name === 'SBOM matrix image')
+  const syft = steps.find(({ name }) => name === 'Install pinned Syft')
+  const sbom = steps.find(({ name }) => name === 'Generate grouped image SBOMs')
   const sbomImages =
-    sbom?.content.includes('image: ${{ matrix.image.tag }}') === true &&
-    sbom.content.includes('output-file: sbom-${{ matrix.image.name }}.spdx.json')
+    syft?.content.includes('syft-version: v1.42.3') === true &&
+    sbom?.content.includes('"$SYFT_CMD" scan "$tag"') === true &&
+    sbom.content.includes('-o "spdx-json=sbom-${name}.spdx.json"')
       ? matrixRows.map(({ ciImage }) => ciImage)
       : []
   violations.push(...listDifference(expectedImages, sbomImages, 'CI image SBOMs'))
 
+  const grype = steps.find(({ name }) => name === 'Install pinned Grype')
   const scan = steps.find(
-    ({ name }) => name === 'Vulnerability scan matrix image (grype)',
+    ({ name }) => name === 'Vulnerability scan grouped images (grype)',
   )
   const scannedImages =
-    scan?.content.includes('sbom: sbom-${{ matrix.image.name }}.spdx.json') === true &&
-    scan.content.includes('fail-build: true') &&
-    scan.content.includes('severity-cutoff: high') &&
-    scan.content.includes('config: .grype.yaml')
+    grype?.content.includes('grype-version: v0.116.1') === true &&
+    scan?.content.includes('"$GRYPE_CMD"') === true &&
+    scan.content.includes('--fail-on high') &&
+    scan.content.includes('-c .grype.yaml') &&
+    scan.content.includes('"sbom:sbom-${name}.spdx.json"')
       ? matrixRows.map(({ ciImage }) => ciImage)
       : []
   violations.push(
     ...listDifference(expectedImages, scannedImages, 'CI vulnerability scans'),
   )
+
+  const stagingAuth = steps.find(
+    ({ name }) => name === 'Authenticate production image stager',
+  )
+  const stageImages = steps.find(({ name }) => name === 'Stage scanned production images')
+  const stageDescriptors = steps.find(
+    ({ name }) => name === 'Stage scanned image descriptors',
+  )
+  const barrier = steps.find(
+    ({ name }) => name === 'Require every image matrix entry to succeed',
+  )
+  const validateStaged = steps.find(
+    ({ name }) => name === 'Validate complete staged production image set',
+  )
+  const promotionAuth = steps.find(
+    ({ name }) => name === 'Authenticate production image promoter',
+  )
+  const promote = steps.find(
+    ({ name }) => name === 'Promote complete production image set',
+  )
+  const mainOnly = "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+  const stagingContract =
+    stagingAuth !== undefined &&
+    stageImages !== undefined &&
+    stageDescriptors !== undefined &&
+    scan !== undefined &&
+    stagingAuth.content.includes(mainOnly) &&
+    stageImages.content.includes(mainOnly) &&
+    stageDescriptors.content.includes(mainOnly) &&
+    stageImages.content.includes('[[ "$(jq -r \'.publish\' <<<"$image")" == "true" ]]') &&
+    stageImages.content.includes(
+      'staged_reference="${repository}:ci-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+    ) &&
+    stageImages.content.includes('docker tag "$IMAGE_TAG" "$staged_reference"') &&
+    stageImages.content.includes('docker push "$staged_reference"') &&
+    !stageImages.content.includes('docker buildx build') &&
+    !stageImages.content.includes(':latest') &&
+    steps.indexOf(scan) < steps.indexOf(stageImages)
+  if (!stagingContract)
+    violations.push('CI must stage scanned main images under unique run-attempt tags')
+
+  const expectedPublished = [...CI_PUBLISHED_IMAGE_IDS]
+  const mapWrite = 'validated-image-digests.json > ci-image-digest-map.json'
+  const finalVerification =
+    promote?.content.lastIndexOf('final_digest=$(docker buildx imagetools inspect') ?? -1
+  const mapWriteIndex = promote?.content.indexOf(mapWrite) ?? -1
+  const promotionContract =
+    barrier !== undefined &&
+    validateStaged !== undefined &&
+    promotionAuth !== undefined &&
+    promote !== undefined &&
+    barrier.content.includes("if: needs.docker-images.result != 'success'") &&
+    validateStaged.content.includes(mainOnly) &&
+    validateStaged.content.includes(JSON.stringify(expectedPublished)) &&
+    validateStaged.content.includes('staged image set is incomplete or unexpected') &&
+    validateStaged.content.includes(
+      '.repository != ("ghcr.io/kodes-agency/repkey-" + .image)',
+    ) &&
+    promotionAuth.content.includes(mainOnly) &&
+    promote.content.includes(mainOnly) &&
+    promote.content.includes('docker buildx imagetools create') &&
+    promote.content.includes('--prefer-index=false') &&
+    promote.content.includes('"${repository}@${expected_digest}"') &&
+    promote.content.includes('final_reference="${repository}:${GITHUB_SHA}"') &&
+    !promote.content.includes('docker buildx build') &&
+    !promote.content.includes(':latest') &&
+    finalVerification >= 0 &&
+    mapWriteIndex > finalVerification &&
+    workflow.includes('name: ci-image-digest-map-${{ github.sha }}')
+  if (!promotionContract) {
+    violations.push(
+      'CI must promote the exact complete staged image set before writing its digest map',
+    )
+  }
 
   return violations
 }

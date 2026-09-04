@@ -43,20 +43,20 @@ describe('Google sidecar production artifacts', () => {
   })
 
   it('builds, smoke-checks, digests, inventories, and scans both images in CI', () => {
-    // The ten image evidence chains run as one matrix, so the build, SBOM and
-    // scan steps name `matrix.image.*` instead of each tag. Both halves are
-    // still pinned: each Google image must be a matrix ROW (tag + dockerfile),
-    // and the shared steps must cover every row.
+    // The ten image evidence chains run in three bounded groups. Every compact
+    // descriptor still feeds the same per-image Buildx cache, smoke switch,
+    // Syft inventory, and Grype scan.
     for (const image of GOOGLE_IMAGES) {
-      expect(ci).toContain(`tag: ${image}`)
+      expect(ci).toContain(`"tag":"${image}"`)
       expect(ci).toContain(`docker image inspect ${image}`)
     }
-    expect(ci).toContain('dockerfile: Dockerfile.google-execution-admission')
-    expect(ci).toContain('dockerfile: Dockerfile.google-egress-gateway')
-    expect(ci).toContain('-t "${{ matrix.image.tag }}"')
-    expect(ci).toContain('image: ${{ matrix.image.tag }}')
-    expect(ci).toContain('output-file: sbom-${{ matrix.image.name }}.spdx.json')
-    expect(ci).toContain('sbom: sbom-${{ matrix.image.name }}.spdx.json')
+    expect(ci).toContain('"dockerfile":"Dockerfile.google-execution-admission"')
+    expect(ci).toContain('"dockerfile":"Dockerfile.google-egress-gateway"')
+    expect(ci).toContain('-f "$dockerfile"')
+    expect(ci).toContain('-t "$tag"')
+    expect(ci).toContain('--cache-from "type=gha,scope=ci-image-${name}"')
+    expect(ci).toContain('"$SYFT_CMD" scan "$tag"')
+    expect(ci).toContain('"sbom:sbom-${name}.spdx.json"')
     expect(ci).toContain('dist-google-execution-admission')
     expect(ci).toContain('dist-google-egress-gateway')
   })

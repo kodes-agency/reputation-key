@@ -105,39 +105,49 @@ describe('coverage and changed-code gates', () => {
     expect(ciWorkflow).not.toMatch(/run: pnpm test\s*$/m)
     expect(occurrences('- name: Coverage gate')).toBe(1)
 
-    // Event-conditionality is pinned by exact count rather than by slicing the
-    // job that owns each command. The six legitimate sites are the gitleaks
-    // log-opts branch, the three Playwright `--fail-on-flaky-tests` promotions,
-    // and the two comparisons in beta-acceptance's `if:`.
-    expect(occurrences('github.event_name')).toBe(6)
+    // The fast check graph stays unconditional even as deployment-only image
+    // publishing adds its own main-branch predicates later in the workflow.
+    const fastGraph = ciWorkflow.slice(
+      ciWorkflow.indexOf('\n  static:'),
+      ciWorkflow.indexOf('\n  docker-images:'),
+    )
+    expect(fastGraph).not.toContain('github.event_name')
   })
 
-  it('lets a flake report itself on a PR and refuses one on the release path', () => {
-    // retries: 1 means a flake no longer costs a 10-minute manual rerun to
-    // classify; --fail-on-flaky-tests on pushes means it cannot reach main.
+  it('bounds critical failure work, retains its first trace, and rejects release flakes', () => {
+    // retries classify flakes without a manual rerun; max-failures stops new
+    // critical journeys after the first failure, while main still rejects a
+    // passing retry via --fail-on-flaky-tests.
+    expect(playwrightConfig).toContain("screenshot: 'on-first-failure'")
+    expect(playwrightConfig).toContain("video: 'retain-on-first-failure'")
     expect(playwrightConfig).toMatch(/retries: isCi \? 1 : 0/)
+    expect(playwrightConfig).toContain("trace: 'retain-on-first-failure'")
     const flakyGate = '--fail-on-flaky-tests'
     expect(ciWorkflow).toContain(
-      `--project=critical \${{ github.event_name == 'push' && '${flakyGate}'`,
+      `--project=critical --max-failures=1 \${{ github.event_name == 'push' && '${flakyGate}'`,
     )
     expect(ciWorkflow).toContain(
       `--project=full \${{ github.event_name == 'push' && '${flakyGate}'`,
     )
+    expect(ciWorkflow).toMatch(
+      /Upload critical e2e first-failure artifacts\n\s+if: always\(\)/u,
+    )
   })
 
-  it('rotates one explicit daily grype DB cache before every matrix scan', () => {
+  it('rotates one explicit daily grype DB cache before each grouped scan', () => {
     const matrixStart = ciWorkflow.indexOf('\n  docker-images:')
     const matrixEnd = ciWorkflow.indexOf('\n  docker:', matrixStart)
     const matrixJob = ciWorkflow.slice(matrixStart, matrixEnd)
     const dateStep = matrixJob.indexOf('- name: Resolve Grype DB cache date')
     const cacheStep = matrixJob.indexOf('- name: Restore daily Grype vulnerability DB')
-    const scanStep = matrixJob.indexOf('- name: Vulnerability scan matrix image (grype)')
+    const scanStep = matrixJob.indexOf(
+      '- name: Vulnerability scan grouped images (grype)',
+    )
 
     expect(matrixStart).toBeGreaterThanOrEqual(0)
     expect(matrixEnd).toBeGreaterThan(matrixStart)
-    expect(matrixJob.match(/^ {10}- name:\s*\S+/gmu)).toHaveLength(
-      containerPolicy.images.length,
-    )
+    expect(matrixJob.match(/^ {10}- group:\s*\S+/gmu)).toHaveLength(3)
+    expect(matrixJob.match(/\{"name":/gu)).toHaveLength(containerPolicy.images.length)
     expect(dateStep).toBeGreaterThanOrEqual(0)
     expect(cacheStep).toBeGreaterThan(dateStep)
     expect(scanStep).toBeGreaterThan(cacheStep)
@@ -150,17 +160,29 @@ describe('coverage and changed-code gates', () => {
     )
     expect(matrixJob).not.toContain('restore-keys:')
     expect(matrixJob).toContain('grype-version: v0.116.1')
-    expect(matrixJob).toContain('config: .grype.yaml')
+    expect(matrixJob).toContain('-c .grype.yaml')
+    expect(matrixJob).toContain('--cache-from "type=gha,scope=ci-image-${name}"')
+    expect(matrixJob).toContain('--cache-to "type=gha,mode=max,scope=ci-image-${name}"')
     expect(ciWorkflow).not.toContain('cache-db: true')
   })
 
-  it('starts beta acceptance without serializing behind unrelated gates', () => {
-    const betaStart = ciWorkflow.indexOf('\n  beta-acceptance:')
-    const betaJob = ciWorkflow.slice(betaStart)
+  it('fans beta scenarios out at time zero and preserves one required aggregate', () => {
+    const groupsStart = ciWorkflow.indexOf('\n  beta-acceptance-groups:')
+    const aggregateStart = ciWorkflow.indexOf('\n  beta-acceptance:', groupsStart)
+    const groupJob = ciWorkflow.slice(groupsStart, aggregateStart)
+    const aggregateJob = ciWorkflow.slice(aggregateStart)
 
-    expect(betaStart).toBeGreaterThanOrEqual(0)
-    expect(betaJob).toContain('run: pnpm beta:smoke -- --release-sha=${{ github.sha }}')
-    expect(betaJob).not.toMatch(/^ {4}needs:/mu)
+    expect(groupsStart).toBeGreaterThanOrEqual(0)
+    expect(aggregateStart).toBeGreaterThan(groupsStart)
+    expect(groupJob).toContain('group: [clean-faults, scale-source, upgrade-product]')
+    expect(groupJob).toContain(
+      'run: pnpm beta:smoke -- --release-sha=${{ github.sha }} --group=${{ matrix.group }}',
+    )
+    expect(groupJob).not.toMatch(/^ {4}needs:/mu)
+    expect(aggregateJob).toContain('needs: [beta-acceptance-groups]')
+    expect(aggregateJob).toContain(
+      'run: pnpm beta:smoke -- --release-sha=${{ github.sha }} --finalize',
+    )
   })
 })
 

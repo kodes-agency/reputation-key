@@ -31,7 +31,7 @@ describe('container image policy', () => {
     const policy = loadContainerImagePolicy(ROOT)
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
     const withoutMatrixScan = workflow.replace(
-      /\n\s+- name: Vulnerability scan matrix image \(grype\)[\s\S]*?(?=\n\s+- name:|\n\s{2}#)/u,
+      /\n\s+- name: Vulnerability scan grouped images \(grype\)[\s\S]*?(?=\n\s+- name:|\n\s{2}#)/u,
       '',
     )
 
@@ -40,11 +40,11 @@ describe('container image policy', () => {
     )
   })
 
-  it('rejects a classified image missing from the evidence matrix', () => {
+  it('rejects a classified image missing from a bounded evidence group', () => {
     const policy = loadContainerImagePolicy(ROOT)
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
     const withoutPerfRow = workflow.replace(
-      /\n\s{10}- name: perf-runner\n\s{12}dockerfile: Dockerfile\.perf-runner\n\s{12}tag: repkey-perf-runner:ci/u,
+      ',{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false}',
       '',
     )
     const violations = validateCiContainerCoverage(policy, withoutPerfRow)
@@ -58,12 +58,64 @@ describe('container image policy', () => {
     )
   })
 
+  it('rejects a group with more than four image contracts', () => {
+    const policy = loadContainerImagePolicy(ROOT)
+    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
+    const overflowed = workflow.replace(
+      '{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]',
+      '{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true},{"name":"overflow","dockerfile":"Dockerfile","tag":"overflow:ci","publish":false}]',
+    )
+
+    expect(validateCiContainerCoverage(policy, overflowed)).toContain(
+      'CI image group sidecars must contain 1-4 images, found 5',
+    )
+  })
+
+  it('pins the seven continuous runtimes versus non-published CI descriptors', () => {
+    const policy = loadContainerImagePolicy(ROOT)
+    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
+    const webMadeCiOnly = workflow.replace(
+      '{"name":"web","dockerfile":"Dockerfile","tag":"repkey-web:ci","publish":true}',
+      '{"name":"web","dockerfile":"Dockerfile","tag":"repkey-web:ci","publish":false}',
+    )
+
+    expect(validateCiContainerCoverage(policy, webMadeCiOnly)).toContain(
+      'CI image publish bindings is missing web=>true',
+    )
+  })
+
+  it('requires a cross-group success barrier before immutable SHA promotion', () => {
+    const policy = loadContainerImagePolicy(ROOT)
+    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
+    const withoutBarrier = workflow.replace(
+      "        if: needs.docker-images.result != 'success'\n",
+      '',
+    )
+
+    expect(validateCiContainerCoverage(policy, withoutBarrier)).toContain(
+      'CI must promote the exact complete staged image set before writing its digest map',
+    )
+  })
+
+  it('requires an isolated read/write Buildx cache for every grouped image', () => {
+    const policy = loadContainerImagePolicy(ROOT)
+    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
+    const withoutCacheExport = workflow.replace(
+      '              --cache-to "type=gha,mode=max,scope=ci-image-${name}" \\\n',
+      '',
+    )
+
+    expect(validateCiContainerCoverage(policy, withoutCacheExport)).toContain(
+      'CI image builds is missing Dockerfile=>repkey-web:ci',
+    )
+  })
+
   it('merges the ten staged SBOMs into the governed image artifact', () => {
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
     const aggregate = workflow.slice(workflow.indexOf('\n  docker:'))
 
-    expect(workflow).toContain('name: sbom-image-${{ matrix.image.name }}-spdx')
-    expect(aggregate).toContain('pattern: sbom-image-*-spdx')
+    expect(workflow).toContain('name: sbom-image-group-${{ matrix.group }}-spdx')
+    expect(aggregate).toContain('pattern: sbom-image-group-*-spdx')
     expect(aggregate).toContain('merge-multiple: true')
     expect(aggregate).toContain('name: sbom-images-spdx')
     expect(aggregate).toContain(
