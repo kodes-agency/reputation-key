@@ -180,7 +180,9 @@ const failForProviderError = async (
   const code = failureCodeForProviderError(error)
   if (code === 'provider_failure') {
     deps.logger.error(
-      { err: error, runId, propertyId: input.propertyId },
+      // BQC-7.3 bans tenant identifiers in logs; runId is the approved
+      // execution identity and resolves the property through the run row.
+      { err: error, runId },
       'review snapshot failed without a coded cause',
     )
   }
