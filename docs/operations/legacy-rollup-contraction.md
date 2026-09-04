@@ -90,3 +90,47 @@ Before removing any of the four tables or the historical refresh path:
 Until all seven steps have retained evidence, the four tables and the historical
 source needed to interpret them remain in place. No inventory result authorizes
 removal by itself.
+
+## Production gate measurement — 2026-09-04
+
+A read of the live `google-closed-beta` database at 17:56Z measured:
+
+| Retained table               |          Rows |
+| ---------------------------- | ------------: |
+| `rollup_daily_metrics`       |             6 |
+| `rollup_weekly_metrics`      |             6 |
+| `rollup_daily_inbox_metrics` |             9 |
+| `_rollup_watermarks`         | 3 seeded rows |
+
+The three projection tables therefore retain 21 data rows. They are derived
+aggregates, and their source `metric_readings` remains in place. Whether to
+export these rows or reconstruct them from that source is a future reviewed
+decision; the existence of the source is not itself reconstruction proof.
+`schemaContractionCandidate` is false while these retained rows exist.
+
+No foreign key references originate from or target any of the four tables.
+This closes the foreign-key measurement, but it does not waive the non-FK and
+downstream-artifact disposition required by gate step 5.
+
+The producer-absence observation is complete. The three
+`_rollup_watermarks.updated_at` values remained frozen at `14:00:00Z`,
+`14:05:00Z`, and `00:31:58Z`. All three precede the `14:41:53Z` deployment of
+quarantine release `509cb0a8`, and none changed across the 15:00, 16:00, or
+17:00 cron windows. This satisfies gate step 6: one verified release has run
+without a rollup producer.
+
+### Seven-step gate status
+
+| Step | Status        | Evidence or remaining requirement                                                                                                                                                  |
+| ---: | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|    1 | **OPEN**      | This measurement is retained here, but no signed, immutable canonical inventory from the exact database has been retained.                                                         |
+|    2 | **OPEN**      | The 21 projection rows and 3 watermark rows require a reviewed, versioned tenant-scoped export with deterministic ordering, checksums, encryption, retention, and access controls. |
+|    3 | **OPEN**      | No retained export exists to restore and compare in an isolated database.                                                                                                          |
+|    4 | **OPEN**      | The governed metric model has not yet been evidenced to reproduce every retained reporting answer, including inbox aggregates.                                                     |
+|    5 | **OPEN**      | The foreign-key portion is measured at zero in both directions; non-FK dependencies and downstream analytical artifacts still require complete disposition evidence.               |
+|    6 | **SATISFIED** | Release `509cb0a8` was deployed before three observed cron windows, and every watermark timestamp stayed frozen.                                                                   |
+|    7 | **OPEN**      | A reversible contraction migration, including rollback from the retained export, cannot be rehearsed until the export and restore proof exist.                                     |
+
+Only step 6 is satisfied. Physical contraction of the four rollup tables
+remains prohibited; their schema, inventory tooling, and data-fate candidate
+records stay in place.

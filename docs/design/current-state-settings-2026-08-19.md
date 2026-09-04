@@ -60,9 +60,10 @@ The copy compounds the confusion inside the page: the "Language and timezone" ca
 > `responseSlaHours` was dropped from the Identity organization API and from the
 > `OrganizationSettingsForm` patch. Inbox Response Targets are now the single response-timer
 > authority; Property and Fleet attention read overdue counts from
-> `InboxPublicApi.getGoogleReviewTargetCountsByProperty`. The `organization.responseSlaHours`
-> column remains as dormant schema pending CNV-01 contraction. The record below describes the
-> state on 2026-08-19 and is left intact.
+> `InboxPublicApi.getGoogleReviewTargetCountsByProperty`. Journaled migration
+> `0180_drop_organization_response_sla_hours` contracts the dormant
+> `organization.responseSlaHours` column after the verified CNV-01 release. The
+> record below describes the state on 2026-08-19 and is left intact.
 
 | Path                       | Entry point              | Validator                                                                    | Authorisation                 |
 | -------------------------- | ------------------------ | ---------------------------------------------------------------------------- | ----------------------------- |
