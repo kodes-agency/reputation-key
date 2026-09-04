@@ -147,6 +147,7 @@ export function validateDockerfileInventory(
 }
 
 type WorkflowStep = Readonly<{ name: string; content: string }>
+type CiImageMatrixRow = Readonly<{ name: string; dockerfile: string; ciImage: string }>
 
 function workflowSteps(workflow: string): readonly WorkflowStep[] {
   const lines = workflow.split('\n')
@@ -159,8 +160,21 @@ function workflowSteps(workflow: string): readonly WorkflowStep[] {
   }))
 }
 
-function actionImage(step: WorkflowStep): string | undefined {
-  return /^\s{10}image:\s*(\S+)\s*$/mu.exec(step.content)?.[1]
+function ciImageMatrixRows(workflow: string): readonly CiImageMatrixRow[] {
+  const job = /^ {2}docker-images:\s*$([\s\S]*?)(?=^ {2}[a-z0-9-]+:\s*$)/mu.exec(
+    workflow,
+  )?.[1]
+  if (!job) return []
+
+  return [
+    ...job.matchAll(
+      /^\s{10}- name:\s*(\S+)\s*\n\s{12}dockerfile:\s*(\S+)\s*\n\s{12}tag:\s*(\S+)\s*$/gmu,
+    ),
+  ].map((match) => ({
+    name: match[1],
+    dockerfile: match[2],
+    ciImage: match[3],
+  }))
 }
 
 function listDifference(
@@ -185,18 +199,34 @@ export function validateCiContainerCoverage(
   workflow: string,
 ): readonly string[] {
   const expectedImages = policy.images.map(({ ciImage }) => ciImage)
-  const buildRows = [
-    ...workflow.matchAll(/docker build[^\n]*\s-f\s+(\S+)\s+-t\s+(\S+)\s+\./gu),
-  ].map((match) => ({ dockerfile: match[1], ciImage: match[2] }))
+  const matrixRows = ciImageMatrixRows(workflow)
+  const steps = workflowSteps(workflow)
+  const webBuild = steps.find(({ name }) => name === 'Build web image')
+  const nonWebBuild = steps.find(({ name }) => name === 'Build non-web image')
+  const buildsFromMatrix =
+    webBuild?.content.includes("if: matrix.image.name == 'web'") === true &&
+    nonWebBuild?.content.includes("if: matrix.image.name != 'web'") === true &&
+    [webBuild, nonWebBuild].every(
+      (step) =>
+        step?.content.includes('-f "${{ matrix.image.dockerfile }}"') === true &&
+        step.content.includes('-t "${{ matrix.image.tag }}"'),
+    )
+
   const violations: string[] = [
     ...listDifference(
       policy.images.map(({ dockerfile, ciImage }) => `${dockerfile}=>${ciImage}`),
-      buildRows.map(({ dockerfile, ciImage }) => `${dockerfile}=>${ciImage}`),
+      (buildsFromMatrix ? matrixRows : []).map(
+        ({ dockerfile, ciImage }) => `${dockerfile}=>${ciImage}`,
+      ),
       'CI image builds',
+    ),
+    ...listDifference(
+      policy.images.map(({ id, ciImage }) => `${id}=>${ciImage}`),
+      matrixRows.map(({ name, ciImage }) => `${name}=>${ciImage}`),
+      'CI image matrix bindings',
     ),
   ]
 
-  const steps = workflowSteps(workflow)
   const smoke = steps.find(({ name }) => name.startsWith('Smoke images'))
   if (!smoke) {
     violations.push('CI has no image smoke-contract step')
@@ -220,16 +250,24 @@ export function validateCiContainerCoverage(
     }
   }
 
-  const sbomImages = steps
-    .filter(({ name }) => name.startsWith('SBOM '))
-    .map(actionImage)
-    .filter((image): image is string => image !== undefined)
+  const sbom = steps.find(({ name }) => name === 'SBOM matrix image')
+  const sbomImages =
+    sbom?.content.includes('image: ${{ matrix.image.tag }}') === true &&
+    sbom.content.includes('output-file: sbom-${{ matrix.image.name }}.spdx.json')
+      ? matrixRows.map(({ ciImage }) => ciImage)
+      : []
   violations.push(...listDifference(expectedImages, sbomImages, 'CI image SBOMs'))
 
-  const scannedImages = steps
-    .filter(({ name }) => name.startsWith('Vulnerability scan '))
-    .map(actionImage)
-    .filter((image): image is string => image !== undefined)
+  const scan = steps.find(
+    ({ name }) => name === 'Vulnerability scan matrix image (grype)',
+  )
+  const scannedImages =
+    scan?.content.includes('sbom: sbom-${{ matrix.image.name }}.spdx.json') === true &&
+    scan.content.includes('fail-build: true') &&
+    scan.content.includes('severity-cutoff: high') &&
+    scan.content.includes('config: .grype.yaml')
+      ? matrixRows.map(({ ciImage }) => ciImage)
+      : []
   violations.push(
     ...listDifference(expectedImages, scannedImages, 'CI vulnerability scans'),
   )

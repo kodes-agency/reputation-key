@@ -81,37 +81,34 @@ describe('coverage and changed-code gates', () => {
     expect(ciWorkflow).toContain('run: pnpm check:changed-code')
   })
 
-  it('runs the unit ratchet and integration exactly once each, unconditionally', () => {
+  it('runs four unit shards plus the whole coverage ratchet and integration gate', () => {
     // @proof BASELINE_GATE_INTERRUPTION#2
     expect(packageJson.scripts['check:coverage']).toBe('node scripts/check-coverage.mjs')
 
-    // 2026-09-02 (#375): the serial `check` job was split into `static`,
-    // `test-unit`, `test-integration` and `artifacts`, because its 650s Test
-    // step ran `check:coverage` (371s) and `test:integration` (275s) in
-    // sequence while the integration project is `maxWorkers: 1` by config. The
-    // two commands therefore no longer share one `- name: Test` step, so the
-    // shape this test asserted is gone. The INVARIANT is unchanged and is
-    // pinned here against the new shape, deliberately: the unit suite runs
-    // exactly once, integration runs exactly once, and neither may become
-    // conditional on the event — that is how a coverage gate silently stops
-    // running on pull requests.
+    // The sharded unit run gives parallel, file-level feedback. The existing
+    // coverage script still owns one complete run because its two-tier
+    // floor/staleness ratchet consumes a whole-suite aggregate. Both paths are
+    // unconditional on event type, and the protected `check` aggregate waits
+    // for every matrix row plus the coverage and integration gates.
     const occurrences = (needle: string): number => ciWorkflow.split(needle).length - 1
 
+    expect(ciWorkflow).toContain('shard: [1, 2, 3, 4]')
+    expect(
+      occurrences('pnpm exec vitest run --project=unit --shard=${{ matrix.shard }}/4'),
+    ).toBe(1)
     expect(occurrences('pnpm check:coverage')).toBe(1)
     expect(occurrences('pnpm test:integration')).toBe(1)
-    // check:coverage owns the only unit run; nothing else may invoke the project.
-    expect(ciWorkflow).not.toContain('--project=unit')
+    expect(ciWorkflow).toContain('test-unit-coverage:')
+    expect(ciWorkflow).toContain(
+      'needs: [static, test-unit, test-unit-coverage, test-integration, artifacts]',
+    )
     expect(ciWorkflow).not.toMatch(/run: pnpm test\s*$/m)
-    // And the standalone main-only coverage step is gone, not duplicated.
-    expect(ciWorkflow).not.toContain('- name: Coverage gate')
+    expect(occurrences('- name: Coverage gate')).toBe(1)
 
     // Event-conditionality is pinned by exact count rather than by slicing the
-    // job that owns each command: a YAML-shape regex broke the moment the job
-    // graph changed, which is the very thing this file exists to survive. The
-    // six legitimate sites are the gitleaks log-opts branch, the three
-    // `--fail-on-flaky-tests` promotions on the Playwright projects, and the
-    // two in `beta-acceptance`'s `if:`. A seventh means some gate just became
-    // conditional, and whoever added it deliberately updates this number.
+    // job that owns each command. The six legitimate sites are the gitleaks
+    // log-opts branch, the three Playwright `--fail-on-flaky-tests` promotions,
+    // and the two comparisons in beta-acceptance's `if:`.
     expect(occurrences('github.event_name')).toBe(6)
   })
 
@@ -128,10 +125,42 @@ describe('coverage and changed-code gates', () => {
     )
   })
 
-  it('caches the grype vulnerability DB for every image scan', () => {
-    // The first scan otherwise spends ~50s downloading and loading the DB.
-    const scans = ciWorkflow.match(/grype-version: v0\.116\.1\n\s+cache-db: true/g)
-    expect(scans).toHaveLength(containerPolicy.images.length)
+  it('rotates one explicit daily grype DB cache before every matrix scan', () => {
+    const matrixStart = ciWorkflow.indexOf('\n  docker-images:')
+    const matrixEnd = ciWorkflow.indexOf('\n  docker:', matrixStart)
+    const matrixJob = ciWorkflow.slice(matrixStart, matrixEnd)
+    const dateStep = matrixJob.indexOf('- name: Resolve Grype DB cache date')
+    const cacheStep = matrixJob.indexOf('- name: Restore daily Grype vulnerability DB')
+    const scanStep = matrixJob.indexOf('- name: Vulnerability scan matrix image (grype)')
+
+    expect(matrixStart).toBeGreaterThanOrEqual(0)
+    expect(matrixEnd).toBeGreaterThan(matrixStart)
+    expect(matrixJob.match(/^ {10}- name:\s*\S+/gmu)).toHaveLength(
+      containerPolicy.images.length,
+    )
+    expect(dateStep).toBeGreaterThanOrEqual(0)
+    expect(cacheStep).toBeGreaterThan(dateStep)
+    expect(scanStep).toBeGreaterThan(cacheStep)
+    expect(matrixJob).toContain(
+      'uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0',
+    )
+    expect(matrixJob).toContain('run: echo "utc=$(date -u +%F)" >> "$GITHUB_OUTPUT"')
+    expect(matrixJob).toContain(
+      'key: grype-db-v0.116.1-${{ steps.grype-db-date.outputs.utc }}',
+    )
+    expect(matrixJob).not.toContain('restore-keys:')
+    expect(matrixJob).toContain('grype-version: v0.116.1')
+    expect(matrixJob).toContain('config: .grype.yaml')
+    expect(ciWorkflow).not.toContain('cache-db: true')
+  })
+
+  it('starts beta acceptance without serializing behind unrelated gates', () => {
+    const betaStart = ciWorkflow.indexOf('\n  beta-acceptance:')
+    const betaJob = ciWorkflow.slice(betaStart)
+
+    expect(betaStart).toBeGreaterThanOrEqual(0)
+    expect(betaJob).toContain('run: pnpm beta:smoke -- --release-sha=${{ github.sha }}')
+    expect(betaJob).not.toMatch(/^ {4}needs:/mu)
   })
 })
 

@@ -69,15 +69,19 @@ jobs:
       - name: Lint
         run: pnpm lint:ci
 
-  # ~6.2m measured: coverage owns the pure unit project, which needs no services.
+  # Fast unit feedback is split by Vitest's file-balanced native shard. Each
+  # matrix row reports its own failing files while all four run concurrently.
   test-unit:
+    name: test-unit (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # BQC-6.9: the changed-code budget diffs added src files against
-          # origin/main — the check job needs full history.
           fetch-depth: 0
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -90,11 +94,43 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Pull requests and main run the identical governed test pair.
-      # `check:coverage` owns the unit project under v8 coverage; pairing it
-      # with the integration project covers the complete suite once and applies
-      # the BQC-6.9 floor + staleness ratchet before merge and after promotion.
-      - name: Test
+      - name: Test unit shard ${{ matrix.shard }}/4
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
+          BETTER_AUTH_URL: http://localhost:3000
+          RESEND_API_KEY: re_ci_test_key_placeholder
+          GOOGLE_CLIENT_ID: ci-placeholder-client-id
+          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
+          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
+          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
+        run: pnpm exec vitest run --project=unit --shard=${{ matrix.shard }}/4
+
+  # `check:coverage` couples the complete unit execution to the custom two-tier
+  # floor/staleness ratchet in scripts/check-coverage.mjs. Keep that governed
+  # run whole and parallel with the fast shards rather than weakening the gate
+  # or pretending independently generated summaries can enforce its aggregate.
+  test-unit-coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Coverage gate
         env:
           NODE_ENV: test
           DATABASE_URL: postgresql://test:test@localhost:5432/test
@@ -376,7 +412,7 @@ jobs:
   # Aggregate-only seam (no measured workload): retain the required status
   # context without allowing a failed, cancelled, or skipped dependency to pass.
   check:
-    needs: [static, test-unit, test-integration, artifacts]
+    needs: [static, test-unit, test-unit-coverage, test-integration, artifacts]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -391,13 +427,48 @@ jobs:
   # (nixpacks removed) — prove every classified image builds reproducibly on
   # every PR and satisfies its explicit runtime contract.
   #
-  # This job does NOT boot the Compose stack. It used to run `pnpm e2e:stack:up`
-  # + `:smoke` here, byte-identical to what the `e2e` job runs — which then
-  # proves the same stack with ~95 tests instead of a readiness probe. The
-  # duplicate cost 171s of the critical path and asserted a strict subset.
-  # Production-profile boot is therefore owned by the `e2e` job.
-  docker:
+  # Each matrix entry owns one daemon and performs that image's build, complete
+  # smoke contract, SBOM generation, and SBOM scan. This keeps every assertion
+  # beside the image it checks while allowing all ten evidence chains to run in
+  # parallel. Production-profile boot remains owned by the `e2e` job.
+  docker-images:
+    name: docker image (${{ matrix.image.name }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - name: web
+            dockerfile: Dockerfile
+            tag: repkey-web:ci
+          - name: worker
+            dockerfile: Dockerfile.worker
+            tag: repkey-worker:ci
+          - name: google-provider-redis
+            dockerfile: Dockerfile.google-provider-redis
+            tag: repkey-google-provider-redis:ci
+          - name: ai-execution-admission
+            dockerfile: Dockerfile.ai-execution-admission
+            tag: repkey-ai-execution-admission:ci
+          - name: ai-egress-gateway
+            dockerfile: Dockerfile.ai-egress-gateway
+            tag: repkey-ai-egress-gateway:ci
+          - name: google-execution-admission
+            dockerfile: Dockerfile.google-execution-admission
+            tag: repkey-google-execution-admission:ci
+          - name: google-egress-gateway
+            dockerfile: Dockerfile.google-egress-gateway
+            tag: repkey-google-egress-gateway:ci
+          - name: google-import-compatibility
+            dockerfile: Dockerfile.google-import-compatibility
+            tag: repkey-google-import-compatibility:ci
+          - name: provider-sandbox
+            dockerfile: Dockerfile.sandbox
+            tag: repkey-provider-sandbox:ci
+          - name: perf-runner
+            dockerfile: Dockerfile.perf-runner
+            tag: repkey-perf-runner:ci
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -407,340 +478,240 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      # Plain `docker build`, deliberately. buildx with the GitHub Actions cache
-      # backend was tried here and measured WORSE on two consecutive main runs:
-      # build steps 135-138s -> 207s and, less obviously, the Compose stack step
-      # 148-153s -> 224s. Plain `docker build` populates the local daemon's layer
-      # cache, which `pnpm e2e:stack:up` later reuses inside this same job;
-      # buildx's container driver builds elsewhere, so that free in-job reuse
-      # disappeared while the cache export added its own cost. These images also
-      # COPY changing source early, so cross-run layer reuse was low to begin
-      # with. Total effect +2.7 min per push. Do not reintroduce it without
-      # measuring both the build steps AND the stack step.
-      #
-      # Sharing built images with the `e2e` job (build once, transfer, load) was
-      # costed out and rejected on arithmetic, not taste:
-      #   * transfer is real weight — `docker save` of the eight compose-tagged
-      #     images for one revision is 0.66 GB gzipped (measured locally), so
-      #     upload + download + save + load lands around 2-3.5 min, which is
-      #     already the whole e2e Compose build (169-211s).
-      #   * and it would SERIALISE what is parallel today. Sharing needs
-      #     `needs:`, so the critical path stops being max(docker 274s,
-      #     e2e 510s) = 510s and becomes build + e2e-remainder + transfer
-      #     (~210 + ~320 + ~150 = 680s). Worse by ~3 min.
-      # A shared third build job has the same problem: e2e needs seven
-      # compose-tagged images, so the shared build is ~210s of critical path
-      # that both consumers then wait on.
+      # The web builder alone receives Sentry's upload credentials. A separate
+      # non-web step keeps the secret and project variables out of every worker
+      # and sidecar matrix entry.
       - name: Build web image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile -t repkey-web:ci .
+        if: matrix.image.name == 'web'
+        run: |
+          docker build \
+            --build-arg SOURCE_REVISION="$GITHUB_SHA" \
+            --build-arg SENTRY_AUTH_TOKEN="${{ secrets.SENTRY_AUTH_TOKEN }}" \
+            --build-arg SENTRY_ORG="${{ vars.SENTRY_ORG }}" \
+            --build-arg SENTRY_PROJECT="${{ vars.SENTRY_PROJECT }}" \
+            -f "${{ matrix.image.dockerfile }}" \
+            -t "${{ matrix.image.tag }}" \
+            .
 
-      - name: Build worker image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.worker -t repkey-worker:ci .
-
-      - name: Build provider-ephemeral Redis image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.google-provider-redis -t repkey-google-provider-redis:ci .
-
-      - name: Build AI execution admission image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.ai-execution-admission -t repkey-ai-execution-admission:ci .
-      - name: Build AI egress gateway image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.ai-egress-gateway -t repkey-ai-egress-gateway:ci .
-
-      - name: Build Google execution admission image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.google-execution-admission -t repkey-google-execution-admission:ci .
-      - name: Build Google egress gateway image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.google-egress-gateway -t repkey-google-egress-gateway:ci .
-
-      - name: Build rollout-only Google import compatibility image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.google-import-compatibility -t repkey-google-import-compatibility:ci .
-
-      - name: Build provider sandbox image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.sandbox -t repkey-provider-sandbox:ci .
-
-      - name: Build performance runner image
-        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.perf-runner -t repkey-perf-runner:ci .
+      - name: Build non-web image
+        if: matrix.image.name != 'web'
+        run: >-
+          docker build
+          --build-arg SOURCE_REVISION="$GITHUB_SHA"
+          -f "${{ matrix.image.dockerfile }}"
+          -t "${{ matrix.image.tag }}"
+          .
 
       - name: Smoke images (contract, non-root, prod-deps purity)
+        env:
+          IMAGE_NAME: ${{ matrix.image.name }}
+          IMAGE_TAG: ${{ matrix.image.tag }}
         run: |
-          sh scripts/ci/smoke-provider-redis-image.sh repkey-google-provider-redis:ci
-          docker run --rm repkey-web:ci node -e "process.exit(0)"
-          docker run --rm repkey-worker:ci node -e "process.exit(0)"
-          docker run --rm --entrypoint node repkey-google-import-compatibility:ci -e "process.exit(0)"
-          docker run --rm --entrypoint node repkey-ai-execution-admission:ci -e "process.exit(0)"
-          docker run --rm --entrypoint node repkey-ai-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
-          docker run --rm --entrypoint node repkey-google-execution-admission:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
-          docker run --rm --entrypoint node repkey-google-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
-          docker run --rm --entrypoint sh repkey-provider-sandbox:ci -c 'set -eu; node provider-sandbox.mjs --kind=gbp --port=3000 >/tmp/provider-sandbox.log 2>&1 & child=$!; trap '\''kill "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true'\'' EXIT; attempt=0; until node -e "fetch('\''http://127.0.0.1:3000/__control/health'\'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; do attempt=$((attempt+1)); if [ "$attempt" -ge 30 ]; then cat /tmp/provider-sandbox.log; exit 1; fi; sleep 0.2; done'
-          docker run --rm --entrypoint node repkey-perf-runner:ci dist-perf-runner/perf/load-test.js --list
-          # The runtime egress probe is a separately deployed bundle with its own
-          # directory and Railway start command, so it is NOT under the gateway dist.
-          for governed_entry in index.js canary.js; do
-            docker run --rm --entrypoint test repkey-ai-egress-gateway:ci -e "/app/dist-ai-egress-gateway/$governed_entry"
-          done
-          docker run --rm --entrypoint test repkey-ai-egress-gateway:ci -e /app/dist-ai-egress-probe/runtime-egress-probe.js
-          test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-ai-egress-gateway/index.js"
-          for img in repkey-web:ci repkey-worker:ci repkey-google-import-compatibility:ci; do
-            test "$(docker image inspect "$img" --format '{{.Config.User}}')" = "node"
-            docker run --rm --entrypoint test "$img" -e /app/node_modules/pg
-            docker run --rm --entrypoint node "$img" -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
-            for sentinel in vitest typescript eslint prettier; do
-              if docker run --rm --entrypoint test "$img" -e "/app/node_modules/$sentinel"; then
-                echo "::error::devDependency $sentinel leaked into $img prod node_modules"
-                exit 1
-              fi
-            done
-          done
-          test "$(docker image inspect repkey-ai-execution-admission:ci --format '{{.Config.User}}')" = "node"
-          test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{.Config.User}}')" = "node"
-          test "$(docker image inspect repkey-google-execution-admission:ci --format '{{.Config.User}}')" = "node"
-          test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{.Config.User}}')" = "node"
-          test "$(docker image inspect repkey-provider-sandbox:ci --format '{{.Config.User}}')" = "node"
-          test "$(docker image inspect repkey-perf-runner:ci --format '{{.Config.User}}')" = "node"
-          test "$(docker image inspect repkey-perf-runner:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 sleep infinity"
-          test "$(docker image inspect repkey-google-execution-admission:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-google-execution-admission/index.js"
-          test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-google-egress-gateway/index.js"
-          for img in repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci repkey-google-execution-admission:ci repkey-google-egress-gateway:ci; do
-            docker run --rm --entrypoint test "$img" ! -e /app/node_modules
-            docker run --rm --entrypoint test "$img" ! -e /app/package.json
-            test "$(docker image inspect "$img" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
-          done
-          for img in repkey-provider-sandbox:ci repkey-perf-runner:ci; do
-            test "$(docker image inspect "$img" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
-          done
-          docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /app/node_modules
-          docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /usr/local/bin/npm
-          docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /app/src
-          docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /app/node_modules/tsx
-          docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /usr/local/bin/npm
-          docker run --rm --entrypoint test repkey-perf-runner:ci -e /app/node_modules/pg
-          docker run --rm --entrypoint node repkey-perf-runner:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
-          for entry in perf/load-test.js perf/seed-scale.js perf/seed-fleet.js perf/write-scale-evidence.js local-stack/fault-operation.js; do
-            docker run --rm --entrypoint test repkey-perf-runner:ci -e "/app/dist-perf-runner/$entry"
-          done
-          docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/control-proxy.js
-          docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/tcp-relay.js
-          docker run --rm --entrypoint node \
-            -v "$PWD/scripts/verify-ai-runtime-image.mjs:/tmp/verify-ai-runtime-image.mjs:ro" \
-            repkey-ai-execution-admission:ci /tmp/verify-ai-runtime-image.mjs admission
-          docker run --rm --entrypoint node \
-            -v "$PWD/scripts/verify-ai-runtime-image.mjs:/tmp/verify-ai-runtime-image.mjs:ro" \
-            repkey-ai-egress-gateway:ci /tmp/verify-ai-runtime-image.mjs gateway
-          for img in repkey-web:ci repkey-worker:ci; do
-            test "$(docker image inspect "$img" --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
-            test "$(docker image inspect "$img" --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
-            docker run --rm --entrypoint test "$img" ! -e /app/dist-google-import-compatibility
-            docker run --rm --entrypoint test "$img" ! -e /app/dist-local-tools
-          done
-          docker run --rm --entrypoint sh repkey-web:ci -c \
-            "! find /app/.output /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/.output /app/dist-worker 2>/dev/null"
-          docker run --rm --entrypoint sh repkey-worker:ci -c \
-            "! find /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/dist-worker 2>/dev/null"
-          test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "compatibility"
-          test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "google-import-only"
-          test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{len .Config.Entrypoint}} {{join .Config.Entrypoint " "}}')" = "2 node dist-google-import-compatibility/google-import-lifecycle.js"
+          case "$IMAGE_NAME" in
+            web)
+              docker run --rm repkey-web:ci node -e "process.exit(0)"
+              test "$(docker image inspect repkey-web:ci --format '{{.Config.User}}')" = "node"
+              docker run --rm --entrypoint test repkey-web:ci -e /app/node_modules/pg
+              docker run --rm --entrypoint node repkey-web:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
+              for sentinel in vitest typescript eslint prettier; do
+                if docker run --rm --entrypoint test repkey-web:ci -e "/app/node_modules/$sentinel"; then
+                  echo "::error::devDependency $sentinel leaked into repkey-web:ci prod node_modules"
+                  exit 1
+                fi
+              done
+              test "$(docker image inspect repkey-web:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
+              test "$(docker image inspect repkey-web:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
+              docker run --rm --entrypoint test repkey-web:ci ! -e /app/dist-google-import-compatibility
+              docker run --rm --entrypoint test repkey-web:ci ! -e /app/dist-local-tools
+              docker run --rm --entrypoint sh repkey-web:ci -c \
+                "! find /app/.output /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/.output /app/dist-worker 2>/dev/null"
+              ;;
+            worker)
+              docker run --rm repkey-worker:ci node -e "process.exit(0)"
+              test "$(docker image inspect repkey-worker:ci --format '{{.Config.User}}')" = "node"
+              docker run --rm --entrypoint test repkey-worker:ci -e /app/node_modules/pg
+              docker run --rm --entrypoint node repkey-worker:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
+              for sentinel in vitest typescript eslint prettier; do
+                if docker run --rm --entrypoint test repkey-worker:ci -e "/app/node_modules/$sentinel"; then
+                  echo "::error::devDependency $sentinel leaked into repkey-worker:ci prod node_modules"
+                  exit 1
+                fi
+              done
+              test "$(docker image inspect repkey-worker:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
+              test "$(docker image inspect repkey-worker:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
+              docker run --rm --entrypoint test repkey-worker:ci ! -e /app/dist-google-import-compatibility
+              docker run --rm --entrypoint test repkey-worker:ci ! -e /app/dist-local-tools
+              docker run --rm --entrypoint sh repkey-worker:ci -c \
+                "! find /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/dist-worker 2>/dev/null"
+              ;;
+            google-provider-redis)
+              sh scripts/ci/smoke-provider-redis-image.sh repkey-google-provider-redis:ci
+              ;;
+            ai-execution-admission)
+              docker run --rm --entrypoint node repkey-ai-execution-admission:ci -e "process.exit(0)"
+              test "$(docker image inspect repkey-ai-execution-admission:ci --format '{{.Config.User}}')" = "node"
+              docker run --rm --entrypoint test repkey-ai-execution-admission:ci ! -e /app/node_modules
+              docker run --rm --entrypoint test repkey-ai-execution-admission:ci ! -e /app/package.json
+              test "$(docker image inspect repkey-ai-execution-admission:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+              docker run --rm --entrypoint node \
+                -v "$PWD/scripts/verify-ai-runtime-image.mjs:/tmp/verify-ai-runtime-image.mjs:ro" \
+                repkey-ai-execution-admission:ci /tmp/verify-ai-runtime-image.mjs admission
+              ;;
+            ai-egress-gateway)
+              docker run --rm --entrypoint node repkey-ai-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
+              for governed_entry in index.js canary.js; do
+                docker run --rm --entrypoint test repkey-ai-egress-gateway:ci -e "/app/dist-ai-egress-gateway/$governed_entry"
+              done
+              docker run --rm --entrypoint test repkey-ai-egress-gateway:ci -e /app/dist-ai-egress-probe/runtime-egress-probe.js
+              test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-ai-egress-gateway/index.js"
+              test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{.Config.User}}')" = "node"
+              docker run --rm --entrypoint test repkey-ai-egress-gateway:ci ! -e /app/node_modules
+              docker run --rm --entrypoint test repkey-ai-egress-gateway:ci ! -e /app/package.json
+              test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+              docker run --rm --entrypoint node \
+                -v "$PWD/scripts/verify-ai-runtime-image.mjs:/tmp/verify-ai-runtime-image.mjs:ro" \
+                repkey-ai-egress-gateway:ci /tmp/verify-ai-runtime-image.mjs gateway
+              ;;
+            google-execution-admission)
+              docker run --rm --entrypoint node repkey-google-execution-admission:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
+              test "$(docker image inspect repkey-google-execution-admission:ci --format '{{.Config.User}}')" = "node"
+              docker run --rm --entrypoint test repkey-google-execution-admission:ci ! -e /app/node_modules
+              docker run --rm --entrypoint test repkey-google-execution-admission:ci ! -e /app/package.json
+              test "$(docker image inspect repkey-google-execution-admission:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+              test "$(docker image inspect repkey-google-execution-admission:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-google-execution-admission/index.js"
+              ;;
+            google-egress-gateway)
+              docker run --rm --entrypoint node repkey-google-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
+              test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{.Config.User}}')" = "node"
+              docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/node_modules
+              docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/package.json
+              test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+              test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-google-egress-gateway/index.js"
+              docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/control-proxy.js
+              docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/tcp-relay.js
+              ;;
+            google-import-compatibility)
+              docker run --rm --entrypoint node repkey-google-import-compatibility:ci -e "process.exit(0)"
+              test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{.Config.User}}')" = "node"
+              docker run --rm --entrypoint test repkey-google-import-compatibility:ci -e /app/node_modules/pg
+              docker run --rm --entrypoint node repkey-google-import-compatibility:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
+              for sentinel in vitest typescript eslint prettier; do
+                if docker run --rm --entrypoint test repkey-google-import-compatibility:ci -e "/app/node_modules/$sentinel"; then
+                  echo "::error::devDependency $sentinel leaked into repkey-google-import-compatibility:ci prod node_modules"
+                  exit 1
+                fi
+              done
+              test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "compatibility"
+              test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "google-import-only"
+              test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{len .Config.Entrypoint}} {{join .Config.Entrypoint " "}}')" = "2 node dist-google-import-compatibility/google-import-lifecycle.js"
+              ;;
+            provider-sandbox)
+              docker run --rm --entrypoint sh repkey-provider-sandbox:ci -c 'set -eu; node provider-sandbox.mjs --kind=gbp --port=3000 >/tmp/provider-sandbox.log 2>&1 & child=$!; trap '\''kill "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true'\'' EXIT; attempt=0; until node -e "fetch('\''http://127.0.0.1:3000/__control/health'\'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; do attempt=$((attempt+1)); if [ "$attempt" -ge 30 ]; then cat /tmp/provider-sandbox.log; exit 1; fi; sleep 0.2; done'
+              test "$(docker image inspect repkey-provider-sandbox:ci --format '{{.Config.User}}')" = "node"
+              test "$(docker image inspect repkey-provider-sandbox:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+              docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /app/node_modules
+              docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /usr/local/bin/npm
+              ;;
+            perf-runner)
+              docker run --rm --entrypoint node repkey-perf-runner:ci dist-perf-runner/perf/load-test.js --list
+              test "$(docker image inspect repkey-perf-runner:ci --format '{{.Config.User}}')" = "node"
+              test "$(docker image inspect repkey-perf-runner:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 sleep infinity"
+              test "$(docker image inspect repkey-perf-runner:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+              docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /app/src
+              docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /app/node_modules/tsx
+              docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /usr/local/bin/npm
+              docker run --rm --entrypoint test repkey-perf-runner:ci -e /app/node_modules/pg
+              docker run --rm --entrypoint node repkey-perf-runner:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
+              for entry in perf/load-test.js perf/seed-scale.js perf/seed-fleet.js perf/write-scale-evidence.js local-stack/fault-operation.js; do
+                docker run --rm --entrypoint test repkey-perf-runner:ci -e "/app/dist-perf-runner/$entry"
+              done
+              ;;
+            *)
+              echo "::error::No smoke contract for matrix image $IMAGE_NAME"
+              exit 1
+              ;;
+          esac
           {
-            echo "### Governed image digests"
-            for img in repkey-web:ci repkey-worker:ci repkey-google-provider-redis:ci repkey-google-import-compatibility:ci repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci repkey-google-execution-admission:ci repkey-google-egress-gateway:ci repkey-provider-sandbox:ci repkey-perf-runner:ci; do
-              echo "\`$img@$(docker image inspect "$img" --format '{{.Id}}')\`"
-            done
+            echo "### Governed image digest — $IMAGE_NAME"
+            echo "\`$IMAGE_TAG@$(docker image inspect "$IMAGE_TAG" --format '{{.Id}}')\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # BQC-7.7: image SBOMs (SPDX JSON, 30d retention). The images contain
-      # the build outputs (.output / dist-worker), so this is ALSO the
-      # artifact-content inventory scanned by grype below.
-      - name: SBOM web image
+      # BQC-7.7: every built image gets an SPDX JSON inventory. Each matrix row
+      # stages its file under a unique artifact name; the `docker` aggregate job
+      # merges all ten into the governed 30-day `sbom-images-spdx` artifact.
+      - name: SBOM matrix image
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
-          image: repkey-web:ci
+          image: ${{ matrix.image.tag }}
           format: spdx-json
-          output-file: sbom-web.spdx.json
+          output-file: sbom-${{ matrix.image.name }}.spdx.json
 
-      - name: SBOM worker image
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+      - name: Stage image SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          image: repkey-worker:ci
-          format: spdx-json
-          output-file: sbom-worker.spdx.json
+          name: sbom-image-${{ matrix.image.name }}-spdx
+          path: sbom-${{ matrix.image.name }}.spdx.json
+          if-no-files-found: error
+          retention-days: 1
 
-      - name: SBOM provider-ephemeral Redis image
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          image: repkey-google-provider-redis:ci
-          format: spdx-json
-          output-file: sbom-google-provider-redis.spdx.json
+      # BQC-7.7: hard fail on HIGH+ findings. Scanning the just-generated SBOM
+      # avoids re-cataloguing the image: the ten SBOMs from main run
+      # 33875276446 produced identical findings in 10.6s total with grype
+      # 0.116.1, versus 731s for the image inputs. The explicit config keeps
+      # every reviewed exception in the fail-closed gate.
+      #
+      # scan-action v7.4.0 hardcodes `grype-db-v0.116.1` when `cache-db` is on,
+      # so that immutable entry ages past grype's five-day limit. Own the cache
+      # explicitly and rotate its exact key once per UTC day; no restore prefix
+      # may fall back to a stale prior-day DB.
+      - name: Resolve Grype DB cache date
+        id: grype-db-date
+        run: echo "utc=$(date -u +%F)" >> "$GITHUB_OUTPUT"
 
-      - name: SBOM AI execution admission image
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+      - name: Restore daily Grype vulnerability DB
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          image: repkey-ai-execution-admission:ci
-          format: spdx-json
-          output-file: sbom-ai-execution-admission.spdx.json
+          path: ~/.cache/grype/db
+          key: grype-db-v0.116.1-${{ steps.grype-db-date.outputs.utc }}
 
-      - name: SBOM AI egress gateway image
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+      - name: Vulnerability scan matrix image (grype)
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
-          image: repkey-ai-egress-gateway:ci
-          format: spdx-json
-          output-file: sbom-ai-egress-gateway.spdx.json
+          sbom: sbom-${{ matrix.image.name }}.spdx.json
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.116.1
+          config: .grype.yaml
 
-      - name: SBOM Google execution admission image
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+  # Keep the protected `docker` context stable while the ten image checks fan
+  # out above. The final artifact is assembled here because upload-artifact v4+
+  # forbids concurrent jobs from mutating one shared artifact.
+  docker:
+    needs: [docker-images]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download staged image SBOMs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          image: repkey-google-execution-admission:ci
-          format: spdx-json
-          output-file: sbom-google-execution-admission.spdx.json
+          pattern: sbom-image-*-spdx
+          path: image-sboms
+          merge-multiple: true
 
-      - name: SBOM Google egress gateway image
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          image: repkey-google-egress-gateway:ci
-          format: spdx-json
-          output-file: sbom-google-egress-gateway.spdx.json
-
-      - name: SBOM Google import compatibility image
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          image: repkey-google-import-compatibility:ci
-          format: spdx-json
-          output-file: sbom-google-import-compatibility.spdx.json
-
-      - name: SBOM provider sandbox image
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          image: repkey-provider-sandbox:ci
-          format: spdx-json
-          output-file: sbom-provider-sandbox.spdx.json
-
-      - name: SBOM performance runner image
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          image: repkey-perf-runner:ci
-          format: spdx-json
-          output-file: sbom-perf-runner.spdx.json
+      - name: Require all ten image SBOMs
+        run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 10
 
       - name: Upload image SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sbom-images-spdx
-          path: sbom-*.spdx.json
+          path: image-sboms/sbom-*.spdx.json
+          if-no-files-found: error
           retention-days: 30
 
-      # BQC-7.7: container scanning (grype) — hard fail on HIGH+ findings
-      # (fail-build: true). Reviewed exceptions live in .grype.yaml with
-      # owner/reason/expiry (wont-fix Debian triage + never-executed esbuild
-      # CLI binaries — policy: docs/operations/security-ci-policy.md).
-      # SARIF results upload to code scanning (security-events: write above).
-      #
-      # `image:`, NOT `sbom:`. Scanning the SPDX SBOMs generated above would
-      # save ~50s of duplicate syft cataloguing, and was tried here — it FAILS
-      # CLOSED for the wrong reason. grype itself reports why:
-      #   "go binary packages were found but none carry function symbols; go
-      #    vulnerability matching falls back to module granularity and may
-      #    report false positives. if scanning an SBOM, regenerate it with
-      #    symbol capture enabled"
-      # The SPDX document does not carry Go symbol data, so the SBOM scan
-      # matched at module granularity and found HIGH+ vulnerabilities the image
-      # scan does not (.grype.yaml applied identically — 142 ignores in both).
-      # That is a fidelity loss, not a wash: do not reintroduce it without
-      # symbol-capturing SBOMs AND a match-count comparison against main.
-      #
-      # cache-db: true — measured, and it is a modest steady-state win with a
-      # cold-start penalty, not a free one. Three scans in the original
-      # measurement, same commit:
-      #   no cache      57s + 15s + 14s = 86s
-      #   cold cache   62s + 24s + 24s = 110s  (nothing to restore, pays the save)
-      #   warm cache   23s + 21s + 22s = 66s   (-23% vs no cache)
-      # Break-even is roughly a 55% hit rate. grype publishes a new DB about
-      # daily, so the first run after each publish pays the cold cost and the
-      # rest of that day's runs hit. Revisit if CI volume drops to ~1 run/day.
-      - name: Vulnerability scan web image (grype)
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: repkey-web:ci
-          fail-build: true
-          severity-cutoff: high
-          grype-version: v0.116.1
-          cache-db: true
-
-      - name: Vulnerability scan worker image (grype)
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: repkey-worker:ci
-          fail-build: true
-          severity-cutoff: high
-          grype-version: v0.116.1
-          cache-db: true
-
-      - name: Vulnerability scan provider-ephemeral Redis image (grype)
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: repkey-google-provider-redis:ci
-          fail-build: true
-          severity-cutoff: high
-          grype-version: v0.116.1
-          cache-db: true
-
-      - name: Vulnerability scan AI execution admission image (grype)
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: repkey-ai-execution-admission:ci
-          fail-build: true
-          severity-cutoff: high
-          grype-version: v0.116.1
-          cache-db: true
-
-      - name: Vulnerability scan AI egress gateway image (grype)
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: repkey-ai-egress-gateway:ci
-          fail-build: true
-          severity-cutoff: high
-          grype-version: v0.116.1
-          cache-db: true
-
-      - name: Vulnerability scan Google execution admission image (grype)
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: repkey-google-execution-admission:ci
-          fail-build: true
-          severity-cutoff: high
-          grype-version: v0.116.1
-          cache-db: true
-
-      - name: Vulnerability scan Google egress gateway image (grype)
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: repkey-google-egress-gateway:ci
-          fail-build: true
-          severity-cutoff: high
-          grype-version: v0.116.1
-          cache-db: true
-
-      - name: Vulnerability scan Google import compatibility image (grype)
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: repkey-google-import-compatibility:ci
-          fail-build: true
-          severity-cutoff: high
-          grype-version: v0.116.1
-          cache-db: true
-
-      - name: Vulnerability scan provider sandbox image (grype)
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: repkey-provider-sandbox:ci
-          fail-build: true
-          severity-cutoff: high
-          grype-version: v0.116.1
-          cache-db: true
-
-      - name: Vulnerability scan performance runner image (grype)
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
-        with:
-          image: repkey-perf-runner:ci
-          fail-build: true
-          severity-cutoff: high
-          grype-version: v0.116.1
-          cache-db: true
+      - name: Require every image matrix entry to succeed
+        if: needs.docker-images.result != 'success'
+        run: exit 1
 
   # BQC-7.7: secret scanning incl. full git history (gitleaks). Separate job:
   # runs in parallel with check (no pnpm install needed) and its failure is a
@@ -964,22 +935,21 @@ jobs:
         if: always()
         run: pnpm e2e:stack:down
 
-  # Final controlled-beta gate. beta:smoke owns the hermetic beta-profile
-  # Compose cycles for clean/upgrade/scale/fault/product evidence; the final
-  # down step is a defensive cleanup if the orchestrator is interrupted.
+  # Final controlled-beta gate. beta:smoke checks out and builds its own source,
+  # owns the hermetic beta-profile Compose cycles for clean/upgrade/scale/fault/
+  # product evidence, and consumes no output or artifact from check, docker,
+  # Storybook, or e2e. It deliberately has no `needs`, so it starts near t=0;
+  # the final down step is defensive cleanup if the orchestrator is interrupted.
   #
-  # NOT run on every PR commit. It was 86% of this workflow's wall clock
-  # (median 58 min against ~10 min for everything else combined) while gating
-  # nothing — main carries no branch protection. It now runs on every push to
-  # main, so release evidence is unchanged, and on demand for a PR carrying the
-  # `beta-acceptance` label when a change needs the full hermetic run before it
-  # merges.
+  # NOT run on every PR commit. It is not a required PR status, so it now runs
+  # on every push to main (preserving release evidence), on workflow dispatch,
+  # and on demand for a PR carrying the `beta-acceptance` label when a change
+  # needs the full hermetic run before it merges.
   beta-acceptance:
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       contains(github.event.pull_request.labels.*.name, 'beta-acceptance')
-    needs: [check, docker, storybook, storybook-test, e2e]
     runs-on: ubuntu-latest
     timeout-minutes: 120
     services:
