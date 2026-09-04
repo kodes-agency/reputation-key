@@ -3,15 +3,14 @@
 // errors). The runner decision and the vitest browser project's non-gate role
 // are documented in .storybook/main.ts (BQC-6.3).
 //
-// Per-test budget: `pnpm test-storybook` passes `--testTimeout 45000`. The
-// jest default of 15s is a contention budget here, not a hang budget - CI
-// runs one Storybook dev server against as many jest workers as the runner
-// has cores, so a story that takes 2.4s alone can take >15s under load.
-// Measured 2026-09-04 on this machine, `google-import-review-form` in
-// isolation: 1125 / 401 / 1164 / 2352 / 350 ms (heaviest is
-// `DraftSurvivesBackNavigation`, the story that timed out in CI). A genuine
-// hang is still bounded: every `findBy*`/`waitFor` inside a play function
-// fails on its own budget long before this one.
+// CI concurrency: `.github/workflows/ci.yml` runs this gate with
+// `--maxWorkers 2 --testTimeout 30000`. One dev server serves every jest
+// worker and compiles a story's module graph on first visit, so unbounded
+// workers race that compiler; measured 2026-09-04, the default 15s budget
+// timed out a play function that takes 2352 ms in isolation, and a 45s budget
+// moved the failure into `setupPage`'s fixed 30s `page.goto` instead. A
+// genuine hang is still bounded: every `findBy*`/`waitFor` inside a play
+// function fails on its own budget first.
 //
 // Console gate: `pnpm test-storybook` runs with --failOnConsole, so any
 // console.error during a story fails it (the runner's setup-page script

@@ -833,8 +833,16 @@ jobs:
             sleep 2
           done
           curl -sf http://localhost:6006/iframe.html >/dev/null || (echo "Storybook failed to become ready" && exit 1)
+      # One Storybook dev server serves every jest worker, and the dev server
+      # compiles a story's module graph on FIRST visit. Unbounded workers race
+      # that compiler: measured on this job 2026-09-04, the default budget
+      # timed out one play function (15s) and raising it to 45s moved the
+      # failure into `setupPage` instead (6/95 suites, `page.goto: Timeout
+      # 30000ms` - a runner constant), with 529/529 tests still passing. Bound
+      # the concurrency so the compiler is not the bottleneck, and give each
+      # test 2x the default for the residual shared-runner variance.
       - name: Run storybook tests
-        run: pnpm test-storybook
+        run: pnpm test-storybook --maxWorkers 2 --testTimeout 30000
 
   e2e:
     runs-on: ubuntu-latest
