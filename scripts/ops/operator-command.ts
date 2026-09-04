@@ -27,6 +27,7 @@ import { initPersistedCapabilityPolicyStore } from '../../src/contexts/identity/
 import type { ExecutionPolicy } from '../../src/shared/auth/execution-policy'
 import { createOperatorContainer } from '../../src/composition/deployables'
 import { closeJobQueueConnections } from '../../src/shared/jobs/queue'
+import { OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE } from '../../src/composition/google-provider-authority'
 import type { OperatorContainer } from '../../src/composition/container-partition'
 import {
   bindProcessPolicies,
@@ -43,6 +44,24 @@ import {
   type OperatorCommandSpec,
   type OperatorRuntime,
 } from '../../src/shared/ops/operator-command'
+
+/**
+ * Refuse provider work before command-specific catch/report logic can flatten
+ * the missing authority. Report-only paths still run against persisted state.
+ */
+const GOOGLE_PROVIDER_OPERATOR_COMMANDS: Readonly<Record<string, true>> = {
+  'ops:disconnect-connection': true,
+  'ops:gbp-subscribe': true,
+  'ops:reconcile-publication': true,
+}
+
+function refuseProviderDependentApply(
+  spec: OperatorCommandSpec,
+  ctx: OperatorContext,
+): void {
+  if (ctx.dryRun || !GOOGLE_PROVIDER_OPERATOR_COMMANDS[spec.name]) return
+  throw new Error(OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE)
+}
 
 type OperatorBoot = Readonly<{
   runtime: OperatorRuntime
@@ -117,8 +136,10 @@ export async function runOperatorCommand(
   try {
     return await runCore(
       spec,
-      (ctx, args, actionIO) =>
-        action({ ...ctx, container: boot.container }, args, actionIO),
+      (ctx, args, actionIO) => {
+        refuseProviderDependentApply(spec, ctx)
+        return action({ ...ctx, container: boot.container }, args, actionIO)
+      },
       boot.runtime,
       argv,
       io,
@@ -138,7 +159,6 @@ export async function runOperatorCommand(
       try {
         await boot.container.shutdown.run()
         await Promise.all(Array.from(queues, (queue) => queue?.close()))
-        await boot.container.providerEphemeralRedis?.quit()
       } finally {
         await closeJobQueueConnections()
         await closePool()

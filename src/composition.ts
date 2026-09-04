@@ -111,10 +111,11 @@ export {
 } from './composition/provider-runtime'
 export { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
 
-// Accepted residual (BQC-5.2/BQC-5.7): per-dependency override pattern is
-// inherently branchy; extraction would scatter the wiring. Owner: BQC-5.2.
 // fallow-ignore-next-line complexity
-export function createContainer(options?: CreateContainerOptions) {
+function buildContainer(
+  options: CreateContainerOptions | undefined,
+  mode: 'required' | 'refusing',
+) {
   const { enableJobs = false } = options ?? {}
   const db = options?.db ?? getDb()
   const betaFeedbackTriageRepo = BetaFeedbackTriageRepository.create(db)
@@ -327,17 +328,14 @@ export function createContainer(options?: CreateContainerOptions) {
     ),
   })
 
-  // ARC-03-T10: the Google provider trust boundary — provider-ephemeral
-  // storage, opaque OAuth state, the HMAC keyrings, the Content authorization
-  // authority, the per-capability authorizers, the authorization leases and the
-  // mTLS egress executor — is ONE named module. It is constructed here because
-  // it consults Identity's authority facts, and construction stays query-free.
+  // ARC-03-T10: operators refuse Google; application processes require its substrate.
   const googleProviderAuthority = buildGoogleProviderAuthority({
     db,
     eventBus,
     clock,
     logger,
     env,
+    mode,
     redis,
     providerEndpoints,
     dataCellExecutionFence,
@@ -902,9 +900,15 @@ export function createContainer(options?: CreateContainerOptions) {
   } as const
 }
 
+export function createContainer(options?: CreateContainerOptions) {
+  return buildContainer(options, 'required')
+}
+
+export function createOperatorContainerGraph(options?: CreateContainerOptions) {
+  return buildContainer(options, 'refusing')
+}
+
 type BuiltContainer = ReturnType<typeof createContainer>
-/** Production/application container type. Simulation write authority is not
- * representable here, even as an optional property. */
 export type Container = Omit<BuiltContainer, 'simulationRuntime'>
 export type SimulationContainer = BuiltContainer & {
   simulationRuntime: NonNullable<BuiltContainer['simulationRuntime']>

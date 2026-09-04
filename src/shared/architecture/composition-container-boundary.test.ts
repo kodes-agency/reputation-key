@@ -169,6 +169,36 @@ describe('composition container boundary evidence', () => {
     }
   })
 
+  it('keeps operator Google refusal separate from online fail-fast composition', () => {
+    const composition = readFileSync(resolve('src/composition.ts'), 'utf8')
+    const authority = readFileSync(
+      resolve('src/composition/google-provider-authority.ts'),
+      'utf8',
+    )
+    const deployables = readFileSync(resolve('src/composition/deployables.ts'), 'utf8')
+    const operatorHarness = readFileSync(
+      resolve('scripts/ops/operator-command.ts'),
+      'utf8',
+    )
+
+    expect(composition).toContain("return buildContainer(options, 'required')")
+    expect(composition).toContain("return buildContainer(options, 'refusing')")
+    expect(authority).toContain("if (input.mode === 'refusing')")
+    expect(deployables).toContain(
+      'createOperatorContainerGraph(operatorGraphOptions(options))',
+    )
+    expect(operatorHarness).not.toContain('providerEphemeralRedis')
+    for (const command of [
+      'ops:disconnect-connection',
+      'ops:gbp-subscribe',
+      'ops:reconcile-publication',
+    ]) {
+      expect(operatorHarness).toContain(`'${command}': true`)
+    }
+    expect(operatorHarness).toContain('if (ctx.dryRun ||')
+    expect(operatorHarness).toContain('refuseProviderDependentApply(spec, ctx)')
+  })
+
   // Pinned so the reduction cannot silently regress: the root selects
   // implementations, it does not hold implementation graphs.
   it('keeps the composition root under 1000 lines', () => {
