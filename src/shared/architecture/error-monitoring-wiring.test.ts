@@ -5,11 +5,12 @@ import { describe, expect, it } from 'vitest'
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8')
 
 describe('production error-monitoring wiring', () => {
-  it('pins the Node SDK as a direct runtime dependency', () => {
+  it('pins both Node and TanStack Start SDKs as direct runtime dependencies', () => {
     const manifest = JSON.parse(read('package.json')) as {
       dependencies?: Record<string, string>
     }
     expect(manifest.dependencies?.['@sentry/node']).toBe('10.71.0')
+    expect(manifest.dependencies?.['@sentry/tanstackstart-react']).toBe('10.71.0')
   })
 
   it('preloads monitoring before both production application entries', () => {
@@ -37,6 +38,30 @@ describe('production error-monitoring wiring', () => {
     expect(read('scripts/check-security-headers.mjs')).toContain(
       "const PRELOAD_ENTRY = join(ROOT, '.output/server/web-observability-preload.mjs')",
     )
+  })
+
+  it('initializes the browser SDK before hydration through the shared scrubber', () => {
+    const instrumentation = read('src/instrument.client.ts')
+    const clientEntry = read('src/client.tsx')
+    const telemetry = read('src/shared/observability/telemetry.ts')
+
+    expect(instrumentation).toContain("from '#/shared/observability/sentry-event-scrub'")
+    expect(instrumentation).toContain('beforeSend: scrubSentryEvent')
+    expect(instrumentation).toContain('beforeBreadcrumb: scrubSentryBreadcrumb')
+    expect(telemetry).toContain("from './sentry-event-scrub'")
+    expect(telemetry).not.toContain('function scrubSentryEvent')
+    expect(clientEntry.startsWith("import './instrument.client'\n")).toBe(true)
+  })
+
+  it('runs Sentry request and function middleware before application middleware', () => {
+    const start = read('src/start.ts')
+    const requestMiddleware = start.slice(start.indexOf('requestMiddleware:'))
+
+    expect(requestMiddleware.indexOf('sentryGlobalRequestMiddleware')).toBeGreaterThan(-1)
+    expect(requestMiddleware.indexOf('csrfMiddleware')).toBeGreaterThan(
+      requestMiddleware.indexOf('sentryGlobalRequestMiddleware'),
+    )
+    expect(start).toContain('functionMiddleware: [sentryGlobalFunctionMiddleware]')
   })
 
   it('registers the Nitro error hook before graceful shutdown', () => {

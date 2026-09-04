@@ -19,7 +19,7 @@ import {
   METRIC_DEFINITIONS,
   labelValueAllowed,
 } from '#/shared/observability/metrics-schema'
-import { scrubSentryEvent } from '#/shared/observability/telemetry'
+import { scrubSentryEvent } from '#/shared/observability/sentry-event-scrub'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 
 const logger = vi.hoisted(() => ({

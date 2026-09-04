@@ -18,6 +18,7 @@ export type SecurityHeadersEnvironment = Readonly<{
   AWS_S3_BUCKET_NAME?: string | undefined
   AWS_S3_REGION?: string | undefined
   S3_FORCE_PATH_STYLE?: string | undefined
+  SENTRY_DSN?: string | undefined
 }>
 
 /** Options for {@link getSecurityHeaders}. */
@@ -80,11 +81,19 @@ export function storageConnectSources(
     : [`https://${bucket}.s3.${region}.amazonaws.com`]
 }
 
+/** Browser error-envelope origin permitted only when Sentry is configured. */
+export function sentryConnectSources(env: SecurityHeadersEnvironment): readonly string[] {
+  return env.SENTRY_DSN ? [new URL(env.SENTRY_DSN).origin] : []
+}
+
 function getConnectSource(
   opts: SecurityHeadersOptions | undefined,
   env: SecurityHeadersEnvironment,
 ): string {
-  const sources = opts?.connectSources ?? storageConnectSources(env)
+  const sources = [
+    ...(opts?.connectSources ?? storageConnectSources(env)),
+    ...sentryConnectSources(env),
+  ]
   const origins = sources.map((source) => {
     let url: URL
     try {

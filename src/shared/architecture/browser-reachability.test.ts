@@ -1,10 +1,9 @@
 // BQC-5.3 — browser-reachability guard.
 //
-// Walks the import graph from the browser entry points — all of src/routes/**
-// EXCEPT src/routes/api/** (server-only), plus src/components/** — and fails
-// when a Node-only module is reachable from browser code. This is the test
-// mirror of the BUILD-time gate: vite.config.ts `importProtection.client.files`
-// (same deny patterns as DENY_PATTERNS below — keep them in sync).
+// Walks the import graph from the explicit client entry, all browser routes
+// (excluding src/routes/api/**), and all components, then fails when a
+// Node-only module is reachable. This mirrors Vite's BUILD-time
+// `importProtection.client.files` and `excludeFiles` rules below.
 //
 // Traversal STOPS at modules TanStack Start RPC-stubs for the client (their
 // imports never reach the browser):
@@ -51,6 +50,12 @@ const DENY_PATTERNS = [
   '**/shared/auth/headers.ts',
 ] as const
 
+const DENY_EXCLUSIONS: Readonly<Record<string, true>> = {
+  'shared/observability/browser-observability.server.ts': true,
+  'shared/observability/sentry-event-scrub.ts': true,
+  'shared/observability/sensitive-field-policy.ts': true,
+}
+
 function globToRegExp(glob: string): RegExp {
   const escaped = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&')
   const pattern = escaped
@@ -63,6 +68,7 @@ function globToRegExp(glob: string): RegExp {
 const DENY_RES = DENY_PATTERNS.map(globToRegExp)
 
 function denyReason(rel: string): string | null {
+  if (DENY_EXCLUSIONS[rel] === true) return null
   for (let i = 0; i < DENY_RES.length; i++) {
     if (DENY_RES[i].test(rel))
       return `matches importProtection deny pattern '${DENY_PATTERNS[i]}'`
@@ -97,7 +103,7 @@ function entryPoints(): string[] {
     (f) => !relOf(f).startsWith('routes/api/'),
   )
   const components = walk(join(SRC, 'components'))
-  return [...routes, ...components]
+  return [join(SRC, 'client.tsx'), ...routes, ...components]
 }
 
 function relOf(abs: string): string {

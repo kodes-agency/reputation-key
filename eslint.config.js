@@ -450,6 +450,10 @@ export default tseslint.config(
           pattern: 'src/router.tsx',
         },
         {
+          category: 'browser-entry',
+          pattern: ['src/client.tsx', 'src/instrument.client.ts'],
+        },
+        {
           category: 'generated-router',
           pattern: 'src/routeTree.gen.ts',
         },
@@ -1047,6 +1051,14 @@ export default tseslint.config(
               from: fileCategory('router-entry'),
               allow: { to: fileCategory('generated-router') },
             },
+            {
+              from: fileCategory('browser-entry'),
+              allow: { to: fileCategory('browser-entry') },
+            },
+            {
+              from: fileCategory('browser-entry'),
+              allow: { to: elementType('shared-observability') },
+            },
             // HTTP API routes host non-createServerFn callbacks (auth,
             // health, provider webhooks) and may resolve root-owned runtime
             // capabilities. Browser route modules receive no such exception.
@@ -1415,7 +1427,12 @@ export default tseslint.config(
   // ─── Allow React in permitted locations ────────────────────────────
   // Re-enables no-restricted-imports for React, but keeps the barrel-only rule.
   {
-    files: ['src/routes/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}'],
+    files: [
+      'src/routes/**/*.{ts,tsx}',
+      'src/components/**/*.{ts,tsx}',
+      'src/router.tsx',
+      'src/client.tsx',
+    ],
     rules: {
       // React is allowed here — override the global restriction
       'no-restricted-imports': [

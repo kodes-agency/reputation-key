@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/tanstackstart-react'
+import { useEffect } from 'react'
 import { getGlobalStartContext } from '@tanstack/react-start'
 import { QueryClient } from '@tanstack/react-query'
 import { createRouter as createTanStackRouter, useRouter } from '@tanstack/react-router'
@@ -26,6 +28,10 @@ function DefaultPendingComponent() {
 /** Default error component — shown when route loaders throw. */
 function DefaultErrorComponent({ error }: { error: Error }) {
   const router = useRouter()
+
+  useEffect(() => {
+    Sentry.captureException(error)
+  }, [error])
 
   return (
     <div className="page-wrap px-4 pb-8 pt-14">

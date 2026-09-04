@@ -47,6 +47,24 @@ describe('getSecurityHeaders', () => {
     expect(csp).not.toContain('/storage/path')
   })
 
+  it('allows the configured Sentry origin and omits it when Sentry is unset', () => {
+    const sentryOrigin = 'https://o4505962711220224.ingest.us.sentry.io'
+    const configured = getSecurityHeaders({
+      isProduction: false,
+      env: {
+        SENTRY_DSN:
+          'https://7835eb6a326768d0d6b832ffe323e586@o4505962711220224.ingest.us.sentry.io/4512027414626304',
+      },
+    })['Content-Security-Policy']
+    const unset = getSecurityHeaders({
+      isProduction: false,
+      env: {},
+    })['Content-Security-Policy']
+
+    expect(configured).toContain(`connect-src 'self' ${sentryOrigin}`)
+    expect(unset).not.toContain(sentryOrigin)
+  })
+
   it('rejects a configured upload source that could alter CSP syntax', () => {
     expect(() =>
       getSecurityHeaders({

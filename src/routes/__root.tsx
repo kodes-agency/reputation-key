@@ -16,13 +16,15 @@ import { Toaster } from '#/components/ui/sonner'
 import appCss from '#/styles.css?url'
 import { notificationFns } from '#/routes/-notification-fns'
 import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
+import { getBrowserObservabilityConfigFn } from '#/shared/observability/browser-observability.server'
 
 const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark'||stored==='auto')?stored:'auto';var prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;var resolved=mode==='auto'?(prefersDark?'dark':'light'):mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);root.style.colorScheme=resolved;}catch(e){}})();`
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
 }>()({
-  head: () => ({
+  loader: () => getBrowserObservabilityConfigFn(),
+  head: ({ loaderData }) => ({
     meta: [
       { charSet: 'utf-8' },
       {
@@ -30,6 +32,13 @@ export const Route = createRootRouteWithContext<{
         content: 'width=device-width, initial-scale=1',
       },
       { title: 'Reputation Key' },
+      ...(loaderData
+        ? [
+            { name: 'repkey-sentry-dsn', content: loaderData.dsn },
+            { name: 'repkey-sentry-release', content: loaderData.release },
+            { name: 'repkey-sentry-environment', content: loaderData.environment },
+          ]
+        : []),
     ],
     links: [{ rel: 'stylesheet', href: appCss }],
   }),

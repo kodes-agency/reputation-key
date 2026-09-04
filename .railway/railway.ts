@@ -78,6 +78,8 @@ export const APPLICATION_SHARED_VARIABLES = [
   'QUARANTINE_TTL_DAYS',
 ] as const
 
+const WEB_BUILD_VARIABLES = ['SENTRY_AUTH_TOKEN', 'SENTRY_ORG', 'SENTRY_PROJECT'] as const
+
 const WORKER_ONLY_VARIABLES = [
   'REVIEW_PROVIDER_SUBJECT_HMAC_KEYS',
   'AI_SUBJECT_HMAC_KEYS',
@@ -316,6 +318,7 @@ export function buildRailwayProject(
       : {}),
     env: {
       ...sharedVariables(ctx, APPLICATION_SHARED_VARIABLES),
+      ...sharedVariables(ctx, WEB_BUILD_VARIABLES),
       ...applicationInfrastructure,
       ...appTlsVariables(ctx, 'WEB'),
       ...releaseControlledVariables(),

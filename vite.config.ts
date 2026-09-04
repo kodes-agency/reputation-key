@@ -1,6 +1,7 @@
 import tailwindcss from '@tailwindcss/vite'
 import { devtools } from '@tanstack/devtools-vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import { sentryTanstackStart } from '@sentry/tanstackstart-react/vite'
 import viteReact from '@vitejs/plugin-react'
 import { nitro } from 'nitro/vite'
 import { loadEnv, defineConfig, type Plugin } from 'vite'
@@ -59,11 +60,15 @@ const config = defineConfig(({ mode }) => {
   // which Playwright pipes into the CI job log. Local `pnpm dev` (no flag)
   // keeps the pipe for DX.
   const isE2E = !!process.env.E2E
+  if (isBuild && !isStorybook && !process.env.SENTRY_AUTH_TOKEN) {
+    console.warn('[sentry] SENTRY_AUTH_TOKEN is unset; skipping source-map upload')
+  }
 
   return {
     environments: {
       client: {
         build: {
+          sourcemap: 'hidden',
           rolldownOptions: {
             output: {
               codeSplitting: {
@@ -180,10 +185,31 @@ const config = defineConfig(({ mode }) => {
                     '**/shared/auth/server-errors.ts',
                     '**/shared/auth/headers.ts',
                   ],
+                  excludeFiles: [
+                    '**/node_modules/**',
+                    // Exact browser-safe exceptions: the scrubber is pure, and
+                    // TanStack RPC-stubs the server function before its imports
+                    // enter the client graph.
+                    '**/shared/observability/sentry-event-scrub.ts',
+                    '**/shared/observability/sensitive-field-policy.ts',
+                    '**/shared/observability/browser-observability.server.ts',
+                  ],
                 },
               },
             }),
           ]),
+      ...(isBuild && !isStorybook && process.env.SENTRY_AUTH_TOKEN
+        ? sentryTanstackStart({
+            org: process.env.SENTRY_ORG,
+            project: process.env.SENTRY_PROJECT,
+            authToken: process.env.SENTRY_AUTH_TOKEN,
+            release: { name: process.env.SOURCE_REVISION },
+            sourcemaps: {
+              filesToDeleteAfterUpload: ['./.output/**/*.map'],
+            },
+            telemetry: false,
+          })
+        : []),
       viteReact(),
     ],
   }

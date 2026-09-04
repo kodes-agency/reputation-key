@@ -21,9 +21,9 @@ ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 #   - the app writes NOTHING to disk at runtime — run with a read-only root
 #     filesystem and a writable scratch tmpfs where the platform allows it:
 #       docker run --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m ...
-#   - no secrets in the image: build-time env below are the same inert
-#     placeholders CI uses (required only so `vite build` can evaluate the
-#     env schema); real config arrives via Railway service variables
+#   - no secrets in the runtime image: the Sentry upload token is scoped to the
+#     build stage and is never copied or exported into the web stage; runtime
+#     config arrives via Railway service variables
 #
 # Deploy contract (.railway/railway.ts):
 #   - the signed web image also powers the restart-NEVER `schema-migrator`
@@ -79,10 +79,13 @@ RUN pnpm install --frozen-lockfile
 # ── Build web bundle (.output) + worker/migrate bundles (dist-worker) ───────
 FROM deps AS build
 ARG SOURCE_REVISION
+ARG SENTRY_AUTH_TOKEN
+ARG SENTRY_ORG
+ARG SENTRY_PROJECT
 COPY . .
-# Inert build-time placeholders (same values as ci.yml's Web build step) —
-# the env schema is evaluated at build time; nothing connects anywhere.
-# Inline on RUN so they never persist in image metadata/layers.
+# The Sentry build arguments name and authenticate the source-map release; the
+# build deletes uploaded maps before this stage is copied into the web image.
+# Inline schema placeholders remain build-only and never persist as ENV values.
 RUN NODE_ENV=production \
     SOURCE_REVISION=$SOURCE_REVISION \
     DATABASE_URL=postgresql://build:build@localhost:5432/build \
@@ -93,6 +96,7 @@ RUN NODE_ENV=production \
     ENCRYPTION_KEY=aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd \
     OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
     pnpm build && pnpm build:worker \
+ && find .output dist-worker -type f -name '*.map' -delete \
  && node scripts/check-google-import-artifacts.mjs final .output dist-worker \
  && node scripts/check-production-artifacts.mjs .output dist-worker
 

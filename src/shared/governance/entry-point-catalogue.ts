@@ -3298,6 +3298,22 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
   ],
 
+  // ── shared browser observability ──────────────────────────────────
+  ...[
+    sfPublic(
+      'getBrowserObservabilityConfigFn',
+      'src/shared/observability/browser-observability.server.ts',
+      'system:ui.render',
+      'none',
+      'none',
+      {
+        canonicalOnly: true,
+        notes:
+          'public runtime metadata for browser error monitoring; the DSN is a client-safe ingest address',
+      },
+    ),
+  ],
+
   // ── shared auth functions ─────────────────────────────────────────
   ...[
     sfPublic('getSession', AUTH_FUNCTIONS, 'system:session.read', 'none', 'none', {
