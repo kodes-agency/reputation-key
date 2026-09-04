@@ -198,6 +198,7 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     await expect(
       repository.commitPage({
         runId: RUN_ID,
+        organizationId: organizationId(ORGANIZATION_ID),
         phase: scope.phase,
         expectedPageIndex: 0,
         expectedCursorRef: null,

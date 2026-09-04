@@ -1,7 +1,7 @@
+import type { OrganizationId } from '#/shared/domain/ids'
 import type { AiError } from '../../domain/errors'
 import type {
   AiOperationBinding,
-  AiOperationCommand,
   AiOperationId,
   AiOperationIdentity,
 } from '../../domain/types'
@@ -49,16 +49,10 @@ export type AiOperationStorePort = Readonly<{
     }>,
   ): Promise<AiOperationClaim>
 
-  read(
-    input: Readonly<{
-      operationId: AiOperationId
-      command: AiOperationCommand
-    }>,
-  ): Promise<AiOperationRecord | null>
-
   claimExecution(
     input: Readonly<{
       operationId: AiOperationId
+      organizationId: OrganizationId | null
       expectedAttempt: number
       nowEpochMillis: number
     }>,
@@ -67,6 +61,7 @@ export type AiOperationStorePort = Readonly<{
   recordFailure(
     input: Readonly<{
       operationId: AiOperationId
+      organizationId: string | null
       expectedAttempt: number
       failureCode: AiError['code']
       retryAtEpochMillis: number | null
@@ -105,11 +100,20 @@ export type AiOperationStorePort = Readonly<{
       executionHorizonMillis: number
       limit: number
     }>,
-  ): Promise<ReadonlyArray<Readonly<{ operationId: AiOperationId; attempt: number }>>>
+  ): Promise<
+    ReadonlyArray<
+      Readonly<{
+        operationId: AiOperationId
+        attempt: number
+        organizationId: string | null
+      }>
+    >
+  >
 
   markDelivered(
     input: Readonly<{
       operationId: AiOperationId
+      organizationId: OrganizationId | null
       expectedAttempt: number
       deliveredAtEpochMillis: number
     }>,

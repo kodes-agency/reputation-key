@@ -534,11 +534,18 @@ export const createGoogleContentAuthorityRepository = (
       })
     },
 
-    lockPermit: async (tx, id) => {
+    lockPermit: async (tx, id, organizationId) => {
       const rows = await tx
         .select()
         .from(authorizationExecutionPermits)
-        .where(eq(authorizationExecutionPermits.id, id))
+        .where(
+          and(
+            eq(authorizationExecutionPermits.id, id),
+            organizationId === undefined
+              ? undefined
+              : eq(authorizationExecutionPermits.organizationId, organizationId),
+          ),
+        )
         .for('update')
         .limit(1)
       return rows[0] ? permitRecordFromRow(rows[0]) : null

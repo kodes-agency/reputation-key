@@ -89,6 +89,7 @@ export function createAiOperationExecutionReaper(
     for (const candidate of abandoned) {
       const fenced = await deps.store.recordFailure({
         operationId: candidate.operationId,
+        organizationId: candidate.organizationId,
         expectedAttempt: candidate.attempt,
         failureCode: 'operation_ambiguous',
         // Terminal on purpose. See the header: the provider may already have

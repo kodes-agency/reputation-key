@@ -47,7 +47,10 @@ function harness(
     request: async () => {
       throw new Error('unused')
     },
-    load: async () => queue[0] ?? null,
+    load: async (_authorityId, organizationId) => {
+      const authority = queue[0]
+      return authority?.organizationId === organizationId ? authority : null
+    },
     // One Property per pass, by construction: the store hands back one row.
     nextAdvanceable: async () => queue.shift() ?? null,
     recordPreview: async () => {

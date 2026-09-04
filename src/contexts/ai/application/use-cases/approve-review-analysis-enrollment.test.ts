@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
+import { organizationId } from '#/shared/domain/ids'
 import type { ReviewAnalysisEnrollmentStorePort } from '../ports/ai-review-analysis-enrollment.port'
 import { createApproveReviewAnalysisEnrollment } from './approve-review-analysis-enrollment'
 
 const INPUT = {
   enrollmentId: '31000000-0000-4000-8000-000000000101',
+  organizationId: organizationId('31000000-0000-4000-8000-000000000100'),
   expectedFence: {
     authorizationLineageId: '31000000-0000-4000-8000-000000000102',
     authorizationStateVersion: 3,
@@ -38,6 +40,7 @@ describe('approve Review Analysis enrollment', () => {
 
   it.each([
     ['invalid enrollment id', { enrollmentId: 'not-a-uuid' }],
+    ['invalid organization id', { organizationId: organizationId('not-a-uuid') }],
     [
       'invalid authorization lineage',
       {

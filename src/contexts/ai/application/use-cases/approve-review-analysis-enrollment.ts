@@ -1,8 +1,10 @@
+import type { OrganizationId } from '#/shared/domain/ids'
 import type { ReviewAnalysisEnrollmentStorePort } from '../ports/ai-review-analysis-enrollment.port'
 import type { ReviewAnalysisEnrollmentFence } from '../ports/ai-review-analysis-enrollment.port'
 
 export type ApproveReviewAnalysisEnrollmentInput = Readonly<{
   enrollmentId: string
+  organizationId: OrganizationId
   expectedFence: ReviewAnalysisEnrollmentFence
   approvedByOperatorId: string
   approvalEvidenceDigest: string
@@ -28,6 +30,7 @@ const isBoundedInteger = (value: number, minimum: number): boolean =>
 function evidenceIsValid(input: ApproveReviewAnalysisEnrollmentInput): boolean {
   return (
     UUID_RE.test(input.enrollmentId) &&
+    UUID_RE.test(input.organizationId) &&
     UUID_RE.test(input.expectedFence.authorizationLineageId) &&
     isBoundedInteger(input.expectedFence.authorizationStateVersion, 1) &&
     isBoundedInteger(input.expectedFence.sourceEpoch, 0) &&

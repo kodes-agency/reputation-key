@@ -259,7 +259,6 @@ function createHarness(
     },
     operations: {
       claim,
-      read: vi.fn(),
       claimExecution,
       recordFailure,
       markDelivered,

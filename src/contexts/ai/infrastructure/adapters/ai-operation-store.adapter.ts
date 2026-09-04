@@ -513,44 +513,6 @@ export const createAiOperationStoreAdapter = (
       })
     },
 
-    async read(input) {
-      const [row] = await db
-        .select()
-        .from(aiOperations)
-        .where(
-          and(
-            eq(aiOperations.id, input.operationId),
-            eq(aiOperations.command, input.command),
-          ),
-        )
-        .limit(1)
-      if (!row) return null
-      let executionPermitId: string | null = null
-      if (row.executionAttempt > 0) {
-        const [attempt] = await db
-          .select({
-            executionPermitId: aiExecutionPermits.id,
-          })
-          .from(aiOperationAttempts)
-          .leftJoin(
-            aiExecutionPermits,
-            and(
-              eq(aiExecutionPermits.operationId, aiOperationAttempts.operationId),
-              eq(aiExecutionPermits.executionAttempt, aiOperationAttempts.attempt),
-            ),
-          )
-          .where(
-            and(
-              eq(aiOperationAttempts.operationId, row.id),
-              eq(aiOperationAttempts.attempt, row.executionAttempt),
-            ),
-          )
-          .limit(1)
-        executionPermitId = attempt?.executionPermitId ?? null
-      }
-      return mapOperation(row, executionPermitId)
-    },
-
     async claimExecution(input) {
       return db.transaction(async (tx) => {
         const now = new Date(input.nowEpochMillis)
@@ -566,6 +528,9 @@ export const createAiOperationStoreAdapter = (
           .where(
             and(
               eq(aiOperations.id, input.operationId),
+              input.organizationId === null
+                ? isNull(aiOperations.organizationId)
+                : eq(aiOperations.organizationId, input.organizationId),
               eq(aiOperations.state, 'pending'),
               eq(aiOperations.executionAttempt, input.expectedAttempt - 1),
               or(
@@ -626,6 +591,9 @@ export const createAiOperationStoreAdapter = (
           .where(
             and(
               eq(aiOperations.id, input.operationId),
+              input.organizationId === null
+                ? isNull(aiOperations.organizationId)
+                : eq(aiOperations.organizationId, input.organizationId),
               eq(aiOperations.state, 'executing'),
               eq(aiOperations.executionAttempt, input.expectedAttempt),
             ),
@@ -663,7 +631,14 @@ export const createAiOperationStoreAdapter = (
                 : new Date(input.retryAtEpochMillis),
             updatedAt: failedAt,
           })
-          .where(eq(aiOperations.id, input.operationId))
+          .where(
+            and(
+              eq(aiOperations.id, input.operationId),
+              input.organizationId === null
+                ? isNull(aiOperations.organizationId)
+                : eq(aiOperations.organizationId, input.organizationId),
+            ),
+          )
         return true
       })
     },
@@ -690,6 +665,7 @@ export const createAiOperationStoreAdapter = (
         .select({
           operationId: aiOperations.id,
           attempt: aiOperations.executionAttempt,
+          organizationId: aiOperations.organizationId,
         })
         .from(aiOperations)
         .leftJoin(
@@ -714,6 +690,7 @@ export const createAiOperationStoreAdapter = (
       return rows.map((row) => ({
         operationId: row.operationId as AiOperationId,
         attempt: row.attempt,
+        organizationId: row.organizationId,
       }))
     },
 
@@ -725,6 +702,9 @@ export const createAiOperationStoreAdapter = (
         .where(
           and(
             eq(aiOperations.id, input.operationId),
+            input.organizationId === null
+              ? isNull(aiOperations.organizationId)
+              : eq(aiOperations.organizationId, input.organizationId),
             eq(aiOperations.state, 'succeeded_pending_delivery'),
             eq(aiOperations.executionAttempt, input.expectedAttempt),
           ),

@@ -60,7 +60,11 @@ export type RecordMetricDeps = Readonly<{
   registry: MetricRegistryRepository
   clock: () => Date
   idGen: () => MetricReadingId
-  resolvePropertyLocalDate: (propertyId: PropertyId, at: Date) => Promise<string>
+  resolvePropertyLocalDate: (
+    propertyId: PropertyId,
+    organizationId: OrganizationId,
+    at: Date,
+  ) => Promise<string>
 }>
 
 export type RecordMetric = (input: RecordMetricInput) => Promise<ReadingResult>
@@ -185,6 +189,7 @@ export const recordMetric =
       occurredAt: input.occurredAt,
       propertyLocalDate: await deps.resolvePropertyLocalDate(
         input.propertyId,
+        input.organizationId,
         input.occurredAt,
       ),
       attributionQuality: input.attributionQuality,

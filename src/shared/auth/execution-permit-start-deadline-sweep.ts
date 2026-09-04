@@ -64,6 +64,7 @@ export type ExecutionPermitStartDeadlineSweepStore<Tx> = Readonly<{
   lockPermit(
     tx: Tx,
     id: string,
+    organizationId?: string,
   ): Promise<Readonly<{ permit: AuthorizationExecutionPermit }> | null>
   updatePermit(tx: Tx, permit: AuthorizationExecutionPermit): Promise<void>
 }>

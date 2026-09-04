@@ -959,8 +959,18 @@ describe('AI operation store (real PostgreSQL)', () => {
     const operationId = claimed.operation.id
 
     const [first, second] = await Promise.all([
-      store.claimExecution({ operationId, expectedAttempt: 1, nowEpochMillis: NOW }),
-      store.claimExecution({ operationId, expectedAttempt: 1, nowEpochMillis: NOW }),
+      store.claimExecution({
+        operationId,
+        organizationId: organizationId(ORGANIZATION_ID),
+        expectedAttempt: 1,
+        nowEpochMillis: NOW,
+      }),
+      store.claimExecution({
+        operationId,
+        organizationId: organizationId(ORGANIZATION_ID),
+        expectedAttempt: 1,
+        nowEpochMillis: NOW,
+      }),
     ])
     expect([first, second].filter(Boolean)).toHaveLength(1)
     expect([first, second].find(Boolean)).toMatchObject({
@@ -972,6 +982,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     await expect(
       store.recordFailure({
         operationId,
+        organizationId: ORGANIZATION_ID,
         expectedAttempt: 1,
         failureCode: 'provider_unavailable',
         retryAtEpochMillis: null,
@@ -979,7 +990,28 @@ describe('AI operation store (real PostgreSQL)', () => {
       }),
     ).resolves.toBe(true)
 
-    const stored = await store.read({ operationId, command: 'analysis' })
+    await expect(
+      store.claimExecution({
+        operationId,
+        organizationId: organizationId(ORGANIZATION_ID),
+        expectedAttempt: 2,
+        nowEpochMillis: NOW + 1_001,
+      }),
+    ).resolves.toBeNull()
+    const [stored] = await db
+      .select({
+        state: aiOperations.state,
+        executionAttempt: aiOperations.executionAttempt,
+        failureCode: aiOperations.failureCode,
+      })
+      .from(aiOperations)
+      .where(
+        and(
+          eq(aiOperations.id, operationId),
+          eq(aiOperations.organizationId, ORGANIZATION_ID),
+        ),
+      )
+      .limit(1)
     expect(stored).toMatchObject({
       state: 'failed',
       executionAttempt: 1,
@@ -1008,6 +1040,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     const abandonedId = abandoned.operation.id
     const claimedExecution = await store.claimExecution({
       operationId: abandonedId,
+      organizationId: organizationId(ORGANIZATION_ID),
       expectedAttempt: 1,
       nowEpochMillis: NOW,
     })
@@ -1030,7 +1063,9 @@ describe('AI operation store (real PostgreSQL)', () => {
         executionHorizonMillis: 60_000,
         limit: 100,
       }),
-    ).resolves.toEqual([{ operationId: abandonedId, attempt: 1 }])
+    ).resolves.toEqual([
+      { operationId: abandonedId, attempt: 1, organizationId: ORGANIZATION_ID },
+    ])
 
     const reap = createAiOperationExecutionReaper({
       store,
@@ -1045,9 +1080,28 @@ describe('AI operation store (real PostgreSQL)', () => {
 
     // Terminal, not pending: the provider may already have run and been
     // charged, so a retry could bill the merchant twice for one request.
-    expect(
-      await store.read({ operationId: abandonedId, command: 'analysis' }),
-    ).toMatchObject({
+    await expect(
+      store.listExpiredExecutions({
+        nowEpochMillis: afterHorizon,
+        executionHorizonMillis: 60_000,
+        limit: 100,
+      }),
+    ).resolves.toEqual([])
+    const [stored] = await db
+      .select({
+        state: aiOperations.state,
+        failureCode: aiOperations.failureCode,
+        nextAttemptAtEpochMillis: aiOperations.nextAttemptAt,
+      })
+      .from(aiOperations)
+      .where(
+        and(
+          eq(aiOperations.id, abandonedId),
+          eq(aiOperations.organizationId, ORGANIZATION_ID),
+        ),
+      )
+      .limit(1)
+    expect(stored).toMatchObject({
       state: 'failed',
       failureCode: 'operation_ambiguous',
       nextAttemptAtEpochMillis: null,
@@ -1081,6 +1135,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     if (claimed.status !== 'created') throw new Error('operation claim failed')
     const executing = await store.claimExecution({
       operationId: claimed.operation.id,
+      organizationId: organizationId(ORGANIZATION_ID),
       expectedAttempt: 1,
       nowEpochMillis: liveNow + 1,
     })
@@ -1198,6 +1253,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     if (claimed.status !== 'created') throw new Error('reply operation claim failed')
     const executing = await store.claimExecution({
       operationId: claimed.operation.id,
+      organizationId: organizationId(ORGANIZATION_ID),
       expectedAttempt: 1,
       nowEpochMillis: liveNow + 1,
     })
@@ -1351,6 +1407,7 @@ describe('AI operation store (real PostgreSQL)', () => {
 
     const firstExecution = await store.claimExecution({
       operationId: claimed.operation.id,
+      organizationId: organizationId(ORGANIZATION_ID),
       expectedAttempt: 1,
       nowEpochMillis: liveNow + 1,
     })
@@ -1386,6 +1443,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     await expect(
       store.recordFailure({
         operationId: firstExecution.id,
+        organizationId: ORGANIZATION_ID,
         expectedAttempt: 1,
         failureCode: 'provider_unavailable',
         failedAtEpochMillis: liveNow + 2,
@@ -1395,6 +1453,7 @@ describe('AI operation store (real PostgreSQL)', () => {
 
     const secondExecution = await store.claimExecution({
       operationId: firstExecution.id,
+      organizationId: organizationId(ORGANIZATION_ID),
       expectedAttempt: 2,
       nowEpochMillis: liveNow + 3,
     })
@@ -1474,6 +1533,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     if (limitedClaim.status !== 'created') throw new Error('rate-limit claim failed')
     const limitedExecution = await store.claimExecution({
       operationId: limitedClaim.operation.id,
+      organizationId: organizationId(ORGANIZATION_ID),
       expectedAttempt: 1,
       nowEpochMillis: liveNow + 5,
     })
@@ -1544,6 +1604,7 @@ describe('AI operation store (real PostgreSQL)', () => {
         throw new Error('transition operation claim failed')
       const execution = await store.claimExecution({
         operationId: operation.operation.id,
+        organizationId: organizationId(ORGANIZATION_ID),
         expectedAttempt: 1,
         nowEpochMillis: liveNow + offset + 1,
       })
@@ -1712,6 +1773,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     if (claimed.status !== 'created') throw new Error('operation claim failed')
     const executing = await store.claimExecution({
       operationId: claimed.operation.id,
+      organizationId: organizationId(ORGANIZATION_ID),
       expectedAttempt: 1,
       nowEpochMillis: liveNow + 1,
     })
@@ -1863,10 +1925,16 @@ describe('AI operation store (real PostgreSQL)', () => {
     })
     if (claimed.status === 'conflict') throw new Error('unexpected conflict')
     const operationId = claimed.operation.id
-    await store.claimExecution({ operationId, expectedAttempt: 1, nowEpochMillis: NOW })
+    await store.claimExecution({
+      operationId,
+      organizationId: organizationId(ORGANIZATION_ID),
+      expectedAttempt: 1,
+      nowEpochMillis: NOW,
+    })
     await expect(
       store.recordFailure({
         operationId,
+        organizationId: ORGANIZATION_ID,
         expectedAttempt: 1,
         failureCode: 'provider_unavailable',
         failedAtEpochMillis: NOW + 1_000,
@@ -1877,6 +1945,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     await expect(
       store.claimExecution({
         operationId,
+        organizationId: organizationId(ORGANIZATION_ID),
         expectedAttempt: 2,
         nowEpochMillis: NOW + 4_999,
       }),
@@ -1884,6 +1953,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     await expect(
       store.claimExecution({
         operationId,
+        organizationId: organizationId(ORGANIZATION_ID),
         expectedAttempt: 2,
         nowEpochMillis: NOW + 5_000,
       }),
@@ -2163,7 +2233,12 @@ describe('AI operation store (real PostgreSQL)', () => {
 
     await expect(outputStore.storeTrendReport(report)).resolves.toBe(false)
     await expect(
-      store.claimExecution({ operationId, expectedAttempt: 1, nowEpochMillis: NOW }),
+      store.claimExecution({
+        operationId,
+        organizationId: organizationId(ORGANIZATION_ID),
+        expectedAttempt: 1,
+        nowEpochMillis: NOW,
+      }),
     ).resolves.toMatchObject({ state: 'executing', executionAttempt: 1 })
     await expect(outputStore.storeTrendReport(report)).resolves.toBe(true)
     await expect(outputStore.storeTrendReport(report)).resolves.toBe(false)
@@ -2571,7 +2646,12 @@ describe('AI operation store (real PostgreSQL)', () => {
 
     await expect(outputStore.settleEphemeralReply(settlement)).resolves.toBe(false)
     await expect(
-      store.claimExecution({ operationId, expectedAttempt: 1, nowEpochMillis: NOW }),
+      store.claimExecution({
+        operationId,
+        organizationId: organizationId(ORGANIZATION_ID),
+        expectedAttempt: 1,
+        nowEpochMillis: NOW,
+      }),
     ).resolves.toMatchObject({ state: 'executing', executionAttempt: 1 })
     await expect(outputStore.settleEphemeralReply(settlement)).resolves.toBe(false)
     expect(brandAuthorityInputs.at(-1)).toEqual({
@@ -2667,6 +2747,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     await expect(
       store.claimExecution({
         operationId: operation.id,
+        organizationId: organizationId(ORGANIZATION_ID),
         expectedAttempt: 1,
         nowEpochMillis: NOW,
       }),
@@ -2770,6 +2851,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     }
     await store.claimExecution({
       operationId: unavailableOperation.id,
+      organizationId: organizationId(ORGANIZATION_ID),
       expectedAttempt: 1,
       nowEpochMillis: NOW,
     })

@@ -778,6 +778,7 @@ describe('Review Analysis enrollment adapter', () => {
 
     const caughtUp = await adapter.reconcile({
       enrollmentId,
+      organizationId: ORGANIZATION_ID,
       expectedFence: fence(0),
       correlationId: CORRELATION_ID,
       occurredAt: new Date(),
@@ -1024,6 +1025,7 @@ describe('Review Analysis enrollment adapter', () => {
 
     const replay = await adapter.reconcile({
       enrollmentId,
+      organizationId: ORGANIZATION_ID,
       expectedFence: fence(1),
       correlationId: CORRELATION_ID,
       occurredAt: new Date(),
@@ -1090,6 +1092,7 @@ describe('Review Analysis enrollment adapter', () => {
     await expect(
       adapter.reconcile({
         enrollmentId,
+        organizationId: ORGANIZATION_ID,
         expectedFence: fence(reviewCount),
         correlationId: CORRELATION_ID,
         occurredAt: new Date(),
@@ -1125,6 +1128,7 @@ describe('Review Analysis enrollment adapter', () => {
     await expect(
       adapter.approveAssistedReplay({
         enrollmentId,
+        organizationId: ORGANIZATION_ID,
         expectedFence: fence(reviewCount),
         approvedByOperatorId: 'ai-beta-operator',
         approvalEvidenceDigest: 'd'.repeat(64),
@@ -1135,6 +1139,7 @@ describe('Review Analysis enrollment adapter', () => {
     const approvedAt = new Date(beforeApproval.snapshotCapturedAtEpochMillis + 1)
     const approval = {
       enrollmentId,
+      organizationId: ORGANIZATION_ID,
       expectedFence: fence(reviewCount),
       approvedByOperatorId: 'ai-beta-operator',
       approvalEvidenceDigest: 'd'.repeat(64),
@@ -1193,6 +1198,7 @@ describe('Review Analysis enrollment adapter', () => {
     const enrollmentId = appliedEnrollmentId(applied)
     const replay = await adapter.reconcile({
       enrollmentId,
+      organizationId: ORGANIZATION_ID,
       expectedFence: fence(1),
       correlationId: CORRELATION_ID,
       occurredAt: new Date(),
@@ -1245,6 +1251,7 @@ describe('Review Analysis enrollment adapter', () => {
     await expect(
       adapter.reconcile({
         enrollmentId,
+        organizationId: ORGANIZATION_ID,
         expectedFence: fence(1),
         correlationId: CORRELATION_ID,
         occurredAt: new Date(),
@@ -1269,6 +1276,7 @@ describe('Review Analysis enrollment adapter', () => {
     const enrollmentId = appliedEnrollmentId(applied)
     const replay = await adapter.reconcile({
       enrollmentId,
+      organizationId: ORGANIZATION_ID,
       expectedFence: fence(1),
       correlationId: CORRELATION_ID,
       occurredAt: new Date(),
@@ -1321,6 +1329,7 @@ describe('Review Analysis enrollment adapter', () => {
     await expect(
       adapter.reconcile({
         enrollmentId,
+        organizationId: ORGANIZATION_ID,
         expectedFence: fence(1),
         correlationId: CORRELATION_ID,
         occurredAt: new Date(),

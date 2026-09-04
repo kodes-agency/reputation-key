@@ -86,6 +86,7 @@ export type ReviewProviderPersistedObservation = Readonly<{
 
 export type ReviewProviderSnapshotPageCommit = Readonly<{
   runId: string
+  organizationId: OrganizationId
   phase: ReviewProviderSnapshotPagePhase
   expectedPageIndex: number
   expectedCursorRef: string | null
@@ -180,6 +181,7 @@ export type ReviewProviderSnapshotRepository = Readonly<{
   recordCandidateObservation(
     input: Readonly<{
       runId: string
+      organizationId: OrganizationId
       observation: ReviewProviderPersistedObservation
     }>,
   ): Promise<'observed_run_failed' | 'stale' | 'run_failed'>
@@ -187,12 +189,14 @@ export type ReviewProviderSnapshotRepository = Readonly<{
   beginConfirmationScan(
     input: Readonly<{
       runId: string
+      organizationId: OrganizationId
     }>,
   ): Promise<ReviewProviderSnapshotRun>
 
   finishConfirmationScan(
     input: Readonly<{
       runId: string
+      organizationId: OrganizationId
     }>,
   ): Promise<
     | Readonly<{ status: 'deleting'; run: ReviewProviderSnapshotRun }>
@@ -206,6 +210,7 @@ export type ReviewProviderSnapshotRepository = Readonly<{
   failRun(
     input: Readonly<{
       runId: string
+      organizationId: OrganizationId
       code: ReviewProviderSnapshotFailureCode
     }>,
   ): Promise<ReviewProviderSnapshotRun>

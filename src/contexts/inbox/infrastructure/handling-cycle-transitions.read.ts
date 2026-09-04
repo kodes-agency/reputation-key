@@ -38,16 +38,20 @@ export type HandlingCycleTransitionRow = Readonly<{
  */
 export async function selectCycleCloseReason(
   tx: TransitionReader,
-  inboxItemId: string,
-  cycleNumber: number,
+  input: Readonly<{
+    inboxItemId: string
+    organizationId: string
+    cycleNumber: number
+  }>,
 ): Promise<string | null> {
   const [row] = await tx
     .select({ reason: inboxHandlingCycleTransitions.transitionReason })
     .from(inboxHandlingCycleTransitions)
     .where(
       and(
-        eq(inboxHandlingCycleTransitions.inboxItemId, inboxItemId),
-        eq(inboxHandlingCycleTransitions.cycleNumber, cycleNumber),
+        eq(inboxHandlingCycleTransitions.inboxItemId, input.inboxItemId),
+        eq(inboxHandlingCycleTransitions.organizationId, input.organizationId),
+        eq(inboxHandlingCycleTransitions.cycleNumber, input.cycleNumber),
         eq(inboxHandlingCycleTransitions.kind, 'closed'),
       ),
     )

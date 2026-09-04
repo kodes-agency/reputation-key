@@ -267,7 +267,6 @@ function createHarness(
     },
     operations: {
       claim,
-      read: vi.fn(),
       claimExecution,
       recordFailure: vi.fn(async () => true),
       markDelivered,
@@ -451,6 +450,7 @@ describe('generate reply suggestion', () => {
     )
     expect(harness.mocks.markDelivered).toHaveBeenCalledWith({
       operationId: OPERATION_ID,
+      organizationId: ORGANIZATION_ID,
       expectedAttempt: 1,
       deliveredAtEpochMillis: NOW,
     })

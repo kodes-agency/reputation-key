@@ -200,19 +200,6 @@ export const createPropertyRepository = (
         return rows[0] ? propertyFromRow(rows[0]) : null
       })
     },
-    /** ⚠️ CROSS-TENANT by design — public-facing guest portal resolution. */
-    findBySlug: async (slug) => {
-      return trace('property.findBySlug', async () => {
-        const rows = await db
-          .select()
-          .from(properties)
-          .where(
-            and(eq(properties.slug, slug), isNull(properties.deletedAt), ...cellWhere()),
-          )
-          .limit(1)
-        return rows[0] ? propertyFromRow(rows[0]) : null
-      })
-    },
 
     findIdsByGoogleConnection: async (connectionId: GoogleConnectionId, orgId) => {
       return trace('property.findIdsByGoogleConnection', async () => {

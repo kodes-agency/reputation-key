@@ -138,6 +138,7 @@ async function runFullErase(tx: Tx, fixture: Fixture): Promise<string> {
   })
   await store.recordPreview({
     authorityId: authority.id,
+    organizationId: fixture.organizationId,
     inventoryRevision: 1,
     inventoryDigest: 'a'.repeat(64),
     retentionPreviewRef: 'retention:preview:2027-06-01',
@@ -145,6 +146,7 @@ async function runFullErase(tx: Tx, fixture: Fixture): Promise<string> {
   })
   await store.confirm({
     authorityId: authority.id,
+    organizationId: fixture.organizationId,
     confirmationDigest: 'b'.repeat(64),
     inventoryRevision: 1,
     graceExpiresAt: new Date(NOW.getTime() - 1_000),
@@ -275,6 +277,7 @@ describe('permanent Property Erase command store (LIF-01-T19)', () => {
         })
         await store.recordPreview({
           authorityId: authority.id,
+          organizationId: fixture.organizationId,
           inventoryRevision: 1,
           inventoryDigest: 'a'.repeat(64),
           retentionPreviewRef: 'retention:preview:2027-06-01',
@@ -282,6 +285,7 @@ describe('permanent Property Erase command store (LIF-01-T19)', () => {
         })
         await store.confirm({
           authorityId: authority.id,
+          organizationId: fixture.organizationId,
           confirmationDigest: 'b'.repeat(64),
           inventoryRevision: 1,
           graceExpiresAt: NOW,
