@@ -45,17 +45,35 @@ describe('production error-monitoring wiring', () => {
     )
   })
 
-  it('initializes the browser SDK before hydration through the shared scrubber', () => {
+  it('defers the browser SDK until after the synchronous error buffer is installed', () => {
     const instrumentation = read('src/instrument.client.ts')
     const clientEntry = read('src/client.tsx')
+    const router = read('src/router.tsx')
     const telemetry = read('src/shared/observability/telemetry.ts')
+    const viteConfig = read('vite.config.ts')
 
     expect(instrumentation).toContain("from '#/shared/observability/sentry-event-scrub'")
+    expect(instrumentation).toContain("import('@sentry/tanstackstart-react')")
+    expect(instrumentation).not.toMatch(
+      /^import(?!\s+type\b)[^;\n]*['"]@sentry\/tanstackstart-react['"]/mu,
+    )
+    expect(instrumentation).toContain(
+      "from '#/shared/observability/browser-exception-capture'",
+    )
+    expect(router).toContain("from '#/shared/observability/browser-exception-capture'")
+    expect(router).not.toContain("from '@sentry/tanstackstart-react'")
     expect(instrumentation).toContain('beforeSend: scrubSentryEvent')
     expect(instrumentation).toContain('beforeBreadcrumb: scrubSentryBreadcrumb')
+    expect(viteConfig).toContain("'**/shared/observability/browser-exception-capture.ts'")
     expect(telemetry).toContain("from './sentry-event-scrub'")
     expect(telemetry).not.toContain('function scrubSentryEvent')
     expect(clientEntry.startsWith("import './instrument.client'\n")).toBe(true)
+    // Monitoring fails open in the browser too: the module-level call must
+    // swallow a failed SDK chunk instead of leaving an unhandled rejection,
+    // which the e2e error gate would (correctly) report as a page error.
+    expect(instrumentation).toContain(
+      'void initializeBrowserObservability(document).catch(() => {})',
+    )
   })
 
   it('runs Sentry request and function middleware before application middleware', () => {

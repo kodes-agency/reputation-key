@@ -194,11 +194,12 @@ const config = defineConfig(({ mode }) => {
                   ],
                   excludeFiles: [
                     '**/node_modules/**',
-                    // Exact browser-safe exceptions: the scrubber is pure, and
-                    // TanStack RPC-stubs the server function before its imports
-                    // enter the client graph.
+                    // Exact browser-safe exceptions: the scrubbers and browser
+                    // exception sink are pure, and TanStack RPC-stubs the server
+                    // function before its imports enter the client graph.
                     '**/shared/observability/sentry-event-scrub.ts',
                     '**/shared/observability/sensitive-field-policy.ts',
+                    '**/shared/observability/browser-exception-capture.ts',
                     '**/shared/observability/browser-observability.server.ts',
                   ],
                 },

@@ -51,6 +51,7 @@ const DENY_PATTERNS = [
 ] as const
 
 const DENY_EXCLUSIONS: Readonly<Record<string, true>> = {
+  'shared/observability/browser-exception-capture.ts': true,
   'shared/observability/browser-observability.server.ts': true,
   'shared/observability/sentry-event-scrub.ts': true,
   'shared/observability/sensitive-field-policy.ts': true,
