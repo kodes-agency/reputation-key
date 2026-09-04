@@ -41,9 +41,6 @@ importers:
       '@sentry/node':
         specifier: 10.71.0
         version: 10.71.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))
-      '@sentry/tanstackstart-react':
-        specifier: 10.71.0
-        version: 10.71.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(react@19.2.8)(rollup@4.60.4)
       '@tanstack/react-form':
         specifier: 1.33.5
         version: 1.33.5(@tanstack/react-start@1.168.47(crossws@0.4.5(srvx@0.11.16))(esbuild@0.28.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(rolldown@1.1.5)(rollup@4.60.4)(vite@8.1.4(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0)))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -156,6 +153,9 @@ importers:
       '@playwright/test':
         specifier: 1.62.1
         version: 1.62.1
+      '@sentry/tanstackstart-react':
+        specifier: 10.71.0
+        version: 10.71.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(react@19.2.8)(rollup@4.60.4)
       '@storybook/addon-a11y':
         specifier: ^10.5.9
         version: 10.5.9(storybook@10.5.9(@types/react@19.2.18)(prettier@3.9.6)(react@19.2.8))

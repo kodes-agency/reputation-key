@@ -39,6 +39,14 @@
       "expiresAt": "2026-10-31"
     },
     {
+      "package": "@sentry/cli*",
+      "license": "FSL-1.1-MIT",
+      "scope": "dev",
+      "owner": "platform",
+      "reason": "Build-time source-map uploader pulled transitively by @sentry/tanstackstart-react → @sentry/vite-plugin → @sentry/bundler-plugins and never imported by application code. The wrapper is a devDependency and `pnpm why @sentry/cli --prod` resolves nothing, so the CLI cannot enter runtime images installed with `pnpm install --prod`. FSL-1.1-MIT permits internal use and converts to MIT; this use is Sentry's own CLI uploading source maps to Sentry.",
+      "expiresAt": "2026-12-04"
+    },
+    {
       "package": "@img/sharp-libvips-*",
       "license": "LGPL-3.0-or-later",
       "scope": "dev",
