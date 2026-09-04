@@ -84,6 +84,7 @@ export type RuntimeContractSources = Readonly<{
   logger: string
   sensitiveFieldPolicy: string
   telemetry: string
+  sentryEventScrub: string
   metricsSchema: string
   queue: string
   worker: string
@@ -636,7 +637,6 @@ export function validateRuntimeContractSources(
   )
   for (const [label, source] of [
     ['logger', sources.logger],
-    ['telemetry', sources.telemetry],
     ['metrics', sources.metricsSchema],
   ] as const) {
     requireSnippet(
@@ -644,6 +644,15 @@ export function validateRuntimeContractSources(
       'isSensitiveObservabilityField',
       `${label} must consume the shared sensitive-field authority`,
       violations,
+    )
+  }
+  if (
+    !sources.telemetry.includes("from './sentry-event-scrub'") ||
+    !sources.sentryEventScrub.includes("from './sensitive-field-policy'") ||
+    !sources.sentryEventScrub.includes('isSensitiveObservabilityField')
+  ) {
+    violations.push(
+      'telemetry must consume the shared sensitive-field authority through sentry-event-scrub',
     )
   }
   requireSnippet(
@@ -852,6 +861,7 @@ export function loadRuntimeContractSources(root: string): RuntimeContractSources
     logger: read('src/shared/observability/logger.ts'),
     sensitiveFieldPolicy: read('src/shared/observability/sensitive-field-policy.ts'),
     telemetry: read('src/shared/observability/telemetry.ts'),
+    sentryEventScrub: read('src/shared/observability/sentry-event-scrub.ts'),
     metricsSchema: read('src/shared/observability/metrics-schema.ts'),
     queue: read('src/shared/jobs/queue.ts'),
     worker: read('src/shared/jobs/worker.ts'),

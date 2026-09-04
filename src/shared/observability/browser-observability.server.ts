@@ -8,15 +8,28 @@ export type BrowserObservabilityConfig = Readonly<{
   environment: string
 }>
 
+type BrowserObservabilityEnvironment = Readonly<{
+  SENTRY_DSN?: string
+  RAILWAY_ENVIRONMENT_NAME?: string
+  NODE_ENV: string
+}>
+
+export function resolveBrowserObservabilityConfig(
+  env: BrowserObservabilityEnvironment,
+  release: string,
+): BrowserObservabilityConfig | null {
+  if (!env.SENTRY_DSN) return null
+
+  return {
+    dsn: env.SENTRY_DSN,
+    release,
+    environment: env.RAILWAY_ENVIRONMENT_NAME ?? env.NODE_ENV,
+  }
+}
+
 export const getBrowserObservabilityConfigFn = createServerFn({ method: 'GET' }).handler(
   (): BrowserObservabilityConfig | null => {
     const { env } = requestRuntimeConfig()
-    if (!env.SENTRY_DSN) return null
-
-    return {
-      dsn: env.SENTRY_DSN,
-      release: getReleaseSha(env),
-      environment: env.RAILWAY_ENVIRONMENT_NAME ?? env.NODE_ENV,
-    }
+    return resolveBrowserObservabilityConfig(env, getReleaseSha(env))
   },
 )

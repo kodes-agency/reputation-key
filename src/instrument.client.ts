@@ -4,25 +4,30 @@ import {
   scrubSentryEvent,
 } from '#/shared/observability/sentry-event-scrub'
 
-const dsn = document.querySelector<HTMLMetaElement>(
-  'meta[name="repkey-sentry-dsn"]',
-)?.content
+type BrowserObservabilityDocument = Readonly<{
+  querySelector(selector: string): Pick<Element, 'getAttribute'> | null
+}>
 
-if (dsn) {
-  const release = document.querySelector<HTMLMetaElement>(
-    'meta[name="repkey-sentry-release"]',
-  )?.content
-  const environment = document.querySelector<HTMLMetaElement>(
-    'meta[name="repkey-sentry-environment"]',
-  )?.content
+function metaContent(
+  root: BrowserObservabilityDocument,
+  name: string,
+): string | undefined {
+  return root.querySelector(`meta[name="${name}"]`)?.getAttribute('content') ?? undefined
+}
+
+export function initializeBrowserObservability(root: BrowserObservabilityDocument): void {
+  const dsn = metaContent(root, 'repkey-sentry-dsn')
+  if (!dsn) return
 
   Sentry.init({
     dsn,
-    release,
-    environment,
+    release: metaContent(root, 'repkey-sentry-release'),
+    environment: metaContent(root, 'repkey-sentry-environment'),
     sendDefaultPii: false,
     tracesSampleRate: 0,
     beforeSend: scrubSentryEvent,
     beforeBreadcrumb: scrubSentryBreadcrumb,
   })
 }
+
+if (typeof document !== 'undefined') initializeBrowserObservability(document)

@@ -45,7 +45,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 /**
  * @type {ReadonlyArray<{ file: string, owner: string, reason: string }>}
  *
- * EXEMPTIONS (owner + reason) — none registered.
+ * EXEMPTIONS (owner + reason) — one hydration entry registered below.
  *
  * Emptied 2026-08-21: the four BQC-7.4 alert-family entries
  * (observability/alert-definitions.ts, observability/alert-dispatcher.ts,
@@ -58,7 +58,14 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
  * fixtures at alert-injection.test.ts:636. The redundancy check below now
  * catches this rot class instead of relying on review discipline.
  */
-const EXEMPT = []
+const EXEMPT = [
+  {
+    file: 'src/client.tsx',
+    owner: 'platform',
+    reason:
+      "TanStack Start's hydration entry contains no decision logic; a unit import would hydrate the test document as a side effect. Every Playwright browser project exercises this registered client entry because the app cannot render interactive routes without hydration.",
+  },
+]
 
 const EXCLUDED = (file) =>
   !/\.(ts|tsx)$/.test(file) ||
