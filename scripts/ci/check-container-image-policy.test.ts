@@ -27,16 +27,47 @@ describe('container image policy', () => {
     ).toContain('tools/Dockerfile is not classified')
   })
 
-  it('rejects a classified image when any CI evidence stage is removed', () => {
+  it('rejects the matrix when its shared scan stage is removed', () => {
     const policy = loadContainerImagePolicy(ROOT)
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
-    const withoutPerfScan = workflow.replace(
-      /\n\s+- name: Vulnerability scan performance runner image \(grype\)[\s\S]*?(?=\n\s+- name:|\n\s{2}#)/u,
+    const withoutMatrixScan = workflow.replace(
+      /\n\s+- name: Vulnerability scan matrix image \(grype\)[\s\S]*?(?=\n\s+- name:|\n\s{2}#)/u,
       '',
     )
 
-    expect(validateCiContainerCoverage(policy, withoutPerfScan)).toContain(
+    expect(validateCiContainerCoverage(policy, withoutMatrixScan)).toContain(
       'CI vulnerability scans is missing repkey-perf-runner:ci',
+    )
+  })
+
+  it('rejects a classified image missing from the evidence matrix', () => {
+    const policy = loadContainerImagePolicy(ROOT)
+    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
+    const withoutPerfRow = workflow.replace(
+      /\n\s{10}- name: perf-runner\n\s{12}dockerfile: Dockerfile\.perf-runner\n\s{12}tag: repkey-perf-runner:ci/u,
+      '',
+    )
+    const violations = validateCiContainerCoverage(policy, withoutPerfRow)
+
+    expect(violations).toContain(
+      'CI image builds is missing Dockerfile.perf-runner=>repkey-perf-runner:ci',
+    )
+    expect(violations).toContain('CI image SBOMs is missing repkey-perf-runner:ci')
+    expect(violations).toContain(
+      'CI vulnerability scans is missing repkey-perf-runner:ci',
+    )
+  })
+
+  it('merges the ten staged SBOMs into the governed image artifact', () => {
+    const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
+    const aggregate = workflow.slice(workflow.indexOf('\n  docker:'))
+
+    expect(workflow).toContain('name: sbom-image-${{ matrix.image.name }}-spdx')
+    expect(aggregate).toContain('pattern: sbom-image-*-spdx')
+    expect(aggregate).toContain('merge-multiple: true')
+    expect(aggregate).toContain('name: sbom-images-spdx')
+    expect(aggregate).toContain(
+      `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 10`,
     )
   })
 
