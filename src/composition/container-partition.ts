@@ -34,12 +34,34 @@ export const OPERATOR_ONLY_KEYS = [
   'metricMaintenanceRuntime',
 ] as const satisfies readonly (keyof Container)[]
 
+/**
+ * The complete operator surface. Unlike web and worker, the short-lived
+ * operator process gets an allowlist: database, queue, policy diagnostics and
+ * the reviewed maintenance interfaces used by scripts/ops.
+ */
+export const OPERATOR_CONTAINER_KEYS = [
+  'backgroundQueue',
+  'clock',
+  'db',
+  'identityLifecycleRuntime',
+  'inboxMaintenanceRuntime',
+  'integrationMaintenanceRuntime',
+  'integrationPublicApi',
+  'jobQueue',
+  'metricMaintenanceRuntime',
+  'opsQueues',
+  'policyAdmin',
+  'reviewMaintenanceRuntime',
+  'shutdown',
+] as const satisfies readonly (keyof Container)[]
+
 export type WorkerOnlyKey = (typeof WORKER_ONLY_KEYS)[number]
 export type OperatorOnlyKey = (typeof OPERATOR_ONLY_KEYS)[number]
+export type OperatorContainerKey = (typeof OPERATOR_CONTAINER_KEYS)[number]
 
 export type WebContainer = Omit<Container, WorkerOnlyKey | OperatorOnlyKey>
 export type WorkerContainer = Omit<Container, OperatorOnlyKey>
-export type OperatorContainer = Omit<Container, WorkerOnlyKey>
+export type OperatorContainer = Pick<Container, OperatorContainerKey>
 
 export function isWorkerOnlyKey(key: string): key is WorkerOnlyKey {
   return (WORKER_ONLY_KEYS as readonly string[]).includes(key)
@@ -49,11 +71,15 @@ export function isOperatorOnlyKey(key: string): key is OperatorOnlyKey {
   return (OPERATOR_ONLY_KEYS as readonly string[]).includes(key)
 }
 
+export function isOperatorContainerKey(key: string): key is OperatorContainerKey {
+  return (OPERATOR_CONTAINER_KEYS as readonly string[]).includes(key)
+}
+
 /** Which process kinds may hold a given container key. */
 export function deployablesFor(key: string): readonly Deployable[] {
   if (isWorkerOnlyKey(key)) return ['worker']
   if (isOperatorOnlyKey(key)) return ['operator']
-  return ['web', 'worker', 'operator']
+  return isOperatorContainerKey(key) ? ['web', 'worker', 'operator'] : ['web', 'worker']
 }
 
 /**

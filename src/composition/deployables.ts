@@ -21,7 +21,11 @@
 //     fails by name instead of silently producing a second policy trio, a
 //     second consumer registry and a second set of queue connections.
 
-import { createContainer } from '#/composition'
+import {
+  createContainer,
+  createOperatorContainerGraph,
+  type Container,
+} from '#/composition'
 import {
   claimDeployable,
   projectContainer,
@@ -31,19 +35,25 @@ import {
   type WebContainer,
   type WorkerContainer,
 } from './container-partition'
+import { createJobQueue } from '#/shared/jobs/queue'
+import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
+import { OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE } from './google-provider-authority'
 
 // The partition itself lives in `./container-partition` so callers that only
 // need the narrowed types do not gain the authority to build a container.
 export {
   deployablesFor,
   DUPLICATE_CONTAINER_ERROR,
+  isOperatorContainerKey,
   isOperatorOnlyKey,
   isWorkerOnlyKey,
   occupyingDeployable,
+  OPERATOR_CONTAINER_KEYS,
   OPERATOR_ONLY_KEYS,
   WORKER_ONLY_KEYS,
   type Deployable,
   type OperatorContainer,
+  type OperatorContainerKey,
   type OperatorOnlyKey,
   type WebContainer,
   type WorkerContainer,
@@ -58,16 +68,100 @@ type ContainersByDeployable = Readonly<{
 
 export type DeployableContainerOptions = Parameters<typeof createContainer>[0]
 
+const OPERATOR_QUEUE_CONFIGURATION_ERROR =
+  '[COMPOSITION] operator container requires QUEUE_REDIS_URL'
+
+function operatorGraphOptions(
+  options: DeployableContainerOptions,
+): NonNullable<DeployableContainerOptions> {
+  const queue = options?.queue ?? createJobQueue('default')
+  const backgroundQueue = options?.backgroundQueue ?? createJobQueue('background')
+  const opsBackgroundQueue = options?.opsBackgroundQueue ?? backgroundQueue
+  const opsDomainEventsQueue =
+    options?.opsDomainEventsQueue ?? createJobQueue('domain-events')
+  const opsQuarantineQueue =
+    options?.opsQuarantineQueue ?? createJobQueue(QUARANTINE_QUEUE_NAME)
+  if (
+    !queue ||
+    !backgroundQueue ||
+    !opsBackgroundQueue ||
+    !opsDomainEventsQueue ||
+    !opsQuarantineQueue
+  ) {
+    throw new Error(OPERATOR_QUEUE_CONFIGURATION_ERROR)
+  }
+  return {
+    ...(options ?? {}),
+    enableJobs: false,
+    redis: undefined,
+    queue,
+    backgroundQueue,
+    opsBackgroundQueue,
+    opsDomainEventsQueue,
+    opsQuarantineQueue,
+  }
+}
+async function refuseOperatorGoogleProviderCall(): Promise<never> {
+  throw new Error(OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE)
+}
+
+/**
+ * Provider-facing use cases intentionally flatten outages into best-effort
+ * outcomes for long-lived application processes. The operator surface must not:
+ * a provider-dependent command either runs through an enabled application path
+ * or refuses before it can report a partial/local success as completion.
+ */
+function withOperatorProviderRefusals(container: OperatorContainer): OperatorContainer {
+  return Object.freeze({
+    ...container,
+    integrationPublicApi: Object.freeze({
+      ...container.integrationPublicApi,
+      connections: Object.freeze({
+        ...container.integrationPublicApi.connections,
+        disconnect: refuseOperatorGoogleProviderCall,
+      }),
+    }),
+    integrationMaintenanceRuntime: Object.freeze({
+      ...container.integrationMaintenanceRuntime,
+      subscribeNotifications: Object.freeze({
+        ...container.integrationMaintenanceRuntime.subscribeNotifications,
+        apply: refuseOperatorGoogleProviderCall,
+      }),
+    }),
+    reviewMaintenanceRuntime: Object.freeze({
+      ...container.reviewMaintenanceRuntime,
+      publicationReconciliation: Object.freeze({
+        ...container.reviewMaintenanceRuntime.publicationReconciliation,
+        reconcile: refuseOperatorGoogleProviderCall,
+      }),
+    }),
+  })
+}
+
 function claimProcess<D extends Deployable>(
   deployable: D,
   options: DeployableContainerOptions,
 ): ContainersByDeployable[D] {
   claimDeployable(deployable)
-  const container = createContainer(options)
+  let container: Container
+  try {
+    container =
+      deployable === 'operator'
+        ? createOperatorContainerGraph(operatorGraphOptions(options))
+        : createContainer(options)
+  } catch (error) {
+    releaseDeployableClaim()
+    throw error
+  }
   // The shutdown seam releases the process claim as well as the container's own
   // background work, so a supervised process that restarts cleanly can rebuild.
+  const partition = projectContainer(container, deployable)
+  const deployableContainer =
+    deployable === 'operator'
+      ? withOperatorProviderRefusals(partition as OperatorContainer)
+      : partition
   const projected: Record<string, unknown> = {
-    ...projectContainer(container, deployable),
+    ...deployableContainer,
     shutdown: Object.freeze({
       ...container.shutdown,
       run: async () => {

@@ -66,7 +66,10 @@ import {
 import { createDurableGoogleImportReferenceStore } from '#/contexts/integration/infrastructure/durable-import-reference-store'
 import { createGoogleDisconnectRevokeRepository } from '#/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository'
 import { createDirectGoogleProviderCredentialAdmission } from '#/contexts/integration/infrastructure/adapters/google-credential-provider-admission.adapter'
-import { createOAuthStateHandleService } from '#/contexts/integration/application/oauth-state-handle'
+import {
+  createOAuthStateHandleService,
+  type OAuthStateHandleService,
+} from '#/contexts/integration/application/oauth-state-handle'
 import { createRedisGoogleRefreshCoordination } from '#/contexts/integration/infrastructure/adapters/google-refresh-coordination.adapter'
 import type { GoogleOAuthProviderCallAuthorizer } from '#/contexts/integration/application/ports/google-oauth.port'
 import type { GoogleImportContentAuthorizer } from '#/contexts/integration/application/google-import-command-authorizer'
@@ -96,6 +99,11 @@ export const GOOGLE_PROVIDER_AUTHORITY_KEYS = [
   'providerEphemeralRedis',
   'providerEphemeralStore',
 ] as const
+
+export type GoogleProviderAuthorityMode = 'required' | 'refusing'
+
+export const OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE =
+  '[COMPOSITION] Google provider calls require a provider-enabled application path with provider-ephemeral Redis and Google keyrings; the substrate-free operator container refuses them'
 export type GoogleContentAuthorityRuntime = Readonly<{
   runtimeBindings: GoogleContentRuntimeBindings | undefined
   verifyRoleApproval: GoogleContentApprovalSignatureVerifier
@@ -166,6 +174,8 @@ export type GoogleProviderAuthorityInput = Readonly<{
   logger: Pick<LoggerPort, 'warn' | 'info'>
   /** Parsed configuration, supplied once by the composition boundary. */
   env: Env
+  /** Operator processes retain the Integration interface but deny provider calls. */
+  mode?: GoogleProviderAuthorityMode
   redis: Redis | undefined
   /** The cell's approved provider endpoints, already resolved and overridden. */
   providerEndpoints: Readonly<Record<'gbpApiBaseUrl' | string, string>>
@@ -194,10 +204,66 @@ export type GoogleProviderAuthorityInput = Readonly<{
   }>
 }>
 
+function buildRefusingGoogleProviderAuthority(logger: Pick<LoggerPort, 'warn' | 'info'>) {
+  const warnRefusal = (): void => {
+    logger.warn(
+      { stage: 'google-provider-authority', code: 'operator_container_refusal' },
+      OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE,
+    )
+  }
+  const refuseContent = async () => {
+    warnRefusal()
+    return Object.freeze({ ok: false as const, code: 'runtime_unavailable' as const })
+  }
+  const authorizeGoogleImportContent: GoogleImportContentAuthorizer = refuseContent
+  const authorizeGooglePerformanceContent: PerformanceContentAuthorizer = refuseContent
+  const authorizeGoogleReviewSyncContent: GoogleReviewSyncContentAuthorizer =
+    refuseContent
+  const authorizeGoogleReplyPublicationContent: GoogleReplyPublicationContentAuthorizer =
+    refuseContent
+  const refuseWithError = async (): Promise<never> => {
+    warnRefusal()
+    throw new Error(OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE)
+  }
+  const authorizeGoogleOAuthProviderCall: GoogleOAuthProviderCallAuthorizer =
+    refuseWithError
+  const oauthStateHandles: OAuthStateHandleService = Object.freeze({
+    issue: refuseWithError,
+    redeem: refuseWithError,
+  })
+
+  logger.info(
+    {},
+    'Google provider authority omitted — operator container refuses provider calls',
+  )
+  return Object.freeze({
+    providerEphemeralRedis: undefined,
+    providerEphemeralStore: undefined,
+    providerEphemeralReadiness: undefined,
+    oauthStateHandles,
+    googleImportReplayKeys: undefined,
+    googleOpaqueReferenceKeys: undefined,
+    googleRefreshCoordination: undefined,
+    providerAuthorizationLeases: undefined,
+    googleImportReferences: undefined,
+    googlePerformancePrincipalKeys: undefined,
+    authorizeGoogleImportContent,
+    authorizeGooglePerformanceContent,
+    authorizeGoogleReviewSyncContent,
+    authorizeGoogleReplyPublicationContent,
+    authorizeGoogleOAuthProviderCall,
+    googleDisconnectRevokeStore: undefined,
+    googleAuthorizedProviderExecutor: undefined,
+  } as const)
+}
+
 // Accepted residual: this is one trust-boundary graph with many fail-closed
 // branches; splitting it further would scatter the decision.
 // fallow-ignore-next-line complexity
 export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput) {
+  if (input.mode === 'refusing') {
+    return buildRefusingGoogleProviderAuthority(input.logger)
+  }
   const { db, eventBus, clock, logger, env, redis, providerEndpoints } = input
   const dataCellExecutionFence = input.dataCellExecutionFence
   const options = input.options

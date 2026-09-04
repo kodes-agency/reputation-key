@@ -11,6 +11,9 @@ import { closeContainer, createContainer, getContainer } from '#/composition'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { parseEnvironment } from '#/shared/config/env'
+import { testEnvironment } from '#/shared/testing/test-environment'
+import { organizationId, replyId, userId } from '#/shared/domain/ids'
 import {
   createOperatorContainer,
   createWebContainer,
@@ -18,12 +21,14 @@ import {
   deployablesFor,
   DUPLICATE_CONTAINER_ERROR,
   occupyingDeployable,
+  OPERATOR_CONTAINER_KEYS,
   OPERATOR_ONLY_KEYS,
   WORKER_ONLY_KEYS,
   type OperatorContainer,
   type WebContainer,
   type WorkerContainer,
 } from './deployables'
+import { OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE } from './google-provider-authority'
 
 const FIXED_DATE = new Date('2026-01-15T12:00:00.000Z')
 
@@ -49,6 +54,32 @@ function options() {
     identityPort: createInMemoryIdentityPort(),
     email: async () => {},
   } as const
+}
+
+function productionOptions(envOverrides: NodeJS.ProcessEnv = {}) {
+  const envInput: NodeJS.ProcessEnv = {
+    ...testEnvironment({}),
+    NODE_ENV: 'production',
+    PROCESSING_CELL: 'us',
+    BETTER_AUTH_URL: 'https://app.reputationkey.app',
+    ...envOverrides,
+  }
+  for (const name of [
+    'REDIS_URL',
+    'PROVIDER_EPHEMERAL_REDIS_URL',
+    'PROVIDER_EPHEMERAL_REDIS_CA_PEM',
+    'GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS',
+    'GOOGLE_REPLAY_HMAC_KEYS',
+    'GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS',
+    'GOOGLE_SESSION_BINDING_HMAC_KEYS',
+  ] as const) {
+    delete envInput[name]
+  }
+  return {
+    ...options(),
+    env: parseEnvironment(envInput),
+    runtimeEnvironment: {},
+  }
 }
 
 type ProjectedContainer = WebContainer | WorkerContainer | OperatorContainer
@@ -95,16 +126,75 @@ describe('per-deployable container surfaces', () => {
     expect(keys.filter((key) => /MaintenanceRuntime$/u.test(key))).toEqual([])
   })
 
-  it('gives the operator process maintenance but never registration', async () => {
+  it('gives the operator exactly its reviewed maintenance surface', async () => {
     container = createOperatorContainer(options())
     const keys = keysOf(container)
 
+    expect(keys).toEqual([...OPERATOR_CONTAINER_KEYS].sort())
     expect(keys.filter((key) => /MaintenanceRuntime$/u.test(key)).length).toBeGreaterThan(
       0,
     )
     expect(keys).not.toContain('registerOutboxConsumers')
     expect(keys).not.toContain('registerReviewWorkerJobs')
-    expect(keys.filter((key) => /WorkerRuntime$/u.test(key))).toEqual([])
+    expect(keys.filter((key) => /WorkerRuntime$|providerEphemeral/u.test(key))).toEqual(
+      [],
+    )
+  })
+
+  it('boots the operator with database and queue configuration only', () => {
+    const operatorOptions = productionOptions()
+    expect(operatorOptions.env.REDIS_URL).toBeUndefined()
+    expect(operatorOptions.env.PROVIDER_EPHEMERAL_REDIS_URL).toBeUndefined()
+    expect(operatorOptions.env.GOOGLE_OPAQUE_REFERENCE_HMAC_KEYS).toBeUndefined()
+    expect(operatorOptions.env.GOOGLE_REPLAY_HMAC_KEYS).toBeUndefined()
+    expect(operatorOptions.env.GOOGLE_OAUTH_STATE_HANDLE_HMAC_KEYS).toBeUndefined()
+    expect(operatorOptions.env.GOOGLE_SESSION_BINDING_HMAC_KEYS).toBeUndefined()
+
+    container = createOperatorContainer(operatorOptions)
+    expect(container.opsQueues.quarantine).toBeDefined()
+    expect(keysOf(container)).toEqual([...OPERATOR_CONTAINER_KEYS].sort())
+  })
+
+  it('keeps web and worker fail-fast when provider-ephemeral Redis is absent', () => {
+    expect(() => createWebContainer(productionOptions())).toThrow(
+      'Opaque OAuth state requires provider-ephemeral Redis',
+    )
+    expect(occupyingDeployable()).toBeUndefined()
+
+    clearEventSchemas()
+    expect(() =>
+      createWorkerContainer(
+        productionOptions({
+          REVIEW_PROVIDER_SUBJECT_HMAC_KEYS: `v1:${'a'.repeat(64)}`,
+        }),
+      ),
+    ).toThrow('Opaque OAuth state requires provider-ephemeral Redis')
+    expect(occupyingDeployable()).toBeUndefined()
+  })
+
+  it('refuses provider-dependent operator commands at their call boundary', async () => {
+    container = createOperatorContainer(options())
+    const orgId = organizationId('00000000-0000-4000-8000-000000000001')
+
+    await expect(
+      container.integrationMaintenanceRuntime.subscribeNotifications.apply(orgId),
+    ).rejects.toThrow(OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE)
+    await expect(
+      container.integrationPublicApi.connections.disconnect(
+        { connectionId: '00000000-0000-4000-8000-000000000002' },
+        {
+          organizationId: orgId,
+          userId: userId('00000000-0000-4000-8000-000000000003'),
+          role: 'AccountAdmin',
+        },
+      ),
+    ).rejects.toThrow(OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE)
+    await expect(
+      container.reviewMaintenanceRuntime.publicationReconciliation.reconcile({
+        organizationId: orgId,
+        replyId: replyId('00000000-0000-4000-8000-000000000004'),
+      }),
+    ).rejects.toThrow(OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE)
   })
 
   it('freezes every deployable surface', async () => {

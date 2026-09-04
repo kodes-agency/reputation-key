@@ -16,6 +16,7 @@ import { providerConfigFor } from './provider-runtime'
 import {
   buildGoogleProviderAuthority,
   GOOGLE_PROVIDER_AUTHORITY_KEYS,
+  OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE,
   type GoogleProviderAuthorityInput,
 } from './google-provider-authority'
 
@@ -89,6 +90,109 @@ describe('buildGoogleProviderAuthority', () => {
     // A non-production process still gets an in-memory store rather than a
     // silently absent one — opaque OAuth state is never optional.
     expect(authority.providerEphemeralStore).toBeDefined()
+  })
+
+  it('constructs a substrate-free operator authority that refuses every call', async () => {
+    const warnings: Array<{
+      fields: Readonly<Record<string, unknown>>
+      message: string
+    }> = []
+    const authority = buildGoogleProviderAuthority(
+      buildInput({
+        mode: 'refusing',
+        env: envWith({ NODE_ENV: 'production' }),
+        logger: {
+          warn: (fields: unknown, message: unknown) => {
+            warnings.push({
+              fields: fields as Readonly<Record<string, unknown>>,
+              message: String(message),
+            })
+          },
+          info: () => {},
+        } as unknown as GoogleProviderAuthorityInput['logger'],
+      }),
+    )
+
+    expect(Object.isFrozen(authority)).toBe(true)
+    expect(Object.keys(authority).sort()).toEqual([...GOOGLE_PROVIDER_AUTHORITY_KEYS])
+    for (const key of [
+      'providerEphemeralRedis',
+      'providerEphemeralStore',
+      'providerEphemeralReadiness',
+      'googleImportReplayKeys',
+      'googleOpaqueReferenceKeys',
+      'googleRefreshCoordination',
+      'providerAuthorizationLeases',
+      'googleImportReferences',
+      'googlePerformancePrincipalKeys',
+      'googleDisconnectRevokeStore',
+      'googleAuthorizedProviderExecutor',
+    ] as const) {
+      expect(authority[key], key).toBeUndefined()
+    }
+
+    const contentCalls = [
+      () => authority.authorizeGoogleImportContent({} as never),
+      () => authority.authorizeGooglePerformanceContent({} as never),
+      () => authority.authorizeGoogleReviewSyncContent({} as never),
+      () => authority.authorizeGoogleReplyPublicationContent({} as never),
+    ]
+    for (const call of contentCalls) {
+      await expect(call()).resolves.toEqual({
+        ok: false,
+        code: 'runtime_unavailable',
+      })
+    }
+    await expect(
+      authority.authorizeGoogleOAuthProviderCall({
+        organizationId: 'org-1',
+        connectionId: 'conn-1',
+        initiatorUserId: 'user-1',
+        operation: 'oauth.token.refresh',
+      } as Parameters<typeof authority.authorizeGoogleOAuthProviderCall>[0]),
+    ).rejects.toThrow(OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE)
+    await expect(
+      authority.oauthStateHandles.issue({
+        organizationId: 'org-1',
+        userId: 'user-1',
+        sessionId: 'session-1',
+        visibility: 'private',
+        purpose: 'reviews',
+        connectionMode: 'new',
+        targetConnectionId: null,
+        nowMs: FIXED_DATE.getTime(),
+        codeVerifier: 'v'.repeat(43),
+        oidcNonce: 'n'.repeat(43),
+      }),
+    ).rejects.toThrow(OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE)
+    await expect(
+      authority.oauthStateHandles.redeem({
+        handle: 'operator-refusal',
+        organizationId: 'org-1',
+        userId: 'user-1',
+        sessionId: 'session-1',
+        nowMs: FIXED_DATE.getTime(),
+      }),
+    ).rejects.toThrow(OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE)
+
+    expect(warnings).toHaveLength(7)
+    expect(warnings).toEqual(
+      warnings.map(() => ({
+        fields: {
+          stage: 'google-provider-authority',
+          code: 'operator_container_refusal',
+        },
+        message: OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE,
+      })),
+    )
+  })
+
+  it('keeps required production authority construction fail-fast', () => {
+    expect(() =>
+      buildGoogleProviderAuthority(
+        buildInput({ env: envWith({ NODE_ENV: 'production' }) }),
+      ),
+    ).toThrow('Opaque OAuth state requires provider-ephemeral Redis')
   })
 
   it.each([
