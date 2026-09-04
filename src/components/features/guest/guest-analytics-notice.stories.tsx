@@ -3,12 +3,13 @@
 // from inflating the metric.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { GuestAnalyticsNotice } from './guest-analytics-notice'
+import { GuestAnalyticsNotice, portalVisitStorageKey } from './guest-analytics-notice'
 
 const ACKNOWLEDGED_KEY = 'guest-analytics-notice-acknowledged'
 const SCOPE_KEY = 'portal-public-token'
+const SESSION_KEY = 'guest-session-csrf'
 const FAILURE_SCOPE_KEY = 'portal-failed-visit-token'
-const FAILURE_SCAN_RECORDED_KEY = `guest-scan-recorded:${FAILURE_SCOPE_KEY}`
+const FAILURE_SCAN_RECORDED_KEY = portalVisitStorageKey(FAILURE_SCOPE_KEY, SESSION_KEY)
 const failingOnPortalVisit = fn(async () => {
   throw new Error('temporarily unavailable')
 })
@@ -18,7 +19,7 @@ const meta: Meta<typeof GuestAnalyticsNotice> = {
   component: GuestAnalyticsNotice,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
-  args: { scopeKey: SCOPE_KEY },
+  args: { scopeKey: SCOPE_KEY, sessionKey: SESSION_KEY },
 }
 export default meta
 type Story = StoryObj<typeof GuestAnalyticsNotice>
@@ -28,8 +29,9 @@ function renderWithState(
   recorded: boolean,
   onPortalVisit: () => void,
   scopeKey = SCOPE_KEY,
+  sessionKey = SESSION_KEY,
 ) {
-  const recordedKey = `guest-scan-recorded:${scopeKey}`
+  const recordedKey = portalVisitStorageKey(scopeKey, sessionKey)
   try {
     if (recorded) sessionStorage.setItem(recordedKey, 'recorded')
     else sessionStorage.removeItem(recordedKey)
@@ -38,7 +40,13 @@ function renderWithState(
   } catch {
     // Ignore storage errors in restricted Storybook sandboxes.
   }
-  return <GuestAnalyticsNotice scopeKey={scopeKey} onPortalVisit={onPortalVisit} />
+  return (
+    <GuestAnalyticsNotice
+      scopeKey={scopeKey}
+      sessionKey={sessionKey}
+      onPortalVisit={onPortalVisit}
+    />
+  )
 }
 
 export const FirstVisit: Story = {

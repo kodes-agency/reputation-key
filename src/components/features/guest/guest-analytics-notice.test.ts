@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { settlePortalVisit } from './guest-analytics-notice'
+import {
+  portalVisitStorageKey,
+  settlePortalVisit,
+  settlePortalVisitOnce,
+} from './guest-analytics-notice'
 
 describe('settlePortalVisit', () => {
   it('settles a confirmed visit without waiting', async () => {
@@ -44,5 +48,46 @@ describe('settlePortalVisit', () => {
     await expect(settlePortalVisit(attempt, wait)).resolves.toBe(false)
 
     expect(attempt).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not let a stale completion suppress a replacement signed session', async () => {
+    const values = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    }
+    let completeFirst!: (result: 'recorded') => void
+    const firstAttempt = vi.fn(
+      () =>
+        new Promise<'recorded'>((resolve) => {
+          completeFirst = resolve
+        }),
+    )
+    const firstSettlement = settlePortalVisitOnce({
+      storage,
+      scopeKey: 'portal-token',
+      sessionKey: 'session-a',
+      onPortalVisit: firstAttempt,
+    })
+    await vi.waitFor(() => {
+      expect(values.get(portalVisitStorageKey('portal-token', 'session-a'))).toBe(
+        'pending',
+      )
+    })
+
+    values.clear()
+    completeFirst('recorded')
+    await firstSettlement
+
+    const secondAttempt = vi.fn(async () => 'recorded' as const)
+    await settlePortalVisitOnce({
+      storage,
+      scopeKey: 'portal-token',
+      sessionKey: 'session-b',
+      onPortalVisit: secondAttempt,
+    })
+
+    expect(secondAttempt).toHaveBeenCalledOnce()
   })
 })
