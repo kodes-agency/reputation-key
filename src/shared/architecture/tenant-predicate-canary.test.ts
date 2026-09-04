@@ -127,7 +127,7 @@ function sqlTargetsDatabaseTable(
   return false
 }
 
-function isWhereCall(node: ts.Node): boolean {
+function isWhereCall(node: ts.Node): node is ts.CallExpression {
   return (
     ts.isCallExpression(node) &&
     ts.isPropertyAccessExpression(node.expression) &&
