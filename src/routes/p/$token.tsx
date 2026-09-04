@@ -200,6 +200,7 @@ function PublicPortalView({
     <>
       <GuestAnalyticsNotice
         scopeKey={token}
+        sessionKey={csrfNonce}
         locale={data.localization.selectedLocale}
         languagePackVersion={data.localization.languagePackVersion}
         onPortalVisit={recordPortalVisit}

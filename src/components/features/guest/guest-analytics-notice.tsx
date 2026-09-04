@@ -8,6 +8,19 @@ import {
 
 const ACKNOWLEDGED_KEY = 'guest-analytics-notice-acknowledged'
 const SCAN_RECORDED_KEY_PREFIX = 'guest-scan-recorded:'
+
+type PortalVisitStorage = Readonly<{
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+  removeItem(key: string): void
+}>
+
+// A prior page can settle after its storage was cleared and a replacement
+// signed session started. Keep its late marker isolated from the new session.
+export function portalVisitStorageKey(scopeKey: string, sessionKey: string): string {
+  return `${SCAN_RECORDED_KEY_PREFIX}${scopeKey}:${sessionKey}`
+}
+
 const subscribeToAcknowledgement = () => () => undefined
 
 function acknowledgementSnapshot(): boolean {
@@ -19,8 +32,10 @@ function acknowledgementSnapshot(): boolean {
 }
 
 export type GuestAnalyticsNoticeProps = Readonly<{
-  /** Scopes visit dedupe so each portal can record once per browser session. */
+  /** Stable Portal identity used to separate visits to different Portals. */
   scopeKey: string
+  /** Signed-session identity used to separate successive guests in one browser tab. */
+  sessionKey: string
   locale?: GuestPortalLocale
   languagePackVersion?: GuestPortalLanguagePackVersion
   /** Invoked once per browser session to record the portal visit. */
@@ -58,12 +73,46 @@ export async function settlePortalVisit(
   return false
 }
 
+export async function settlePortalVisitOnce({
+  storage,
+  scopeKey,
+  sessionKey,
+  onPortalVisit,
+}: Readonly<{
+  storage: PortalVisitStorage
+  scopeKey: string
+  sessionKey: string
+  onPortalVisit: GuestAnalyticsNoticeProps['onPortalVisit']
+}>): Promise<void> {
+  const recordedKey = portalVisitStorageKey(scopeKey, sessionKey)
+  try {
+    if (storage.getItem(recordedKey) === 'recorded') return
+    // A stale `pending` marker means the prior page closed before confirmation;
+    // retry it. The component's in-memory guard prevents effect duplication.
+    storage.setItem(recordedKey, 'pending')
+  } catch {
+    // Storage may be unavailable in hardened browsers. The component's in-memory
+    // guard still protects this mount; the server owns authoritative dedupe.
+  }
+
+  const settled = await settlePortalVisit(onPortalVisit)
+  try {
+    if (settled) storage.setItem(recordedKey, 'recorded')
+    else if (storage.getItem(recordedKey) === 'pending') {
+      storage.removeItem(recordedKey)
+    }
+  } catch {
+    // A future mount can still retry when storage is unavailable.
+  }
+}
+
 /**
  * Disclosure for the portal's core visit analytics. Acknowledgement controls only
  * whether the notice is shown again; it never enables or disables measurement.
  */
 export function GuestAnalyticsNotice({
   scopeKey,
+  sessionKey,
   onPortalVisit,
   locale = 'en',
   languagePackVersion = locale === 'bg' ? 'guest-ui-bg-v1' : 'guest-ui-en-v1',
@@ -80,37 +129,13 @@ export function GuestAnalyticsNotice({
   const recordPortalVisit = useCallback(() => {
     if (notifiedThisMount.current) return
     notifiedThisMount.current = true
-    const recordedKey = `${SCAN_RECORDED_KEY_PREFIX}${scopeKey}`
-    try {
-      if (sessionStorage.getItem(recordedKey) === 'recorded') return
-      // A stale `pending` marker means the prior page closed before confirmation;
-      // retry it. The in-memory guard prevents React effect duplication.
-      sessionStorage.setItem(recordedKey, 'pending')
-    } catch {
-      // Storage may be unavailable in hardened browsers. The in-memory guard still
-      // protects this mount; the server owns authoritative dedupe and abuse control.
-    }
-    void settlePortalVisit(onPortalVisit)
-      .then((settled) => {
-        try {
-          if (settled) sessionStorage.setItem(recordedKey, 'recorded')
-          else if (sessionStorage.getItem(recordedKey) === 'pending') {
-            sessionStorage.removeItem(recordedKey)
-          }
-        } catch {
-          // The server remains the authoritative idempotency boundary.
-        }
-      })
-      .catch(() => {
-        try {
-          if (sessionStorage.getItem(recordedKey) === 'pending') {
-            sessionStorage.removeItem(recordedKey)
-          }
-        } catch {
-          // A future mount can still retry when storage is unavailable.
-        }
-      })
-  }, [scopeKey, onPortalVisit])
+    void settlePortalVisitOnce({
+      storage: sessionStorage,
+      scopeKey,
+      sessionKey,
+      onPortalVisit,
+    })
+  }, [scopeKey, sessionKey, onPortalVisit])
 
   useEffect(() => {
     recordPortalVisit()
