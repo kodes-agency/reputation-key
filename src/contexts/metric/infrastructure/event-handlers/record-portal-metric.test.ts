@@ -22,15 +22,17 @@ const option = {
 
 describe('durable Portal metric recording', () => {
   it('keeps an out-of-order replacement retryable until its original reading exists', async () => {
-    const recordMetric = vi.fn().mockResolvedValue({
-      status: 'quarantined',
-      reason: 'superseded_reading_not_found',
-      sourceEventId: event.eventId,
-    })
+    const recordMetrics = vi.fn().mockResolvedValue([
+      {
+        status: 'quarantined',
+        reason: 'superseded_reading_not_found',
+        sourceEventId: event.eventId,
+      },
+    ])
 
     await expect(
       makeDurableRecordMetricHandler(option)({
-        recordMetric,
+        recordMetrics,
         findGroupForPortal: vi.fn().mockResolvedValue(null),
         logger: createMockLogger(),
       })(event),
@@ -38,15 +40,17 @@ describe('durable Portal metric recording', () => {
   })
 
   it('accepts an intentional governed quarantine that cannot be repaired by ordering', async () => {
-    const recordMetric = vi.fn().mockResolvedValue({
-      status: 'quarantined',
-      reason: 'source_policy_not_allowed',
-      sourceEventId: event.eventId,
-    })
+    const recordMetrics = vi.fn().mockResolvedValue([
+      {
+        status: 'quarantined',
+        reason: 'source_policy_not_allowed',
+        sourceEventId: event.eventId,
+      },
+    ])
 
     await expect(
       makeDurableRecordMetricHandler(option)({
-        recordMetric,
+        recordMetrics,
         findGroupForPortal: vi.fn().mockResolvedValue(null),
         logger: createMockLogger(),
       })(event),

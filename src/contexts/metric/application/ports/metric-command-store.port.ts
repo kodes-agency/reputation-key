@@ -33,6 +33,13 @@ export type RecordMetricCommand = Readonly<{
   sourceReceipt?: MetricSourceReceipt
 }>
 
+export type RecordMetricEntry = Omit<RecordMetricCommand, 'sourceReceipt'>
+
+export type RecordMetricsCommand = Readonly<{
+  readings: readonly RecordMetricEntry[]
+  sourceReceipt?: MetricSourceReceipt
+}>
+
 export type QuarantineMetricCommand = Readonly<{
   sourceEventId: string
   organizationId: string
@@ -55,6 +62,8 @@ export type RetractMetricCommand = Readonly<{
   supersedesSourceEventId: string
   occurredAt: Date
   staffAttribution: PrimaryStaffAttributionSnapshot | null
+  /** Source-consumer settlement committed atomically with all corrections. */
+  sourceReceipt?: MetricSourceReceipt
 }>
 
 export type RetractMetricResult =
@@ -63,7 +72,12 @@ export type RetractMetricResult =
   | Readonly<{ status: 'source_reading_not_found' }>
 
 export type MetricCommandStore = Readonly<{
+  recordMetrics(command: RecordMetricsCommand): Promise<readonly ReadingResult[]>
   recordMetric(command: RecordMetricCommand): Promise<ReadingResult>
+  retractMetrics(
+    commands: readonly RetractMetricCommand[],
+    sourceReceipt?: MetricSourceReceipt,
+  ): Promise<readonly RetractMetricResult[]>
   retractMetric(command: RetractMetricCommand): Promise<RetractMetricResult>
   quarantine(command: QuarantineMetricCommand): Promise<void>
 }>

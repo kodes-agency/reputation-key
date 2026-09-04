@@ -17,8 +17,8 @@ import { guestQualifiedScanRecorded, guestQualifiedScanRetracted } from '../doma
 import { createPortalGroupRepository } from '#/contexts/portal/infrastructure/repositories/portal-group.repository'
 import { createPortalAccessArtifactRepository } from '#/contexts/portal/infrastructure/repositories/portal-access-artifact.repository'
 import { createAtomicGuestObservationStore } from './guest-observation-store'
-import { recordMetric } from '#/contexts/metric/application/use-cases/record-metric'
-import { retractMetric } from '#/contexts/metric/application/use-cases/retract-metric'
+import { recordMetrics } from '#/contexts/metric/application/use-cases/record-metric'
+import { retractMetrics } from '#/contexts/metric/application/use-cases/retract-metric'
 import { METRIC_VERSION_IDS } from '#/contexts/metric/domain/metric-registry'
 import { onQualifiedScanRecordedDurably } from '#/contexts/metric/infrastructure/event-handlers/on-qualified-scan-recorded'
 import { onQualifiedScanRetractedDurably } from '#/contexts/metric/infrastructure/event-handlers/on-qualified-scan-retracted'
@@ -353,7 +353,7 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       metricReadingId('73000000-0000-4000-8000-000000000021'),
       metricReadingId('73000000-0000-4000-8000-000000000022'),
     ]
-    const record = recordMetric({
+    const recordBatch = recordMetrics({
       commandStore,
       registry: createMetricRegistryRepository(getDb()),
       idGen: () => readingIds.shift()!,
@@ -394,7 +394,7 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
     )
 
     const recordedHandler = onQualifiedScanRecordedDurably({
-      recordMetric: record,
+      recordMetrics: recordBatch,
       findGroupForPortal: async () => {
         throw new Error('replay must not re-resolve Portal Group membership')
       },
@@ -431,8 +431,32 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       supersedesSourceEventId: fact.eventId,
       occurredAt: new Date('2026-08-27T12:00:00.000Z'),
     })
+    await getPool().query(
+      `INSERT INTO outbox_events (
+         id, event_type, event_version, payload, organization_id, property_id,
+         source_context, source_aggregate_id
+       ) VALUES ($1, $2, 1, $3::jsonb, $4, $5, 'guest', $6)`,
+      [
+        correction.eventId,
+        correction._tag,
+        JSON.stringify({
+          organizationId: correction.organizationId,
+          propertyId: correction.propertyId,
+          portalId: correction.portalId,
+          qualifiedScanId: correction.qualifiedScanId,
+          portalGroupId: correction.portalGroupId,
+          accessArtifactId: correction.accessArtifactId,
+          supersedesSourceEventId: correction.supersedesSourceEventId,
+          staffAttribution: correction.staffAttribution,
+          occurredAt: correction.occurredAt.toISOString(),
+        }),
+        ORG,
+        PROPERTY,
+        correction.qualifiedScanId,
+      ],
+    )
     const retractedHandler = onQualifiedScanRetractedDurably({
-      retractMetric: retractMetric(commandStore),
+      retractMetrics: retractMetrics(commandStore),
       logger: createMockLogger(),
     })
     await retractedHandler(correction)

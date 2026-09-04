@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { onRatingSubmitted } from './on-rating-submitted'
 import type { RecordPortalMetricDeps as OnRatingSubmittedDeps } from './record-portal-metric'
-import type { RecordMetricInput } from '../../application/use-cases/record-metric'
+import type {
+  RecordMetricEntryInput,
+  RecordMetricsInput,
+} from '../../application/use-cases/record-metric'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   organizationId,
@@ -23,14 +26,48 @@ const STAFF_ATTRIBUTION = {
 const createFakeDeps = (
   overrides: Partial<Pick<OnRatingSubmittedDeps, 'findGroupForPortal'>> = {},
 ): OnRatingSubmittedDeps & {
-  readings: RecordMetricInput[]
+  readings: RecordMetricEntryInput[]
+  receipts: Array<{
+    eventId: string
+    consumerName: string
+    status: 'applied'
+  }>
+  deliveryResults: Array<readonly { status: string }[]>
 } => {
-  const readings: RecordMetricInput[] = []
+  const readings: RecordMetricEntryInput[] = []
+  const receipts: Array<{
+    eventId: string
+    consumerName: string
+    status: 'applied'
+  }> = []
+  const deliveryResults: Array<readonly { status: string }[]> = []
+  const settledReceipts = new Set<string>()
   return {
     readings,
-    recordMetric: async (input) => {
-      readings.push({ ...input })
-      return { status: 'duplicate', existingReadingId: input.sourceEventId }
+    receipts,
+    deliveryResults,
+    recordMetrics: async (input: RecordMetricsInput) => {
+      const receiptKey = input.sourceReceipt
+        ? `${input.sourceReceipt.eventId}:${input.sourceReceipt.consumerName}`
+        : null
+      const duplicate = receiptKey !== null && settledReceipts.has(receiptKey)
+      if (!duplicate) {
+        readings.push(...input.readings)
+        if (receiptKey && input.sourceReceipt) {
+          settledReceipts.add(receiptKey)
+          receipts.push({ ...input.sourceReceipt, status: 'applied' })
+        }
+      }
+      const results = input.readings.map((reading, index) =>
+        duplicate
+          ? {
+              status: 'duplicate' as const,
+              existingReadingId: `${reading.definitionVersionId}:${index}`,
+            }
+          : { status: 'recorded' as const, reading: {} as never },
+      )
+      deliveryResults.push(results)
+      return results
     },
     findGroupForPortal: overrides.findGroupForPortal ?? (async () => null),
     logger: createMockLogger(),
@@ -57,11 +94,25 @@ describe('onRatingSubmitted', () => {
     deps = createFakeDeps()
   })
 
-  it('records analytics, Goal count, and Goal average readings from one rating fact', async () => {
+  it('settles one receipt atomically with all three rating readings', async () => {
     const handler = onRatingSubmitted(deps)
+    await handler(ratingEvent())
     await handler(ratingEvent())
 
     expect(deps.readings).toHaveLength(3)
+    expect(deps.receipts).toEqual([
+      {
+        eventId: 'test-event-id',
+        consumerName: 'metric.guest-analytics',
+        status: 'applied',
+      },
+    ])
+    expect(
+      deps.deliveryResults.map((results) => results.map(({ status }) => status)),
+    ).toEqual([
+      ['recorded', 'recorded', 'recorded'],
+      ['duplicate', 'duplicate', 'duplicate'],
+    ])
     expect(deps.readings[0]).toEqual({
       organizationId: organizationId('org-1'),
       propertyId: propertyId('prop-1'),
@@ -127,9 +178,9 @@ describe('onRatingSubmitted', () => {
     )
   })
 
-  it('does not throw when recordMetric fails', async () => {
+  it('does not throw when recordMetrics fails', async () => {
     const failingDeps: OnRatingSubmittedDeps = {
-      recordMetric: async () => {
+      recordMetrics: async () => {
         throw new Error('DB unavailable')
       },
       findGroupForPortal: async () => null,

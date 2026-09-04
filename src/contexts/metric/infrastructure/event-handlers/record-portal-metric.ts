@@ -7,7 +7,10 @@
 // try/catch that logs instead of propagating. The 4 portal-metric handlers
 // are one-liners over this factory.
 
-import type { RecordMetricInput } from '../../application/use-cases/record-metric'
+import type {
+  RecordMetricEntryInput,
+  RecordMetrics,
+} from '../../application/use-cases/record-metric'
 import type {
   OrganizationId,
   PortalId,
@@ -36,7 +39,7 @@ export type PortalMetricEvent = Readonly<{
 }>
 
 export type RecordPortalMetricDeps = Readonly<{
-  recordMetric(input: RecordMetricInput): Promise<ReadingResult>
+  recordMetrics: RecordMetrics
   findGroupForPortal: (
     orgId: OrganizationId,
     portalId: PortalId,
@@ -86,41 +89,48 @@ async function recordPortalMetrics<E extends PortalMetricEvent>(
         )?.portalGroupId ?? null
     } catch (err) {
       // A group-enrichment outage must not discard an exact portal reading.
-      // The durable consumer still propagates failures from recordMetric.
+      // The durable consumer still propagates failures from recordMetrics.
       deps.logger.warn(
         { err, event: event._tag, metricKeys: options.map((item) => item.metricKey) },
         'metric: portal-group lookup failed — recording Portal metrics with a null group',
       )
     }
   }
-  for (const opts of options) {
-    const result = await deps.recordMetric({
-      organizationId: event.organizationId,
-      propertyId: event.propertyId,
-      portalId: event.portalId,
-      portalGroupId,
-      definitionVersionId: opts.definitionVersionId,
-      sourceEventId: event.eventId,
-      ...(event.supersedesSourceEventId
-        ? { supersedesSourceEventId: event.supersedesSourceEventId }
-        : {}),
-      sourcePolicy: opts.sourcePolicy,
-      scope: 'portal',
-      value: opts.value ? opts.value(event) : 1,
-      sampleCount: 1,
-      occurredAt: event.occurredAt,
-      attributionQuality,
-      staffAttribution: event.staffAttribution ?? null,
-      ...(opts.sourceReceiptConsumer
-        ? {
-            sourceReceipt: {
-              eventId: event.eventId,
-              consumerName: opts.sourceReceiptConsumer,
-            },
-          }
-        : {}),
-      ...(opts.destinationKind ? { destinationKind: opts.destinationKind(event) } : {}),
-    })
+  const sourceReceiptConsumer = options[0]?.sourceReceiptConsumer
+  if (options.some((option) => option.sourceReceiptConsumer !== sourceReceiptConsumer)) {
+    throw new Error('Portal metric fanout has inconsistent receipt consumers')
+  }
+  const readings: RecordMetricEntryInput[] = options.map((opts) => ({
+    organizationId: event.organizationId,
+    propertyId: event.propertyId,
+    portalId: event.portalId,
+    portalGroupId,
+    definitionVersionId: opts.definitionVersionId,
+    sourceEventId: event.eventId,
+    ...(event.supersedesSourceEventId
+      ? { supersedesSourceEventId: event.supersedesSourceEventId }
+      : {}),
+    sourcePolicy: opts.sourcePolicy,
+    scope: 'portal',
+    value: opts.value ? opts.value(event) : 1,
+    sampleCount: 1,
+    occurredAt: event.occurredAt,
+    attributionQuality,
+    staffAttribution: event.staffAttribution ?? null,
+    ...(opts.destinationKind ? { destinationKind: opts.destinationKind(event) } : {}),
+  }))
+  const results: readonly ReadingResult[] = await deps.recordMetrics({
+    readings,
+    ...(sourceReceiptConsumer
+      ? {
+          sourceReceipt: {
+            eventId: event.eventId,
+            consumerName: sourceReceiptConsumer,
+          },
+        }
+      : {}),
+  })
+  for (const result of results) {
     if (
       result.status === 'quarantined' &&
       result.reason === 'superseded_reading_not_found'

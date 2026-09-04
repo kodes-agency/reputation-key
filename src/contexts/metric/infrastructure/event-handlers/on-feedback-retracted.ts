@@ -9,6 +9,7 @@ const options = [
   {
     definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
     span: 'metric.event.onFeedbackRetracted',
+    sourceReceiptConsumer: 'metric.guest-analytics',
   },
 ] as const
 

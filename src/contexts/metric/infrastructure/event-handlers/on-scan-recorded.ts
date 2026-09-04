@@ -11,6 +11,7 @@ const options = {
   definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
   sourcePolicy: 'review_solicitation_analytics_only',
   span: 'metric.event.onScanRecorded',
+  sourceReceiptConsumer: 'metric.guest-analytics',
 } as const
 
 export const onScanRecorded = makeRecordMetricHandler<GuestScanRecorded>(options)

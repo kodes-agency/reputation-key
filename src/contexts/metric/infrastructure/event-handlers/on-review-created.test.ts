@@ -82,6 +82,10 @@ describe('onReviewCreated', () => {
       sampleCount: 1,
       attributionQuality: 'exact',
       occurredAt: FIXED_TIME,
+      sourceReceipt: {
+        eventId: 'test-event-id',
+        consumerName: 'metric.public-reputation',
+      },
     })
   })
 

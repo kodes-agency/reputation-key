@@ -11,6 +11,7 @@ const options = {
   definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
   sourcePolicy: 'first_party_guest_private',
   span: 'metric.event.onFeedbackSubmitted',
+  sourceReceiptConsumer: 'metric.guest-analytics',
 } as const
 
 export const onFeedbackSubmitted =

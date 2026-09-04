@@ -33,22 +33,39 @@ const payload = {
   occurredAt: '2026-08-16T12:00:00.000Z',
 }
 
-function registrationWithDatabase() {
+function registrationWithDatabase(receiptReserved = true) {
+  const returning = vi.fn(async () =>
+    receiptReserved ? [{ eventId: 'metric-corrected-event' }] : [],
+  )
+  const onConflictDoNothing = vi.fn(() => ({ returning }))
   const onConflictDoUpdate = vi.fn(async () => undefined)
-  const values = vi.fn(() => ({ onConflictDoUpdate }))
+  const values = vi.fn(() => ({ onConflictDoNothing, onConflictDoUpdate }))
   const insert = vi.fn(() => ({ values }))
-  registerMetricCorrectionConsumer(consumerRegistry, { insert } as unknown as Database)
+  const transaction = vi.fn(async (work: (tx: { insert: typeof insert }) => unknown) =>
+    work({ insert }),
+  )
+  registerMetricCorrectionConsumer(consumerRegistry, {
+    transaction,
+  } as unknown as Database)
   const registration = mocks.registerConsumer.mock.calls[0]?.[0] as {
     eventType: string
     consumerName: string
     handler: (event: {
+      eventId: string
       eventVersion: number
       organizationId: string
       propertyId: string
       payload: unknown
     }) => Promise<{ status: string }>
   }
-  return { registration, insert, values, onConflictDoUpdate }
+  return {
+    registration,
+    insert,
+    values,
+    onConflictDoNothing,
+    onConflictDoUpdate,
+    transaction,
+  }
 }
 
 describe('registerMetricCorrectionConsumer', () => {
@@ -69,11 +86,12 @@ describe('registerMetricCorrectionConsumer', () => {
   })
 
   it('validates attribution and advances the scoped source watermark monotonically', async () => {
-    const { registration, insert, values, onConflictDoUpdate } =
+    const { registration, insert, values, onConflictDoUpdate, transaction } =
       registrationWithDatabase()
 
     await expect(
       registration.handler({
+        eventId: 'metric-corrected-event',
         eventVersion: 1,
         organizationId: 'org-1',
         propertyId: 'property-1',
@@ -85,7 +103,13 @@ describe('registerMetricCorrectionConsumer', () => {
       1,
       payload,
     )
-    expect(insert).toHaveBeenCalledOnce()
+    expect(transaction).toHaveBeenCalledOnce()
+    expect(insert).toHaveBeenCalledTimes(2)
+    expect(values).toHaveBeenCalledWith({
+      eventId: 'metric-corrected-event',
+      consumerName: 'metric.correction-reconciliation',
+      status: 'applied',
+    })
     expect(values).toHaveBeenCalledWith(
       expect.objectContaining({
         consumerName: 'metric.correction-reconciliation',
@@ -109,6 +133,7 @@ describe('registerMetricCorrectionConsumer', () => {
 
     await expect(
       registration.handler({
+        eventId: 'metric-corrected-event',
         eventVersion: 1,
         organizationId: 'other-org',
         propertyId: 'property-1',
@@ -123,6 +148,7 @@ describe('registerMetricCorrectionConsumer', () => {
 
     await expect(
       registration.handler({
+        eventId: 'metric-corrected-event',
         eventVersion: 1,
         organizationId: 'org-1',
         propertyId: 'property-1',
@@ -130,5 +156,20 @@ describe('registerMetricCorrectionConsumer', () => {
       }),
     ).rejects.toThrow('metric correction occurredAt is invalid')
     expect(insert).not.toHaveBeenCalled()
+  })
+
+  it('does not advance the watermark when its receipt already exists', async () => {
+    const { registration, insert } = registrationWithDatabase(false)
+
+    await expect(
+      registration.handler({
+        eventId: 'metric-corrected-event',
+        eventVersion: 1,
+        organizationId: 'org-1',
+        propertyId: 'property-1',
+        payload,
+      }),
+    ).resolves.toEqual({ status: 'duplicate' })
+    expect(insert).toHaveBeenCalledOnce()
   })
 })

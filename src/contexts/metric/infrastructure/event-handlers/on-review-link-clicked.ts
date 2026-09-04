@@ -12,6 +12,7 @@ const options = {
   sourcePolicy: 'review_solicitation_analytics_only',
   span: 'metric.event.onReviewLinkClicked',
   destinationKind: (event: GuestReviewLinkClicked) => event.destinationKind,
+  sourceReceiptConsumer: 'metric.guest-analytics',
 } as const
 
 export const onReviewLinkClicked =

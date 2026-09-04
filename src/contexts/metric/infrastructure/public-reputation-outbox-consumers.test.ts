@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerRegistry } from '#/shared/outbox'
+import type { Database } from '#/shared/db'
 
 const mocks = vi.hoisted(() => ({
   registerConsumer: vi.fn(),
@@ -20,6 +21,12 @@ const consumerRegistry = {
 
 import { registerPublicReputationMetricConsumers } from './public-reputation-outbox-consumers'
 import type { RecordMetricInput } from '../application/use-cases/record-metric'
+
+const writeReceipt = vi.fn(async () => undefined)
+const receiptValues = vi.fn(() => ({ onConflictDoNothing: writeReceipt }))
+const receiptDb = {
+  insert: vi.fn(() => ({ values: receiptValues })),
+} as unknown as Database
 
 const occurredAt = '2026-08-25T12:00:00.000Z'
 const payload = {
@@ -60,6 +67,7 @@ describe('Public Reputation metric durable consumer', () => {
       reviewRatingLookup: {
         getEligibleRatingById: vi.fn(async () => 4),
       },
+      db: receiptDb,
     })
 
     const [registration] = mocks.registerConsumer.mock.calls.map(([value]) => value)
@@ -85,6 +93,10 @@ describe('Public Reputation metric durable consumer', () => {
         sampleCount: 1,
         occurredAt: new Date(occurredAt),
         attributionQuality: 'exact',
+        sourceReceipt: {
+          eventId: 'event-review-created',
+          consumerName: 'metric.public-reputation',
+        },
       },
     ])
   })
@@ -99,6 +111,7 @@ describe('Public Reputation metric durable consumer', () => {
       registerPublicReputationMetricConsumers(consumerRegistry, {
         recordMetric,
         reviewRatingLookup: { getEligibleRatingById: vi.fn(async () => rating) },
+        db: receiptDb,
       })
       return { registration: mocks.registerConsumer.mock.calls.at(-1)![0], recordMetric }
     }
@@ -113,12 +126,18 @@ describe('Public Reputation metric durable consumer', () => {
       status: 'obsolete',
     })
     expect(expired.recordMetric).not.toHaveBeenCalled()
+    expect(receiptValues).toHaveBeenCalledWith({
+      eventId: 'event-review-created',
+      consumerName: 'metric.public-reputation',
+      status: 'obsolete',
+    })
   })
 
   it('fails closed on envelope attribution drift or an invalid source time', async () => {
     registerPublicReputationMetricConsumers(consumerRegistry, {
       recordMetric: vi.fn(),
       reviewRatingLookup: { getEligibleRatingById: vi.fn(async () => 4) },
+      db: receiptDb,
     })
     const registration = mocks.registerConsumer.mock.calls[0]![0]
 
@@ -147,6 +166,7 @@ describe('Public Reputation metric durable consumer', () => {
     registerPublicReputationMetricConsumers(consumerRegistry, {
       recordMetric,
       reviewRatingLookup: { getEligibleRatingById: vi.fn(async () => 4) },
+      db: receiptDb,
     })
     const registration = mocks.registerConsumer.mock.calls[0]![0]
 

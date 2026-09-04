@@ -50,6 +50,7 @@ async function buildCommonInput(
     | 'occurredAt'
     | 'attributionQuality'
     | 'supersedesSourceEventId'
+    | 'sourceReceipt'
   >
 > {
   const resolved = await deps
@@ -72,6 +73,10 @@ async function buildCommonInput(
     occurredAt: event.occurredAt,
     attributionQuality: exact ? 'exact' : 'unresolved',
     supersedesSourceEventId: event.supersedesSourceEventId,
+    sourceReceipt: {
+      eventId: event.eventId,
+      consumerName: 'metric.portal-workflow',
+    },
   }
 }
 

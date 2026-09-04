@@ -146,9 +146,10 @@ describe('recordMetric', () => {
       ...fakes.deps,
       commandStore: {
         ...fakes.deps.commandStore,
-        recordMetric: async (command) => {
-          lifetime = command.portalLifetimeFact
-          return { status: 'recorded', reading: command.reading }
+        recordMetrics: async (command) => {
+          const [entry] = command.readings
+          lifetime = entry?.portalLifetimeFact
+          return entry ? [{ status: 'recorded', reading: entry.reading }] : []
         },
       },
     }

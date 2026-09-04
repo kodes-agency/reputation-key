@@ -37,12 +37,12 @@ const event: GuestQualifiedScanRecorded = {
 
 describe('Qualified Scan metric projection', () => {
   it('uses producer-captured event-time group attribution during replay', async () => {
-    const recordMetric = vi.fn().mockResolvedValue({ status: 'recorded' })
+    const recordMetrics = vi.fn().mockResolvedValue([{ status: 'recorded' }])
     const findGroupForPortal = vi.fn().mockResolvedValue({
       portalGroupId: portalGroupId('71000000-0000-4000-8000-000000000099'),
     })
     const handler = onQualifiedScanRecordedDurably({
-      recordMetric,
+      recordMetrics,
       findGroupForPortal,
       logger: createMockLogger(),
     })
@@ -51,31 +51,35 @@ describe('Qualified Scan metric projection', () => {
     await handler(event)
 
     expect(findGroupForPortal).not.toHaveBeenCalled()
-    expect(recordMetric).toHaveBeenCalledTimes(2)
-    expect(recordMetric).toHaveBeenNthCalledWith(1, {
-      organizationId: event.organizationId,
-      propertyId: event.propertyId,
-      portalId: event.portalId,
-      portalGroupId: GROUP_AT_EVENT_TIME,
-      definitionVersionId: '11111111-1111-4111-8111-111111111301',
-      sourceEventId: event.eventId,
+    expect(recordMetrics).toHaveBeenCalledTimes(2)
+    expect(recordMetrics).toHaveBeenNthCalledWith(1, {
+      readings: [
+        {
+          organizationId: event.organizationId,
+          propertyId: event.propertyId,
+          portalId: event.portalId,
+          portalGroupId: GROUP_AT_EVENT_TIME,
+          definitionVersionId: '11111111-1111-4111-8111-111111111301',
+          sourceEventId: event.eventId,
+          sourcePolicy: 'first_party_guest_gateway_metric',
+          scope: 'portal',
+          value: 1,
+          sampleCount: 1,
+          occurredAt: OCCURRED_AT,
+          attributionQuality: 'exact',
+          staffAttribution: STAFF_ATTRIBUTION,
+        },
+      ],
       sourceReceipt: {
         eventId: event.eventId,
         consumerName: 'metric.guest-analytics',
       },
-      sourcePolicy: 'first_party_guest_gateway_metric',
-      scope: 'portal',
-      value: 1,
-      sampleCount: 1,
-      occurredAt: OCCURRED_AT,
-      attributionQuality: 'exact',
-      staffAttribution: STAFF_ATTRIBUTION,
     })
-    expect(recordMetric.mock.calls[1]).toEqual(recordMetric.mock.calls[0])
+    expect(recordMetrics.mock.calls[1]).toEqual(recordMetrics.mock.calls[0])
   })
 
   it('targets the original source fact with an append-only retraction', async () => {
-    const retractMetric = vi.fn().mockResolvedValue({ status: 'retracted' })
+    const retractMetrics = vi.fn().mockResolvedValue([{ status: 'retracted' }])
     const correction = {
       ...event,
       _tag: 'guest.qualified_scan.retracted' as const,
@@ -85,19 +89,27 @@ describe('Qualified Scan metric projection', () => {
     }
 
     await onQualifiedScanRetractedDurably({
-      retractMetric,
+      retractMetrics,
       logger: createMockLogger(),
     })(correction)
 
-    expect(retractMetric).toHaveBeenCalledWith({
-      organizationId: event.organizationId,
-      propertyId: event.propertyId,
-      portalId: event.portalId,
-      definitionVersionId: '11111111-1111-4111-8111-111111111301',
-      sourceEventId: correction.eventId,
-      supersedesSourceEventId: event.eventId,
-      occurredAt: correction.occurredAt,
-      staffAttribution: STAFF_ATTRIBUTION,
-    })
+    expect(retractMetrics).toHaveBeenCalledWith(
+      [
+        {
+          organizationId: event.organizationId,
+          propertyId: event.propertyId,
+          portalId: event.portalId,
+          definitionVersionId: '11111111-1111-4111-8111-111111111301',
+          sourceEventId: correction.eventId,
+          supersedesSourceEventId: event.eventId,
+          occurredAt: correction.occurredAt,
+          staffAttribution: STAFF_ATTRIBUTION,
+        },
+      ],
+      {
+        eventId: correction.eventId,
+        consumerName: 'metric.guest-analytics',
+      },
+    )
   })
 })
