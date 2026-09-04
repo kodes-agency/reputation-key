@@ -656,8 +656,10 @@ describe('runReviewProviderSnapshot', () => {
         code: 'provider_failure',
       },
     )
+    // runId only: BQC-7.3 bans tenant identifiers from logger call-sites, and
+    // the run row resolves the property for whoever reads the log.
     expect(deps.logger.error).toHaveBeenCalledWith(
-      { err: error, runId, propertyId },
+      { err: error, runId },
       'review snapshot failed without a coded cause',
     )
   })
