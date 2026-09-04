@@ -32,11 +32,11 @@ describe('Guest metric durable consumers', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('registers all Guest metric facts and applies a rating fanout', async () => {
-    const recordMetric = vi.fn().mockResolvedValue({ status: 'recorded' })
-    const retractMetric = vi.fn().mockResolvedValue({ status: 'retracted' })
+    const recordMetrics = vi.fn().mockResolvedValue([{ status: 'recorded' }])
+    const retractMetrics = vi.fn().mockResolvedValue([{ status: 'retracted' }])
     registerGuestMetricConsumers(consumerRegistry, {
-      recordMetric,
-      retractMetric,
+      recordMetrics,
+      retractMetrics,
       findGroupForPortal: vi.fn().mockResolvedValue(null),
       logger: createMockLogger(),
     })
@@ -93,15 +93,21 @@ describe('Guest metric durable consumers', () => {
       sourceAggregateId: 'rating-1',
     })
 
-    expect(recordMetric).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceEventId: 'evt-rating',
-        value: 2,
-        organizationId: common.organizationId,
-        propertyId: common.propertyId,
-        portalId: common.portalId,
-      }),
-    )
+    expect(recordMetrics).toHaveBeenCalledWith({
+      readings: expect.arrayContaining([
+        expect.objectContaining({
+          sourceEventId: 'evt-rating',
+          value: 2,
+          organizationId: common.organizationId,
+          propertyId: common.propertyId,
+          portalId: common.portalId,
+        }),
+      ]),
+      sourceReceipt: {
+        eventId: 'evt-rating',
+        consumerName: 'metric.guest-analytics',
+      },
+    })
 
     await registrations[4].handler({
       eventId: 'evt-rating-retracted',
@@ -117,22 +123,28 @@ describe('Guest metric durable consumers', () => {
       sourceContext: 'guest',
       sourceAggregateId: 'rating-1',
     })
-    expect(retractMetric).toHaveBeenCalledTimes(3)
-    expect(retractMetric).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceEventId: 'evt-rating-retracted',
-        supersedesSourceEventId: 'evt-rating',
-      }),
+    expect(retractMetrics).toHaveBeenCalledOnce()
+    expect(retractMetrics).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceEventId: 'evt-rating-retracted',
+          supersedesSourceEventId: 'evt-rating',
+        }),
+      ]),
+      {
+        eventId: 'evt-rating-retracted',
+        consumerName: 'metric.guest-analytics',
+      },
     )
   })
 
   it('replays Qualified Scans with their captured group and correction source', async () => {
-    const recordMetric = vi.fn().mockResolvedValue({ status: 'recorded' })
-    const retractMetric = vi.fn().mockResolvedValue({ status: 'retracted' })
+    const recordMetrics = vi.fn().mockResolvedValue([{ status: 'recorded' }])
+    const retractMetrics = vi.fn().mockResolvedValue([{ status: 'retracted' }])
     const findGroupForPortal = vi.fn()
     registerGuestMetricConsumers(consumerRegistry, {
-      recordMetric,
-      retractMetric,
+      recordMetrics,
+      retractMetrics,
       findGroupForPortal,
       logger: createMockLogger(),
     })
@@ -175,26 +187,38 @@ describe('Guest metric durable consumers', () => {
     })
 
     expect(findGroupForPortal).not.toHaveBeenCalled()
-    expect(recordMetric).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceEventId: '72000000-0000-4000-8000-000000000004',
-        portalGroupId: payload.portalGroupId,
-        definitionVersionId: '11111111-1111-4111-8111-111111111301',
-      }),
-    )
-    expect(retractMetric).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sourceEventId: '72000000-0000-4000-8000-000000000005',
-        supersedesSourceEventId: '72000000-0000-4000-8000-000000000004',
-      }),
+    expect(recordMetrics).toHaveBeenCalledWith({
+      readings: [
+        expect.objectContaining({
+          sourceEventId: '72000000-0000-4000-8000-000000000004',
+          portalGroupId: payload.portalGroupId,
+          definitionVersionId: '11111111-1111-4111-8111-111111111301',
+        }),
+      ],
+      sourceReceipt: {
+        eventId: '72000000-0000-4000-8000-000000000004',
+        consumerName: 'metric.guest-analytics',
+      },
+    })
+    expect(retractMetrics).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          sourceEventId: '72000000-0000-4000-8000-000000000005',
+          supersedesSourceEventId: '72000000-0000-4000-8000-000000000004',
+        }),
+      ],
+      {
+        eventId: '72000000-0000-4000-8000-000000000005',
+        consumerName: 'metric.guest-analytics',
+      },
     )
   })
 
   it('propagates metric persistence failures so the dispatcher can retry', async () => {
-    const recordMetric = vi.fn().mockRejectedValue(new Error('database unavailable'))
+    const recordMetrics = vi.fn().mockRejectedValue(new Error('database unavailable'))
     registerGuestMetricConsumers(consumerRegistry, {
-      recordMetric,
-      retractMetric: vi.fn().mockResolvedValue({ status: 'retracted' }),
+      recordMetrics,
+      retractMetrics: vi.fn().mockResolvedValue([{ status: 'retracted' }]),
       findGroupForPortal: vi.fn().mockResolvedValue(null),
       logger: createMockLogger(),
     })
@@ -220,10 +244,10 @@ describe('Guest metric durable consumers', () => {
   ])(
     'replays the versioned scan-source vocabulary for v$eventVersion',
     async ({ eventVersion, sourceField }) => {
-      const recordMetric = vi.fn().mockResolvedValue({ status: 'recorded' })
+      const recordMetrics = vi.fn().mockResolvedValue([{ status: 'recorded' }])
       registerGuestMetricConsumers(consumerRegistry, {
-        recordMetric,
-        retractMetric: vi.fn().mockResolvedValue({ status: 'retracted' }),
+        recordMetrics,
+        retractMetrics: vi.fn().mockResolvedValue([{ status: 'retracted' }]),
         findGroupForPortal: vi.fn().mockResolvedValue(null),
         logger: createMockLogger(),
       })
@@ -240,10 +264,14 @@ describe('Guest metric durable consumers', () => {
         sourceAggregateId: `scan-v${eventVersion}`,
       })
 
-      expect(recordMetric).toHaveBeenCalledWith(
+      expect(recordMetrics).toHaveBeenCalledWith(
         expect.objectContaining({
-          sourceEventId: `evt-scan-v${eventVersion}`,
-          value: 1,
+          readings: [
+            expect.objectContaining({
+              sourceEventId: `evt-scan-v${eventVersion}`,
+              value: 1,
+            }),
+          ],
         }),
       )
     },

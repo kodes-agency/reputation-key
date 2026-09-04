@@ -13,6 +13,7 @@ const options = [
     sourcePolicy: 'first_party_guest_private',
     span: 'metric.event.onRatingSubmitted',
     value: (event: GuestRatingSubmitted) => event.value,
+    sourceReceiptConsumer: 'metric.guest-analytics',
   },
   {
     metricKey: 'portal.rating_count',
@@ -20,6 +21,7 @@ const options = [
     sourcePolicy: 'first_party_guest_gateway_metric',
     span: 'metric.event.onRatingSubmitted',
     value: () => 1,
+    sourceReceiptConsumer: 'metric.guest-analytics',
   },
   {
     metricKey: 'portal.rating_average',
@@ -27,6 +29,7 @@ const options = [
     sourcePolicy: 'first_party_guest_gateway_metric',
     span: 'metric.event.onRatingSubmitted',
     value: (event: GuestRatingSubmitted) => event.value,
+    sourceReceiptConsumer: 'metric.guest-analytics',
   },
 ] as const
 

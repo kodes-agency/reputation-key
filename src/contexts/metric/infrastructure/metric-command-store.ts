@@ -15,8 +15,13 @@ import type { ReadingResult } from '../domain/metric-reading'
 import { metricCorrected, type MetricCorrected } from '../domain/events'
 import type {
   MetricCommandStore,
+  MetricSourceReceipt,
   QuarantineMetricCommand,
   RecordMetricCommand,
+  RecordMetricEntry,
+  RecordMetricsCommand,
+  RetractMetricCommand,
+  RetractMetricResult,
 } from '../application/ports/metric-command-store.port'
 import {
   primaryStaffAttributionEquals,
@@ -263,7 +268,7 @@ async function existingReadingId(
 
 async function reserveSourceReceipt(
   tx: MetricTx,
-  receipt: NonNullable<RecordMetricCommand['sourceReceipt']>,
+  receipt: MetricSourceReceipt,
 ): Promise<boolean> {
   const rows = await tx
     .insert(eventConsumerReceipts)
@@ -402,286 +407,428 @@ async function recordRetractionCorrection(
   })
 }
 
+type RecordCommit = Readonly<{
+  result: ReadingResult
+  correctionEvent: MetricCorrected | null
+}>
+
+async function recordMetricEntry(
+  tx: MetricTx,
+  command: RecordMetricEntry,
+  idGen: () => string,
+): Promise<RecordCommit> {
+  const superseded = command.supersedesSourceEventId
+    ? await resolveSupersededReading(tx, command, command.supersedesSourceEventId)
+    : null
+  if (superseded?.kind === 'quarantined') {
+    return {
+      result: {
+        status: 'quarantined',
+        reason: 'superseded_reading_not_found',
+        sourceEventId: command.reading.sourceEventId,
+      },
+      correctionEvent: null,
+    }
+  }
+  const correctedReadingId = superseded?.correctedReadingId ?? null
+  const correctedPortalLifetimeChange = superseded?.correctedPortalLifetimeChange ?? null
+  const expectedPortalLifetimeFact = expectedPortalLifetimeFactFor(command)
+  const insertion = await insertReadingOrDescribeDuplicate(tx, command)
+  if (!insertion.inserted) {
+    return {
+      result: {
+        status: 'duplicate',
+        existingReadingId: insertion.existingReadingId,
+      },
+      correctionEvent: null,
+    }
+  }
+
+  let correctionEvent: MetricCorrected | null = null
+  if (correctedReadingId && command.supersedesSourceEventId) {
+    correctionEvent = await recordRetractionCorrection(
+      tx,
+      idGen(),
+      command,
+      correctedReadingId,
+      command.supersedesSourceEventId,
+    )
+  }
+
+  if (expectedPortalLifetimeFact && command.reading.portalId) {
+    await applyPortalLifetimeChanges(
+      tx as unknown as Database,
+      {
+        organizationId: command.reading.organizationId,
+        propertyId: command.reading.propertyId,
+        portalId: command.reading.portalId,
+      },
+      [
+        ...(correctedPortalLifetimeChange ? [correctedPortalLifetimeChange] : []),
+        {
+          fact: expectedPortalLifetimeFact,
+          multiplier: 1,
+          propertyLocalDate: command.reading.propertyLocalDate,
+        },
+      ],
+    )
+  }
+
+  await insertOutboxRow(tx, command.event)
+  if (correctionEvent) await insertOutboxRow(tx, correctionEvent)
+  return {
+    result: { status: 'recorded', reading: command.reading },
+    correctionEvent,
+  }
+}
+
+type DuplicateRetractionResult = Extract<
+  RetractMetricResult,
+  Readonly<{ status: 'duplicate' }>
+>
+
+async function existingRetractionResult(
+  tx: MetricTx,
+  command: RetractMetricCommand,
+): Promise<DuplicateRetractionResult | null> {
+  const correctionSourceEventId = `${command.sourceEventId}:${command.definitionVersionId}`
+  const duplicate = await tx
+    .select({
+      readingId: metricCorrections.readingId,
+      attributedStaffParticipantId: metricCorrections.attributedStaffParticipantId,
+      attributedStaffParticipationId: metricCorrections.attributedStaffParticipationId,
+      attributionResponsibilityId: metricCorrections.attributionResponsibilityId,
+      staffAttributionEffectiveFrom: metricCorrections.staffAttributionEffectiveFrom,
+      staffAttributionEffectiveTo: metricCorrections.staffAttributionEffectiveTo,
+    })
+    .from(metricCorrections)
+    .where(eq(metricCorrections.sourceEventId, correctionSourceEventId))
+    .limit(1)
+  if (!duplicate[0]) return null
+  if (
+    !primaryStaffAttributionEquals(
+      staffAttributionFromColumns(duplicate[0]),
+      command.staffAttribution,
+    )
+  ) {
+    throw new Error('Duplicate metric correction Staff attribution does not match')
+  }
+  return {
+    status: 'duplicate',
+    correctedReadingId: duplicate[0].readingId,
+  }
+}
+
+type RetractionCommit = Readonly<{
+  result: RetractMetricResult
+  event: MetricCorrected | null
+}>
+
+async function retractMetricEntry(
+  tx: MetricTx,
+  command: RetractMetricCommand,
+  idGen: () => string,
+  knownDuplicate?: DuplicateRetractionResult | null,
+): Promise<RetractionCommit> {
+  const correctionSourceEventId = `${command.sourceEventId}:${command.definitionVersionId}`
+  const duplicate =
+    knownDuplicate === undefined
+      ? await existingRetractionResult(tx, command)
+      : knownDuplicate
+  if (duplicate) return { result: duplicate, event: null }
+
+  const target = await tx
+    .select({
+      id: metricReadings.id,
+      attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
+      attributedStaffParticipationId: metricReadings.attributedStaffParticipationId,
+      attributionResponsibilityId: metricReadings.attributionResponsibilityId,
+      staffAttributionEffectiveFrom: metricReadings.staffAttributionEffectiveFrom,
+      staffAttributionEffectiveTo: metricReadings.staffAttributionEffectiveTo,
+      metricKey: metricReadings.metricKey,
+      exactValue: metricReadings.exactValue,
+      portalDestinationKind: metricReadings.portalDestinationKind,
+      propertyLocalDate: metricReadings.propertyLocalDate,
+    })
+    .from(metricReadings)
+    .where(
+      and(
+        eq(metricReadings.organizationId, unbrand(command.organizationId)),
+        eq(metricReadings.propertyId, unbrand(command.propertyId)),
+        eq(metricReadings.portalId, unbrand(command.portalId)),
+        eq(metricReadings.definitionVersionId, command.definitionVersionId),
+        eq(metricReadings.sourceEventId, command.supersedesSourceEventId),
+      ),
+    )
+    .limit(1)
+  if (!target[0]) {
+    return {
+      result: { status: 'source_reading_not_found' },
+      event: null,
+    }
+  }
+  const targetStaffAttribution = staffAttributionFromColumns(target[0])
+  if (!primaryStaffAttributionEquals(targetStaffAttribution, command.staffAttribution)) {
+    throw new Error(
+      'Metric retraction Staff attribution does not match its source reading',
+    )
+  }
+
+  const correctionId = idGen()
+  const inserted = await tx
+    .insert(metricCorrections)
+    .values({
+      id: correctionId,
+      readingId: target[0].id,
+      sourceEventId: correctionSourceEventId,
+      kind: 'retract',
+      reason: 'guest_fact_retracted',
+      actorType: 'system',
+      actorId: 'guest.gateway',
+      exactDelta: null,
+      replacementValue: null,
+      eventAt: command.occurredAt,
+      supersedesCorrectionId: null,
+      recordedAt: command.occurredAt,
+      ...staffAttributionColumns(targetStaffAttribution),
+    })
+    .onConflictDoNothing()
+    .returning({ id: metricCorrections.id })
+  if (!inserted[0]) {
+    throw new Error('metric retraction lost a conflicting correction race')
+  }
+
+  const event = metricCorrected({
+    correctionId,
+    correctedReadingId: metricReadingId(target[0].id),
+    replacementReadingId: null,
+    organizationId: command.organizationId,
+    propertyId: command.propertyId,
+    definitionVersionId: command.definitionVersionId,
+    sourceEventId: command.sourceEventId,
+    supersededSourceEventId: command.supersedesSourceEventId,
+    occurredAt: command.occurredAt,
+    staffAttribution: targetStaffAttribution,
+  })
+  if (target[0].exactValue !== null) {
+    const fact = portalLifetimeFactForMetric({
+      metricKey: target[0].metricKey,
+      value: Number(target[0].exactValue),
+      destinationKind:
+        target[0].portalDestinationKind === 'google_review' ||
+        target[0].portalDestinationKind === 'secondary_link'
+          ? target[0].portalDestinationKind
+          : null,
+    })
+    if (fact) {
+      if (!target[0].propertyLocalDate) {
+        throw new Error('Portal lifetime source reading has no Property-local date')
+      }
+      await applyPortalLifetimeChanges(
+        tx as unknown as Database,
+        {
+          organizationId: command.organizationId,
+          propertyId: command.propertyId,
+          portalId: command.portalId,
+        },
+        [
+          {
+            fact,
+            multiplier: -1,
+            propertyLocalDate: target[0].propertyLocalDate,
+          },
+        ],
+      )
+    }
+  }
+  await insertOutboxRow(tx, event)
+  return {
+    result: {
+      status: 'retracted',
+      correctedReadingId: target[0].id,
+    },
+    event,
+  }
+}
+
+function retractionReceipt(
+  commands: readonly RetractMetricCommand[],
+  explicitReceipt?: MetricSourceReceipt,
+): MetricSourceReceipt | undefined {
+  let receipt = explicitReceipt
+  for (const command of commands) {
+    if (!command.sourceReceipt) continue
+    if (
+      receipt &&
+      (receipt.eventId !== command.sourceReceipt.eventId ||
+        receipt.consumerName !== command.sourceReceipt.consumerName)
+    ) {
+      throw new Error('Metric retraction source receipts do not match')
+    }
+    receipt = command.sourceReceipt
+  }
+  return receipt
+}
+
 export const createAtomicMetricCommandStore = (
   db: Database,
   events: EventBus,
   idGen: () => string,
 ): MetricCommandStore => {
-  return {
-    recordMetric: async (command: RecordMetricCommand): Promise<ReadingResult> =>
-      trace('metric.commandStore.recordMetric', async () => {
+  const recordMetrics = async (
+    command: RecordMetricsCommand,
+  ): Promise<readonly ReadingResult[]> =>
+    trace('metric.commandStore.recordMetrics', async () => {
+      if (command.readings.length === 0) {
+        if (command.sourceReceipt) {
+          throw new Error('Metric source receipt has no readings')
+        }
+        return []
+      }
+      for (const reading of command.readings) {
         if (
           !primaryStaffAttributionEquals(
-            command.reading.staffAttribution,
-            command.event.staffAttribution,
+            reading.reading.staffAttribution,
+            reading.event.staffAttribution,
           )
         ) {
           throw new Error('Metric fact Staff attribution does not match its reading')
         }
         if (
           command.sourceReceipt &&
-          command.sourceReceipt.eventId !== command.reading.sourceEventId
+          command.sourceReceipt.eventId !== reading.reading.sourceEventId
         ) {
           throw new Error('Metric source receipt event does not match its reading')
         }
-        const committed = await db.transaction(async (tx) => {
-          if (
-            command.sourceReceipt &&
-            !(await reserveSourceReceipt(tx, command.sourceReceipt))
-          ) {
-            const existingId = await existingReadingId(tx, command)
-            if (!existingId) {
-              throw new Error('Metric source receipt exists without its source reading')
-            }
-            return {
+      }
+
+      const committed = await db.transaction(async (tx) => {
+        const priorReadingIds: Array<string | null> = command.readings.map(() => null)
+        if (
+          command.sourceReceipt &&
+          !(await reserveSourceReceipt(tx, command.sourceReceipt))
+        ) {
+          let found = false
+          for (const [index, reading] of command.readings.entries()) {
+            const existingId = await existingReadingId(tx, reading)
+            priorReadingIds[index] = existingId
+            found ||= existingId !== null
+          }
+          if (!found) {
+            throw new Error('Metric source receipt exists without its source reading')
+          }
+        }
+
+        const results: RecordCommit[] = []
+        for (const [index, reading] of command.readings.entries()) {
+          const existingId = priorReadingIds[index]
+          if (existingId) {
+            results.push({
               result: {
-                status: 'duplicate' as const,
+                status: 'duplicate',
                 existingReadingId: existingId,
               },
               correctionEvent: null,
-            }
+            })
+            continue
           }
-          const superseded = command.supersedesSourceEventId
-            ? await resolveSupersededReading(tx, command, command.supersedesSourceEventId)
-            : null
-          if (superseded?.kind === 'quarantined') {
-            return {
-              result: {
-                status: 'quarantined' as const,
-                reason: 'superseded_reading_not_found',
-                sourceEventId: command.reading.sourceEventId,
-              },
-              correctionEvent: null,
-            }
+          const result = await recordMetricEntry(tx, reading, idGen)
+          if (command.sourceReceipt && result.result.status === 'quarantined') {
+            throw new Error('Metric reading is not available for replacement')
           }
-          const correctedReadingId = superseded?.correctedReadingId ?? null
-          const correctedPortalLifetimeChange =
-            superseded?.correctedPortalLifetimeChange ?? null
+          results.push(result)
+        }
+        return results
+      })
 
-          const expectedPortalLifetimeFact = expectedPortalLifetimeFactFor(command)
+      for (const [index, item] of committed.entries()) {
+        if (item.result.status !== 'recorded') continue
+        const reading = command.readings[index]
+        if (!reading) {
+          throw new Error('Committed metric result has no source command')
+        }
+        await emitAfterCommit(events, reading.event)
+        if (item.correctionEvent) {
+          await emitAfterCommit(events, item.correctionEvent)
+        }
+      }
+      return committed.map((item) => item.result)
+    })
 
-          const insertion = await insertReadingOrDescribeDuplicate(tx, command)
-          if (!insertion.inserted) {
-            return {
-              result: {
-                status: 'duplicate' as const,
-                existingReadingId: insertion.existingReadingId,
-              },
-              correctionEvent: null,
-            }
+  const retractMetrics = async (
+    commands: readonly RetractMetricCommand[],
+    explicitReceipt?: MetricSourceReceipt,
+  ): Promise<readonly RetractMetricResult[]> =>
+    trace('metric.commandStore.retractMetrics', async () => {
+      const sourceReceipt = retractionReceipt(commands, explicitReceipt)
+      if (commands.length === 0) {
+        if (sourceReceipt) {
+          throw new Error('Metric retraction source receipt has no corrections')
+        }
+        return []
+      }
+      if (
+        sourceReceipt &&
+        commands.some((command) => command.sourceEventId !== sourceReceipt.eventId)
+      ) {
+        throw new Error('Metric source receipt event does not match its retraction')
+      }
+
+      const committed = await db.transaction(async (tx) => {
+        const priorCorrections: Array<DuplicateRetractionResult | null> = commands.map(
+          () => null,
+        )
+        if (sourceReceipt && !(await reserveSourceReceipt(tx, sourceReceipt))) {
+          let found = false
+          for (const [index, command] of commands.entries()) {
+            const duplicate = await existingRetractionResult(tx, command)
+            priorCorrections[index] = duplicate
+            found ||= duplicate !== null
           }
-
-          let correctionEvent: MetricCorrected | null = null
-          if (correctedReadingId && command.supersedesSourceEventId) {
-            correctionEvent = await recordRetractionCorrection(
-              tx,
-              idGen(),
-              command,
-              correctedReadingId,
-              command.supersedesSourceEventId,
-            )
-          }
-
-          if (expectedPortalLifetimeFact && command.reading.portalId) {
-            await applyPortalLifetimeChanges(
-              tx as unknown as Database,
-              {
-                organizationId: command.reading.organizationId,
-                propertyId: command.reading.propertyId,
-                portalId: command.reading.portalId,
-              },
-              [
-                ...(correctedPortalLifetimeChange ? [correctedPortalLifetimeChange] : []),
-                {
-                  fact: expectedPortalLifetimeFact,
-                  multiplier: 1,
-                  propertyLocalDate: command.reading.propertyLocalDate,
-                },
-              ],
-            )
-          }
-
-          await insertOutboxRow(tx, command.event)
-          if (correctionEvent) await insertOutboxRow(tx, correctionEvent)
-          return {
-            result: { status: 'recorded' as const, reading: command.reading },
-            correctionEvent,
-          }
-        })
-
-        if (committed.result.status === 'recorded') {
-          await emitAfterCommit(events, command.event)
-          if (committed.correctionEvent) {
-            await emitAfterCommit(events, committed.correctionEvent)
+          if (!found) {
+            throw new Error('Metric source receipt exists without its source correction')
           }
         }
-        return committed.result
-      }),
 
-    retractMetric: async (command) =>
-      trace('metric.commandStore.retractMetric', async () => {
-        const correctionSourceEventId = `${command.sourceEventId}:${command.definitionVersionId}`
-        const committed = await db.transaction(async (tx) => {
-          const duplicate = await tx
-            .select({
-              readingId: metricCorrections.readingId,
-              attributedStaffParticipantId:
-                metricCorrections.attributedStaffParticipantId,
-              attributedStaffParticipationId:
-                metricCorrections.attributedStaffParticipationId,
-              attributionResponsibilityId: metricCorrections.attributionResponsibilityId,
-              staffAttributionEffectiveFrom:
-                metricCorrections.staffAttributionEffectiveFrom,
-              staffAttributionEffectiveTo: metricCorrections.staffAttributionEffectiveTo,
-            })
-            .from(metricCorrections)
-            .where(eq(metricCorrections.sourceEventId, correctionSourceEventId))
-            .limit(1)
-          if (duplicate[0]) {
-            if (
-              !primaryStaffAttributionEquals(
-                staffAttributionFromColumns(duplicate[0]),
-                command.staffAttribution,
-              )
-            ) {
-              throw new Error(
-                'Duplicate metric correction Staff attribution does not match',
-              )
-            }
-            return {
-              result: {
-                status: 'duplicate' as const,
-                correctedReadingId: duplicate[0].readingId,
-              },
-              event: null,
-            }
+        const results: RetractionCommit[] = []
+        for (const [index, command] of commands.entries()) {
+          const result = await retractMetricEntry(
+            tx,
+            command,
+            idGen,
+            priorCorrections[index] ?? undefined,
+          )
+          if (sourceReceipt && result.result.status === 'source_reading_not_found') {
+            throw new Error('Metric source reading is not available for retraction')
           }
+          results.push(result)
+        }
+        return results
+      })
+      for (const item of committed) {
+        if (item.event) await emitAfterCommit(events, item.event)
+      }
+      return committed.map((item) => item.result)
+    })
 
-          const target = await tx
-            .select({
-              id: metricReadings.id,
-              attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
-              attributedStaffParticipationId:
-                metricReadings.attributedStaffParticipationId,
-              attributionResponsibilityId: metricReadings.attributionResponsibilityId,
-              staffAttributionEffectiveFrom: metricReadings.staffAttributionEffectiveFrom,
-              staffAttributionEffectiveTo: metricReadings.staffAttributionEffectiveTo,
-              metricKey: metricReadings.metricKey,
-              exactValue: metricReadings.exactValue,
-              portalDestinationKind: metricReadings.portalDestinationKind,
-              propertyLocalDate: metricReadings.propertyLocalDate,
-            })
-            .from(metricReadings)
-            .where(
-              and(
-                eq(metricReadings.organizationId, unbrand(command.organizationId)),
-                eq(metricReadings.propertyId, unbrand(command.propertyId)),
-                eq(metricReadings.portalId, unbrand(command.portalId)),
-                eq(metricReadings.definitionVersionId, command.definitionVersionId),
-                eq(metricReadings.sourceEventId, command.supersedesSourceEventId),
-              ),
-            )
-            .limit(1)
-          if (!target[0]) {
-            return {
-              result: { status: 'source_reading_not_found' as const },
-              event: null,
-            }
-          }
-          const targetStaffAttribution = staffAttributionFromColumns(target[0])
-          if (
-            !primaryStaffAttributionEquals(
-              targetStaffAttribution,
-              command.staffAttribution,
-            )
-          ) {
-            throw new Error(
-              'Metric retraction Staff attribution does not match its source reading',
-            )
-          }
-
-          const correctionId = idGen()
-          const inserted = await tx
-            .insert(metricCorrections)
-            .values({
-              id: correctionId,
-              readingId: target[0].id,
-              sourceEventId: correctionSourceEventId,
-              kind: 'retract',
-              reason: 'guest_fact_retracted',
-              actorType: 'system',
-              actorId: 'guest.gateway',
-              exactDelta: null,
-              replacementValue: null,
-              eventAt: command.occurredAt,
-              supersedesCorrectionId: null,
-              recordedAt: command.occurredAt,
-              ...staffAttributionColumns(targetStaffAttribution),
-            })
-            .onConflictDoNothing()
-            .returning({ id: metricCorrections.id })
-          if (!inserted[0]) {
-            throw new Error('metric retraction lost a conflicting correction race')
-          }
-
-          const event = metricCorrected({
-            correctionId,
-            correctedReadingId: metricReadingId(target[0].id),
-            replacementReadingId: null,
-            organizationId: command.organizationId,
-            propertyId: command.propertyId,
-            definitionVersionId: command.definitionVersionId,
-            sourceEventId: command.sourceEventId,
-            supersededSourceEventId: command.supersedesSourceEventId,
-            occurredAt: command.occurredAt,
-            staffAttribution: targetStaffAttribution,
-          })
-          if (target[0].exactValue !== null) {
-            const fact = portalLifetimeFactForMetric({
-              metricKey: target[0].metricKey,
-              value: Number(target[0].exactValue),
-              destinationKind:
-                target[0].portalDestinationKind === 'google_review' ||
-                target[0].portalDestinationKind === 'secondary_link'
-                  ? target[0].portalDestinationKind
-                  : null,
-            })
-            if (fact) {
-              if (!target[0].propertyLocalDate) {
-                throw new Error(
-                  'Portal lifetime source reading has no Property-local date',
-                )
-              }
-              await applyPortalLifetimeChanges(
-                tx as unknown as Database,
-                {
-                  organizationId: command.organizationId,
-                  propertyId: command.propertyId,
-                  portalId: command.portalId,
-                },
-                [
-                  {
-                    fact,
-                    multiplier: -1,
-                    propertyLocalDate: target[0].propertyLocalDate,
-                  },
-                ],
-              )
-            }
-          }
-          await insertOutboxRow(tx, event)
-          return {
-            result: {
-              status: 'retracted' as const,
-              correctedReadingId: target[0].id,
-            },
-            event,
-          }
-        })
-        if (committed.event) await emitAfterCommit(events, committed.event)
-        return committed.result
-      }),
-
+  return {
+    recordMetrics,
+    recordMetric: async (command: RecordMetricCommand): Promise<ReadingResult> => {
+      const { sourceReceipt, ...reading } = command
+      const [result] = await recordMetrics({
+        readings: [reading],
+        sourceReceipt,
+      })
+      if (!result) throw new Error('Metric command produced no result')
+      return result
+    },
+    retractMetrics,
+    retractMetric: async (command: RetractMetricCommand) => {
+      const { sourceReceipt, ...entry } = command
+      const [result] = await retractMetrics([entry], sourceReceipt)
+      if (!result) throw new Error('Metric retraction produced no result')
+      return result
+    },
     quarantine: async (command: QuarantineMetricCommand): Promise<void> =>
       trace('metric.commandStore.quarantine', async () => {
         await db

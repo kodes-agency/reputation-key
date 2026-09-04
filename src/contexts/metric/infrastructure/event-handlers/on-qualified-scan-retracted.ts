@@ -9,6 +9,7 @@ const options = [
   {
     definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
     span: 'metric.event.onQualifiedScanRetracted',
+    sourceReceiptConsumer: 'metric.guest-analytics',
   },
 ] as const
 

@@ -52,6 +52,10 @@ export async function projectReviewCreatedMetric(
     sampleCount: 1,
     occurredAt: event.occurredAt,
     attributionQuality: 'exact',
+    sourceReceipt: {
+      eventId: event.eventId,
+      consumerName: 'metric.public-reputation',
+    },
   })
 }
 

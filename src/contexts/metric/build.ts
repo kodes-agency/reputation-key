@@ -15,8 +15,8 @@ import { createMetricRegistryRepository } from './infrastructure/repositories/me
 import { createPropertyLocalDateResolver } from './infrastructure/repositories/property-local-date'
 import { createGoalMetricSourceStatus } from './infrastructure/repositories/goal-metric-source-status'
 import { createAtomicMetricCommandStore } from './infrastructure/metric-command-store'
-import { recordMetric } from './application/use-cases/record-metric'
-import { retractMetric } from './application/use-cases/retract-metric'
+import { recordMetric, recordMetrics } from './application/use-cases/record-metric'
+import { retractMetrics } from './application/use-cases/retract-metric'
 import { registerMetricHandlers } from './infrastructure/event-handlers'
 import { registerMetricCorrectionConsumer } from './infrastructure/correction-outbox-consumers'
 import { registerPortalWorkflowMetricConsumers } from './infrastructure/outbox-consumers'
@@ -91,13 +91,16 @@ export const buildMetricContext = (input: MetricContextBuildInput) => {
     clock: input.clock,
   })
 
-  const record = recordMetric({
+  const recordDeps = {
     commandStore,
     clock: input.clock,
     idGen: () => metricReadingId(input.idGen()),
     registry,
     resolvePropertyLocalDate: createPropertyLocalDateResolver(input.db),
-  })
+  }
+  const record = recordMetric(recordDeps)
+  const recordBatch = recordMetrics(recordDeps)
+  const retractBatch = retractMetrics(commandStore)
 
   // Resolve the portal's group for metric attribution — portal public API.
   const findGroupForPortal = async (
@@ -127,7 +130,8 @@ export const buildMetricContext = (input: MetricContextBuildInput) => {
   registerMetricHandlers({
     events: input.events,
     recordMetric: record,
-    retractMetric: retractMetric(commandStore),
+    recordMetrics: recordBatch,
+    retractMetrics: retractBatch,
     findGroupForPortal,
     reviewRatingLookup: input.reviewRatingLookup,
     resolvePortalWorkflowAttribution,
@@ -141,14 +145,15 @@ export const buildMetricContext = (input: MetricContextBuildInput) => {
     }
     registerPortalWorkflowMetricConsumers(consumerRegistry, portalWorkflowDeps)
     registerGuestMetricConsumers(consumerRegistry, {
-      recordMetric: record,
-      retractMetric: retractMetric(commandStore),
+      recordMetrics: recordBatch,
+      retractMetrics: retractBatch,
       findGroupForPortal,
       logger: input.logger,
     })
     registerPublicReputationMetricConsumers(consumerRegistry, {
       recordMetric: record,
       reviewRatingLookup: input.reviewRatingLookup,
+      db: input.db,
     })
     registerCurrentGoogleReputationConsumer(consumerRegistry, currentGoogleReputation)
     registerMetricCorrectionConsumer(consumerRegistry, input.db)

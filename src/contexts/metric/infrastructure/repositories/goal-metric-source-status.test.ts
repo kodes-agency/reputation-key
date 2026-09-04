@@ -1,11 +1,27 @@
+import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
+import {
+  metricReadingId,
+  organizationId,
+  portalGroupId,
+  portalId,
+  propertyId,
+  ratingId,
+} from '#/shared/domain/ids'
 import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
 import type { GoalMetricAggregateQuery } from '../../application/ports/metric.repository'
 import { createGoalMetricSourceStatus } from './goal-metric-source-status'
+import { createAtomicMetricCommandStore } from '../metric-command-store'
+import { createMetricRegistryRepository } from './metric-registry.repository'
+import { createPropertyLocalDateResolver } from './property-local-date'
+import { recordMetrics } from '../../application/use-cases/record-metric'
+import { onRatingSubmittedDurably } from '../event-handlers/on-rating-submitted'
+import type { EventBus } from '#/shared/events/event-bus'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 const db = getDb()
 const ORG = organizationId('org-goal-source-status')
@@ -22,6 +38,13 @@ const OLD_SOURCE = '62000000-0000-4000-8000-000000000099'
 const START = new Date('2026-06-01T00:00:00.000Z')
 const END = new Date('2026-07-01T00:00:00.000Z')
 const OCCURRED = new Date('2026-06-15T12:00:00.000Z')
+const DELIVERY_AT = new Date('2026-09-15T12:00:00.000Z')
+
+const silentEvents: EventBus = {
+  on: () => {},
+  emit: async () => {},
+  clear: () => {},
+}
 
 const portalGroups: PortalGroupPublicApi = {
   findGroupForPortal: async (orgId, pid, asOf) =>
@@ -46,7 +69,11 @@ const query = (
   periodEnd: END,
 })
 
-async function insertSource(eventId: string, eventType: string): Promise<void> {
+async function insertSource(
+  eventId: string,
+  eventType: string,
+  occurredAt: Date = OCCURRED,
+): Promise<void> {
   await db.execute(sql`
     INSERT INTO outbox_events (
       id, event_type, event_version, payload, organization_id, property_id,
@@ -62,9 +89,9 @@ async function insertSource(eventId: string, eventType: string): Promise<void> {
         ...(eventType.endsWith('.retracted')
           ? { supersedesSourceEventId: SUBMITTED_EVENT }
           : {}),
-        occurredAt: OCCURRED.toISOString(),
+        occurredAt: occurredAt.toISOString(),
       })}::jsonb,
-      ${ORG}, ${PROPERTY}, 'guest', ${READING}, ${OCCURRED}, ${OCCURRED}
+      ${ORG}, ${PROPERTY}, 'guest', ${READING}, ${occurredAt}, ${occurredAt}
     )
   `)
 }
@@ -127,6 +154,8 @@ async function clean(): Promise<void> {
 }
 
 beforeAll(async () => {
+  clearEventSchemas()
+  registerAllEventSchemas()
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (${ORG}, 'Goal Source Status', ${ORG}, now())
@@ -161,6 +190,7 @@ afterAll(async () => {
   await db.execute(sql`DELETE FROM portals WHERE id = ${PORTAL}`)
   await db.execute(sql`DELETE FROM properties WHERE id = ${PROPERTY}`)
   await deleteTestOrganizations(db, [ORG])
+  clearEventSchemas()
 })
 
 describe.sequential('Goal metric durable source status (integration)', () => {
@@ -176,6 +206,59 @@ describe.sequential('Goal metric durable source status (integration)', () => {
       relevantFactCount: 0,
       pendingFactCount: 0,
       reason: null,
+    })
+  })
+
+  it('becomes complete after one atomic rating delivery', async () => {
+    await insertSource(SUBMITTED_EVENT, 'guest.rating.submitted', DELIVERY_AT)
+    const project = recordMetrics({
+      commandStore: createAtomicMetricCommandStore(db, silentEvents, randomUUID),
+      registry: createMetricRegistryRepository(db),
+      clock: () => DELIVERY_AT,
+      idGen: () => metricReadingId(randomUUID()),
+      resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
+    })
+    await onRatingSubmittedDurably({
+      recordMetrics: project,
+      findGroupForPortal: async () => ({ portalGroupId: GROUP }),
+      logger: {
+        error: () => {},
+        warn: () => {},
+      },
+    })({
+      _tag: 'guest.rating.submitted',
+      eventId: SUBMITTED_EVENT,
+      correlationId: null,
+      ratingId: ratingId(READING),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      value: 4,
+      supersedesSourceEventId: null,
+      occurredAt: DELIVERY_AT,
+      staffAttribution: null,
+    })
+
+    await expect(
+      createGoalMetricSourceStatus(db, {
+        ...portalGroups,
+        findGroupForPortal: async () => ({
+          id: GROUP,
+          propertyId: PROPERTY,
+          name: 'Front Desk',
+        }),
+      }).inspect(
+        {
+          ...query({ kind: 'portal', portalId: PORTAL }),
+          periodStart: new Date('2026-09-01T00:00:00.000Z'),
+          periodEnd: new Date('2026-10-01T00:00:00.000Z'),
+        },
+        ['guest.rating.submitted'],
+      ),
+    ).resolves.toMatchObject({
+      state: 'complete',
+      relevantFactCount: 1,
+      pendingFactCount: 0,
     })
   })
 

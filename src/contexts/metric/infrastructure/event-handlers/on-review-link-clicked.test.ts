@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { onReviewLinkClicked } from './on-review-link-clicked'
 import type { RecordPortalMetricDeps as OnReviewLinkClickedDeps } from './record-portal-metric'
-import type { RecordMetricInput } from '../../application/use-cases/record-metric'
+import type { RecordMetricEntryInput } from '../../application/use-cases/record-metric'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   organizationId,
@@ -16,14 +16,17 @@ const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
 const createFakeDeps = (
   overrides: Partial<Pick<OnReviewLinkClickedDeps, 'findGroupForPortal'>> = {},
 ): OnReviewLinkClickedDeps & {
-  readings: RecordMetricInput[]
+  readings: RecordMetricEntryInput[]
 } => {
-  const readings: RecordMetricInput[] = []
+  const readings: RecordMetricEntryInput[] = []
   return {
     readings,
-    recordMetric: async (input) => {
-      readings.push({ ...input })
-      return { status: 'duplicate', existingReadingId: input.sourceEventId }
+    recordMetrics: async (input) => {
+      readings.push(...input.readings)
+      return input.readings.map((reading) => ({
+        status: 'duplicate' as const,
+        existingReadingId: reading.sourceEventId,
+      }))
     },
     findGroupForPortal: overrides.findGroupForPortal ?? (async () => null),
     logger: createMockLogger(),
@@ -104,9 +107,9 @@ describe('onReviewLinkClicked', () => {
     expect(groupDeps.readings[0]!.portalGroupId).toBeNull()
   })
 
-  it('does not throw when recordMetric fails', async () => {
+  it('does not throw when recordMetrics fails', async () => {
     const failingDeps: OnReviewLinkClickedDeps = {
-      recordMetric: async () => {
+      recordMetrics: async () => {
         throw new Error('DB unavailable')
       },
       findGroupForPortal: async () => null,

@@ -106,6 +106,20 @@ describe('Portal governed workflow metric handlers', () => {
         sampleCount: 5,
       }),
     ])
+    expect(deps.readings.map((reading) => reading.sourceReceipt)).toEqual([
+      {
+        eventId: 'review-event',
+        consumerName: 'metric.portal-workflow',
+      },
+      {
+        eventId: 'completeness-event',
+        consumerName: 'metric.portal-workflow',
+      },
+      {
+        eventId: 'ratio-event',
+        consumerName: 'metric.portal-workflow',
+      },
+    ])
   })
 
   it('uses the stable event ID so replay reaches recordMetric idempotency', async () => {

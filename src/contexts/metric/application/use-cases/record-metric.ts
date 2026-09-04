@@ -21,6 +21,7 @@ import type {
 import type {
   MetricCommandStore,
   MetricSourceReceipt,
+  RecordMetricEntry,
 } from '../ports/metric-command-store.port'
 import type { MetricRegistryRepository } from '../ports/metric-registry.repository.port'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
@@ -125,51 +126,81 @@ function quarantineReasonFor(
   return null
 }
 
-export const recordMetric =
-  (deps: RecordMetricDeps): RecordMetric =>
-  async (input) => {
-    const governed = await deps.registry.findVersionById(input.definitionVersionId)
+export type RecordMetricEntryInput = Omit<RecordMetricInput, 'sourceReceipt'>
 
-    const quarantine = async (reason: string): Promise<ReadingResult> => {
-      await deps.commandStore.quarantine({
-        sourceEventId: input.sourceEventId,
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        definitionVersionId: governed?.version.id ?? null,
-        sourcePolicy: input.sourcePolicy,
+export type RecordMetricsInput = Readonly<{
+  readings: readonly RecordMetricEntryInput[]
+  sourceReceipt?: MetricSourceReceipt
+}>
+
+export type RecordMetrics = (
+  input: RecordMetricsInput,
+) => Promise<readonly ReadingResult[]>
+
+type BuiltMetricEntry =
+  | Readonly<{ kind: 'entry'; entry: RecordMetricEntry }>
+  | Readonly<{ kind: 'result'; result: ReadingResult }>
+
+/**
+ * Validate and materialize one reading without committing it. Fanout consumers
+ * build every entry first, then hand the complete set to the atomic store.
+ */
+export async function buildRecordMetricEntry(
+  deps: RecordMetricDeps,
+  input: RecordMetricEntryInput,
+): Promise<BuiltMetricEntry> {
+  const governed = await deps.registry.findVersionById(input.definitionVersionId)
+
+  const quarantine = async (reason: string): Promise<BuiltMetricEntry> => {
+    await deps.commandStore.quarantine({
+      sourceEventId: input.sourceEventId,
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      definitionVersionId: governed?.version.id ?? null,
+      sourcePolicy: input.sourcePolicy,
+      reason,
+      payloadHash: payloadHash(input),
+      eventAt: input.occurredAt,
+    })
+    return {
+      kind: 'result',
+      result: {
+        status: 'quarantined',
         reason,
-        payloadHash: payloadHash(input),
-        eventAt: input.occurredAt,
-      })
-      return { status: 'quarantined', reason, sourceEventId: input.sourceEventId }
+        sourceEventId: input.sourceEventId,
+      },
     }
+  }
 
-    if (!governed) return quarantine('unknown_definition_version')
+  if (!governed) return quarantine('unknown_definition_version')
 
-    const { definition, version } = governed
-    const admissionReason = quarantineReasonFor(input, governed)
-    if (admissionReason !== null) return quarantine(admissionReason)
+  const { definition, version } = governed
+  const admissionReason = quarantineReasonFor(input, governed)
+  if (admissionReason !== null) return quarantine(admissionReason)
 
-    const numerator = input.numerator ?? null
-    const denominator = input.denominator ?? null
-    if (definition.valueKind === 'ratio' && input.sampleCount < version.minimumSample) {
-      if (version.insufficientDataBehavior === 'quarantine') {
-        return quarantine('insufficient_data')
-      }
-      return {
+  const numerator = input.numerator ?? null
+  const denominator = input.denominator ?? null
+  if (definition.valueKind === 'ratio' && input.sampleCount < version.minimumSample) {
+    if (version.insufficientDataBehavior === 'quarantine') {
+      return quarantine('insufficient_data')
+    }
+    return {
+      kind: 'result',
+      result: {
         status: 'insufficient_data',
         definitionVersionId: version.id,
         minimumSample: version.minimumSample,
         actualSample: input.sampleCount,
-      }
+      },
     }
+  }
 
-    if (
-      definition.valueKind === 'ratio' &&
-      (numerator === null || denominator === null || denominator <= 0)
-    ) {
-      return quarantine('invalid_ratio')
-    }
+  if (
+    definition.valueKind === 'ratio' &&
+    (numerator === null || denominator === null || denominator <= 0)
+  ) {
+    return quarantine('invalid_ratio')
+  }
 
     const reading = createReading({
       id: deps.idGen(),
@@ -199,19 +230,20 @@ export const recordMetric =
       now: deps.clock(),
     })
 
-    const portalLifetimeFact = portalLifetimeFactForMetric({
-      metricKey: reading.metricKey,
-      value: reading.value,
-      destinationKind: input.destinationKind ?? null,
-    })
-    if (portalLifetimeFact && reading.portalId === null) {
-      return quarantine('invalid_portal_lifetime_scope')
-    }
+  const portalLifetimeFact = portalLifetimeFactForMetric({
+    metricKey: reading.metricKey,
+    value: reading.value,
+    destinationKind: input.destinationKind ?? null,
+  })
+  if (portalLifetimeFact && reading.portalId === null) {
+    return quarantine('invalid_portal_lifetime_scope')
+  }
 
-    return deps.commandStore.recordMetric({
+  return {
+    kind: 'entry',
+    entry: {
       reading,
       supersedesSourceEventId: input.supersedesSourceEventId ?? null,
-      sourceReceipt: input.sourceReceipt,
       portalLifetimeFact,
       event: metricRecorded({
         readingId: reading.id,
@@ -232,5 +264,37 @@ export const recordMetric =
         occurredAt: reading.occurredAt,
         staffAttribution: reading.staffAttribution,
       }),
+    },
+  }
+}
+
+export const recordMetrics =
+  (deps: RecordMetricDeps): RecordMetrics =>
+  async (input) => {
+    const entries: RecordMetricEntry[] = []
+    for (const reading of input.readings) {
+      const built = await buildRecordMetricEntry(deps, reading)
+      if (built.kind === 'result') {
+        if (input.readings.length === 1) return [built.result]
+        throw new Error(`Metric batch entry was not recordable: ${built.result.status}`)
+      }
+      entries.push(built.entry)
+    }
+    return deps.commandStore.recordMetrics({
+      readings: entries,
+      sourceReceipt: input.sourceReceipt,
     })
   }
+
+export const recordMetric = (deps: RecordMetricDeps): RecordMetric => {
+  const recordBatch = recordMetrics(deps)
+  return async (input) => {
+    const { sourceReceipt, ...reading } = input
+    const [result] = await recordBatch({
+      readings: [reading],
+      sourceReceipt,
+    })
+    if (!result) throw new Error('Metric command produced no result')
+    return result
+  }
+}

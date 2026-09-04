@@ -19,6 +19,7 @@
 // two readings that share a local date but straddle UTC midnight, and one
 // reading ingested a month after it happened.
 
+import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
@@ -26,9 +27,23 @@ import type { Database } from '#/shared/db'
 import * as schema from '#/shared/db/schema'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
+import {
+  metricReadingId,
+  organizationId,
+  portalId,
+  propertyId,
+  scanEventId,
+} from '#/shared/domain/ids'
 import { METRIC_VERSION_IDS } from '../../application/public-api'
 import { createPortalAnalyticsRepository } from './portal-analytics.repository'
+import { createAtomicMetricCommandStore } from '../metric-command-store'
+import { createMetricRegistryRepository } from './metric-registry.repository'
+import { createPropertyLocalDateResolver } from './property-local-date'
+import { recordMetrics } from '../../application/use-cases/record-metric'
+import { onScanRecordedDurably } from '../event-handlers/on-scan-recorded'
+import type { EventBus } from '#/shared/events/event-bus'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 const ORG = organizationId('org-portal-metrics-integration')
 const PROP = propertyId('c1000000-0000-4000-8000-000000000001')
@@ -38,8 +53,19 @@ const PORTAL = portalId('c2000000-0000-4000-8000-000000000001')
 const WINDOW_START = new Date('2026-06-01T00:00:00.000Z')
 const WINDOW_END = new Date('2026-07-01T00:00:00.000Z')
 const COMPUTED_AT = new Date('2026-07-01T00:05:00.000Z')
+const ATOMIC_WINDOW_START = new Date('2026-09-01T00:00:00.000Z')
+const ATOMIC_WINDOW_END = new Date('2026-10-01T00:00:00.000Z')
+const ATOMIC_OCCURRED_AT = new Date('2026-09-11T10:00:00.000Z')
+const ATOMIC_COMPUTED_AT = new Date('2026-10-01T00:05:00.000Z')
+
+const silentEvents: EventBus = {
+  on: () => {},
+  emit: async () => {},
+  clear: () => {},
+}
 const SOURCE_EVENTS = {
   scanPending: 'c3000000-0000-4000-8000-000000000001',
+  scanAtomic: 'c3000000-0000-4000-8000-000000000005',
   ratingApplied: 'c3000000-0000-4000-8000-000000000002',
   feedbackObsolete: 'c3000000-0000-4000-8000-000000000003',
   clickAppliedWithoutProjection: 'c3000000-0000-4000-8000-000000000004',
@@ -116,8 +142,11 @@ let pool: Pool
 let db: Database
 
 beforeAll(async () => {
+  clearEventSchemas()
+  registerAllEventSchemas()
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM metric_quarantine WHERE organization_id = $1', [ORG])
   await pool.query(
     `DELETE FROM metric_corrections
      WHERE reading_id IN (
@@ -128,6 +157,7 @@ beforeAll(async () => {
 
   for (const source of [
     [SOURCE_EVENTS.scanPending, 'guest.scan.recorded', '2026-06-11T10:00:00.000Z'],
+    [SOURCE_EVENTS.scanAtomic, 'guest.scan.recorded', ATOMIC_OCCURRED_AT.toISOString()],
     [SOURCE_EVENTS.ratingApplied, 'guest.rating.submitted', '2026-06-12T10:00:00.000Z'],
     [
       SOURCE_EVENTS.feedbackObsolete,
@@ -242,10 +272,12 @@ afterAll(async () => {
     [ORG],
   )
   await pool.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM metric_quarantine WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
   await deleteTestOrganizations(pool, [ORG])
+  clearEventSchemas()
   await pool.end()
 })
 
@@ -342,6 +374,44 @@ describe('governed Portal analytics repository (integration)', () => {
       computedAt: COMPUTED_AT,
       completeness: 1,
       availabilityReason: 'projection_missing',
+    })
+  })
+
+  it('marks scan evidence ready after one atomic consumer delivery', async () => {
+    const project = recordMetrics({
+      commandStore: createAtomicMetricCommandStore(db, silentEvents, randomUUID),
+      registry: createMetricRegistryRepository(db),
+      clock: () => ATOMIC_COMPUTED_AT,
+      idGen: () => metricReadingId(randomUUID()),
+      resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
+    })
+    await onScanRecordedDurably({
+      recordMetrics: project,
+      findGroupForPortal: async () => null,
+      logger: {
+        error: () => {},
+        warn: () => {},
+      },
+    })({
+      _tag: 'guest.scan.recorded',
+      eventId: SOURCE_EVENTS.scanAtomic,
+      correlationId: null,
+      scanId: scanEventId('c4000000-0000-4000-8000-000000000001'),
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORTAL,
+      scanSource: 'qr',
+      occurredAt: ATOMIC_OCCURRED_AT,
+    })
+
+    const evidence = await createPortalAnalyticsRepository(
+      db,
+      () => ATOMIC_COMPUTED_AT,
+    ).getPortalMetricEvidence(ORG, PROP, PORTAL, ATOMIC_WINDOW_START, ATOMIC_WINDOW_END)
+    expect(evidence.scans).toMatchObject({
+      state: 'ready',
+      completeness: 1,
+      availabilityReason: null,
     })
   })
 

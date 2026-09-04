@@ -13,7 +13,7 @@ vi.mock('#/shared/observability/logger', () => ({
 
 import { onScanRecorded } from './on-scan-recorded'
 import type { RecordPortalMetricDeps as OnScanRecordedDeps } from './record-portal-metric'
-import type { RecordMetricInput } from '../../application/use-cases/record-metric'
+import type { RecordMetricEntryInput } from '../../application/use-cases/record-metric'
 import {
   organizationId,
   portalId,
@@ -32,14 +32,17 @@ const injectedLogger = {
 const createFakeDeps = (
   overrides: Partial<Pick<OnScanRecordedDeps, 'findGroupForPortal'>> = {},
 ): OnScanRecordedDeps & {
-  readings: RecordMetricInput[]
+  readings: RecordMetricEntryInput[]
 } => {
-  const readings: RecordMetricInput[] = []
+  const readings: RecordMetricEntryInput[] = []
   return {
     readings,
-    recordMetric: async (input) => {
-      readings.push({ ...input })
-      return { status: 'duplicate', existingReadingId: input.sourceEventId }
+    recordMetrics: async (input) => {
+      readings.push(...input.readings)
+      return input.readings.map((reading) => ({
+        status: 'duplicate' as const,
+        existingReadingId: reading.sourceEventId,
+      }))
     },
     findGroupForPortal: overrides.findGroupForPortal ?? (async () => null),
     logger: injectedLogger,
@@ -133,9 +136,9 @@ describe('onScanRecorded', () => {
     expect(ambientLogger.warn).not.toHaveBeenCalled()
   })
 
-  it('does not throw when recordMetric fails', async () => {
+  it('does not throw when recordMetrics fails', async () => {
     const failingDeps: OnScanRecordedDeps = {
-      recordMetric: async () => {
+      recordMetrics: async () => {
         throw new Error('DB unavailable')
       },
       findGroupForPortal: async () => null,

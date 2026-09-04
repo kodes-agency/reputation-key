@@ -9,14 +9,17 @@ const options = [
   {
     definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
     span: 'metric.event.onRatingRetracted',
+    sourceReceiptConsumer: 'metric.guest-analytics',
   },
   {
     definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
     span: 'metric.event.onRatingRetracted',
+    sourceReceiptConsumer: 'metric.guest-analytics',
   },
   {
     definitionVersionId: METRIC_VERSION_IDS.portalRatingAverageGoal,
     span: 'metric.event.onRatingRetracted',
+    sourceReceiptConsumer: 'metric.guest-analytics',
   },
 ] as const
 
