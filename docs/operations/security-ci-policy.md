@@ -103,12 +103,20 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   (MPL-2.0, dev-only a11y engine), `@img/sharp-libvips-*` (LGPL-3.0-or-later,
   dev-only sharp binaries). Each carries owner/reason/expiry in
   `security/license-policy.json`.
-- Grype: 19 wont-fix/not-fixed Debian CVE entries + 2 Go-stdlib package
+- Grype: 24 wont-fix/not-fixed Debian CVE entries + 2 Go-stdlib package
   entries in `.grype.yaml` (each with owner/reason/expiry). The fixable
   classes were fixed instead of excepted: base image bumped to the newest
   node:22-slim build (2026-07-29) and the npm CLI stripped from every runtime
   that does not execute package management (cleared all 6 npm-bundled findings incl. Critical `tar`
   GHSA-23hp-3jrh-7fpw — 57 → 51 high/critical per image).
+  The 2026-09-04 vulnerability DB (v6.1.9) added five HIGH base-image
+  findings — four util-linux mount-helper escalations and one system-zlib
+  `gz_vacate()` overflow — with no patched bookworm package and identical
+  versions in the newest node:22-slim build. Their reachable surface was
+  removed rather than excepted: every production runtime stage now drops all
+  setuid/setgid bits, and the runtime `node` is built `shared_zlib: false`
+  and links no libz. The five CVE ids carry owner/reason/expiry
+  (expiresAt 2026-12-04).
 
 ## Per-gate notes
 

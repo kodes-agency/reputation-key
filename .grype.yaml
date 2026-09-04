@@ -63,3 +63,29 @@ ignore:
       name: stdlib
       version: go1.23.12
       type: go-module
+
+  # ── Debian bookworm base packages, 2026-09-04 vulnerability DB (5 CVEs) ─
+  # owner: platform — reason: the grype DB rebuilt on 2026-09-04 (v6.1.9)
+  # added five HIGH findings against the base image. Verified against the
+  # Debian security tracker on 2026-09-04: bookworm is `vulnerable` for all
+  # five with NO patched package (util-linux is fixed only in unstable
+  # 2.42.3-1; zlib is `(unfixed)` even in unstable), and the newest
+  # node:22-slim build carries identical package versions
+  # (util-linux 2.38.1-5+deb12u3, zlib1g 1:1.2.13.dfsg-1) — so no base-image
+  # bump can clear them.
+  #
+  # The FIXABLE part was fixed, not excepted:
+  #   - the four util-linux CVEs are local escalation through setuid mount
+  #     helpers; every production runtime stage now drops every setuid/setgid
+  #     bit (`RUN find / -xdev -perm /6000 -type f -exec chmod ug-s {} +`),
+  #     and the processes run as a non-root user with no CAP_SYS_ADMIN;
+  #   - the zlib CVE is in the system libz `gz_vacate()` path; the runtime
+  #     `node` binary is built with `shared_zlib: false` and does not link
+  #     libz at all (verified with `ldd /usr/local/bin/node`), so the
+  #     application cannot reach it.
+  # expiresAt: 2026-12-04
+  - vulnerability: CVE-2026-76642 # util-linux, no bookworm fix
+  - vulnerability: CVE-2026-78408 # util-linux, no bookworm fix
+  - vulnerability: CVE-2026-78409 # util-linux, no bookworm fix
+  - vulnerability: CVE-2026-78410 # util-linux, no bookworm fix
+  - vulnerability: CVE-2026-85091 # zlib1g, unfixed upstream

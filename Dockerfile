@@ -140,6 +140,12 @@ RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (con
 # the base image (its bundled deps carry known CVEs: grype container gate).
 # node itself is untouched; corepack/pnpm shims stay for operator tooling.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
+# BQC-7.7: no runtime needs a setuid/setgid helper - the process is `node`
+# as a non-root user with no CAP_SYS_ADMIN. Dropping the bits removes the
+# local-escalation vector named by the util-linux mount-helper CVEs
+# (CVE-2026-76642 / -78408 / -78409 / -78410), which Debian bookworm does not
+# ship a fix for. The packages stay (dpkg needs them); only the bits go.
+RUN find / -xdev -perm /6000 -type f -exec chmod ug-s {} +
 # Nitro traces the application bundle; @sentry/node is deliberately external
 # so the Node --import preload and the Nitro hook share one SDK instance.
 # Production node_modules also supplies the worker/migrate externals (pg,
