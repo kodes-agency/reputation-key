@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/tanstackstart-react'
 import { useEffect } from 'react'
 import { getGlobalStartContext } from '@tanstack/react-start'
 import { QueryClient } from '@tanstack/react-query'
@@ -11,6 +10,7 @@ import { Alert, AlertDescription } from '#/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { publicErrorMessage } from '#/shared/security/error-display'
+import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
 
 /** Default pending component — shown while route loaders are resolving. */
 function DefaultPendingComponent() {
@@ -30,7 +30,7 @@ function DefaultErrorComponent({ error }: { error: Error }) {
   const router = useRouter()
 
   useEffect(() => {
-    Sentry.captureException(error)
+    captureBrowserException(error)
   }, [error])
 
   return (

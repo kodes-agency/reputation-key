@@ -43,8 +43,8 @@ const IAC_FILE = '.railway/railway.ts'
 const SHA256 = /^[0-9a-f]{64}$/u
 const SAVED_CHANGE_SET_SHA256 = /^sha256:[0-9a-f]{64}$/u
 const FOUNDATION_GRAPH_SHA256_BY_PROFILE = Object.freeze({
-  production: '2e4aff8298dc5c90796f89373e04b3090f84751adc6ce273bbfe8fd7f7b48725',
-  rehearsal: '80d6a98462ac712b157ed3b801ba6068b0b6c6cd578d5d54b544537bcead4bcd',
+  production: '9c8c68c879ff1c930458998d7d61b8b81b55f9b7e0be749bf82042573a587bd2',
+  rehearsal: 'a6758ee54f42339a6c33ad55151873913c96dd35b826ba453f741ab8c77327e6',
 } satisfies Readonly<Record<RailwayDeploymentProfile, string>>)
 
 type JsonRecord = Readonly<Record<string, unknown>>
