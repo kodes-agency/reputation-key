@@ -202,33 +202,33 @@ export async function buildRecordMetricEntry(
     return quarantine('invalid_ratio')
   }
 
-    const reading = createReading({
-      id: deps.idGen(),
-      definitionVersionId: version.id,
-      metricKey: definition.key,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      portalId: input.portalId,
-      portalGroupId: input.portalGroupId,
-      value: input.value,
-      numerator,
-      denominator,
-      duration: input.duration,
-      sampleCount: input.sampleCount,
-      sourceEventId: input.sourceEventId,
-      sourcePolicy: input.sourcePolicy,
-      occurredAt: input.occurredAt,
-      propertyLocalDate: await deps.resolvePropertyLocalDate(
-        input.propertyId,
-        input.organizationId,
-        input.occurredAt,
-      ),
-      attributionQuality: input.attributionQuality,
-      dataQuality: input.dataQuality,
-      retentionClass: definition.retentionClass,
-      staffAttribution: input.staffAttribution ?? null,
-      now: deps.clock(),
-    })
+  const reading = createReading({
+    id: deps.idGen(),
+    definitionVersionId: version.id,
+    metricKey: definition.key,
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    portalId: input.portalId,
+    portalGroupId: input.portalGroupId,
+    value: input.value,
+    numerator,
+    denominator,
+    duration: input.duration,
+    sampleCount: input.sampleCount,
+    sourceEventId: input.sourceEventId,
+    sourcePolicy: input.sourcePolicy,
+    occurredAt: input.occurredAt,
+    propertyLocalDate: await deps.resolvePropertyLocalDate(
+      input.propertyId,
+      input.organizationId,
+      input.occurredAt,
+    ),
+    attributionQuality: input.attributionQuality,
+    dataQuality: input.dataQuality,
+    retentionClass: definition.retentionClass,
+    staffAttribution: input.staffAttribution ?? null,
+    now: deps.clock(),
+  })
 
   const portalLifetimeFact = portalLifetimeFactForMetric({
     metricKey: reading.metricKey,
