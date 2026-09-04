@@ -8,6 +8,7 @@ import {
   tryToOutboxEvent,
   withEnvelopeIdentifiers,
 } from './event-adapter'
+import { buildConsumerEvent } from './envelope'
 import {
   clearEventSchemas,
   isEventRegistered,
@@ -115,6 +116,112 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
       causationId: 'cause-123',
       commandId: 'command-123',
     })
+  })
+
+  it('carries identifiers through every strict fact schema', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const strictEvents: readonly Readonly<{
+      event: DomainEvent
+      aggregateType: string
+    }>[] = [
+      {
+        event: {
+          _tag: 'property.google_binding.changed',
+          eventId: '10000000-0000-4000-8000-000000000001',
+          organizationId: organizationId('org-1'),
+          propertyId: propertyId('20000000-0000-4000-8000-000000000002'),
+          connectionId: '30000000-0000-4000-8000-000000000003',
+          sourceEpoch: 1,
+          change: 'created',
+          occurredAt: NOW,
+          correlationId: null,
+        } as DomainEvent,
+        aggregateType: 'property',
+      },
+      {
+        event: {
+          _tag: 'integration.property_import.retention_released',
+          eventId: '40000000-0000-4000-8000-000000000004',
+          organizationId: organizationId('org-1'),
+          importJobId: '50000000-0000-4000-8000-000000000005',
+          idempotencyKeys: ['60000000-0000-4000-8000-000000000006'],
+          occurredAt: NOW,
+          correlationId: null,
+        } as DomainEvent,
+        aggregateType: 'import_job',
+      },
+      {
+        event: {
+          _tag: 'integration.property_import.requested',
+          eventId: '70000000-0000-4000-8000-000000000007',
+          organizationId: organizationId('org-1'),
+          importJobId: '80000000-0000-4000-8000-000000000008',
+          occurredAt: NOW,
+          correlationId: null,
+        } as DomainEvent,
+        aggregateType: 'import_job',
+      },
+      {
+        event: {
+          _tag: 'identity.merchant_ai.changed',
+          eventId: '90000000-0000-4000-8000-000000000009',
+          organizationId: organizationId('org-1'),
+          propertyId: propertyId('a0000000-0000-4000-8000-00000000000a'),
+          authorizationLineageId: 'b0000000-0000-4000-8000-00000000000b',
+          state: 'enabled',
+          reviewAnalysisEpoch: 1,
+          replyDraftingEpoch: 1,
+          propertyTrendsEpoch: 1,
+          authorizedSourceEpoch: 0,
+          analysisStartSequence: 0,
+          stateVersion: 1,
+          occurredAt: NOW,
+          correlationId: null,
+        } as DomainEvent,
+        aggregateType: 'property',
+      },
+    ]
+
+    for (const strictCase of strictEvents) {
+      const event = withEnvelopeIdentifiers(strictCase.event, {
+        causationId: 'cause-123',
+        commandId: 'command-123',
+      })
+      const row = toOutboxEvent(event)
+      expect(row.payload, event._tag).toMatchObject({
+        causationId: 'cause-123',
+        commandId: 'command-123',
+      })
+
+      const envelope = buildConsumerEvent({
+        id: event.eventId,
+        eventType: row.eventType,
+        eventVersion: row.eventVersion ?? 1,
+        payload: row.payload,
+        organizationId: row.organizationId,
+        propertyId: row.propertyId ?? null,
+        sourceContext: row.sourceContext,
+        sourceAggregateId: row.sourceAggregateId,
+        recordedAt: row.createdAt ?? NOW,
+      })
+      expect(envelope, event._tag).toMatchObject({
+        aggregateType: strictCase.aggregateType,
+        causationId: 'cause-123',
+        commandId: 'command-123',
+      })
+      expect(envelope.payload, event._tag).not.toHaveProperty('causationId')
+      expect(envelope.payload, event._tag).not.toHaveProperty('commandId')
+      expect(
+        () =>
+          validateEventPayload(
+            envelope.eventType,
+            envelope.eventVersion,
+            envelope.payload,
+          ),
+        event._tag,
+      ).not.toThrow()
+    }
   })
 
   it('keeps fact-authored identifiers ahead of ambient context', () => {

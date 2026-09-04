@@ -13,7 +13,7 @@
 // Job name remains eventType; job ID remains the outbox event UUID (dedup).
 
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
-import { extractAggregateId } from './event-adapter'
+import { extractAggregateId, withoutEnvelopeIdentifiers } from './event-adapter'
 import { sanitizeIdentityInvitationQueuePayload } from './identity-invitation-fact-contract'
 import { dataCellById, type DataCellId } from '#/shared/domain/data-cell-catalogue'
 
@@ -113,6 +113,7 @@ export function buildConsumerEvent(
     event.eventVersion,
     event.payload,
   )
+  const consumerPayload = withoutEnvelopeIdentifiers(durablePayload)
   const { type: aggregateType } = extractAggregateId(payload, event.id)
   // Rows committed before ARC-01 carry neither identifier. Their durable event
   // id is the stable compatibility fallback; new writes supply execution
@@ -124,7 +125,7 @@ export function buildConsumerEvent(
     eventId: event.id,
     eventType: event.eventType,
     eventVersion: event.eventVersion,
-    payload: durablePayload,
+    payload: consumerPayload,
     organizationId: event.organizationId,
     propertyId: event.propertyId,
     sourceContext: event.sourceContext,

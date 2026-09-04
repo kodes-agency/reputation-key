@@ -230,6 +230,9 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'getAuthorizationUrl',
       'redeemState',
     ])
+    expect(
+      Object.keys(container.integrationPublicApi.imports.transact ?? {}).sort(),
+    ).toEqual(['cancel', 'recover', 'retry', 'start', 'status'])
     expect(Object.keys(container.integrationMaintenanceRuntime).sort()).toEqual([
       'imports',
       'subscribeNotifications',
