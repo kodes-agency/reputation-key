@@ -50,6 +50,19 @@ describe('settlePortalVisit', () => {
     expect(attempt).toHaveBeenCalledTimes(2)
   })
 
+  it('records when browser storage itself is unavailable', async () => {
+    const attempt = vi.fn(async () => 'recorded' as const)
+
+    await settlePortalVisitOnce({
+      storage: null,
+      scopeKey: 'portal-token',
+      sessionKey: 'session-a',
+      onPortalVisit: attempt,
+    })
+
+    expect(attempt).toHaveBeenCalledOnce()
+  })
+
   it('does not let a stale completion suppress a replacement signed session', async () => {
     const values = new Map<string, string>()
     const storage = {
