@@ -15,12 +15,12 @@ type RequestMiddlewareRunner = (input: {
   }>
 }) => Promise<RequestResult> | RequestResult
 
-async function invokeFirstRequestMiddleware(
+async function invokeCsrfRequestMiddleware(
   request: Request,
   handlerType: 'serverFn' | 'router' = 'serverFn',
 ) {
   const options = await startInstance.getOptions()
-  const middleware = options.requestMiddleware?.[0]
+  const middleware = options.requestMiddleware?.[1]
   if (!middleware?.options.server) throw new Error('request middleware is not wired')
   const next = vi.fn(async () => ({
     request,
@@ -53,7 +53,7 @@ describe('TanStack Start request CSRF boundary', () => {
   it.each(['cross-site', 'same-site'])(
     'rejects %s server-function requests before the handler',
     async (secFetchSite) => {
-      const { result, next } = await invokeFirstRequestMiddleware(
+      const { result, next } = await invokeCsrfRequestMiddleware(
         serverFnRequest({ 'Sec-Fetch-Site': secFetchSite }),
       )
 
@@ -65,7 +65,7 @@ describe('TanStack Start request CSRF boundary', () => {
 
   it('allows a same-origin server-function request', async () => {
     // @proof SERVER_FN_CSRF#2
-    const { result, next } = await invokeFirstRequestMiddleware(
+    const { result, next } = await invokeCsrfRequestMiddleware(
       serverFnRequest({ 'Sec-Fetch-Site': 'same-origin' }),
     )
 
@@ -75,7 +75,7 @@ describe('TanStack Start request CSRF boundary', () => {
 
   it('rejects a sibling-subdomain Origin when Fetch Metadata is absent', async () => {
     // @proof SERVER_FN_CSRF#3
-    const { result, next } = await invokeFirstRequestMiddleware(
+    const { result, next } = await invokeCsrfRequestMiddleware(
       serverFnRequest({ Origin: 'https://attacker.repkey.example' }),
     )
 
@@ -85,7 +85,7 @@ describe('TanStack Start request CSRF boundary', () => {
   })
 
   it('rejects server-function requests with no origin evidence', async () => {
-    const { result, next } = await invokeFirstRequestMiddleware(serverFnRequest())
+    const { result, next } = await invokeCsrfRequestMiddleware(serverFnRequest())
 
     expect(result).toBeInstanceOf(Response)
     expect((result as Response).status).toBe(403)
@@ -93,7 +93,7 @@ describe('TanStack Start request CSRF boundary', () => {
   })
 
   it('does not apply the server-function policy to page rendering', async () => {
-    const { result, next } = await invokeFirstRequestMiddleware(
+    const { result, next } = await invokeCsrfRequestMiddleware(
       serverFnRequest({ 'Sec-Fetch-Site': 'cross-site' }),
       'router',
     )

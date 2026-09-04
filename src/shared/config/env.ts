@@ -142,6 +142,12 @@ const baseEnvSchema = z.object({
   // production Data Cell requires a Germany-ingestion DSN at the monitoring
   // preload boundary (shared/observability/telemetry.ts).
   SENTRY_DSN: z.url().optional(),
+  // Optional source-map upload inputs. Railway exposes build variables to the
+  // process environment too, but application runtime behavior never depends on
+  // these values.
+  SENTRY_AUTH_TOKEN: z.string().min(1).optional(),
+  SENTRY_ORG: z.string().min(1).optional(),
+  SENTRY_PROJECT: z.string().min(1).optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
 
   // Guest sessions — required in production, dev-only default for convenience

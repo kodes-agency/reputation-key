@@ -471,6 +471,20 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
     }
   })
 
+  it('keeps Sentry source-map build inputs on the web service only', () => {
+    const web = resource(definition, 'service', 'web') as ServiceNode
+    const worker = resource(definition, 'service', 'worker') as ServiceNode
+
+    for (const name of ['SENTRY_AUTH_TOKEN', 'SENTRY_ORG', 'SENTRY_PROJECT'] as const) {
+      expect(APPLICATION_SHARED_VARIABLES).not.toContain(name)
+      expect(web.variables?.[name]).toEqual({
+        type: 'sharedReference',
+        name,
+      })
+      expect(worker.variables).not.toHaveProperty(name)
+    }
+  })
+
   it('pins the cell identity, database, Redis split, and bucket references', () => {
     const web = resource(definition, 'service', 'web') as ServiceNode
     const worker = resource(definition, 'service', 'worker') as ServiceNode

@@ -4,6 +4,10 @@ import {
   createMiddleware,
   createStart,
 } from '@tanstack/react-start'
+import {
+  sentryGlobalFunctionMiddleware,
+  sentryGlobalRequestMiddleware,
+} from '@sentry/tanstackstart-react'
 import { getSecurityHeaders } from '#/shared/security/security-headers'
 // Policy administration is an operator-facing server surface rather than a
 // route component. Import it here so its createServerFn handlers are present
@@ -50,5 +54,6 @@ const cspNonceMiddleware = createMiddleware({ type: 'request' }).server(
 )
 
 export const startInstance = createStart(() => ({
-  requestMiddleware: [csrfMiddleware, cspNonceMiddleware],
+  requestMiddleware: [sentryGlobalRequestMiddleware, csrfMiddleware, cspNonceMiddleware],
+  functionMiddleware: [sentryGlobalFunctionMiddleware],
 }))

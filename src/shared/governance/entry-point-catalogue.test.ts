@@ -87,6 +87,7 @@ function serverFnFiles(): string[] {
   return [
     ...contextServerFiles(),
     join(ROOT, 'src/shared/auth/auth.functions.ts'),
+    join(ROOT, 'src/shared/observability/browser-observability.server.ts'),
     ...routeHelperFiles(),
   ].sort()
 }
@@ -724,9 +725,9 @@ describe('BQC-2.1 entry-point catalogue', () => {
         ),
       ),
     }).toEqual({
-      full: '403108ebecbb15680089678722be51d2ee9586fe5cebcbd6cfc7962010d344e5',
+      full: 'd0cf47ab1dc93a01fa6fac568f7ffc29e9110f92bf0a85900298a3cb30c5f2c9',
       withoutOutboxConsumers:
-        '8cb526b464016d3ca03ed912c4892895155061056e661d0b3fdbb0c0ef490441',
+        '8814e01dd7d8cfc1271e424bcb54c0e94cbc702098fd0c676191cef0658462d3',
     })
 
     const invalid = {
