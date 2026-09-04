@@ -43,16 +43,21 @@ describe('Google sidecar production artifacts', () => {
   })
 
   it('builds, smoke-checks, digests, inventories, and scans both images in CI', () => {
+    // The ten image evidence chains run as one matrix, so the build, SBOM and
+    // scan steps name `matrix.image.*` instead of each tag. Both halves are
+    // still pinned: each Google image must be a matrix ROW (tag + dockerfile),
+    // and the shared steps must cover every row.
     for (const image of GOOGLE_IMAGES) {
-      expect(ci).toContain(`-t ${image}`)
+      expect(ci).toContain(`tag: ${image}`)
       expect(ci).toContain(`docker image inspect ${image}`)
-      expect(ci).toContain(`image: ${image}`)
     }
+    expect(ci).toContain('dockerfile: Dockerfile.google-execution-admission')
+    expect(ci).toContain('dockerfile: Dockerfile.google-egress-gateway')
+    expect(ci).toContain('-t "${{ matrix.image.tag }}"')
+    expect(ci).toContain('image: ${{ matrix.image.tag }}')
+    expect(ci).toContain('output-file: sbom-${{ matrix.image.name }}.spdx.json')
+    expect(ci).toContain('sbom: sbom-${{ matrix.image.name }}.spdx.json')
     expect(ci).toContain('dist-google-execution-admission')
     expect(ci).toContain('dist-google-egress-gateway')
-    expect(ci).toContain('sbom-google-execution-admission.spdx.json')
-    expect(ci).toContain('sbom-google-egress-gateway.spdx.json')
-    expect(ci).toContain('Vulnerability scan Google execution admission image')
-    expect(ci).toContain('Vulnerability scan Google egress gateway image')
   })
 })
