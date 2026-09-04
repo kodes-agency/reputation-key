@@ -110,6 +110,31 @@ export async function settlePortalVisitOnce({
   }
 }
 
+export async function settlePortalVisitFromStorage({
+  getStorage = () => sessionStorage,
+  scopeKey,
+  sessionKey,
+  onPortalVisit,
+}: Readonly<{
+  getStorage?: () => PortalVisitStorage
+  scopeKey: string
+  sessionKey: string
+  onPortalVisit: GuestAnalyticsNoticeProps['onPortalVisit']
+}>): Promise<void> {
+  let storage: PortalVisitStorage | null = null
+  try {
+    storage = getStorage()
+  } catch {
+    // Accessing the Storage object itself can throw in hardened browsers.
+  }
+  await settlePortalVisitOnce({
+    storage,
+    scopeKey,
+    sessionKey,
+    onPortalVisit,
+  })
+}
+
 /**
  * Disclosure for the portal's core visit analytics. Acknowledgement controls only
  * whether the notice is shown again; it never enables or disables measurement.
@@ -133,14 +158,7 @@ export function GuestAnalyticsNotice({
   const recordPortalVisit = useCallback(() => {
     if (notifiedThisMount.current) return
     notifiedThisMount.current = true
-    let storage: PortalVisitStorage | null = null
-    try {
-      storage = sessionStorage
-    } catch {
-      // Accessing the Storage object itself can throw in hardened browsers.
-    }
-    void settlePortalVisitOnce({
-      storage,
+    void settlePortalVisitFromStorage({
       scopeKey,
       sessionKey,
       onPortalVisit,
