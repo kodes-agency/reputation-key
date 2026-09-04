@@ -40,6 +40,8 @@ export function startErrorMessage(error: unknown): string {
       return 'One or more selected locations expired. Return to locations and rediscover them.'
     case 'unauthorized':
       return 'Your import permission changed before the request could be committed.'
+    case 'contract_rejected':
+      return 'The import could not start because of an internal validation error. Contact support; this request cannot be retried.'
     default:
       return 'The import request could not be confirmed. Recover it before trying again.'
   }

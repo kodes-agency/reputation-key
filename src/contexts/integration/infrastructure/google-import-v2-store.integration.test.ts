@@ -178,7 +178,10 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
           batch.ordinal === 0 ? { ...batch, items: batch.items.slice(0, 99) } : batch,
         ),
       }),
-    ).rejects.toThrow('invalid Google import saga batch plan')
+    ).rejects.toMatchObject({
+      code: 'contract_rejected',
+      message: 'invalid Google import saga batch plan',
+    })
     await expect(store.commitSaga(saga)).resolves.toBe('committed')
     await expect(store.commitSaga(saga)).resolves.toBe('conflict')
     await expect(store.findReplay(ORG_ID, clientRequestId)).resolves.toMatchObject({

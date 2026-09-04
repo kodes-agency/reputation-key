@@ -25,6 +25,10 @@ import {
   type GoogleImportV2ClaimedItem,
   type GoogleImportV2Store,
 } from './ports/google-import-v2-store.port'
+import {
+  googleImportErrorCode,
+  isTransientGoogleImportInfrastructureError,
+} from './google-import-error-taxonomy'
 
 export type ProcessGoogleImportV2Item = Readonly<{
   organizationId: string
@@ -52,50 +56,6 @@ type ImportFollowUpTarget = Readonly<{
   accountId: string
   locationId: string
 }>
-type CodedError = Readonly<{ code: string }>
-
-function errorCode(error: unknown): string | null {
-  return typeof error === 'object' && error !== null && 'code' in error
-    ? String((error as CodedError).code)
-    : null
-}
-
-/**
- * Infrastructure saturation, not a domain outcome. `propertyOutcome` returns
- * null for these so the caller releases the claim and retries the attempt —
- * they must NEVER be reported to the tenant as `internal_error`.
- *
- * pg-pool's acquisition timeout carries no `code` at all, so it is only
- * recognizable by message; the SQLSTATEs cover a saturated server, a
- * `lock_timeout` expiry and a session killed by
- * `idle_in_transaction_session_timeout` (see #/shared/db/pool).
- */
-const TRANSIENT_INFRASTRUCTURE_CODES: Readonly<Record<string, true>> = {
-  '08000': true, // connection_exception
-  '08003': true, // connection_does_not_exist
-  '08006': true, // connection_failure
-  '25P03': true, // idle_in_transaction_session_timeout
-  '40001': true, // serialization_failure
-  '40P01': true, // deadlock_detected
-  '53300': true, // too_many_connections
-  '53400': true, // configuration_limit_exceeded
-  '55P03': true, // lock_not_available (lock_timeout)
-  '57014': true, // query_canceled (statement_timeout)
-  '57P01': true, // admin_shutdown
-}
-
-const TRANSIENT_INFRASTRUCTURE_MESSAGE_RE =
-  /timeout exceeded when trying to connect|connection terminated|too many clients|connection is closed/i
-
-function isTransientInfrastructureError(error: unknown): boolean {
-  const code = errorCode(error)
-  if (code !== null && TRANSIENT_INFRASTRUCTURE_CODES[code] === true) return true
-  const message =
-    typeof error === 'object' && error !== null && 'message' in error
-      ? (error as Readonly<{ message: unknown }>).message
-      : null
-  return typeof message === 'string' && TRANSIENT_INFRASTRUCTURE_MESSAGE_RE.test(message)
-}
 
 function propertyOutcome(error: unknown): ImportOutcomeCode | null {
   // Explicit BEFORE the domain switch: pool exhaustion and lock/session
@@ -103,8 +63,8 @@ function propertyOutcome(error: unknown): ImportOutcomeCode | null {
   // them on the `default` fallthrough made their transient handling
   // accidental. Naming them keeps a future default-case change from turning a
   // saturated pool into a permanent tenant-visible failure.
-  if (isTransientInfrastructureError(error)) return null
-  switch (errorCode(error)) {
+  if (isTransientGoogleImportInfrastructureError(error)) return null
+  switch (googleImportErrorCode(error)) {
     case 'location_already_bound':
       return 'already_exists'
     case 'active_binding_conflict':
@@ -274,7 +234,7 @@ export function createGoogleImportV2Processor(
         {
           itemId,
           errorName: error instanceof Error ? error.name : 'unknown',
-          errorCode: errorCode(error),
+          errorCode: googleImportErrorCode(error),
         },
         'GBP notification subscribe failed after import — push stays dark for this account until ops:gbp-subscribe runs; discovery sweep unaffected',
       )
@@ -513,7 +473,7 @@ export function createGoogleImportV2Processor(
                   {
                     itemId: item.itemId,
                     errorName: error instanceof Error ? error.name : 'unknown',
-                    errorCode: errorCode(error),
+                    errorCode: googleImportErrorCode(error),
                   },
                   'Google import property capability provisioning failed',
                 )
@@ -591,7 +551,7 @@ export function createGoogleImportV2Processor(
           attemptOrdinal: item.attemptOrdinal,
           retryRevision: item.retryRevision,
           errorName: error instanceof Error ? error.name : 'unknown',
-          errorCode: errorCode(error),
+          errorCode: googleImportErrorCode(error),
           outcome: outcome ?? 'transient',
         },
         'Google import item effect failed',
