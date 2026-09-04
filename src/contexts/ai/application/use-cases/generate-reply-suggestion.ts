@@ -443,6 +443,7 @@ export function createGenerateReplySuggestion(
     try {
       const execution = await dependencies.operations.claimExecution({
         operationId: claimed.operation.id,
+        organizationId: input.organizationId,
         expectedAttempt,
         nowEpochMillis,
       })
@@ -491,6 +492,7 @@ export function createGenerateReplySuggestion(
         )
         await dependencies.operations.recordFailure({
           operationId: execution.id,
+          organizationId: input.organizationId,
           expectedAttempt,
           failureCode: response.code,
           retryAtEpochMillis,
@@ -554,6 +556,7 @@ export function createGenerateReplySuggestion(
       }
       await dependencies.operations.markDelivered({
         operationId: execution.id,
+        organizationId: input.organizationId,
         expectedAttempt,
         deliveredAtEpochMillis: dependencies.nowEpochMillis(),
       })

@@ -69,38 +69,10 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
   },
   {
     file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
-    symbol: 'claimExecution',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts:554 — the port supplies only an operation UUID and attempt fence; propagate organization identity through the execution claim contract.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
     symbol: 'listExpiredExecutions',
     reason:
       'The bounded abandoned-execution sweep intentionally scans all tenants and every candidate is rechecked by an exact operation-attempt CAS before mutation.',
     category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
-    symbol: 'markDelivered',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts:720 — the delivery contract supplies only an operation UUID and attempt; propagate organization identity to the terminal CAS.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
-    symbol: 'read',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts:516 — the read port supplies operation UUID and command but no organization; propagate tenant identity from the calling execution context.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
-    symbol: 'recordFailure',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts:621 — failure settlement is keyed by operation UUID and attempt only; add organization identity to the port and every caller.',
-    category: 'UNSCOPED-PENDING',
   },
   {
     file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts',
@@ -108,34 +80,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     reason:
       'The globally unique event-envelope receipt is the idempotency authority and discovers the already-persisted lifecycle and enrollment rows for a replay.',
     category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts',
-    symbol: 'linkedReplayOutcome',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts:1249 — reconciliation receives only enrollment identity; thread organization identity through the replay lookup.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts',
-    symbol: 'markSuperseded',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts:1870 — the authorization fence omits organization identity; extend the enrollment terminal-write contract.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts',
-    symbol: 'markTerminal',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts:1095 — this helper receives enrollment identity only; pass organization identity from its reconciliation callers.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts',
-    symbol: 'readEnrollmentForUpdate',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts:1082 — the lock helper accepts only enrollment UUID; propagate organization identity from the enrollment workflow.',
-    category: 'UNSCOPED-PENDING',
   },
   {
     file: 'src/contexts/goal/infrastructure/repositories/goal-program.repository.ts',
@@ -215,27 +159,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts',
-    symbol: 'lockPermit',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/identity/infrastructure/repositories/google-content-authority.repository.ts:537 — the lock helper accepts only permit UUID; pass organization identity from the permit workflow.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/inbox/infrastructure/feedback-handling.store.ts',
-    symbol: 'historyFor',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/inbox/infrastructure/feedback-handling.store.ts:221 — the history helper receives inbox item and cycle identifiers only; propagate organization identity from the handling command.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/inbox/infrastructure/handling-cycle-transitions.read.ts',
-    symbol: 'selectCycleCloseReason',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/inbox/infrastructure/handling-cycle-transitions.read.ts:39 — the transition helper receives inbox item and cycle identifiers only; add organization identity to its reader contract.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
     file: 'src/contexts/inbox/infrastructure/migrations/null-inbox-source-copies.ts',
     symbol: 'nullInboxSourceCopies',
     reason:
@@ -306,13 +229,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/metric/infrastructure/repositories/property-local-date.ts',
-    symbol: 'createPropertyLocalDateResolver',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/metric/infrastructure/repositories/property-local-date.ts:23 — the resolver accepts property UUID only; propagate organization identity from metric projection callers.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
     file: 'src/contexts/notification/infrastructure/repositories/notification-gap.repository.ts',
     symbol: 'countItemsMissingNotifications',
     reason:
@@ -363,31 +279,10 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
   },
   {
     file: 'src/contexts/property/infrastructure/property-erase-command-store.ts',
-    symbol: 'confirm',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/property/infrastructure/property-erase-command-store.ts:170 — confirmation receives only authority UUID; propagate organization identity through the erase command contract.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/property/infrastructure/property-erase-command-store.ts',
-    symbol: 'load',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/property/infrastructure/property-erase-command-store.ts:121 — authority loading accepts only authority UUID; require organization identity from callers.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/property/infrastructure/property-erase-command-store.ts',
     symbol: 'nextAdvanceable',
     reason:
       'The globally serialized erase worker intentionally claims exactly one advanceable authority across tenants and returns its complete tenant identity.',
     category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/property/infrastructure/property-erase-command-store.ts',
-    symbol: 'recordPreview',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/property/infrastructure/property-erase-command-store.ts:150 — preview recording receives only authority UUID; propagate organization identity through the erase command contract.',
-    category: 'UNSCOPED-PENDING',
   },
   {
     file: 'src/contexts/property/infrastructure/property-google-binding-store.ts',
@@ -407,15 +302,8 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     file: 'src/contexts/property/infrastructure/property-routing.adapter.ts',
     symbol: 'createPropertyRoutingLoader',
     reason:
-      'UNSCOPED-PENDING: src/contexts/property/infrastructure/property-routing.adapter.ts:20 — routing resolution accepts only property UUID; propagate organization identity from every routing caller.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/property/infrastructure/repositories/property.repository.ts',
-    symbol: 'findBySlug',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/property/infrastructure/repositories/property.repository.ts:204 — slugs are unique only within an organization; require organization identity at the repository boundary.',
-    category: 'UNSCOPED-PENDING',
+      'data-cell routing resolves the cell before any tenant scope is trusted (router port is id-only by contract, adapter :12-14); the organization-scoped variant is property-region-loader.ts',
+    category: 'LEGITIMATE-GLOBAL',
   },
   {
     file: 'src/contexts/property/infrastructure/repositories/reconcile-regions.repository.ts',
@@ -433,45 +321,10 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
   },
   {
     file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
-    symbol: 'beginConfirmationScan',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts:1029 — the snapshot phase contract supplies run UUID only; propagate organization identity from the orchestrator.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
-    symbol: 'commitPage',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts:782 — page commits supply run UUID but no organization identity; extend the snapshot commit contract.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
     symbol: 'expireRawSourceBatch',
     reason:
       'The bounded compatibility lifecycle read intentionally translates a global review-expiry cursor before delegating to the canonical purge authority.',
     category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
-    symbol: 'failRun',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts:1144 — failure settlement supplies run UUID only; propagate organization identity through the repository port.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
-    symbol: 'finishConfirmationScan',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts:1060 — confirmation completion supplies run UUID only; propagate organization identity from the orchestrator.',
-    category: 'UNSCOPED-PENDING',
-  },
-  {
-    file: 'src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts',
-    symbol: 'recordCandidateObservation',
-    reason:
-      'UNSCOPED-PENDING: src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts:999 — candidate observation supplies run UUID and provider review only; carry organization identity in the port input.',
-    category: 'UNSCOPED-PENDING',
   },
   {
     file: 'src/contexts/review/infrastructure/repositories/review.repository.ts',

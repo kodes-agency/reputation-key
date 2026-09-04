@@ -4,6 +4,7 @@ import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import {
   organizationId as toOrganizationId,
   propertyId as toPropertyId,
+  type OrganizationId,
 } from '#/shared/domain/ids'
 import {
   MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
@@ -1082,11 +1083,13 @@ async function applyAuthorizationLifecycle(
 async function readEnrollmentForUpdate(
   tx: Tx,
   enrollmentId: string,
+  organizationId: OrganizationId,
 ): Promise<Row | null> {
   const result = await tx.execute(sql`
     SELECT *
     FROM ai_review_analysis_enrollments
     WHERE id = ${enrollmentId}::uuid
+      AND organization_id = ${organizationId}
     FOR UPDATE
   `)
   return (result.rows[0] as Row | undefined) ?? null
@@ -1096,6 +1099,7 @@ async function markTerminal(
   tx: Tx,
   input: Readonly<{
     enrollmentId: string
+    organizationId: OrganizationId
     state: 'superseded' | 'stalled'
     reason: string
     occurredAt: Date
@@ -1106,6 +1110,7 @@ async function markTerminal(
     SET state = ${input.state}, terminal_reason = ${input.reason},
         terminal_at = ${input.occurredAt}, updated_at = ${input.occurredAt}
     WHERE id = ${input.enrollmentId}::uuid
+      AND organization_id = ${input.organizationId}
       AND state IN ('awaiting_assisted_approval', 'queued', 'running')
   `)
 }
@@ -1192,6 +1197,7 @@ async function supersededByScopeChange(
   ) {
     await markTerminal(tx, {
       enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
       state: 'superseded',
       reason: 'property_inactive',
       occurredAt: input.occurredAt,
@@ -1204,6 +1210,7 @@ async function supersededByScopeChange(
   ) {
     await markTerminal(tx, {
       enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
       state: 'superseded',
       reason: 'source_epoch_changed',
       occurredAt: input.occurredAt,
@@ -1232,6 +1239,7 @@ async function supersededByScopeChange(
   ) {
     await markTerminal(tx, {
       enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
       state: 'superseded',
       reason: 'authorization_changed',
       occurredAt: input.occurredAt,
@@ -1255,6 +1263,8 @@ async function linkedReplayOutcome(
     FROM ai_review_analysis_enrollment_replays AS replay
     JOIN ai_review_analysis_backfill_runs AS run ON run.id = replay.run_id
     WHERE replay.enrollment_id = ${input.enrollmentId}::uuid
+      AND replay.organization_id = ${input.organizationId}
+      AND run.organization_id = ${input.organizationId}
     ORDER BY replay.created_at DESC, replay.run_id DESC
     LIMIT 1
     FOR UPDATE OF run
@@ -1264,6 +1274,7 @@ async function linkedReplayOutcome(
   if (linkedRun?.state === 'stalled') {
     await markTerminal(tx, {
       enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
       state: 'stalled',
       reason: 'replay_stalled',
       occurredAt: input.occurredAt,
@@ -1273,6 +1284,7 @@ async function linkedReplayOutcome(
   if (linkedRun?.state === 'superseded') {
     await markTerminal(tx, {
       enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
       state: 'superseded',
       reason: 'replay_superseded',
       occurredAt: input.occurredAt,
@@ -1288,7 +1300,11 @@ async function reconcile(
   idGen: () => string,
 ): Promise<ReviewAnalysisEnrollmentReconcileResult> {
   return db.transaction(async (tx) => {
-    const enrollment = await readEnrollmentForUpdate(tx, input.enrollmentId)
+    const enrollment = await readEnrollmentForUpdate(
+      tx,
+      input.enrollmentId,
+      input.organizationId,
+    )
     if (!enrollment) {
       return { status: 'stalled', reason: 'verification_inconsistent' }
     }
@@ -1432,6 +1448,7 @@ async function reconcile(
     if (failedCount > 0) {
       await markTerminal(tx, {
         enrollmentId: input.enrollmentId,
+        organizationId: input.organizationId,
         state: 'stalled',
         reason: 'eligible_revision_terminal_without_analysis',
         occurredAt: input.occurredAt,
@@ -1526,6 +1543,7 @@ async function startEnrollmentReplay(
   if (unenrolledCount > 2_147_483_647) {
     await markTerminal(tx, {
       enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
       state: 'stalled',
       reason: 'eligible_revision_count_unsafe',
       occurredAt: input.occurredAt,
@@ -1697,6 +1715,7 @@ async function assistedApprovalScopeRefusal(
   if (!property || !propertyIsActive(property)) {
     await markTerminal(tx, {
       enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
       state: 'superseded',
       reason: 'property_inactive',
       occurredAt: input.occurredAt,
@@ -1727,6 +1746,7 @@ async function assistedApprovalScopeRefusal(
   ) {
     await markTerminal(tx, {
       enrollmentId: input.enrollmentId,
+      organizationId: input.organizationId,
       state: 'superseded',
       reason: 'authorization_changed',
       occurredAt: input.occurredAt,
@@ -1798,7 +1818,11 @@ export const createReviewAnalysisEnrollmentAdapter = (
 
     async approveAssistedReplay(input) {
       return db.transaction(async (tx) => {
-        const enrollment = await readEnrollmentForUpdate(tx, input.enrollmentId)
+        const enrollment = await readEnrollmentForUpdate(
+          tx,
+          input.enrollmentId,
+          input.organizationId,
+        )
         if (!enrollment) {
           return { status: 'refused', reason: 'enrollment_not_found' }
         }
@@ -1873,6 +1897,7 @@ export const createReviewAnalysisEnrollmentAdapter = (
         SET state = 'superseded', terminal_reason = ${input.reason},
             terminal_at = ${input.occurredAt}, updated_at = ${input.occurredAt}
         WHERE id = ${input.enrollmentId}::uuid
+          AND organization_id = ${input.organizationId}
           AND authorization_lineage_id = ${input.expectedFence.authorizationLineageId}::uuid
           AND authorization_state_version = ${input.expectedFence.authorizationStateVersion}
           AND source_epoch = ${input.expectedFence.sourceEpoch}

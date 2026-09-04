@@ -161,11 +161,12 @@ export async function previewPropertyErase(
   deps: ErasePropertyDeps,
   input: Readonly<{
     authorityId: string
+    organizationId: string
     retentionPreviewRef: string
     exportEvidenceRef?: string
   }>,
 ): Promise<PropertyErasePreview> {
-  const authority = await loadAuthority(deps, input.authorityId)
+  const authority = await loadAuthority(deps, input.authorityId, input.organizationId)
   assertValidPropertyEraseTransition(authority.state, 'previewed')
 
   const scope = {
@@ -196,6 +197,7 @@ export async function previewPropertyErase(
   const inventoryDigest = propertyEraseInventoryDigest(inventory)
   const updated = await deps.store.recordPreview({
     authorityId: authority.id,
+    organizationId: authority.organizationId,
     inventoryRevision,
     inventoryDigest,
     retentionPreviewRef: input.retentionPreviewRef,
@@ -223,12 +225,13 @@ export async function confirmPropertyErase(
   deps: ErasePropertyDeps,
   input: Readonly<{
     authorityId: string
+    organizationId: string
     typedConfirmation: string
     inventoryRevision: number
     graceMs: number
   }>,
 ): Promise<PropertyEraseAuthority> {
-  const authority = await loadAuthority(deps, input.authorityId)
+  const authority = await loadAuthority(deps, input.authorityId, input.organizationId)
   assertValidPropertyEraseTransition(authority.state, 'confirmed')
   if (
     authority.inventoryDigest === undefined ||
@@ -256,6 +259,7 @@ export async function confirmPropertyErase(
   const now = deps.now()
   return deps.store.confirm({
     authorityId: authority.id,
+    organizationId: authority.organizationId,
     // The digest binds the confirmation to the phrase without storing what was
     // typed; the phrase names the Property, so it cannot be reused elsewhere.
     confirmationDigest: createHash('sha256')
@@ -275,9 +279,9 @@ export async function confirmPropertyErase(
  */
 export async function cancelPropertyErase(
   deps: ErasePropertyDeps,
-  input: Readonly<{ authorityId: string; reasonCode: string }>,
+  input: Readonly<{ authorityId: string; organizationId: string; reasonCode: string }>,
 ): Promise<PropertyEraseAuthority> {
-  const authority = await loadAuthority(deps, input.authorityId)
+  const authority = await loadAuthority(deps, input.authorityId, input.organizationId)
   assertValidPropertyEraseTransition(authority.state, 'cancelled')
   return deps.store.transition({
     authorityId: authority.id,
@@ -291,8 +295,9 @@ export async function cancelPropertyErase(
 async function loadAuthority(
   deps: ErasePropertyDeps,
   authorityId: string,
+  organizationId: string,
 ): Promise<PropertyEraseAuthority> {
-  const authority = await deps.store.load(authorityId)
+  const authority = await deps.store.load(authorityId, organizationId)
   if (!authority) {
     throw propertyEraseError('authority_not_found', 'Property erase authority not found')
   }

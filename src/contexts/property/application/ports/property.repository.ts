@@ -30,8 +30,6 @@ export type PropertyRepository = Readonly<{
     orgId?: OrganizationId,
   ) => Promise<Property | null>
 
-  /** Find a non-deleted property by its slug (public-facing, no orgId). */
-  findBySlug: (slug: string) => Promise<Property | null>
   /** Find IDs of non-deleted properties linked to a Google connection within an org. */
   findIdsByGoogleConnection: (
     connectionId: GoogleConnectionId,

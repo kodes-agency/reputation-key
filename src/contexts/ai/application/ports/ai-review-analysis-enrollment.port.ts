@@ -294,6 +294,7 @@ export type ReviewAnalysisEnrollmentStorePort = Readonly<{
   reconcile(
     input: Readonly<{
       enrollmentId: string
+      organizationId: OrganizationId
       expectedFence: ReviewAnalysisEnrollmentFence
       correlationId: string
       occurredAt: Date
@@ -303,6 +304,7 @@ export type ReviewAnalysisEnrollmentStorePort = Readonly<{
   approveAssistedReplay(
     input: Readonly<{
       enrollmentId: string
+      organizationId: OrganizationId
       expectedFence: ReviewAnalysisEnrollmentFence
       approvedByOperatorId: string
       approvalEvidenceDigest: string
@@ -314,6 +316,7 @@ export type ReviewAnalysisEnrollmentStorePort = Readonly<{
   markSuperseded(
     input: Readonly<{
       enrollmentId: string
+      organizationId: OrganizationId
       expectedFence: ReviewAnalysisEnrollmentFence
       reason: 'authorization_changed' | 'source_epoch_changed' | 'property_inactive'
       occurredAt: Date

@@ -108,10 +108,15 @@ const toState = (
  */
 async function closeReasonFor(
   tx: TransitionReader,
-  inboxItemIdValue: string,
+  inboxItemId: string,
+  organizationId: string,
   cycleNumber: number,
 ): Promise<FeedbackHandlingState['closeReason']> {
-  const reason = await selectCycleCloseReason(tx, inboxItemIdValue, cycleNumber)
+  const reason = await selectCycleCloseReason(tx, {
+    inboxItemId,
+    organizationId,
+    cycleNumber,
+  })
   return (reason as FeedbackHandlingState['closeReason']) ?? null
 }
 
@@ -222,6 +227,7 @@ async function historyFor(
   tx: Pick<Database, 'select'> | Tx,
   inboxItemIdValue: string,
   cycleNumber: number,
+  organizationId: string,
 ): Promise<FeedbackHandlingOutcomeFact[]> {
   const rows = await tx
     .select()
@@ -229,6 +235,7 @@ async function historyFor(
     .where(
       and(
         eq(inboxFeedbackHandlingOutcomes.inboxItemId, inboxItemIdValue),
+        eq(inboxFeedbackHandlingOutcomes.organizationId, organizationId),
         eq(inboxFeedbackHandlingOutcomes.cycleNumber, cycleNumber),
       ),
     )
@@ -286,8 +293,8 @@ export const createFeedbackHandlingStore = (
         const head = headFromRow(row)
         return toState(
           head,
-          await historyFor(db, itemId, head.currentCycleNumber),
-          await closeReasonFor(db, itemId, head.currentCycleNumber),
+          await historyFor(db, itemId, head.currentCycleNumber, orgId),
+          await closeReasonFor(db, itemId, orgId, head.currentCycleNumber),
         )
       }),
 
@@ -301,8 +308,14 @@ export const createFeedbackHandlingStore = (
           if (
             locked.item.status !== 'open' ||
             locked.head.status !== 'open' ||
-            (await historyFor(tx, locked.item.id, locked.head.currentCycleNumber))
-              .length > 0
+            (
+              await historyFor(
+                tx,
+                locked.item.id,
+                locked.head.currentCycleNumber,
+                locked.item.organizationId,
+              )
+            ).length > 0
           ) {
             throw conflict(locked.item, locked.head)
           }
@@ -502,6 +515,7 @@ export const createFeedbackHandlingStore = (
             tx,
             locked.item.id,
             locked.head.currentCycleNumber,
+            locked.item.organizationId,
           )
           return {
             item: itemFromRow(savedItem, command.item),

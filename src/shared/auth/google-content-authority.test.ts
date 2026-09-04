@@ -223,7 +223,16 @@ function createStore() {
     insertPermit: async (_tx, record) => {
       permits.set(record.permit.id, record)
     },
-    lockPermit: async (_tx, id) => permits.get(id) ?? null,
+    lockPermit: async (_tx, id, organizationId) => {
+      const record = permits.get(id)
+      if (
+        !record ||
+        (organizationId !== undefined && record.permit.organizationId !== organizationId)
+      ) {
+        return null
+      }
+      return record
+    },
     listElapsedAdmittedPermitIds: async (_tx, input) =>
       [...permits.values()]
         .filter(
@@ -580,7 +589,16 @@ describe('Google Content authorization authority', () => {
     expect(admitted.permit.startDeadlineAt).toEqual(new Date('2026-08-10T10:00:10.000Z'))
 
     await expect(
-      authority.start(admitted.permit.id, admissionInput().runtimeBinding),
+      authority.start(admitted.permit.id, 'other-org', admissionInput().runtimeBinding),
+    ).resolves.toEqual({ ok: false, code: 'permit_unavailable' })
+    expect(memory.permits.get('permit-1')?.permit.state).toBe('admitted')
+
+    await expect(
+      authority.start(
+        admitted.permit.id,
+        admissionInput().scope.organizationId,
+        admissionInput().runtimeBinding,
+      ),
     ).resolves.toMatchObject({ ok: true, permit: { state: 'started' } })
   })
 
@@ -639,7 +657,11 @@ describe('Google Content authorization authority', () => {
     if (!admitted.ok) throw new Error('expected publication admission')
 
     await expect(
-      authority.start(admitted.permit.id, publicationRuntime),
+      authority.start(
+        admitted.permit.id,
+        admitted.permit.organizationId,
+        publicationRuntime,
+      ),
     ).resolves.toMatchObject({ ok: true, permit: { state: 'started' } })
     expect(authorize).toHaveBeenLastCalledWith(
       {},
@@ -668,7 +690,11 @@ describe('Google Content authorization authority', () => {
     grantGeneration = 4
 
     await expect(
-      authority.start(admitted.permit.id, admissionInput().runtimeBinding),
+      authority.start(
+        admitted.permit.id,
+        admissionInput().scope.organizationId,
+        admissionInput().runtimeBinding,
+      ),
     ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
     expect(memory.permits.get('permit-1')?.permit.state).toBe('fenced')
   })
@@ -689,6 +715,7 @@ describe('Google Content authorization authority', () => {
     if (!admitted.ok) throw new Error('expected admission')
     const started = await authority.start(
       admitted.permit.id,
+      admissionInput().scope.organizationId,
       admissionInput().runtimeBinding,
     )
     if (!started.ok) throw new Error('expected start')
@@ -697,7 +724,11 @@ describe('Google Content authorization authority', () => {
     currentTime = operationDeadline
 
     await expect(
-      authority.complete(admitted.permit.id, admissionInput().runtimeBinding),
+      authority.complete(
+        admitted.permit.id,
+        admissionInput().scope.organizationId,
+        admissionInput().runtimeBinding,
+      ),
     ).resolves.toEqual({ ok: false, code: 'operation_deadline_elapsed' })
     expect(memory.permits.get('permit-1')?.permit.state).toBe('fenced')
   })

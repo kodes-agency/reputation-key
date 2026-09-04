@@ -44,6 +44,7 @@ export type PropertyEraseRequestInput = Readonly<{
 
 export type PropertyErasePreviewInput = Readonly<{
   authorityId: string
+  organizationId: string
   inventoryRevision: number
   inventoryDigest: string
   retentionPreviewRef: string
@@ -53,6 +54,7 @@ export type PropertyErasePreviewInput = Readonly<{
 
 export type PropertyEraseConfirmInput = Readonly<{
   authorityId: string
+  organizationId: string
   confirmationDigest: string
   /** The revision the admin was actually shown. */
   inventoryRevision: number
@@ -81,7 +83,10 @@ export type PropertyEraseContextReceipt = Readonly<{
 
 export type PropertyEraseCommandStore = Readonly<{
   request(input: PropertyEraseRequestInput): Promise<PropertyEraseAuthority>
-  load(authorityId: string): Promise<PropertyEraseAuthority | null>
+  load(
+    authorityId: string,
+    organizationId: string,
+  ): Promise<PropertyEraseAuthority | null>
   /** The single Property this pass may work on, or null. Bounded work. */
   nextAdvanceable(now: Date): Promise<PropertyEraseAuthority | null>
   recordPreview(input: PropertyErasePreviewInput): Promise<PropertyEraseAuthority>

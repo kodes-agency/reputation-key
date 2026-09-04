@@ -118,9 +118,14 @@ function build(
     return firstAuthority(result.rows, 'erase request')
   }
 
-  const load = async (authorityId: string): Promise<PropertyEraseAuthority | null> => {
+  const load = async (
+    authorityId: string,
+    organizationId: string,
+  ): Promise<PropertyEraseAuthority | null> => {
     const result = await runner.execute(sql`
-      SELECT * FROM property_erase_authorities WHERE id = ${authorityId}::uuid
+      SELECT * FROM property_erase_authorities
+      WHERE id = ${authorityId}::uuid
+        AND organization_id = ${organizationId}
     `)
     const row = result.rows[0] as AuthorityRow | undefined
     return row ? toAuthority(row) : null
@@ -160,6 +165,7 @@ function build(
           state_changed_at = ${input.occurredAt.toISOString()}::timestamptz,
           updated_at = ${input.occurredAt.toISOString()}::timestamptz
       WHERE id = ${input.authorityId}::uuid
+        AND organization_id = ${input.organizationId}
         AND state IN ('requested', 'previewed')
         AND inventory_revision < ${input.inventoryRevision}
       RETURNING *
@@ -179,6 +185,7 @@ function build(
           state_changed_at = ${input.occurredAt.toISOString()}::timestamptz,
           updated_at = ${input.occurredAt.toISOString()}::timestamptz
       WHERE id = ${input.authorityId}::uuid
+        AND organization_id = ${input.organizationId}
         AND state = 'previewed'
         AND inventory_revision = ${input.inventoryRevision}
       RETURNING *

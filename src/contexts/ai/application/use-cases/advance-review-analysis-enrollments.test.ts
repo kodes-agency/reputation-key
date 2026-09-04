@@ -175,6 +175,7 @@ describe('advance Review Analysis first-enablement enrollment', () => {
     expect(result.revisionsPinned).toBe(17)
     expect(test.reconcile).toHaveBeenCalledWith({
       enrollmentId: ENROLLMENT_ID,
+      organizationId: ORGANIZATION_ID,
       expectedFence: HEAD.fence,
       correlationId: ENROLLMENT_ID,
       occurredAt: NOW,
@@ -191,6 +192,7 @@ describe('advance Review Analysis first-enablement enrollment', () => {
     expect(result.enrollmentsSuperseded).toBe(1)
     expect(test.markSuperseded).toHaveBeenCalledWith({
       enrollmentId: ENROLLMENT_ID,
+      organizationId: ORGANIZATION_ID,
       expectedFence: HEAD.fence,
       reason: 'authorization_changed',
       occurredAt: NOW,

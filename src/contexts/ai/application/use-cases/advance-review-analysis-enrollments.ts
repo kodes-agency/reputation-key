@@ -96,6 +96,7 @@ export function createAdvanceReviewAnalysisEnrollments(
         if (moved !== null) {
           const superseded = await dependencies.enrollments.markSuperseded({
             enrollmentId: head.id,
+            organizationId: head.organizationId,
             expectedFence: head.fence,
             reason: moved,
             occurredAt: new Date(dependencies.nowEpochMillis()),
@@ -117,6 +118,7 @@ export function createAdvanceReviewAnalysisEnrollments(
 
         const result = await dependencies.enrollments.reconcile({
           enrollmentId: head.id,
+          organizationId: head.organizationId,
           expectedFence: head.fence,
           // Enrollment ids are UUIDs and are content-free. Reusing the durable
           // authority id makes every replay generation traceable without

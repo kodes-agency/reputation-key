@@ -14,12 +14,6 @@ export type {
   PropertyResponsibilityNeeded,
 } from '../domain/events'
 
-/** Minimal property info returned for cross-context slug lookups (e.g., guest portal resolution). */
-type PropertySlugLookupResult = Readonly<{
-  id: string
-  organizationId: string
-}>
-
 /** Minimal property info returned for cross-context lookups (e.g., webhook resolution). */
 type PropertyLookupResult = Readonly<{
   id: string
@@ -102,12 +96,6 @@ export type PropertyPublicApi = Readonly<{
    * no organizationId available at call time).
    */
   findByGbpLocationId: (gbpLocationId: string) => Promise<PropertyLookupResult | null>
-
-  /**
-   * Find a non-deleted property by its slug.
-   * No organizationId — the slug is public-facing, used for guest portal resolution.
-   */
-  findBySlug: (slug: string) => Promise<PropertySlugLookupResult | null>
 
   /**
    * Find all non-deleted property IDs linked to a Google connection within an org.

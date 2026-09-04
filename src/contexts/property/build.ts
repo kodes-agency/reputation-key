@@ -257,14 +257,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         sourceEpoch: p.sourceEpoch,
       }
     },
-    findBySlug: async (slug: string) => {
-      const p = await deps.repo.findBySlug(slug)
-      if (!p) return null
-      return {
-        id: p.id,
-        organizationId: p.organizationId,
-      }
-    },
     // BQC-4.1: content-free routing fact for fail-closed consumers (review
     // sync asserts an approved cell before any external effect).
     getProcessingRegion: async (orgId: OrganizationId, pid: PropertyId) => {

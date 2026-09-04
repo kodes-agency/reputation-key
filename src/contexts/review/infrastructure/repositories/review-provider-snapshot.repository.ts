@@ -784,7 +784,12 @@ export const createReviewProviderSnapshotRepository = (
       const locked = await tx
         .select()
         .from(reviewProviderSnapshotRuns)
-        .where(eq(reviewProviderSnapshotRuns.id, input.runId))
+        .where(
+          and(
+            eq(reviewProviderSnapshotRuns.id, input.runId),
+            eq(reviewProviderSnapshotRuns.organizationId, input.organizationId),
+          ),
+        )
         .for('update')
       const run = locked[0]
       if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
@@ -996,12 +1001,17 @@ export const createReviewProviderSnapshotRepository = (
       return rows.rowCount === 1 ? 'confirmed' : 'stale'
     }),
 
-  recordCandidateObservation: async ({ runId, observation }) =>
+  recordCandidateObservation: async ({ runId, organizationId, observation }) =>
     db.transaction(async (tx) => {
       const runs = await tx
         .select()
         .from(reviewProviderSnapshotRuns)
-        .where(eq(reviewProviderSnapshotRuns.id, runId))
+        .where(
+          and(
+            eq(reviewProviderSnapshotRuns.id, runId),
+            eq(reviewProviderSnapshotRuns.organizationId, organizationId),
+          ),
+        )
         .for('update')
       const run = runs[0]
       if (!run || run.state !== 'confirming') return 'run_failed'
@@ -1026,12 +1036,17 @@ export const createReviewProviderSnapshotRepository = (
       return 'observed_run_failed'
     }),
 
-  beginConfirmationScan: async ({ runId }) =>
+  beginConfirmationScan: async ({ runId, organizationId }) =>
     db.transaction(async (tx) => {
       const rows = await tx
         .select()
         .from(reviewProviderSnapshotRuns)
-        .where(eq(reviewProviderSnapshotRuns.id, runId))
+        .where(
+          and(
+            eq(reviewProviderSnapshotRuns.id, runId),
+            eq(reviewProviderSnapshotRuns.organizationId, organizationId),
+          ),
+        )
         .for('update')
       const run = rows[0]
       if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
@@ -1057,12 +1072,17 @@ export const createReviewProviderSnapshotRepository = (
       return fromRunRow(run)
     }),
 
-  finishConfirmationScan: async ({ runId }) =>
+  finishConfirmationScan: async ({ runId, organizationId }) =>
     db.transaction(async (tx) => {
       const rows = await tx
         .select()
         .from(reviewProviderSnapshotRuns)
-        .where(eq(reviewProviderSnapshotRuns.id, runId))
+        .where(
+          and(
+            eq(reviewProviderSnapshotRuns.id, runId),
+            eq(reviewProviderSnapshotRuns.organizationId, organizationId),
+          ),
+        )
         .for('update')
       const run = rows[0]
       if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
@@ -1141,12 +1161,17 @@ export const createReviewProviderSnapshotRepository = (
       return { status: 'deleting' as const, run: fromRunRow(updated[0]) }
     }),
 
-  failRun: async ({ runId, code }) =>
+  failRun: async ({ runId, organizationId, code }) =>
     db.transaction(async (tx) => {
       const rows = await tx
         .select()
         .from(reviewProviderSnapshotRuns)
-        .where(eq(reviewProviderSnapshotRuns.id, runId))
+        .where(
+          and(
+            eq(reviewProviderSnapshotRuns.id, runId),
+            eq(reviewProviderSnapshotRuns.organizationId, organizationId),
+          ),
+        )
         .for('update')
       if (!rows[0]) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       return fromRunRow(await failLockedRun(tx, rows[0], code))

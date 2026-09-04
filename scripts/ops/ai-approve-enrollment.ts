@@ -116,6 +116,7 @@ const main = async (): Promise<void> => {
       const approve = createApproveReviewAnalysisEnrollment({ enrollments })
       const outcome = await approve({
         enrollmentId: enrollment.id,
+        organizationId: scope.organizationId,
         expectedFence: enrollment.fence,
         approvedByOperatorId: ctx.operatorId,
         approvalEvidenceDigest: approvalEvidenceDigest({

@@ -452,6 +452,7 @@ export function createAnalyzeReviewEvent(
       }
       await dependencies.operations.markDelivered({
         operationId: claimed.operation.id,
+        organizationId: input.organizationId,
         expectedAttempt: claimed.operation.executionAttempt,
         deliveredAtEpochMillis: nowEpochMillis,
       })
@@ -492,6 +493,7 @@ export function createAnalyzeReviewEvent(
     try {
       const execution = await dependencies.operations.claimExecution({
         operationId: claimed.operation.id,
+        organizationId: input.organizationId,
         expectedAttempt,
         nowEpochMillis,
       })
@@ -544,6 +546,7 @@ export function createAnalyzeReviewEvent(
         )
         await dependencies.operations.recordFailure({
           operationId: execution.id,
+          organizationId: input.organizationId,
           expectedAttempt,
           failureCode: response.code,
           retryAtEpochMillis,
@@ -621,6 +624,7 @@ export function createAnalyzeReviewEvent(
       }
       await dependencies.operations.markDelivered({
         operationId: execution.id,
+        organizationId: input.organizationId,
         expectedAttempt,
         deliveredAtEpochMillis: dependencies.nowEpochMillis(),
       })

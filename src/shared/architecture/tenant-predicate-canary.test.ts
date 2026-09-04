@@ -208,13 +208,59 @@ function hasTenantProof(
   return false
 }
 
+function containsTenantIdentifier(node: ts.Node): boolean {
+  let found = false
+  const visit = (current: ts.Node): void => {
+    if (
+      ts.isIdentifier(current) &&
+      /^(?:organizationId|organizationIds|organization_id|orgId|orgIds)$/u.test(
+        current.text,
+      )
+    ) {
+      found = true
+      return
+    }
+    ts.forEachChild(current, visit)
+  }
+  visit(node)
+  return found
+}
+
+function hasTenantPredicate(callable: NamedCallable): boolean {
+  let found = false
+  const visit = (node: ts.Node): void => {
+    if (node !== callable.node && callableSymbol(node) !== null) return
+    if (isWhereCall(node) && node.arguments.some(containsTenantIdentifier)) {
+      found = true
+      return
+    }
+    if (
+      isSqlTemplate(node) &&
+      ts.isTemplateExpression(node.template) &&
+      node.template.templateSpans.some((span) =>
+        containsTenantIdentifier(span.expression),
+      )
+    ) {
+      found = true
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(callable.node)
+  return found
+}
+
 function inspectCallable(
   callable: NamedCallable,
   sourceFile: ts.SourceFile,
   authority: TenantTableAuthority,
   tableIdentifiers: ReadonlySet<string>,
   helpers: ReadonlyMap<string, readonly NamedCallable[]>,
-): Readonly<{ queriesTenantTable: boolean; hasTenantToken: boolean }> {
+): Readonly<{
+  queriesTenantTable: boolean
+  hasTenantToken: boolean
+  hasTenantPredicate: boolean
+}> {
   let hasWhere = false
   let hasSqlStatement = false
   let referencesTenantTable = false
@@ -251,14 +297,15 @@ function inspectCallable(
   return {
     queriesTenantTable: (hasWhere || hasSqlStatement) && referencesTenantTable,
     hasTenantToken: hasTenantProof(callable, sourceFile, helpers),
+    hasTenantPredicate: hasTenantPredicate(callable),
   }
 }
 
-function tenantPredicateViolations(
+function inspectTenantPredicates(
   file: string,
   source: string,
   authority: TenantTableAuthority,
-): readonly string[] {
+): Readonly<{ violations: readonly string[]; staleExemptions: readonly string[] }> {
   const sourceFile = ts.createSourceFile(
     file,
     source,
@@ -283,6 +330,7 @@ function tenantPredicateViolations(
   }
 
   const violations = new Set<string>()
+  const staleExemptions = new Set<string>()
   for (const callable of callables) {
     const inspection = inspectCallable(
       callable,
@@ -292,13 +340,20 @@ function tenantPredicateViolations(
       helpers,
     )
     if (!inspection.queriesTenantTable) continue
-    if (inspection.hasTenantToken && !isTenantPredicateExempt(file, callable.symbol)) {
+    const key = `${file}#${callable.symbol}`
+    const exempt = isTenantPredicateExempt(file, callable.symbol)
+    if (exempt && inspection.hasTenantPredicate) {
+      staleExemptions.add(key)
       continue
     }
-    violations.add(`${file}#${callable.symbol}`)
+    if (inspection.hasTenantToken && !exempt) continue
+    violations.add(key)
   }
 
-  return [...violations].sort()
+  return {
+    violations: [...violations].sort(),
+    staleExemptions: [...staleExemptions].sort(),
+  }
 }
 
 function infrastructureFiles(): readonly string[] {
@@ -318,33 +373,36 @@ describe('canary: every tenant-owned repository query carries a tenant predicate
     const authority = tenantOwnedTables()
     expect(authority.exportNames.has('reviews')).toBe(true)
 
-    const violations = tenantPredicateViolations(
+    const inspection = inspectTenantPredicates(
       'synthetic-unscoped.repository.ts',
       `const findReview = async (reviewId: string) =>
         db.select().from(reviews).where(eq(reviews.id, reviewId))`,
       authority,
     )
 
-    expect(violations.length).toBeGreaterThan(0)
-    expect(violations).toEqual(['synthetic-unscoped.repository.ts#findReview'])
+    expect(inspection.staleExemptions).toEqual([])
+    expect(inspection.violations.length).toBeGreaterThan(0)
+    expect(inspection.violations).toEqual(['synthetic-unscoped.repository.ts#findReview'])
   })
 
   it('matches every detected tenant-free query exactly to the reviewed registry', () => {
     const authority = tenantOwnedTables()
-    const violations = infrastructureFiles()
-      .flatMap((absoluteFile) => {
-        const file = relative(ROOT, absoluteFile).split(sep).join('/')
-        return tenantPredicateViolations(
-          file,
-          readFileSync(absoluteFile, 'utf8'),
-          authority,
-        )
-      })
-      .sort()
+    const inspections = infrastructureFiles().map((absoluteFile) => {
+      const file = relative(ROOT, absoluteFile).split(sep).join('/')
+      return inspectTenantPredicates(file, readFileSync(absoluteFile, 'utf8'), authority)
+    })
+    const violations = inspections.flatMap((result) => result.violations).sort()
+    const staleExemptions = inspections.flatMap((result) => result.staleExemptions).sort()
     const registered = TENANT_PREDICATE_EXEMPTIONS.map(
       (entry) => `${entry.file}#${entry.symbol}`,
     ).sort()
 
+    expect(staleExemptions).toEqual([])
+    expect(
+      TENANT_PREDICATE_EXEMPTIONS.filter(
+        (entry) => entry.category === 'UNSCOPED-PENDING',
+      ),
+    ).toHaveLength(0)
     expect(violations).toEqual(registered)
   })
 

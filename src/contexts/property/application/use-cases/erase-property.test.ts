@@ -60,7 +60,8 @@ function makeDeps(
       recorded.request!.push(input)
       return current
     },
-    load: async () => current,
+    load: async (_authorityId, organizationId) =>
+      organizationId === current.organizationId ? current : null,
     nextAdvanceable: async () => null,
     recordPreview: async (input) => {
       recorded.recordPreview!.push(input)
@@ -168,6 +169,7 @@ describe('permanent Property Erase — dependency inventory (LIF-01-T19)', () =>
     })
     const preview = await previewPropertyErase(deps, {
       authorityId: AUTHORITY,
+      organizationId: ORG,
       retentionPreviewRef: 'retention:preview:2027-04-01',
     })
 
@@ -179,6 +181,9 @@ describe('permanent Property Erase — dependency inventory (LIF-01-T19)', () =>
     ])
     expect(preview.totalRowCount).toBe(4)
     expect(preview.inventoryRevision).toBe(1)
+    expect(deps.recorded.recordPreview).toEqual([
+      expect.objectContaining({ authorityId: AUTHORITY, organizationId: ORG }),
+    ])
     for (const entry of preview.inventory) {
       expect(Object.keys(entry).sort()).toEqual(['context', 'rowCount', 'table'])
     }
@@ -218,6 +223,7 @@ describe('permanent Property Erase — typed confirmation (LIF-01-T19)', () => {
       await expect(
         confirmPropertyErase(deps, {
           authorityId: AUTHORITY,
+          organizationId: ORG,
           typedConfirmation: typed,
           inventoryRevision: 3,
           graceMs: 3_600_000,
@@ -227,6 +233,7 @@ describe('permanent Property Erase — typed confirmation (LIF-01-T19)', () => {
     await expect(
       confirmPropertyErase(deps, {
         authorityId: AUTHORITY,
+        organizationId: ORG,
         typedConfirmation: `  ${propertyEraseConfirmationPhrase(PROPERTY)}  `,
         inventoryRevision: 3,
         graceMs: 3_600_000,
@@ -239,6 +246,7 @@ describe('permanent Property Erase — typed confirmation (LIF-01-T19)', () => {
     await expect(
       confirmPropertyErase(deps, {
         authorityId: AUTHORITY,
+        organizationId: ORG,
         typedConfirmation: propertyEraseConfirmationPhrase(PROPERTY),
         inventoryRevision: 2,
         graceMs: 3_600_000,
@@ -253,6 +261,7 @@ describe('permanent Property Erase — typed confirmation (LIF-01-T19)', () => {
     await expect(
       confirmPropertyErase(deps, {
         authorityId: AUTHORITY,
+        organizationId: ORG,
         typedConfirmation: propertyEraseConfirmationPhrase(PROPERTY),
         inventoryRevision: 1,
         graceMs: 3_600_000,
@@ -268,6 +277,7 @@ describe('permanent Property Erase — irreversible boundary (LIF-01-T19)', () =
       await expect(
         cancelPropertyErase(deps, {
           authorityId: AUTHORITY,
+          organizationId: ORG,
           reasonCode: 'operator_recall',
         }),
       ).rejects.toMatchObject({ code: 'irreversible_state' })
@@ -285,6 +295,7 @@ describe('permanent Property Erase — irreversible boundary (LIF-01-T19)', () =
       await expect(
         cancelPropertyErase(deps, {
           authorityId: AUTHORITY,
+          organizationId: ORG,
           reasonCode: 'operator_recall',
         }),
       ).resolves.toMatchObject({ state: 'cancelled' })

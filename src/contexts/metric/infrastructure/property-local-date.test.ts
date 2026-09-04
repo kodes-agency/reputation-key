@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { propertyId } from '#/shared/domain/ids'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 import { createPropertyLocalDateResolver } from './repositories/property-local-date'
 
 function databaseReturning(rows: readonly unknown[]) {
@@ -22,6 +22,7 @@ describe('createPropertyLocalDateResolver', () => {
     await expect(
       resolveLocalDate(
         propertyId('00000000-0000-4000-8000-000000000001'),
+        organizationId('metric-local-date-test-org'),
         new Date('2026-03-08T07:30:00.000Z'),
       ),
     ).resolves.toBe('2026-03-07')
@@ -38,6 +39,7 @@ describe('createPropertyLocalDateResolver', () => {
       await expect(
         resolveLocalDate(
           propertyId('00000000-0000-4000-8000-000000000001'),
+          organizationId('metric-local-date-test-org'),
           new Date('2026-08-01T12:00:00.000Z'),
         ),
       ).rejects.toThrow(

@@ -230,7 +230,11 @@ describe('runReviewProviderSnapshot', () => {
       expect.objectContaining({ observationOrigin: 'ongoing' }),
     )
     expect(deps.repository.commitPage).toHaveBeenCalledWith(
-      expect.objectContaining({ expectedPageIndex: 0, observations: expect.any(Array) }),
+      expect.objectContaining({
+        organizationId,
+        expectedPageIndex: 0,
+        observations: expect.any(Array),
+      }),
     )
   })
 
@@ -535,6 +539,11 @@ describe('runReviewProviderSnapshot', () => {
     expect(deps.observationWriter.persist).toHaveBeenCalledWith(
       expect.objectContaining({ replyReadGeneration: 1 }),
     )
+    expect(deps.repository.recordCandidateObservation).toHaveBeenCalledWith({
+      runId,
+      organizationId,
+      observation: expect.any(Object),
+    })
   })
 
   it('checkpoints a rate-limited page scan and preserves the run cursors', async () => {
@@ -623,6 +632,11 @@ describe('runReviewProviderSnapshot', () => {
     expect(deps.googleReviewApi.discardReviewCursors).toHaveBeenCalledWith(
       expect.objectContaining({ runId }),
     )
+    expect(deps.repository.failRun).toHaveBeenCalledWith({
+      runId,
+      organizationId,
+      code: 'authorization_changed',
+    })
   })
 
   it.each(['authorization_denied', 'runtime_unavailable', 'stale_source'] as const)(

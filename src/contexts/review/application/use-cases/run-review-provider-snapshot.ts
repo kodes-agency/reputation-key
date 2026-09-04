@@ -167,7 +167,11 @@ const failAndDiscard = async (
     sourceEpoch: input.sourceEpoch,
     runId,
   })
-  const run = await deps.repository.failRun({ runId, code })
+  const run = await deps.repository.failRun({
+    runId,
+    organizationId: input.organizationId,
+    code,
+  })
   return { status: 'failed', runId: run.id, code: run.failureCode ?? code }
 }
 
@@ -328,7 +332,10 @@ const finishPhase = async (
     sourceEpoch: input.sourceEpoch,
     runId: run.id,
   })
-  const finished = await deps.repository.finishConfirmationScan({ runId: run.id })
+  const finished = await deps.repository.finishConfirmationScan({
+    runId: run.id,
+    organizationId: input.organizationId,
+  })
   if (finished.status === 'failed') {
     return { status: 'failed', runId: run.id, code: finished.code }
   }
@@ -430,6 +437,7 @@ const commitPageOutcome = async (
 ): Promise<RunReviewProviderSnapshotResult> => {
   const committed = await deps.repository.commitPage({
     runId: run.id,
+    organizationId: input.organizationId,
     phase: position.phase,
     expectedPageIndex: position.pageIndex,
     expectedCursorRef: position.cursorRef,
@@ -605,7 +613,11 @@ const confirmTargetedCandidate = async (
     deps.logger.warn({ err: error }, 'Targeted Review observation write failed')
     return failAndDiscard(deps, input, run.id, 'observation_failed')
   }
-  await deps.repository.recordCandidateObservation({ runId: run.id, observation })
+  await deps.repository.recordCandidateObservation({
+    runId: run.id,
+    organizationId: input.organizationId,
+    observation,
+  })
   return failAndDiscard(deps, input, run.id, 'confirmation_set_changed')
 }
 
@@ -693,6 +705,9 @@ export const runReviewProviderSnapshot =
 
     const targeted = await confirmTargetedCandidate(deps, deriver, input, run)
     if (targeted) return targeted
-    run = await deps.repository.beginConfirmationScan({ runId: run.id })
+    run = await deps.repository.beginConfirmationScan({
+      runId: run.id,
+      organizationId: input.organizationId,
+    })
     return runListPage(deps, deriver, input, run)
   }

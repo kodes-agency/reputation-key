@@ -497,6 +497,7 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
     if (claimed.status !== 'created') throw new Error('operation claim failed')
     const executing = await store.claimExecution({
       operationId: claimed.operation.id,
+      organizationId: ORGANIZATION_ID,
       expectedAttempt: 1,
       nowEpochMillis: liveNow + 1,
     })

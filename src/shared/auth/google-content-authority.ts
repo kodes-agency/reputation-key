@@ -89,7 +89,11 @@ export type GoogleContentAuthorityStore<Tx> = Readonly<{
     }>,
   ): Promise<number>
   insertPermit(tx: Tx, record: GoogleContentPermitRecord): Promise<void>
-  lockPermit(tx: Tx, id: string): Promise<GoogleContentPermitRecord | null>
+  lockPermit(
+    tx: Tx,
+    id: string,
+    organizationId?: string,
+  ): Promise<GoogleContentPermitRecord | null>
   /**
    * Bounded oldest-first candidate scan for the start-deadline sweeper, scoped to
    * the leading `capability` column of
@@ -211,13 +215,15 @@ export type GoogleContentAuthorizationAuthority = Readonly<{
   admit(input: GoogleContentAdmissionInput): Promise<GoogleContentPermitResult>
   start(
     permitId: string,
+    organizationId: string,
     runtimeBinding: GoogleContentRuntimeBinding,
   ): Promise<GoogleContentPermitResult>
   complete(
     permitId: string,
+    organizationId: string,
     runtimeBinding: GoogleContentRuntimeBinding,
   ): Promise<GoogleContentPermitResult>
-  fence(permitId: string): Promise<GoogleContentPermitResult>
+  fence(permitId: string, organizationId: string): Promise<GoogleContentPermitResult>
   allowCapability(
     runtimeBinding: GoogleContentRuntimeBinding,
     operatorId: string,
@@ -685,13 +691,13 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
       })
     },
 
-    start: async (permitId, runtimeBinding) => {
+    start: async (permitId, organizationId, runtimeBinding) => {
       const refreshedControl = await refreshControl()
       if (!refreshedControl) {
         return { ok: false as const, code: 'policy_refresh_unavailable' as const }
       }
       return deps.store.transaction(async (tx) => {
-        const record = await deps.store.lockPermit(tx, permitId)
+        const record = await deps.store.lockPermit(tx, permitId, organizationId)
         if (!record) return { ok: false as const, code: 'permit_unavailable' as const }
         const now = deps.clock()
         const revalidationCode = await revalidatePermit(
@@ -716,13 +722,13 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
       })
     },
 
-    complete: async (permitId, runtimeBinding) => {
+    complete: async (permitId, organizationId, runtimeBinding) => {
       const refreshedControl = await refreshControl()
       if (!refreshedControl) {
         return { ok: false as const, code: 'policy_refresh_unavailable' as const }
       }
       return deps.store.transaction(async (tx) => {
-        const record = await deps.store.lockPermit(tx, permitId)
+        const record = await deps.store.lockPermit(tx, permitId, organizationId)
         if (!record) return { ok: false as const, code: 'permit_unavailable' as const }
         const now = deps.clock()
         const revalidationCode = await revalidatePermit(
@@ -752,9 +758,9 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
       })
     },
 
-    fence: (permitId) =>
+    fence: (permitId, organizationId) =>
       deps.store.transaction(async (tx) => {
-        const record = await deps.store.lockPermit(tx, permitId)
+        const record = await deps.store.lockPermit(tx, permitId, organizationId)
         if (!record) return { ok: false as const, code: 'permit_unavailable' as const }
         const fenced = await fenceAndPersist(tx, record.permit, deps.clock())
         return fenced === record.permit
