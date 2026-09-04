@@ -304,17 +304,22 @@ describe('reviewDiscoveryRepository (integration)', () => {
     expect(bounded).toHaveLength(1)
   })
 
-  it('records the deferred mark, then clears the error state on the next scheduled mark', async () => {
+  it('retains a coded failure through enqueue scheduling and clears it only on sync success', async () => {
     const repo = createReviewDiscoveryRepository(db)
     const deferUntil = new Date(NOW.getTime() + 15 * 60 * 1000)
 
-    await repo.markDiscoveryDeferred(PROP_CONNECTED, NOW, deferUntil, 'enqueue_failed')
+    await repo.markDiscoveryDeferred(
+      PROP_CONNECTED,
+      NOW,
+      deferUntil,
+      'authorization_denied',
+    )
     const deferred = await pool.query(
       `SELECT error_class, error_retry_at, next_incremental_at, last_success_at
          FROM review_sync_state WHERE property_id = $1 AND source = 'google'`,
       [PROP_CONNECTED],
     )
-    expect(deferred.rows[0].error_class).toBe('enqueue_failed')
+    expect(deferred.rows[0].error_class).toBe('authorization_denied')
     expect(deferred.rows[0].error_retry_at).toEqual(deferUntil)
     expect(deferred.rows[0].next_incremental_at).toEqual(deferUntil)
     expect(deferred.rows[0].last_success_at).toBeNull()
@@ -326,10 +331,18 @@ describe('reviewDiscoveryRepository (integration)', () => {
          FROM review_sync_state WHERE property_id = $1 AND source = 'google'`,
       [PROP_CONNECTED],
     )
-    expect(scheduled.rows[0].error_class).toBeNull()
-    expect(scheduled.rows[0].error_retry_at).toBeNull()
+    expect(scheduled.rows[0].error_class).toBe('authorization_denied')
+    expect(scheduled.rows[0].error_retry_at).toEqual(deferUntil)
     expect(scheduled.rows[0].next_incremental_at).toEqual(nextDueAt)
     expect(scheduled.rows[0].last_success_at).toEqual(NOW)
+
+    await repo.markSyncSucceeded(PROP_CONNECTED)
+    const succeeded = await pool.query(
+      `SELECT error_class, error_retry_at
+         FROM review_sync_state WHERE property_id = $1 AND source = 'google'`,
+      [PROP_CONNECTED],
+    )
+    expect(succeeded.rows[0]).toEqual({ error_class: null, error_retry_at: null })
   })
 
   it('excludes a property with an in-flight import and includes it once the import completes', async () => {

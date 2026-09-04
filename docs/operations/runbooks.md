@@ -1151,6 +1151,7 @@ Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner
 | `queue.quarantine-nonempty`                   | P1  | any job in the unconsumed quarantine > 15min (dropped work; §4 is the same condition aged past the redrive SLA)                 | §14     |
 | `source.freshness-deadline`                   | P1  | nearest hard expiry among refresh-due reviews < 2d away                                                                         | §3      |
 | `sync.sweep-lag`                              | P1  | oldest past-due incremental sync > 60min overdue (4 missed 15-min sweeps — new reviews are not arriving)                        | §13     |
+| `sync.failed-nonzero`                         | P2  | any coded sync failure whose retry is due                                                                                       | §13     |
 | `retention.failure`                           | P1  | latest retention run failed for any subject                                                                                     | §8      |
 | `reply.ambiguous-aging`                       | P2  | oldest ambiguous publication > 15min past reconcile_due                                                                         | §6      |
 | `routing.region-attempts`                     | P2  | any quarantined wrong/unresolved/denied-region attempt                                                                          | §12     |

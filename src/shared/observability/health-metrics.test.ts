@@ -362,6 +362,19 @@ describe('health checker sync freshness', () => {
     expect(snapshot.sync.oldestDueAgeMs).toBe(3_600_000)
   })
 
+  it('reports coded Review sync failures whose retry is due', async () => {
+    const db = fakeDb([
+      REVIEW_ROW,
+      [{ due: 1, failed: 2, oldest_due_age_ms: 60_000 }],
+      PUBLICATION_ROW,
+      NOTIFICATION_ROW,
+    ])
+
+    const snapshot = await createHealthChecker(db).check()
+
+    expect(snapshot.sync.failedSyncCount).toBe(2)
+  })
+
   it('reports a null overdue age when nothing is due', async () => {
     const db = fakeDb([
       REVIEW_ROW,

@@ -1341,8 +1341,11 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     ? async (input) => {
         const authorized = await googleReviewSyncAuthorizer(input)
         if (!authorized.ok) {
-          throw new Error(
-            `Google review provider authorization is unavailable: ${authorized.code}`,
+          throw Object.assign(
+            new Error(
+              `Google review provider authorization is unavailable: ${authorized.code}`,
+            ),
+            { code: authorized.code },
           )
         }
         return authorized

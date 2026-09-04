@@ -79,9 +79,10 @@ export type RunReviewProviderSnapshotDeps = Readonly<{
    */
   syncActivity: ReviewSyncActivityRecorder
   clock: () => Date
-  /** An observation write that throws costs the whole run, and the failure
-   * code alone ('observation_failed') names no cause. The logger reduces the
-   * error to its name and code, so no provider material is logged. */
+  /**
+   * Observation-write failures and provider failures without a coded cause
+   * are logged with bounded execution identity before the run becomes terminal.
+   */
   logger: LoggerPort
 }>
 
@@ -93,6 +94,13 @@ const failureCodeForProviderError = (
   }
   const code = error.code
   if (code === 'authorization_changed') return 'authorization_changed'
+  if (
+    code === 'authorization_denied' ||
+    code === 'runtime_unavailable' ||
+    code === 'stale_source'
+  ) {
+    return code
+  }
   if (
     code === 'cursor_not_found' ||
     code === 'cursor_expired' ||
@@ -161,6 +169,22 @@ const failAndDiscard = async (
   })
   const run = await deps.repository.failRun({ runId, code })
   return { status: 'failed', runId: run.id, code: run.failureCode ?? code }
+}
+
+const failForProviderError = async (
+  deps: RunReviewProviderSnapshotDeps,
+  input: RunReviewProviderSnapshotInput,
+  runId: string,
+  error: unknown,
+): Promise<RunReviewProviderSnapshotResult> => {
+  const code = failureCodeForProviderError(error)
+  if (code === 'provider_failure') {
+    deps.logger.error(
+      { err: error, runId, propertyId: input.propertyId },
+      'review snapshot failed without a coded cause',
+    )
+  }
+  return failAndDiscard(deps, input, runId, code)
 }
 
 const validatePage = (
@@ -380,12 +404,7 @@ const fetchListPage = async (
     }
     return {
       ok: false,
-      outcome: await failAndDiscard(
-        deps,
-        input,
-        run.id,
-        failureCodeForProviderError(error),
-      ),
+      outcome: await failForProviderError(deps, input, run.id, error),
     }
   }
 }
@@ -535,7 +554,7 @@ const confirmTargetedCandidate = async (
     if (isRecoverableProviderError(error)) {
       return checkpointInPhase(run.id, 'confirmation', retryHintMs(error))
     }
-    return failAndDiscard(deps, input, run.id, failureCodeForProviderError(error))
+    return failForProviderError(deps, input, run.id, error)
   }
   if (result.status === 'not_found') {
     if (!(await sameScope(deps, input))) {

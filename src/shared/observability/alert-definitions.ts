@@ -469,6 +469,24 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     },
   }),
 
+  // A due coded failure is known broken work, not raw traffic volume. One
+  // evaluation is enough to notify without escalating a single failure to P1.
+  define({
+    name: 'sync.failed-nonzero',
+    severity: 'P2',
+    runbook: 'runbooks.md §13',
+    windowMs: EVAL_CADENCE_MS,
+    threshold: 0,
+    read: (snapshot) => {
+      const count = snapshot.sync.failedSyncCount
+      if (count <= 0) return null
+      return {
+        value: count,
+        detail: `${count} Review sync(s) have a coded failure whose retry is due`,
+      }
+    },
+  }),
+
   // ── new reviews not arriving: the discovery sweep has fallen behind ──
   // The freshness alert above watches CONTENT expiry on reviews we already
   // hold. This one watches whether we are still finding new ones. It reads

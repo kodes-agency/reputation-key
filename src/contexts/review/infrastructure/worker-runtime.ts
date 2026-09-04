@@ -88,6 +88,7 @@ export type ReviewWorkerRegistrationInput = Readonly<{
 export async function registerReviewWorkerJobs(
   input: ReviewWorkerRegistrationInput,
 ): Promise<void> {
+  const reviewDiscovery = createReviewDiscoveryRepository(input.db)
   const reviewSyncActivity = createReviewSyncActivityRecorder(input.db)
   const syncReviewsHandler = createSyncPropertyReviewsHandler({
     runSnapshot: input.runSnapshot,
@@ -105,6 +106,7 @@ export async function registerReviewWorkerJobs(
       )
     },
     syncActivity: reviewSyncActivity,
+    discoveryRepo: reviewDiscovery,
     clock: input.clock,
     hotIntervalMs: input.discoveryIntervalMs,
   })
@@ -189,7 +191,7 @@ export async function registerReviewWorkerJobs(
   )
 
   const discoverHandler = createDiscoverNewReviewsHandler({
-    discoveryRepo: createReviewDiscoveryRepository(input.db),
+    discoveryRepo: reviewDiscovery,
     queue: input.reviewQueue,
     clock: input.clock,
     logger: input.logger,

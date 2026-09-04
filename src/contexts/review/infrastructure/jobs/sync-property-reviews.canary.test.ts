@@ -49,6 +49,10 @@ describe('canary: protected content never reaches log emission (BQC-7.3)', () =>
         getProcessingScope: vi.fn(async () => null),
       },
       enqueueContinuation: vi.fn(async () => undefined),
+      discoveryRepo: {
+        markDiscoveryDeferred: vi.fn(async () => undefined),
+        markSyncSucceeded: vi.fn(async () => undefined),
+      },
       syncActivity: {
         recordNewReviewObserved: vi.fn(async () => undefined),
         recordPushObserved: vi.fn(async () => undefined),
@@ -90,6 +94,10 @@ describe('canary: protected content never reaches log emission (BQC-7.3)', () =>
         })),
       },
       enqueueContinuation: vi.fn(async () => undefined),
+      discoveryRepo: {
+        markDiscoveryDeferred: vi.fn(async () => undefined),
+        markSyncSucceeded: vi.fn(async () => undefined),
+      },
       syncActivity: {
         recordNewReviewObserved: vi.fn(async () => undefined),
         recordPushObserved: vi.fn(async () => undefined),

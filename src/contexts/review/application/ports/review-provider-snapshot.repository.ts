@@ -22,6 +22,9 @@ export type ReviewProviderSnapshotState =
 export type ReviewProviderSnapshotFailureCode =
   | 'source_changed'
   | 'authorization_changed'
+  | 'authorization_denied'
+  | 'runtime_unavailable'
+  | 'stale_source'
   | 'provider_failure'
   | 'cursor_failure'
   | 'malformed_page'

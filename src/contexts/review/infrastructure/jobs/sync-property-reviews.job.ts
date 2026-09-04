@@ -8,6 +8,7 @@ import {
 } from '../../application/ports/review-queue.port'
 import type { PropertyRoutingPort } from '../../application/ports/property-routing.port'
 import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
+import type { ReviewDiscoveryRepository } from '../../application/ports/review-discovery.repository'
 import type {
   ContinuableSnapshotResult,
   RunReviewProviderSnapshot,
@@ -32,6 +33,10 @@ type SyncHandlerDeps = Readonly<{
    * hot rung of the backoff ladder (domain/discovery-backoff.ts).
    */
   syncActivity: ReviewSyncActivityRecorder
+  discoveryRepo: Pick<
+    ReviewDiscoveryRepository,
+    'markDiscoveryDeferred' | 'markSyncSucceeded'
+  >
   clock: () => Date
   /** Hot-rung interval — the push reset's next-poll clamp. */
   hotIntervalMs: number
@@ -194,7 +199,22 @@ async function runSnapshotStep(
       result,
     )
   }
-  if (result.status === 'failed') throw new Error(result.code)
+  if (result.status === 'failed') {
+    const now = deps.clock()
+    const retryAt = new Date(now.getTime() + deps.hotIntervalMs)
+    await deps.discoveryRepo.markDiscoveryDeferred(
+      data.propertyId,
+      now,
+      retryAt,
+      result.code,
+    )
+    throw Object.assign(new Error(result.code), {
+      name: 'ReviewProviderSnapshotFailure',
+    })
+  }
+  if (result.status === 'completed') {
+    await deps.discoveryRepo.markSyncSucceeded(data.propertyId)
+  }
   return result
 }
 
