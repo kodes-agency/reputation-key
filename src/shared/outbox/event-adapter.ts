@@ -114,6 +114,21 @@ export function withEnvelopeIdentifiers(
 }
 
 /**
+ * Return the fact-owned payload. ARC-01 identifiers are persisted for relay
+ * transport but live at the envelope top level during delivery, so strict
+ * fact schemas never need to declare them.
+ */
+export function withoutEnvelopeIdentifiers(payload: unknown): unknown {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    return payload
+  }
+  const factPayload = { ...(payload as Record<string, unknown>) }
+  delete factPayload.causationId
+  delete factPayload.commandId
+  return factPayload
+}
+
+/**
  * Convert a domain event to an outbox insert row.
  * Strips content fields, then allowlist-validates via the event schema registry.
  * Throws OutboxPayloadError if unregistered or invalid.
@@ -137,7 +152,9 @@ export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'>
   if (event._tag === 'portal.health.changed') {
     stripped.reason = event.reason
   }
-  const candidate = normalizePayloadValues(stripped)
+  const candidate = normalizePayloadValues(
+    withoutEnvelopeIdentifiers(stripped) as Record<string, unknown>,
+  )
 
   let payload: unknown
   try {
@@ -154,9 +171,9 @@ export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'>
   // BQC-3.7 / ARC-01: re-attach correlationId, causationId, and commandId
   // AFTER allowlist validation. They are identifier-only envelope metadata,
   // not content. Central re-attachment avoids changing 109 hand-written fact
-  // constructors or their identifier-only Zod schemas. Dispatcher validation
-  // runs the same stripping schemas but leaves the stored payload untouched,
-  // so these keys remain inert there and flow into the relay envelope.
+  // constructors or their identifier-only Zod schemas. The relay lifts these
+  // ids to the envelope top level and removes them from the delivered fact
+  // payload before dispatcher validation.
   const identifiedEvent = event as DomainEvent & {
     readonly causationId?: unknown
     readonly commandId?: unknown
