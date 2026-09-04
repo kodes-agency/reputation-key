@@ -22,6 +22,32 @@ describe('technology-stack authority', () => {
     expect(validateTechnologyStack(ROOT)).toEqual([])
   })
 
+  it('rejects either broken link in the telemetry sensitive-field authority chain', () => {
+    const authority = loadTechnologyStackAuthority(ROOT)
+    const sources = loadRuntimeContractSources(ROOT)
+    const expected =
+      'telemetry must consume the shared sensitive-field authority through sentry-event-scrub'
+
+    for (const drifted of [
+      {
+        ...sources,
+        telemetry: sources.telemetry.replace(
+          './sentry-event-scrub',
+          './another-scrubber',
+        ),
+      },
+      {
+        ...sources,
+        sentryEventScrub: sources.sentryEventScrub.replace(
+          './sensitive-field-policy',
+          './another-policy',
+        ),
+      },
+    ]) {
+      expect(validateRuntimeContractSources(authority, drifted)).toContain(expected)
+    }
+  })
+
   it('rejects a ranged declaration even when the lockfile still resolves the approved version', () => {
     const authority = loadTechnologyStackAuthority(ROOT)
     const packageManifest = JSON.parse(
