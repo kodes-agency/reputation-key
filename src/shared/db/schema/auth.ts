@@ -94,10 +94,10 @@ export const organization = pgTable('organization', {
   billingPostalCode: text('billingPostalCode'),
   billingCountry: text('billingCountry'),
   // `responseSlaHours` was retired with the legacy Response SLA authority (S5).
-  // Better Auth owns this table's DDL from org-schema.ts additionalFields, so
-  // dropping the field there already removes the column from newly migrated
-  // databases; the column that still exists in already-migrated databases is
-  // dropped under CNV-01 after one verified release.
+  // Better Auth owns this table's DDL from org-schema.ts additionalFields.
+  // Removing the field there keeps fresh databases clean; journaled migration
+  // 0180_drop_organization_response_sla_hours contracts already-migrated
+  // databases after the verified CNV-01 release.
 })
 
 // Custom role definitions (Better Auth organizationRole). Read-only Drizzle mirror —
