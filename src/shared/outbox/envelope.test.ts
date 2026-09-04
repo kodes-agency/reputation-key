@@ -1,8 +1,7 @@
-// BQR-2.1 / BQC-3.7 — ConsumerEvent envelope contract between relay and dispatcher.
-// BQC-3.7 adds envelope-grade metadata: occurredAt, recordedAt, correlationId,
-// causationId, sourceAggregateVersion, source Data Cell, region, and explicit
-// command/content classifications. Old 8-field envelopes must still parse
-// (in-flight back-compat).
+// BQR-2.1 / BQC-3.7 / ARC-01 — ConsumerEvent contract between relay and
+// dispatcher. Current envelopes carry aggregate, causation, command, timing,
+// routing, and classification metadata. Historical 8-field envelopes must
+// still parse while in-flight.
 
 import { describe, it, expect } from 'vitest'
 import { buildConsumerEvent, parseConsumerEvent } from './envelope'
@@ -41,11 +40,13 @@ describe('buildConsumerEvent', () => {
       propertyId: 'prop-1',
       sourceContext: 'review',
       sourceAggregateId: 'rev-1',
+      aggregateType: 'review',
       commandClassification: 'durable_domain_fact_required',
       contentClassification: 'identifier_only',
       recordedAt: RECORDED_AT.toISOString(),
       correlationId: null,
-      causationId: null,
+      commandId: 'evt-uuid-001',
+      causationId: 'evt-uuid-001',
       sourceAggregateVersion: null,
       region: 'unscoped',
     })
@@ -85,20 +86,23 @@ describe('buildConsumerEvent', () => {
     expect(parseConsumerEvent(envelope)).toEqual(envelope)
   })
 
-  it('lifts occurredAt/correlationId/causationId/aggregateVersion from the payload', () => {
+  it('lifts identifier, timing, and aggregate-version metadata from the payload', () => {
     const envelope = buildConsumerEvent({
       ...unpublished,
       payload: {
         reviewId: 'rev-1',
         occurredAt: '2026-07-17T09:59:00.000Z',
         correlationId: 'corr-1',
+        commandId: 'command-1',
         causationId: 'cause-1',
         sourceAggregateVersion: 7,
       },
     })
 
+    expect(envelope.aggregateType).toBe('review')
     expect(envelope.occurredAt).toBe('2026-07-17T09:59:00.000Z')
     expect(envelope.correlationId).toBe('corr-1')
+    expect(envelope.commandId).toBe('command-1')
     expect(envelope.causationId).toBe('cause-1')
     expect(envelope.sourceAggregateVersion).toBe(7)
     expect(envelope.recordedAt).toBe(RECORDED_AT.toISOString())
@@ -121,6 +125,9 @@ describe('buildConsumerEvent', () => {
     const envelope = buildConsumerEvent({ ...unpublished, payload: 'not-a-record' })
     expect(envelope.payload).toBe('not-a-record')
     expect(envelope.correlationId).toBeNull()
+    expect(envelope.aggregateType).toBe('event')
+    expect(envelope.commandId).toBe('evt-uuid-001')
+    expect(envelope.causationId).toBe('evt-uuid-001')
     expect(envelope.region).toBe('unscoped')
   })
 
@@ -160,10 +167,23 @@ describe('buildConsumerEvent', () => {
 })
 
 describe('parseConsumerEvent', () => {
-  it('accepts a full envelope produced by buildConsumerEvent', () => {
-    const built = buildConsumerEvent(unpublished)
+  it('round-trips aggregate, command, and causation identity', () => {
+    const built = buildConsumerEvent({
+      ...unpublished,
+      payload: {
+        reviewId: 'rev-1',
+        commandId: 'command-round-trip',
+        causationId: 'cause-round-trip',
+      },
+    })
     const parsed = parseConsumerEvent(built)
+
     expect(parsed).toEqual(built)
+    expect(parsed).toMatchObject({
+      aggregateType: 'review',
+      commandId: 'command-round-trip',
+      causationId: 'cause-round-trip',
+    })
   })
 
   it('accepts a legacy 8-field envelope (pre-3.7 in-flight jobs)', () => {
@@ -181,6 +201,8 @@ describe('parseConsumerEvent', () => {
     expect(parsed).not.toBeNull()
     expect(parsed!.eventId).toBe('evt-legacy')
     expect(parsed!.recordedAt).toBeUndefined()
+    expect(parsed!.aggregateType).toBeUndefined()
+    expect(parsed!.commandId).toBeUndefined()
     expect(parsed!.correlationId).toBeNull()
     expect(parsed!.region).toBe('unscoped')
     expect(parsed!.commandClassification).toBeUndefined()
@@ -193,6 +215,8 @@ describe('parseConsumerEvent', () => {
     expect(parseConsumerEvent({ ...built, recordedAt: 42 })).toBeNull()
     expect(parseConsumerEvent({ ...built, correlationId: 42 })).toBeNull()
     expect(parseConsumerEvent({ ...built, causationId: {} })).toBeNull()
+    expect(parseConsumerEvent({ ...built, aggregateType: 42 })).toBeNull()
+    expect(parseConsumerEvent({ ...built, commandId: {} })).toBeNull()
     expect(parseConsumerEvent({ ...built, sourceAggregateVersion: {} })).toBeNull()
     expect(parseConsumerEvent({ ...built, occurredAt: 42 })).toBeNull()
     expect(

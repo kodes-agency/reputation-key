@@ -12,6 +12,7 @@ import { Worker, type Job, type Queue } from 'bullmq'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
+import { generateRequestId, runWithContext } from '#/shared/observability/request-context'
 import {
   confirmQuarantineFailure,
   isTerminalFailedEvent,
@@ -129,30 +130,37 @@ export function createJobWorker<T>(
   // payload and failure reason before add. The copy remains non-redrivable
   // until the `failed` event (or proof-based operator reconciliation).
   const handlerWithQuarantineBarrier: JobHandler<T> = async (job) => {
-    try {
-      return await handler(job)
-    } catch (err) {
-      if (quarantineQueue) {
+    const jobId = job.id ?? generateRequestId()
+    return runWithContext(
+      jobId,
+      async () => {
         try {
-          const outcome = await quarantineFinalAttemptJob(quarantineQueue, job, err)
-          if (outcome.quarantined) {
-            logger.error(
-              { queue: name, jobName: job.name },
-              'terminal job failure — staged quarantine candidate',
-            )
+          return await handler(job)
+        } catch (err) {
+          if (quarantineQueue) {
+            try {
+              const outcome = await quarantineFinalAttemptJob(quarantineQueue, job, err)
+              if (outcome.quarantined) {
+                logger.error(
+                  { queue: name, jobName: job.name },
+                  'terminal job failure — staged quarantine candidate',
+                )
+              }
+            } catch (quarantineErr: unknown) {
+              // The original failure still proceeds. A transport rejection may be
+              // ambiguous, but every invitation field was sanitized before add,
+              // so a late command cannot reopen the privacy guarantee.
+              logger.error(
+                { err: quarantineErr, queue: name, jobName: job.name },
+                'failed to quarantine exhausted job',
+              )
+            }
           }
-        } catch (quarantineErr: unknown) {
-          // The original failure still proceeds. A transport rejection may be
-          // ambiguous, but every invitation field was sanitized before add,
-          // so a late command cannot reopen the privacy guarantee.
-          logger.error(
-            { err: quarantineErr, queue: name, jobName: job.name },
-            'failed to quarantine exhausted job',
-          )
+          throw err
         }
-      }
-      throw err
-    }
+      },
+      { causationId: jobId },
+    )
   }
 
   const worker = new Worker<T>(name, handlerWithQuarantineBarrier, {

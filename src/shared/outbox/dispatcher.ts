@@ -36,6 +36,7 @@ import { trace } from '#/shared/observability/trace'
 import { gateDispatcherConsumer } from '#/shared/jobs/delayed-execution-gate'
 import { durableConsumersFor } from '#/shared/governance/event-job-catalogue'
 import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
+import { runWithContext } from '#/shared/observability/request-context'
 
 // ── Dispatcher ──────────────────────────────────────────────────────
 
@@ -118,7 +119,10 @@ async function invokeConsumer(
     // Invoke the consumer handler
     // The handler is responsible for committing its state change
     // AND the receipt atomically (via its command store)
-    const result = await consumer.handler(event)
+    const result = await runWithContext(eventId, () => consumer.handler(event), {
+      causationId: event.eventId,
+      ...(typeof event.commandId === 'string' ? { commandId: event.commandId } : {}),
+    })
 
     logger.debug(
       { correlationId, consumerName: consumer.consumerName, status: result.status },

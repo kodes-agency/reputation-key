@@ -4,15 +4,16 @@
 // Enqueueing only the bare validated payload (legacy bug) left
 // event.eventType undefined in the dispatcher, which then discarded every job.
 //
-// BQC-3.7: the envelope now preserves envelope-grade metadata alongside the
-// identifier-only payload: occurred/recorded time, correlation/causation,
-// source aggregate version, and processing region — never content.
-// Back-compat: parse accepts pre-3.7 8-field envelopes (in-flight jobs from
-// before this deploy); build always populates the new fields.
+// BQC-3.7 / ARC-01: the envelope preserves envelope-grade metadata alongside
+// the identifier-only payload: occurred/recorded time, aggregate identity,
+// correlation/causation/command identity, source aggregate version, and
+// processing region — never content. Back-compat parsing accepts historical
+// 8-field envelopes; build always populates the current fields.
 //
 // Job name remains eventType; job ID remains the outbox event UUID (dedup).
 
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
+import { extractAggregateId } from './event-adapter'
 import { sanitizeIdentityInvitationQueuePayload } from './identity-invitation-fact-contract'
 import { dataCellById, type DataCellId } from '#/shared/domain/data-cell-catalogue'
 
@@ -32,6 +33,11 @@ export type ConsumerEvent = Readonly<{
   propertyId: string | null
   sourceContext: string
   sourceAggregateId: string
+  /**
+   * ARC-01: derived from the persisted identifier payload at relay time.
+   * Always set by buildConsumerEvent; optional only for in-flight envelopes.
+   */
+  aggregateType?: string
   /**
    * ARC-01: every outbox envelope is the recovery fact for a command whose
    * downstream effects must survive process loss. Local-only commands never
@@ -54,7 +60,15 @@ export type ConsumerEvent = Readonly<{
   recordedAt?: string
   /** BQC-3.7: trace identifier — envelope-grade metadata, never content. */
   correlationId?: string | null
-  /** BQC-3.7: causal chain identifier. Null today — no producer sets it. */
+  /**
+   * ARC-01: identifier of the command at the root of this causal chain.
+   * Always set by buildConsumerEvent; optional only for in-flight envelopes.
+   */
+  commandId?: string
+  /**
+   * ARC-01: direct cause of this fact. New envelopes always carry a string;
+   * null remains accepted only for pre-ARC-01 in-flight envelopes.
+   */
   causationId?: string | null
   /**
    * BQC-3.7: source aggregate version for version fencing. Optional only for
@@ -99,6 +113,13 @@ export function buildConsumerEvent(
     event.eventVersion,
     event.payload,
   )
+  const { type: aggregateType } = extractAggregateId(payload, event.id)
+  // Rows committed before ARC-01 carry neither identifier. Their durable event
+  // id is the stable compatibility fallback; new writes supply execution
+  // context in the persisted payload.
+  const commandId = typeof payload.commandId === 'string' ? payload.commandId : event.id
+  const causationId =
+    typeof payload.causationId === 'string' ? payload.causationId : commandId
   return {
     eventId: event.id,
     eventType: event.eventType,
@@ -108,13 +129,15 @@ export function buildConsumerEvent(
     propertyId: event.propertyId,
     sourceContext: event.sourceContext,
     sourceAggregateId: event.sourceAggregateId,
+    aggregateType,
     commandClassification: DURABLE_COMMAND_CLASSIFICATION,
     contentClassification: IDENTIFIER_ONLY_CONTENT_CLASSIFICATION,
     occurredAt: typeof payload.occurredAt === 'string' ? payload.occurredAt : undefined,
     recordedAt: event.recordedAt.toISOString(),
     correlationId:
       typeof payload.correlationId === 'string' ? payload.correlationId : null,
-    causationId: typeof payload.causationId === 'string' ? payload.causationId : null,
+    commandId,
+    causationId,
     sourceAggregateVersion:
       typeof payload.sourceAggregateVersion === 'string' ||
       typeof payload.sourceAggregateVersion === 'number'
@@ -133,9 +156,11 @@ export function buildConsumerEvent(
 
 type EnvelopeMetadataFields = Pick<
   ConsumerEvent,
+  | 'aggregateType'
   | 'occurredAt'
   | 'recordedAt'
   | 'correlationId'
+  | 'commandId'
   | 'causationId'
   | 'sourceAggregateVersion'
   | 'commandClassification'
@@ -170,17 +195,21 @@ function parseEnvelopeMetadata(
   data: Record<string, unknown>,
 ): EnvelopeMetadataFields | null {
   const {
+    aggregateType,
     occurredAt,
     recordedAt,
     correlationId,
+    commandId,
     causationId,
     sourceAggregateVersion,
     commandClassification,
     contentClassification,
   } = data
+  if (!isAbsentOrString(aggregateType)) return null
   if (!isAbsentOrString(occurredAt)) return null
   if (!isAbsentOrString(recordedAt)) return null
   if (!isAbsentOrNullableString(correlationId)) return null
+  if (!isAbsentOrString(commandId)) return null
   if (!isAbsentOrNullableString(causationId)) return null
   if (!isAbsentOrNullableAggregateVersion(sourceAggregateVersion)) return null
   if (!isAbsentOrLiteral(commandClassification, DURABLE_COMMAND_CLASSIFICATION))
@@ -189,9 +218,11 @@ function parseEnvelopeMetadata(
     return null
 
   return {
+    aggregateType: aggregateType as string | undefined,
     occurredAt: occurredAt as string | undefined,
     recordedAt: recordedAt as string | undefined,
     correlationId: (correlationId ?? null) as string | null,
+    commandId: commandId as string | undefined,
     causationId: (causationId ?? null) as string | null,
     sourceAggregateVersion: (sourceAggregateVersion ?? null) as string | number | null,
     ...(commandClassification !== undefined

@@ -33,6 +33,9 @@ import {
   type DelayedDecision,
   type DelayedDecisionRequest,
 } from '#/shared/auth/system-execution-policy'
+import { createEventBus } from '#/shared/events/event-bus'
+import type { DomainEvent } from '#/shared/events/events'
+import { emitAndRecord } from './emit-and-record'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -143,6 +146,42 @@ describe('dispatcher gate (BQC-3.2)', () => {
       action: 'system:inbox.update',
       executionKind: 'consumer',
       correlationId: 'evt-gate-1',
+    })
+  })
+
+  it('stamps consumer-emitted facts with the delivered event as their cause', async () => {
+    decideMock.mockResolvedValue(ALLOW)
+    const insert = vi.fn(async (_event: unknown) => undefined)
+    const emittedRepo = { insert } as unknown as OutboxRepository
+    const events = createEventBus()
+    const handler = vi.fn(async () => {
+      await emitAndRecord(events, emittedRepo, {
+        _tag: TEST_EVENT_TYPE,
+        eventId: 'evt-child-1',
+        resourceId: 'res-child-1',
+        organizationId: 'org-1',
+        propertyId: null,
+        correlationId: null,
+      } as unknown as DomainEvent)
+      return { status: 'applied' as const }
+    })
+    consumerRegistry.registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-causal',
+      module: TEST_MODULE,
+      handler,
+    })
+
+    await createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
+      fakeJob(makeEnvelope({ commandId: 'command-root-1' })),
+    )
+
+    expect(insert).toHaveBeenCalledOnce()
+    expect(insert.mock.calls[0]?.[0]).toMatchObject({
+      payload: {
+        causationId: 'evt-gate-1',
+        commandId: 'command-root-1',
+      },
     })
   })
 

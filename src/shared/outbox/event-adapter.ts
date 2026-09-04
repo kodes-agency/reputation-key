@@ -77,6 +77,42 @@ export class OutboxPayloadError extends Error {
   }
 }
 
+export type EnvelopeIdentifiers = Readonly<{
+  causationId?: string
+  commandId?: string
+}>
+
+/**
+ * Add execution-scoped identifiers without overriding a fact that already
+ * carries an explicit value. The caller owns the ambient-context read so the
+ * synchronous serialization authority below remains pure.
+ */
+export function withEnvelopeIdentifiers(
+  event: DomainEvent,
+  identifiers: EnvelopeIdentifiers | undefined,
+): DomainEvent & EnvelopeIdentifiers {
+  const identified = event as DomainEvent & {
+    readonly causationId?: unknown
+    readonly commandId?: unknown
+  }
+  const causationId =
+    typeof identified.causationId !== 'string' &&
+    typeof identifiers?.causationId === 'string'
+      ? identifiers.causationId
+      : undefined
+  const commandId =
+    typeof identified.commandId !== 'string' && typeof identifiers?.commandId === 'string'
+      ? identifiers.commandId
+      : undefined
+
+  if (causationId === undefined && commandId === undefined) return event
+  return {
+    ...event,
+    ...(causationId !== undefined ? { causationId } : {}),
+    ...(commandId !== undefined ? { commandId } : {}),
+  }
+}
+
 /**
  * Convert a domain event to an outbox insert row.
  * Strips content fields, then allowlist-validates via the event schema registry.
@@ -115,18 +151,28 @@ export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'>
     )
   }
 
-  // BQC-3.7: re-attach correlationId AFTER allowlist validation. It is an
-  // identifier (envelope-grade trace metadata), not content — attaching it
-  // post-validation preserves it without touching 30+ identifier-only
-  // schemas. Dispatcher-side validation runs the same Zod allowlist, whose
-  // object schemas strip unknown keys by default (never reject them), so the
-  // re-attached key is inert there and flows into the relay envelope.
+  // BQC-3.7 / ARC-01: re-attach correlationId, causationId, and commandId
+  // AFTER allowlist validation. They are identifier-only envelope metadata,
+  // not content. Central re-attachment avoids changing 109 hand-written fact
+  // constructors or their identifier-only Zod schemas. Dispatcher validation
+  // runs the same stripping schemas but leaves the stored payload untouched,
+  // so these keys remain inert there and flow into the relay envelope.
+  const identifiedEvent = event as DomainEvent & {
+    readonly causationId?: unknown
+    readonly commandId?: unknown
+  }
   const enrichedPayload = {
     ...(payload as Record<string, unknown>),
     correlationId:
       'correlationId' in event && typeof event.correlationId === 'string'
         ? event.correlationId
         : null,
+    ...(typeof identifiedEvent.causationId === 'string'
+      ? { causationId: identifiedEvent.causationId }
+      : {}),
+    ...(typeof identifiedEvent.commandId === 'string'
+      ? { commandId: identifiedEvent.commandId }
+      : {}),
   }
 
   const sourceContext = eventType.split('.')[0] ?? eventType
@@ -135,7 +181,7 @@ export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'>
   ) as string
   const propertyId =
     'propertyId' in event && event.propertyId != null ? String(event.propertyId) : null
-  const sourceAggregateId = extractAggregateId(event)
+  const sourceAggregate = extractAggregateId(event)
 
   return {
     eventType,
@@ -144,7 +190,7 @@ export function toOutboxEvent(event: DomainEvent): Omit<OutboxEventInsert, 'id'>
     organizationId,
     propertyId,
     sourceContext,
-    sourceAggregateId,
+    sourceAggregateId: sourceAggregate.id,
     createdAt: new Date(),
   }
 }
@@ -209,45 +255,56 @@ function normalizePayloadValues(raw: Record<string, unknown>): Record<string, un
   )
 }
 
-/**
- * Try to extract the primary aggregate ID from an event.
- * Checks common field names in priority order.
- */
-function extractAggregateId(event: DomainEvent): string {
-  const candidates = [
-    'reviewId',
-    'runId',
-    'replyId',
-    'inboxItemId',
-    'monthlyResultId',
-    'noteId',
-    'scheduleId',
-    'uploadId',
-    'propertyId',
-    'portalId',
-    'portalGroupId',
-    'portalLinkId',
-    'portalLinkCategoryId',
-    'teamId',
-    'staffId',
-    'goalId',
-    'invitationId',
-    'importJobId',
-    'connectionId',
-    'scanId',
-    'ratingId',
-    'feedbackId',
-    'linkId',
-    'userId',
-    'memberUserId',
-    'closureLineageId',
-  ] as const
+const AGGREGATE_ID_CANDIDATES = [
+  ['reviewId', 'review'],
+  ['runId', 'run'],
+  ['replyId', 'reply'],
+  ['inboxItemId', 'inbox_item'],
+  ['monthlyResultId', 'monthly_result'],
+  ['noteId', 'note'],
+  ['scheduleId', 'schedule'],
+  ['uploadId', 'upload'],
+  ['propertyId', 'property'],
+  ['portalId', 'portal'],
+  ['portalGroupId', 'portal_group'],
+  ['portalLinkId', 'portal_link'],
+  ['portalLinkCategoryId', 'portal_link_category'],
+  ['teamId', 'team'],
+  ['staffId', 'staff'],
+  ['goalId', 'goal'],
+  ['invitationId', 'invitation'],
+  ['importJobId', 'import_job'],
+  ['connectionId', 'connection'],
+  ['scanId', 'scan'],
+  ['ratingId', 'rating'],
+  ['feedbackId', 'feedback'],
+  ['linkId', 'link'],
+  ['userId', 'user'],
+  ['memberUserId', 'member_user'],
+  ['closureLineageId', 'closure_lineage'],
+] as const
 
-  for (const field of candidates) {
-    if (field in event && event[field as keyof DomainEvent] != null) {
-      return String(event[field as keyof DomainEvent])
-    }
+export type AggregateIdentity = Readonly<{ id: string; type: string }>
+
+/**
+ * Extract the primary aggregate identity from a fact or its persisted payload.
+ * Candidate order preserves the existing aggregate-id priority. A fact with no
+ * recognised aggregate identifier uses its event id and the explicit `event`
+ * type sentinel rather than guessing from the event family.
+ */
+export function extractAggregateId(
+  event: object,
+  fallbackEventId?: string,
+): AggregateIdentity {
+  const fields = event as Record<string, unknown>
+  for (const [field, type] of AGGREGATE_ID_CANDIDATES) {
+    const value = fields[field]
+    if (value != null) return { id: String(value), type }
   }
 
-  return event.eventId
+  const eventId = fallbackEventId ?? fields.eventId
+  if (typeof eventId !== 'string') {
+    throw new Error('Aggregate identity fallback requires an event id')
+  }
+  return { id: eventId, type: 'event' }
 }
