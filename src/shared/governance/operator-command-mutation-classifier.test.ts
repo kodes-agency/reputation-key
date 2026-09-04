@@ -41,6 +41,13 @@ describe('operator command mutation classifier', () => {
       disposition: 'local_only_with_reason',
     })
     expect(
+      classifyOperatorCommandMutation('scripts/ops/deploy-ci-images.ts'),
+    ).toMatchObject({
+      kind: 'mutation',
+      stateOwner: 'operations',
+      disposition: 'local_only_with_reason',
+    })
+    expect(
       classifyOperatorCommandMutation('scripts/ops/disconnect-connection.ts'),
     ).toMatchObject({
       kind: 'mutation',
