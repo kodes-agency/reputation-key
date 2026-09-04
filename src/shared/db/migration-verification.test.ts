@@ -105,13 +105,6 @@ const EXPECTED_TABLES = [
   'notification_preferences',
 ] as const
 
-const EXPECTED_ROLLUP_TABLES = [
-  'rollup_daily_metrics',
-  'rollup_weekly_metrics',
-  'rollup_daily_inbox_metrics',
-  '_rollup_watermarks',
-] as const
-
 const EXPECTED_INDEXES = [
   'properties_org_gbp_location_id_unique',
   'metric_readings_recorded_at_idx',
@@ -142,16 +135,6 @@ describe('migration verification (PRE17A A1 presence)', () => {
 
     const missing = EXPECTED_TABLES.filter((t) => !existing.has(t))
     expect(missing, `Missing tables: ${missing.join(', ')}`).toEqual([])
-  })
-
-  it('all expected rollup tables exist (migration 0008)', async () => {
-    const result = await lease.pool.query(
-      `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`,
-    )
-    const existing = new Set(result.rows.map((r) => r.tablename))
-
-    const missing = EXPECTED_ROLLUP_TABLES.filter((t) => !existing.has(t))
-    expect(missing, `Missing rollup tables: ${missing.join(', ')}`).toEqual([])
   })
 
   it('all expected indexes exist (migration 0004)', async () => {
@@ -204,8 +187,8 @@ describe('migration verification (PRE17A A1 presence)', () => {
   })
 
   it('no unjournaled sidecar SQL remains — all objects tracked by migrations', async () => {
-    // The sidecar script is now migration 0004. Materialized views were
-    // replaced by incremental rollup tables in migration 0008 (PRE17C).
+    // The sidecar script is migration 0004; every live object is now tracked
+    // through the journaled migration path.
     const journalResult = await lease.pool.query(
       `SELECT 1 FROM drizzle.__drizzle_migrations WHERE hash IS NOT NULL`,
     )
@@ -216,18 +199,6 @@ describe('migration verification (PRE17A A1 presence)', () => {
       `SELECT count(*)::int FROM pg_matviews WHERE schemaname = 'public' AND matviewname LIKE 'mv_%'`,
     )
     expect(mvResult.rows[0].count).toBe(0)
-
-    // Rollup tables must exist (created by migration 0008)
-    const rollupResult = await lease.pool.query(
-      `SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE 'rollup_%'`,
-    )
-    expect(rollupResult.rows[0].count).toBeGreaterThanOrEqual(3)
-
-    // Watermark table must exist
-    const watermarkResult = await lease.pool.query(
-      `SELECT count(*)::int FROM _rollup_watermarks`,
-    )
-    expect(watermarkResult.rows[0].count).toBe(3)
   })
 })
 

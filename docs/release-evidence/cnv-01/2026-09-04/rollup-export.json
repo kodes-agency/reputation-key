@@ -1,0 +1,231 @@
+{
+  "formatVersion": 1,
+  "capturedAt": "2026-09-04T20:54:26.231Z",
+  "environment": "google-closed-beta",
+  "tables": {
+    "rollup_daily_metrics": [
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "071b20fe-2598-4f63-a2a1-b9ac2f959575",
+        "portal_id": "00000000-0000-0000-0000-000000000000",
+        "metric_key": "property.review",
+        "date": "2026-08-19T00:00:00.000Z",
+        "count": 256,
+        "sum_value": 1006,
+        "avg_value": 3.9296875
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "071b20fe-2598-4f63-a2a1-b9ac2f959575",
+        "portal_id": "cfc764de-2101-44cc-9d45-6a0691061185",
+        "metric_key": "portal.rating",
+        "date": "2026-08-22T00:00:00.000Z",
+        "count": 1,
+        "sum_value": 5,
+        "avg_value": 5
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "071b20fe-2598-4f63-a2a1-b9ac2f959575",
+        "portal_id": "cfc764de-2101-44cc-9d45-6a0691061185",
+        "metric_key": "portal.review_link_click",
+        "date": "2026-08-22T00:00:00.000Z",
+        "count": 1,
+        "sum_value": 1,
+        "avg_value": 1
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "071b20fe-2598-4f63-a2a1-b9ac2f959575",
+        "portal_id": "cfc764de-2101-44cc-9d45-6a0691061185",
+        "metric_key": "portal.scan",
+        "date": "2026-08-22T00:00:00.000Z",
+        "count": 1,
+        "sum_value": 1,
+        "avg_value": 1
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "363b2482-0b40-46cb-9764-c12d7c17ce7a",
+        "portal_id": "00000000-0000-0000-0000-000000000000",
+        "metric_key": "property.review",
+        "date": "2026-09-02T00:00:00.000Z",
+        "count": 10,
+        "sum_value": 50,
+        "avg_value": 5
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "8d79a13e-e56b-4b43-9f69-86d53c137d31",
+        "portal_id": "00000000-0000-0000-0000-000000000000",
+        "metric_key": "property.review",
+        "date": "2026-08-22T00:00:00.000Z",
+        "count": 4,
+        "sum_value": 20,
+        "avg_value": 5
+      }
+    ],
+    "rollup_weekly_metrics": [
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "071b20fe-2598-4f63-a2a1-b9ac2f959575",
+        "portal_id": "00000000-0000-0000-0000-000000000000",
+        "metric_key": "property.review",
+        "week": "2026-08-17T00:00:00.000Z",
+        "count": 256,
+        "sum_value": 1006,
+        "avg_value": 3.9296875
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "071b20fe-2598-4f63-a2a1-b9ac2f959575",
+        "portal_id": "cfc764de-2101-44cc-9d45-6a0691061185",
+        "metric_key": "portal.rating",
+        "week": "2026-08-17T00:00:00.000Z",
+        "count": 1,
+        "sum_value": 5,
+        "avg_value": 5
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "071b20fe-2598-4f63-a2a1-b9ac2f959575",
+        "portal_id": "cfc764de-2101-44cc-9d45-6a0691061185",
+        "metric_key": "portal.review_link_click",
+        "week": "2026-08-17T00:00:00.000Z",
+        "count": 1,
+        "sum_value": 1,
+        "avg_value": 1
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "071b20fe-2598-4f63-a2a1-b9ac2f959575",
+        "portal_id": "cfc764de-2101-44cc-9d45-6a0691061185",
+        "metric_key": "portal.scan",
+        "week": "2026-08-17T00:00:00.000Z",
+        "count": 1,
+        "sum_value": 1,
+        "avg_value": 1
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "363b2482-0b40-46cb-9764-c12d7c17ce7a",
+        "portal_id": "00000000-0000-0000-0000-000000000000",
+        "metric_key": "property.review",
+        "week": "2026-08-31T00:00:00.000Z",
+        "count": 10,
+        "sum_value": 50,
+        "avg_value": 5
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "8d79a13e-e56b-4b43-9f69-86d53c137d31",
+        "portal_id": "00000000-0000-0000-0000-000000000000",
+        "metric_key": "property.review",
+        "week": "2026-08-17T00:00:00.000Z",
+        "count": 4,
+        "sum_value": 20,
+        "avg_value": 5
+      }
+    ],
+    "rollup_daily_inbox_metrics": [
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "071b20fe-2598-4f63-a2a1-b9ac2f959575",
+        "date": "2026-08-19T00:00:00.000Z",
+        "open_count": 249,
+        "closed_count": 7,
+        "escalated_count": 0,
+        "avg_response_hours": 46.3703
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "14e312ca-db4e-4892-af51-e51ce1e39da4",
+        "date": "2021-01-20T00:00:00.000Z",
+        "open_count": 0,
+        "closed_count": 1,
+        "escalated_count": 0,
+        "avg_response_hours": -0.00017279417
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "14e312ca-db4e-4892-af51-e51ce1e39da4",
+        "date": "2021-07-03T00:00:00.000Z",
+        "open_count": 0,
+        "closed_count": 1,
+        "escalated_count": 0,
+        "avg_response_hours": -0.00016435777
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "363b2482-0b40-46cb-9764-c12d7c17ce7a",
+        "date": "2025-07-14T00:00:00.000Z",
+        "open_count": 1,
+        "closed_count": 0,
+        "escalated_count": 0,
+        "avg_response_hours": null
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "363b2482-0b40-46cb-9764-c12d7c17ce7a",
+        "date": "2025-07-29T00:00:00.000Z",
+        "open_count": 5,
+        "closed_count": 0,
+        "escalated_count": 0,
+        "avg_response_hours": null
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "363b2482-0b40-46cb-9764-c12d7c17ce7a",
+        "date": "2025-07-30T00:00:00.000Z",
+        "open_count": 2,
+        "closed_count": 0,
+        "escalated_count": 0,
+        "avg_response_hours": null
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "363b2482-0b40-46cb-9764-c12d7c17ce7a",
+        "date": "2025-08-02T00:00:00.000Z",
+        "open_count": 1,
+        "closed_count": 0,
+        "escalated_count": 0,
+        "avg_response_hours": null
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "363b2482-0b40-46cb-9764-c12d7c17ce7a",
+        "date": "2026-08-12T00:00:00.000Z",
+        "open_count": 1,
+        "closed_count": 0,
+        "escalated_count": 0,
+        "avg_response_hours": null
+      },
+      {
+        "organization_id": "Y9gIbVqyl2UfHWlPEZQYhmw4iU2Nvtt8",
+        "property_id": "8d79a13e-e56b-4b43-9f69-86d53c137d31",
+        "date": "2026-08-22T00:00:00.000Z",
+        "open_count": 3,
+        "closed_count": 1,
+        "escalated_count": 0,
+        "avg_response_hours": -0.0000054880556
+      }
+    ],
+    "_rollup_watermarks": [
+      {
+        "name": "daily_inbox_metrics",
+        "watermark": "2026-09-04T14:05:00.106Z",
+        "updated_at": "2026-09-04T14:05:00.113Z"
+      },
+      {
+        "name": "daily_metrics",
+        "watermark": "2026-09-04T14:00:00.224Z",
+        "updated_at": "2026-09-04T14:00:00.277Z"
+      },
+      {
+        "name": "weekly_metrics",
+        "watermark": "2026-09-04T00:31:58.052Z",
+        "updated_at": "2026-09-04T00:31:58.059Z"
+      }
+    ]
+  }
+}

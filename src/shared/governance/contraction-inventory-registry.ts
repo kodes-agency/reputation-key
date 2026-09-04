@@ -123,20 +123,6 @@ export const CONTRACTION_INVENTORY_COMMANDS = Object.freeze([
     ],
   }),
   command({
-    packageScript: 'ops:report-legacy-rollups',
-    scriptPath: 'scripts/ops/report-legacy-rollups.ts',
-    kind: 'table_inventory',
-    authority: 'MET-01/CNV-01',
-    summary:
-      'Legacy Metric rollup projections and their refresh watermark, superseded by the governed metric readings model.',
-    tables: [
-      'rollup_daily_metrics',
-      'rollup_weekly_metrics',
-      'rollup_daily_inbox_metrics',
-      '_rollup_watermarks',
-    ],
-  }),
-  command({
     packageScript: 'ops:report-legacy-import-control',
     scriptPath: 'scripts/ops/report-legacy-import-control.ts',
     kind: 'table_inventory',

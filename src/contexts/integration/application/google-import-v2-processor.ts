@@ -148,8 +148,7 @@ function propertyOutcome(error: unknown): ImportOutcomeCode | null {
  * `authorization_changed` whether the gate had denied it or its expectations
  * had drifted, so the persisted `outcome_code` could not narrow which of the
  * authorizer's eleven deny sites fired. Both codes still present as
- * `cancelled`/`cancellation`, so parent rollup and progress totals are
- * unchanged.
+ * `cancelled`/`cancellation`, so parent and progress totals are unchanged.
  */
 function authorizationOutcome(
   code:

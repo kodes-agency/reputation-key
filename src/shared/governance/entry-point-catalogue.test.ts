@@ -381,26 +381,6 @@ function jobRegistrationsIn(registrationFile: string): FileJobRegistrations {
   return { names, gates }
 }
 
-/**
- * Job names the root bootstrap registers through the `JOB_NAMES` record rather
- * than through a registration reference.
- */
-function bootstrapJobNames(): ReadonlyArray<string> {
-  const bootstrap = read(join(ROOT, 'src/bootstrap.ts'))
-  if (!/jobRegistry\.register\(jobName,/u.test(bootstrap)) return []
-  const record = resolveJobConstant(
-    'JOB_NAMES',
-    'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts',
-  )
-  if (!record) return []
-  const names: string[] = []
-  for (const m of bootstrap.matchAll(/JOB_NAMES\.(\w+)/g)) {
-    const value = new RegExp(`${m[1]}:\\s*'([^']+)'`).exec(record)?.[1]
-    if (value) names.push(value)
-  }
-  return names
-}
-
 function discoverJobs(): DiscoveredJobs {
   const handlerGates = discoverHandlerGates()
   const names = new Set<string>()
@@ -410,7 +390,6 @@ function discoverJobs(): DiscoveredJobs {
     for (const name of registrations.names) names.add(name)
     for (const [name, gate] of registrations.gates) registrationGates.set(name, gate)
   }
-  for (const name of bootstrapJobNames()) names.add(name)
   return { names: [...names].sort(), registrationGates, handlerGates }
 }
 
@@ -581,12 +560,6 @@ function discoverSchedules(): ReadonlyArray<string> {
     .sort()
 }
 
-const RETAINED_CNV_01_SCHEDULE_ROWS: Readonly<Record<string, true>> = {
-  'refresh-daily-metrics-recurring': true,
-  'refresh-weekly-metrics-recurring': true,
-  'refresh-daily-inbox-metrics-recurring': true,
-}
-
 // ── 6. Operator commands ────────────────────────────────────────────
 
 const OPERATOR_SCRIPT_PREFIX = /^(seed|simulate|db:|auth:|audit:|perf:|bqc:|ops:)/
@@ -725,9 +698,9 @@ describe('BQC-2.1 entry-point catalogue', () => {
         ),
       ),
     }).toEqual({
-      full: 'd0cf47ab1dc93a01fa6fac568f7ffc29e9110f92bf0a85900298a3cb30c5f2c9',
+      full: '895b687da3dbaf6078591fe488e6a075d67460732ed4adb821100251f8341a26',
       withoutOutboxConsumers:
-        '8814e01dd7d8cfc1271e424bcb54c0e94cbc702098fd0c676191cef0658462d3',
+        '205ae3ac16189cbddcf3b4273207636b01d51ffb906a1c14eb939a9c3f71e4c5',
     })
 
     const invalid = {
@@ -1044,7 +1017,7 @@ describe('BQC-2.1 entry-point catalogue', () => {
           mutation.kind === 'mutation' &&
           mutation.disposition === 'local_only_with_reason',
       ),
-    ).toHaveLength(44)
+    ).toHaveLength(41)
   })
 
   it('classifies every request boundary and exposes the remaining split-write defects', () => {
@@ -1340,26 +1313,11 @@ describe('BQC-2.1 entry-point catalogue', () => {
       `schedules missing from the catalogue: ${missing.join(', ')}`,
     ).toEqual([])
 
-    const stale = rows.filter(
-      (row) =>
-        !discovered.includes(row.name) && !(row.name in RETAINED_CNV_01_SCHEDULE_ROWS),
-    )
+    const stale = rows.filter((row) => !discovered.includes(row.name))
     expect(
       stale.map(rowKey),
       `stale schedule rows: ${stale.map(rowKey).join(', ')}`,
     ).toEqual([])
-
-    for (const name of Object.keys(RETAINED_CNV_01_SCHEDULE_ROWS)) {
-      expect(
-        rows.some((row) => row.name === name),
-        name,
-      ).toBe(true)
-      const jobName = name.slice(0, -'-recurring'.length)
-      expect(
-        JOB_OPERATIONAL_CONTRACTS.find((contract) => contract.jobName === jobName),
-        name,
-      ).toMatchObject({ posture: 'quarantined', schedule: 'none' })
-    }
 
     const worker = read(join(ROOT, 'src/worker/index.ts'))
     expect(worker).toContain('createOperationalSchedulerPlan()')

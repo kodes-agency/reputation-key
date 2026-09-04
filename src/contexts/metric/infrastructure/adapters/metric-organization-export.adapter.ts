@@ -50,10 +50,6 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
     reasonCode: 'integrity_and_abuse_review_internal',
   },
   {
-    recordClass: 'legacy_rollup_projections',
-    reasonCode: 'dead_projection_without_beta_reader',
-  },
-  {
     recordClass: 'readings_of_non_export_permitted_definition_versions',
     reasonCode: 'metric_definition_version_consumer_not_permitted',
   },
@@ -527,9 +523,8 @@ async function readFamilies(
  * correction history that makes a corrected result auditable, and the source
  * freshness watermarks behind "Data through…".
  *
- * It does not touch the maintenance surface (quarantine, repair) or the legacy
- * `rollup_*` projections CNV-01 is inventorying for contraction — exporting a
- * dead projection would give it a reader it must not acquire.
+ * It does not touch the maintenance surface (quarantine and repair), which is
+ * internal integrity state rather than part of the governed export contract.
  */
 export const createMetricOrganizationExportAdapter = (
   db: Database,

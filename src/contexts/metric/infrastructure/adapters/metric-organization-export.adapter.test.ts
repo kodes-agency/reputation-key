@@ -225,10 +225,6 @@ describe('Metric Organization Export contributor', () => {
           recordClass: 'metric_quarantine',
           reasonCode: 'integrity_and_abuse_review_internal',
         },
-        {
-          recordClass: 'legacy_rollup_projections',
-          reasonCode: 'dead_projection_without_beta_reader',
-        },
       ]),
     )
   })

@@ -39,18 +39,18 @@ async function main() {
        SELECT "userId" AS user_id FROM member
        UNION
        SELECT user_id FROM user_organization_bindings
-     ), membership_rollup AS (
+     ), membership_summary AS (
        SELECT "userId" AS user_id,
               array_agg(DISTINCT "organizationId" ORDER BY "organizationId") AS organization_ids
          FROM member
         GROUP BY "userId"
      )
      SELECT subjects.user_id AS "userId",
-            COALESCE(membership_rollup.organization_ids, ARRAY[]::text[]) AS "membershipOrganizationIds",
+            COALESCE(membership_summary.organization_ids, ARRAY[]::text[]) AS "membershipOrganizationIds",
             binding.organization_id AS "bindingOrganizationId",
             binding.state AS "bindingState"
        FROM subjects
-       LEFT JOIN membership_rollup USING (user_id)
+       LEFT JOIN membership_summary USING (user_id)
        LEFT JOIN user_organization_bindings binding USING (user_id)
       ORDER BY subjects.user_id`,
   )

@@ -157,7 +157,7 @@ export type JobFamilyRow = Readonly<{
   retryBackoff: string
   /**
    * BQC-3.6: per-job execution timeout (BullMQ JobsOptions.timeout). Honest
-   * values from the workload: quick heartbeats 30s, GBP sync/sweeps/rollups
+   * values from the workload: quick heartbeats 30s, GBP sync/sweeps
    * 300s, bulk import 600s, the bounded retention sweep 900s, everything else
    * the 120s default. jobEnqueueOptions (shared/jobs/job-policy.ts) derives
    * the BullMQ opts from these fields.
@@ -2758,54 +2758,6 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       timeoutMs: 300_000,
       notes:
         'BQC-3.8 provider-pending and ambiguous sweep (500×10, keyset on reconcile_due_at); PostgreSQL session advisory lease makes the run globally single-flight across replicas; per-row provider re-read via reconcileReplyPublication — never a send; exact observations heal, while non-confirming reads and isolated failures are guardedly rescheduled; 240s monotonic start deadline leaves 60s inside the 300s worker timeout for an already-started bounded provider read, checkpoint, reporting, and lease release; an unstarted suffix remains due',
-    },
-  ),
-  job(
-    'refresh-daily-metrics',
-    'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:metric.refresh',
-      schedule: 'none',
-      registration: 'quarantined',
-    },
-    {
-      timeoutMs: 300_000,
-      notes:
-        'CNV-01 quarantine: no product reader; schema contraction after one verified release and restore proof',
-    },
-  ),
-  job(
-    'refresh-weekly-metrics',
-    'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:metric.refresh',
-      schedule: 'none',
-      registration: 'quarantined',
-    },
-    {
-      timeoutMs: 300_000,
-      notes:
-        'CNV-01 quarantine: no product reader; schema contraction after one verified release and restore proof',
-    },
-  ),
-  job(
-    'refresh-daily-inbox-metrics',
-    'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:metric.refresh',
-      schedule: 'none',
-      registration: 'quarantined',
-    },
-    {
-      timeoutMs: 300_000,
-      notes:
-        'CNV-01 quarantine: no product reader; schema contraction after one verified release and restore proof',
     },
   ),
   job(

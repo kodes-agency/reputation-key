@@ -1,0 +1,251 @@
+{
+  "formatVersion": 1,
+  "capturedAt": "2026-09-04T20:55:06.884Z",
+  "environment": "google-closed-beta",
+  "tables": [
+    {
+      "table": "rollup_daily_metrics",
+      "rows": 6,
+      "columns": [
+        {
+          "column_name": "organization_id",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "property_id",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "portal_id",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "metric_key",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "date",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "count",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "sum_value",
+          "data_type": "real",
+          "is_nullable": "NO",
+          "ordinal_position": 7
+        },
+        {
+          "column_name": "avg_value",
+          "data_type": "real",
+          "is_nullable": "NO",
+          "ordinal_position": 8
+        }
+      ],
+      "constraints": [
+        {
+          "conname": "rollup_daily_metrics_pkey",
+          "contype": "p",
+          "def": "PRIMARY KEY (organization_id, property_id, portal_id, metric_key, date)"
+        }
+      ],
+      "indexes": [
+        {
+          "indexname": "rollup_daily_metrics_pkey",
+          "indexdef": "CREATE UNIQUE INDEX rollup_daily_metrics_pkey ON public.rollup_daily_metrics USING btree (organization_id, property_id, portal_id, metric_key, date)"
+        }
+      ],
+      "inboundForeignKeys": [],
+      "outboundForeignKeys": [],
+      "triggers": []
+    },
+    {
+      "table": "rollup_weekly_metrics",
+      "rows": 6,
+      "columns": [
+        {
+          "column_name": "organization_id",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "property_id",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "portal_id",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "metric_key",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "week",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "count",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "sum_value",
+          "data_type": "real",
+          "is_nullable": "NO",
+          "ordinal_position": 7
+        },
+        {
+          "column_name": "avg_value",
+          "data_type": "real",
+          "is_nullable": "NO",
+          "ordinal_position": 8
+        }
+      ],
+      "constraints": [
+        {
+          "conname": "rollup_weekly_metrics_pkey",
+          "contype": "p",
+          "def": "PRIMARY KEY (organization_id, property_id, portal_id, metric_key, week)"
+        }
+      ],
+      "indexes": [
+        {
+          "indexname": "rollup_weekly_metrics_pkey",
+          "indexdef": "CREATE UNIQUE INDEX rollup_weekly_metrics_pkey ON public.rollup_weekly_metrics USING btree (organization_id, property_id, portal_id, metric_key, week)"
+        }
+      ],
+      "inboundForeignKeys": [],
+      "outboundForeignKeys": [],
+      "triggers": []
+    },
+    {
+      "table": "rollup_daily_inbox_metrics",
+      "rows": 9,
+      "columns": [
+        {
+          "column_name": "organization_id",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "property_id",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "date",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "open_count",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "closed_count",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "escalated_count",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "avg_response_hours",
+          "data_type": "real",
+          "is_nullable": "YES",
+          "ordinal_position": 7
+        }
+      ],
+      "constraints": [
+        {
+          "conname": "rollup_daily_inbox_metrics_pkey",
+          "contype": "p",
+          "def": "PRIMARY KEY (organization_id, property_id, date)"
+        }
+      ],
+      "indexes": [
+        {
+          "indexname": "rollup_daily_inbox_metrics_pkey",
+          "indexdef": "CREATE UNIQUE INDEX rollup_daily_inbox_metrics_pkey ON public.rollup_daily_inbox_metrics USING btree (organization_id, property_id, date)"
+        }
+      ],
+      "inboundForeignKeys": [],
+      "outboundForeignKeys": [],
+      "triggers": []
+    },
+    {
+      "table": "_rollup_watermarks",
+      "rows": 3,
+      "columns": [
+        {
+          "column_name": "name",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "watermark",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "updated_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "ordinal_position": 3
+        }
+      ],
+      "constraints": [
+        {
+          "conname": "_rollup_watermarks_pkey",
+          "contype": "p",
+          "def": "PRIMARY KEY (name)"
+        }
+      ],
+      "indexes": [
+        {
+          "indexname": "_rollup_watermarks_pkey",
+          "indexdef": "CREATE UNIQUE INDEX _rollup_watermarks_pkey ON public._rollup_watermarks USING btree (name)"
+        }
+      ],
+      "inboundForeignKeys": [],
+      "outboundForeignKeys": [],
+      "triggers": []
+    }
+  ]
+}

@@ -195,24 +195,6 @@ async function seedTenantRows(prefix: string): Promise<Fixture> {
      VALUES (gen_random_uuid(), $1, $2::uuid, $3::uuid, $4, $4)`,
     [organizationId, fixture.propertyId, fixture.aggregatePortalId, REQUESTED_AT],
   )
-  await lease.pool.query(
-    `INSERT INTO rollup_daily_metrics
-       (organization_id, property_id, portal_id, metric_key, date, count, sum_value, avg_value)
-     VALUES ($1, $2, $3, 'portal.rating_count', $4, 1, 1, 1)`,
-    [organizationId, fixture.propertyId, fixture.readingPortalId, REQUESTED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO rollup_weekly_metrics
-       (organization_id, property_id, portal_id, metric_key, week, count, sum_value, avg_value)
-     VALUES ($1, $2, $3, 'portal.rating_count', $4, 1, 1, 1)`,
-    [organizationId, fixture.propertyId, fixture.readingPortalId, REQUESTED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO rollup_daily_inbox_metrics
-       (organization_id, property_id, date, open_count, closed_count, escalated_count)
-     VALUES ($1, $2, $3, 1, 0, 0)`,
-    [organizationId, fixture.propertyId, REQUESTED_AT],
-  )
 
   return fixture
 }

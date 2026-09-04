@@ -51,7 +51,7 @@ export type PrincipalType = 'user' | 'system' | 'operator' | 'public'
 export type ResourceScope =
   | 'organization'
   | 'property'
-  | 'tenant_cross' // system work spanning tenants (sweeps, rollups)
+  | 'tenant_cross' // system work spanning tenants (sweeps)
   | 'none'
 
 export type BetaPosture = 'core' | 'non_core' | 'blocked'
@@ -449,9 +449,6 @@ const LOCAL_ONLY_JOB_MUTATIONS = new Set([
   'discover-new-reviews',
   'expire-review-provider-source',
   'sweep-review-provider-tombstones',
-  'refresh-daily-metrics',
-  'refresh-weekly-metrics',
-  'refresh-daily-inbox-metrics',
   'retention-sweep',
   'quarantine-ttl-sweep',
   'ai-operation-execution-reaper',
@@ -3995,30 +3992,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
-    'refresh-daily-metrics',
-    'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts',
-    'system:metric.refresh',
-    'none',
-    'tenant_cross',
-    { notes: 'incremental rollup' },
-  ),
-  job(
-    'refresh-weekly-metrics',
-    'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts',
-    'system:metric.refresh',
-    'none',
-    'tenant_cross',
-    { notes: 'incremental rollup' },
-  ),
-  job(
-    'refresh-daily-inbox-metrics',
-    'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts',
-    'system:metric.refresh',
-    'none',
-    'tenant_cross',
-    { notes: 'incremental rollup' },
-  ),
-  job(
     'goal-program.maintain',
     'src/contexts/goal/infrastructure/jobs/goal-program-maintenance.job.ts',
     'system:goal.maintain',
@@ -4949,27 +4922,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   schedule(
-    'refresh-daily-metrics-recurring',
-    'system:metric.refresh',
-    'none',
-    'tenant_cross',
-    { notes: 'cron 0 * * * * (hourly)' },
-  ),
-  schedule(
-    'refresh-weekly-metrics-recurring',
-    'system:metric.refresh',
-    'none',
-    'tenant_cross',
-    { notes: 'daily' },
-  ),
-  schedule(
-    'refresh-daily-inbox-metrics-recurring',
-    'system:metric.refresh',
-    'none',
-    'tenant_cross',
-    { notes: 'cron 5 * * * * (hourly)' },
-  ),
-  schedule(
     'goal-program.maintain-recurring',
     'system:goal.maintain',
     'goal.use',
@@ -5225,15 +5177,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/ops/report-legacy-rollups.ts',
-    'scripts/ops/report-legacy-rollups.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-legacy-rollups — read-only MET-01/CNV-01 inventory of the four legacy Metric rollup tables with row counts, foreign-key metadata, contraction blockers and a content-free fingerprint at an explicit --as-of; no apply path',
-    },
-  ),
-  ops(
     'scripts/ops/report-legacy-import-control.ts',
     'scripts/ops/report-legacy-import-control.ts',
     'tenant_cross',
@@ -5266,7 +5209,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'organization',
     {
       notes:
-        'ops:rebuild-projection — repair/rebuild the inbox projection via the rebuildInboxProjection use case (bounded, dry-run default); metric-rollup watermark reset deliberately NOT built (BQC-7.5)',
+        'ops:rebuild-projection — repair/rebuild the inbox projection via the rebuildInboxProjection use case (bounded, dry-run default; BQC-7.5)',
     },
   ),
   ops(

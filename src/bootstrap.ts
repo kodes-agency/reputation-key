@@ -69,10 +69,6 @@ import {
 import { createAiAuthorizationErasureAdapter } from '#/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter'
 import type { Env } from '#/shared/config/env'
 import { writeWorkerHeartbeat } from '#/shared/health/worker-heartbeat'
-import {
-  createQuarantinedRollupHandler,
-  JOB_NAMES,
-} from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import {
@@ -404,19 +400,6 @@ export async function bootstrap(
   // ── Register event handlers here as contexts are added ────────────
   // Example:
   //   container.eventBus.on('portal.created', (event) => { ... })
-
-  // ── Quarantined metric rollup jobs ─────────────────────────────────
-  for (const jobName of [
-    JOB_NAMES.refreshDailyMetrics,
-    JOB_NAMES.refreshWeeklyMetrics,
-    JOB_NAMES.refreshDailyInboxMetrics,
-  ] as const) {
-    container.jobRegistry.register(
-      jobName,
-      createQuarantinedRollupHandler(jobName, container.logger),
-    )
-    logger.info({ job: jobName }, 'registered quarantined metric rollup job handler')
-  }
 
   // ── Canonical monthly Goal Program maintenance ───────────────────
   // The dispatch gate authorizes this tenant-cross enumeration. The service

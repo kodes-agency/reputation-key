@@ -226,26 +226,6 @@ export type NonFkUnreferenceableCandidate = Readonly<{
  */
 export const NON_FK_UNREFERENCEABLE_CANDIDATES = Object.freeze([
   Object.freeze({
-    tableName: 'rollup_daily_metrics',
-    reason:
-      'Keyed by (organization_id, property_id, portal_id, metric_key, date) with no surrogate row identifier, so no textual column or jsonb document elsewhere can name an individual rollup row.',
-  }),
-  Object.freeze({
-    tableName: 'rollup_weekly_metrics',
-    reason:
-      'Keyed by (organization_id, property_id, portal_id, metric_key, week) with no surrogate row identifier; the same reasoning as the daily rollup applies.',
-  }),
-  Object.freeze({
-    tableName: 'rollup_daily_inbox_metrics',
-    reason:
-      'Keyed by (organization_id, property_id, date) with no surrogate row identifier; nothing outside the refresh job can address one of its rows.',
-  }),
-  Object.freeze({
-    tableName: '_rollup_watermarks',
-    reason:
-      'Keyed by a rollup name owned by the refresh job. The name is not an application identifier and is never copied into activity, outbox, or notification rows.',
-  }),
-  Object.freeze({
     tableName: 'legacy_import_control',
     reason:
       'Keyed by environment name. Its only reference is the validated legacy_import_effect_leases_control_fk foreign key, which the import-control inventory already reports.',

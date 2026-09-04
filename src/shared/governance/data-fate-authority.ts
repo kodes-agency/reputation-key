@@ -824,19 +824,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: RECONCILE_QUARANTINE,
   }),
   ...rows({
-    schemaFile: 'rollup.schema.ts',
-    exportNames: [
-      'rollupDailyInboxMetrics',
-      'rollupDailyMetrics',
-      'rollupWatermarks',
-      'rollupWeeklyMetrics',
-    ],
-    owner: 'metric',
-    disposition: 'bounded_contraction',
-    authority: 'MET-01/CNV-01',
-    exitCriteria: CONTRACT_AFTER_EXPORT,
-  }),
-  ...rows({
     schemaFile: 'staff-assignment.schema.ts',
     exportNames: ['staffAssignments'],
     owner: 'staff',

@@ -15,7 +15,6 @@ import * as guestSchema from './schema/guest.schema'
 import * as leaderboardSchema from './schema/leaderboard.schema'
 import * as peopleAccessSchema from './schema/people-access.schema'
 import * as portalSchema from './schema/portal.schema'
-import * as rollupSchema from './schema/rollup.schema'
 import * as staffAssignmentSchema from './schema/staff-assignment.schema'
 import * as teamSchema from './schema/team.schema'
 
@@ -35,7 +34,6 @@ export const CONTRACTION_SCHEMA_MODULES: SchemaModuleMap = Object.freeze({
   'leaderboard.schema.ts': leaderboardSchema,
   'people-access.schema.ts': peopleAccessSchema,
   'portal.schema.ts': portalSchema,
-  'rollup.schema.ts': rollupSchema,
   'staff-assignment.schema.ts': staffAssignmentSchema,
   'team.schema.ts': teamSchema,
 })

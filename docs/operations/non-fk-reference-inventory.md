@@ -38,13 +38,10 @@ token maps to a candidate table without a declared referent.
 
 Every table classified `bounded_contraction` or `compatibility_read` must be
 either reachable by a declared probe or recorded in
-`NON_FK_UNREFERENCEABLE_CANDIDATES` with a reason. Five candidates are recorded
-as having no non-FK referent, because they have no surrogate row identifier
-anything else could hold:
+`NON_FK_UNREFERENCEABLE_CANDIDATES` with a reason. One candidate is recorded as
+having no non-FK referent because it has no surrogate row identifier anything
+else could hold:
 
-- `rollup_daily_metrics`, `rollup_weekly_metrics`, `rollup_daily_inbox_metrics`
-  — composite natural keys, no row id;
-- `_rollup_watermarks` — keyed by a rollup name owned by the refresh job;
 - `legacy_import_control` — keyed by environment name; its only reference is
   the validated `legacy_import_effect_leases_control_fk` foreign key.
 
