@@ -876,6 +876,46 @@ async function waitForWebHealth(out: (line: string) => void): Promise<void> {
   }
 }
 
+/** An image source receives no Railway git metadata, so nothing supplies
+ * `RELEASE_SHA`. Two things then break: the Google and AI gateways require it
+ * unconditionally and refuse to boot
+ * (`services/google-egress-gateway/environment.ts:137`,
+ * `services/ai-egress-gateway/environment.ts:106`), and `/api/health/metrics`
+ * reports `release.sha` as `unknown`.
+ *
+ * Writing it here is what `.railway/railway.ts` already anticipates: it
+ * declares `RELEASE_SHA: preserve()` under `releaseControlledVariables()`
+ * precisely so "the signed release controller writes these values per service
+ * immediately before the saved IaC plan advances the immutable image digest".
+ * This command is that controller for `google-closed-beta`.
+ *
+ * `--skip-deploys` keeps this from starting its own deployment; the source
+ * connect that follows is the single deploy, so the new container starts with
+ * the identity already in place. Setting the value also makes
+ * `assertReleaseIdentity` (`src/shared/config/release-identity.ts:22-38`)
+ * meaningful again instead of vacuous: it now compares a written identity
+ * against the revision baked into the image, and a stale pin fails closed. */
+function writeReleaseIdentity(
+  service: ClosedBetaImageDeployment,
+  runner: CommandRunner,
+  out: (line: string) => void,
+): void {
+  checkedOutput(runner, 'railway', [
+    'variable',
+    'set',
+    `RELEASE_SHA=${service.sourceRevision}`,
+    '--project',
+    CLOSED_BETA_PROJECT_ID,
+    '--environment',
+    CLOSED_BETA_ENVIRONMENT_ID,
+    '--service',
+    service.serviceId,
+    '--skip-deploys',
+    '--json',
+  ])
+  out(`${service.serviceName}: RELEASE_SHA set to ${service.sourceRevision}`)
+}
+
 export async function applyClosedBetaImageDeployment(
   input: Readonly<{
     plan: readonly ClosedBetaImageDeployment[]
@@ -910,6 +950,8 @@ export async function applyClosedBetaImageDeployment(
         `${service.serviceName} source changed after the reviewed deployment plan`,
       )
     }
+
+    writeReleaseIdentity(service, runner, out)
 
     checkedOutput(runner, 'railway', [
       'service',
