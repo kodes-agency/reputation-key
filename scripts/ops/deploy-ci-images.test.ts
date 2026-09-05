@@ -55,23 +55,22 @@ function gitReader(isAncestor: boolean): GitRevisionReader {
 }
 
 function serviceInventory(): RailwayServiceObservation[] {
-  return closedBetaImageServices({
-    includeSidecars: true,
-    includeProviderRedis: true,
-  }).map(({ serviceId, serviceName }, index) => ({
-    id: serviceId,
-    name: serviceName,
-    source: {
-      repo: serviceName === 'google-provider-redis' ? null : TRUSTED_REPOSITORY,
-      image: serviceName === 'google-provider-redis' ? 'redis:7' : null,
-    },
-    status: 'SUCCESS',
-    deploymentStopped: false,
-    deploymentId: `deployment-${String(index)}`,
-    configuredReplicas: 1,
-    runningReplicas: 1,
-    crashedReplicas: 0,
-  }))
+  return closedBetaImageServices({ includeProviderRedis: true }).map(
+    ({ serviceId, serviceName }, index) => ({
+      id: serviceId,
+      name: serviceName,
+      source: {
+        repo: serviceName === 'google-provider-redis' ? null : TRUSTED_REPOSITORY,
+        image: serviceName === 'google-provider-redis' ? 'redis:7' : null,
+      },
+      status: 'SUCCESS',
+      deploymentStopped: false,
+      deploymentId: `deployment-${String(index)}`,
+      configuredReplicas: 1,
+      runningReplicas: 1,
+      crashedReplicas: 0,
+    }),
+  )
 }
 
 describe('closed-beta CI image deployment authority', () => {
@@ -101,39 +100,27 @@ describe('closed-beta CI image deployment authority', () => {
         imageReference,
       })),
     ).toEqual(
-      closedBetaImageServices({
-        includeSidecars: false,
-        includeProviderRedis: false,
-      }).map(({ imageName, serviceName, serviceId }) => ({
-        imageName,
-        serviceName,
-        serviceId,
-        imageReference: `ghcr.io/kodes-agency/repkey-${imageName}@sha256:${String(
-          CI_PRODUCTION_IMAGE_NAMES.indexOf(imageName) + 1,
-        ).repeat(64)}`,
-      })),
+      closedBetaImageServices({ includeProviderRedis: false }).map(
+        ({ imageName, serviceName, serviceId }) => ({
+          imageName,
+          serviceName,
+          serviceId,
+          imageReference: `ghcr.io/kodes-agency/repkey-${imageName}@sha256:${String(
+            CI_PRODUCTION_IMAGE_NAMES.indexOf(imageName) + 1,
+          ).repeat(64)}`,
+        }),
+      ),
     )
   })
 
-  it('plans only the services proven on a digest source by default', () => {
+  it('plans every GitHub-backed service and web first by default', () => {
     const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
     const names = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory()).map(
       ({ serviceName }) => serviceName,
     )
 
-    // Only web and worker survived an image-sourced boot. The gateway crashes
-    // on the platform-supplied RELEASE_SHA it cannot get from an image, so a
-    // default plan containing it would take the Google path down every run.
-    expect(names).toEqual(['web', 'worker'])
-  })
-
-  it('appends the sidecars only when they are explicitly opted in', () => {
-    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
-    const names = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory(), {
-      includeSidecars: true,
-      includeProviderRedis: false,
-    }).map(({ serviceName }) => serviceName)
-
+    // All four sidecars settled healthy once the command started writing
+    // RELEASE_SHA itself, so they belong in the default plan again.
     expect(names.slice(0, 2)).toEqual(['web', 'worker'])
     expect(names).toHaveLength(6)
     expect(names).not.toContain('google-provider-redis')
@@ -142,7 +129,6 @@ describe('closed-beta CI image deployment authority', () => {
   it('appends the provider Redis last when it is explicitly opted in', () => {
     const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
     const names = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory(), {
-      includeSidecars: true,
       includeProviderRedis: true,
     }).map(({ serviceName }) => serviceName)
 
@@ -281,5 +267,87 @@ describe('closed-beta CI image deployment authority', () => {
     // Without this the variable write starts its own deployment and the
     // source connect races a container that is already coming up.
     expect(calls[variableSet]).toContain('--skip-deploys')
+  })
+
+  it('redeploys a correctly pinned service whose release identity is stale', async () => {
+    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
+    const target = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory()).find(
+      ({ serviceName }) => serviceName === 'web',
+    )!
+    // Already on the exact target digest, but carrying someone else's revision.
+    const plan = [
+      { ...target, beforeSource: { repo: null, image: target.imageReference } },
+    ]
+    const calls: string[][] = []
+    let redeployed = false
+    const runner: CommandRunner = (command, args) => {
+      calls.push([command, ...args])
+      if (args[0] === 'variable' && args[1] === 'list') {
+        return { status: 0, stdout: `RELEASE_SHA=${'c'.repeat(40)}\n`, stderr: '' }
+      }
+      if (args[0] === 'service' && args[1] === 'list') {
+        return {
+          status: 0,
+          stdout: JSON.stringify(
+            serviceInventory().map((service) => ({
+              id: service.id,
+              name: service.name,
+              source:
+                service.name === 'web'
+                  ? { repo: null, image: target.imageReference }
+                  : service.source,
+              status: 'SUCCESS',
+              deploymentStopped: false,
+              latestDeployment: {
+                id:
+                  service.name === 'web' && redeployed
+                    ? 'deployment-web-next'
+                    : service.deploymentId,
+              },
+              replicas: { configured: 1, running: 1, crashed: 0 },
+            })),
+          ),
+          stderr: '',
+        }
+      }
+      if (args[0] === 'deployment' && args[1] === 'list') {
+        return {
+          status: 0,
+          stdout: JSON.stringify([
+            {
+              id: redeployed ? 'deployment-web-next' : 'deployment-0',
+              status: 'SUCCESS',
+              meta: { imageDigest: target.digest },
+            },
+          ]),
+          stderr: '',
+        }
+      }
+      if (args[0] === 'redeploy') redeployed = true
+      return { status: 0, stdout: '{}', stderr: '' }
+    }
+    const fetchStub = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }))
+
+    try {
+      await expect(
+        applyClosedBetaImageDeployment({ plan, runner, out: () => {} }),
+      ).resolves.toEqual([{ serviceName: 'web', deploymentId: 'deployment-web-next' }])
+    } finally {
+      fetchStub.mockRestore()
+    }
+
+    // Matching the digest is not enough to skip: the running container would
+    // keep reporting the wrong revision in /api/health/metrics.
+    expect(calls.some((call) => call[1] === 'redeploy')).toBe(true)
+    // Reconnecting an identical source may produce no deployment at all, so
+    // the redeploy path must be used instead of connect.
+    expect(calls.some((call) => call[1] === 'service' && call[2] === 'source')).toBe(
+      false,
+    )
+    expect(calls.find((call) => call[1] === 'variable' && call[2] === 'set')).toContain(
+      `RELEASE_SHA=${REVISION}`,
+    )
   })
 })

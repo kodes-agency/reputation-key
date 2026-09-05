@@ -1,26 +1,23 @@
 # Closed-beta CI image delivery
 
-Status: `web` and `worker` run CI digests. The four sidecars are still
-repo-sourced, blocked on the `RELEASE_SHA` coupling described below.
+Status: all six GitHub-backed services run CI digests.
 
 Owner: Platform/Operations
 
 ## Current state, 2026-09-05
 
-| Service                      | Source                                               |
-| ---------------------------- | ---------------------------------------------------- |
-| `web`                        | `ghcr.io/kodes-agency/repkey-web@sha256:7e76c8e…`    |
-| `worker`                     | `ghcr.io/kodes-agency/repkey-worker@sha256:080efe3…` |
-| `google-egress-gateway`      | GitHub `release`                                     |
-| `google-execution-admission` | GitHub `release`                                     |
-| `ai-egress-gateway`          | GitHub `release`                                     |
-| `ai-execution-admission`     | GitHub `release`                                     |
-| `google-provider-redis`      | upstream `redis:7` by digest (out of scope)          |
+All six GitHub-backed services run digests promoted by `ci.yml` from
+`3cbce658`, each with `RELEASE_SHA` written to that revision.
+`google-provider-redis` stays on upstream `redis:7` by digest and is out of
+scope.
 
-### Blocker: the sidecars require platform-supplied `RELEASE_SHA`
+Read the real source from the service config, never from
+`railway deployment list` — see the warning further down.
 
-`web` and `worker` moved and stayed healthy. `google-egress-gateway` then
-CRASHED on its first image-sourced boot with:
+### Resolved: the sidecars needed a written `RELEASE_SHA`
+
+`web` and `worker` moved first and stayed healthy. `google-egress-gateway`
+then CRASHED on its first two image-sourced boots with:
 
 ```
 required Google gateway setting is missing: RELEASE_SHA
@@ -28,31 +25,37 @@ required Google gateway setting is missing: RELEASE_SHA
 
 `RELEASE_SHA` is in `BASE_OWNED_NAMES` and is required unconditionally by
 `assertCommonRequiredEnvironment` (`services/google-egress-gateway/environment.ts:137`),
-then checked as 40-hex alongside `IMAGE_SOURCE_REVISION` at `:176-180`. It is
-NOT a service or shared variable — verified absent from both the Railway
-variables API and `railway variable list` for the gateway and for `web` — and
-it is not baked by `Dockerfile.google-egress-gateway` (which sets only
-`IMAGE_SOURCE_REVISION`) nor defined by `tsup.google-egress-gateway.config.ts`.
-It is platform-supplied deployment metadata that exists only for a
-repo-sourced deployment, in the same class as the `RAILWAY_GIT_*` names the
-gateway allowlists but which likewise never appear in the variables API.
+then checked as 40-hex alongside `IMAGE_SOURCE_REVISION` at `:176-180`;
+`ai-egress-gateway` requires it identically at
+`services/ai-egress-gateway/environment.ts:69,106,289,337`. It was NOT a
+service or shared variable — verified absent from both the Railway variables
+API and `railway variable list` — and it is not baked by
+`Dockerfile.google-egress-gateway` (which sets only `IMAGE_SOURCE_REVISION`)
+nor defined by `tsup.google-egress-gateway.config.ts`. It is platform-supplied
+deployment metadata that only exists for a repo-sourced deployment.
 
-So an image-sourced sidecar cannot satisfy it, and `ai-*` would fail
-identically: the same requirement lives at
-`services/ai-egress-gateway/environment.ts:69,106,289,337`.
+The fix was NOT to let the sidecars fall back to the baked
+`IMAGE_SOURCE_REVISION` — that would make `assertReleaseIdentity`
+(`src/shared/config/release-identity.ts:22-38`) vacuous for exactly the
+deployments it should be checking, since both sides would be the same fact
+read twice.
 
-**Recommended fix**, deliberately left for a watched change window rather than
-applied unattended: when the platform supplies no release metadata, treat the
-baked `IMAGE_SOURCE_REVISION` as the release identity. For a digest-pinned
-source that is exactly correct — Railway runs the referenced digest, so there
-is no stale-image hazard for `assertReleaseIdentity`
-(`src/shared/config/release-identity.ts:22-38`) to catch. The guard keeps
-firing whenever `RELEASE_SHA` IS supplied and disagrees with the image, which
-is the mutable-branch case it was written for. Do not simply drop the
-requirement.
+Instead `ops:deploy-ci-images` now writes `RELEASE_SHA` itself, which is what
+`.railway/railway.ts` already anticipated: it declares
+`RELEASE_SHA: preserve()` under `releaseControlledVariables()` precisely so
+"the signed release controller writes these values per service immediately
+before the saved IaC plan advances the immutable image digest". The value is
+set with `--skip-deploys` immediately before the source change, so the single
+deploy that follows starts with the identity in place. All four sidecars then
+settled healthy.
 
-During the attempt both Google sidecars went down for roughly ten minutes and
-were restored by reconnecting them to GitHub `release` and redeploying; the
+A service already on the correct digest but carrying a stale `RELEASE_SHA` is
+redeployed rather than skipped, because the running container would otherwise
+keep reporting the wrong revision in `/api/health/metrics` and its boot logs.
+
+Cost of getting there, recorded so the next person knows the rollback works:
+both Google sidecars went down for roughly ten minutes across two attempts and
+were restored by reconnecting them to GitHub `release` and redeploying. The
 gateway needed a second redeploy because its dependency was still down on the
 first. Rollback took about five minutes per service and is the procedure at
 the end of this document.
@@ -232,19 +235,14 @@ the revision is an ancestor of `origin/main`, and prints the fixed project,
 environment, seven service IDs, current sources, and proposed digest references.
 It does not mutate Railway.
 
-### Scope: `web` and `worker` by default
+### Scope: all six GitHub-backed services by default
 
-The default plan is **only `web` and `worker`** — the two services proven on a
-digest source. Both moved on 2026-09-05 and stayed healthy across two
-revisions. For them a digest cutover is a same-bits source change: Railway
-stops rebuilding what CI already built.
-
-The four sidecars are excluded, and re-attempting them is not a harmless
-retry: `google-egress-gateway` CRASHES on its first image-sourced boot with
-`required Google gateway setting is missing: RELEASE_SHA`, which takes the
-Google review path down until it is reconnected to `release` and redeployed.
-`--include-sidecars` opts in, and should only be used after the `RELEASE_SHA`
-coupling above is fixed.
+The default plan is the **six GitHub-backed services** — `web`, `worker`, the
+two Google sidecars and the two AI sidecars. For all of them a digest cutover
+is a same-bits source change: Railway stops rebuilding what CI already built,
+smoke-checked, inventoried and scanned. Each one also gets its `RELEASE_SHA`
+written to the deployed revision, so the ops snapshot and boot logs name the
+bits that are actually running.
 
 `google-provider-redis` is excluded for a different reason: it currently runs
 upstream `redis:7` by digest, so pointing it at
@@ -257,21 +255,17 @@ substrate failure cannot precede the services that depend on it.
 ### A digest-pinned service no longer follows `release`
 
 This is the operational consequence to internalise. `git push origin
-origin/main:refs/heads/release` still deploys every repo-sourced service, but
-`web` and `worker` ignore it — they run the digest they were pinned to until
-`ops:deploy-ci-images` moves them. `railway deployment list` is misleading
-here: it reports the branch commit for the environment, so it will happily
-show `@<release-head>` for a service that is actually running an older image.
-Confirm the real source with the service config, not the deployment list.
+origin/main:refs/heads/release` no longer deploys anything in
+`google-closed-beta`: every GitHub-backed service is pinned to a digest and
+moves only when `ops:deploy-ci-images` says so. Deploying is now an explicit
+step, which is the point — but it is a change of habit.
 
-Two known consequences while the sidecars stay repo-sourced:
-
-- A fix must be deployed twice — push `release` for the sidecars, then run
-  `ops:deploy-ci-images` for `web` and `worker`.
-- `GET /api/health/metrics` reports `release.sha` as `unknown` for the
-  image-sourced services, because `RELEASE_SHA` is the same platform-supplied
-  name the sidecars require and an image source does not receive it. Release
-  identity in the ops snapshot is therefore degraded until that is fixed.
+`railway deployment list` is actively misleading here: it reports the branch
+commit for the environment, so it will show the `release` head for a service
+that is really running an older image. Confirm the real source from the
+service config, and confirm the running revision from
+`/api/health/metrics` (`release.sha`), which is now truthful because the
+command writes the identity.
 
 After reviewing the report, apply the same default revision with the explicit
 live-environment opt-in:

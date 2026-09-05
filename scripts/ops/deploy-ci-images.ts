@@ -103,27 +103,19 @@ const WEB_HEALTH_URLS = Object.freeze([
   'https://web-google-closed-beta.up.railway.app/api/health/started',
 ] as const)
 
-/** Only `web` and `worker` are proven on a digest source. Both were moved on
- * 2026-09-05 and stayed healthy across two revisions.
+/** All six GitHub-backed services are now proven on a digest source. The
+ * sidecars were blocked until this command started writing `RELEASE_SHA`
+ * itself: `google-egress-gateway` used to crash its first image-sourced boot
+ * with `required Google gateway setting is missing: RELEASE_SHA`, because that
+ * name is platform-supplied metadata a digest source never receives. With the
+ * identity written before the deploy, all four settled healthy on 2026-09-05.
  *
- * The four sidecars are NOT, and re-attempting them is not a harmless retry:
- * `google-egress-gateway` CRASHES on its first image-sourced boot with
- * `required Google gateway setting is missing: RELEASE_SHA`. That name is
- * platform-supplied deployment metadata which exists only for a repo-sourced
- * deployment (it is absent from the variables API, from
- * `railway variable list`, from `Dockerfile.google-egress-gateway` and from
- * the tsup config), and the gateway requires it unconditionally at
- * `services/google-egress-gateway/environment.ts:137`. `ai-egress-gateway`
- * requires it identically at `services/ai-egress-gateway/environment.ts:106`.
- * A default plan that includes them takes the Google review path down on
- * every run until that coupling is fixed.
- *
- * The provider Redis is excluded for a different reason: it runs upstream
- * `redis:7` by digest, so repointing it is not a source change but a
- * substitution of the live queue and cache substrate with an image that has
- * never been deployed. It is also ordered LAST so a substrate failure cannot
- * precede the services that depend on it. */
-const SIDECAR_IMAGE_SERVICES = Object.freeze([
+ * The provider Redis stays out. It runs upstream `redis:7` by digest, so
+ * repointing it is not a source change but a substitution of the live queue
+ * and cache substrate with an image that has never been deployed. It is also
+ * ordered LAST so a substrate failure cannot precede the services that depend
+ * on it. */
+const GITHUB_BACKED_IMAGE_SERVICES = Object.freeze([
   {
     imageName: 'google-execution-admission',
     serviceName: 'google-execution-admission',
@@ -152,7 +144,7 @@ const PROVIDER_REDIS_IMAGE_SERVICE = Object.freeze({
   serviceId: '91935481-1aae-4dcd-b0f2-a84b0b3b34f3',
 })
 
-export const DIGEST_PROVEN_IMAGE_SERVICES = Object.freeze([
+export const CLOSED_BETA_IMAGE_SERVICES = Object.freeze([
   {
     imageName: 'web',
     serviceName: 'web',
@@ -163,6 +155,7 @@ export const DIGEST_PROVEN_IMAGE_SERVICES = Object.freeze([
     serviceName: 'worker',
     serviceId: 'a667f978-ee3e-4707-9d38-7c23a4f2e4cc',
   },
+  ...GITHUB_BACKED_IMAGE_SERVICES,
 ] as const satisfies ReadonlyArray<
   Readonly<{
     imageName: CiProductionImageName
@@ -172,7 +165,6 @@ export const DIGEST_PROVEN_IMAGE_SERVICES = Object.freeze([
 >)
 
 export type ClosedBetaImageScope = Readonly<{
-  includeSidecars: boolean
   includeProviderRedis: boolean
 }>
 
@@ -181,11 +173,9 @@ export function closedBetaImageServices(
 ): ReadonlyArray<
   Readonly<{ imageName: CiProductionImageName; serviceName: string; serviceId: string }>
 > {
-  return Object.freeze([
-    ...DIGEST_PROVEN_IMAGE_SERVICES,
-    ...(scope.includeSidecars ? SIDECAR_IMAGE_SERVICES : []),
-    ...(scope.includeProviderRedis ? [PROVIDER_REDIS_IMAGE_SERVICE] : []),
-  ])
+  return scope.includeProviderRedis
+    ? Object.freeze([...CLOSED_BETA_IMAGE_SERVICES, PROVIDER_REDIS_IMAGE_SERVICE])
+    : CLOSED_BETA_IMAGE_SERVICES
 }
 
 export type RailwayServiceObservation = Readonly<{
@@ -720,7 +710,7 @@ function serviceObservation(
 export function buildClosedBetaImageDeploymentPlan(
   digestMap: CiImageDigestMap,
   inventory: readonly RailwayServiceObservation[],
-  scope: ClosedBetaImageScope = { includeSidecars: false, includeProviderRedis: false },
+  scope: ClosedBetaImageScope = { includeProviderRedis: false },
 ): readonly ClosedBetaImageDeployment[] {
   return Object.freeze(
     closedBetaImageServices(scope).map(({ imageName, serviceName, serviceId }) => {
@@ -916,6 +906,31 @@ function writeReleaseIdentity(
   out(`${service.serviceName}: RELEASE_SHA set to ${service.sourceRevision}`)
 }
 
+/** Reads the written identity, so a service already on the right digest but
+ * carrying a stale one is still corrected. Returns null when unset. */
+function readReleaseIdentity(
+  service: ClosedBetaImageDeployment,
+  runner: CommandRunner,
+): string | null {
+  const listed = checkedOutput(runner, 'railway', [
+    'variable',
+    'list',
+    '--project',
+    CLOSED_BETA_PROJECT_ID,
+    '--environment',
+    CLOSED_BETA_ENVIRONMENT_ID,
+    '--service',
+    service.serviceId,
+    '--kv',
+  ])
+  for (const line of listed.split('\n')) {
+    if (!line.startsWith('RELEASE_SHA=')) continue
+    const value = line.slice('RELEASE_SHA='.length).trim()
+    return SOURCE_REVISION.test(value) ? value : null
+  }
+  return null
+}
+
 export async function applyClosedBetaImageDeployment(
   input: Readonly<{
     plan: readonly ClosedBetaImageDeployment[]
@@ -933,13 +948,29 @@ export async function applyClosedBetaImageDeployment(
       service.serviceId,
       service.serviceName,
     )
-    if (current.source?.image === service.imageReference && serviceIsHealthy(current)) {
+    // Matching the image is not enough: a service pinned to the right digest
+    // but carrying a stale RELEASE_SHA reports the WRONG revision in
+    // `/api/health/metrics` and its boot logs, because release identity falls
+    // back to Railway's branch metadata when the variable is absent. That
+    // turns "the deployed bits are provably the tested bits" into a claim the
+    // snapshot contradicts, so a wrong identity is a reason to redeploy.
+    const identity = readReleaseIdentity(service, runner)
+    if (
+      current.source?.image === service.imageReference &&
+      serviceIsHealthy(current) &&
+      identity === service.sourceRevision
+    ) {
       out(`${service.serviceName}: already healthy at ${service.imageReference}`)
       settled.push({
         serviceName: service.serviceName,
         deploymentId: current.deploymentId,
       })
       continue
+    }
+    if (identity !== service.sourceRevision) {
+      out(
+        `${service.serviceName}: release identity is ${identity ?? 'unset'}, redeploying to publish ${service.sourceRevision}`,
+      )
     }
     if (
       current.deploymentId !== service.beforeDeploymentId ||
@@ -953,20 +984,39 @@ export async function applyClosedBetaImageDeployment(
 
     writeReleaseIdentity(service, runner, out)
 
-    checkedOutput(runner, 'railway', [
-      'service',
-      'source',
-      'connect',
-      '--project',
-      CLOSED_BETA_PROJECT_ID,
-      '--environment',
-      CLOSED_BETA_ENVIRONMENT_ID,
-      '--service',
-      service.serviceId,
-      '--image',
-      service.imageReference,
-      '--json',
-    ])
+    // Reconnecting a source that is already the target digest may not produce
+    // a new deployment at all, and the health wait would then sit until its
+    // timeout. A plain redeploy always does, and picks up the identity just
+    // written.
+    checkedOutput(
+      runner,
+      'railway',
+      current.source?.image === service.imageReference
+        ? [
+            'redeploy',
+            '--project',
+            CLOSED_BETA_PROJECT_ID,
+            '--environment',
+            CLOSED_BETA_ENVIRONMENT_ID,
+            '--service',
+            service.serviceId,
+            '--yes',
+          ]
+        : [
+            'service',
+            'source',
+            'connect',
+            '--project',
+            CLOSED_BETA_PROJECT_ID,
+            '--environment',
+            CLOSED_BETA_ENVIRONMENT_ID,
+            '--service',
+            service.serviceId,
+            '--image',
+            service.imageReference,
+            '--json',
+          ],
+    )
     const deploymentId = await waitForServiceHealth(
       service,
       current.deploymentId,
@@ -983,7 +1033,7 @@ export async function applyClosedBetaImageDeployment(
 const COMMAND = 'ops:deploy-ci-images'
 const USAGE =
   `pnpm ${COMMAND} [<source-revision>] --operator <id> ` +
-  `[--reason <text> --ticket <ref> --live --include-sidecars ` +
+  `[--reason <text> --ticket <ref> --live ` +
   `--include-provider-redis --apply --yes ${COMMAND}]`
 
 export async function runDeployCiImagesCommand(
@@ -996,7 +1046,7 @@ export async function runDeployCiImagesCommand(
       mutation: true,
       destructive: true,
       requiresTicket: true,
-      extraFlags: ['live', 'include-sidecars', 'include-provider-redis'],
+      extraFlags: ['live', 'include-provider-redis'],
       usage: USAGE,
     },
     async (ctx, args, io) => {
@@ -1013,7 +1063,6 @@ export async function runDeployCiImagesCommand(
       )
       const digestMap = downloadCiImageDigestMap(revision)
       const scope = {
-        includeSidecars: args.flags.has('include-sidecars'),
         includeProviderRedis: args.flags.has('include-provider-redis'),
       }
       const plan = buildClosedBetaImageDeploymentPlan(
