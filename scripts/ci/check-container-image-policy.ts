@@ -243,14 +243,16 @@ function listDifference(
   ]
 }
 
-export function validateCiContainerCoverage(
+/** The grouped build must come from the matrix rows themselves, with the GHA
+ * layer cache scoped per image, or a row could silently build something the
+ * policy never named. */
+function ciBuildViolations(
   policy: ContainerImagePolicy,
   workflow: string,
+  matrixGroups: readonly CiImageMatrixGroup[],
+  matrixRows: readonly CiImageMatrixGroup['images'][number][],
+  steps: readonly WorkflowStep[],
 ): readonly string[] {
-  const expectedImages = policy.images.map(({ ciImage }) => ciImage)
-  const matrixGroups = ciImageMatrixGroups(workflow)
-  const matrixRows = matrixGroups.flatMap(({ images }) => images)
-  const steps = workflowSteps(workflow)
   const build = steps.find(({ name }) => name === 'Build grouped images')
   const buildsFromMatrix =
     workflow.includes(
@@ -263,7 +265,7 @@ export function validateCiContainerCoverage(
     build.content.includes('-f "$dockerfile"') &&
     build.content.includes('-t "$tag"')
 
-  const violations: string[] = [
+  return [
     ...listDifference(
       policy.images.map(({ dockerfile, ciImage }) => `${dockerfile}=>${ciImage}`),
       (buildsFromMatrix ? matrixRows : []).map(
@@ -286,8 +288,16 @@ export function validateCiContainerCoverage(
       matrixRows.map(({ name, publish }) => `${name}=>${publish}`),
       'CI image publish bindings',
     ),
+    ...ciMatrixShapeViolations(matrixGroups),
   ]
+}
 
+/** Bounded groups are what keep the job count inside the account's concurrent
+ * runner limit; web and worker stay apart so the two heaviest builds overlap. */
+function ciMatrixShapeViolations(
+  matrixGroups: readonly CiImageMatrixGroup[],
+): readonly string[] {
+  const violations: string[] = []
   if (matrixGroups.length !== 3)
     violations.push(
       `CI image matrix must use exactly 3 bounded groups, found ${matrixGroups.length}`,
@@ -307,30 +317,36 @@ export function validateCiContainerCoverage(
   )?.name
   if (webGroup !== undefined && webGroup === workerGroup)
     violations.push('CI image groups must keep web and worker in separate runner rows')
+  return violations
+}
 
+/** A commented-out contract proves nothing, so only executable lines count. */
+function ciSmokeViolations(
+  expectedImages: readonly string[],
+  steps: readonly WorkflowStep[],
+): readonly string[] {
   const smoke = steps.find(({ name }) => name.startsWith('Smoke images'))
-  if (!smoke) {
-    violations.push('CI has no image smoke-contract step')
-  } else {
-    const executableSmoke = smoke.content
-      .split('\n')
-      .filter((line) => !line.trim().startsWith('#'))
-      .join('\n')
-    for (const image of expectedImages) {
-      const hasExecutableContract = executableSmoke
-        .split('\n')
-        .some(
-          (line) =>
-            line.includes(image) &&
-            /(docker run|docker image inspect|smoke-provider-redis-image\.sh)/u.test(
-              line,
-            ),
-        )
-      if (!hasExecutableContract)
-        violations.push(`CI smoke contracts are missing ${image}`)
-    }
-  }
+  if (!smoke) return ['CI has no image smoke-contract step']
+  const executableLines = smoke.content
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('#'))
+  return expectedImages.flatMap((image) => {
+    const hasExecutableContract = executableLines.some(
+      (line) =>
+        line.includes(image) &&
+        /(docker run|docker image inspect|smoke-provider-redis-image\.sh)/u.test(line),
+    )
+    return hasExecutableContract ? [] : [`CI smoke contracts are missing ${image}`]
+  })
+}
 
+/** Inventory and scan are pinned by version: an unpinned Syft or Grype makes
+ * every downstream digest claim unreproducible. */
+function ciEvidenceViolations(
+  expectedImages: readonly string[],
+  matrixRows: readonly CiImageMatrixGroup['images'][number][],
+  steps: readonly WorkflowStep[],
+): readonly string[] {
   const syft = steps.find(({ name }) => name === 'Install pinned Syft')
   const sbom = steps.find(({ name }) => name === 'Generate grouped image SBOMs')
   const sbomImages =
@@ -339,7 +355,6 @@ export function validateCiContainerCoverage(
     sbom.content.includes('-o "spdx-json=sbom-${name}.spdx.json"')
       ? matrixRows.map(({ ciImage }) => ciImage)
       : []
-  violations.push(...listDifference(expectedImages, sbomImages, 'CI image SBOMs'))
 
   const grype = steps.find(({ name }) => name === 'Install pinned Grype')
   const scan = steps.find(
@@ -353,85 +368,117 @@ export function validateCiContainerCoverage(
     scan.content.includes('"sbom:sbom-${name}.spdx.json"')
       ? matrixRows.map(({ ciImage }) => ciImage)
       : []
-  violations.push(
-    ...listDifference(expectedImages, scannedImages, 'CI vulnerability scans'),
-  )
 
-  const stagingAuth = steps.find(
-    ({ name }) => name === 'Authenticate production image stager',
-  )
-  const stageImages = steps.find(({ name }) => name === 'Stage scanned production images')
-  const stageDescriptors = steps.find(
-    ({ name }) => name === 'Stage scanned image descriptors',
-  )
-  const barrier = steps.find(
-    ({ name }) => name === 'Require every image matrix entry to succeed',
-  )
-  const validateStaged = steps.find(
-    ({ name }) => name === 'Validate complete staged production image set',
-  )
-  const promotionAuth = steps.find(
-    ({ name }) => name === 'Authenticate production image promoter',
-  )
-  const promote = steps.find(
-    ({ name }) => name === 'Promote complete production image set',
-  )
-  const mainOnly = "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
-  const stagingContract =
-    stagingAuth !== undefined &&
-    stageImages !== undefined &&
-    stageDescriptors !== undefined &&
-    scan !== undefined &&
-    stagingAuth.content.includes(mainOnly) &&
-    stageImages.content.includes(mainOnly) &&
-    stageDescriptors.content.includes(mainOnly) &&
-    stageImages.content.includes('[[ "$(jq -r \'.publish\' <<<"$image")" == "true" ]]') &&
+  return [
+    ...listDifference(expectedImages, sbomImages, 'CI image SBOMs'),
+    ...listDifference(expectedImages, scannedImages, 'CI vulnerability scans'),
+  ]
+}
+
+/** Staging tags are unique per run attempt and must be pushed only AFTER the
+ * scan step, never rebuilt, so what is promoted is what was scanned. */
+function ciStagingViolations(steps: readonly WorkflowStep[]): readonly string[] {
+  const named = requiredSteps(steps, [
+    'Authenticate production image stager',
+    'Stage scanned production images',
+    'Stage scanned image descriptors',
+    'Vulnerability scan grouped images (grype)',
+  ])
+  const failure = ['CI must stage scanned main images under unique run-attempt tags']
+  if (!named) return failure
+  const [stagingAuth, stageImages, stageDescriptors, scan] = named
+  const contract = [
+    stagingAuth.content.includes(CI_MAIN_ONLY_GUARD),
+    stageImages.content.includes(CI_MAIN_ONLY_GUARD),
+    stageDescriptors.content.includes(CI_MAIN_ONLY_GUARD),
+    stageImages.content.includes('[[ "$(jq -r \'.publish\' <<<"$image")" == "true" ]]'),
     stageImages.content.includes(
       'staged_reference="${repository}:ci-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
-    ) &&
-    stageImages.content.includes('docker tag "$IMAGE_TAG" "$staged_reference"') &&
-    stageImages.content.includes('docker push "$staged_reference"') &&
-    !stageImages.content.includes('docker buildx build') &&
-    !stageImages.content.includes(':latest') &&
-    steps.indexOf(scan) < steps.indexOf(stageImages)
-  if (!stagingContract)
-    violations.push('CI must stage scanned main images under unique run-attempt tags')
+    ),
+    stageImages.content.includes('docker tag "$IMAGE_TAG" "$staged_reference"'),
+    stageImages.content.includes('docker push "$staged_reference"'),
+    !stageImages.content.includes('docker buildx build'),
+    !stageImages.content.includes(':latest'),
+    // Staging after the scan is the whole point: it is what makes the promoted
+    // digest the scanned digest rather than a hopeful rebuild.
+    steps.indexOf(scan) < steps.indexOf(stageImages),
+  ]
+  return contract.every(Boolean) ? [] : failure
+}
 
-  const expectedPublished = [...CI_PUBLISHED_IMAGE_IDS]
+/** Promotion is by digest across the complete staged set, and the digest map is
+ * written only after the last read-back, so a consumer never sees a partial map. */
+function ciPromotionViolations(
+  workflow: string,
+  steps: readonly WorkflowStep[],
+): readonly string[] {
+  const named = requiredSteps(steps, [
+    'Require every image matrix entry to succeed',
+    'Validate complete staged production image set',
+    'Authenticate production image promoter',
+    'Promote complete production image set',
+  ])
+  const failure = [
+    'CI must promote the exact complete staged image set before writing its digest map',
+  ]
+  if (!named) return failure
+  const [barrier, validateStaged, promotionAuth, promote] = named
   const mapWrite = 'validated-image-digests.json > ci-image-digest-map.json'
-  const finalVerification =
-    promote?.content.lastIndexOf('final_digest=$(docker buildx imagetools inspect') ?? -1
-  const mapWriteIndex = promote?.content.indexOf(mapWrite) ?? -1
-  const promotionContract =
-    barrier !== undefined &&
-    validateStaged !== undefined &&
-    promotionAuth !== undefined &&
-    promote !== undefined &&
-    barrier.content.includes("if: needs.docker-images.result != 'success'") &&
-    validateStaged.content.includes(mainOnly) &&
-    validateStaged.content.includes(JSON.stringify(expectedPublished)) &&
-    validateStaged.content.includes('staged image set is incomplete or unexpected') &&
+  const finalVerification = promote.content.lastIndexOf(
+    'final_digest=$(docker buildx imagetools inspect',
+  )
+  const contract = [
+    barrier.content.includes("if: needs.docker-images.result != 'success'"),
+    validateStaged.content.includes(CI_MAIN_ONLY_GUARD),
+    validateStaged.content.includes(JSON.stringify([...CI_PUBLISHED_IMAGE_IDS])),
+    validateStaged.content.includes('staged image set is incomplete or unexpected'),
     validateStaged.content.includes(
       '.repository != ("ghcr.io/kodes-agency/repkey-" + .image)',
-    ) &&
-    promotionAuth.content.includes(mainOnly) &&
-    promote.content.includes(mainOnly) &&
-    promote.content.includes('docker buildx imagetools create') &&
-    promote.content.includes('--prefer-index=false') &&
-    promote.content.includes('"${repository}@${expected_digest}"') &&
-    promote.content.includes('final_reference="${repository}:${GITHUB_SHA}"') &&
-    !promote.content.includes('docker buildx build') &&
-    !promote.content.includes(':latest') &&
-    finalVerification >= 0 &&
-    mapWriteIndex > finalVerification &&
-    workflow.includes('name: ci-image-digest-map-${{ github.sha }}')
-  if (!promotionContract) {
-    violations.push(
-      'CI must promote the exact complete staged image set before writing its digest map',
-    )
-  }
+    ),
+    promotionAuth.content.includes(CI_MAIN_ONLY_GUARD),
+    promote.content.includes(CI_MAIN_ONLY_GUARD),
+    promote.content.includes('docker buildx imagetools create'),
+    promote.content.includes('--prefer-index=false'),
+    promote.content.includes('"${repository}@${expected_digest}"'),
+    promote.content.includes('final_reference="${repository}:${GITHUB_SHA}"'),
+    !promote.content.includes('docker buildx build'),
+    !promote.content.includes(':latest'),
+    finalVerification >= 0,
+    // The map must be written strictly after the last digest read-back.
+    promote.content.indexOf(mapWrite) > finalVerification,
+    workflow.includes('name: ci-image-digest-map-${{ github.sha }}'),
+  ]
+  return contract.every(Boolean) ? [] : failure
+}
 
-  return violations
+/** Resolves every named step or nothing, so callers assert content without
+ * repeating an `undefined` check per step. */
+function requiredSteps(
+  steps: readonly WorkflowStep[],
+  names: readonly string[],
+): readonly WorkflowStep[] | null {
+  const found = names.map((name) => steps.find((step) => step.name === name))
+  return found.every((step): step is WorkflowStep => step !== undefined) ? found : null
+}
+
+const CI_MAIN_ONLY_GUARD =
+  "if: github.event_name == 'push' && github.ref == 'refs/heads/main'"
+
+export function validateCiContainerCoverage(
+  policy: ContainerImagePolicy,
+  workflow: string,
+): readonly string[] {
+  const expectedImages = policy.images.map(({ ciImage }) => ciImage)
+  const matrixGroups = ciImageMatrixGroups(workflow)
+  const matrixRows = matrixGroups.flatMap(({ images }) => images)
+  const steps = workflowSteps(workflow)
+  return [
+    ...ciBuildViolations(policy, workflow, matrixGroups, matrixRows, steps),
+    ...ciSmokeViolations(expectedImages, steps),
+    ...ciEvidenceViolations(expectedImages, matrixRows, steps),
+    ...ciStagingViolations(steps),
+    ...ciPromotionViolations(workflow, steps),
+  ]
 }
 
 function releaseMatrixRows(workflow: string): readonly Readonly<{
