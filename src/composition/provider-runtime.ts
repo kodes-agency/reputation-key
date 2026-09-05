@@ -98,28 +98,29 @@ export function applyProviderEndpointOverrides(
   // DEPLOYED-CELL signal, NOT on NODE_ENV. The local Compose stack rehearses
   // the exact production images — so it sets NODE_ENV=production — against a
   // sandbox on a private network, which means NODE_ENV cannot tell a promoted
-  // cell apart from that rehearsal. RELEASE_MANIFEST_SHA256 can: it is the
-  // signed promotion-manifest digest the release controller writes onto every
-  // service of a promotion (the release controller over ALL_SERVICES, the
-  // seven RAILWAY_SERVICE_IMAGE_ROLES keys), declared `preserve()` in
-  // `.railway/railway.ts` so a config apply never drops it. compose.local.yml
-  // and the Playwright sandbox env never set it.
+  // cell apart from that rehearsal. RELEASE_MANIFEST_SHA256 can: it is a
+  // promotion digest installed as a Railway service variable. Service variables
+  // are independent of the image source, and scripts/ops/deploy-ci-images.ts
+  // changes only RELEASE_SHA before reconnecting that source, so it does not
+  // erase an installed manifest digest. compose.local.yml and the Playwright
+  // sandbox env never set it.
   //
-  // DARK WINDOW — what the IaC pin does and does not cover. The digest is
-  // optional in the schema (see env.ts) for local development and the
+  // DARK WINDOW — what the environment defaults do and do not cover. The digest
+  // is optional in the schema (see env.ts) for local development and the
   // documented pre-promotion compatibility window, so a service that has not
   // yet been through a promotion runs with the deployed-cell denials DARK.
-  // What holds the profile inside that window is `.railway/railway.ts`, the
-  // only service-source owner, which pins GOOGLE_PROVIDER_ENDPOINT_PROFILE to
-  // 'production-fixed' and NODE_ENV to 'production' on web and worker (both
-  // asserted in railway.test.ts). That pin covers the PROFILE ONLY:
-  // `.railway/railway.ts` declares no GBP_*_BASE_URL or GOOGLE_OAUTH_*_URL
-  // variable at all, so IaC holds nothing under the endpoint overrides. That
-  // is why the override denial below keeps its own NODE_ENV + profile conjunct
-  // rather than resting on the deployed-cell signal alone — a profile-blind
-  // override denial would let a not-yet-promoted production cell point
-  // GOOGLE_OAUTH_TOKEN_URL (which carries the client secret and the auth code
-  // — see contexts/integration/build.ts) at an arbitrary host.
+  // What holds the profile inside that window is the parsed environment
+  // contract: GOOGLE_PROVIDER_ENDPOINT_PROFILE defaults to 'production-fixed',
+  // while the rehearsal environments explicitly select 'local-sandbox'; the
+  // production image sets NODE_ENV to 'production'. That default covers the
+  // PROFILE ONLY: railway.json and railway.worker.json declare no GBP_*_BASE_URL
+  // or GOOGLE_OAUTH_*_URL variable, so checked-in deployment configuration
+  // supplies no endpoint override. That is why the override denial below keeps
+  // its own NODE_ENV + profile conjunct rather than resting on the deployed-cell
+  // signal alone — a profile-blind override denial would let a not-yet-promoted
+  // production cell point GOOGLE_OAUTH_TOKEN_URL (which carries the client
+  // secret and the auth code — see contexts/integration/build.ts) at an
+  // arbitrary host.
   //
   // THE PROFILE IS ALSO A DOWNSTREAM SELECTOR, and the denial here is not what
   // constrains it. 'local-sandbox' makes google-provider-authority.ts choose
@@ -127,8 +128,9 @@ export function applyProviderEndpointOverrides(
   // targetRouteUrl then rewrites every credentialed provider request onto that
   // origin WITHOUT consulting GOOGLE_PROVIDER_PRODUCTION_ORIGINS, and
   // composition.ts validates the runtime-isolation attestation against
-  // 'local_sandbox' instead of 'production'. In the dark window the IaC pin is
-  // the only thing standing between a production cell and that selection.
+  // 'local_sandbox' instead of 'production'. In the dark window the
+  // production-fixed schema default is the only thing standing between a
+  // production cell and that selection.
   const deployedCell = env.RELEASE_MANIFEST_SHA256 !== undefined
   if (deployedCell && env.GOOGLE_PROVIDER_ENDPOINT_PROFILE === 'local-sandbox') {
     throw new Error('deployed-cell local-sandbox profile is unavailable')

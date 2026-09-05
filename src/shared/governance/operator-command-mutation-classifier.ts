@@ -62,33 +62,18 @@ const PURE_DIAGNOSTIC_COMMANDS = [
   'scripts/ci/check-container-image-policy.ts',
   'scripts/ci/check-typescript-project-coverage.ts',
   'scripts/ci/check-product-state-consistency.ts',
-  'scripts/review/legal-document-registry.ts',
   'scripts/ops/report-inbox-handling-cutover.ts',
   'scripts/ops/report-legacy-custom-roles.ts',
   'scripts/ops/report-legacy-multi-org.ts',
   'scripts/ops/report-legacy-guest-compatibility.ts',
   'scripts/ops/report-compatibility-read-surfaces.ts',
   'scripts/ops/report-non-fk-references.ts',
-  'scripts/release/observe-canary-window.ts',
-  'scripts/release/run-deployed-critical-journeys.ts',
-  'scripts/release/rehearse-recovery.ts',
-  'scripts/release/create-legal-revision-set.ts',
-  'scripts/release/freeze-release-candidate.ts',
-  'scripts/release/capture-promotion-readback.ts',
-  'scripts/release/import-live-evidence.ts',
-  'scripts/release/prepare-gate-f-approval.ts',
   'scripts/review/zod-v4-conformance.ts',
   'scripts/simulation-invocation.ts',
   'scripts/google-import-final-schema-probe.ts',
   'scripts/verify-auth-schema.mjs',
-  'scripts/release/validate-bundle.ts',
-  'scripts/release/iac-digest.ts',
-  'scripts/release/release-authority-digest.ts',
-  'scripts/release/staged-railway-sources.ts',
-  'scripts/release/railway-data-cell-plan.ts',
   // Reads Railway variable values across the application services and reports
   // divergence; prints no values and mutates nothing.
-  'scripts/release/railway-shared-variable-parity.ts',
   'scripts/beta/verify-gate-evidence.ts',
 ] as const
 
@@ -146,8 +131,6 @@ const FILESYSTEM_ARTIFACT_COMMANDS = [
   'scripts/generate-google-ai-policy-clarification.py',
   'scripts/check-coverage.mjs',
   'scripts/perf/write-scale-evidence.ts',
-  'scripts/release/promote-local-evidence.ts',
-  'scripts/release/create-promotion-manifest.ts',
   'scripts/ci/check-runtime-environment-contract.ts',
   'db:generate',
   'db:pull',
@@ -195,22 +178,16 @@ const SCHEMA_AND_COMPATIBILITY_COMMANDS = [
 ] as const
 
 const RELEASE_ORCHESTRATION_COMMANDS = [
-  'scripts/release/railway-data-cell-domain.ts',
-  'scripts/release/railway-data-cell-foundation.ts',
-  'scripts/release/railway-google-content-approval-activation.ts',
-  'scripts/release/bootstrap-schema-migrator.ts',
   'scripts/ops/deploy-ci-images.ts',
   // Writes the two Google Content runtime variables to the closed-beta web and
   // worker services. Release orchestration rather than a command-store
   // mutation: it changes deployed configuration, never tenant rows.
-  'scripts/ops/closed-beta-google-content-activate.ts',
 ] as const
 
 const ATOMIC_COMMAND_STORE_COMMANDS = [
   'scripts/ops/reconcile-publication.ts',
   'scripts/ops/disconnect-connection.ts',
   'scripts/ops/google-content-approval.ts',
-  'scripts/ops/google-content-approval-sign.ts',
   'scripts/ops/google-credential-home-backfill.ts',
   'scripts/ops/google-credential-routing-publish.ts',
   'scripts/ops/ai-canary-authorization.ts',

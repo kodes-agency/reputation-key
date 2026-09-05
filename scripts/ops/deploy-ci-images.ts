@@ -1,7 +1,7 @@
 // Closed-beta delivery path for the exact production images already built,
 // smoke-checked, inventoried and Grype-scanned by the successful main CI run.
-// This deliberately does not consume or relax the governed cell-us promotion
-// manifest from release-images.yml.
+// That run publishes the immutable source-revision tags and digest map this
+// command consumes; no separate release manifest participates.
 //
 // Report (default, no Railway mutation):
 //   pnpm ops:deploy-ci-images [<source-revision>] --operator <id>
@@ -873,11 +873,9 @@ async function waitForWebHealth(out: (line: string) => void): Promise<void> {
  * `services/ai-egress-gateway/environment.ts:106`), and `/api/health/metrics`
  * reports `release.sha` as `unknown`.
  *
- * Writing it here is what `.railway/railway.ts` already anticipates: it
- * declares `RELEASE_SHA: preserve()` under `releaseControlledVariables()`
- * precisely so "the signed release controller writes these values per service
- * immediately before the saved IaC plan advances the immutable image digest".
- * This command is that controller for `google-closed-beta`.
+ * This command owns that identity explicitly: it writes `RELEASE_SHA` as a
+ * Railway service variable before connecting each immutable image source for
+ * `google-closed-beta`.
  *
  * `--skip-deploys` keeps this from starting its own deployment; the source
  * connect that follows is the single deploy, so the new container starts with

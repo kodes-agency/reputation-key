@@ -5,10 +5,6 @@ date: 2026-08-27
 
 # 0057 — Single US beta Data Cell
 
-> [ADR 0058](0058-dedicated-railway-projects-and-iac-source-promotion.md)
-> supersedes this ADR's Railway project names and source-promotion procedure.
-> The single-cell topology and placement decision below remain active.
-
 ## Context
 
 ADR 0054 established the durable Data Cell vocabulary and fail-closed routing
@@ -37,36 +33,24 @@ location, and the design does not guess a provider-internal compute city.
    history, negative isolation tests, and later expansion do not require a
    vocabulary break. During beta they are `denied`, have no allocated
    countries or workloads, and are not deployable Railway environments.
-4. Promotion manifests, Railway plans, deployment commands, recovery gates,
-   and beta acceptance evidence name only `us`. Railway rendering also requires
-   an explicit deployment profile. Per ADR 0058, `production` runs in project
-   `reputation-key-us-beta` and exclusively owns `us.reputationkey.app`;
-   `rehearsal` runs in the separately permissioned project
-   `reputation-key-us-beta-rehearsal`, renders the same single-cell resource
-   topology, owns no production custom domain, and receives its own HTTPS
-   origin through `REHEARSAL_APP_URL`.
-5. Every retained Railway plan records its deployment profile plus the exact
-   project name/ID and environment name/ID. Promotion binds the artifact's
-   exact SHA-256 and raw plan outcome to the signed release manifest and
-   applies source changes through ADR 0058's staged saved-plan procedure.
-   Rehearsal promotion additionally requires an explicit non-production
-   `--app-url`.
-6. The one cell still has independent production resources and process
+4. Deployment, recovery, and beta acceptance paths target only `us`; no
+   procedure may provision or route beta work to `europe` or `global`.
+5. The one cell still has independent production resources and process
    boundaries: web, worker, PostgreSQL, Cache Redis, Queue Redis,
    provider-ephemeral Redis, private object storage, Google admission/egress,
    and AI admission/egress. “One cell” does not permit shared cache/queue
    infrastructure or collapsing trust boundaries.
-7. Existing wrong-cell, no-fallback, routing-envelope, broker, restore-source,
+6. Existing wrong-cell, no-fallback, routing-envelope, broker, restore-source,
    and region-move protections remain. They prove that dormant identifiers
    cannot execute and preserve safe seams for future expansion; they do not
    require dormant infrastructure to be provisioned for beta.
-8. `europe` or `global` may become deployable only through a later accepted
+7. `europe` or `global` may become deployable only through a later accepted
    ADR and catalogue-policy revision. Activation requires explicit country and
    workload allocation, current Railway placement verification, isolated
    state, credentials, restore and recovery evidence, provider approval,
    release read-back, and wrong-cell drills before a state can become
    `accepting`.
-9. Data Cell identity is separate from the AI provider-deployment vocabulary.
+8. Data Cell identity is separate from the AI provider-deployment vocabulary.
    AI records that use processing profile `global` or
    `private-beta-global-v1` describe the externally governed AI route; they do
    not select or imply a Railway `cell-global` deployment and are not rewritten
@@ -86,25 +70,6 @@ family that must drain. The same backstops pin resolved Property and current
 credential-home writes to `us`/policy 3 after completion, so an old replica
 cannot revive a dormant assignment.
 
-The first rollout cannot rely on web's pre-deploy migration because serving
-promotion requires completed cutover evidence that only exists after `0140`.
-The checked-in Railway graph therefore includes one `schema-migrator` job in
-`cell-us`. The audited `release:migrate-cell` controller advances the signed
-manifest's exact web-image digest through an exact-target saved IaC plan and
-waits for the restart-`NEVER` job to exit `SUCCESS` at that digest. It runs for
-every signed candidate; on the first rollout it also installs `0140`. The job
-has only database/auth/migrator variables and binds the open control row to
-Railway's opaque project/environment IDs. It has no domain or serving runtime
-and does not constitute a second Data Cell. Normal web pre-deploy migration
-remains an idempotent defense.
-
-Because a first target can be empty, this bootstrap cannot depend on the
-not-yet-created application audit tables. Before its first Railway command it
-uses the normal operator argument/identity harness and exclusively writes a
-canonical, content-addressed authorization artifact containing the named
-operator, reason, exact target, signed inputs, and allow/deny decision. Normal
-serving promotion retains the database-backed operator audit path.
-
 The audited `ops:cutover-single-us-data-cell` command owns the transition. Its
 default mode is a content-free report with a canonical SHA-256. An apply must
 name that exact reviewed digest, ticket, reason, operator, typed confirmation,
@@ -120,10 +85,8 @@ access and credential generations for rebound active connections. Completion
 requires a fresh zero-blocker verification with no remaining eligible
 Properties, credential homes, or operator errors. Only then may the command
 write canonical Data Cell cutover evidence under `docs/release-evidence/`.
-Release promotion requires that exact evidence and rebinds it to a locked live
-preflight before traffic or worker promotion. This controlled transition is
-not permission for ordinary code to bypass immutable assignment or credential
-authority rules.
+The completed evidence records that controlled transition; it is not permission
+for ordinary code to bypass immutable assignment or credential authority rules.
 
 ## Supersession
 
@@ -133,8 +96,7 @@ country partitioning across those deployments, or all-cell beta evidence. ADR
 assignment, fail-closed routing, cell-local resources, credential boundaries,
 and operator-controlled future moves. ADR 0048 remains historical: unlike its
 containment policy, this decision admits every supported country into the one
-beta cell. ADR 0058 supersedes only this ADR's Railway project selection and
-source-promotion procedure.
+beta cell.
 
 ## Consequences
 

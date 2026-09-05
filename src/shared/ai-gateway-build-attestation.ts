@@ -14,7 +14,6 @@ export const AI_GATEWAY_BUILD_ATTESTATION_V1 = Object.freeze({
   image: Object.freeze({
     dockerfile: 'Dockerfile.ai-egress-gateway',
     buildConfig: 'tsup.ai-egress-gateway.config.ts',
-    railwayConfig: 'railway.ai-egress-gateway.json',
     runtimeAssetBuildConfig: 'tsup.ai-egress-gateway-runtime-assets.config.ts',
     runtimeAssetVerifier: 'scripts/verify-ai-gateway-runtime-assets.ts',
     bundleInventoryVerifier: 'scripts/verify-ai-egress-gateway-bundle.mjs',
@@ -47,7 +46,6 @@ export const AI_GATEWAY_BUILD_ATTESTATION_V1 = Object.freeze({
   syntheticCanary: Object.freeze({
     sourceEntry: 'services/ai-egress-gateway/canary-entry.ts',
     bundleEntry: 'dist-ai-egress-gateway/canary.js',
-    railwayConfig: 'railway.ai-egress-canary.json',
     commandOverride: Object.freeze(['node', 'dist-ai-egress-gateway/canary.js']),
     sameGatewayImageDigestRequired: true,
     independentImportClosure: true,
@@ -59,7 +57,6 @@ export const AI_GATEWAY_BUILD_ATTESTATION_V1 = Object.freeze({
     buildConfig: 'tsup.ai-egress-probe.config.ts',
     bundleDirectory: 'dist-ai-egress-probe',
     bundleEntry: 'dist-ai-egress-probe/runtime-egress-probe.js',
-    railwayConfig: 'railway.ai-egress-probe.json',
     commandOverride: Object.freeze([
       'node',
       'dist-ai-egress-probe/runtime-egress-probe.js',

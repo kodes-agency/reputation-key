@@ -19,9 +19,9 @@ never product authority merely because it predates this document.
 
 Each section below identifies its tier. When a temporary exception to an
 Invariant or Maintainability rule is unavoidable, it must be narrow and recorded
-in `docs/governance/standards-exceptions.json` with a rule, exact scope, reason,
-owner, compensating check, review date, and expiry date. Expired, unowned, or
-scope-less entries fail the documentation authority gate. Guidance does not use
+in `ACCEPTED_EXCEPTIONS` in `src/shared/governance/context-standards-matrix.ts`
+with its rule, exact scope and owner, so the exception is enforced by the same
+test that enforces the rule. Guidance does not use
 exceptions.
 
 ---
@@ -331,9 +331,8 @@ be named.
 9-rule disposition authority. A cell is `evidenced` only when an exhaustive
 current-tree checker proves the stated rule. A known variance is never marked
 conformant: it is `accepted_exception` and must resolve to exactly one entry in
-`docs/governance/standards-exceptions.json` with its context, dimension, exact
-scope, rationale, owner, compensating check, review/expiry dates, and measurable
-sunset trigger.
+`ACCEPTED_EXCEPTIONS` in `src/shared/governance/context-standards-matrix.ts`,
+keyed by context and dimension.
 
 The application-error/repository checker pins the exact legacy issue inventory by
 path or symbol and digest. Adding a variance, silently removing evidence, or
@@ -435,7 +434,7 @@ Co-located context files in the source tree:
 - ADRs: `docs/adr/`
 - ADR navigation and supersession authority: `docs/adr/README.md`
 - Beta capability fate authority: `docs/architecture/beta-capability-fate-authority.md`
-- Standards exception register: `docs/governance/standards-exceptions.json`
+- Standards exception register: `ACCEPTED_EXCEPTIONS` in `src/shared/governance/context-standards-matrix.ts`
 - Auth migrations: `docs/auth-migrations.md`
 
 ---

@@ -28,10 +28,7 @@ Every `ops:*` command runs through the operator-command harness
 - Every invocation (reads included) is evaluated through the ExecutionPolicy
   operator branch and lands in `policy_decision_audit` (allow AND deny —
   content-free: actor/action/scope/decision/reason + correlation id, printed
-  on every run). The sole first-empty-database exception is
-  `release:migrate-cell`: it uses the same argument/identity harness but writes
-  a canonical no-overwrite authorization artifact and digest sidecar before
-  Railway mutation because the audit table may not exist yet.
+  on every run).
 - Mutations are DRY-RUN by default; `--apply` executes and requires
   `--reason <text>` (`--ticket <ref>` where the op needs one). Destructive
   commands additionally require the typed confirmation `--yes <command>`.
@@ -50,8 +47,7 @@ The commands:
 - `ops:reconcile-publication <replyId> | --all-ambiguous [--resume <token>]` — reconcile ambiguous Google reply publication (one frozen keyset page; provider re-read, never a send). §6
 - `ops:reconcile-regions [--org <id>]` / `ops:reconcile-grants [--org <id> ...]` — report-first reconciliations (conflicts/anomalies never auto-converted). §12
 - `ops:reconcile-people-team [--org <id>]` — reconcile retired Staff assignments into canonical participation, Portal responsibility, and Portal Group intervals while leaving Team relations opaque and untouched in quarantine. `--apply` requires `--evidence <new-json-path>`, verifies post-apply parity, and writes a version-2 artifact only when every supported mapping is exact. Version-1 artifacts are refused and must be regenerated. A release artifact must come from a global (no `--org`) run. §12
-- `ops:cutover-single-us-data-cell` — report/fence/backfill/verify the one-time Data Cell policy-v3 transition. Apply handles at most one reviewed batch, remains fenced across invocations, and emits release evidence only after locked live verification. Follow `railway-data-cells.md`; never replace it with a deploy-time bulk rewrite.
-- `infra:railway:google-content-approval <plan|apply|recover|verify>` — initial production `cell-us` Google Content approval activation. It consumes all four signed capability bundles in one private reviewed intent, requires all four capabilities killed and fully drained, installs retained exact-runtime approval rows, changes only the two approved shared variables, and leaves serving-source activation to `release:beta`. Follow `railway-data-cells.md`; the single-bundle `ops:google-content-approval` command remains validation-only.
+- `ops:cutover-single-us-data-cell` — report/fence/backfill/verify the one-time Data Cell policy-v3 transition. Apply handles at most one reviewed batch, remains fenced across invocations, and emits release evidence only after locked live verification. See `docs/archive/2026-09-lean/operations/railway-data-cells.md` for topology background; never replace the cutover with a deploy-time bulk rewrite.
 - `pnpm exec tsx scripts/ops/report-people-authority.ts --operator <id> --as-of <ISO-8601> [--org <id>]` — produce the read-only, deterministic People authority report across membership, access, participation, attribution, manager responsibility, and retained Team/legacy rows. See `people-authority-reconciliation.md`; every non-`exact` row requires separate review.
 - `ops:report-portal-beta-readiness --operator <id> --as-of <ISO-8601> [--org <id> ...]` — produce the read-only, deterministic POR-01 legacy Portal inventory. It reports identifier-only ownership/provenance, group, address/artifact, brand/locale, and raw-link gaps and has no apply mode. See `portal-beta-readiness-reconciliation.md`; ambiguous Portals remain Disabled/Archived and raw links quarantined until separately reviewed.
 - `ops:report-guest-response-readiness --operator <id> --observed-at <ISO-8601> [--org <id> ...]` — produce the read-only, deterministic GST-01 Guest Response reconciliation. It classifies legacy Rating/Feedback/session relationships, audits canonical snapshot/lifecycle/Inbox/retention evidence, and retains separate 1–5 distributions plus source/correction/retraction identities. See `guest-response-reconciliation.md`; it has no apply or inferred-provenance path.
@@ -81,113 +77,6 @@ The commands:
   `drain-legacy-queues`, `close-legacy`, `archive-legacy`) run only from the
   rollout-only `Dockerfile.google-import-compatibility` image. Production web
   and worker images contain no compatibility entry point.
-
-`pnpm release:migrate-cell` is the audited schema stage for every signed
-candidate; on the first rollout it also installs the `0140` cutover authority.
-Its dry run validates the canonical signed manifest, migration head, and fresh
-full-candidate plan artifact without invoking Railway. `--apply --operator <id>
---reason "<text>" --audit-evidence <new-json-path>` uses the same harness,
-requires membership in `OPS_OPERATOR_IDENTITIES`, and creates the canonical
-authorization artifact plus SHA-256 sidecar before any Railway command. It
-then pins Railway's opaque project/environment IDs, proves `cell-us` is the
-project's only environment and all eight managed services have exactly one
-instance there, and saves an IaC plan that changes only the restart-`NEVER`
-`schema-migrator` source to the manifest's exact web image. It applies that
-same plan and accepts only a newly observed `SUCCESS` deployment reporting that
-digest. The job has only database, auth, and migrator variables. On the first
-rollout, run it before
-`ops:cutover-single-us-data-cell`; never replace it with `pnpm
-db:migrate-deploy` from a working tree. Recapture the full-candidate plan after
-it succeeds. `release:beta` continues to use the database-backed operator audit
-below.
-
-The manifest's `contract.releaseControllerSha256`, plan evidence's
-`release.controllerSha256`, and recomputed local release-authority digest must
-match before Cosign, Railway, or audit actions. The migrator rechecks after
-Cosign, and its version-2 authorization artifact records the signed digest. A
-matching IaC digest alone is not release authority.
-
-`pnpm release:beta` is an operator command too — it just does not run through
-the `ops:*` harness until `--apply`:
-
-- `pnpm release:beta --manifest <file> --signature-bundle <file>
---manifest-sha256 <sha256> --people-cutover-evidence <file>
---data-cell-cutover-evidence <file> --data-cell-cutover-evidence-sha256 <sha256>
---railway-plan-evidence <file> --railway-plan-evidence-sha256 <sha256>
---cell <us>` — validate the canonical CI promotion manifest, the completed
-  Data Cell transition, and the exact reviewed Railway target before printing
-  the ordered `cell-us` plan. Dormant future cells are refused.
-  Dry-run invokes no Railway command.
-- Add `--apply --operator <id> --reason "<text>"` for the audited
-  path: it runs through the same harness as every `ops:*` mutation, so the
-  operator must be in `OPS_OPERATOR_IDENTITIES` and the decision lands in
-  `policy_decision_audit`. There is no unaudited promotion bypass; emergency
-  releases still require a named operator, reason, durable decision row, and
-  signature verification.
-- Promotion never uploads or rebuilds a working tree. Before its first Railway
-  mutation, it matches the retained Data Cell evidence to a freshly locked
-  live `us`/policy-3 topology check, recomputes global people-authority parity,
-  requires an exact live rerun of the retained manifest-bound full-candidate
-  plan, and matches the currently linked Railway project/environment names and
-  IDs exactly. It rejects any additional environment or missing/duplicate
-  managed service instance, verifies the Sigstore bundle and legacy
-  revision-variable absence, then saves and applies
-  one non-destructive IaC source plan at a time for each exact
-  `repo@sha256:...` image. It settles provider Redis, then deploys `web` so its
-  IaC-owned migration command idempotently rechecks the already-migrated schema
-  before the remaining services. The final full-candidate plan must be
-  no-drift. `railway service source connect` is prohibited.
-- Promotion also binds manifest `contract.releaseControllerSha256` to plan
-  `release.controllerSha256` and the recomputed local controller sources before
-  Cosign/Railway/audit work. It rechecks after Cosign and again immediately
-  before dynamically importing the operator authority.
-- Add `--verify-only` to read back the Data Cell and people cutovers, exact
-  Railway target, post-apply no-drift plan, manifest/source/image identity,
-  health, and AI heads without deploying. Any mismatch is blocking.
-
-REL-01 evidence producers, in the order a release uses them. Each fails closed
-rather than emitting a plausible artifact from absent input:
-
-- `pnpm release:freeze-candidate` — pins one SHA before any proof is collected.
-  Refuses a dirty worktree, a SHA that is not merged, generated-artifact drift,
-  or an existing freeze file.
-- `pnpm release:capture-readback` — writes the four typed promotion read-back
-  artifacts, including when a check failed, and exits non-zero if any artifact
-  failed or is schema-invalid, so a failed promotion cannot be quietly omitted.
-- `pnpm release:deployed-journeys` — runs the isolated read-only browser project
-  with zero retries against the production origin, after checking its
-  authorization window.
-- `pnpm release:observe-canary` — samples the production origin over GET only
-  against the ratified threshold profile. It currently exits non-zero because
-  the observation window duration in ADR 0059 is still an open decision for an
-  operating owner; ratify it there first.
-- `pnpm release:import-live-evidence` — normalizes an operator capture against
-  the schema for one gate. It never synthesizes a field and names any missing
-  one. `--list` prints the importable gate ids.
-- `pnpm release:rehearse-recovery` — report-first. `--plan` writes one plan and
-  stops; `--apply` proceeds only under an authorization whose digest equals that
-  exact plan, with a named operator, a reason, and an operator-supplied platform
-  receipt. Reverse DDL is rejected at plan build.
-- `pnpm release:create-legal-revision-set` — refuses while any counsel-owned
-  document is a draft, which is the current state.
-- `pnpm release:prepare-approval` — prints the canonical payload each of the six
-  roles signs offline. It holds no key material, so engineering cannot sign an
-  approval that belongs to another role.
-
-The authoritative procedure, prerequisites, rollback boundary, and evidence
-contract are in `immutable-release-promotion.md`. The dated
-`closed-beta-release-runbook-2026-08-19.md` records the superseded local-build
-procedure and must not be used for a `cell-*` environment. §8
-
-### Railway application shared-variable parity
-
-Run `pnpm infra:railway:check-shared-variables --environment <environment>`
-after any manual Railway variable change and before every release. The command
-reads every `APPLICATION_SHARED_VARIABLES` key from `web` and `worker`, prints
-only equality groups rather than values, and exits non-zero on drift. A
-mismatch means live service-scoped state no longer agrees with the repository's
-shared-variable graph; stop the release and reconcile the Railway variables
-before proceeding.
 
 ### Google import artifact cutover and rollback
 
@@ -262,8 +151,8 @@ asserts every header on 200, 404, and 413 responses
 job after "Web build"; the script generates per-run random secrets, so the
 placeholder-secret guard below does not refuse the probe boot). The wiring is
 additionally pinned by `src/shared/architecture/security-headers-wiring.test.ts`.
-The BQC-7.1 deployment contract (Dockerfile + `.railway/railway.ts` + this runbook)
-therefore serves the verified header set on every response.
+The production image entry point in `Dockerfile` therefore serves the verified
+header set on every response.
 
 **Trusted proxy model.** `TRUSTED_PROXY_MODE` pins the deployed edge contract.
 Production defaults to `railway-edge`, which consumes Railway's documented
@@ -593,8 +482,7 @@ The alert remains quiet when email is globally dark and the database contains on
 **First three things to check:**
 
 1. Worker logs for the notification handler around the affected window — look for the warn line from the after-commit emit (content-free: `correlationId`, counts, error class). That is where a lost notification leaves its only trace.
-2. Confirm `OUTBOX_DISPATCHER_ENABLED` agrees across `web` and `worker` with `pnpm infra:railway:check-shared-variables --environment <environment>`. The notification durable consumer is not gated by `DURABLE_CUTOVER_INBOX*`; with the dispatcher enabled it is the normal prevention path, while `reconcile-missing-notifications` remains the repair sweep.
-3. `outbox.unpublished` / `queue.oldest-age` — if the outbox is backed up, the gap may be delivery lag rather than a lost notification, and §7 is the right runbook.
+2. `outbox.unpublished` / `queue.oldest-age` — if the outbox is backed up, the gap may be delivery lag rather than a lost notification, and §7 is the right runbook.
 
 **Remediate:** fix the throwing handler or stalled worker first, then let the bounded `reconcile-missing-notifications` sweep re-enqueue the affected items through the ordinary preference-aware path. If the sweep cannot resolve the candidates, use a bounded report-first replay of the affected source facts. The active durable consumers are the primary prevention path; do not disable them or manufacture rows directly.
 

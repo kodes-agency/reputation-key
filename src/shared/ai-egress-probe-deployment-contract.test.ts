@@ -142,13 +142,6 @@ describe('AI egress probe deployment contract', () => {
     const dockerfile = source('Dockerfile.ai-egress-gateway')
     const gatewayBuild = source('tsup.ai-egress-gateway.config.ts')
     const probeBuild = source('tsup.ai-egress-probe.config.ts')
-    const productionRailway = JSON.parse(
-      source('railway.ai-egress-gateway.json'),
-    ) as Record<string, unknown>
-    const probeRailway = JSON.parse(source('railway.ai-egress-probe.json')) as Record<
-      string,
-      unknown
-    >
 
     expect(existsSync(resolve(ROOT, 'Dockerfile.ai-egress-probe'))).toBe(false)
     expect(dockerfile).toContain('tsup.ai-egress-probe.config.ts')
@@ -159,18 +152,6 @@ describe('AI egress probe deployment contract', () => {
     expect(probeBuild).toContain(
       "'runtime-egress-probe': 'services/ai-egress-gateway/runtime-egress-probe.ts'",
     )
-    expect(productionRailway).toMatchObject({
-      build: { dockerfilePath: 'Dockerfile.ai-egress-gateway' },
-      deploy: { startCommand: 'node dist-ai-egress-gateway/index.js' },
-    })
-    expect(probeRailway).toEqual({
-      $schema: 'https://railway.com/railway.schema.json',
-      deploy: {
-        numReplicas: 1,
-        restartPolicyType: 'NEVER',
-        startCommand: AI_EGRESS_PROBE_START_COMMAND,
-      },
-    })
   })
 
   it('keeps the probe outside the production gateway module graph', () => {

@@ -402,10 +402,8 @@ jobs:
           - group: worker-tools
             images: >-
               [{"name":"worker","dockerfile":"Dockerfile","tag":"repkey-worker:ci","publish":true},{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
-              [{"name":"worker","dockerfile":"Dockerfile","tag":"repkey-worker:ci","publish":true},{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
           - group: sidecars
             images: >-
-              [{"name":"google-execution-admission","dockerfile":"Dockerfile.google-execution-admission","tag":"repkey-google-execution-admission:ci","publish":true},{"name":"google-egress-gateway","dockerfile":"Dockerfile.google-egress-gateway","tag":"repkey-google-egress-gateway:ci","publish":true},{"name":"ai-execution-admission","dockerfile":"Dockerfile.ai-execution-admission","tag":"repkey-ai-execution-admission:ci","publish":true},{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]
               [{"name":"google-execution-admission","dockerfile":"Dockerfile.google-execution-admission","tag":"repkey-google-execution-admission:ci","publish":true},{"name":"google-egress-gateway","dockerfile":"Dockerfile.google-egress-gateway","tag":"repkey-google-egress-gateway:ci","publish":true},{"name":"ai-execution-admission","dockerfile":"Dockerfile.ai-execution-admission","tag":"repkey-ai-execution-admission:ci","publish":true},{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]
 
     steps:
@@ -714,8 +712,8 @@ jobs:
           path: image-sboms
           merge-multiple: true
 
-      - name: Require all ten image SBOMs
-        run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 10
+      - name: Require all nine image SBOMs
+        run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 9
 
       - name: Upload image SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

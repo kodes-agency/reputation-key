@@ -1,6 +1,6 @@
-// Predeploy migration runner (BQC-7.1) — Railway `preDeployCommand`
-// (`.railway/railway.ts`). Runs the deploy migration trio as ONE serialized,
-// self-verifying step before the new web container starts serving.
+// Predeploy migration runner (BQC-7.1) — Railway's `preDeployCommand`,
+// configured in `railway.json`. Runs the deploy migration trio as ONE
+// serialized, self-verifying step before the new web container starts serving.
 //
 // Apply order (the documented deploy order — src/shared/db/CONTEXT.md,
 // drizzle.config.ts, mirrored by the ci.yml "Run migrations" step):

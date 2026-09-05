@@ -1,3 +1,7 @@
+---
+status: draft
+---
+
 # Closed Beta Participation Agreement — Reputation Key
 
 **Status:** Candidate draft — pending counsel and exact-release acceptance

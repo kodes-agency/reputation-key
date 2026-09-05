@@ -52,7 +52,7 @@ them lazily when terms or decisions actually get resolved.
 ├── docs/adr/                          ← system-wide decisions
 │   ├── README.md                      ← navigation authority + dispositions
 │   ├── 0001-dynamic-access-control.md
-│   └── …0060-machine-checked-legal-approval.md
+│   └── …additional numbered decision records
 └── src/
     ├── components/CONTEXT.md
     ├── routes/CONTEXT.md

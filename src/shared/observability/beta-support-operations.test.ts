@@ -1,7 +1,5 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { COUNSEL_DECISION_CHECKLIST } from '../governance/counsel-decision-checklist'
-import { LEGAL_DOCUMENT_REGISTRY } from '../governance/legal-document-registry'
 import { ALERT_DEFINITIONS } from './alert-definitions'
 import { REG04_PLATFORM_SIGNALS } from './regional-platform-signals'
 import {
@@ -117,49 +115,6 @@ describe('OBS-01 beta support operations authority', () => {
       expect(gate.status).toBe('external_evidence_required')
       expect(gate.repositoryProofIsSufficient).toBe(false)
     }
-  })
-
-  it('binds the legal external gate to real registry documents and open counsel decisions', () => {
-    // LEG-01: the gate used to name three free-text evidence strings bound to
-    // nothing, so "approved notice version" could never be checked against
-    // the thing that would have to be approved. Both id lists are now joined
-    // to the shipped artifacts, and a stale id fails here.
-    const gate = OBS01_EXTERNAL_EVIDENCE_GATES.find(
-      (entry) => entry.id === 'legal_notice_and_retention_approval',
-    )
-    expect(gate).toBeDefined()
-    if (gate === undefined) return
-    expect(gate.repositoryProofIsSufficient).toBe(false)
-    expect(gate.status).toBe('external_evidence_required')
-
-    const registeredIds = new Set(
-      LEGAL_DOCUMENT_REGISTRY.documents.map((document) => document.id),
-    )
-    expect(gate.blockedByDocuments.length).toBeGreaterThan(0)
-    for (const id of gate.blockedByDocuments) {
-      expect(registeredIds.has(id), `unknown legal document ${id}`).toBe(true)
-    }
-
-    const items = new Map(COUNSEL_DECISION_CHECKLIST.items.map((item) => [item.id, item]))
-    expect(gate.blockedByDecisions.length).toBeGreaterThan(0)
-    for (const id of gate.blockedByDecisions) {
-      const item = items.get(id)
-      expect(item, `unknown counsel decision ${id}`).toBeDefined()
-      // A decided item cannot block anything; leaving it here would overstate
-      // the blocker set the moment counsel answers it.
-      expect(item?.status, `decided counsel decision ${id} still listed`).toBe('open')
-    }
-
-    // The two lists must agree: every document a listed decision blocks has to
-    // appear, and nothing may appear that no listed decision blocks.
-    const blockedByListedDecisions = new Set(
-      gate.blockedByDecisions.flatMap((id) => [
-        ...(items.get(id)?.blocksDocuments ?? []),
-      ]),
-    )
-    expect([...gate.blockedByDocuments].sort()).toEqual(
-      [...blockedByListedDecisions].sort(),
-    )
   })
 
   it('keeps the consent, durable receipt, triage, and support contract executable in the runbook', () => {

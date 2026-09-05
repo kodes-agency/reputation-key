@@ -260,20 +260,13 @@ describe('sidecar executable operational wiring', () => {
     expect([...documented].sort()).toEqual([...SIDECAR_SHARED_KERNEL].sort())
   })
 
-  it('keeps temporary Railway configs and runtime images on the same port contract', () => {
+  it('exposes the same port pair from every sidecar runtime image', () => {
     for (const stem of [
       'google-execution-admission',
       'google-egress-gateway',
       'ai-execution-admission',
       'ai-egress-gateway',
     ]) {
-      const config = JSON.parse(source(`railway.${stem}.json`)) as {
-        deploy?: Record<string, unknown>
-      }
-      expect(config.deploy, stem).toMatchObject({
-        healthcheckPath: '/health/ready',
-        healthcheckTimeout: 30,
-      })
       expect(source(`Dockerfile.${stem}`), stem).toContain('EXPOSE 8080 8443')
     }
   })

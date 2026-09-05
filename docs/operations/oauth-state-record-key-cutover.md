@@ -95,7 +95,8 @@ This is accepted rather than bridged.
 - The affected set is every ceremony whose `issue` and whose callback are served
   by different versions — and during a rolling deploy that happens in **both**
   directions, because this repo deploys with a rolling overlap it explicitly
-  designs for (see `docs/operations/railway-data-cells.md`, "old and new
+  designs for (see
+  `docs/archive/2026-09-lean/operations/railway-data-cells.md`, "old and new
   processes can each resolve their own binding during a later rolling overlap").
   An old replica issues under the SHA-256 key and a new replica reads the HMAC
   key; a new replica issues under the HMAC key and an old replica reads the

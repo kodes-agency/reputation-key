@@ -1,3 +1,7 @@
+---
+status: draft
+---
+
 # Google Business Profile Access Disclosure
 
 **Status:** Candidate draft — pending counsel, provider-evidence, and release review

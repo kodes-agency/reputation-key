@@ -1,8 +1,0 @@
-$ pnpm typecheck
-started: 2026-08-24T23:01:32.595Z  durationMs: 19910  exit: 0
-
-
-> reputation-key@ typecheck /private/tmp/repkey-fnd01.INMxZB/source
-> tsc --noEmit && tsc -p tsconfig.scripts.json --noEmit
-
-

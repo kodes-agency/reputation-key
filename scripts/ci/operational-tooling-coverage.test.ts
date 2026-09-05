@@ -79,7 +79,7 @@ describe('operational tooling quality coverage', () => {
 
   it('runs test-quality checks across script and configuration test roots', () => {
     const testQuality = read('scripts/check-test-quality.mjs')
-    for (const root of ['scripts', 'server', '.railway', '.storybook']) {
+    for (const root of ['scripts', 'server', '.storybook']) {
       expect(testQuality).toContain(`...walk(join(ROOT, '${root}'))`)
     }
   })

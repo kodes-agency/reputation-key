@@ -5,8 +5,6 @@
 // data class, it may not silently start deleting from a compatibility mirror,
 // and reading a row may not silently extend its content deadline.
 
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { contractionCandidateTableNames } from '#/shared/governance/contraction-inventory-registry'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
@@ -22,8 +20,6 @@ import {
   retentionRegistryReportOnlyPlan,
   type RetentionRegistryRule,
 } from './retention-registry'
-
-const ROOT = join(import.meta.dirname, '../../../..')
 
 const ruleById = (id: string): RetentionRegistryRule => {
   const rule = RETENTION_REGISTRY.find((entry) => entry.id === id)
@@ -86,24 +82,6 @@ describe('retention registry — counsel approval', () => {
       'a rule may only leave pending_counsel with a named approval artifact',
     ).toEqual([])
     expect(RETENTION_REGISTRY.every((rule) => rule.approvalArtifact === null)).toBe(true)
-  })
-
-  it('names an open counsel decision for every pending rule', () => {
-    const checklist = JSON.parse(
-      readFileSync(join(ROOT, 'docs/legal/counsel-decision-checklist.json'), 'utf8'),
-    ) as { items: ReadonlyArray<{ id: string; status: string }> }
-    const openIds = new Set(
-      checklist.items.filter(({ status }) => status === 'open').map(({ id }) => id),
-    )
-    const unreferenced = RETENTION_REGISTRY.filter(
-      (rule) =>
-        rule.blockingCounselDecisions.length === 0 ||
-        rule.blockingCounselDecisions.some((id) => !openIds.has(id)),
-    )
-    expect(
-      unreferenced.map((rule) => rule.id),
-      'every pending rule must cite a real, still-open counsel decision',
-    ).toEqual([])
   })
 
   it('refuses apply mode while a rule is pending counsel', () => {

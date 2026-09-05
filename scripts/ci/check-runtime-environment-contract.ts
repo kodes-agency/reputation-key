@@ -5,8 +5,8 @@
 // port: `PORT` changed from '8443' to a required literal '8080',
 // `INTERNAL_MTLS_PORT` became required, and the Google sidecars gained a
 // boot-time allowlist that rejects any unlisted variable. The repository
-// stayed self-consistent throughout — `.railway/railway.ts` declared the new
-// values and 198 tests agreed — so every gate passed and the PR merged clean.
+// stayed self-consistent throughout — the deployment configuration declared
+// the new values and 198 tests agreed — so every gate passed and the PR merged clean.
 // The LIVE environment still carried the old values, so two services
 // crash-looped on `bind address is invalid` and Railway's health probe never
 // went green.
@@ -51,7 +51,6 @@ const CONTRACT_FILES: readonly string[] = Object.freeze([
   'services/internal-mtls.ts',
   'src/shared/config/env.ts',
   'src/shared/config/release-identity.ts',
-  '.railway/railway.ts',
   // Added 2026-08-31 after it caused exactly the failure this gate exists to
   // catch, and was not covered. It decides — from RAILWAY_PROJECT_NAME,
   // RAILWAY_ENVIRONMENT_NAME, PROCESSING_CELL and

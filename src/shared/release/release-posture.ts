@@ -1,13 +1,12 @@
 // The audience this product is currently exposed to, and the ordering that
 // decides which gates that audience earns.
 //
-// WHY THIS EXISTS. `ReleasePosture` already lived in `gate-f-evidence.ts`, but
-// only as a field an evidence bundle ASSERTS ABOUT ITSELF. Nothing anywhere
-// stated what posture the product is actually in, so every gate that wanted to
-// scale its demand to the audience had nothing to consult and had to assume the
-// widest one. That is why a closed beta with a single participant was being
-// held to a gate set written for a public launch: not by decision, but because
-// the question could not be asked.
+// WHY THIS EXISTS. Posture used to exist only as a field an evidence bundle
+// asserted about itself. Nothing anywhere stated what posture the product is
+// actually in, so every gate that wanted to scale its demand to the audience
+// had nothing to consult and had to assume the widest one. That is why a closed
+// beta with a single participant was being held to a gate set written for a
+// public launch: not by decision, but because the question could not be asked.
 //
 // WHY A CONSTANT AND NOT AN ENVIRONMENT VARIABLE. Posture is a property of the
 // product's AUDIENCE, not of a deployment. Local, staging and the Railway beta

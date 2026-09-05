@@ -2,7 +2,7 @@
 
 **Status: REPORT-ONLY. Apply mode is refused by code, not by convention.**
 
-Authority: LIF-01 program bullets 10, 11 and 12.
+Authority: `docs/BETA.md` (LIF-01 program bullets 10, 11 and 12).
 Registry: `src/shared/db/retention/retention-registry.ts`
 Report builder: `src/shared/db/retention/report-retention-registry.ts`
 Guards: `src/shared/db/retention/retention-registry.test.ts`,
@@ -41,10 +41,8 @@ hours.
 `approvalState` is **computed** from `approvalArtifact`, never written. A rule
 reaches `approved` only by carrying a named counsel approval artifact.
 
-Counsel has approved nothing. `docs/legal/legal-document-registry.json` holds
-five documents, all `draft`, zero `approved`, and
-`docs/legal/counsel-decision-checklist.json` holds forty-one items, all `open`.
-Every registry rule therefore sits at `pending_counsel`, and:
+No registry rule currently carries a named counsel approval artifact. Every
+registry rule therefore sits at `pending_counsel`, and:
 
 - `assertRetentionRegistryApplyAllowed(rule)` **throws** for every rule.
 - `retentionRegistryReportOnlyPlan(RETENTION_REGISTRY).mode` is `report_only`.
@@ -58,13 +56,13 @@ deletes nothing.
 
 ### Unblocking a rule (for the future)
 
-1. Counsel resolves the `blockingCounselDecisions` items on the rule.
-2. The approval lands in `docs/legal/legal-document-registry.json` with status
-   `approved`, a named external approver and an approval evidence reference.
-3. The rule gains an `approvalArtifact` naming that document.
-4. Only then does `assertRetentionRegistryApplyAllowed` stop throwing.
+1. Counsel approves the proposed rule against the governing obligations in
+   `docs/BETA.md`.
+2. The rule gains an `approvalArtifact` naming the external approval evidence.
+3. Only then does `assertRetentionRegistryApplyAllowed` stop throwing.
 
-Skipping step 2 is the failure mode this design exists to prevent.
+Skipping the external approval evidence is the failure mode this design exists
+to prevent.
 
 ---
 
@@ -80,16 +78,16 @@ contraction decision rests on is the row and foreign-key inventory produced by
 `ops:report-compatibility-read-surfaces`. A retention rule that deleted their
 rows would drain that inventory, the report would read "already empty", and the
 contraction would have happened quietly and early — with neither the release nor
-the restore proof it is gated on. `retention_classes.
-unresolved_legacy_compatibility_rows` is still an open counsel question.
+the restore proof it is gated on. Those compatibility rows therefore have no
+approved retention horizon.
 
 ### What was removed
 
 The scheduled sweep previously carried `gbp_cache.expired`, deleting expired
 rows from `gbp_cache` — the `legacyGbpCache` compatibility mirror, superseded by
 `google-import-v2` and written by nothing in production. That rule has been
-removed. The class is carried report-only in the registry instead, blocked on
-`retention_classes.expiring_google_cache`.
+removed. The class is carried report-only in the registry with a
+`counsel_undecided` horizon.
 
 ### The one declared exception
 
@@ -153,19 +151,16 @@ be enforced before the fact purge is ever armed in apply mode.
 ## 6. Running the report
 
 The registry report is content-free — rule id, class, owner, source, cutoff, an
-integer count and the approval blockers — and is safe to attach to a counsel
-review or an operational ticket.
+integer count and apply status — and is safe to attach to a counsel review or an
+operational ticket.
 
 Rules with a `counsel_undecided` horizon, an object-store source or an external
 processor source report `eligibleRows: null` with a stated
 `notCountableReason`. They are never silently omitted: a class that cannot be
 counted is itself a finding.
 
-> **Not yet wired as an operator command.** `buildRetentionRegistryReport` is
-> callable and tested, but the `ops:report-retention` command it belongs behind
-> requires entries in `src/shared/governance/entry-point-catalogue.ts` and
-> `src/shared/governance/operator-command-mutation-classifier.ts`, which are
-> outside this change's ownership. See §8.
+`ops:report-retention` is registered as a read-only operator command. Its
+builder is callable and covered by the report-only integration path.
 
 ---
 
@@ -237,16 +232,13 @@ reconciliation.
 
 ## 8. Known gaps in this change
 
-1. **`ops:report-retention` is not registered.** The report builder exists and
-   is tested; the operator command needs an `entry-point-catalogue.ts` row and
-   an `operator-command-mutation-classifier.ts` `read_only` entry.
-2. **The three new bullet-12 scripts are not registered either**, for the same
-   reason — each needs an `entry-point-catalogue.ts` row and a classifier entry.
-3. **`data-fate-authority.ts` does not yet cross-reference the registry.** The
+1. **The three new bullet-12 scripts are not registered.** Each needs an
+   `entry-point-catalogue.ts` row and a classifier entry.
+2. **`data-fate-authority.ts` does not yet cross-reference the registry.** The
    registry reads the authority; the authority does not know a retention class
    exists for a table.
-4. **The lifetime-aggregate ordering constraint is documented, not enforced**
+3. **The lifetime-aggregate ordering constraint is documented, not enforced**
    (§5).
-5. **`docs/operations/runbooks.md` and
+4. **`docs/operations/runbooks.md` and
    `docs/operations/backup-and-lifecycle.md` still list `gbp_cache.expired`** as
    a live retention subject. That table row is now stale.

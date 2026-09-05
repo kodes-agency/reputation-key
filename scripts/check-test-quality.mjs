@@ -4,7 +4,7 @@
 //
 // ── SCOPE (widened 2026-08-21 — three holes that let this gate be evaded) ──
 //
-//   src/**, services/**, e2e/**, scripts/**, server/**, .railway/**,
+//   src/**, services/**, e2e/**, scripts/**, server/**,
 //   .storybook/**                 *.test.ts(x) / *.spec.ts(x)
 //   src/** and .storybook/**      *.stories.tsx
 //
@@ -188,7 +188,6 @@ const files = [
   ...walk(join(ROOT, 'e2e')),
   ...walk(join(ROOT, 'scripts')),
   ...walk(join(ROOT, 'server')),
-  ...walk(join(ROOT, '.railway')),
   ...walk(join(ROOT, '.storybook')),
 ]
 

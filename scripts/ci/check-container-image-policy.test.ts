@@ -7,7 +7,6 @@ import {
   validateContainerImagePolicy,
   validateDockerfileContextAllowlist,
   validateDockerfileInventory,
-  validateReleaseEvidenceBinding,
 } from './check-container-image-policy'
 
 const ROOT = resolve(import.meta.dirname, '../..')
@@ -110,7 +109,7 @@ describe('container image policy', () => {
     )
   })
 
-  it('merges the ten staged SBOMs into the governed image artifact', () => {
+  it('merges every CI-built SBOM into the governed image artifact', () => {
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
     const aggregate = workflow.slice(workflow.indexOf('\n  docker:'))
 
@@ -119,7 +118,7 @@ describe('container image policy', () => {
     expect(aggregate).toContain('merge-multiple: true')
     expect(aggregate).toContain('name: sbom-images-spdx')
     expect(aggregate).toContain(
-      `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 10`,
+      `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 9`,
     )
   })
 
@@ -137,41 +136,5 @@ describe('container image policy', () => {
     ).toContain(
       'Dockerfile.sandbox.dockerignore excludes COPY source e2e/fixtures/ai-provider-stub.ts',
     )
-  })
-
-  it('rejects release signing that does not bind beta evidence to the selected CI run', () => {
-    const workflow = readFileSync(
-      resolve(ROOT, '.github/workflows/release-images.yml'),
-      'utf8',
-    )
-    expect(validateReleaseEvidenceBinding(workflow)).toEqual([])
-
-    expect(
-      validateReleaseEvidenceBinding(
-        workflow.replace('select(.name == $name and .expired == false)', 'true'),
-      ),
-    ).toContain(
-      'release CI evidence binding is missing select(.name == $name and .expired == false)',
-    )
-
-    expect(
-      validateReleaseEvidenceBinding(
-        workflow.replace(
-          '(cd "$manifest_dir" && sha256sum --check manifest.sha256)',
-          'true',
-        ),
-      ),
-    ).toContain(
-      'release CI evidence binding is missing (cd "$manifest_dir" && sha256sum --check manifest.sha256)',
-    )
-
-    expect(
-      validateReleaseEvidenceBinding(
-        workflow.replace(
-          'RELEASE_BUILDX_VERSION: 0.32.1',
-          'RELEASE_BUILDX_VERSION: latest',
-        ),
-      ),
-    ).toContain('release CI evidence binding is missing RELEASE_BUILDX_VERSION: 0.32.1')
   })
 })

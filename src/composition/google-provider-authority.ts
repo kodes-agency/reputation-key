@@ -817,7 +817,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         hasRuntimeBindings: Boolean(googleContentRuntimeBindings),
         hasContentAuthority: Boolean(googleContentAuthority),
       },
-      'Google provider DISABLED — no usable Google Content approval. Import and performance reads will fail with 503 until a freshly signed bundle is installed (docs/operations/google-content-approval-closed-beta.md)',
+      'Google provider DISABLED — no usable Google Content approval. Import and performance reads will fail with 503 until content authority and matching runtime bindings are installed',
     )
   } else {
     logger.info(

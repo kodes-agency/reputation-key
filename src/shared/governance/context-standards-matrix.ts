@@ -1,12 +1,12 @@
 import { CONTEXT_STANDARDS_AUTHORITY } from './context-standards-authority'
 
 /**
- * Current-tree 17-context x 9-rule successor to the frozen standards audit. “Evidenced”
- * is deliberately narrow: it names a repository fact enforced by the focused
- * test, not blanket package or release closure. “Accepted exception” binds an
- * exact current-tree variance to the owned, expiring exception register;
- * “unresolved” remains reserved for a newly discovered rule gap that has neither
- * proof nor approved exception authority.
+ * Current-tree 17-context x 9-rule successor to the frozen standards audit.
+ * “Evidenced” is deliberately narrow: it names a repository fact, not blanket
+ * package or release closure. “Accepted exception” pins an exact current-tree
+ * variance to the explicit identifier recorded in this matrix; “unresolved”
+ * remains reserved for a newly discovered rule gap that has neither proof nor
+ * an accepted exception.
  */
 export const CONTEXT_STANDARD_DIMENSIONS = Object.freeze([
   { id: 'tags', authority: 'docs/standards.md §1.1', claim: 'event tag shape' },
@@ -314,10 +314,6 @@ function cellFor(
       rationale,
       evidence: [
         ...evidence,
-        {
-          path: 'docs/governance/standards-exceptions.json',
-          kind: 'file',
-        },
         {
           path:
             dimension === 'tags'

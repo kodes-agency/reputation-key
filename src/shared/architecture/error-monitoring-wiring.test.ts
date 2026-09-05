@@ -124,9 +124,9 @@ describe('production error-monitoring wiring', () => {
   })
 
   it('keeps monitoring mandatory in Railway cells with no disable switch', () => {
-    const railway = read('.railway/railway.ts')
-    expect(railway).toContain("'SENTRY_DSN'")
-    expect(railway).toContain("'SENTRY_TRACES_SAMPLE_RATE'")
-    expect(railway).not.toContain('SENTRY_ENABLED')
+    const telemetry = read('src/shared/observability/telemetry.ts')
+    expect(telemetry).toContain('isDeployedProductionCell(env) && !env.SENTRY_DSN')
+    expect(telemetry).toContain('SENTRY_TRACES_SAMPLE_RATE')
+    expect(telemetry).not.toContain('SENTRY_ENABLED')
   })
 })

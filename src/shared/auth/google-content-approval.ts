@@ -127,9 +127,8 @@ const approvalBindingSchema = z
     performanceCatalogVersion: z.literal(GOOGLE_CONTENT_PERFORMANCE_CATALOG_VERSION),
     // Pinned to the compiled catalogue: a route/metric/encoding/page-size/cap
     // change bumps the constant, so a persisted approval row minted for the old
-    // catalogue no longer parses and the capability fails closed until
-    // re-approved with a freshly role-signed bundle
-    // (`pnpm ops:google-content-approval-sign`).
+    // catalogue no longer parses and the capability fails closed until it reads
+    // a complete role-signed bundle whose binding carries the compiled version.
     routeCatalogueVersion: z.literal(GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION),
     capabilityPolicyVersion: z.literal(GOOGLE_CONTENT_CAPABILITY_POLICY_VERSION),
     executionPolicyVersion: z.literal(GOOGLE_CONTENT_EXECUTION_POLICY_VERSION),

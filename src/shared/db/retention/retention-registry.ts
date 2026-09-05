@@ -10,9 +10,8 @@
  * Three properties are load-bearing and are asserted by the companion test:
  *
  * 1. `approvalState` is derived from `approvalArtifact`, so a rule cannot be
- *    marked approved by editing a flag. Counsel has approved nothing —
- *    docs/legal/legal-document-registry.json holds five drafts and zero
- *    approvals — so every rule is `pending_counsel` and
+ *    marked approved by editing a flag. No rule carries an approval artifact,
+ *    so every rule is `pending_counsel` and
  *    `assertRetentionRegistryApplyAllowed` refuses apply for all of them.
  *    Report-only is the only reachable mode.
  *
@@ -28,9 +27,8 @@
  *    actions touch are refused as anchors.
  *
  * Horizons come from the program contract, not from invention. Where the
- * program states no horizon the rule carries `counsel_undecided` and cites the
- * open item in docs/legal/counsel-decision-checklist.json rather than guessing
- * a number that would then read as an approved policy.
+ * program states no horizon the rule carries `counsel_undecided` rather than
+ * guessing a number that would then read as an approved policy.
  */
 
 export const RETENTION_DATA_CLASSES = Object.freeze([
@@ -144,8 +142,6 @@ export type RetentionRegistryRule = Readonly<{
   restoreImplication: string
   approvalState: RetentionApprovalState
   approvalArtifact: string | null
-  /** Open ids in docs/legal/counsel-decision-checklist.json. */
-  blockingCounselDecisions: ReadonlyArray<string>
   /** Only meaningful for the de-identified fact class. */
   coveredFacts?: ReadonlyArray<string>
 }>
@@ -198,10 +194,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'review_source_contents.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: [
-      'google_terms_and_expiry.source_content_horizon',
-      'retention_classes.unresolved_provider_reply_text',
-    ],
   }),
   rule({
     id: 'google.import_discovery',
@@ -221,7 +213,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'google_import_discovery_records.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.expiring_google_cache'],
   }),
   rule({
     id: 'google.import_discovery_invalidations',
@@ -241,7 +232,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'google_import_discovery_invalidations.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.expiring_google_cache'],
   }),
   rule({
     id: 'review.sync_runs',
@@ -259,7 +249,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'review_sync_runs',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.published_outbox_facts'],
   }),
   rule({
     id: 'review.refresh_runs',
@@ -277,7 +266,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'review_refresh_runs',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.published_outbox_facts'],
   }),
   rule({
     id: 'integration.inbound_webhook_receipts',
@@ -296,7 +284,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'inbound_webhook_receipts',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.published_outbox_facts'],
   }),
   rule({
     id: 'guest.session_pseudonym',
@@ -316,10 +303,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'guest_response_session_bindings.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: [
-      'retention_classes.guest_session_pseudonyms',
-      'retention_classes.guest_response_session_binding',
-    ],
   }),
   rule({
     id: 'guest.destination_action_session_pseudonym',
@@ -339,7 +322,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'guest_destination_action_receipts.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.guest_response_session_binding'],
   }),
   rule({
     id: 'guest.qualified_scan_session_pseudonym',
@@ -359,7 +341,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'guest_qualified_scan_receipts.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.guest_response_session_binding'],
   }),
   rule({
     id: 'guest.abuse_pseudonym',
@@ -379,7 +360,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'guest_network_pressure_records.expired',
     restoreImplication: RESTORE_REPLAYS_REDACTION,
-    blockingCounselDecisions: ['retention_classes.guest_session_pseudonyms'],
   }),
   rule({
     id: 'guest.network_pseudonym',
@@ -399,7 +379,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'guest_network_pressure_records.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.guest_network_pressure_records'],
   }),
   ...(['scan_events', 'ratings', 'feedback'] as const).flatMap((source) => [
     rule({
@@ -421,7 +400,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       },
       evidenceSubject: `${source}.abuse_pseudonym`,
       restoreImplication: RESTORE_REPLAYS_REDACTION,
-      blockingCounselDecisions: ['retention_classes.guest_session_pseudonyms'],
     }),
     rule({
       id: `guest.legacy_${source}.session_pseudonym`,
@@ -442,7 +420,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       },
       evidenceSubject: `${source}.guest_session_pseudonym`,
       restoreImplication: RESTORE_REPLAYS_REDACTION,
-      blockingCounselDecisions: ['retention_classes.guest_session_pseudonyms'],
     }),
   ]),
   rule({
@@ -463,7 +440,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'guest_contact_requests.expired_material',
     restoreImplication: RESTORE_REPLAYS_REDACTION,
-    blockingCounselDecisions: ['retention_classes.unresolved_contact_requests'],
   }),
   rule({
     id: 'guest.private_feedback_text',
@@ -483,7 +459,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'guest_response_private_feedback.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.guest_private_feedback_text'],
   }),
   rule({
     id: 'guest.deidentified_facts',
@@ -505,7 +480,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication:
       'A restore reinstates purged facts AND desynchronises the lifetime aggregate, because corrections and withdrawals applied before the purge are replayed against rows that already carry them. The aggregate must be reconciled against the restored facts before the cell is reopened.',
     coveredFacts: ['rating'],
-    blockingCounselDecisions: ['retention_classes.canonical_guest_response_fact'],
   }),
   rule({
     id: 'guest.deidentified_qualified_scan_facts',
@@ -526,7 +500,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'guest_qualified_scans.retention_undecided',
     restoreImplication: RESTORE_REPLAYS_DELETION,
     coveredFacts: ['qualified_scan'],
-    blockingCounselDecisions: ['retention_classes.unresolved_base_guest_metric_facts'],
   }),
   rule({
     id: 'metric.deidentified_destination_click_facts',
@@ -547,7 +520,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'metric_readings.destination_click_retention_undecided',
     restoreImplication: RESTORE_REPLAYS_DELETION,
     coveredFacts: ['destination_click'],
-    blockingCounselDecisions: ['retention_classes.unresolved_base_guest_metric_facts'],
   }),
   rule({
     id: 'metric.deidentified_correction_withdrawal_facts',
@@ -568,7 +540,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'metric_corrections.retention_undecided',
     restoreImplication: RESTORE_REPLAYS_DELETION,
     coveredFacts: ['correction', 'withdrawal'],
-    blockingCounselDecisions: ['retention_classes.unresolved_base_guest_metric_facts'],
   }),
   rule({
     id: 'metric.lifetime_aggregates',
@@ -589,7 +560,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'portal_metric_lifetime_aggregates.reconciled',
     restoreImplication:
       'Restoring the aggregate without the matching source facts (or the reverse) reintroduces exactly the divergence the pre-purge reconciliation exists to prevent; both must be restored to the same point in time and reconciled before metrics are readable.',
-    blockingCounselDecisions: ['retention_classes.unresolved_base_guest_metric_facts'],
   }),
   rule({
     id: 'notification.delivery_records',
@@ -609,7 +579,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'notifications',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.terminal_notification_evidence'],
   }),
   rule({
     id: 'notification.terminal_digest_batches',
@@ -629,7 +598,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'notification_digest_batches',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.terminal_notification_evidence'],
   }),
   rule({
     id: 'notification.terminal_email_queue',
@@ -650,7 +618,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'notification_email_queue',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.terminal_notification_evidence'],
   }),
   rule({
     id: 'activity.recent_activity',
@@ -670,7 +637,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'recent_activity_entries',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.recent_activity_storage'],
   }),
   rule({
     id: 'activity.replay_facts',
@@ -689,7 +655,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'recent_activity_replay_facts',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.recent_activity_storage'],
   }),
   rule({
     id: 'activity.actor_label_redactions',
@@ -709,7 +674,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'recent_activity_actor_label_redactions.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.recent_activity_storage'],
   }),
   rule({
     id: 'platform.published_outbox_events',
@@ -729,7 +693,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'outbox_events.published',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.published_outbox_facts'],
   }),
   rule({
     id: 'platform.event_consumer_receipts',
@@ -747,7 +710,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'event_consumer_receipts',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.published_outbox_facts'],
   }),
   rule({
     id: 'identity.invited_registration_attempts',
@@ -767,7 +729,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'invited_registration_attempts.settled',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.unresolved_account_deletion'],
   }),
   rule({
     id: 'platform.policy_decision_audit',
@@ -785,7 +746,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'policy_decision_audit',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.policy_decision_records'],
   }),
   rule({
     id: 'platform.audit_logs',
@@ -803,7 +763,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'audit_logs',
     restoreImplication: RESTORE_REPLAYS_DELETION,
-    blockingCounselDecisions: ['retention_classes.policy_decision_records'],
   }),
   rule({
     id: 'activity.operational_action_history',
@@ -824,7 +783,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'operational_action_history_records.expired',
     restoreImplication:
       'Action history is the evidence chain for operator actions. A restore that reinstates purged records without reinstating the purge evidence makes the record set unexplainable; restore both or neither.',
-    blockingCounselDecisions: ['retention_classes.policy_decision_records'],
   }),
   rule({
     id: 'platform.logs_sentry_replay_screenshots',
@@ -844,10 +802,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     },
     evidenceSubject: 'external.processor_retention_attestation',
     restoreImplication: RESTORE_EXTERNAL,
-    blockingCounselDecisions: [
-      'processors_and_transfers.monitoring_region',
-      'processors_and_transfers.provider_schedule',
-    ],
   }),
   rule({
     id: 'ai.local_derivatives',
@@ -868,7 +822,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'ai.authorization_erasure',
     restoreImplication:
       'A restore can resurrect derivatives whose authorization was withdrawn. The erasure ledger must be replayed after restore before any AI output is readable again.',
-    blockingCounselDecisions: ['processors_and_transfers.ai_provider_terms'],
   }),
   rule({
     id: 'platform.uploads',
@@ -889,7 +842,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'object_store.orphan_inventory',
     restoreImplication:
       'Object storage and PostgreSQL restore independently. An object restored without its row is invisible to every deletion path, so the orphan inventory must be re-run after any restore.',
-    blockingCounselDecisions: ['retention_classes.unresolved_legacy_compatibility_rows'],
   }),
   rule({
     id: 'platform.quarantine',
@@ -910,7 +862,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'metric_quarantine.resolved',
     restoreImplication:
       'Restoring quarantine rows after reconciliation replays already-resolved conflicts. Reconcile against the current canonical set rather than re-applying past dispositions.',
-    blockingCounselDecisions: ['retention_classes.unresolved_legacy_compatibility_rows'],
   }),
   rule({
     id: 'integration.provider_tokens',
@@ -931,7 +882,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'google_oauth_exchange_attempts.erased',
     restoreImplication:
       'A restore can reinstate credential material that was deliberately erased. Provider credentials must be treated as compromised after any restore and reauthorized, never reused.',
-    blockingCounselDecisions: ['google_terms_and_expiry.scope'],
   }),
   rule({
     id: 'lifecycle.organization_exports',
@@ -952,7 +902,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'organization_exports.purged',
     restoreImplication:
       'A restore can resurrect an export archive whose seven-day deletion was already proven. Export objects must be re-purged and the proof re-issued after any restore.',
-    blockingCounselDecisions: ['rights.export_promise'],
   }),
   rule({
     id: 'platform.backups',
@@ -973,7 +922,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     evidenceSubject: 'backup_erasure_ledger',
     restoreImplication:
       'This is the class that makes every other restore implication true: any restore reintroduces rows deleted after the backup was taken. The erasure ledger must be replayed and every retention subject re-swept before the cell is reopened.',
-    blockingCounselDecisions: ['retention_classes.unresolved_restored_backups'],
   }),
 ] satisfies ReadonlyArray<RetentionRegistryRule>)
 
@@ -1042,8 +990,7 @@ export function retentionRegistryApprovalBlockers(
 export function assertRetentionRegistryApplyAllowed(rule: RetentionRegistryRule): void {
   if (rule.approvalState !== 'pending_counsel') return
   throw new Error(
-    `retention rule '${rule.id}' is pending_counsel and cannot run in apply mode; ` +
-      `blocking counsel decisions: ${rule.blockingCounselDecisions.join(', ') || 'none recorded'}`,
+    `retention rule '${rule.id}' is pending_counsel and cannot run in apply mode`,
   )
 }
 

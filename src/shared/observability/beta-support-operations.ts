@@ -165,31 +165,17 @@ export type Obs01ExternalEvidenceGate = Readonly<{
   status: 'external_evidence_required'
   repositoryProofIsSufficient: false
   evidence: readonly string[]
-  /**
-   * LEG-01: ids from `docs/legal/legal-document-registry.json` this gate
-   * cannot be closed without. Empty for gates whose evidence is purely
-   * operational — a legal gate with an empty list would be free text again.
-   */
-  blockedByDocuments: readonly string[]
-  /** Ids from `docs/legal/counsel-decision-checklist.json`, same reason. */
-  blockedByDecisions: readonly string[]
 }>
 
 const externalGate = (
   id: Obs01ExternalEvidenceGate['id'],
   evidence: readonly string[],
-  blocked: Readonly<{
-    documents?: readonly string[]
-    decisions?: readonly string[]
-  }> = {},
 ): Obs01ExternalEvidenceGate =>
   Object.freeze({
     id,
     status: 'external_evidence_required' as const,
     repositoryProofIsSufficient: false as const,
     evidence,
-    blockedByDocuments: Object.freeze(blocked.documents ?? []),
-    blockedByDecisions: Object.freeze(blocked.decisions ?? []),
   })
 
 /** These gates cannot be closed by repository tests or local execution. */
@@ -228,33 +214,11 @@ export const OBS01_EXTERNAL_EVIDENCE_GATES: readonly Obs01ExternalEvidenceGate[]
       'consent_preview_remove_cancel',
       'suggestion_text_only',
     ]),
-    // The only gate here whose blockers are repository-addressable: the
-    // approval itself is external (engineering can never self-approve a legal
-    // document), but WHAT must be approved is recorded, so "approved notice
-    // version" is now checkable against the registry row and the open counsel
-    // decisions rather than being a sentence nobody can evaluate.
-    externalGate(
-      'legal_notice_and_retention_approval',
-      [
-        'approved_notice_version',
-        'approved_retention_rule',
-        'approved_subprocessor_region',
-      ],
-      {
-        documents: [
-          'google-access-disclosure',
-          'internal-beta-agreement',
-          'privacy-notice',
-        ],
-        decisions: [
-          'dpia_and_regions.transfer_record',
-          'google_terms_and_expiry.source_content_horizon',
-          'processors_and_transfers.monitoring_region',
-          'processors_and_transfers.provider_schedule',
-          'retention_classes.policy_decision_records',
-          'retention_classes.retention_run_evidence',
-          'roles.controller_processor',
-        ],
-      },
-    ),
+    // Approval is external: engineering cannot self-approve legal notice or
+    // retention terms. The evidence list names the outcomes support must obtain.
+    externalGate('legal_notice_and_retention_approval', [
+      'approved_notice_version',
+      'approved_retention_rule',
+      'approved_subprocessor_region',
+    ]),
   ])

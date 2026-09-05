@@ -5481,15 +5481,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/review/legal-document-registry.ts',
-    'scripts/review/legal-document-registry.ts',
-    'none',
-    {
-      notes:
-        'check:legal-registry — LEG-01 read-only validator: recomputes every legal document digest, refuses an approved document whose bytes changed, refuses engineering self-approval, and refuses approving a document while a counsel decision that blocks it is still open',
-    },
-  ),
-  ops(
     'scripts/review/zod-v4-conformance.ts',
     'scripts/review/zod-v4-conformance.ts',
     'none',
@@ -5570,15 +5561,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/ops/closed-beta-google-content-activate.ts',
-    'scripts/ops/closed-beta-google-content-activate.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:closed-beta-google-content — installs signed Google Content bundles into the closed beta, which the cell-us activation controller structurally cannot address. Reuses the same parser, signature verifier and bundle validator; adds only the set-level rules (one deployment, one owner, one route catalogue). REFUSES at any posture but closed-beta, so it can never substitute for the governed ceremony. --apply writes the two runtime variables to web and worker with --skip-deploys',
-    },
-  ),
-  ops(
     'scripts/ops/deploy-ci-images.ts',
     'scripts/ops/deploy-ci-images.ts',
     'tenant_cross',
@@ -5586,15 +5568,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       externalEffect: true,
       notes:
         'ops:deploy-ci-images — closed-beta-only report/apply controller for the seven exact digest-pinned production images emitted by the successful main push CI run; refuses incomplete or cross-revision maps and non-ancestor revisions, requires an explicit --live apply opt-in, and waits for Railway deployment and replica health. It cannot consume, weaken, or replace the signed cell-us promotion ceremony',
-    },
-  ),
-  ops(
-    'scripts/ops/google-content-approval-sign.ts',
-    'scripts/ops/google-content-approval-sign.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:google-content-approval-sign — operator-held role keystore; prepares and validates private re-signing bundles, while database/Railway activation stays fail-closed until the atomic exact-target controller exists',
     },
   ),
   ops(
@@ -5696,86 +5669,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'audit:auth-schema — read-only better-auth column casing check' },
   ),
   // ── release evidence ──────────────────────────────────────────────
-  ops(
-    'scripts/release/validate-bundle.ts',
-    'scripts/release/validate-bundle.ts',
-    'none',
-    {
-      notes:
-        'release:validate-evidence — validates the named, path-contained BQC-8.8 reviewer evidence bundle; read-only',
-    },
-  ),
-  ops('scripts/release/iac-digest.ts', 'scripts/release/iac-digest.ts', 'none', {
-    notes:
-      'Shared read-only digest helper for binding Railway plan evidence and promotion manifests to the exact reviewed infrastructure source tree',
-  }),
-  ops(
-    'scripts/release/release-authority-digest.ts',
-    'scripts/release/release-authority-digest.ts',
-    'none',
-    {
-      notes:
-        'Shared read-only digest helper that binds signed manifests to the complete local release-controller authority surface',
-    },
-  ),
-  ops(
-    'scripts/release/staged-railway-sources.ts',
-    'scripts/release/staged-railway-sources.ts',
-    'none',
-    {
-      notes:
-        'Shared pure validation helper for exact-digest staged source maps and pinned Railway plan/apply evidence; it has no standalone mutation entry point',
-    },
-  ),
-  ops(
-    'scripts/release/railway-data-cell-plan.ts',
-    'scripts/release/railway-data-cell-plan.ts',
-    'none',
-    {
-      notes:
-        'release:railway-data-cell-plan — fail-closed read-only Railway infrastructure plan wrapper bound to the requested project and data-cell environment',
-    },
-  ),
-  ops(
-    'scripts/release/railway-shared-variable-parity.ts',
-    'scripts/release/railway-shared-variable-parity.ts',
-    'none',
-    {
-      notes:
-        'infra:railway:check-shared-variables — read-only comparison of every IaC-declared application shared variable across the live Railway application services; values are never printed',
-    },
-  ),
-  ops(
-    'scripts/release/railway-data-cell-domain.ts',
-    'scripts/release/railway-data-cell-domain.ts',
-    'none',
-    {
-      externalEffect: true,
-      notes:
-        'infra:railway:domain — one-time exact-target production custom-domain registration; applies only a reviewed canonical intent after source-less foundation proof and verifies readback',
-    },
-  ),
-  ops(
-    'scripts/release/railway-data-cell-foundation.ts',
-    'scripts/release/railway-data-cell-foundation.ts',
-    'none',
-    {
-      externalEffect: true,
-      notes:
-        'infra:railway:foundation — fail-closed one-time Railway foundation planner/apply controller; requires an empty exact-project cell-us target and applies only the unchanged reviewed source-less plan',
-    },
-  ),
   // ── bqc ───────────────────────────────────────────────────────────
-  ops(
-    'scripts/release/railway-google-content-approval-activation.ts',
-    'scripts/release/railway-google-content-approval-activation.ts',
-    'tenant_cross',
-    {
-      externalEffect: true,
-      notes:
-        'infra:railway:google-content-approval — exact-target cell-us activation controller; requires all four capabilities killed and drained, installs retained database approvals from one private reviewed intent, changes only the two approved shared variables, and verifies the complete unrelated Railway configuration',
-    },
-  ),
   ops('scripts/bqc/run-baseline.ts', 'scripts/bqc/run-baseline.ts', 'tenant_cross', {
     notes: 'bqc:run-baseline — full gate run incl. migrations/seed/e2e; writes evidence',
   }),
@@ -5936,105 +5830,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'perf:cell stub process — GBP/mail sandbox fixtures serving the cell (no DB; provider endpoints pinned here, BQC-8.2)',
   }),
-  ops(
-    'scripts/release/promote-local-evidence.ts',
-    'scripts/release/promote-local-evidence.ts',
-    'none',
-    {
-      notes:
-        'Promotes a digest-bound beta-local manifest only after all five role approvals validate',
-    },
-  ),
-  ops(
-    'scripts/release/create-promotion-manifest.ts',
-    'scripts/release/create-promotion-manifest.ts',
-    'none',
-    {
-      notes:
-        'release:create-promotion-manifest — verifies the exact trusted repository/workflow identity and emits the immutable, digest-bound multi-service promotion manifest',
-    },
-  ),
-  ops(
-    'scripts/release/freeze-release-candidate.ts',
-    'scripts/release/freeze-release-candidate.ts',
-    'none',
-    {
-      notes:
-        'release:freeze-candidate — REL-01 immutable candidate freeze: emits one freeze artifact and refuses a dirty worktree, a SHA that is not merged, generated-artifact drift, or an existing freeze file, so no proof can be produced against a moving tree',
-    },
-  ),
-  ops(
-    'scripts/release/capture-promotion-readback.ts',
-    'scripts/release/capture-promotion-readback.ts',
-    'none',
-    {
-      notes:
-        'release:capture-readback — REL-01 promotion read-back: writes the four typed promotion artifacts, including when a check failed, and exits non-zero if any artifact failed or is schema-invalid, so a failed promotion cannot be silently omitted',
-    },
-  ),
-  ops(
-    'scripts/release/import-live-evidence.ts',
-    'scripts/release/import-live-evidence.ts',
-    'none',
-    {
-      notes:
-        'release:import-live-evidence — REL-01 live-evidence importer: canonicalizes an operator capture against the producer schema for that gate, never synthesizes a field, and exits non-zero naming any missing required field',
-    },
-  ),
-  ops(
-    'scripts/release/prepare-gate-f-approval.ts',
-    'scripts/release/prepare-gate-f-approval.ts',
-    'none',
-    {
-      notes:
-        'release:prepare-approval — REL-01 approval envelope preparation: prints the canonical payload an approver signs offline and holds no key material, so engineering can never sign an approval that belongs to another role',
-    },
-  ),
-  ops(
-    'scripts/release/observe-canary-window.ts',
-    'scripts/release/observe-canary-window.ts',
-    'none',
-    {
-      notes:
-        'release:observe-canary — REL-01 canary observer: GET-only sampling of the production cell-us origin against the ratified threshold profile, writing one candidate-bound canary-window artifact; refuses retries, a non-production origin, a manifest-digest mismatch, an unratified observation window, or a signal source with no configured endpoint, so an unreachable source fails rather than producing a plausible artifact',
-    },
-  ),
-  ops(
-    'scripts/release/run-deployed-critical-journeys.ts',
-    'scripts/release/run-deployed-critical-journeys.ts',
-    'none',
-    {
-      notes:
-        'release:deployed-journeys — REL-01 deployed read-only probe runner: drives the isolated read-only deployed-critical browser project with no retries against the production cell-us origin and writes one candidate-bound probe evidence artifact; checks the authorization window before launching a browser; historical command, project, and evidence identifiers remain unchanged for digest compatibility',
-    },
-  ),
-  ops(
-    'scripts/release/rehearse-recovery.ts',
-    'scripts/release/rehearse-recovery.ts',
-    'none',
-    {
-      notes:
-        'release:rehearse-recovery — REL-01 report-first recovery orchestrator: --plan writes one plan and stops, and --apply proceeds only under an authorization whose digest equals that plan, with a named operator, a reason and an operator-supplied platform receipt; reverse DDL is rejected at plan build and the tool itself calls no platform API',
-    },
-  ),
-  ops(
-    'scripts/release/create-legal-revision-set.ts',
-    'scripts/release/create-legal-revision-set.ts',
-    'none',
-    {
-      notes:
-        'release:create-legal-revision-set — LEG-01 producer for the typed legal revision set consumed by Gate F; refuses and writes nothing while any counsel-owned document is a draft, which is the current state, so engineering cannot manufacture legal approval',
-    },
-  ),
-  ops(
-    'scripts/release/bootstrap-schema-migrator.ts',
-    'scripts/release/bootstrap-schema-migrator.ts',
-    'tenant_cross',
-    {
-      notes:
-        'release:migrate-cell — audited first-rollout schema bootstrap: verifies the signed manifest and fresh exact-target no-drift Railway plan, attaches only the manifest web-image digest to the one-shot schema-migrator, and requires SUCCESS at that digest',
-    },
-  ),
   // ── package.json-only commands (CLI tools, no repo script file) ───
   ops('db:generate', 'package.json', 'none', {
     notes: 'drizzle-kit generate — writes migration SQL (broken meta chain: STD-P2-02)',

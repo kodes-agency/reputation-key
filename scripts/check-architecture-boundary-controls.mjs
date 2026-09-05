@@ -215,7 +215,7 @@ const allowedControls = [
   {
     name: 'CI script may import a shared governance catalogue',
     file: 'scripts/ci/boundary-positive-control.ts',
-    source: "import '../../src/shared/governance/legal-document-registry'\n",
+    source: "import '../../src/shared/governance/entry-point-catalogue'\n",
   },
   // ARC-03-T2: the two halves of the named kernel — a nested provider module
   // and a root contract file — must both stay reachable.

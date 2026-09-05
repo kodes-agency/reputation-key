@@ -6,9 +6,9 @@
  * happened), no row is deleted, no column is redacted. That is what makes
  * "report-only" a property of the code rather than a promise in a runbook.
  *
- * The output is content-free — rule id, class, owner, source, cutoff, an
- * integer count and the approval blockers — so it is safe to attach to a
- * counsel review or an operational ticket.
+ * The output is content-free — rule id, class, owner, source, cutoff, integer
+ * count and apply status — so it is safe to attach to a counsel review or an
+ * operational ticket.
  */
 
 import { sql } from 'drizzle-orm'
@@ -31,7 +31,6 @@ export type RetentionRegistryRuleReport = Readonly<{
   redactColumns: ReadonlyArray<string>
   approvalState: string
   applyBlocked: boolean
-  blockingCounselDecisions: ReadonlyArray<string>
   /** ISO cutoff, or null when the class has no countable cutoff. */
   cutoff: string | null
   /** Eligible row count, or null with a reason when the class is not countable. */
@@ -146,7 +145,6 @@ export async function buildRetentionRegistryReport(
       redactColumns: rule.redactColumns ?? [],
       approvalState: rule.approvalState,
       applyBlocked: rule.approvalState === 'pending_counsel',
-      blockingCounselDecisions: rule.blockingCounselDecisions,
       cutoff: resolved.countable ? resolved.cutoff.toISOString() : null,
       eligibleRows:
         countable && resolved.countable

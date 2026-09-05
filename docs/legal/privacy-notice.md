@@ -1,3 +1,7 @@
+---
+status: draft
+---
+
 # Privacy Notice — Reputation Key Closed Beta
 
 **Status:** Candidate draft — pending counsel, live-provider, and release review
