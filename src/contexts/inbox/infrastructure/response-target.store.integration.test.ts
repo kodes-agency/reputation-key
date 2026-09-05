@@ -778,6 +778,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
         observationRevision: 1,
         sourceEpoch: 0,
         materialReviewRevision: 1,
+        sourceEpochCarryFromMaterialReviewRevision: null,
         state: 'live',
         change: 'added',
         resolution: 'external_current_live',

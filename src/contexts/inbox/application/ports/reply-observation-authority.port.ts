@@ -30,6 +30,9 @@ export type CurrentReplyObservationPermit = Readonly<{
   observationRevision: number
   sourceEpoch: number
   materialReviewRevision: number
+  /** Immediate prior revision when Review proves this revision is only the
+   * same normalized material rebound to a newer source epoch. */
+  sourceEpochCarryFromMaterialReviewRevision: number | null
   state: 'live' | 'absent'
   change: 'added' | 'edited' | 'deleted' | 'unchanged'
   resolution: 'confirmed_on_google' | 'external_current_live' | 'diverged' | 'absent'

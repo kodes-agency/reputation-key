@@ -273,7 +273,8 @@ export const inboxHandlingCycles = pgTable(
 /**
  * Compare-and-swap head for the one current actionable source cycle.
  * Existing `inbox_items` columns remain as the compatibility projection while
- * readers and commands migrate to this explicit head.
+ * readers and commands migrate to this explicit head. A Review epoch carry may
+ * advance the current source fence without replacing the immutable cycle.
  */
 export const inboxHandlingCycleHeads = pgTable(
   'inbox_handling_cycle_heads',

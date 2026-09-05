@@ -57,6 +57,8 @@ function selectCurrentObservationHead(
       observedAt: googleReplyObservations.observedAt,
       responseTargetEligibility: materialReviewRevisions.responseTargetEligibility,
       responseTargetStartAt: materialReviewRevisions.responseTargetStartAt,
+      materialNormalizationVersion: materialReviewRevisions.normalizationVersion,
+      materialNormalizedDigest: materialReviewRevisions.normalizedDigest,
     })
     .from(googleReplyObservationHeads)
     .innerJoin(
@@ -94,6 +96,52 @@ function selectCurrentObservationHead(
 type CurrentObservationHeadRow = Awaited<
   ReturnType<typeof selectCurrentObservationHead>
 >[number]
+
+/**
+ * A revision gap is safe for Inbox to collapse only when Review can prove the
+ * immediate predecessor held the same normalized material in an older source
+ * epoch. A material edit changes the digest and therefore never gets a carry
+ * permit.
+ */
+async function sourceEpochCarryFromMaterialReviewRevision(
+  tx: Tx,
+  current: CurrentObservationHeadRow,
+): Promise<number | null> {
+  const previousRevision = current.materialReviewRevision - 1
+  if (
+    !Number.isSafeInteger(previousRevision) ||
+    previousRevision < 1 ||
+    current.materialNormalizedDigest === null
+  ) {
+    return null
+  }
+  const [previous] = await tx
+    .select({
+      revision: materialReviewRevisions.revision,
+      sourceEpoch: materialReviewRevisions.sourceEpoch,
+      normalizationVersion: materialReviewRevisions.normalizationVersion,
+      normalizedDigest: materialReviewRevisions.normalizedDigest,
+    })
+    .from(materialReviewRevisions)
+    .where(
+      and(
+        eq(materialReviewRevisions.organizationId, current.organizationId),
+        eq(materialReviewRevisions.propertyId, current.propertyId),
+        eq(materialReviewRevisions.reviewId, current.reviewId),
+        eq(materialReviewRevisions.revision, previousRevision),
+      ),
+    )
+    .limit(1)
+  if (
+    previous === undefined ||
+    previous.sourceEpoch >= current.sourceEpoch ||
+    previous.normalizationVersion !== current.materialNormalizationVersion ||
+    previous.normalizedDigest !== current.materialNormalizedDigest
+  ) {
+    return null
+  }
+  return previous.revision
+}
 
 /**
  * Exactness for one Google reply observation: the locked head must still be the
@@ -178,6 +226,11 @@ export const createReviewReplyObservationAuthority = (
           return { status: 'obsolete' as const }
         }
 
+        const sourceEpochCarryFrom = await sourceEpochCarryFromMaterialReviewRevision(
+          tx,
+          current,
+        )
+
         const permit: ReviewCurrentReplyObservationPermit = {
           authority: 'review.current-google-reply-observation.v1',
           organizationId: current.organizationId,
@@ -186,6 +239,7 @@ export const createReviewReplyObservationAuthority = (
           observationRevision: current.observationRevision,
           sourceEpoch: current.sourceEpoch,
           materialReviewRevision: current.materialReviewRevision,
+          sourceEpochCarryFromMaterialReviewRevision: sourceEpochCarryFrom,
           state: current.state === 'live' ? 'live' : 'absent',
           change: expectation.change,
           resolution: expectation.resolution,
