@@ -103,12 +103,20 @@ const WEB_HEALTH_URLS = Object.freeze([
   'https://web-google-closed-beta.up.railway.app/api/health/started',
 ] as const)
 
-export const CLOSED_BETA_IMAGE_SERVICES = Object.freeze([
-  {
-    imageName: 'google-provider-redis',
-    serviceName: 'google-provider-redis',
-    serviceId: '91935481-1aae-4dcd-b0f2-a84b0b3b34f3',
-  },
+/** The provider Redis is deliberately NOT in the default plan. Today it runs
+ * upstream `redis:7` by digest, so pointing it at `repkey-google-provider-redis`
+ * is not a same-bits source change like the six GitHub-backed services - it
+ * swaps the live queue and cache substrate for an image that has never been
+ * deployed. It also has to go LAST rather than first, so a failure cannot take
+ * the substrate down before the services that depend on it are settled.
+ * Opt in with `--include-provider-redis`. */
+const PROVIDER_REDIS_IMAGE_SERVICE = Object.freeze({
+  imageName: 'google-provider-redis',
+  serviceName: 'google-provider-redis',
+  serviceId: '91935481-1aae-4dcd-b0f2-a84b0b3b34f3',
+})
+
+export const GITHUB_BACKED_IMAGE_SERVICES = Object.freeze([
   {
     imageName: 'web',
     serviceName: 'web',
@@ -146,6 +154,16 @@ export const CLOSED_BETA_IMAGE_SERVICES = Object.freeze([
     serviceId: string
   }>
 >)
+
+export function closedBetaImageServices(
+  includeProviderRedis: boolean,
+): ReadonlyArray<
+  Readonly<{ imageName: CiProductionImageName; serviceName: string; serviceId: string }>
+> {
+  return includeProviderRedis
+    ? Object.freeze([...GITHUB_BACKED_IMAGE_SERVICES, PROVIDER_REDIS_IMAGE_SERVICE])
+    : GITHUB_BACKED_IMAGE_SERVICES
+}
 
 export type RailwayServiceObservation = Readonly<{
   id: string
@@ -679,26 +697,31 @@ function serviceObservation(
 export function buildClosedBetaImageDeploymentPlan(
   digestMap: CiImageDigestMap,
   inventory: readonly RailwayServiceObservation[],
+  includeProviderRedis = false,
 ): readonly ClosedBetaImageDeployment[] {
   return Object.freeze(
-    CLOSED_BETA_IMAGE_SERVICES.map(({ imageName, serviceName, serviceId }) => {
-      const image = digestMap.images[imageName]
-      if (!image?.digest) {
-        throw new Error(`CI image digest map is missing a valid digest for ${imageName}`)
-      }
-      const current = serviceObservation(inventory, serviceId, serviceName)
-      return Object.freeze({
-        imageName,
-        serviceName,
-        serviceId,
-        repository: image.repository,
-        digest: image.digest,
-        imageReference: `${image.repository}@${image.digest}`,
-        sourceRevision: digestMap.sourceRevision,
-        beforeSource: current.source,
-        beforeDeploymentId: current.deploymentId,
-      })
-    }),
+    closedBetaImageServices(includeProviderRedis).map(
+      ({ imageName, serviceName, serviceId }) => {
+        const image = digestMap.images[imageName]
+        if (!image?.digest) {
+          throw new Error(
+            `CI image digest map is missing a valid digest for ${imageName}`,
+          )
+        }
+        const current = serviceObservation(inventory, serviceId, serviceName)
+        return Object.freeze({
+          imageName,
+          serviceName,
+          serviceId,
+          repository: image.repository,
+          digest: image.digest,
+          imageReference: `${image.repository}@${image.digest}`,
+          sourceRevision: digestMap.sourceRevision,
+          beforeSource: current.source,
+          beforeDeploymentId: current.deploymentId,
+        })
+      },
+    ),
   )
 }
 
@@ -899,7 +922,7 @@ export async function applyClosedBetaImageDeployment(
 const COMMAND = 'ops:deploy-ci-images'
 const USAGE =
   `pnpm ${COMMAND} [<source-revision>] --operator <id> ` +
-  `[--reason <text> --ticket <ref> --live --apply --yes ${COMMAND}]`
+  `[--reason <text> --ticket <ref> --live --include-provider-redis --apply --yes ${COMMAND}]`
 
 export async function runDeployCiImagesCommand(
   argv: readonly string[] = process.argv.slice(2),
@@ -911,7 +934,7 @@ export async function runDeployCiImagesCommand(
       mutation: true,
       destructive: true,
       requiresTicket: true,
-      extraFlags: ['live'],
+      extraFlags: ['live', 'include-provider-redis'],
       usage: USAGE,
     },
     async (ctx, args, io) => {
@@ -927,9 +950,11 @@ export async function runDeployCiImagesCommand(
         createGitRevisionReader(defaultCommandRunner),
       )
       const digestMap = downloadCiImageDigestMap(revision)
+      const includeProviderRedis = args.flags.has('include-provider-redis')
       const plan = buildClosedBetaImageDeploymentPlan(
         digestMap,
         readClosedBetaServiceInventory(),
+        includeProviderRedis,
       )
       io.out(
         JSON.stringify(
@@ -957,7 +982,7 @@ export async function runDeployCiImagesCommand(
 
       if (ctx.dryRun) {
         io.out(
-          `report only — after Registry Credentials exist on all seven services, re-run with --live --apply --yes ${COMMAND}`,
+          `report only — re-run with --live --apply --yes ${COMMAND} to move ${plan.length} service(s)`,
         )
         return
       }
