@@ -2,6 +2,8 @@
 
 A reputation management platform built with TanStack Start, Better Auth, Drizzle ORM, and PostgreSQL.
 
+**Authority:** [`docs/BETA.md`](docs/BETA.md) is the one page that governs the closed beta — what it is, what we owe Google and users, what the product does, and which rules are enforced by which test. It outranks every other document here.
+
 ## Quick Start
 
 ```bash
@@ -33,13 +35,28 @@ node --input-type=module -e "import { randomBytes } from 'node:crypto'; console.
 pnpm dev
 ```
 
+## Database Migrations
+
+Two migration systems run in a fixed order, both behind one command:
+
+```bash
+DEPLOY_MIGRATE=1 pnpm db:migrate-deploy
+```
+
+It provisions the pinned Better Auth tables, applies the staged Drizzle journal, runs registered sidecars, and performs provider-subject initialization. Railway invokes the same runner under platform identity instead of setting `DEPLOY_MIGRATE`. Use this same journaled workflow in development, CI and production. **Never** run `pnpm db:push` against this schema — it bypasses the authoritative journal and conceals deploy-time drift.
+
+- **Auth schema change:** edit `src/shared/auth/org-schema.ts` (the single source for `additionalFields`), then `pnpm auth:migrate`.
+- **Business schema change:** edit `src/shared/db/schema/`, then `pnpm db:generate`, review the SQL in `drizzle/`, then `pnpm db:migrate`.
+
+CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migration parity). Schema authority and current deploy order: `src/shared/db/CONTEXT.md`.
+
 ## Architecture
 
 - **Web app**: TanStack Start (React + SSR) — `pnpm dev` / `pnpm build` / `pnpm start`
 - **Worker**: Plain Node.js script — `pnpm build:worker` / `pnpm start:worker`
-- **Database**: PostgreSQL via Drizzle ORM; production state is co-located per Railway Data Cell
+- **Database**: PostgreSQL via Drizzle ORM
 - **Auth**: Better Auth with DB-backed sessions
-- **Redis**: Optional in basic development; physically separate Cache Redis and Queue Redis are required per production Data Cell
+- **Redis**: Optional in basic development; physically separate Cache Redis and Queue Redis are required in production
 
 ## Scripts
 

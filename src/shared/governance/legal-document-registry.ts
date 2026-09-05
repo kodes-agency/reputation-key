@@ -306,7 +306,7 @@ export const LEGAL_DOCUMENT_REGISTRY: LegalDocumentRegistry = Object.freeze(
         path: 'docs/legal/google-access-disclosure.md',
         version: '2.0-draft',
         status: 'draft',
-        sha256: 'a5a47c263b50c322f7583a4ab47567a821ec68555ff5b106ab0a1fe6b44a6cd3',
+        sha256: 'e4be62aebc16b29fc8fca141dc10b28e29129348b09556a86a617265e92a7395',
         ...UNAPPROVED,
       },
       {

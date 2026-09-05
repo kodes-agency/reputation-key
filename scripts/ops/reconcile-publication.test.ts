@@ -9,7 +9,7 @@ import {
   decodePublicationSweepResume,
   extractPublicationSweepResume,
   runAmbiguousPublicationSweepPage,
-} from '../ops/reconcile-publication'
+} from './reconcile-publication'
 
 const DUE_THROUGH = new Date('2026-08-26T19:00:00.000Z')
 const LATER = new Date('2026-08-26T20:00:00.000Z')

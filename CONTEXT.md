@@ -1,5 +1,7 @@
 # Context — Reputation Key
 
+**Authority:** [`docs/BETA.md`](docs/BETA.md) governs the closed beta and outranks this file. This page is orientation — architecture, glossary and where things live.
+
 ## Architecture
 
 Layered hexagonal (clean architecture). Seventeen bounded-context packages live in
@@ -136,10 +138,10 @@ unavailable state and must not load or calculate this model.
 | **GBP Notification** | GCP Pub/Sub push from Google when a review is created or updated. Subscribed per-account on first property import, unsubscribed on last property removal or disconnect.                                                                                                                                                                               |
 | **Reply**            | A response to a review. Separate entity from Review. Has `source`: `google_sync` (mirrored from GBP) or `internal` (staff-authored with draft/approve/reject lifecycle). Internal replies follow: `draft` → `pending_approval` → `approved` → `published` (or `publish_failed`). Only PM+ roles can manage replies; Staff cannot view or manage them. |
 | **Inbox Item**       | A unified triage entry pointing to a Review or Feedback. Carries denormalized filter/sort fields and inbox state (status, assignment). Lives in the `inbox` context.                                                                                                                                                                                  |
-| **Inbox Status**     | The triage state of an inbox item: `new`, `read`, `addressed`, `escalated`, `archived`. Transitions follow a defined graph (see ADR 0004).                                                                                                                                                                                                            |
-| **Addressed**        | Inbox item has been handled. For reviews: reply published or manually marked. For feedback: internally handled.                                                                                                                                                                                                                                       |
+| **Inbox Status**     | The triage state of an inbox item: `open` or `closed` only. Assignment, escalation and personal seen state are independent axes (ADR 0055, superseding the five-state graph of ADR 0004).                                                                                                                                                             |
+| **Handling Cycle**   | A numbered unit of work on an Inbox Item, anchored to exactly one source revision. A material revision or the loss of a live provider reply opens a new cycle and preserves the previous one (ADR 0055).                                                                                                                                              |
 | **Internal Note**    | A text annotation on an inbox item. Multiple per item, tracks author and timestamp. Lives in `inbox` context.                                                                                                                                                                                                                                         |
-| **Response SLA**     | The organization's target maximum elapsed time between a review being received and a reply being published. Configurable per organization (default 48h). Used to flag reviews that still need a reply.                                                                                                                                                |
+| **Response Target**  | The organization's target maximum elapsed time between a review being published on Google and a reply being published. Default 2,880 minutes (48 h), configurable 1–43,200. Explicitly **not** an SLA: `Overdue` is derived and never mutates status or escalation.                                                                                   |
 
 ## Permission Patterns
 
@@ -253,8 +255,8 @@ supersession authority. Key active/superseding ADRs:
 | Tenant cache                | `src/shared/auth/middleware.ts`                                                      |
 | Import protection deny list | `vite.config.ts` (`importProtection.client.files`)                                   |
 | Clock type                  | `src/shared/domain/clock.ts`                                                         |
-| Simulation container        | `src/shared/testing/simulation-container.ts`                                         |
+| Simulation container        | `src/shared/testing/simulation-container.server.ts`                                  |
 | In-memory queue             | `src/shared/testing/in-memory-queue.ts`                                              |
 | Invariant harness           | `src/shared/testing/invariants/`                                                     |
-| Scenario builder            | `src/shared/testing/scenario/builder.ts`                                             |
+| Scenario builder            | `src/shared/testing/scenario/builder.server.ts`                                      |
 | Seed/simulate scripts       | `scripts/seed.ts` (`pnpm seed`), `scripts/simulate.ts` (disposable local PostgreSQL) |

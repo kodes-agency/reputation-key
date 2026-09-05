@@ -12,10 +12,12 @@ const E2E_TARGET = 'e2e/fixtures/generated/google-provider-identifiers-v1.ts'
 const UNIT_REEXPORT_TARGET =
   'src/test-fixtures/generated/google-provider-identifiers-v1.ts'
 const SUBJECT_TARGET = 'test-fixtures/generated/review-provider-subject-v1.fixture.json'
+// The AI-governance specification was archived with the 42-package program
+// (docs/archive/2026-09-lean/), so it is no longer a generated target: this
+// gate must not maintain live generated blocks inside an archive.
 const DOC_TARGETS = [
   'docs/adr/0031-google-source-content-and-ai-processing-boundary.md',
   'docs/operations/runbooks.md',
-  'docs/product-readiness-program-2026-07/ai-governance/source-content-policy-specification.md',
 ] as const
 const SUPPORTED_TARGETS: Readonly<Record<string, true>> = Object.freeze({
   [UNIT_TARGET]: true,
@@ -24,7 +26,6 @@ const SUPPORTED_TARGETS: Readonly<Record<string, true>> = Object.freeze({
   [SUBJECT_TARGET]: true,
   [DOC_TARGETS[0]]: true,
   [DOC_TARGETS[1]]: true,
-  [DOC_TARGETS[2]]: true,
 })
 const ANCHOR_START = '<!-- google-provider-identifiers-v1:start -->'
 const ANCHOR_END = '<!-- google-provider-identifiers-v1:end -->'

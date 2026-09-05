@@ -5408,15 +5408,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/generate-ai-governance-artifacts.ts',
-    'scripts/generate-ai-governance-artifacts.ts',
-    'none',
-    {
-      notes:
-        'validates the AI governance policy JSON and deterministically generates its SQL seed, documentation and evidence index; the typed TypeScript projection was removed as it had no importers',
-    },
-  ),
-  ops(
     'scripts/ai-language-attestation.ts',
     'scripts/ai-language-attestation.ts',
     'none',
@@ -5579,70 +5570,12 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/review/baseline-inventory.ts',
-    'scripts/review/baseline-inventory.ts',
-    'none',
-    {
-      notes:
-        'review baseline support library: deterministic source classification, symbol/import discovery, entry-point inventory, and prior-finding parsing; imported by freeze-baseline, not a standalone mutator',
-    },
-  ),
-  ops(
-    'scripts/review/tracked-artifact.ts',
-    'scripts/review/tracked-artifact.ts',
-    'none',
-    {
-      notes:
-        'review baseline support library: turns one tracked path into its frozen ledger row, hashing a regular file from the single O_NOFOLLOW descriptor it opened, recording a symlink by its target rather than following or refusing it, and refusing any other irregular file by name; imported by freeze-baseline, not a standalone mutator',
-    },
-  ),
-  ops('scripts/review/freeze-baseline.ts', 'scripts/review/freeze-baseline.ts', 'none', {
-    notes:
-      'review:freeze-baseline — writes a release-SHA-bound, hashed review evidence bundle from tracked source, plan, consolidated report, validation gates, and repository governance state',
-  }),
-  ops(
-    'scripts/review/comprehensive-program-status.ts',
-    'scripts/review/comprehensive-program-status.ts',
-    'none',
-    {
-      notes:
-        'review:validate-program-status — read-only validation and summary of the machine-checked 42-package implementation ledger',
-    },
-  ),
-  ops(
-    'scripts/review/reachability-proof.ts',
-    'scripts/review/reachability-proof.ts',
-    'none',
-    {
-      notes:
-        'review:reachability-proof — CNV-01 local read-only deletion-evidence harness for one file and export: runs the real dead-code trace, symbol-impact and ripgrep passes and reads the analyser configuration plus both runtime catalogues, so each deletion slice carries machine-generated evidence rather than a claim',
-    },
-  ),
-  ops(
     'scripts/review/legal-document-registry.ts',
     'scripts/review/legal-document-registry.ts',
     'none',
     {
       notes:
         'check:legal-registry — LEG-01 read-only validator: recomputes every legal document digest, refuses an approved document whose bytes changed, refuses engineering self-approval, and refuses approving a document while a counsel decision that blocks it is still open',
-    },
-  ),
-  ops(
-    'scripts/review/finding-revalidation.ts',
-    'scripts/review/finding-revalidation.ts',
-    'none',
-    {
-      notes:
-        'FND-01 read-only validator: binds the complete finding revalidation record to the immutable review register, frozen source evidence, owner/package mapping, and executable or explicitly deferred closure criteria',
-    },
-  ),
-  ops(
-    'scripts/review/finding-revalidation-fragment.ts',
-    'scripts/review/finding-revalidation-fragment.ts',
-    'none',
-    {
-      notes:
-        'FND-01 read-only fragment validator: binds one governed finding-family slice to immutable frozen/current evidence before central reconciliation',
     },
   ),
   ops(

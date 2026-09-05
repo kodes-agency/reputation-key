@@ -26,13 +26,13 @@ Unknown policy versions, capabilities, consent state, property regions, provider
 
 This decision supersedes ADR 0003's use of `reviewedAt + 30 days` as the review-cache expiry basis and its three-day post-expiry purge grace. Migration uses explicit first/last successful fetch, refresh-due, and hard-expiry timestamps; expired raw content is not served during a grace period.
 
-The implementation contract and evidence gates live in the [AI and Google Source Governance package](../product-readiness-program-2026-07/ai-governance/README.md). The evidentiary basis is the [Google support response and disposition](../product-readiness-program-2026-07/google-business-profile-ai-policy-response-2026-07-14.md).
+The implementation contract and evidence gates live in the [AI and Google Source Governance package](../archive/2026-09-lean/product-readiness-program-2026-07/ai-governance/README.md). The evidentiary basis is the [Google support response and disposition](../external/google/google-business-profile-ai-policy-response-2026-07-14.md).
 
 The initial external-AI candidate is the exact, currently unapproved
-[`openai-responses-gpt-5-4-mini-2026-03-17-us-zdr-v1`](../product-readiness-program-2026-07/ai-governance/openai-gpt-5-4-mini-us-zdr-assessment.md)
+[`openai-responses-gpt-5-4-mini-2026-03-17-us-zdr-v1`](../archive/2026-09-lean/product-readiness-program-2026-07/ai-governance/openai-gpt-5-4-mini-us-zdr-assessment.md)
 deployment with redaction profile
-[`gbp-review-en-v1`](../product-readiness-program-2026-07/ai-governance/pii-redaction-specification.md).
-The [AI release-evidence index](../product-readiness-program-2026-07/ai-governance/ai-release-evidence-index.md)
+[`gbp-review-en-v1`](../archive/2026-09-lean/product-readiness-program-2026-07/ai-governance/pii-redaction-specification.md).
+The [AI release-evidence index](../archive/2026-09-lean/product-readiness-program-2026-07/ai-governance/ai-release-evidence-index.md)
 is authoritative for promotion. Neither candidate is accepted by this proposed
 ADR; missing or expired evidence keeps all AI capabilities dark.
 
@@ -44,7 +44,7 @@ production identifiers.
 
 <!-- google-provider-identifiers-v1:start -->
 
-> Generated from `test-fixtures/google-provider-identifiers-v1.json` (google-provider-identifiers-v1, SHA-256 `44a91d879c25e473d709bea469bd826b2649e6a5d40c6aa3157ce1c580f88a87`). Do not edit this block.
+> Generated from `test-fixtures/google-provider-identifiers-v1.json` (google-provider-identifiers-v1, SHA-256 `5c41f1021fb6cdfac15994d5fd7116282a3e5e94b5a3b79708813e091672cd05`). Do not edit this block.
 > Canonical synthetic review resource: `accounts/repkey-synthetic-do-not-use-account-0001/locations/repkey-synthetic-do-not-use-location-0001/reviews/repkey-synthetic-do-not-use-review-0001`.
 
 <!-- google-provider-identifiers-v1:end -->

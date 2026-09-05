@@ -93,7 +93,7 @@ action.
 The written response applies to the architecture Google reviewed. It is not an
 unrestricted approval for cross-Property analysis, automatic publication,
 provider training, new data classes, or materially different retention. See
-the [request, response, and internal disposition](../product-readiness-program-2026-07/google-business-profile-ai-policy-response-2026-07-14.md).
+the [request, response, and internal disposition](../external/google/google-business-profile-ai-policy-response-2026-07-14.md).
 
 ## Uses the product does not allow
 

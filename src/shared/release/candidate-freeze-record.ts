@@ -39,7 +39,6 @@ export const CANDIDATE_FREEZE_RECORD_VERSION = 'repkey-candidate-freeze-1' as co
  * reject, or worse, one whose committed artifacts do not describe its code.
  */
 export const REQUIRED_FREEZE_DRIFT_GATES = [
-  'check:ai-governance-artifacts',
   'check:google-provider-fixtures',
   'check:schema-drift',
 ] as const

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CapabilityRefusalReport } from '../../src/shared/governance/capability-refusal'
-import { renderCapabilityRefusalReport } from '../ops/report-capability-refusal'
+import { renderCapabilityRefusalReport } from './report-capability-refusal'
 
 const REPORT: CapabilityRefusalReport = {
   capability: 'property.import_gbp_v2',

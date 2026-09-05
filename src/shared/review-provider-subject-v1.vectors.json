@@ -2,7 +2,7 @@
   {
     "vectorId": "base-domain-separated",
     "resourceFixtureId": "google-review-primary",
-    "resourceFixtureCatalogueSha256": "44a91d879c25e473d709bea469bd826b2649e6a5d40c6aa3157ce1c580f88a87",
+    "resourceFixtureCatalogueSha256": "5c41f1021fb6cdfac15994d5fd7116282a3e5e94b5a3b79708813e091672cd05",
     "inputPatch": {},
     "expected": {
       "status": "success",

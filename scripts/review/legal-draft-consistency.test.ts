@@ -149,7 +149,7 @@ describe('counsel-owned legal documents', () => {
     expect(source).toContain('`https://www.googleapis.com/auth/business.manage`')
     expect(source).toContain('Google Cloud Pub/Sub notifications')
     expect(source).toContain(
-      '../product-readiness-program-2026-07/google-business-profile-ai-policy-response-2026-07-14.md',
+      '../external/google/google-business-profile-ai-policy-response-2026-07-14.md',
     )
     expect(source).toContain('does not claim that the guest completed or published')
     expect(source).toContain('production erasure is still a release gate')

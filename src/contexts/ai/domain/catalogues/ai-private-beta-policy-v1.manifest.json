@@ -12,13 +12,13 @@
     },
     {
       "name": "documentation",
-      "path": "docs/product-readiness-program-2026-07/ai-governance/ai-private-beta-policy-v1.md",
+      "path": "docs/archive/2026-09-lean/product-readiness-program-2026-07/ai-governance/ai-private-beta-policy-v1.md",
       "sha256": "79e72d8bf1adcbc55458d25d9388da254974bc044ba6c4cd30491f95b903de7e",
       "bytes": 2624
     },
     {
       "name": "evidence",
-      "path": "docs/product-readiness-program-2026-07/ai-governance/ai-private-beta-policy-evidence-index.json",
+      "path": "docs/archive/2026-09-lean/product-readiness-program-2026-07/ai-governance/ai-private-beta-policy-evidence-index.json",
       "sha256": "432d6f94b322fb01a7f932c74561e39ada825b79f9e264a2ec59e79763ffca97",
       "bytes": 1429
     }

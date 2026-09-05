@@ -154,7 +154,7 @@ below. The implementation separates:
 | AI control/evidence          | Epochs, policy/profile versions, permit/quota states, code-only outcomes, counts, timestamps, digests                       | Content-free; bounded operational retention defined by the AI schema/release profile                                                                                            |
 
 The candidate subprocessor is the exact
-[`openai-responses-gpt-5-4-mini-2026-03-17-us-zdr-v1`](../product-readiness-program-2026-07/ai-governance/openai-gpt-5-4-mini-us-zdr-assessment.md)
+[`openai-responses-gpt-5-4-mini-2026-03-17-us-zdr-v1`](../archive/2026-09-lean/product-readiness-program-2026-07/ai-governance/openai-gpt-5-4-mini-us-zdr-assessment.md)
 deployment. It remains rejected until contract/DPA, US full-path location,
 project-level ZDR/no-sharing configuration, redaction, target-runtime, and
 release evidence are approved.

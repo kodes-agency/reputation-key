@@ -15,7 +15,7 @@
 //   --seed=<string>      dataset seed (default: perf-scale-v1)
 //   --base-time=<iso>    wall-clock anchor for reviewed_at/expires_at
 //                        (default: now; NOT part of the manifest hash)
-//   --manifest=<path>    manifest JSON path (default: docs/release-evidence/beta/local-draft/scale-dataset.json)
+//   --manifest=<path>    manifest JSON path (default: scripts/perf/scale-dataset.json)
 //   --routing-policy-version=N  (default: ROUTING_POLICY_VERSION from the property domain)
 //
 // Same seed + same shape ⇒ byte-identical manifest hash. Requires DATABASE_URL.
@@ -51,7 +51,7 @@ function numericArg(flag: string, fallback: number): number {
   return n
 }
 
-const DEFAULT_MANIFEST = 'docs/release-evidence/beta/local-draft/scale-dataset.json'
+const DEFAULT_MANIFEST = 'scripts/perf/scale-dataset.json'
 
 async function main(): Promise<number> {
   const seed = argValue('--seed') ?? 'perf-scale-v1'

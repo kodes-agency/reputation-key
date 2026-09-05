@@ -28,7 +28,8 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = (
     ROOT
     / "docs"
-    / "product-readiness-program-2026-07"
+    / "external"
+    / "google"
     / "attachments"
     / "reputation-key-google-ai-policy-clarification.pdf"
 )

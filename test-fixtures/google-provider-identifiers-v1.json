@@ -64,7 +64,6 @@
       "allowedGeneratedTargets": [
         "docs/adr/0031-google-source-content-and-ai-processing-boundary.md",
         "docs/operations/runbooks.md",
-        "docs/product-readiness-program-2026-07/ai-governance/source-content-policy-specification.md",
         "e2e/fixtures/generated/google-provider-identifiers-v1.ts",
         "test-fixtures/generated/google-provider-identifiers-v1.ts",
         "test-fixtures/generated/review-provider-subject-v1.fixture.json"

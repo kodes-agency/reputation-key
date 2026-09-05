@@ -63,13 +63,7 @@ const PURE_DIAGNOSTIC_COMMANDS = [
   'scripts/ci/check-container-image-policy.ts',
   'scripts/ci/check-typescript-project-coverage.ts',
   'scripts/ci/check-product-state-consistency.ts',
-  'scripts/review/baseline-inventory.ts',
-  'scripts/review/tracked-artifact.ts',
-  'scripts/review/comprehensive-program-status.ts',
-  'scripts/review/finding-revalidation.ts',
-  'scripts/review/finding-revalidation-fragment.ts',
   'scripts/review/legal-document-registry.ts',
-  'scripts/review/reachability-proof.ts',
   'scripts/ops/report-inbox-handling-cutover.ts',
   'scripts/ops/report-legacy-custom-roles.ts',
   'scripts/ops/report-legacy-multi-org.ts',
@@ -149,7 +143,6 @@ const PROVIDER_AND_ROLE_CONFIGURATION_COMMANDS = [
 ] as const
 
 const FILESYSTEM_ARTIFACT_COMMANDS = [
-  'scripts/generate-ai-governance-artifacts.ts',
   'scripts/generate-ai-language-script-table.ts',
   'scripts/generate-ai-reply-language-profile.ts',
   'scripts/generate-ai-review-language-profile.ts',
@@ -159,7 +152,6 @@ const FILESYSTEM_ARTIFACT_COMMANDS = [
   'scripts/generate-google-provider-fixtures.ts',
   'scripts/generate-google-ai-policy-clarification.py',
   'scripts/check-coverage.mjs',
-  'scripts/review/freeze-baseline.ts',
   'scripts/perf/write-scale-evidence.ts',
   'scripts/release/promote-local-evidence.ts',
   'scripts/release/create-promotion-manifest.ts',
