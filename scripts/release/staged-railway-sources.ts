@@ -13,6 +13,11 @@ import {
   type RailwaySourceManagedService,
 } from '../../.railway/service-source-map'
 import {
+  array,
+  record,
+  type JsonRecord,
+} from '../../src/shared/release/json-shape-guards'
+import {
   RAILWAY_SERVICE_IMAGE_ROLES,
   promotedImageReference,
   type PromotionManifest,
@@ -22,8 +27,6 @@ import { readOnce } from '../../src/shared/release/read-once'
 
 export const MINIMUM_PINNED_PLAN_RAILWAY_CLI_VERSION = '5.45.2' as const
 
-type JsonRecord = Readonly<Record<string, unknown>>
-
 export type RailwayIacTarget = Readonly<{
   projectId: string
   projectName: string
@@ -32,18 +35,6 @@ export type RailwayIacTarget = Readonly<{
 }>
 
 export type StagedPlanDisposition = 'change' | 'noop'
-
-function record(value: unknown, label: string): JsonRecord {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label} must be an object`)
-  }
-  return value as JsonRecord
-}
-
-function array(value: unknown, label: string): readonly unknown[] {
-  if (!Array.isArray(value)) throw new Error(`${label} must be an array`)
-  return value
-}
 
 function parseJson(output: string, label: string): JsonRecord {
   let value: unknown

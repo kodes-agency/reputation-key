@@ -15,6 +15,15 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import {
+  array,
+  integer,
+  parseRailwayServiceSource,
+  record,
+  string,
+  type JsonRecord,
+  type RailwayServiceSource,
+} from '../../src/shared/release/json-shape-guards'
 import { runOperatorCommand } from './operator-command'
 
 export const CI_IMAGE_DIGEST_MAP_VERSION = 'repkey-ci-image-digest-map-1' as const
@@ -138,17 +147,10 @@ export const CLOSED_BETA_IMAGE_SERVICES = Object.freeze([
   }>
 >)
 
-type JsonRecord = Readonly<Record<string, unknown>>
-
-type RailwayServiceSource = Readonly<{
-  repo: string | null
-  image: string | null
-}> | null
-
 export type RailwayServiceObservation = Readonly<{
   id: string
   name: string
-  source: RailwayServiceSource
+  source: RailwayServiceSource | null
   status: string
   deploymentStopped: boolean
   deploymentId: string
@@ -165,34 +167,9 @@ export type ClosedBetaImageDeployment = Readonly<{
   digest: ImageDigest
   imageReference: string
   sourceRevision: string
-  beforeSource: RailwayServiceSource
+  beforeSource: RailwayServiceSource | null
   beforeDeploymentId: string
 }>
-
-function record(value: unknown, label: string): JsonRecord {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label} must be an object`)
-  }
-  return value as JsonRecord
-}
-
-function array(value: unknown, label: string): readonly unknown[] {
-  if (!Array.isArray(value)) throw new Error(`${label} must be an array`)
-  return value
-}
-
-function string(value: unknown, label: string): string {
-  if (typeof value !== 'string' || value === '')
-    throw new Error(`${label} must be a string`)
-  return value
-}
-
-function integer(value: unknown, label: string): number {
-  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-    throw new Error(`${label} must be a non-negative integer`)
-  }
-  return value
-}
 
 function exactKeys(value: JsonRecord, expected: readonly string[], label: string): void {
   const expectedSet = new Set(expected)
@@ -226,11 +203,16 @@ export function ciImageDigestMapArtifactName(sourceRevision: string): string {
   return `ci-image-digest-map-${sourceRevision}`
 }
 
-export function parseCiImageDigestMap(
+type CiImageDigestMapEnvelope = Readonly<{
+  sourceRevision: string
+  source: unknown
+  images: unknown
+}>
+
+function parseCiImageDigestMapEnvelope(
   content: string,
   expectedRevision: string,
-  expectedRun?: Readonly<{ id: string; attempt: number }>,
-): CiImageDigestMap {
+): CiImageDigestMapEnvelope {
   if (!SOURCE_REVISION.test(expectedRevision)) {
     throw new Error('expected source revision must be a full lowercase git SHA')
   }
@@ -249,8 +231,14 @@ export function parseCiImageDigestMap(
       `CI image digest map source revision ${sourceRevision} does not match ${expectedRevision}`,
     )
   }
+  return { sourceRevision, source: root.source, images: root.images }
+}
 
-  const source = record(root.source, 'CI image digest map source')
+function parseCiImageDigestMapSource(
+  value: unknown,
+  expectedRun?: Readonly<{ id: string; attempt: number }>,
+): CiImageDigestMap['source'] {
+  const source = record(value, 'CI image digest map source')
   exactKeys(
     source,
     ['repository', 'ref', 'workflow', 'runId', 'runAttempt'],
@@ -274,8 +262,16 @@ export function parseCiImageDigestMap(
       'CI image digest map workflow run identity does not match its artifact',
     )
   }
+  return {
+    repository: TRUSTED_REPOSITORY,
+    ref: 'refs/heads/main',
+    workflow: TRUSTED_CI_WORKFLOW,
+    runId,
+    runAttempt,
+  }
+}
 
-  const rawImages = record(root.images, 'CI image digest map images')
+function assertExactCiImageDigestNames(rawImages: JsonRecord): void {
   const expectedImageNames: string[] = [...CI_PRODUCTION_IMAGE_NAMES].sort()
   const actualImageNames = Object.keys(rawImages).sort()
   const missing = expectedImageNames.filter((name) => !actualImageNames.includes(name))
@@ -289,54 +285,78 @@ export function parseCiImageDigestMap(
       `CI image digest map must contain exactly seven production images: ${details}`,
     )
   }
+}
 
+function parseCiImageDigestEntry(
+  value: unknown,
+  imageName: CiProductionImageName,
+  expectedRevision: string,
+): CiImageDigest {
+  const entry = record(value, `CI image digest map images.${imageName}`)
+  exactKeys(
+    entry,
+    ['repository', 'digest', 'sourceRevision'],
+    `CI image digest map images.${imageName}`,
+  )
+  const repository = string(
+    entry.repository,
+    `CI image digest map images.${imageName}.repository`,
+  )
+  if (repository !== expectedImageRepository(imageName)) {
+    throw new Error(
+      `CI image digest map repository for ${imageName} must be ${expectedImageRepository(imageName)}`,
+    )
+  }
+  const digest = string(entry.digest, `CI image digest map images.${imageName}.digest`)
+  if (!IMAGE_DIGEST.test(digest)) {
+    throw new Error(`CI image digest map is missing a valid digest for ${imageName}`)
+  }
+  const imageSourceRevision = string(
+    entry.sourceRevision,
+    `CI image digest map images.${imageName}.sourceRevision`,
+  )
+  if (imageSourceRevision !== expectedRevision) {
+    throw new Error(
+      `CI image digest map image ${imageName} has the wrong source revision`,
+    )
+  }
+  return Object.freeze({
+    repository,
+    digest: digest as ImageDigest,
+    sourceRevision: imageSourceRevision,
+  })
+}
+
+function parseCiImageDigests(
+  value: unknown,
+  expectedRevision: string,
+): Record<CiProductionImageName, CiImageDigest> {
+  const rawImages = record(value, 'CI image digest map images')
+  assertExactCiImageDigestNames(rawImages)
   const images = {} as Record<CiProductionImageName, CiImageDigest>
   for (const imageName of CI_PRODUCTION_IMAGE_NAMES) {
-    const entry = record(rawImages[imageName], `CI image digest map images.${imageName}`)
-    exactKeys(
-      entry,
-      ['repository', 'digest', 'sourceRevision'],
-      `CI image digest map images.${imageName}`,
+    images[imageName] = parseCiImageDigestEntry(
+      rawImages[imageName],
+      imageName,
+      expectedRevision,
     )
-    const repository = string(
-      entry.repository,
-      `CI image digest map images.${imageName}.repository`,
-    )
-    if (repository !== expectedImageRepository(imageName)) {
-      throw new Error(
-        `CI image digest map repository for ${imageName} must be ${expectedImageRepository(imageName)}`,
-      )
-    }
-    const digest = string(entry.digest, `CI image digest map images.${imageName}.digest`)
-    if (!IMAGE_DIGEST.test(digest)) {
-      throw new Error(`CI image digest map is missing a valid digest for ${imageName}`)
-    }
-    const imageSourceRevision = string(
-      entry.sourceRevision,
-      `CI image digest map images.${imageName}.sourceRevision`,
-    )
-    if (imageSourceRevision !== expectedRevision) {
-      throw new Error(
-        `CI image digest map image ${imageName} has the wrong source revision`,
-      )
-    }
-    images[imageName] = Object.freeze({
-      repository,
-      digest: digest as ImageDigest,
-      sourceRevision: imageSourceRevision,
-    })
   }
+  return images
+}
+
+export function parseCiImageDigestMap(
+  content: string,
+  expectedRevision: string,
+  expectedRun?: Readonly<{ id: string; attempt: number }>,
+): CiImageDigestMap {
+  const envelope = parseCiImageDigestMapEnvelope(content, expectedRevision)
+  const source = parseCiImageDigestMapSource(envelope.source, expectedRun)
+  const images = parseCiImageDigests(envelope.images, expectedRevision)
 
   return Object.freeze({
     version: CI_IMAGE_DIGEST_MAP_VERSION,
-    sourceRevision,
-    source: Object.freeze({
-      repository: TRUSTED_REPOSITORY,
-      ref: 'refs/heads/main' as const,
-      workflow: TRUSTED_CI_WORKFLOW,
-      runId,
-      runAttempt,
-    }),
+    sourceRevision: envelope.sourceRevision,
+    source: Object.freeze(source),
     images: Object.freeze(images),
   })
 }
@@ -580,15 +600,6 @@ function nullableString(value: unknown, label: string): string | null {
   return string(value, label)
 }
 
-function parseRailwayServiceSource(value: unknown, label: string): RailwayServiceSource {
-  if (value === null) return null
-  const source = record(value, label)
-  return Object.freeze({
-    repo: nullableString(source.repo, `${label}.repo`),
-    image: nullableString(source.image, `${label}.image`),
-  })
-}
-
 function parseRailwayServiceInventory(
   content: string,
 ): readonly RailwayServiceObservation[] {
@@ -611,6 +622,7 @@ function parseRailwayServiceInventory(
       source: parseRailwayServiceSource(
         service.source,
         `Railway service ${String(service.name)} source`,
+        nullableString,
       ),
       status: string(service.status, `Railway service ${String(service.name)} status`),
       deploymentStopped: service.deploymentStopped === true,

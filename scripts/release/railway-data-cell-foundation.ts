@@ -16,6 +16,11 @@ import {
   isBetaDeploymentDataCellId,
 } from '../../src/shared/domain/data-cell-catalogue'
 import {
+  array,
+  record,
+  type JsonRecord,
+} from '../../src/shared/release/json-shape-guards'
+import {
   PRODUCTION_RAILWAY_PROJECT_NAME,
   REHEARSAL_RAILWAY_PROJECT_NAME,
   requireRailwayDeploymentProfile,
@@ -46,8 +51,6 @@ const FOUNDATION_GRAPH_SHA256_BY_PROFILE = Object.freeze({
   production: '9c8c68c879ff1c930458998d7d61b8b81b55f9b7e0be749bf82042573a587bd2',
   rehearsal: 'a6758ee54f42339a6c33ad55151873913c96dd35b826ba453f741ab8c77327e6',
 } satisfies Readonly<Record<RailwayDeploymentProfile, string>>)
-
-type JsonRecord = Readonly<Record<string, unknown>>
 
 export type RailwayFoundationCommandResult = Readonly<{
   status: number
@@ -82,18 +85,6 @@ type FoundationPlanEvidence = Readonly<{
   changes: readonly JsonRecord[]
   configEtag: string
 }>
-
-function record(value: unknown, label: string): JsonRecord {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label} must be an object`)
-  }
-  return value as JsonRecord
-}
-
-function array(value: unknown, label: string): readonly unknown[] {
-  if (!Array.isArray(value)) throw new Error(`${label} must be an array`)
-  return value
-}
 
 function flagValue(args: readonly string[], name: string): string | undefined {
   const inline = args.find((arg) => arg.startsWith(`${name}=`))

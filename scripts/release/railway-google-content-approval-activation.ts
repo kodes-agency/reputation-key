@@ -32,6 +32,7 @@ import {
   type GoogleContentRuntimeBindings,
 } from '../../src/shared/auth/google-content-runtime-bindings'
 import type { GoogleContentRuntimeBinding } from '../../src/shared/auth/google-content-authority'
+import { record, type JsonRecord } from '../../src/shared/release/json-shape-guards'
 import { PRODUCTION_RAILWAY_PROJECT_NAME } from '../../src/shared/release/railway-deployment-profile'
 import {
   assertRailwayFullProjectVisibilityCredential,
@@ -60,7 +61,6 @@ const SHA256 = /^[0-9a-f]{64}$/u
 const MAX_INPUT_BYTES = 5 * 1024 * 1024
 const MAX_INTENT_BYTES = 25 * 1024 * 1024
 
-type JsonRecord = Readonly<Record<string, unknown>>
 type ActivationMode = 'plan' | 'apply' | 'recover' | 'verify'
 
 export type RailwayGoogleContentApprovalActivationCommandResult = Readonly<{
@@ -151,13 +151,6 @@ type ActivationDependencies = Readonly<{
   clock?: () => Date
   runMutation?: GoogleContentApprovalActivationMutationRunner
 }>
-
-function record(value: unknown, label: string): JsonRecord {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label} must be an object`)
-  }
-  return value as JsonRecord
-}
 
 function exactKeys(value: JsonRecord, keys: readonly string[], label: string): void {
   const actual = Object.keys(value).sort()
