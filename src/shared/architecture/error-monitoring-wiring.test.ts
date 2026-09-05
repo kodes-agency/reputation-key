@@ -28,8 +28,17 @@ describe('production error-monitoring wiring', () => {
     expect(read('Dockerfile')).toContain(
       'CMD ["node", "--import", "./.output/server/web-observability-preload.mjs", ".output/server/index.mjs"]',
     )
-    expect(read('Dockerfile.worker')).toContain(
-      'CMD ["node", "--import", "./dist-worker/worker-observability-preload.js", "dist-worker/index.js"]',
+    // One image serves web and worker, so the image CMD is the web server and
+    // the worker's preload lives in the start command of every worker
+    // deployment surface. Nothing else guarantees the worker gets it.
+    const workerStart =
+      'node --import ./dist-worker/worker-observability-preload.js dist-worker/index.js'
+    const railwayWorker = JSON.parse(read('railway.worker.json')) as {
+      deploy?: { startCommand?: string }
+    }
+    expect(railwayWorker.deploy?.startCommand).toBe(workerStart)
+    expect(read('compose.local.yml')).toContain(
+      './dist-worker/worker-observability-preload.js',
     )
 
     const manifest = JSON.parse(read('package.json')) as {

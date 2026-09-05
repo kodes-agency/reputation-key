@@ -543,9 +543,9 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
   // NODE_ENV=production, the conjunct that makes provider-runtime.ts refuse
   // endpoint overrides before the first promotion. The profile is pinned here
   // because nothing else holds it in that window. NODE_ENV is pinned here IN
-  // ADDITION to the runtime images, which bake it in (Dockerfile `FROM base AS
-  // web` and Dockerfile.worker `FROM base AS worker`, both `ENV
-  // NODE_ENV=production`), so this pin is redundancy rather than sole cover.
+  // ADDITION to the runtime image, which bakes it in (`Dockerfile`, `FROM base
+  // AS web` — the one image both services run), so this pin is redundancy
+  // rather than sole cover.
   it('pins the production-fixed provider profile and NODE_ENV on web and worker', () => {
     const web = resource(definition, 'service', 'web') as ServiceNode
     const worker = resource(definition, 'service', 'worker') as ServiceNode

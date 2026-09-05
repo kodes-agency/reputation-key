@@ -208,7 +208,7 @@ function sourceProof(path: string, commit: string): Record<string, unknown> {
   }
   for (const dockerfile of [
     'Dockerfile',
-    'Dockerfile.worker',
+    'Dockerfile',
     ...(existsSync(join(path, 'Dockerfile.google-import-compatibility'))
       ? ['Dockerfile.google-import-compatibility']
       : []),
@@ -549,7 +549,7 @@ async function main(): Promise<void> {
       }),
       buildImage({
         context: baseline,
-        dockerfile: join(baseline, 'Dockerfile.worker'),
+        dockerfile: join(baseline, 'Dockerfile'),
         tag: tags.baselineWorker,
         sourceRevision: plan.baselineCommit,
       }),
@@ -567,7 +567,7 @@ async function main(): Promise<void> {
       }),
       buildImage({
         context: final,
-        dockerfile: join(final, 'Dockerfile.worker'),
+        dockerfile: join(final, 'Dockerfile'),
         tag: tags.finalWorker,
         sourceRevision: plan.finalCommit,
       }),

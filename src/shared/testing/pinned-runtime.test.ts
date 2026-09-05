@@ -109,7 +109,6 @@ describe('the pinned runtime', () => {
     // each carries the assert inline. Every one must name this same version.
     const dockerfiles = [
       'Dockerfile',
-      'Dockerfile.worker',
       'Dockerfile.google-import-compatibility',
       'Dockerfile.google-execution-admission',
       'Dockerfile.google-egress-gateway',

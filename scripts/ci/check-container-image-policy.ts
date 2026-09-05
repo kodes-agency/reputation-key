@@ -126,7 +126,10 @@ export function parseContainerImagePolicy(value: unknown): ContainerImagePolicy 
     return row as unknown as ContainerImagePolicyRow
   })
 
-  for (const field of ['id', 'dockerfile', 'ciImage', 'releaseRole'] as const) {
+  // `dockerfile` is deliberately NOT unique: one image can back several
+  // release roles (web and worker are the same build, distinguished by their
+  // start command). `id`, `ciImage` and `releaseRole` must still be unique.
+  for (const field of ['id', 'ciImage', 'releaseRole'] as const) {
     const values = images
       .map((row) => row[field])
       .filter((value): value is string => value !== undefined)

@@ -444,7 +444,7 @@ jobs:
               [{"name":"web","dockerfile":"Dockerfile","tag":"repkey-web:ci","publish":true},{"name":"google-import-compatibility","dockerfile":"Dockerfile.google-import-compatibility","tag":"repkey-google-import-compatibility:ci","publish":false},{"name":"google-provider-redis","dockerfile":"Dockerfile.google-provider-redis","tag":"repkey-google-provider-redis:ci","publish":true}]
           - group: worker-tools
             images: >-
-              [{"name":"worker","dockerfile":"Dockerfile.worker","tag":"repkey-worker:ci","publish":true},{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
+              [{"name":"worker","dockerfile":"Dockerfile","tag":"repkey-worker:ci","publish":true},{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
           - group: sidecars
             images: >-
               [{"name":"google-execution-admission","dockerfile":"Dockerfile.google-execution-admission","tag":"repkey-google-execution-admission:ci","publish":true},{"name":"google-egress-gateway","dockerfile":"Dockerfile.google-egress-gateway","tag":"repkey-google-egress-gateway:ci","publish":true},{"name":"ai-execution-admission","dockerfile":"Dockerfile.ai-execution-admission","tag":"repkey-ai-execution-admission:ci","publish":true},{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]
@@ -515,6 +515,11 @@ jobs:
               ;;
             worker)
               docker run --rm repkey-worker:ci node -e "process.exit(0)"
+              # web and worker are ONE image now; the image CMD is the web
+              # server, so prove the worker start command's entrypoints are
+              # present (railway.worker.json `startCommand` runs them).
+              docker run --rm --entrypoint node repkey-worker:ci -e \
+                "require.resolve('/app/dist-worker/index.js');require.resolve('/app/dist-worker/worker-observability-preload.js')"
               test "$(docker image inspect repkey-worker:ci --format '{{.Config.User}}')" = "node"
               docker run --rm --entrypoint test repkey-worker:ci -e /app/node_modules/pg
               docker run --rm --entrypoint node repkey-worker:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"

@@ -204,9 +204,6 @@ importers:
       '@types/react-dom':
         specifier: 19.2.4
         version: 19.2.4(@types/react@19.2.18)
-      '@types/sharp':
-        specifier: ^0.32.0
-        version: 0.32.0(@types/node@22.20.1)
       '@vitejs/plugin-react':
         specifier: 6.0.5
         version: 6.0.5(vite@8.1.4(@types/node@22.20.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.49.0)(tsx@4.23.12)(yaml@2.9.0))
@@ -3991,10 +3988,6 @@ packages:
 
   '@types/set-cookie-parser@2.4.10':
     resolution: {integrity: sha512-GGmQVGpQWUe5qglJozEjZV/5dyxbOOZ0LHe/lqyWssB88Y4svNfst0uqBVscdDeIKl5Jy5+aPSvy7mI9tYRguw==}
-
-  '@types/sharp@0.32.0':
-    resolution: {integrity: sha512-OOi3kL+FZDnPhVzsfD37J88FNeZh6gQsGcLc95NbeURRGvmSjeXiDcyWzF2o3yh/gQAUn2uhh/e+CPCa5nwAxw==}
-    deprecated: This is a stub types definition. sharp provides its own type definitions, so you do not need this installed.
 
   '@types/stack-utils@2.0.3':
     resolution: {integrity: sha512-9aEbYZ3TbYMznPdcdr3SmIrLXwC/AKZXQeCf9Pgao5CKb8CyHuEX5jzWPTkvregvhRJHcpRO6BFoGW9ycaOkYw==}
@@ -12449,12 +12442,6 @@ snapshots:
     dependencies:
       '@types/node': 22.20.1
     optional: true
-
-  '@types/sharp@0.32.0(@types/node@22.20.1)':
-    dependencies:
-      sharp: 0.35.3(@types/node@22.20.1)
-    transitivePeerDependencies:
-      - '@types/node'
 
   '@types/stack-utils@2.0.3': {}
 

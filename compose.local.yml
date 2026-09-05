@@ -945,9 +945,19 @@ services:
     image: repkey-local-worker:${SOURCE_REVISION}
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile
       args:
         SOURCE_REVISION: ${SOURCE_REVISION}
+    # One image now serves web and worker; the image CMD is the web server, so
+    # the worker service supplies its own entrypoint (same command as
+    # railway.worker.json `startCommand`).
+    command:
+      [
+        'node',
+        '--import',
+        './dist-worker/worker-observability-preload.js',
+        'dist-worker/index.js',
+      ]
     environment:
       <<: *app-environment
       # The worker never CONNECTS to this origin — it reads it as `appBaseUrl`

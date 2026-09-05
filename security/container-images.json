@@ -12,7 +12,7 @@
     },
     {
       "id": "worker",
-      "dockerfile": "Dockerfile.worker",
+      "dockerfile": "Dockerfile",
       "ciImage": "repkey-worker:ci",
       "classification": "production-runtime",
       "promotion": "release-candidate",

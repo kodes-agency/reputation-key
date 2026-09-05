@@ -129,7 +129,7 @@ jobs:
             dockerfile: Dockerfile.google-provider-redis
           - role: worker
             slug: worker
-            dockerfile: Dockerfile.worker
+            dockerfile: Dockerfile
           - role: googleExecutionAdmission
             slug: google-execution-admission
             dockerfile: Dockerfile.google-execution-admission
