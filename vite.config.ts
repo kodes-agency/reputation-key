@@ -74,14 +74,27 @@ const config = defineConfig(({ mode }) => {
               codeSplitting: {
                 groups: [
                   {
+                    name: 'vendor-react',
+                    test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/,
+                    priority: 40,
+                    includeDependenciesRecursively: false,
+                  },
+                  {
+                    // `includeDependenciesRecursively` MUST stay false: with it
+                    // on, recharts' transitive deps (clsx,
+                    // use-sync-external-store, redux, es-toolkit) join this
+                    // group, so any module needing clsx statically imports the
+                    // whole 117 KiB chart vendor on first paint.
                     name: 'vendor-charts',
                     test: /node_modules[\\/](?:recharts|d3-|victory-vendor)/,
                     priority: 30,
+                    includeDependenciesRecursively: false,
                   },
                   {
                     name: 'vendor-dnd',
                     test: /node_modules[\\/]@dnd-kit/,
                     priority: 30,
+                    includeDependenciesRecursively: false,
                   },
                   {
                     name: 'app-shared',

@@ -31,8 +31,6 @@ import {
 import { InboxDetailSheet } from './inbox-detail-sheet'
 import type { InboxAssignmentOption } from './inbox-bulk-assignment-dialog'
 
-export { inboxSearchSchema, type InboxSearchParams } from './inbox-search-schema'
-
 export function InboxPageV2({
   ctx,
   search,
