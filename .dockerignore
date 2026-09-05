@@ -12,9 +12,6 @@ playwright-report
 docs
 e2e
 review
-findings
-drizzle.bak
-better-auth_migrations
 .storybook
 .tanstack
 .vscode

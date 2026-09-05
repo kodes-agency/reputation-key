@@ -6,9 +6,9 @@
  *   - auth-cli.ts  (the repository-pinned schema-management config)
  *
  * Schema management MUST see the same `additionalFields` as the runtime. Previously
- * auth-cli.ts omitted them, so `pnpm auth:generate` / `auth:migrate` could not
- * manage these columns and they silently drifted from the live database — the
- * root cause of earlier additional-field migration gaps.
+ * auth-cli.ts omitted them, so `pnpm auth:migrate` could not manage these columns
+ * and they silently drifted from the live database — the root cause of earlier
+ * additional-field migration gaps.
  *
  * Keep this module free of Vite path aliases (`#/...`): auth-cli.ts runs
  * outside the Vite resolver and imports it via a relative path.

@@ -25,7 +25,6 @@ const NON_SOURCE_DIRECTORIES = new Set([
   '.vscode',
   'coverage',
   'drizzle',
-  'drizzle.bak',
   'node_modules',
   'storybook-static',
   'test-results',

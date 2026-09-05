@@ -27,8 +27,7 @@ the authoritative migration journal and can conceal deploy-time drift.
 ## Adding Auth Schema Changes
 
 1. Modify the auth config in `src/shared/auth/auth.ts`
-2. Generate migration: `pnpm auth:generate`
-3. Apply migration: `pnpm auth:migrate`
+2. Apply migration: `pnpm auth:migrate`
 
 ## Adding Business Schema Changes
 

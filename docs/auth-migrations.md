@@ -6,7 +6,7 @@
 Auth tables and their custom columns are managed in normal development and
 deployment by the **schema API in the exact repository-pinned `better-auth`
 runtime**, not by hand-written SQL. The
-`scripts/better-auth-schema.ts` runner exposes this as `pnpm auth:generate` and
+`scripts/better-auth-schema.ts` runner applies pending auth-table changes as
 `pnpm auth:migrate`. Manual `ALTER TABLE` / `CREATE TABLE` against auth tables is
 a **STRICT NO** — it silently drifts the live DB. (This exact drift once left
 `invitation.propertyIds` and 7 `organization` billing/SLA columns missing → every
@@ -46,8 +46,8 @@ it to patch an existing auth table.
 ## Workflow — adding/changing an auth additionalField (e.g. a new column on `organization` / `invitation`)
 
 1. Edit `src/shared/auth/org-schema.ts` (the only place).
-2. `pnpm auth:generate` → review the generated SQL under `better-auth_migrations/`.
-3. `pnpm auth:migrate` to apply.
+2. `pnpm auth:migrate` to apply. The runner prints the table and column counts
+   it applied; there is no separate generate-and-review step.
 
 ## Do NOT
 
@@ -57,8 +57,8 @@ it to patch an existing auth table.
 - Re-declare `additionalFields` inline in `auth.ts` or `auth-cli.ts` — use `org-schema.ts`.
 - Hand-patch an auth column with raw SQL when the tooling "didn't add it."
 
-If `auth:generate` reports "schema is up to date" but you expect a missing
+If `auth:migrate` reports "schema is up to date" but you expect a missing
 column, the schema config (`auth-cli.ts`) has drifted from `auth.ts` — fix the
-shared `org-schema.ts`, then re-generate. Never bypass with manual SQL. The
+shared `org-schema.ts`, then re-run. Never bypass with manual SQL. The
 standalone `@better-auth/cli` is deliberately not installed or fetched: its
 release line may lag the runtime and therefore describe a different schema.

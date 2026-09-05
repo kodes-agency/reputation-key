@@ -158,6 +158,8 @@ export default tseslint.config(
       boundaries,
     },
     settings: {
+      // eslint-plugin-boundaries resolves every import through this resolver;
+      // without it the `#/` alias does not resolve and valid seams are rejected.
       'import/resolver': {
         typescript: {
           alwaysTryTypes: true,

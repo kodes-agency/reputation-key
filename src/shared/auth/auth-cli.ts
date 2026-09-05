@@ -47,7 +47,7 @@ const auth = betterAuth({
   plugins: [
     organization({
       ac,
-      // MUST mirror auth.ts so auth:generate/auth:migrate manage the same
+      // MUST mirror auth.ts so auth:migrate manages the same
       // additionalFields (propertyIds, Organization contact/response target)
       // as the runtime.
       schema: organizationSchema,

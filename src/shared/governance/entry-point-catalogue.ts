@@ -5705,7 +5705,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   }),
   ops('scripts/better-auth-schema.ts', 'scripts/better-auth-schema.ts', 'tenant_cross', {
     notes:
-      'auth:generate/auth:migrate — compiles or applies auth-table changes through the exact repository-pinned Better Auth runtime; never network-fetches a separate CLI',
+      'auth:migrate — applies auth-table changes through the exact repository-pinned Better Auth runtime; never network-fetches a separate CLI',
   }),
   ops(
     'scripts/google-import-final-schema-probe.ts',

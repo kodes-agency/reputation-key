@@ -2,7 +2,7 @@
 
 **Status:** Implemented (dynamicAccessControl enabled + `organizationRole` migration applied)
 **Date:** 2026-05-02
-**Last updated:** 2026-06-21 (migration applied: `better-auth_migrations/2026-06-21T18-37-49.995Z.sql`)
+**Last updated:** 2026-06-21 (`organizationRole` migration applied through the pinned Better Auth runtime)
 **Context:** Identity & Authorization
 
 ## Decision
@@ -70,7 +70,7 @@ Enable `dynamicAccessControl: { enabled: true }` in the organization plugin. Bet
 ## Implementation Notes
 
 - Enabled via `dynamicAccessControl: { enabled: true }` in `organization()` plugin config (done)
-- `organizationRole` table migration applied (`better-auth_migrations/2026-06-21T18-37-49.995Z.sql`) — creates the table with `organizationId` and `role` indexes for per-org role override lookups
+- `organizationRole` table migration applied through `pnpm auth:migrate` — creates the table with `organizationId` and `role` indexes for per-org role override lookups
 - The `ac` instance and role definitions passed to both `organization()` (server) and `organizationClient()` (client)
 - Server-side permission checks use `can()` from `shared/domain/permissions` — boundary-compliant
 - Client-side uses `usePermissions()` hook from `shared/hooks/usePermissions` — reads role from route context
