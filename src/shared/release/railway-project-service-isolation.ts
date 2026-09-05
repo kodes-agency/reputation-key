@@ -1,3 +1,11 @@
+import {
+  array as jsonArray,
+  parseRailwayServiceSource,
+  record as jsonRecord,
+  type JsonRecord,
+  type RailwayServiceSource,
+} from './json-shape-guards'
+
 export const SINGLE_US_BETA_RAILWAY_SERVICE_NAMES = Object.freeze([
   'schema-migrator',
   'google-provider-redis',
@@ -30,17 +38,12 @@ type ProjectBucket = Readonly<{
   name: string
 }>
 
-type EnvironmentServiceSource = Readonly<{
-  repo: string | null
-  image: string | null
-}>
-
 type EnvironmentServiceInstance = Readonly<{
   id: string
   serviceId: string
   serviceName: string
   environmentId: string
-  source: EnvironmentServiceSource | null
+  source: RailwayServiceSource | null
 }>
 
 type EnvironmentVolumeInstance = Readonly<{
@@ -89,8 +92,6 @@ export type SingleUsBetaRailwayProjectIsolation = Readonly<{
   >
 }>
 
-type JsonRecord = Record<string, unknown>
-
 /**
  * The exact-one-environment proof needs project-wide visibility. Railway's
  * `RAILWAY_TOKEN` is environment scoped and takes precedence when present, so
@@ -106,11 +107,8 @@ export function assertRailwayFullProjectVisibilityCredential(
   }
 }
 
-function record(value: unknown, label: string): JsonRecord {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`Railway project status omitted ${label}`)
-  }
-  return value as JsonRecord
+function railwayStatusRecord(value: unknown, label: string): JsonRecord {
+  return jsonRecord(value, label, `Railway project status omitted ${label}`)
 }
 
 function nonEmptyString(value: unknown, label: string): string {
@@ -132,23 +130,15 @@ function nullableString(value: unknown, label: string): string | null {
   return nonEmptyString(value, label)
 }
 
-function serviceSource(value: unknown, label: string): EnvironmentServiceSource | null {
-  if (value === null) return null
-  const source = record(value, label)
-  return Object.freeze({
-    repo: nullableString(source.repo, `${label}.repo`),
-    image: nullableString(source.image, `${label}.image`),
-  })
-}
-
 function edges(value: unknown, label: string): readonly JsonRecord[] {
-  const connection = record(value, label)
-  if (!Array.isArray(connection.edges)) {
-    throw new Error(`Railway project status omitted ${label}.edges`)
-  }
-  return connection.edges.map((edge, index) =>
-    record(
-      record(edge, `${label}.edges[${String(index)}]`).node,
+  const connection = railwayStatusRecord(value, label)
+  return jsonArray(
+    connection.edges,
+    `${label}.edges`,
+    `Railway project status omitted ${label}.edges`,
+  ).map((edge, index) =>
+    railwayStatusRecord(
+      railwayStatusRecord(edge, `${label}.edges[${String(index)}]`).node,
       `${label}.edges[${String(index)}].node`,
     ),
   )
@@ -174,7 +164,7 @@ export function parseRailwayProjectServiceInventory(
   } catch {
     throw new Error('Railway project status is not valid JSON')
   }
-  const project = record(value, 'project')
+  const project = railwayStatusRecord(value, 'project')
   const buckets = edges(project.buckets, 'buckets').map((bucket, index) =>
     Object.freeze({
       id: nonEmptyString(bucket.id, `buckets[${String(index)}].id`),
@@ -219,9 +209,11 @@ export function parseRailwayProjectServiceInventory(
             instance.environmentId,
             `environments[${String(environmentIndex)}].serviceInstances[${String(instanceIndex)}].environmentId`,
           ),
-          source: serviceSource(
+          source: parseRailwayServiceSource(
             instance.source,
             `environments[${String(environmentIndex)}].serviceInstances[${String(instanceIndex)}].source`,
+            nullableString,
+            `Railway project status omitted environments[${String(environmentIndex)}].serviceInstances[${String(instanceIndex)}].source`,
           ),
         }),
       )
@@ -234,7 +226,7 @@ export function parseRailwayProjectServiceInventory(
             `Railway project status omitted environments[${String(environmentIndex)}].volumeInstances[${String(instanceIndex)}].isPendingDeletion`,
           )
         }
-        const volume = record(
+        const volume = railwayStatusRecord(
           instance.volume,
           `environments[${String(environmentIndex)}].volumeInstances[${String(instanceIndex)}].volume`,
         )

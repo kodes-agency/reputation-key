@@ -7,6 +7,11 @@ import {
   CANONICAL_RAILWAY_FOUNDATION_SOURCE_INPUT,
   RAILWAY_SERVICE_SOURCE_MAP_ENV,
 } from '../../.railway/service-source-map'
+import {
+  array,
+  record,
+  type JsonRecord,
+} from '../../src/shared/release/json-shape-guards'
 import { PRODUCTION_RAILWAY_PROJECT_NAME } from '../../src/shared/release/railway-deployment-profile'
 import {
   SINGLE_US_BETA_RAILWAY_SERVICE_NAMES,
@@ -29,8 +34,6 @@ const DOMAIN = 'us.reputationkey.app' as const
 const TARGET_PORT = 8080 as const
 const PROBE_DOMAIN_TYPE = 'railway-service' as const
 const SHA256 = /^[0-9a-f]{64}$/u
-
-type JsonRecord = Readonly<Record<string, unknown>>
 
 export type RailwayDomainCommandResult = Readonly<{
   status: number
@@ -65,18 +68,6 @@ type DomainIntent = Readonly<{
   domain: typeof DOMAIN
   targetPort: typeof TARGET_PORT
 }>
-
-function record(value: unknown, label: string): JsonRecord {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`${label} must be an object`)
-  }
-  return value as JsonRecord
-}
-
-function array(value: unknown, label: string): readonly unknown[] {
-  if (!Array.isArray(value)) throw new Error(`${label} must be an array`)
-  return value
-}
 
 function exactKeys(value: JsonRecord, expected: readonly string[], label: string): void {
   const observed = Object.keys(value).sort()

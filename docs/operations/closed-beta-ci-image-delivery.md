@@ -76,36 +76,41 @@ extra or missing image, a missing/invalid digest, an unexpected repository, a
 per-image revision mismatch, a non-main/non-CI producer, or a workflow run
 identity mismatch.
 
-Packages first published by this repository's `GITHUB_TOKEN` inherit the
-repository's private visibility, which is the intended posture. Keep them
-private.
+## Package visibility and pull credentials
 
-## Manual prerequisite: private pull credentials
+`kodes-agency/reputation-key` is a **public** repository, so packages first
+published by its `GITHUB_TOKEN` inherit public visibility. Verified on the
+first main run of this path (`415581c2`): an unauthenticated
+`GET /v2/kodes-agency/repkey-web/manifests/<sha>` returns HTTP 200.
 
-Do this before the first source flip. It cannot be automated by the Railway CLI,
-public API, MCP, or repository IaC: Railway exposes private-registry credentials
-only in the service Settings UI.
+That is the intended posture while the repository is public, and it means
+**Railway needs no registry credentials on any plan.** There is no manual
+per-service credential step and no Pro-plan prerequisite for this path.
 
-1. Verify in Railway billing/settings that the account is on a **Pro** plan.
-   Railway documents authenticated private registries as a Pro feature. The
-   available API/CLI account shape does not prove the plan tier, so treat this
-   as a prerequisite to verify, not an assumption. If it is not Pro, stop; the
-   image-source cutover is blocked on a plan change.
-2. Create a **new** GitHub PAT for Railway with `read:packages` only (and approve
-   organization SSO if GitHub requires it). Do not reuse a developer or CI
-   token. In particular, do not reuse a token carrying `write:packages`,
-   `delete:packages`, `repo`, `admin:org`, or `delete_repo`.
-3. In Railway, open each service, then **Settings → Source → Registry
-   Credentials**. Configure `ghcr.io` with the GitHub username that owns the new
-   token and paste that read-only token as the credential. Save it without
-   changing the service source.
-4. Repeat the same UI action for `web`, `worker`, `google-provider-redis`,
-   `google-egress-gateway`, `google-execution-admission`, `ai-egress-gateway`,
-   and `ai-execution-admission`.
+The images were checked for secret material before this was accepted. The
+published `web`, `worker`, `google-egress-gateway` and `ai-execution-admission`
+configs carry no secret-shaped environment variables, run as the non-root
+`node` user, and the only build argument surviving into final-image history is
+`SOURCE_REVISION`. Build-time arguments such as `SENTRY_AUTH_TOKEN`,
+`BETTER_AUTH_SECRET` and `ENCRYPTION_KEY` are confined to discarded builder
+stages, and every runtime secret is supplied by Railway environment variables
+rather than baked into a layer. Re-run that check whenever a Dockerfile starts
+consuming a new build argument: a secret added to the FINAL stage of a public
+image is world-readable.
 
-This is one manual credential action per service. Merely storing the credential
-does not authorize a deploy and must not be combined with an ad hoc UI source
-change.
+If the repository is ever made private, the packages inherit that visibility
+and pulls then require authentication. In that case, and only then:
+
+1. Verify the Railway account is on a **Pro** plan. Railway documents
+   authenticated private registries as a Pro feature, and the available
+   API/CLI account shape does not expose the plan tier, so treat it as a
+   prerequisite to verify rather than an assumption.
+2. Create a **new** GitHub PAT with `read:packages` only. Never reuse a
+   developer or CI token; in particular never reuse one carrying
+   `write:packages`, `delete:packages`, `repo`, `admin:org`, or `delete_repo`.
+3. Configure `ghcr.io` under **Settings → Source → Registry Credentials** for
+   each of the seven services, saving the credential without changing the
+   service source.
 
 ## Deploy by digest
 
@@ -134,8 +139,8 @@ the revision is an ancestor of `origin/main`, and prints the fixed project,
 environment, seven service IDs, current sources, and proposed digest references.
 It does not mutate Railway.
 
-After reviewing that output and the seven saved Registry Credentials, apply the
-same default revision with the explicit live-environment opt-in:
+After reviewing that output, apply the same default revision with the explicit
+live-environment opt-in:
 
 ```bash
 pnpm ops:deploy-ci-images \
