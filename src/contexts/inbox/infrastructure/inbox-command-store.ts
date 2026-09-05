@@ -980,8 +980,9 @@ function assertObservationMatchesItem(
 /**
  * Canonical Review Handling Cycle lock order is head -> Inbox item. `startNext`
  * uses the same order; reversing it here lets a material revision/reopen race
- * form a PostgreSQL row-lock cycle. Both rows must still be current for the
- * observed Material Revision.
+ * form a PostgreSQL row-lock cycle. A Review-attested epoch carry advances only
+ * the head's exact-material fence under this lock; cycle, state, and status stay
+ * unchanged because the normalized material did not create work.
  */
 async function lockReviewRowsForObservation(
   tx: Tx,
@@ -1015,19 +1016,63 @@ async function lockReviewRowsForObservation(
     )
     .for('update')
     .limit(1)
-  const headRow = headRows[0]
+  let headRow = headRows[0]
   const itemRow = itemRows[0]
   if (!itemRow || !headRow) {
     throw inboxError('not_found', 'Review Inbox item or Handling Cycle head not found')
   }
-  if (
-    itemRow.status !== headRow.status ||
-    headRow.currentSourceRevision !== observation.materialReviewRevision
-  ) {
+  if (itemRow.status !== headRow.status) {
     throw inboxError(
       'revision_conflict',
       'Review Inbox Handling Cycle is not current for this observation',
     )
+  }
+
+  if (headRow.currentSourceRevision !== observation.materialReviewRevision) {
+    const carriedFrom = observation.sourceEpochCarryFromMaterialReviewRevision
+    if (
+      carriedFrom === null ||
+      headRow.currentSourceRevision !== carriedFrom ||
+      headRow.currentMaterialReviewRevision !== carriedFrom ||
+      observation.materialReviewRevision !== carriedFrom + 1
+    ) {
+      throw inboxError(
+        'revision_conflict',
+        'Review Inbox Handling Cycle is not current for this observation',
+      )
+    }
+    const [carriedHead] = await tx
+      .update(inboxHandlingCycleHeads)
+      .set({
+        currentSourceRevision: observation.materialReviewRevision,
+        currentMaterialReviewRevision: observation.materialReviewRevision,
+        updatedAt: sql<Date>`GREATEST(
+          ${inboxHandlingCycleHeads.updatedAt},
+          ${observation.observedAt}
+        )`,
+      })
+      .where(
+        and(
+          eq(inboxHandlingCycleHeads.inboxItemId, item.id),
+          eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
+          eq(inboxHandlingCycleHeads.propertyId, item.propertyId),
+          eq(inboxHandlingCycleHeads.sourceType, 'review'),
+          eq(inboxHandlingCycleHeads.sourceId, observation.reviewId),
+          eq(inboxHandlingCycleHeads.currentCycleNumber, headRow.currentCycleNumber),
+          eq(inboxHandlingCycleHeads.currentSourceRevision, carriedFrom),
+          eq(inboxHandlingCycleHeads.currentMaterialReviewRevision, carriedFrom),
+          eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
+          eq(inboxHandlingCycleHeads.status, headRow.status),
+        ),
+      )
+      .returning()
+    if (!carriedHead) {
+      throw inboxError(
+        'revision_conflict',
+        'Review Inbox Handling Cycle changed during source-epoch carry',
+      )
+    }
+    headRow = carriedHead
   }
   return { headRow, itemRow }
 }

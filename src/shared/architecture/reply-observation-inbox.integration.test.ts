@@ -84,6 +84,8 @@ const EVENT_REVIEW_ADVANCED = 'b2000000-0000-0000-0000-000000000107'
 const EVENT_LEGACY_DIVERGED = 'b2000000-0000-0000-0000-000000000108'
 const EVENT_LOCK_ORDER = 'b2000000-0000-0000-0000-000000000109'
 const EVENT_INACTIVE_DELETED = 'b2000000-0000-0000-0000-000000000110'
+const EVENT_EPOCH_CARRY = 'b2000000-0000-0000-0000-000000000111'
+const EVENT_EPOCH_MATERIAL_CHANGE = 'b2000000-0000-0000-0000-000000000112'
 
 let pool: Pool
 let lease: TestLease
@@ -182,6 +184,7 @@ async function seed(): Promise<InboxItem> {
 
 type Observation = Readonly<{
   revision: number
+  sourceEpoch?: number
   materialReviewRevision?: number
   state: 'live' | 'absent'
   change: 'added' | 'edited' | 'deleted'
@@ -191,6 +194,7 @@ type Observation = Readonly<{
 
 async function insertObservation(observation: Observation): Promise<void> {
   const live = observation.state === 'live'
+  const sourceEpoch = observation.sourceEpoch ?? 0
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -201,8 +205,8 @@ async function insertObservation(observation: Observation): Promise<void> {
          read_generation, state, change, resolution, source, provenance, normalized_text,
          normalization_version, normalized_digest, observed_at, content_expires_at
        ) VALUES (
-         $1, $2, $3, $4, $5, $6, 0, $7, $4, $8, $9, $10,
-         'provider_snapshot', $11, $12, 'google-reply-v1', $13, $14, $15
+         $1, $2, $3, $4, $5, $6, $7, $8, $4, $9, $10, $11,
+         'provider_snapshot', $12, $13, 'google-reply-v1', $14, $15, $16
        ) RETURNING id`,
       [
         ORG,
@@ -213,6 +217,7 @@ async function insertObservation(observation: Observation): Promise<void> {
         String(observation.revision + 3)
           .repeat(64)
           .slice(0, 64),
+        sourceEpoch,
         observation.materialReviewRevision ?? 1,
         observation.state,
         observation.change,
@@ -233,7 +238,7 @@ async function insertObservation(observation: Observation): Promise<void> {
          review_id, organization_id, property_id, observation_id,
          observation_revision, source_epoch, material_review_revision,
          state, provenance, created_at, updated_at
-       ) VALUES ($1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $9)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
        ON CONFLICT (review_id) DO UPDATE SET
          observation_id = EXCLUDED.observation_id,
          observation_revision = EXCLUDED.observation_revision,
@@ -248,6 +253,7 @@ async function insertObservation(observation: Observation): Promise<void> {
         PROPERTY,
         inserted.rows[0].id,
         observation.revision,
+        sourceEpoch,
         observation.materialReviewRevision ?? 1,
         observation.state,
         observation.provenance,
@@ -292,6 +298,35 @@ async function insertMaterialRevision(revision: number): Promise<void> {
   )
 }
 
+async function advanceMaterialRevisionToEpochOne(
+  normalizedDigest: string,
+  normalizedText: string,
+): Promise<void> {
+  await pool.query(
+    `UPDATE properties
+     SET source_epoch = 1, updated_at = $3
+     WHERE id = $1 AND organization_id = $2`,
+    [PROPERTY, ORG, OBSERVED_AT],
+  )
+  await pool.query(
+    `INSERT INTO material_review_revisions (
+       review_id, revision, organization_id, property_id, source_epoch,
+       normalization_version, source_digest, normalized_digest, rating,
+       normalized_text, content_state, created_at, updated_at
+     ) VALUES (
+       $1, 2, $2, $3, 1, 'review-material-v1', $4, $4, 5,
+       $5, 'active', $6, $6
+     )`,
+    [REVIEW, ORG, PROPERTY, normalizedDigest, normalizedText, OBSERVED_AT],
+  )
+  await pool.query(
+    `UPDATE reviews
+     SET source_epoch = 1, source_revision = 2, updated_at = $3
+     WHERE id = $1 AND organization_id = $2`,
+    [REVIEW, ORG, OBSERVED_AT],
+  )
+}
+
 async function seedDeliveryEvent(eventId: string): Promise<void> {
   await pool.query(
     `INSERT INTO outbox_events (
@@ -309,7 +344,7 @@ function expectation(observation: Observation) {
     reviewId: REVIEW,
     propertyId: PROPERTY,
     observationRevision: observation.revision,
-    sourceEpoch: 0,
+    sourceEpoch: observation.sourceEpoch ?? 0,
     materialReviewRevision: observation.materialReviewRevision ?? 1,
     change: observation.change,
     resolution: observation.resolution,
@@ -749,6 +784,104 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
       current_cycle_number: '1',
       opened_reason: 'review_observed',
       status_fact_count: 1,
+    })
+  })
+
+  it('applies an epoch-carried reply observation without reopening closed work', async () => {
+    await seed()
+    await insertObservation(live)
+    await seedDeliveryEvent(EVENT_LIVE)
+    await expect(
+      handleInboxReplyObserved(consumerDeps(), observedEvent(EVENT_LIVE, live)),
+    ).resolves.toEqual({ status: 'applied' })
+
+    await advanceMaterialRevisionToEpochOne('1'.repeat(64), 'review text')
+    const carried: Observation = {
+      revision: 2,
+      sourceEpoch: 1,
+      materialReviewRevision: 2,
+      state: 'live',
+      change: 'added',
+      resolution: 'external_current_live',
+      provenance: 'external_or_unknown',
+    }
+    await insertObservation(carried)
+    await seedDeliveryEvent(EVENT_EPOCH_CARRY)
+
+    await expect(
+      handleInboxReplyObserved(consumerDeps(), observedEvent(EVENT_EPOCH_CARRY, carried)),
+    ).resolves.toEqual({ status: 'applied' })
+
+    const current = await pool.query(
+      `SELECT i.status, h.current_cycle_number,
+              h.current_material_review_revision,
+              h.state_revision, h.status AS head_status,
+              r.status AS receipt_status,
+              (SELECT count(*)::int
+               FROM inbox_handling_cycles c
+               WHERE c.inbox_item_id = i.id) AS cycle_count,
+              (SELECT count(*)::int
+               FROM outbox_events e
+               WHERE e.organization_id = i.organization_id
+                 AND e.event_type = 'inbox.inbox_item.status_changed') AS status_fact_count
+       FROM inbox_items i
+       JOIN inbox_handling_cycle_heads h ON h.inbox_item_id = i.id
+       JOIN event_consumer_receipts r
+         ON r.event_id = $2 AND r.consumer_name = 'inbox.on-reply-observed'
+       WHERE i.id = $1`,
+      [ITEM, EVENT_EPOCH_CARRY],
+    )
+    expect(current.rows[0]).toMatchObject({
+      status: 'closed',
+      current_cycle_number: '1',
+      current_material_review_revision: '2',
+      state_revision: '2',
+      head_status: 'closed',
+      receipt_status: 'applied',
+      cycle_count: 1,
+      status_fact_count: 1,
+    })
+  })
+
+  it('refuses an epoch-crossing material change while its Inbox projection is stale', async () => {
+    await seed()
+    await advanceMaterialRevisionToEpochOne('2'.repeat(64), 'changed review text')
+    const changed: Observation = {
+      revision: 2,
+      sourceEpoch: 1,
+      materialReviewRevision: 2,
+      state: 'live',
+      change: 'added',
+      resolution: 'external_current_live',
+      provenance: 'external_or_unknown',
+    }
+    await insertObservation(changed)
+    await seedDeliveryEvent(EVENT_EPOCH_MATERIAL_CHANGE)
+
+    await expect(
+      handleInboxReplyObserved(
+        consumerDeps(),
+        observedEvent(EVENT_EPOCH_MATERIAL_CHANGE, changed),
+      ),
+    ).rejects.toMatchObject({
+      code: 'revision_conflict',
+      message: 'Current reply observation is waiting for the Inbox material revision',
+    })
+
+    const current = await pool.query(
+      `SELECT i.status, h.current_material_review_revision,
+              r.status AS receipt_status
+       FROM inbox_items i
+       JOIN inbox_handling_cycle_heads h ON h.inbox_item_id = i.id
+       LEFT JOIN event_consumer_receipts r
+         ON r.event_id = $2 AND r.consumer_name = 'inbox.on-reply-observed'
+       WHERE i.id = $1`,
+      [ITEM, EVENT_EPOCH_MATERIAL_CHANGE],
+    )
+    expect(current.rows[0]).toMatchObject({
+      status: 'open',
+      current_material_review_revision: '1',
+      receipt_status: null,
     })
   })
 

@@ -395,7 +395,13 @@ export async function handleInboxReplyObserved(
       }
       if (
         cycleHead.currentMaterialReviewRevision <
-        currentObservation.materialReviewRevision
+          currentObservation.materialReviewRevision &&
+        !(
+          currentObservation.sourceEpochCarryFromMaterialReviewRevision ===
+            cycleHead.currentMaterialReviewRevision &&
+          currentObservation.materialReviewRevision ===
+            cycleHead.currentMaterialReviewRevision + 1
+        )
       ) {
         throw inboxError(
           'revision_conflict',

@@ -154,6 +154,7 @@ function makeDeps(overrides: {
   sourceMeta?: ReviewSourceMeta | null
   feedback?: FeedbackSnippet | null
   observationCurrent?: boolean
+  sourceEpochCarryFromMaterialReviewRevision?: number | null
   sourceTransitionCurrent?: boolean
   responseTargetCurrent?: boolean
   handlingCycleMissing?: boolean
@@ -256,6 +257,8 @@ function makeDeps(overrides: {
           state: expectation.resolution === 'absent' ? 'absent' : 'live',
           observedAt: expectation.occurredAt,
           authority: 'review.current-google-reply-observation.v1',
+          sourceEpochCarryFromMaterialReviewRevision:
+            overrides.sourceEpochCarryFromMaterialReviewRevision ?? null,
           reviewSourceContentState: 'active',
           responseTargetEligibility: 'measured',
           responseTargetStartAt: SOURCE_META.sourceDate,
@@ -1264,7 +1267,7 @@ describe('handleInboxReplyObserved (provider-observation authority)', () => {
     ])
   })
 
-  it('retries without a receipt while the Inbox Handling Cycle lags the observation', async () => {
+  it('refuses a genuinely stale material projection without a receipt', async () => {
     const { deps, repo, receipts } = makeDeps({})
 
     await expect(
@@ -1275,9 +1278,41 @@ describe('handleInboxReplyObserved (provider-observation authority)', () => {
           observationPayload({ materialReviewRevision: 2 }),
         ),
       ),
-    ).rejects.toMatchObject({ code: 'revision_conflict' })
+    ).rejects.toMatchObject({
+      code: 'revision_conflict',
+      message: 'Current reply observation is waiting for the Inbox material revision',
+    })
     expect(repo.items[0]!.status).toBe('open')
     expect(receipts).toEqual([])
+  })
+  it('applies an epoch carry without reopening a closed item', async () => {
+    const closedAt = new Date('2026-06-12T12:00:00Z')
+    const { deps, repo, events, receipts } = makeDeps({
+      item: makeItem({ status: 'closed', closedAt }),
+      sourceEpochCarryFromMaterialReviewRevision: 1,
+    })
+
+    await expect(
+      handleInboxReplyObserved(
+        deps,
+        makeEvent(
+          'review.reply.observed',
+          observationPayload({
+            sourceEpoch: 1,
+            materialReviewRevision: 2,
+            resolution: 'external_current_live',
+            provenance: 'external_or_unknown',
+            matchedReplyId: null,
+            matchedPublicationCycle: null,
+          }),
+        ),
+      ),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(repo.items[0]).toMatchObject({ status: 'closed', closedAt })
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-observed', status: 'applied' },
+    ])
   })
 
   it('receipts an observation as obsolete when the Inbox Handling Cycle is newer', async () => {
