@@ -4,7 +4,7 @@
 # way the image bakes the revision it was built from, never a hand-set one.
 ARG RAILWAY_GIT_COMMIT_SHA
 ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
-FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS base
+FROM node:26-slim@sha256:c0753125a3789977aefe869cbebccf70e3cfd7ea84ca48547458f02e4f1d7146 AS base
 ENV PNPM_HOME=/pnpm \
     COREPACK_HOME=/opt/corepack \
     PATH=/pnpm:$PATH \
@@ -24,7 +24,7 @@ COPY . .
 RUN NODE_ENV=production pnpm build:google-execution-admission \
     && node scripts/verify-google-runtime-bundle.mjs admission
 
-FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS runtime
+FROM node:26-slim@sha256:c0753125a3789977aefe869cbebccf70e3cfd7ea84ca48547458f02e4f1d7146 AS runtime
 ARG SOURCE_REVISION
 ENV NODE_ENV=production \
     IMAGE_SOURCE_REVISION=$SOURCE_REVISION

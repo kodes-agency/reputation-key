@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 ARG SOURCE_REVISION=unknown
-FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS base
+FROM node:26-slim@sha256:c0753125a3789977aefe869cbebccf70e3cfd7ea84ca48547458f02e4f1d7146 AS base
 ENV PNPM_HOME=/pnpm \
     COREPACK_HOME=/opt/corepack \
     PATH=/pnpm:$PATH \
@@ -24,7 +24,7 @@ RUN NODE_ENV=production pnpm build:ai-egress-gateway \
  && node scripts/verify-ai-egress-gateway-bundle.mjs \
  && pnpm exec tsup --config tsup.ai-egress-gateway-local.config.ts
 
-FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS runtime
+FROM node:26-slim@sha256:c0753125a3789977aefe869cbebccf70e3cfd7ea84ca48547458f02e4f1d7146 AS runtime
 ARG SOURCE_REVISION=unknown
 ENV NODE_ENV=production
 LABEL org.opencontainers.image.revision=$SOURCE_REVISION

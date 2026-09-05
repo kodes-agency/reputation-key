@@ -4,7 +4,7 @@ ARG SOURCE_REVISION=unknown
 # This image is not a web or worker service and must never receive traffic.
 # Promote and retain it by immutable image digest until contract cutover.
 
-FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS base
+FROM node:26-slim@sha256:c0753125a3789977aefe869cbebccf70e3cfd7ea84ca48547458f02e4f1d7146 AS base
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     HUSKY=0

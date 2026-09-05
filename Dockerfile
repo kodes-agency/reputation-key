@@ -58,7 +58,7 @@ ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 # (pnpm tsx scripts/generate-ai-review-language-regions.ts) and re-run the AI
 # language corpus in the same change. Same assertion and failure style as
 # Dockerfile.ai-egress-gateway / Dockerfile.ai-execution-admission.
-FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS base
+FROM node:26-slim@sha256:c0753125a3789977aefe869cbebccf70e3cfd7ea84ca48547458f02e4f1d7146 AS base
 # HUSKY=0: Husky's `prepare` must not try to install git hooks in the image.
 # COREPACK_HOME + the pinned `corepack install` below: identical to the other
 # Node-based Dockerfiles ON PURPOSE. Docker keys a layer on the instruction text, so
