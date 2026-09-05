@@ -171,26 +171,4 @@ describe('outbox notification delivery bridge', () => {
       )
     },
   )
-
-  it('keeps the beta-dark Badge path outside durable settlement', async () => {
-    let queued: unknown
-    const insertReceipt = vi.fn(async () => {})
-    const queue = withBetaOutboxNotificationDelivery(
-      {
-        add: vi.fn(async (_name, data) => {
-          queued = data
-        }),
-      },
-      { insertReceipt },
-    )
-
-    await queue.add('insert-notification', {
-      ...DATA,
-      type: 'badge.awarded',
-      resourceType: 'badge',
-    })
-
-    expect(queued).not.toHaveProperty('delivery')
-    expect(insertReceipt).not.toHaveBeenCalled()
-  })
 })

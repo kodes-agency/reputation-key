@@ -8,7 +8,6 @@ export type {
   PropertyId,
   PortalId,
   TeamId,
-  StaffAssignmentId,
   PortalLinkCategoryId,
   PortalLinkId,
   ScanEventId,

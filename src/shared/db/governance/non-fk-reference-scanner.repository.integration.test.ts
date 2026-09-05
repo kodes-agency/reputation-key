@@ -17,7 +17,7 @@ const AS_OF = new Date('2026-08-28T00:00:00.000Z')
 
 const ORGANIZATION = `org-non-fk-${randomUUID().slice(0, 8)}`
 const PROPERTY_ID = randomUUID()
-const TEAM_ID = randomUUID()
+const GOAL_ID = randomUUID()
 
 type TransactionConfig = Readonly<{ isolationLevel?: string; accessMode?: string }>
 
@@ -65,23 +65,26 @@ async function seedTenant(): Promise<void> {
 
 async function seedReferences(): Promise<void> {
   await db.execute(sql`
-    INSERT INTO teams (id, organization_id, property_id, name)
-    VALUES (${TEAM_ID}, ${ORGANIZATION}, ${PROPERTY_ID}, 'Non-FK Team')
+    INSERT INTO goals
+      (id, organization_id, property_id, name, created_by, goal_type,
+       aggregation_function, metric_key, target_value)
+    VALUES (${GOAL_ID}, ${ORGANIZATION}, ${PROPERTY_ID}, 'Non-FK Goal',
+            'actor-non-fk', 'property', 'sum', 'qualified_scans', 1)
   `)
   await db.execute(sql`
     INSERT INTO recent_activity_entries
       (actor_id, actor_name, actor_role, action, resource_type, resource_id, organization_id, payload)
-    VALUES ('actor-non-fk', 'Actor', 'owner', 'created', 'team', ${TEAM_ID}, ${ORGANIZATION}, '{}'::jsonb)
+    VALUES ('actor-non-fk', 'Actor', 'owner', 'created', 'goal', ${GOAL_ID}, ${ORGANIZATION}, '{}'::jsonb)
   `)
   await db.execute(sql`
     INSERT INTO outbox_events
       (event_type, payload, organization_id, source_context, source_aggregate_id)
     VALUES (
-      'team.created',
-      jsonb_build_object('teamId', ${TEAM_ID}::text),
+      'goal.created',
+      jsonb_build_object('goalId', ${GOAL_ID}::text),
       ${ORGANIZATION},
-      'team',
-      ${TEAM_ID}
+      'goal',
+      ${GOAL_ID}
     )
   `)
 }
@@ -91,7 +94,7 @@ async function removeReferences(): Promise<void> {
   await db.execute(
     sql`DELETE FROM recent_activity_entries WHERE organization_id = ${ORGANIZATION}`,
   )
-  await db.execute(sql`DELETE FROM teams WHERE organization_id = ${ORGANIZATION}`)
+  await db.execute(sql`DELETE FROM goals WHERE organization_id = ${ORGANIZATION}`)
 }
 
 beforeAll(async () => {
@@ -116,7 +119,7 @@ describe('non-FK reference scanner (real PostgreSQL)', () => {
     const scan = () =>
       scanNonFkReferences(observed, {
         evaluatedAt: AS_OF,
-        referentTables: ['teams'],
+        referentTables: ['goals'],
         candidateTables: CANDIDATES,
       })
 
@@ -124,7 +127,7 @@ describe('non-FK reference scanner (real PostgreSQL)', () => {
     await seedReferences()
     const after = await scan()
 
-    // The activity entry names the team through (resource_type, resource_id);
+    // The activity entry names the goal through (resource_type, resource_id);
     // the outbox row embeds the same id inside its jsonb payload and in its
     // textual aggregate id. None of those is a foreign key.
     expect(
@@ -167,12 +170,12 @@ describe('non-FK reference scanner (real PostgreSQL)', () => {
     try {
       const report = await scanNonFkReferences(db, {
         evaluatedAt: AS_OF,
-        referentTables: ['teams'],
+        referentTables: ['goals'],
         candidateTables: CANDIDATES,
       })
       const serialized = JSON.stringify(report)
 
-      expect(serialized).not.toContain(TEAM_ID)
+      expect(serialized).not.toContain(GOAL_ID)
       expect(serialized).not.toContain(ORGANIZATION)
       expect(serialized).not.toContain(PROPERTY_ID)
       expect(serialized).toContain('resource_type')
@@ -190,8 +193,11 @@ describe('non-FK reference scanner (real PostgreSQL)', () => {
       db.transaction(
         async (snapshot) => {
           await snapshot.execute(
-            sql`INSERT INTO teams (id, organization_id, property_id, name)
-                VALUES (${randomUUID()}, ${ORGANIZATION}, ${PROPERTY_ID}, 'blocked')`,
+            sql`INSERT INTO goals
+                  (id, organization_id, property_id, name, created_by, goal_type,
+                   aggregation_function, metric_key, target_value)
+                VALUES (${randomUUID()}, ${ORGANIZATION}, ${PROPERTY_ID}, 'blocked',
+                        'actor-non-fk', 'property', 'sum', 'qualified_scans', 1)`,
           )
         },
         { isolationLevel: 'repeatable read', accessMode: 'read only' },

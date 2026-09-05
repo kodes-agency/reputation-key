@@ -266,7 +266,7 @@ function buildContainer(
   const staff = buildStaffContext({
     db,
     // BQC-2.3: property scope resolves from the identity-owned grant
-    // repository (ADR 0039) — never from staff_assignments.
+    // repository (ADR 0039).
     accessiblePropertyLookup: createGrantAccessLookup(db, clock),
     // Staff is built before portal (portal depends on staff.publicApi).
     // Late-binding closure: methods resolve portal at call time (runtime),

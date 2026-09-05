@@ -274,7 +274,7 @@ describe.sequential('shared context Organization lifecycle receipts', () => {
   it('gives each context its own idempotency identity for the same lineage', async () => {
     const current = request()
     await seedClosureRequested(current)
-    const contexts = ['inbox', 'review', 'team'] as const
+    const contexts = ['inbox', 'review', 'staff'] as const
     for (const context of contexts) {
       const scaffold = createOrganizationLifecycleContributorScaffold({
         db,
@@ -306,7 +306,7 @@ describe.sequential('shared context Organization lifecycle receipts', () => {
     expect(rows.rows.map((row: { context: string }) => row.context)).toEqual([
       'inbox',
       'review',
-      'team',
+      'staff',
     ])
   })
 

@@ -46,8 +46,6 @@ CREATE TYPE "public"."grant_kind" AS ENUM('full_access', 'manage', 'respond', 'v
 --> statement-breakpoint
 CREATE TYPE "public"."grant_status" AS ENUM('active', 'revoked');
 --> statement-breakpoint
-CREATE TYPE "public"."membership_role" AS ENUM('member', 'lead');
---> statement-breakpoint
 CREATE TYPE "public"."participation_status" AS ENUM('active', 'inactive', 'archived');
 --> statement-breakpoint
 CREATE TYPE "public"."responsibility_kind" AS ENUM('primary', 'supporting');
@@ -1481,111 +1479,6 @@ CREATE TABLE "audit_logs" (
 	"details" jsonb,
 	"success" boolean DEFAULT true NOT NULL,
 	"ip_address" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "badge_awards" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"badge_definition_id" uuid NOT NULL,
-	"criteria_version" integer NOT NULL,
-	"target_type" varchar(20) NOT NULL,
-	"target_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"portal_id" uuid,
-	"portal_group_id" uuid,
-	"awarded_at" timestamp with time zone NOT NULL,
-	"unique_key" varchar(255) NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "badge_definition_versions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"badge_definition_id" uuid NOT NULL,
-	"version" integer NOT NULL,
-	"name" varchar(200) NOT NULL,
-	"icon" varchar(50) NOT NULL,
-	"criteria" text NOT NULL,
-	"rule" text NOT NULL,
-	"metric_definition_version_id" uuid NOT NULL,
-	"aggregation" varchar(20) NOT NULL,
-	"threshold" numeric(30, 10) NOT NULL,
-	"minimum_exposure" integer NOT NULL,
-	"minimum_sample" integer NOT NULL,
-	"freshness_seconds" integer NOT NULL,
-	"minimum_completeness" numeric(6, 5) NOT NULL,
-	"effective_from" timestamp with time zone NOT NULL,
-	"effective_to" timestamp with time zone,
-	"employment_decision_eligible" boolean DEFAULT false NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "badge_definition_versions_aggregation_check" CHECK ("badge_definition_versions"."aggregation" IN ('sum', 'latest', 'ratio')),
-	CONSTRAINT "badge_definition_versions_thresholds_check" CHECK ("badge_definition_versions"."minimum_exposure" >= 1 AND "badge_definition_versions"."minimum_sample" >= 1 AND "badge_definition_versions"."freshness_seconds" > 0 AND "badge_definition_versions"."minimum_completeness" >= 0 AND "badge_definition_versions"."minimum_completeness" <= 1 AND "badge_definition_versions"."threshold" >= 0),
-	CONSTRAINT "badge_definition_versions_employment_check" CHECK ("badge_definition_versions"."employment_decision_eligible" = false)
-);
---> statement-breakpoint
-CREATE TABLE "badge_definitions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"key" varchar(100) NOT NULL,
-	"name" varchar(200) NOT NULL,
-	"description" text,
-	"icon" varchar(50) DEFAULT 'award' NOT NULL,
-	"target_scope" varchar(20) NOT NULL,
-	"criteria_version" integer DEFAULT 1 NOT NULL,
-	"criteria_json" jsonb NOT NULL,
-	"enabled" boolean DEFAULT true NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "recognition_award_status_facts" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"award_id" uuid NOT NULL,
-	"status" varchar(20) NOT NULL,
-	"correction_reference" varchar(255),
-	"replacement_award_id" uuid,
-	"replacement_organization_id" varchar(255),
-	"replacement_property_id" uuid,
-	"reason" text NOT NULL,
-	"occurred_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "recognition_award_status_replacement_check" CHECK (("recognition_award_status_facts"."status" = 'invalidated' AND "recognition_award_status_facts"."replacement_award_id" IS NULL AND "recognition_award_status_facts"."replacement_organization_id" IS NULL AND "recognition_award_status_facts"."replacement_property_id" IS NULL) OR ("recognition_award_status_facts"."status" = 'superseded' AND "recognition_award_status_facts"."replacement_award_id" IS NOT NULL AND "recognition_award_status_facts"."replacement_award_id" <> "recognition_award_status_facts"."award_id" AND "recognition_award_status_facts"."replacement_organization_id" = "recognition_award_status_facts"."organization_id" AND "recognition_award_status_facts"."replacement_property_id" = "recognition_award_status_facts"."property_id")),
-	CONSTRAINT "recognition_award_status_check" CHECK ("recognition_award_status_facts"."status" IN ('invalidated', 'superseded'))
-);
---> statement-breakpoint
-CREATE TABLE "recognition_awards" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"portal_group_id" uuid NOT NULL,
-	"definition_version_id" uuid NOT NULL,
-	"metric_definition_version_id" uuid NOT NULL,
-	"source_snapshot_id" uuid NOT NULL,
-	"source_fact_id" varchar(255) NOT NULL,
-	"source_watermark" timestamp with time zone NOT NULL,
-	"period_start" timestamp with time zone NOT NULL,
-	"period_end" timestamp with time zone NOT NULL,
-	"timezone" varchar(100) NOT NULL,
-	"sample_count" integer NOT NULL,
-	"exposure_count" integer NOT NULL,
-	"completeness" numeric(6, 5) NOT NULL,
-	"eligibility_reason" varchar(60) NOT NULL,
-	"definition_snapshot" jsonb NOT NULL,
-	"awarded_at" timestamp with time zone NOT NULL,
-	"employment_decision_eligible" boolean DEFAULT false NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "recognition_awards_period_check" CHECK ("recognition_awards"."period_end" > "recognition_awards"."period_start"),
-	CONSTRAINT "recognition_awards_evidence_check" CHECK ("recognition_awards"."sample_count" >= 1 AND "recognition_awards"."exposure_count" >= 1 AND "recognition_awards"."completeness" >= 0 AND "recognition_awards"."completeness" <= 1),
-	CONSTRAINT "recognition_awards_employment_check" CHECK ("recognition_awards"."employment_decision_eligible" = false)
-);
---> statement-breakpoint
-CREATE TABLE "organization_badge_enablements" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"badge_definition_id" uuid NOT NULL,
-	"enabled" boolean DEFAULT true NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -3644,7 +3537,7 @@ CREATE TABLE "context_organization_lifecycle_receipts" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "context_organization_lifecycle_receipts_pk" PRIMARY KEY("context","closure_lineage_id","lifecycle_revision","phase"),
 	CONSTRAINT "context_organization_lifecycle_receipts_revision_positive" CHECK ("context_organization_lifecycle_receipts"."lifecycle_revision" > 0),
-	CONSTRAINT "context_organization_lifecycle_receipts_context_valid" CHECK ("context_organization_lifecycle_receipts"."context" IN ('activity', 'ai', 'badge', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'leaderboard', 'metric', 'notification', 'portal', 'property', 'review', 'staff', 'team')),
+	CONSTRAINT "context_organization_lifecycle_receipts_context_valid" CHECK ("context_organization_lifecycle_receipts"."context" IN ('activity', 'ai', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'metric', 'notification', 'portal', 'property', 'review', 'staff')),
 	CONSTRAINT "context_organization_lifecycle_receipts_phase_valid" CHECK ("context_organization_lifecycle_receipts"."phase" IN ('closing', 'purge_readiness', 'purge')),
 	CONSTRAINT "context_organization_lifecycle_receipts_outcome_valid" CHECK ("context_organization_lifecycle_receipts"."outcome" IN ('complete', 'no_data')),
 	CONSTRAINT "context_organization_lifecycle_receipts_fingerprint_valid" CHECK ("context_organization_lifecycle_receipts"."request_fingerprint" ~ '^[a-f0-9]{64}$'),
@@ -3676,7 +3569,7 @@ CREATE TABLE "backup_erasure_ledger" (
 	"data_cell_id" varchar(16) NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "backup_erasure_ledger_subject_class_valid" CHECK ("backup_erasure_ledger"."subject_class" IN ('organization', 'property', 'privacy_subject')),
-	CONSTRAINT "backup_erasure_ledger_context_valid" CHECK ("backup_erasure_ledger"."context" IN ('activity', 'ai', 'badge', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'leaderboard', 'metric', 'notification', 'portal', 'property', 'review', 'staff', 'team')),
+	CONSTRAINT "backup_erasure_ledger_context_valid" CHECK ("backup_erasure_ledger"."context" IN ('activity', 'ai', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'metric', 'notification', 'portal', 'property', 'review', 'staff')),
 	CONSTRAINT "backup_erasure_ledger_cell_valid" CHECK ("backup_erasure_ledger"."data_cell_id" IN ('us', 'europe', 'global')),
 	CONSTRAINT "backup_erasure_ledger_revision_positive" CHECK ("backup_erasure_ledger"."lifecycle_revision" > 0),
 	CONSTRAINT "backup_erasure_ledger_count_nonnegative" CHECK ("backup_erasure_ledger"."erased_row_count" >= 0),
@@ -3857,146 +3750,6 @@ CREATE TABLE "invited_registration_attempts" (
         AND "invited_registration_attempts"."next_recovery_at" IS NULL
         AND "invited_registration_attempts"."lease_owner" IS NULL
       ))
-);
---> statement-breakpoint
-CREATE TABLE "leaderboard_entries" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"snapshot_id" uuid NOT NULL,
-	"rank" integer NOT NULL,
-	"target_type" varchar(20) NOT NULL,
-	"target_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"score" real NOT NULL,
-	"metric_value" real NOT NULL,
-	"normalized_score" real NOT NULL,
-	"updated_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "leaderboard_snapshots" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"property_id" uuid NOT NULL,
-	"period" varchar(30) NOT NULL,
-	"scope" varchar(20) NOT NULL,
-	"metric_key" varchar(100) NOT NULL,
-	"score_key" varchar(100) DEFAULT 'overall' NOT NULL,
-	"last_updated_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "recognition_activation_groups" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"activation_id" uuid NOT NULL,
-	"portal_group_id" uuid NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "recognition_activations" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"capability_policy_version" varchar(80) NOT NULL,
-	"jurisdiction" varchar(80) NOT NULL,
-	"notice_status" varchar(30) NOT NULL,
-	"consultation_status" varchar(30) NOT NULL,
-	"metric_definition_version_id" uuid NOT NULL,
-	"aggregation" varchar(20) NOT NULL,
-	"period_kind" varchar(20) NOT NULL,
-	"minimum_exposure" integer NOT NULL,
-	"minimum_sample" integer NOT NULL,
-	"freshness_seconds" integer NOT NULL,
-	"minimum_completeness" numeric(6, 5) NOT NULL,
-	"audience" varchar(80) NOT NULL,
-	"acknowledged_by" varchar(255) NOT NULL,
-	"acknowledged_at" timestamp with time zone NOT NULL,
-	"effective_from" timestamp with time zone NOT NULL,
-	"effective_to" timestamp with time zone,
-	"status" varchar(20) NOT NULL,
-	"deactivation_reason" text,
-	"employment_decision_eligible" boolean DEFAULT false NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "recognition_activations_status_check" CHECK ("recognition_activations"."status" IN ('active', 'inactive')),
-	CONSTRAINT "recognition_activations_notice_check" CHECK ("recognition_activations"."notice_status" = 'completed'),
-	CONSTRAINT "recognition_activations_consultation_check" CHECK ("recognition_activations"."consultation_status" IN ('completed', 'not_required')),
-	CONSTRAINT "recognition_activations_aggregation_check" CHECK ("recognition_activations"."aggregation" IN ('sum', 'latest', 'ratio')),
-	CONSTRAINT "recognition_activations_period_kind_check" CHECK ("recognition_activations"."period_kind" IN ('weekly', 'monthly', 'quarterly')),
-	CONSTRAINT "recognition_activations_thresholds_check" CHECK ("recognition_activations"."minimum_exposure" >= 1 AND "recognition_activations"."minimum_sample" >= 1 AND "recognition_activations"."freshness_seconds" > 0 AND "recognition_activations"."minimum_completeness" >= 0 AND "recognition_activations"."minimum_completeness" <= 1),
-	CONSTRAINT "recognition_activations_audience_check" CHECK ("recognition_activations"."audience" = 'property_managers_and_scoped_staff'),
-	CONSTRAINT "recognition_activations_employment_check" CHECK ("recognition_activations"."employment_decision_eligible" = false),
-	CONSTRAINT "recognition_activations_interval_check" CHECK ("recognition_activations"."effective_to" IS NULL OR "recognition_activations"."effective_to" > "recognition_activations"."effective_from")
-);
---> statement-breakpoint
-CREATE TABLE "recognition_board_entries" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"snapshot_id" uuid NOT NULL,
-	"portal_group_id" uuid NOT NULL,
-	"value" numeric(30, 10),
-	"numerator" numeric(30, 10),
-	"denominator" numeric(30, 10),
-	"sample_count" integer NOT NULL,
-	"exposure_count" integer NOT NULL,
-	"completeness" numeric(6, 5) NOT NULL,
-	"rank" integer,
-	"tie_group" integer,
-	"eligibility_reason" varchar(60) NOT NULL,
-	"status" varchar(20) NOT NULL,
-	"source_watermark" timestamp with time zone NOT NULL,
-	"correction_generation" integer DEFAULT 0 NOT NULL,
-	"employment_decision_eligible" boolean DEFAULT false NOT NULL,
-	"reconciled_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "recognition_board_entries_status_check" CHECK ("recognition_board_entries"."status" IN ('ranked', 'insufficient', 'stale', 'corrected')),
-	CONSTRAINT "recognition_board_entries_rank_status_check" CHECK (("recognition_board_entries"."status" IN ('ranked', 'corrected') AND "recognition_board_entries"."rank" >= 1 AND "recognition_board_entries"."tie_group" >= 1) OR ("recognition_board_entries"."status" IN ('insufficient', 'stale') AND "recognition_board_entries"."rank" IS NULL AND "recognition_board_entries"."tie_group" IS NULL)),
-	CONSTRAINT "recognition_board_entries_evidence_bounds_check" CHECK ("recognition_board_entries"."sample_count" >= 0 AND "recognition_board_entries"."exposure_count" >= 0 AND "recognition_board_entries"."completeness" >= 0 AND "recognition_board_entries"."completeness" <= 1),
-	CONSTRAINT "recognition_board_entries_ratio_consistency_check" CHECK (("recognition_board_entries"."numerator" IS NULL AND "recognition_board_entries"."denominator" IS NULL) OR ("recognition_board_entries"."numerator" IS NOT NULL AND "recognition_board_entries"."denominator" IS NOT NULL AND "recognition_board_entries"."denominator" > 0 AND "recognition_board_entries"."value" IS NOT NULL AND abs("recognition_board_entries"."value" - ("recognition_board_entries"."numerator" / "recognition_board_entries"."denominator")) < 0.0000000001)),
-	CONSTRAINT "recognition_board_entries_employment_check" CHECK ("recognition_board_entries"."employment_decision_eligible" = false)
-);
---> statement-breakpoint
-CREATE TABLE "recognition_board_snapshots" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"activation_id" uuid NOT NULL,
-	"metric_definition_id" uuid NOT NULL,
-	"metric_definition_version_id" uuid NOT NULL,
-	"aggregation" varchar(20) NOT NULL,
-	"period_kind" varchar(20) NOT NULL,
-	"period_start" timestamp with time zone NOT NULL,
-	"period_end" timestamp with time zone NOT NULL,
-	"timezone" varchar(100) NOT NULL,
-	"minimum_exposure" integer NOT NULL,
-	"minimum_sample" integer NOT NULL,
-	"freshness_seconds" integer NOT NULL,
-	"minimum_completeness" numeric(6, 5) NOT NULL,
-	"source_watermark" timestamp with time zone NOT NULL,
-	"status" varchar(20) NOT NULL,
-	"eligibility_reason" varchar(60),
-	"correction_generation" integer DEFAULT 0 NOT NULL,
-	"employment_decision_eligible" boolean DEFAULT false NOT NULL,
-	"reconciled_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "recognition_board_snapshots_aggregation_check" CHECK ("recognition_board_snapshots"."aggregation" IN ('sum', 'latest', 'ratio')),
-	CONSTRAINT "recognition_board_snapshots_period_check" CHECK ("recognition_board_snapshots"."period_kind" IN ('weekly', 'monthly', 'quarterly')),
-	CONSTRAINT "recognition_board_snapshots_status_check" CHECK ("recognition_board_snapshots"."status" IN ('building', 'ready', 'stale', 'insufficient', 'corrected')),
-	CONSTRAINT "recognition_board_snapshots_thresholds_check" CHECK ("recognition_board_snapshots"."minimum_exposure" >= 1 AND "recognition_board_snapshots"."minimum_sample" >= 1 AND "recognition_board_snapshots"."freshness_seconds" > 0 AND "recognition_board_snapshots"."minimum_completeness" >= 0 AND "recognition_board_snapshots"."minimum_completeness" <= 1),
-	CONSTRAINT "recognition_board_snapshots_period_bounds_check" CHECK ("recognition_board_snapshots"."period_end" > "recognition_board_snapshots"."period_start"),
-	CONSTRAINT "recognition_board_snapshots_employment_check" CHECK ("recognition_board_snapshots"."employment_decision_eligible" = false)
-);
---> statement-breakpoint
-CREATE TABLE "recognition_reconciliation_events" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"metric_definition_version_id" uuid NOT NULL,
-	"source_event_id" varchar(255) NOT NULL,
-	"correction_reference" varchar(255),
-	"source_watermark" timestamp with time zone NOT NULL,
-	"processed_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "metric_corrections" (
@@ -4453,33 +4206,6 @@ CREATE TABLE "staff_user_links" (
 	"created_by" varchar(255) NOT NULL,
 	"end_reason" text,
 	CONSTRAINT "staff_user_links_interval_valid" CHECK ("staff_user_links"."effective_to" IS NULL OR "staff_user_links"."effective_to" > "staff_user_links"."effective_from")
-);
---> statement-breakpoint
-CREATE TABLE "team_memberships" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"team_id" uuid NOT NULL,
-	"staff_participation_id" uuid NOT NULL,
-	"role" "membership_role" DEFAULT 'member' NOT NULL,
-	"effective_from" timestamp with time zone NOT NULL,
-	"effective_to" timestamp with time zone,
-	"created_by" varchar(255) NOT NULL,
-	"end_reason" text,
-	CONSTRAINT "tm_interval_valid" CHECK ("team_memberships"."effective_to" IS NULL OR "team_memberships"."effective_to" > "team_memberships"."effective_from")
-);
---> statement-breakpoint
-CREATE TABLE "team_portal_group_scopes" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"team_id" uuid NOT NULL,
-	"portal_group_id" uuid NOT NULL,
-	"effective_from" timestamp with time zone DEFAULT now() NOT NULL,
-	"effective_to" timestamp with time zone,
-	"created_by" varchar(255) NOT NULL,
-	"end_reason" text,
-	CONSTRAINT "tpgs_interval_valid" CHECK ("team_portal_group_scopes"."effective_to" IS NULL OR "team_portal_group_scopes"."effective_to" > "team_portal_group_scopes"."effective_from")
 );
 --> statement-breakpoint
 CREATE TABLE "organization_capability" (
@@ -6099,30 +5825,6 @@ CREATE TABLE "review_sync_state" (
 	CONSTRAINT "review_sync_state_property_id_source_pk" PRIMARY KEY("property_id","source")
 );
 --> statement-breakpoint
-CREATE TABLE "staff_assignments" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"user_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"team_id" uuid,
-	"portal_id" uuid,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"deleted_at" timestamp with time zone
-);
---> statement-breakpoint
-CREATE TABLE "teams" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"name" varchar(100) NOT NULL,
-	"description" text,
-	"team_lead_id" varchar(255),
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"deleted_at" timestamp with time zone
-);
---> statement-breakpoint
 CREATE INDEX "ai_admission_cost_reservations_release_idx" ON "ai_admission_cost_reservations" USING btree ("release_sha","state");
 --> statement-breakpoint
 CREATE INDEX "ai_admission_product_consumptions_reply_hour_idx" ON "ai_admission_product_consumptions" USING btree ("property_id","capability","accounted_at");
@@ -6210,22 +5912,6 @@ CREATE INDEX "recent_activity_vocabulary_reconciliations_org_time_idx" ON "recen
 CREATE INDEX "audit_logs_org_idx" ON "audit_logs" USING btree ("organization_id");
 --> statement-breakpoint
 CREATE INDEX "audit_logs_user_idx" ON "audit_logs" USING btree ("user_id");
---> statement-breakpoint
-CREATE INDEX "badge_awards_org_property_idx" ON "badge_awards" USING btree ("organization_id","property_id");
---> statement-breakpoint
-CREATE INDEX "badge_awards_target_idx" ON "badge_awards" USING btree ("target_type","target_id");
---> statement-breakpoint
-CREATE INDEX "badge_awards_portal_idx" ON "badge_awards" USING btree ("portal_id");
---> statement-breakpoint
-CREATE INDEX "badge_awards_group_idx" ON "badge_awards" USING btree ("portal_group_id");
---> statement-breakpoint
-CREATE INDEX "badge_definitions_target_scope_idx" ON "badge_definitions" USING btree ("target_scope");
---> statement-breakpoint
-CREATE INDEX "recognition_award_status_award_idx" ON "recognition_award_status_facts" USING btree ("award_id","occurred_at");
---> statement-breakpoint
-CREATE INDEX "recognition_awards_group_period_idx" ON "recognition_awards" USING btree ("organization_id","property_id","portal_group_id","period_end");
---> statement-breakpoint
-CREATE INDEX "org_badge_enablements_org_idx" ON "organization_badge_enablements" USING btree ("organization_id");
 --> statement-breakpoint
 CREATE INDEX "beta_feedback_triage_work_queue_idx" ON "beta_feedback_triage" USING btree ("owner_queue","triage_state","updated_at" desc);
 --> statement-breakpoint
@@ -6433,22 +6119,6 @@ CREATE INDEX "privacy_requests_subject_idx" ON "privacy_requests" USING btree ("
 --> statement-breakpoint
 CREATE INDEX "invited_registration_recovery_due_idx" ON "invited_registration_attempts" USING btree ("next_recovery_at","created_at") WHERE "invited_registration_attempts"."state" = 'prepared';
 --> statement-breakpoint
-CREATE INDEX "leaderboard_entries_snapshot_rank_idx" ON "leaderboard_entries" USING btree ("snapshot_id","rank");
---> statement-breakpoint
-CREATE INDEX "leaderboard_entries_target_idx" ON "leaderboard_entries" USING btree ("target_type","target_id");
---> statement-breakpoint
-CREATE INDEX "leaderboard_snapshots_property_idx" ON "leaderboard_snapshots" USING btree ("property_id");
---> statement-breakpoint
-CREATE INDEX "recognition_activation_groups_scope_idx" ON "recognition_activation_groups" USING btree ("organization_id","property_id","portal_group_id");
---> statement-breakpoint
-CREATE INDEX "recognition_activations_property_status_idx" ON "recognition_activations" USING btree ("organization_id","property_id","status");
---> statement-breakpoint
-CREATE INDEX "recognition_board_entries_rank_idx" ON "recognition_board_entries" USING btree ("snapshot_id","rank");
---> statement-breakpoint
-CREATE INDEX "recognition_board_snapshots_property_period_idx" ON "recognition_board_snapshots" USING btree ("organization_id","property_id","period_end");
---> statement-breakpoint
-CREATE INDEX "recognition_reconciliation_events_watermark_idx" ON "recognition_reconciliation_events" USING btree ("organization_id","property_id","source_watermark");
---> statement-breakpoint
 CREATE INDEX "metric_corrections_reading_idx" ON "metric_corrections" USING btree ("reading_id","recorded_at");
 --> statement-breakpoint
 CREATE INDEX "metric_current_google_reputation_scope_idx" ON "metric_current_google_reputation_snapshots" USING btree ("organization_id","property_id");
@@ -6508,12 +6178,6 @@ CREATE INDEX "sp_org_prop_user_idx" ON "staff_participations" USING btree ("orga
 CREATE INDEX "staff_user_links_org_participant_idx" ON "staff_user_links" USING btree ("organization_id","staff_participant_id");
 --> statement-breakpoint
 CREATE INDEX "staff_user_links_org_user_idx" ON "staff_user_links" USING btree ("organization_id","user_id");
---> statement-breakpoint
-CREATE INDEX "tm_org_team_idx" ON "team_memberships" USING btree ("organization_id","team_id");
---> statement-breakpoint
-CREATE INDEX "tm_org_part_idx" ON "team_memberships" USING btree ("organization_id","staff_participation_id");
---> statement-breakpoint
-CREATE INDEX "tpgs_org_team_idx" ON "team_portal_group_scopes" USING btree ("organization_id","property_id","team_id");
 --> statement-breakpoint
 CREATE INDEX "policy_decision_audit_org_time_idx" ON "policy_decision_audit" USING btree ("organization_id","occurred_at" DESC NULLS LAST);
 --> statement-breakpoint
@@ -6635,16 +6299,6 @@ CREATE INDEX "review_sync_state_due_incremental_idx" ON "review_sync_state" USIN
 --> statement-breakpoint
 CREATE INDEX "review_sync_state_lease_expired_idx" ON "review_sync_state" USING btree ("lease_until") WHERE lease_until IS NOT NULL;
 --> statement-breakpoint
-CREATE INDEX "staff_assignments_org_user_idx" ON "staff_assignments" USING btree ("organization_id","user_id");
---> statement-breakpoint
-CREATE INDEX "staff_assignments_org_property_idx" ON "staff_assignments" USING btree ("organization_id","property_id");
---> statement-breakpoint
-CREATE INDEX "staff_assignments_org_team_idx" ON "staff_assignments" USING btree ("organization_id","team_id");
---> statement-breakpoint
-CREATE INDEX "staff_assignments_org_portal_idx" ON "staff_assignments" USING btree ("organization_id","portal_id");
---> statement-breakpoint
-CREATE INDEX "teams_org_property_idx" ON "teams" USING btree ("organization_id","property_id");
---> statement-breakpoint
 CREATE UNIQUE INDEX "ai_authorization_lifecycle_event_unique" ON "ai_authorization_lifecycle_records" USING btree ("event_envelope_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "ai_authorization_lifecycle_authorization_unique" ON "ai_authorization_lifecycle_records" USING btree ("authorization_lineage_id","authorization_state_version","organization_id","property_id");
@@ -6698,20 +6352,6 @@ CREATE UNIQUE INDEX "operational_action_history_org_sequence_uniq" ON "operation
 CREATE UNIQUE INDEX "operational_action_history_provenance_uniq" ON "operational_action_history_records" USING btree ("organization_id","provenance_kind","provenance_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "recent_activity_entries_event_id_org_uniq" ON "recent_activity_entries" USING btree ("event_id","organization_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "badge_awards_unique_key_unique" ON "badge_awards" USING btree ("unique_key");
---> statement-breakpoint
-CREATE UNIQUE INDEX "badge_definition_versions_number_unique" ON "badge_definition_versions" USING btree ("badge_definition_id","version");
---> statement-breakpoint
-CREATE UNIQUE INDEX "badge_definitions_key_unique" ON "badge_definitions" USING btree ("key");
---> statement-breakpoint
-CREATE UNIQUE INDEX "recognition_award_status_correction_unique" ON "recognition_award_status_facts" USING btree ("award_id","correction_reference") WHERE "recognition_award_status_facts"."correction_reference" IS NOT NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "recognition_awards_source_fact_unique" ON "recognition_awards" USING btree ("organization_id","property_id","source_fact_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "recognition_awards_scope_id_key" ON "recognition_awards" USING btree ("organization_id","property_id","id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "org_badge_enablements_org_definition_unique" ON "organization_badge_enablements" USING btree ("organization_id","badge_definition_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "beta_feedback_triage_provider_reference_unique" ON "beta_feedback_triage" USING btree ("provider_reference");
 --> statement-breakpoint
@@ -6821,22 +6461,6 @@ CREATE UNIQUE INDEX "invited_registration_invitation_ordinal_unique" ON "invited
 --> statement-breakpoint
 CREATE UNIQUE INDEX "invited_registration_one_unresolved_per_invitation" ON "invited_registration_attempts" USING btree ("invitation_id") WHERE "invited_registration_attempts"."state" IN ('prepared', 'manual_review');
 --> statement-breakpoint
-CREATE UNIQUE INDEX "leaderboard_snapshots_key_unique" ON "leaderboard_snapshots" USING btree ("property_id","period","scope","metric_key","score_key");
---> statement-breakpoint
-CREATE UNIQUE INDEX "recognition_activation_groups_unique" ON "recognition_activation_groups" USING btree ("activation_id","portal_group_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "recognition_activations_active_property_unique" ON "recognition_activations" USING btree ("organization_id","property_id") WHERE "recognition_activations"."status" = 'active' AND "recognition_activations"."effective_to" IS NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "recognition_activations_scope_id_key" ON "recognition_activations" USING btree ("organization_id","property_id","id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "recognition_board_entries_snapshot_group_unique" ON "recognition_board_entries" USING btree ("snapshot_id","portal_group_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "recognition_board_snapshots_key_unique" ON "recognition_board_snapshots" USING btree ("organization_id","property_id","period_start","period_end","metric_definition_version_id","source_watermark","correction_generation");
---> statement-breakpoint
-CREATE UNIQUE INDEX "recognition_board_snapshots_scope_id_key" ON "recognition_board_snapshots" USING btree ("organization_id","property_id","id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "recognition_reconciliation_events_source_unique" ON "recognition_reconciliation_events" USING btree ("organization_id","property_id","metric_definition_version_id","source_event_id");
---> statement-breakpoint
 CREATE UNIQUE INDEX "metric_corrections_source_unique" ON "metric_corrections" USING btree ("source_event_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "metric_corrections_supersedes_unique" ON "metric_corrections" USING btree ("supersedes_correction_id") WHERE "metric_corrections"."supersedes_correction_id" IS NOT NULL;
@@ -6908,12 +6532,6 @@ CREATE UNIQUE INDEX "sp_org_property_id_participant_key" ON "staff_participation
 CREATE UNIQUE INDEX "staff_user_links_unique_active_participant" ON "staff_user_links" USING btree ("organization_id","staff_participant_id") WHERE effective_to IS NULL;
 --> statement-breakpoint
 CREATE UNIQUE INDEX "staff_user_links_unique_active_user" ON "staff_user_links" USING btree ("organization_id","user_id") WHERE effective_to IS NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "tm_unique_active_lead" ON "team_memberships" USING btree ("organization_id","team_id") WHERE role = 'lead' AND effective_to IS NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "tm_unique_active_participation" ON "team_memberships" USING btree ("organization_id","property_id","staff_participation_id") WHERE effective_to IS NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "tpgs_unique_active" ON "team_portal_group_scopes" USING btree ("organization_id","property_id","team_id","portal_group_id") WHERE effective_to IS NULL;
 --> statement-breakpoint
 CREATE UNIQUE INDEX "policy_consent_active_unique" ON "policy_consent" USING btree ("organization_id","subject_type","subject_id","purpose") WHERE "policy_consent"."state" = 'granted';
 --> statement-breakpoint
@@ -7049,18 +6667,6 @@ CREATE UNIQUE INDEX "reviews_tenant_identity_unique" ON "reviews" USING btree ("
 --> statement-breakpoint
 CREATE UNIQUE INDEX "reviews_org_id_key" ON "reviews" USING btree ("organization_id","id");
 --> statement-breakpoint
-CREATE UNIQUE INDEX "staff_assignments_unique_direct" ON "staff_assignments" USING btree ("organization_id","user_id","property_id") WHERE team_id IS NULL AND portal_id IS NULL AND deleted_at IS NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "staff_assignments_unique_portal" ON "staff_assignments" USING btree ("organization_id","user_id","property_id","portal_id") WHERE team_id IS NULL AND portal_id IS NOT NULL AND deleted_at IS NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "staff_assignments_unique_team" ON "staff_assignments" USING btree ("organization_id","user_id","property_id","team_id") WHERE team_id IS NOT NULL AND portal_id IS NULL AND deleted_at IS NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "staff_assignments_unique_team_portal" ON "staff_assignments" USING btree ("organization_id","user_id","property_id","team_id","portal_id") WHERE team_id IS NOT NULL AND portal_id IS NOT NULL AND deleted_at IS NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "teams_org_property_name_unique" ON "teams" USING btree ("organization_id","property_id","name") WHERE deleted_at IS NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "teams_org_property_id_key" ON "teams" USING btree ("organization_id","property_id","id");
---> statement-breakpoint
 ALTER TABLE "ai_admission_cost_reservations" ADD CONSTRAINT "ai_admission_cost_reservations_permit_id_ai_execution_permits_id_fk" FOREIGN KEY ("permit_id") REFERENCES "public"."ai_execution_permits"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "ai_admission_cost_reservations" ADD CONSTRAINT "ai_admission_cost_reservations_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
@@ -7190,32 +6796,6 @@ ALTER TABLE "ai_routing_policies" ADD CONSTRAINT "ai_routing_policies_provider_d
 ALTER TABLE "ai_runtime_capability_profiles" ADD CONSTRAINT "ai_runtime_capability_profiles_operation_profile_version_ai_operation_profiles_profile_version_fk" FOREIGN KEY ("operation_profile_version") REFERENCES "public"."ai_operation_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "ai_runtime_capability_profiles" ADD CONSTRAINT "ai_runtime_capability_profiles_provider_deployment_profile_version_ai_provider_deployment_profiles_profile_version_fk" FOREIGN KEY ("provider_deployment_profile_version") REFERENCES "public"."ai_provider_deployment_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "badge_awards" ADD CONSTRAINT "badge_awards_badge_definition_id_badge_definitions_id_fk" FOREIGN KEY ("badge_definition_id") REFERENCES "public"."badge_definitions"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "badge_awards" ADD CONSTRAINT "badge_awards_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "badge_awards" ADD CONSTRAINT "badge_awards_portal_id_portals_id_fk" FOREIGN KEY ("portal_id") REFERENCES "public"."portals"("id") ON DELETE set null ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "badge_awards" ADD CONSTRAINT "badge_awards_portal_group_id_portal_groups_id_fk" FOREIGN KEY ("portal_group_id") REFERENCES "public"."portal_groups"("id") ON DELETE set null ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "badge_definition_versions" ADD CONSTRAINT "badge_definition_versions_badge_definition_id_badge_definitions_id_fk" FOREIGN KEY ("badge_definition_id") REFERENCES "public"."badge_definitions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "badge_definition_versions" ADD CONSTRAINT "badge_definition_versions_metric_definition_version_id_metric_definition_versions_id_fk" FOREIGN KEY ("metric_definition_version_id") REFERENCES "public"."metric_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_award_status_facts" ADD CONSTRAINT "recognition_award_status_award_tenant_fk" FOREIGN KEY ("organization_id","property_id","award_id") REFERENCES "public"."recognition_awards"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_award_status_facts" ADD CONSTRAINT "recognition_award_status_replacement_tenant_fk" FOREIGN KEY ("replacement_organization_id","replacement_property_id","replacement_award_id") REFERENCES "public"."recognition_awards"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_awards" ADD CONSTRAINT "recognition_awards_definition_version_id_badge_definition_versions_id_fk" FOREIGN KEY ("definition_version_id") REFERENCES "public"."badge_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_awards" ADD CONSTRAINT "recognition_awards_metric_definition_version_id_metric_definition_versions_id_fk" FOREIGN KEY ("metric_definition_version_id") REFERENCES "public"."metric_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_awards" ADD CONSTRAINT "recognition_awards_portal_group_tenant_fk" FOREIGN KEY ("organization_id","property_id","portal_group_id") REFERENCES "public"."portal_groups"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_awards" ADD CONSTRAINT "recognition_awards_source_snapshot_tenant_fk" FOREIGN KEY ("organization_id","property_id","source_snapshot_id") REFERENCES "public"."recognition_board_snapshots"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "organization_badge_enablements" ADD CONSTRAINT "organization_badge_enablements_badge_definition_id_badge_definitions_id_fk" FOREIGN KEY ("badge_definition_id") REFERENCES "public"."badge_definitions"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "beta_feedback_triage" ADD CONSTRAINT "beta_feedback_triage_duplicate_reference_fk" FOREIGN KEY ("duplicate_of_reference") REFERENCES "public"."beta_feedback_triage"("reference") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
@@ -7419,32 +6999,6 @@ ALTER TABLE "property_erase_context_receipts" ADD CONSTRAINT "property_erase_con
 --> statement-breakpoint
 ALTER TABLE "privacy_request_transitions" ADD CONSTRAINT "privacy_request_transitions_request_id_privacy_requests_id_fk" FOREIGN KEY ("request_id") REFERENCES "public"."privacy_requests"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "leaderboard_entries" ADD CONSTRAINT "leaderboard_entries_snapshot_id_leaderboard_snapshots_id_fk" FOREIGN KEY ("snapshot_id") REFERENCES "public"."leaderboard_snapshots"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "leaderboard_entries" ADD CONSTRAINT "leaderboard_entries_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "leaderboard_snapshots" ADD CONSTRAINT "leaderboard_snapshots_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_activation_groups" ADD CONSTRAINT "recognition_activation_groups_activation_tenant_fk" FOREIGN KEY ("organization_id","property_id","activation_id") REFERENCES "public"."recognition_activations"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_activation_groups" ADD CONSTRAINT "recognition_activation_groups_portal_group_tenant_fk" FOREIGN KEY ("organization_id","property_id","portal_group_id") REFERENCES "public"."portal_groups"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_activations" ADD CONSTRAINT "recognition_activations_metric_definition_version_id_metric_definition_versions_id_fk" FOREIGN KEY ("metric_definition_version_id") REFERENCES "public"."metric_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_activations" ADD CONSTRAINT "recognition_activations_property_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_board_entries" ADD CONSTRAINT "recognition_board_entries_snapshot_tenant_fk" FOREIGN KEY ("organization_id","property_id","snapshot_id") REFERENCES "public"."recognition_board_snapshots"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_board_entries" ADD CONSTRAINT "recognition_board_entries_portal_group_tenant_fk" FOREIGN KEY ("organization_id","property_id","portal_group_id") REFERENCES "public"."portal_groups"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_board_snapshots" ADD CONSTRAINT "recognition_board_snapshots_metric_definition_id_metric_definitions_id_fk" FOREIGN KEY ("metric_definition_id") REFERENCES "public"."metric_definitions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_board_snapshots" ADD CONSTRAINT "recognition_board_snapshots_metric_definition_version_id_metric_definition_versions_id_fk" FOREIGN KEY ("metric_definition_version_id") REFERENCES "public"."metric_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_board_snapshots" ADD CONSTRAINT "recognition_board_snapshots_activation_tenant_fk" FOREIGN KEY ("organization_id","property_id","activation_id") REFERENCES "public"."recognition_activations"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "recognition_reconciliation_events" ADD CONSTRAINT "recognition_reconciliation_events_metric_definition_version_id_metric_definition_versions_id_fk" FOREIGN KEY ("metric_definition_version_id") REFERENCES "public"."metric_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "metric_corrections" ADD CONSTRAINT "metric_corrections_reading_id_metric_readings_id_fk" FOREIGN KEY ("reading_id") REFERENCES "public"."metric_readings"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "metric_corrections" ADD CONSTRAINT "metric_corrections_supersedes_correction_id_metric_corrections_id_fk" FOREIGN KEY ("supersedes_correction_id") REFERENCES "public"."metric_corrections"("id") ON DELETE restrict ON UPDATE no action;
@@ -7518,18 +7072,6 @@ ALTER TABLE "staff_participations" ADD CONSTRAINT "sp_property_tenant_fk" FOREIG
 ALTER TABLE "staff_participations" ADD CONSTRAINT "sp_participant_tenant_fk" FOREIGN KEY ("organization_id","staff_participant_id") REFERENCES "public"."staff_participants"("organization_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "staff_user_links" ADD CONSTRAINT "staff_user_links_participant_tenant_fk" FOREIGN KEY ("organization_id","staff_participant_id") REFERENCES "public"."staff_participants"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "team_memberships" ADD CONSTRAINT "team_memberships_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "team_memberships" ADD CONSTRAINT "team_memberships_staff_participation_id_staff_participations_id_fk" FOREIGN KEY ("staff_participation_id") REFERENCES "public"."staff_participations"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "team_memberships" ADD CONSTRAINT "tm_team_tenant_fk" FOREIGN KEY ("organization_id","property_id","team_id") REFERENCES "public"."teams"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "team_memberships" ADD CONSTRAINT "tm_participation_tenant_fk" FOREIGN KEY ("organization_id","property_id","staff_participation_id") REFERENCES "public"."staff_participations"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "team_portal_group_scopes" ADD CONSTRAINT "tpgs_team_tenant_fk" FOREIGN KEY ("organization_id","property_id","team_id") REFERENCES "public"."teams"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "team_portal_group_scopes" ADD CONSTRAINT "tpgs_portal_group_tenant_fk" FOREIGN KEY ("organization_id","property_id","portal_group_id") REFERENCES "public"."portal_groups"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "organization_capability" ADD CONSTRAINT "organization_capability_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
@@ -7680,13 +7222,3 @@ ALTER TABLE "reviews" ADD CONSTRAINT "reviews_property_id_properties_id_fk" FORE
 ALTER TABLE "reviews" ADD CONSTRAINT "reviews_google_connection_id_google_connections_id_fk" FOREIGN KEY ("google_connection_id") REFERENCES "public"."google_connections"("id") ON DELETE set null ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "reviews" ADD CONSTRAINT "reviews_property_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "staff_assignments" ADD CONSTRAINT "staff_assignments_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "staff_assignments" ADD CONSTRAINT "staff_assignments_team_id_teams_id_fk" FOREIGN KEY ("team_id") REFERENCES "public"."teams"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "staff_assignments" ADD CONSTRAINT "staff_assignments_portal_id_portals_id_fk" FOREIGN KEY ("portal_id") REFERENCES "public"."portals"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "teams" ADD CONSTRAINT "teams_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "teams" ADD CONSTRAINT "teams_property_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE restrict ON UPDATE no action;

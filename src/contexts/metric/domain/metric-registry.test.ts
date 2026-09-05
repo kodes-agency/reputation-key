@@ -102,7 +102,7 @@ describe('MetricRegistry', () => {
 
     it('returns false for non-permitted consumer', () => {
       const v = makeVersion()
-      expect(isConsumerPermitted(v, 'badge')).toBe(false)
+      expect(isConsumerPermitted(v, 'notification')).toBe(false)
     })
   })
 
@@ -152,10 +152,10 @@ describe('MetricRegistry', () => {
       expect(isGamificationViolation(v)).toBe(true)
     })
 
-    it('returns true when review-solicitation source is used for badges', () => {
+    it('returns true when review-solicitation source feeds a Goal', () => {
       const v = makeVersion({
         sourcePolicyAllowlist: ['review_solicitation_analytics_only'],
-        permittedConsumers: ['badge'],
+        permittedConsumers: ['goal'],
       })
       expect(isGamificationViolation(v)).toBe(true)
     })

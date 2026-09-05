@@ -3,7 +3,7 @@
 // Single source for the guest-event → metric_reading wrapper: trace span,
 // group resolution with degradation (a findGroupForPortal failure must not
 // block metric recording — degrade to groupId: null so the reading still
-// lands for portal-scoped badges/leaderboards), and the failure-isolated
+// lands for portal-scoped surfaces), and the failure-isolated
 // try/catch that logs instead of propagating. The 4 portal-metric handlers
 // are one-liners over this factory.
 

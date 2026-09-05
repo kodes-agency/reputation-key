@@ -848,37 +848,6 @@ const goalMonthlyResultRevisedSchema = goalMonthlyResultBaseSchema
     }
   })
 
-// ── Team/Staff event schemas ────────────────────────────────────────
-
-const teamEventSchema = z.object({
-  teamId: z.string(),
-  organizationId: z.string(),
-  propertyId: z.string(),
-})
-
-// BQC-3.5: staff schemas corrected IN PLACE at version 1 — no version bump.
-// Justification: they never successfully recorded — the producer payloads
-// carry assignmentId/userId/portalId (NO staffId), so every insert would
-// have thrown invalid_payload, and the staff build never passed outboxRepo.
-// Zero historical rows exist for these types. The activity consumer reads
-// assignmentId/propertyId/organizationId/userId — domain side wins.
-const staffAssignedSchema = z.object({
-  assignmentId: z.string(),
-  organizationId: z.string(),
-  userId: z.string(),
-  propertyId: z.string(),
-  teamId: z.string().nullable().optional(),
-  portalId: z.string().nullable().optional(),
-})
-
-const staffUnassignedSchema = z.object({
-  assignmentId: z.string(),
-  organizationId: z.string(),
-  userId: z.string(),
-  propertyId: z.string(),
-  portalId: z.string().nullable().optional(),
-})
-
 // ── Identity event schemas ──────────────────────────────────────────
 
 const memberInvitedV2Schema = z.object({
@@ -1642,33 +1611,6 @@ export function registerAllEventSchemas(): void {
     type: 'goal.monthly_result.revised',
     version: EVENT_VERSION,
     schema: goalMonthlyResultRevisedSchema,
-  })
-
-  // Team/Staff events (consumed by activity)
-  registerEventSchema({
-    type: 'team.created',
-    version: EVENT_VERSION,
-    schema: teamEventSchema,
-  })
-  registerEventSchema({
-    type: 'team.updated',
-    version: EVENT_VERSION,
-    schema: teamEventSchema,
-  })
-  registerEventSchema({
-    type: 'team.deleted',
-    version: EVENT_VERSION,
-    schema: teamEventSchema,
-  })
-  registerEventSchema({
-    type: 'staff.assigned',
-    version: EVENT_VERSION,
-    schema: staffAssignedSchema,
-  })
-  registerEventSchema({
-    type: 'staff.unassigned',
-    version: EVENT_VERSION,
-    schema: staffUnassignedSchema,
   })
 
   // Identity events (consumed by activity)

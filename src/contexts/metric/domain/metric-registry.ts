@@ -22,14 +22,7 @@ export type SourcePolicyClass =
   | 'manager_confirmed_recognition'
 export type MetricScope = 'property' | 'portal_group' | 'portal'
 export type PermittedConsumer =
-  | 'dashboard'
-  | 'goal'
-  | 'badge'
-  | 'leaderboard'
-  | 'recognition'
-  | 'notification'
-  | 'export'
-  | 'portal_analytics'
+  'dashboard' | 'goal' | 'recognition' | 'notification' | 'export' | 'portal_analytics'
 
 export type InsufficientDataBehavior = 'unavailable' | 'quarantine'
 
@@ -164,11 +157,7 @@ const GAMIFICATION_BLOCKED_SOURCES: ReadonlySet<SourcePolicyClass> = new Set([
   'first_party_guest_private',
 ])
 
-const GAMIFICATION_CONSUMERS: ReadonlySet<PermittedConsumer> = new Set([
-  'goal',
-  'badge',
-  'leaderboard',
-])
+const GAMIFICATION_CONSUMERS: ReadonlySet<PermittedConsumer> = new Set(['goal'])
 
 export function isGamificationViolation(version: MetricDefinitionVersion): boolean {
   const hasGamificationConsumer = version.permittedConsumers.some((c) =>

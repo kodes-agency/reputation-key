@@ -1,7 +1,7 @@
 // Dynamic Access Control (ADR 0001) — app-owned tables.
 //
 // permission_version: per-org monotonic counter bumped by Postgres triggers on
-//   member / organizationRole / organization_role_policy / staff_assignments /
+//   member / organizationRole / organization_role_policy /
 //   property_access_grant mutations (the raw-SQL migration in scripts/migrations/).
 //   The resolver keys its tenant-context cache on this version, so any
 //   role/assignment/grant change — including Better Auth's own writes to

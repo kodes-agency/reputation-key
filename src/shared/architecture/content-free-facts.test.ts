@@ -31,8 +31,6 @@ const REGISTER: Readonly<Record<string, string>> = {
   // By-design non-sensitive display names (no PII, no review content).
   'PortalGroupCreated.name': 'by-design non-sensitive display name',
   'PortalGroupUpdated.name': 'by-design non-sensitive display name',
-  'TeamCreated.name': 'by-design non-sensitive display name',
-  'TeamUpdated.name': 'by-design non-sensitive display name',
   // 1–5 star rating value — a numeric fact, not content.
   'GuestRatingSubmitted.value': '1-5 numeric fact',
   // Closed Portal Health vocabulary — enum codes, never operator/guest prose.

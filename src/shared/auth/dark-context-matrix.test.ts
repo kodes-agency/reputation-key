@@ -1,10 +1,9 @@
 // BQC-2.6 / ADR 0049 — controlled-feature containment matrix.
 //
-// Team, Portal, Guest, Goal, Badge, Leaderboard, email, and AI stay off by
-// default. Most are promotable through scoped persisted policy; portal.upload
-// is temporarily safety-blocked. This file keeps the negative default-posture
-// contract; positive P1/P2 scope tests live with ExecutionPolicy and the
-// product journeys.
+// Portal, Guest, Goal, email, and AI stay off by default. Most are promotable
+// through scoped persisted policy; portal.upload is temporarily safety-blocked.
+// This file keeps the negative default-posture contract; positive P1/P2 scope
+// tests live with ExecutionPolicy and the product journeys.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
@@ -55,28 +54,10 @@ const DARK: ReadonlyArray<
     category: 'needs_admin_enablement',
   },
   {
-    capability: 'team.use',
-    reason: 'capability_blocked',
-    label: 'Teams',
-    category: 'not_in_beta',
-  },
-  {
     capability: 'goal.use',
     reason: 'org_not_allowlisted',
     label: 'Goals',
     category: 'needs_admin_enablement',
-  },
-  {
-    capability: 'badge.use',
-    reason: 'capability_blocked',
-    label: 'Recognition',
-    category: 'not_in_beta',
-  },
-  {
-    capability: 'leaderboard.use',
-    reason: 'capability_blocked',
-    label: 'Leaderboard',
-    category: 'not_in_beta',
   },
   {
     capability: 'ai.analyze',
@@ -214,10 +195,10 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
   })
 
   describe('delayed contract: dark job/schedule actions deny (BQC-2.5 contract)', () => {
-    it('retired leaderboard work is unknown while promotable email remains gated', async () => {
+    it('unknown work is refused while promotable email remains gated', async () => {
       const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
       const cases: ReadonlyArray<readonly [string, string]> = [
-        ['system:leaderboard.reconcile', 'unknown_action'],
+        ['system:unknown.action', 'unknown_action'],
         ['system:notification.email_digest', 'org_not_allowlisted'],
       ]
       for (const [action, reason] of cases) {

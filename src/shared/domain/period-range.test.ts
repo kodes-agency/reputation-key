@@ -1,4 +1,4 @@
-// Shared period-range tests — merged from the badge/leaderboard copies (BQC-5.9 E3).
+// Shared period-range tests.
 
 import { describe, it, expect } from 'vitest'
 import {

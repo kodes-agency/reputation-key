@@ -35,11 +35,6 @@ export type Permission =
   | 'property.admin'
   | 'property.import_gbp_v2'
   | 'property.read_gbp_performance'
-  | 'team.create'
-  | 'team.update'
-  | 'team.delete'
-  | 'team.read'
-  | 'team.membership.manage'
   | 'staff.read'
   | 'staff.manage'
   // Reserved for future use — access control context (not yet implemented)
@@ -77,9 +72,6 @@ export type Permission =
   | 'identity.leave_org' // Reserved for future use — leave-org flow not yet permission-gated
   | 'dashboard.read'
   | 'dashboard.fleet_read'
-  | 'badge.read'
-  | 'badge.manage'
-  | 'leaderboard.read'
   | 'goal.read'
   | 'goal.create'
   | 'goal.update'

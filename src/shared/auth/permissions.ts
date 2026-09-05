@@ -35,7 +35,6 @@ export const statement = {
     'import_gbp_v2',
     'read_gbp_performance',
   ],
-  team: ['read', 'create', 'update', 'delete', 'membership.manage'],
   staff: ['read', 'manage'],
   ac: ['create', 'read', 'update', 'delete'],
   // `admin` is Property-wide Portal authority (brand and custom destination
@@ -45,8 +44,6 @@ export const statement = {
   reply: ['manage'],
   feedback: ['read', 'handle', 'respond', 'contact_read'],
   goal: ['read', 'create', 'update', 'cancel'],
-  badge: ['read', 'manage'],
-  leaderboard: ['read'],
   inbox: ['read', 'write', 'manage'],
   notification: ['read', 'update'],
   integration: ['manage'],
@@ -71,10 +68,7 @@ export const ac = createAccessControl(statement)
 // Three roles matching better-auth's organization plugin defaults.
 // owner = AccountAdmin, admin = PropertyManager, member = Staff.
 
-// Team actions remain in the statement only so quarantined historical role
-// records and hard-denied server functions can still be parsed. No beta role
-// receives them; `team.use` is also unconditionally blocked at execution.
-export const owner = ac.newRole({ ...statement, team: [] })
+export const owner = ac.newRole({ ...statement })
 
 export const admin = ac.newRole({
   member: ['create', 'list'],
@@ -86,8 +80,6 @@ export const admin = ac.newRole({
   review: ['read'],
   reply: ['manage'],
   feedback: ['read', 'handle', 'respond', 'contact_read'],
-  badge: ['read', 'manage'],
-  leaderboard: ['read'],
   inbox: ['read', 'write', 'manage'],
   notification: ['read', 'update'],
   organization: ['update'],
@@ -107,8 +99,6 @@ export const memberRole = ac.newRole({
   property: ['read'],
   review: ['read'],
   dashboard: ['read'],
-  badge: ['read'],
-  leaderboard: ['read'],
   portal: ['read'],
   staff: ['read'],
   notification: ['read', 'update'],

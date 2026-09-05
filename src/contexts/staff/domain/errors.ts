@@ -7,13 +7,9 @@ export type StaffErrorCode =
   | 'invalid_input'
   | 'participation_not_found'
   | 'participation_archived'
-  | 'user_not_member'
   | 'responsibility_conflict'
   | 'revision_conflict'
   | 'property_not_found'
-  | 'team_not_found'
-  | 'assignment_not_found'
-  | 'already_assigned'
 export type StaffError = Readonly<{
   _tag: 'StaffError'
   code: StaffErrorCode

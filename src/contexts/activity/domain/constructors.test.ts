@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import { createRecentActivityEntry } from './constructors'
 import {
   ACTIVITY_ACTIONS,
-  ACTIVITY_RESOURCE_TYPES,
   RECENT_ACTIVITY_KINDS,
   type ActivityAction,
   type ResourceType,
@@ -75,9 +74,8 @@ describe('createRecentActivityEntry', () => {
 
   it('keeps legacy action/resource values readable but rejects them for new entries', () => {
     expect(ACTIVITY_ACTIONS).toContain('created')
-    expect(ACTIVITY_RESOURCE_TYPES).toContain('team')
 
-    for (const resourceType of ['review', 'note', 'team', 'staff_assignment'] as const) {
+    for (const resourceType of ['review', 'note'] as const) {
       const result = createRecentActivityEntry({ ...validInput, resourceType }, clock)
       expect(result.isErr()).toBe(true)
       if (!result.isErr()) throw new Error('unreachable')

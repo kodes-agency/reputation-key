@@ -597,7 +597,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     classification: 'local_operational_fact',
     owner: 'notification',
     purpose:
-      'Content-free render metadata (ADR 0046 r.8). Allowlisted keys ONLY, enforced by parseNotificationPayload which drops everything else: propertyName, guestRating (locally collected Portal rating only), platform enum, waitingHours, actorRole (ROLE, never a person), moderationReason (staff-authored), goalName, badgeName, recipientName (portal/portal-group display name), targetKind, occurrences, itemCount. FORBIDDEN and never written: Google/provider review rating or text, reply text, guest/reviewer name, media URLs, sentiment or any derived score, and any other employee name or email.',
+      'Content-free render metadata (ADR 0046 r.8). Allowlisted keys ONLY, enforced by parseNotificationPayload which drops everything else: propertyName, guestRating (locally collected Portal rating only), platform enum, waitingHours, actorRole (ROLE, never a person), moderationReason (staff-authored), goalName, occurrences, itemCount. FORBIDDEN and never written: Google/provider review rating or text, reply text, guest/reviewer name, media URLs, sentiment or any derived score, and any other employee name or email.',
     creationPath: 'notification event handlers -> insert-notification job',
     readPath: 'notification UI; email rendering (renderNotification)',
     refreshRule: 'content-free facts only (ADR 0046 r.8); re-parsed on every read',

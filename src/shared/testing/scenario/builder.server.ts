@@ -30,7 +30,6 @@ import { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import { goals } from '#/shared/db/schema/goal.schema'
 import { user, member, organization } from '#/shared/db/schema/auth'
-import { staffAssignments } from '#/shared/db/schema/staff-assignment.schema'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 
 const MS_PER_DAY = 86_400_000
@@ -157,18 +156,6 @@ async function createPropertyAndPortal(
     name: `${propSpec.name} Portal`,
     slug: `${propSpec.slug}-portal`,
   })
-
-  await ctx.db
-    .insert(staffAssignments)
-    .values({
-      id: crypto.randomUUID(),
-      organizationId: unbrand(ctx.orgId),
-      userId: unbrand(ctx.simUserId),
-      propertyId: unbrand(propId),
-      createdAt: ctx.now,
-      updatedAt: ctx.now,
-    })
-    .onConflictDoNothing()
 
   return { propId, portalId: pId }
 }

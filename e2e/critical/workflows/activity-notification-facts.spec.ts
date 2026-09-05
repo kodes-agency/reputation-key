@@ -20,7 +20,6 @@ import {
   cleanupE2eData,
   seedGoogleConnection,
   seedProperty,
-  seedStaffAssignment,
   getUserByEmail,
   dbQuery,
   getInboxItemForReview,
@@ -95,13 +94,8 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
         locationId: 'not-loc',
       },
     })
-    // The admin is a notification recipient for the property
-    // (findAssignedManagers reads staff_assignments).
-    await seedStaffAssignment({
-      organizationId: seed.organizationId,
-      propertyId,
-      userId: admin!.id,
-    })
+    // The Property has no explicit responsible manager, so the current
+    // AccountAdmin is the notification recovery recipient.
 
     await signIn(page)
 

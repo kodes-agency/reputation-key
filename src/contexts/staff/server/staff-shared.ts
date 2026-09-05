@@ -6,10 +6,6 @@
 // client-safe symbols belong here. Server-only utilities (tracedHandler,
 // getContainer, headersFromContext, ...) are imported directly by each
 // server-fn file from their source.
-//
-// Extracted from staff-assignments.ts so staff-assignments.ts and
-// staff-portals-update.ts share the error->HTTP mapping without forming a
-// circular import.
 
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
@@ -18,20 +14,12 @@ import type { StaffErrorCode } from '../domain/errors'
 export const staffErrorStatus = (code: StaffErrorCode): number =>
   match(code)
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
-    .with(
-      'participation_not_found',
-      'property_not_found',
-      'team_not_found',
-      'assignment_not_found',
-      'user_not_member',
-      () => HTTP_STATUS.NOT_FOUND,
-    )
+    .with('participation_not_found', 'property_not_found', () => HTTP_STATUS.NOT_FOUND)
     .with(
       'participation_archived',
       'responsibility_conflict',
       'revision_conflict',
       () => HTTP_STATUS.CONFLICT,
     )
-    .with('already_assigned', () => HTTP_STATUS.CONFLICT)
     .with('invalid_input', () => HTTP_STATUS.BAD_REQUEST)
     .exhaustive()

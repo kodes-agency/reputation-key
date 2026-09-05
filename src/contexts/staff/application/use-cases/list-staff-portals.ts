@@ -35,7 +35,7 @@ export type ListStaffPortals = (
  * List active portals assigned to a staff member for a given property.
  *
  * Steps:
- * 1. Authorize — staff_assignment.read
+ * 1. Authorize — staff.read
  * 2. Resolve assigned portal IDs
  * 3. Fan-out — fetch portal details, keep only active portals
  * 4. Sort alphabetically by name
@@ -45,20 +45,18 @@ export const listStaffPortals =
   async (input, ctx) => {
     // 1. Authorize
     if (!canForContext(ctx, 'staff.read')) {
-      throw staffError('forbidden', 'No staff assignment read permission')
+      throw staffError('forbidden', 'Staff portal read is not permitted')
     }
 
-    // 2. Resolve assigned portal IDs from current Staff attribution. Legacy
-    // staff_assignments is retained only for reconciliation and is not a read
-    // authority for beta behavior.
+    // 2. Resolve assigned portal IDs from current Portal responsibilities.
     const assignedPortalIds = await deps.responsibilityLookup.listAssignedPortalIds(
       ctx.organizationId,
       input.userId,
       input.propertyId,
     )
 
-    // Defensive dedupe keeps the public result stable if historical rows are
-    // reconciled more than once.
+    // Defensive dedupe keeps the public result stable if the lookup returns
+    // duplicate responsibility rows.
     const seen = new Set<PortalId>()
     const portalIds: PortalId[] = []
     for (const assignedPortalId of assignedPortalIds) {

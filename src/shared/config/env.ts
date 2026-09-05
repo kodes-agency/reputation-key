@@ -299,7 +299,7 @@ const baseEnvSchema = z.object({
   BETA_ALLOWLIST_ORGS: z.string().optional(),
   // Comma-separated non-core capabilities forced globally ON (E2E/CI only).
   // Must never enable blocked capabilities. Example:
-  // identity.register,organization.create,team.use
+  // goal.use,portal.write,notification.send_email
   // BQC-0.3: non-empty values refuse process startup unless NODE_ENV=test or
   // BETA_E2E_EXECUTION_IDENTITY is set (see capability-boot-guard.ts).
   BETA_E2E_GLOBAL_CAPABILITIES: z.string().optional(),

@@ -8,14 +8,10 @@
 // ORM instead of widening the import rule for it.
 
 import { getTableName, isTable } from 'drizzle-orm'
-import * as badgeSchema from './schema/badge.schema'
 import * as goalSchema from './schema/goal.schema'
 import * as guestSchema from './schema/guest.schema'
-import * as leaderboardSchema from './schema/leaderboard.schema'
 import * as peopleAccessSchema from './schema/people-access.schema'
 import * as portalSchema from './schema/portal.schema'
-import * as staffAssignmentSchema from './schema/staff-assignment.schema'
-import * as teamSchema from './schema/team.schema'
 
 /** Schema-file name to its imported Drizzle module, injected by the caller. */
 export type SchemaModuleMap = Readonly<Record<string, Readonly<Record<string, unknown>>>>
@@ -26,14 +22,10 @@ export type SchemaModuleMap = Readonly<Record<string, Readonly<Record<string, un
  * drop the table from the coverage arithmetic.
  */
 export const CONTRACTION_SCHEMA_MODULES: SchemaModuleMap = Object.freeze({
-  'badge.schema.ts': badgeSchema,
   'goal.schema.ts': goalSchema,
   'guest.schema.ts': guestSchema,
-  'leaderboard.schema.ts': leaderboardSchema,
   'people-access.schema.ts': peopleAccessSchema,
   'portal.schema.ts': portalSchema,
-  'staff-assignment.schema.ts': staffAssignmentSchema,
-  'team.schema.ts': teamSchema,
 })
 
 /**

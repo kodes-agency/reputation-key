@@ -18,18 +18,6 @@ const mockPortalLookup = {
 const idGen = () => '31000000-0000-4000-8000-000000000001'
 
 describe('StaffPublicApi', () => {
-  it('does not expose the quarantined Team assignment counter', () => {
-    const { publicApi } = buildStaffContext({
-      db: mockDb,
-      portalLookup: mockPortalLookup,
-      clock: () => new Date('2025-01-01'),
-      idGen,
-      accessiblePropertyLookup: async () => [],
-    })
-
-    expect(publicApi).not.toHaveProperty('countAssignmentsByTeam')
-  })
-
   it('returns null for AccountAdmin (all properties accessible)', async () => {
     const clock = () => new Date('2025-01-01')
 

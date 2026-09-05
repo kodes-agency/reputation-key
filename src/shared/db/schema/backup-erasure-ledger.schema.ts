@@ -64,21 +64,18 @@ export type BackupErasureSubjectClass = (typeof BACKUP_ERASURE_SUBJECT_CLASSES)[
 export const BACKUP_ERASURE_LEDGER_CONTEXTS = [
   'activity',
   'ai',
-  'badge',
   'dashboard',
   'goal',
   'guest',
   'identity',
   'inbox',
   'integration',
-  'leaderboard',
   'metric',
   'notification',
   'portal',
   'property',
   'review',
   'staff',
-  'team',
 ] as const
 
 export type BackupErasureLedgerContext = (typeof BACKUP_ERASURE_LEDGER_CONTEXTS)[number]

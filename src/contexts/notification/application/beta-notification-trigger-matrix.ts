@@ -208,10 +208,8 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
   },
 ] as const satisfies ReadonlyArray<BetaNotificationTriggerMatrixRow>
 
-/** Badge is the only deliberately unavailable beta notification family. */
-export const BETA_DARK_NOTIFICATION_TYPES = [
-  'badge.awarded',
-] as const satisfies ReadonlyArray<NotificationType>
+export const BETA_DARK_NOTIFICATION_TYPES =
+  [] as const satisfies ReadonlyArray<NotificationType>
 
 const DARK_BETA_TYPES: ReadonlySet<NotificationType> = new Set(
   BETA_DARK_NOTIFICATION_TYPES,

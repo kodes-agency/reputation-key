@@ -19,35 +19,24 @@ const FAMILIES = [
     storeFile: 'src/contexts/identity/infrastructure/identity-command-store.ts',
     storeFactory: 'createAtomicIdentityCommandStore',
     buildFile: 'src/contexts/identity/build.ts',
-    runtimeWired: true,
-  },
-  {
-    context: 'staff',
-    storeFile: 'src/contexts/staff/infrastructure/staff-command-store.ts',
-    storeFactory: 'createAtomicStaffCommandStore',
-    buildFile: 'src/contexts/staff/build.ts',
-    runtimeWired: false,
   },
   {
     context: 'property',
     storeFile: 'src/contexts/property/infrastructure/property-command-store.ts',
     storeFactory: 'createAtomicPropertyCommandStore',
     buildFile: 'src/contexts/property/build.ts',
-    runtimeWired: true,
   },
   {
     context: 'integration',
     storeFile: 'src/contexts/integration/infrastructure/integration-command-store.ts',
     storeFactory: 'createAtomicIntegrationCommandStore',
     buildFile: 'src/contexts/integration/build.ts',
-    runtimeWired: true,
   },
   {
     context: 'metric',
     storeFile: 'src/contexts/metric/infrastructure/metric-command-store.ts',
     storeFactory: 'createAtomicMetricCommandStore',
     buildFile: 'src/contexts/metric/build.ts',
-    runtimeWired: true,
   },
 ] as const
 
@@ -68,15 +57,10 @@ describe('BQC-3.5: atomic family outbox producers', () => {
         ).toEqual([])
       })
 
-      it(`${family.runtimeWired ? 'build wires' : 'build quarantines'} ${family.storeFactory}`, () => {
+      it(`build wires ${family.storeFactory}`, () => {
         const src = readFileSync(join(ROOT, family.buildFile), 'utf-8')
-        if (family.runtimeWired) {
-          expect(src).toContain(family.storeFactory)
-          expect(src).toContain('commandStore')
-        } else {
-          expect(src).not.toContain(family.storeFactory)
-          expect(src).not.toContain('commandStore')
-        }
+        expect(src).toContain(family.storeFactory)
+        expect(src).toContain('commandStore')
       })
 
       it(`${family.context} command store commits outbox inside db.transaction`, () => {

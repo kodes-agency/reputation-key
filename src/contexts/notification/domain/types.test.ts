@@ -116,7 +116,6 @@ describe('isUrgent', () => {
       'integration.reauthorization_required',
       'goal.completed',
       'goal.result_revised',
-      'badge.awarded',
     ]
     const nonUrgent = allTypes.filter((t) => !URGENT_TYPES.has(t))
     for (const type of nonUrgent) {

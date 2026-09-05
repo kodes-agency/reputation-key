@@ -98,9 +98,6 @@ const AUDIT_ONLY_OPERATOR_COMMANDS = [
   'scripts/ops/report-guest-response-readiness.ts',
   'scripts/ops/report-organization-lifecycle.ts',
   'scripts/ops/report-legacy-goals.ts',
-  'scripts/ops/report-legacy-people-team.ts',
-  'scripts/ops/report-legacy-recognition.ts',
-  'scripts/ops/report-people-authority.ts',
   'scripts/ops/report-portal-access-artifacts.ts',
   'scripts/ops/report-portal-beta-readiness.ts',
   'scripts/ops/inspect-decision.ts',
@@ -118,10 +115,8 @@ const QUEUE_AND_PROJECTION_OPERATOR_COMMANDS = [
 
 const MIGRATION_AND_REPAIR_OPERATOR_COMMANDS = [
   'scripts/ops/manage-dormant-billing-data.ts',
-  'scripts/ops/reconcile-staff-grants.ts',
   'scripts/ops/reconcile-regions.ts',
   'scripts/ops/cutover-single-us-data-cell.ts',
-  'scripts/ops/reconcile-people-team.ts',
   'scripts/ops/property-erase.ts',
   'scripts/ops/privacy-request.ts',
   'scripts/ops/repair-partial-offboarding.ts',
@@ -192,12 +187,9 @@ const SCHEMA_AND_COMPATIBILITY_COMMANDS = [
   'scripts/migrations/add-org-id-to-goal-progress.sql',
   'scripts/migrations/fix-goal-progress-org-id-notnull.sql',
   'scripts/migrations/denormalize-inbox-reviewer-name.sql',
-  'scripts/migrations/create-missing-tables.sql',
   'scripts/migrations/fix-portal-schema-sync.sql',
-  'scripts/migrations/add-missing-indexes.sql',
   'scripts/migrations/add-goals-parent-period-uniq.sql',
   'scripts/migrations/add-reply-unique-index.sql',
-  'scripts/migrations/add-invitation-property-ids.sql',
   'db:migrate',
   'db:push',
 ] as const
@@ -207,7 +199,6 @@ const RELEASE_ORCHESTRATION_COMMANDS = [
   'scripts/release/railway-data-cell-foundation.ts',
   'scripts/release/railway-google-content-approval-activation.ts',
   'scripts/release/bootstrap-schema-migrator.ts',
-  'scripts/release/deploy-beta.ts',
   'scripts/ops/deploy-ci-images.ts',
   // Writes the two Google Content runtime variables to the closed-beta web and
   // worker services. Release orchestration rather than a command-store

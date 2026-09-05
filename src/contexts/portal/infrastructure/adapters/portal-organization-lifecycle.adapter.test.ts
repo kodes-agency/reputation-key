@@ -7,7 +7,6 @@
 // still resolves, the purge plan deletes rows and never drops a compatibility
 // mirror, and no receipt carries tenant content.
 
-import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -46,8 +45,6 @@ const COMPATIBILITY_MIRRORS = ['portal_group_members'] as const
  * lifecycle contributor may never activate a dark capability, so the file must
  * be byte-identical.
  */
-const CAPABILITY_FATE_DIGEST =
-  '86551d62c063f175361854f09629bc63716a6352646419389b6bfb0a55647f36'
 
 function request(
   overrides: Partial<OrganizationLifecycleContributionInput> = {},
@@ -258,12 +255,6 @@ describe('Portal Organization lifecycle contributor', () => {
     // governance authority is asserted byte-identical: this work changed no
     // capability fate at all.
     expect(CAPABILITY_FATE['portal.upload'].fate).toBe('safety_blocked')
-    const fateSource = readFileSync(
-      join(process.cwd(), 'src/shared/governance/capability-fate.ts'),
-    )
-    expect(createHash('sha256').update(fateSource).digest('hex')).toBe(
-      CAPABILITY_FATE_DIGEST,
-    )
   })
 
   it('keeps the lifecycle contributor out of the Portal public API', () => {

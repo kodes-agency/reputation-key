@@ -35,8 +35,6 @@ export type StaffPublicApi = Readonly<{
   ) => Promise<readonly StaffParticipation[]>
 }>
 
-// Event re-exports — cross-context consumers must import events from public-api, not domain/events
-export type { StaffUnassigned, StaffAssigned, StaffEvent } from '../domain/events'
 export type { StaffParticipation } from '../domain/staff-participation'
 export type { PortalResponsibility } from '../domain/portal-responsibility'
 

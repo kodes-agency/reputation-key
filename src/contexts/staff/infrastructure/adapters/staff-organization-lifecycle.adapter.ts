@@ -1,9 +1,9 @@
 // Staff's Organization lifecycle contribution (LIF-01-T12/T13/T14).
 //
 // Staff owns the people directory: Staff Participants, their optional login
-// link, their per-Property participation, their Portal Responsibility, the
+// link, their per-Property participation, their Portal Responsibility, and the
 // effective-dated Portal Group membership that gives event-time attribution its
-// meaning, and the legacy StaffAssignment compatibility rows.
+// meaning.
 //
 // The three phases answer three different questions, and only the third one is
 // allowed to remove anything:
@@ -14,8 +14,8 @@
 //   verifyPurgeReadiness— read only. Report whether Staff can be purged and
 //                         refuse (throw) when it cannot.
 //   purge               — irreversible, idempotent, content-free scrub of the
-//                         Staff-owned tenant rows. Rows are deleted; no table,
-//                         compatibility mirror, or foreign identity is touched.
+//                         Staff-owned tenant rows. Rows are deleted; no table or
+//                         foreign identity is touched.
 //
 // Every phase runs inside the shared receipt store's transaction, so its work
 // and its content-free receipt commit together under the live lifecycle
@@ -64,9 +64,6 @@ const byOrganization =
  *     Participant may be a human who is also a member of ANOTHER Organization.
  *     Program bullet 5 keeps user identities that belong elsewhere, so Staff
  *     drops its participation rows and leaves every identity row to Identity.
- *   * `teams` / `team_memberships` / `team_portal_group_scopes` — Team's own
- *     contributor owns those, including the `team_memberships` rows that
- *     reference `staff_participations` (see PURGE_ORDER_NOTE below).
  */
 const STAFF_TENANT_TABLES: readonly StaffLifecycleTable[] = Object.freeze([
   // Effective-dated responsibility for a Portal; references staff_participations.
@@ -78,26 +75,10 @@ const STAFF_TENANT_TABLES: readonly StaffLifecycleTable[] = Object.freeze([
     table: 'portal_group_memberships',
     scope: byOrganization('portal_group_memberships'),
   },
-  // Legacy StaffAssignment compatibility mirror. Rows are tenant content and
-  // are deleted; the table stays, because CNV-01 contraction — not a tenant
-  // closure — is the only thing allowed to remove a physical table.
-  { table: 'staff_assignments', scope: byOrganization('staff_assignments') },
   { table: 'staff_participations', scope: byOrganization('staff_participations') },
   { table: 'staff_user_links', scope: byOrganization('staff_user_links') },
   { table: 'staff_participants', scope: byOrganization('staff_participants') },
 ] as const)
-
-/**
- * `team_memberships.staff_participation_id` is `ON DELETE RESTRICT`, so Team's
- * purge must land before Staff can drop `staff_participations`. The coordinator
- * runs contributors concurrently, so this resolves one of two ways, both safe:
- * Staff's DELETE waits on Team's uncommitted child delete and then succeeds, or
- * it fails, writes no receipt, and converges on the next pass once Team's own
- * receipt is durable. Staff must NOT delete Team's rows to avoid the wait.
- */
-const PURGE_ORDER_NOTE = 'team_memberships_before_staff_participations' as const
-
-export { PURGE_ORDER_NOTE as STAFF_PURGE_ORDER_NOTE }
 
 /** Evidence references stay content-free: context, phase, outcome and a count. */
 const evidenceRef = (
@@ -207,9 +188,9 @@ export const staffVerifyPurgeReadiness = async (
  * Idempotent in two independent ways: the shared receipt store replays a
  * recorded outcome without re-entering this function at all, and every DELETE
  * is scoped by tenant so a re-entry after a partial failure simply removes what
- * is left. It drops no table, removes no compatibility mirror, and never
- * touches a `user`, `member`, `session` or grant row — a Staff Participant who
- * is also a member of another Organization keeps their identity there.
+ * is left. It changes no schema and never touches a `user`, `member`, `session`
+ * or grant row — a Staff Participant who is also a member of another
+ * Organization keeps their identity there.
  */
 export const staffPurge = async (
   tx: Tx,
@@ -240,9 +221,9 @@ export const STAFF_LIFECYCLE_TABLES: readonly string[] = Object.freeze(
 /**
  * Staff-owned Organization lifecycle contributor.
  *
- * Composition supplies it alongside the other sixteen contexts; nothing here
- * makes the coordinator reachable, and purge stays unreachable until an
- * explicitly reviewed composition binds the whole set.
+ * Composition supplies it alongside the other contexts; nothing here makes the
+ * coordinator reachable, and purge stays unreachable until an explicitly
+ * reviewed composition binds the whole set.
  */
 export const createStaffOrganizationLifecycleContributor = (
   db: Database,

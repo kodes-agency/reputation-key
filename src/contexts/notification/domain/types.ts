@@ -55,8 +55,6 @@ export const NOTIFICATION_TYPES = [
   // Goal events
   'goal.completed',
   'goal.result_revised',
-  // Badge events
-  'badge.awarded',
 ] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]

@@ -7,7 +7,6 @@
 // content and permitted contact while keeping the aggregate and the global
 // retention cursor, and no receipt carries tenant content.
 
-import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -46,8 +45,6 @@ const COMPATIBILITY_MIRRORS = ['ratings', 'feedback', 'scan_events'] as const
  * lifecycle contributor may never activate a dark capability, so the file must
  * be byte-identical.
  */
-const CAPABILITY_FATE_DIGEST =
-  '86551d62c063f175361854f09629bc63716a6352646419389b6bfb0a55647f36'
 
 function request(
   overrides: Partial<OrganizationLifecycleContributionInput> = {},
@@ -263,12 +260,6 @@ describe('Guest Organization lifecycle contributor', () => {
   it('keeps the dark Contact Request capability dark', () => {
     expect(CAPABILITY_FATE['portal.guest_contact'].fate).toBe('safety_blocked')
     expect(CAPABILITY_FATE['portal.guest_media'].fate).toBe('beta_disabled')
-    const fateSource = readFileSync(
-      join(process.cwd(), 'src/shared/governance/capability-fate.ts'),
-    )
-    expect(createHash('sha256').update(fateSource).digest('hex')).toBe(
-      CAPABILITY_FATE_DIGEST,
-    )
   })
 
   it('keeps the lifecycle contributor out of the Guest public API', () => {

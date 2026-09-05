@@ -121,7 +121,8 @@ describe('BQC-0.2 portal capability taxonomy (STD-P0-01)', () => {
   describe('controlled write/upload environment posture', () => {
     it('cannot override the upload safety block from an E2E environment', () => {
       const store = createEnvCapabilityPolicyStore({
-        BETA_E2E_GLOBAL_CAPABILITIES: 'portal.read,portal.write,portal.upload,team.use',
+        BETA_E2E_GLOBAL_CAPABILITIES:
+          'portal.read,portal.write,portal.upload,identity.register',
       })
       expect(store.isCapabilityGloballyEnabled('portal.read')).toBe(true)
       expect(store.isCapabilityGloballyEnabled('portal.write')).toBe(true)

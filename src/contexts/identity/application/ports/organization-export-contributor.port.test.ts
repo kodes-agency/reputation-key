@@ -192,7 +192,7 @@ describe('LIF-01: Organization Export contributor port', () => {
     })
 
     expect(bundle.entries.map((entry) => entry.path)).toContain('review/rows.json')
-    expect(bundle.manifest.entries).toHaveLength(37)
+    expect(bundle.manifest.entries).toHaveLength(31)
   })
 
   it('publishes the classification authority the bundle builder actually enforces', async () => {

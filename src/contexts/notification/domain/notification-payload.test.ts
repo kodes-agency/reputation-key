@@ -21,9 +21,6 @@ describe('parseNotificationPayload', () => {
         actorRole: 'property_manager',
         moderationReason: 'Tone is too defensive.',
         goalName: 'Q3 response time',
-        badgeName: 'Fast Responder',
-        recipientName: 'Front Desk',
-        targetKind: 'portal_group',
         occurrences: 3,
         itemCount: 4,
       }),
@@ -35,9 +32,6 @@ describe('parseNotificationPayload', () => {
       actorRole: 'property_manager',
       moderationReason: 'Tone is too defensive.',
       goalName: 'Q3 response time',
-      badgeName: 'Fast Responder',
-      recipientName: 'Front Desk',
-      targetKind: 'portal_group',
       occurrences: 3,
       itemCount: 4,
     })
@@ -92,7 +86,6 @@ describe('parseNotificationPayload', () => {
       const parsed = parseNotificationPayload({
         platform: 'tripadvisor',
         actorRole: 'superuser',
-        targetKind: 'organization',
       })
       expect(parsed).toEqual({})
     })

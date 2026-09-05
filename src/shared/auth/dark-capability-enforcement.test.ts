@@ -87,14 +87,11 @@ describe('BQR-0: Dark context capability enforcement', () => {
     })
   }
 
-  it('does not treat dark portal capabilities as core', () => {
+  it('does not treat controlled capabilities as core', () => {
     expect(isCoreCapability('portal.read')).toBe(false)
     expect(isCoreCapability('portal.write')).toBe(false)
     expect(isCoreCapability('portal.upload')).toBe(false)
     expect(isCoreCapability('goal.use')).toBe(false)
-    expect(isCoreCapability('badge.use')).toBe(false)
-    expect(isCoreCapability('leaderboard.use')).toBe(false)
-    expect(isCoreCapability('team.use')).toBe(false)
   })
 })
 

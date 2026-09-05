@@ -1,9 +1,6 @@
 // Staff context — build function.
 // Wires staff repos, use cases, and the PublicApi surface.
 // Per ADR-0001: the composition root calls this and passes publicApi to consumers.
-//
-// Legacy StaffAssignment persistence remains source-only for reconciliation and
-// is deliberately absent from runtime composition.
 
 import type { Database } from '#/shared/db'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -37,8 +34,8 @@ type StaffContextDeps = Readonly<{
   idGen: () => string
   /**
    * BQC-2.3: the ONLY source of property-access scope — the identity-owned
-   * PropertyAccessGrant repository (ADR 0039). Staff/team/portal
-   * participation is never an authorization input. Wired in the composition
+   * PropertyAccessGrant repository (ADR 0039). Staff participation and Portal
+   * responsibility are never authorization inputs. Wired in the composition
    * root to the grant-backed identity adapter.
    */
   accessiblePropertyLookup: AccessiblePropertyLookupPort

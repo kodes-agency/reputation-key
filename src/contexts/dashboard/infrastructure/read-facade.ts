@@ -49,7 +49,7 @@ export const DASHBOARD_READ_BUDGET_MS = 5000
  * event time is `metricReadings.eventAt` (column `event_at`), which is what
  * an analytics window must bound: filtering on ingestion means outbox lag,
  * retries or a replay silently shift a day's numbers. The drizzle field is
- * NOT renamed here because it is shared with badge/leaderboard/metric
+ * NOT renamed here because it is shared with metric
  * repositories; every reader in this facade must know the swap.
  *
  * Governed readings always carry event_at (metric_readings_governed_provenance_check),

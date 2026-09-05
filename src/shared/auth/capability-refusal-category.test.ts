@@ -53,7 +53,7 @@ const DENY_CASES = [
   },
   {
     reason: 'capability_blocked',
-    capability: 'team.use',
+    capability: 'identity.register',
     category: 'not_in_beta',
   },
 ] satisfies ReadonlyArray<

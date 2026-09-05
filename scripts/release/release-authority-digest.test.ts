@@ -18,7 +18,6 @@ describe('signed release-controller authority digest', () => {
       'scripts/release',
       'src/contexts/identity',
       'src/contexts/property',
-      'src/contexts/team',
       'src/shared',
       'tsconfig.json',
       'tsconfig.scripts.json',
@@ -46,7 +45,6 @@ describe('signed release-controller authority digest', () => {
         'scripts/release',
         'src/contexts/identity',
         'src/contexts/property',
-        'src/contexts/team',
         'src/shared',
       ])
       try {

@@ -15,7 +15,6 @@ export const RELEASE_AUTHORITY_SOURCE_PATHS = Object.freeze([
   'scripts/release',
   'src/contexts/identity',
   'src/contexts/property',
-  'src/contexts/team',
   'src/shared',
   'tsconfig.json',
   'tsconfig.scripts.json',

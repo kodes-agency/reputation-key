@@ -49,7 +49,7 @@ const governed: GovernedMetricVersion = {
     minimumSample: 1,
     insufficientDataBehavior: 'unavailable',
     sourcePolicyAllowlist: ['first_party_workflow'],
-    permittedConsumers: ['dashboard', 'goal', 'badge', 'leaderboard', 'notification'],
+    permittedConsumers: ['dashboard', 'goal', 'notification'],
     employmentDecisionEligible: false,
     correctionBehavior: 'append_delta',
     fairnessReviewStatus: 'approved_for_declared_consumers',

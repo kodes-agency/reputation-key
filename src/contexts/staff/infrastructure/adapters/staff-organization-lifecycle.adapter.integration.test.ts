@@ -49,10 +49,8 @@ const lineage = new Map<string, string>()
 
 /** Fixture tables that must be cleaned up even when a test leaves rows behind. */
 const FIXTURE_TABLES = [
-  'staff_assignments',
   'portal_group_memberships',
   'portal_responsibilities',
-  'team_memberships',
   'portal_groups',
   'portals',
   'staff_user_links',
@@ -205,12 +203,6 @@ const seedPeople = async (
      VALUES ($1, $2, $3, $4, 'Dana Rivera', 'active', 'user-admin')`,
     [participationId, organizationId, propertyId, participantId],
   )
-  await lease.pool.query(
-    `INSERT INTO staff_assignments (id, organization_id, user_id, property_id)
-     VALUES ($1, $2, $3, $4)`,
-    [randomUUID(), organizationId, userId, propertyId],
-  )
-  return
 }
 
 beforeAll(async () => {
@@ -325,7 +317,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
 
     expect(result).toEqual({
       outcome: 'complete',
-      evidenceRef: 'staff:closing:complete:6',
+      evidenceRef: 'staff:closing:complete:5',
     })
     // Closing opens a recoverable window: every row is still exactly there.
     expect(await staffRowCounts(ORGANIZATION_ID)).toEqual(before)
@@ -334,7 +326,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
         context: 'staff',
         phase: 'closing',
         outcome: 'complete',
-        evidence_ref: 'staff:closing:complete:6',
+        evidence_ref: 'staff:closing:complete:5',
       },
     ])
   })
@@ -345,7 +337,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
       contributor.prepareClosing(
         contribution(ORGANIZATION_ID, 1, new Date('2026-08-02T01:00:00.000Z')),
       ),
-    ).resolves.toEqual({ outcome: 'complete', evidenceRef: 'staff:closing:complete:6' })
+    ).resolves.toEqual({ outcome: 'complete', evidenceRef: 'staff:closing:complete:5' })
     expect(await receiptRows(ORGANIZATION_ID)).toHaveLength(1)
   })
 
@@ -379,7 +371,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
       `INSERT INTO outbox_events
          (id, event_type, event_version, payload, organization_id, property_id,
           source_context, source_aggregate_id, created_at)
-       VALUES ($1, 'staff.assigned', 1, '{}'::jsonb, $2, $3, 'staff', $4, $5)`,
+       VALUES ($1, 'test.staff.lifecycle', 1, '{}'::jsonb, $2, $3, 'staff', $4, $5)`,
       [blockerId, ORGANIZATION_ID, PROPERTY_ID, PROPERTY_ID, REQUESTED_AT],
     )
     const contributor = createStaffOrganizationLifecycleContributor(db)
@@ -413,7 +405,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
 
     expect(result).toEqual({
       outcome: 'complete',
-      evidenceRef: 'staff:purge_readiness:complete:6',
+      evidenceRef: 'staff:purge_readiness:complete:5',
     })
     expect(await staffRowCounts(ORGANIZATION_ID)).toEqual(before)
   })
@@ -440,7 +432,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
       contribution(ORGANIZATION_ID, 4, new Date('2026-09-03T00:00:00.000Z')),
     )
 
-    expect(result).toEqual({ outcome: 'complete', evidenceRef: 'staff:purge:complete:6' })
+    expect(result).toEqual({ outcome: 'complete', evidenceRef: 'staff:purge:complete:5' })
     expect(await staffRowCounts(ORGANIZATION_ID)).toEqual(
       Object.fromEntries(STAFF_LIFECYCLE_TABLES.map((table) => [table, 0])),
     )
@@ -461,7 +453,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
     expect(Number(memberships.rows[0]!.count)).toBe(1)
 
     // Every physical table still exists: a tenant purge deletes rows, never
-    // schema, and never a compatibility mirror.
+    // schema.
     for (const table of STAFF_LIFECYCLE_TABLES) {
       const present = await lease.pool.query<{ count: string }>(
         `SELECT count(*) AS count FROM information_schema.tables
@@ -478,7 +470,7 @@ describe.sequential('Staff Organization lifecycle contributor (real PostgreSQL)'
       contributor.purge(
         contribution(ORGANIZATION_ID, 4, new Date('2026-09-03T02:00:00.000Z')),
       ),
-    ).resolves.toEqual({ outcome: 'complete', evidenceRef: 'staff:purge:complete:6' })
+    ).resolves.toEqual({ outcome: 'complete', evidenceRef: 'staff:purge:complete:5' })
 
     const receipts = await receiptRows(ORGANIZATION_ID)
     expect(receipts.map(({ phase }) => phase)).toEqual([

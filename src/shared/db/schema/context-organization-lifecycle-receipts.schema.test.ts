@@ -34,13 +34,13 @@ describe('shared context Organization lifecycle receipts schema', () => {
     ])
   })
 
-  it('enumerates exactly the 17 ORGANIZATION_LIFECYCLE_CONTEXTS values', () => {
+  it('enumerates exactly the 14 ORGANIZATION_LIFECYCLE_CONTEXTS values', () => {
     // shared/** may not import a context domain module, so the list is
     // duplicated. This assertion is what stops the duplicate from drifting.
     expect([...CONTEXT_LIFECYCLE_RECEIPT_CONTEXTS]).toEqual([
       ...ORGANIZATION_LIFECYCLE_CONTEXTS,
     ])
-    expect(CONTEXT_LIFECYCLE_RECEIPT_CONTEXTS).toHaveLength(17)
+    expect(CONTEXT_LIFECYCLE_RECEIPT_CONTEXTS).toHaveLength(14)
 
     const expression = checkExpression(
       'context_organization_lifecycle_receipts_context_valid',

@@ -1,6 +1,4 @@
 import type { Locator, Page } from '@playwright/test'
-import { existsSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady } from '../helpers/interaction'
@@ -384,14 +382,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     for (const [url, feature, category] of [
       [`/properties/${seed.p3PropertyId}/portals`, 'Portals', 'needs_admin_enablement'],
       [`/properties/${seed.p3PropertyId}/goals`, 'Goals', 'needs_admin_enablement'],
-      [
-        `/leaderboard?propertyId=${seed.p3PropertyId}&portalGroupId=${seed.portalGroupId}`,
-        'Achievement Board',
-        // leaderboard.use is legacy_blocked, and the blocked check precedes
-        // every tenancy check — so this is a beta-scope refusal, not an
-        // enablement one.
-        'not_in_beta',
-      ],
     ] as const satisfies readonly (readonly [
       string,
       string,
@@ -1030,34 +1020,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
   // src/shared/auth/tenant-resolver.test.ts covers `beta_role_inactive` for
   // every non-interactive member role. A Staff journey belongs here again when
   // the role is part of the beta.
-
-  test('legacy Recognition routes remain unavailable and server operations stay removed', async ({
-    page,
-  }) => {
-    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
-    await page.goto(`/settings/recognition?propertyId=${seed.p1PropertyId}`)
-    await expectControlledUnavailable(page, 'Recognition', 'not_in_beta')
-    await page.goto(
-      `/leaderboard?propertyId=${seed.p1PropertyId}&portalGroupId=${seed.portalGroupId}`,
-    )
-    await expectControlledUnavailable(page, 'Achievement Board', 'not_in_beta')
-
-    expect(
-      [
-        'src/contexts/badge/server/badges.ts',
-        'src/contexts/leaderboard/server/leaderboards.ts',
-      ].filter((path) => existsSync(resolve(path))),
-    ).toEqual([])
-  })
-
-  // Removed for the same reason as the Staff Goal journey above: a Staff
-  // session cannot obtain tenant context at all, so every one of these routes
-  // refuses at the resolver and the assertion could only be made by producing
-  // the console error the gate exists to catch. The legacy Recognition and
-  // Achievement Board surfaces remain asserted unavailable for a MANAGER in
-  // "legacy Recognition routes remain unavailable and server operations stay
-  // removed", which is the stronger claim: they are gone for the role that
-  // could otherwise use them.
 
   test('profile and notification settings persist through reload and restore baseline', async ({
     page,

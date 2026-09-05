@@ -272,19 +272,16 @@ describe('Closure Center posture (program bullet 8)', () => {
    */
   it('leaves BLOCKED_CAPABILITIES byte-equal', () => {
     expect(listBlockedCapabilities()).toEqual([
-      'badge.use',
       'gbp.ai.cross_property_summary',
       'gbp.reply.auto_publish',
       'gbp.review_solicitation_gamification',
       'identity.custom_roles',
       'identity.register',
-      'leaderboard.use',
       'organization.create',
       'portal.guest_contact',
       'portal.guest_media',
       'portal.upload',
       'property.erase',
-      'team.use',
     ])
   })
 

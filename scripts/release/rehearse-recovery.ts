@@ -206,7 +206,7 @@ const APPLY_REQUIRED_FLAGS = [
 ] as const
 
 /**
- * Argv refusals first, exactly like deploy-beta: an audited action that is
+ * Argv refusals first: an audited action that is
  * missing its operator or reason must cost nothing.
  */
 function refusedApplyArgument(

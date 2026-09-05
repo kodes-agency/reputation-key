@@ -119,7 +119,6 @@ describe('Staff Organization lifecycle contribution', () => {
     expect(STAFF_LIFECYCLE_TABLES).toEqual([
       'portal_responsibilities',
       'portal_group_memberships',
-      'staff_assignments',
       'staff_participations',
       'staff_user_links',
       'staff_participants',
@@ -134,8 +133,6 @@ describe('Staff Organization lifecycle contribution', () => {
       'member',
       'session',
       'user_organization_bindings',
-      'teams',
-      'team_memberships',
     ]) {
       expect(STAFF_LIFECYCLE_TABLES).not.toContain(foreign)
     }
@@ -185,12 +182,12 @@ describe('Staff Organization lifecycle contribution', () => {
   })
 
   it('purges exactly the planned tables, in order, scoped to the tenant', async () => {
-    const { tx, executed } = createFakeTx([1, 2, 3, 4, 5, 6])
+    const { tx, executed } = createFakeTx([1, 2, 3, 4, 5])
     const result = await staffPurge(tx, request())
 
     expect(result).toEqual({
       outcome: 'complete',
-      evidenceRef: 'staff:purge:complete:21',
+      evidenceRef: 'staff:purge:complete:15',
     })
     expect(executed).toHaveLength(STAFF_LIFECYCLE_TABLES.length)
     executed.forEach((statement, position) => {
@@ -203,7 +200,7 @@ describe('Staff Organization lifecycle contribution', () => {
   })
 
   it('reports an already empty purge as no_data instead of inventing work', async () => {
-    const { tx } = createFakeTx([0, 0, 0, 0, 0, 0])
+    const { tx } = createFakeTx([0, 0, 0, 0, 0])
     await expect(staffPurge(tx, request())).resolves.toEqual({
       outcome: 'no_data',
       evidenceRef: 'staff:purge:no_data:0',
@@ -213,7 +210,7 @@ describe('Staff Organization lifecycle contribution', () => {
   it('is idempotent for one lineage and revision: a replay re-runs no delete', async () => {
     const { db, receipts, executed } = createFakeDb({
       state: 'purging',
-      counts: [3, 0, 0, 0, 0, 0],
+      counts: [3, 0, 0, 0, 0],
     })
     const contributor = createStaffOrganizationLifecycleContributor(db)
 
@@ -222,7 +219,7 @@ describe('Staff Organization lifecycle contribution', () => {
 
     expect(replay).toEqual(first)
     expect(receipts).toHaveLength(1)
-    // Six deletes for the first pass and none for the replay: the recorded
+    // Five deletes for the first pass and none for the replay: the recorded
     // receipt answers, the destructive work does not run twice.
     expect(executed).toHaveLength(STAFF_LIFECYCLE_TABLES.length)
   })

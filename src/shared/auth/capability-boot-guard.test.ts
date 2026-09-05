@@ -50,7 +50,7 @@ function makeLogger() {
   }
 }
 
-const OVERRIDE = 'goal.use,badge.use'
+const OVERRIDE = 'goal.use,identity.register'
 
 describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
   afterEach(() => {
@@ -163,7 +163,7 @@ describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
       const manifest = buildCapabilityBootManifest({
         NODE_ENV: 'test',
         BETA_E2E_GLOBAL_CAPABILITIES:
-          'gbp.reply.auto_publish,portal.write,portal.upload,team.use',
+          'gbp.reply.auto_publish,portal.write,portal.upload,identity.register',
       })
       expect(manifest.e2eGlobalOverrides).toEqual(['portal.write'])
     })

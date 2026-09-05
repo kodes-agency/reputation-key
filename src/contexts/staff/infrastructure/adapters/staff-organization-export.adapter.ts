@@ -45,7 +45,6 @@ type StaffOrganizationExportPayload = Readonly<{
   participants: readonly ExportRecord[]
   participantUserLinks: readonly ExportRecord[]
   participations: readonly ExportRecord[]
-  legacyAssignments: readonly ExportRecord[]
   portalResponsibilities: readonly ExportRecord[]
   portalGroupMemberships: readonly ExportRecord[]
   excludedRecordClasses: readonly ExcludedRecordClass[]
@@ -63,10 +62,6 @@ const EXCLUDED_RECORD_CLASSES: readonly ExcludedRecordClass[] = Object.freeze([
   {
     recordClass: 'staff_user_login_credentials_and_sessions',
     reasonCode: 'security_secret_material',
-  },
-  {
-    recordClass: 'quarantined_team_and_team_membership_rows',
-    reasonCode: 'exported_by_team_contributor',
   },
 ])
 
@@ -182,17 +177,6 @@ const PARTICIPATION_COLUMNS = [
   'updated_at',
 ] as const
 
-const LEGACY_ASSIGNMENT_COLUMNS = [
-  'id',
-  'property_id',
-  'user_id',
-  'team_id',
-  'portal_id',
-  'created_at',
-  'updated_at',
-  'deleted_at',
-] as const
-
 const PORTAL_RESPONSIBILITY_COLUMNS = [
   'id',
   'property_id',
@@ -294,25 +278,6 @@ async function readPayload(
             WHERE organization_id = ${organizationId}
             ORDER BY property_id, created_at, id`,
       )
-      // Legacy StaffAssignment rows predate Staff Participation and are still
-      // tenant data. Soft-deleted rows are kept: the export is an as-of record
-      // of what the Organization has, and hiding a retracted assignment would
-      // misrepresent its people history.
-      const legacyAssignments = await readRows(
-        snapshot,
-        sql`SELECT
-              id,
-              property_id,
-              user_id,
-              team_id,
-              portal_id,
-              to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
-              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at,
-              to_char(deleted_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS deleted_at
-            FROM staff_assignments
-            WHERE organization_id = ${organizationId}
-            ORDER BY property_id, created_at, id`,
-      )
       const portalResponsibilities = await readRows(
         snapshot,
         sql`SELECT
@@ -355,7 +320,6 @@ async function readPayload(
         participants,
         participantUserLinks,
         participations,
-        legacyAssignments,
         portalResponsibilities,
         portalGroupMemberships,
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
@@ -403,17 +367,11 @@ function buildEntries(
           columns: PARTICIPATION_COLUMNS,
           records: payload.participations,
         },
-        {
-          recordType: 'legacy_staff_assignment',
-          columns: LEGACY_ASSIGNMENT_COLUMNS,
-          records: payload.legacyAssignments,
-        },
       ],
       json: {
         version: payload.version,
         requestedAsOf: payload.requestedAsOf,
         participations: payload.participations,
-        legacyAssignments: payload.legacyAssignments,
       },
     },
     {
@@ -459,7 +417,6 @@ function countRecords(payload: StaffOrganizationExportPayload): number {
     payload.participants.length +
     payload.participantUserLinks.length +
     payload.participations.length +
-    payload.legacyAssignments.length +
     payload.portalResponsibilities.length +
     payload.portalGroupMemberships.length
   )

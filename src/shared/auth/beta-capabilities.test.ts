@@ -307,15 +307,14 @@ describe('BetaCapabilities', () => {
       expect(store.isOrgAllowlisted('org-1', 'goal.use')).toBe(false)
     })
 
-    it('enables listed promotable capabilities but never legacy recognition via E2E override', () => {
+    it('enables listed promotable capabilities but never beta-disabled capabilities via E2E override', () => {
       const store = createEnvCapabilityPolicyStore({
-        BETA_E2E_GLOBAL_CAPABILITIES: 'goal.use,badge.use,identity.register',
+        BETA_E2E_GLOBAL_CAPABILITIES: 'goal.use,identity.register',
       })
       expect(store.isCapabilityGloballyEnabled('goal.use')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('badge.use')).toBe(false)
       expect(store.isCapabilityGloballyEnabled('identity.register')).toBe(false)
-      // Unlisted non-core stay off
-      expect(store.isCapabilityGloballyEnabled('leaderboard.use')).toBe(false)
+      // Unlisted non-core capabilities stay off.
+      expect(store.isCapabilityGloballyEnabled('portal.read')).toBe(false)
     })
 
     it('enables promotable email but never permanent prohibitions via E2E override', () => {
@@ -384,9 +383,6 @@ describe('BetaCapabilities', () => {
       expect(isBlockedCapability('identity.custom_roles')).toBe(true)
       expect(isBlockedCapability('identity.register')).toBe(true)
       expect(isBlockedCapability('organization.create')).toBe(true)
-      expect(isBlockedCapability('team.use')).toBe(true)
-      expect(isBlockedCapability('badge.use')).toBe(true)
-      expect(isBlockedCapability('leaderboard.use')).toBe(true)
       expect(isBlockedCapability('notification.send_email')).toBe(false)
     })
   })
@@ -397,11 +393,8 @@ describe('BetaCapabilities', () => {
       expect(isCapabilityJobEnabled('identity.invite')).toBe(true)
     })
 
-    it('registers promotable jobs but not beta-blocked legacy recognition jobs', () => {
+    it('registers promotable capability jobs', () => {
       expect(isCapabilityJobEnabled('goal.use')).toBe(true)
-      expect(isCapabilityJobEnabled('badge.use')).toBe(false)
-      expect(isCapabilityJobEnabled('leaderboard.use')).toBe(false)
-      expect(isCapabilityJobEnabled('team.use')).toBe(false)
       expect(isCapabilityJobEnabled('portal.read')).toBe(true)
     })
 

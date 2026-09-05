@@ -26,7 +26,6 @@ describe('Railway Data Cell plan target', () => {
     for (const path of [
       'scripts/release/railway-data-cell-plan.ts',
       'scripts/release/bootstrap-schema-migrator.ts',
-      'scripts/release/deploy-beta.ts',
       'scripts/release/railway-data-cell-foundation.ts',
       'scripts/release/railway-data-cell-domain.ts',
     ]) {

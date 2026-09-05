@@ -1,10 +1,9 @@
 // POST-BETA-1 PB1.1: Staff participation lifecycle.
 //
 // StaffParticipation tracks that a StaffParticipant participates at a
-// property. A participant may exist without a login; linkedUserId is a
-// read-only projection of an optional current StaffUserLink.
-// but NOT authorization (that's PropertyAccessGrant) and NOT team
-// membership (that's TeamMembership).
+// property. It provides operational and attribution history, not authorization.
+// A participant may exist without a login; linkedUserId is a read-only
+// projection of an optional current StaffUserLink.
 //
 // Per ADR 0039: removing property access does not erase participation
 // or history. Participation can outlive access for attribution purposes.

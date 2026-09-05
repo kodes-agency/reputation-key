@@ -105,7 +105,6 @@ describe('notification delivery policy', () => {
     expect(classifyNotification('account.organization_access_removed')).toBe('mandatory')
     expect(classifyNotification('reply.publish_failed')).toBe('urgent_operational')
     expect(classifyNotification('feedback.created')).toBe('urgent_operational')
-    expect(classifyNotification('badge.awarded')).toBe('recognition')
     expect(classifyNotification('review.created')).toBe('workflow_collaboration')
     expect(classifyNotification('review.updated')).toBe('urgent_operational')
     expect(classifyNotification('inbox.reopened')).toBe('urgent_operational')

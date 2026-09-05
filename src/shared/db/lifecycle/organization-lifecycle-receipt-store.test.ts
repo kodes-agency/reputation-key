@@ -230,17 +230,17 @@ describe('shared Organization lifecycle receipt store', () => {
 
   it('records no_data as affirmative evidence rather than an omitted contributor', async () => {
     const { db, receipts } = createFakeDb({ authorityRow: authority() })
-    const store = createOrganizationLifecycleReceiptStore({ db, context: 'team' })
+    const store = createOrganizationLifecycleReceiptStore({ db, context: 'staff' })
 
     const result = await store.run(
       'closing',
-      async () => ({ outcome: 'no_data', evidenceRef: 'team:closing:no-data' }),
+      async () => ({ outcome: 'no_data', evidenceRef: 'staff:closing:no-data' }),
       request(),
     )
 
     expect(result.outcome).toBe('no_data')
     expect(receipts).toHaveLength(1)
-    expect(receipts[0]).toMatchObject({ context: 'team', outcome: 'no_data' })
+    expect(receipts[0]).toMatchObject({ context: 'staff', outcome: 'no_data' })
   })
 
   it('rejects an outcome or evidence reference that is not content-free', async () => {

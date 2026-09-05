@@ -27,7 +27,6 @@ const OTHER_PARTICIPATION_ID = randomUUID()
 const USER_LINK_ID = randomUUID()
 const RESPONSIBILITY_ID = randomUUID()
 const GROUP_MEMBERSHIP_ID = randomUUID()
-const ASSIGNMENT_ID = randomUUID()
 const ACCESS_GRANT_ID = randomUUID()
 
 const ORGANIZATION_IDS = [
@@ -130,12 +129,6 @@ beforeAll(async () => {
       EFFECTIVE_FROM,
     ],
   )
-  await lease.pool.query(
-    `INSERT INTO staff_assignments
-       (id, organization_id, user_id, property_id)
-     VALUES ($1, $2, 'user-dana', $3)`,
-    [ASSIGNMENT_ID, ORGANIZATION_ID, PROPERTY_ID],
-  )
   // Identity owns property access. Seeding a real grant proves the Staff
   // contributor does not duplicate it — the assertion below would otherwise
   // pass vacuously.
@@ -158,7 +151,6 @@ afterAll(async () => {
   const organizationIds = [...ORGANIZATION_IDS]
   for (const table of [
     'property_access_grants',
-    'staff_assignments',
     'portal_group_memberships',
     'portal_responsibilities',
     'portal_groups',
@@ -233,13 +225,9 @@ describe.sequential('Staff Organization Export contributor (real PostgreSQL)', (
       ).toString('utf8'),
     ) as {
       participations: readonly Record<string, unknown>[]
-      legacyAssignments: readonly Record<string, unknown>[]
     }
     expect(participations.participations).toEqual([
       expect.objectContaining({ id: PARTICIPATION_ID, property_id: PROPERTY_ID }),
-    ])
-    expect(participations.legacyAssignments).toEqual([
-      expect.objectContaining({ id: ASSIGNMENT_ID, user_id: 'user-dana' }),
     ])
 
     const responsibilities = JSON.parse(

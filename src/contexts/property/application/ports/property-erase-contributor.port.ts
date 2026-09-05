@@ -30,21 +30,18 @@ import type { Tx } from '#/shared/outbox/commit'
 export const PROPERTY_ERASE_CONTEXTS = [
   'activity',
   'ai',
-  'badge',
   'dashboard',
   'goal',
   'guest',
   'identity',
   'inbox',
   'integration',
-  'leaderboard',
   'metric',
   'notification',
   'portal',
   'property',
   'review',
   'staff',
-  'team',
 ] as const
 
 export type PropertyEraseContext = (typeof PROPERTY_ERASE_CONTEXTS)[number]

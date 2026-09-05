@@ -27,7 +27,7 @@ import {
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
 
 /**
- * The 17 lifecycle-owning contexts, in the same order as Identity's
+ * The 14 lifecycle-owning contexts, in the same order as Identity's
  * `ORGANIZATION_LIFECYCLE_CONTEXTS`.
  *
  * The list is duplicated here rather than imported because `shared/**` may not
@@ -38,21 +38,18 @@ const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
 export const CONTEXT_LIFECYCLE_RECEIPT_CONTEXTS = [
   'activity',
   'ai',
-  'badge',
   'dashboard',
   'goal',
   'guest',
   'identity',
   'inbox',
   'integration',
-  'leaderboard',
   'metric',
   'notification',
   'portal',
   'property',
   'review',
   'staff',
-  'team',
 ] as const
 
 export type ContextLifecycleReceiptContext =

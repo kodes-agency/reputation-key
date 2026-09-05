@@ -100,7 +100,7 @@ export function applyProviderEndpointOverrides(
   // sandbox on a private network, which means NODE_ENV cannot tell a promoted
   // cell apart from that rehearsal. RELEASE_MANIFEST_SHA256 can: it is the
   // signed promotion-manifest digest the release controller writes onto every
-  // service of a promotion (deploy-beta.ts `deployPlan` over ALL_SERVICES, the
+  // service of a promotion (the release controller over ALL_SERVICES, the
   // seven RAILWAY_SERVICE_IMAGE_ROLES keys), declared `preserve()` in
   // `.railway/railway.ts` so a config apply never drops it. compose.local.yml
   // and the Playwright sandbox env never set it.

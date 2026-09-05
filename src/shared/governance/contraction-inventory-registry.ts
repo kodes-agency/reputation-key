@@ -77,50 +77,12 @@ const command = <const Definition extends ContractionInventoryCommand>(
 
 export const CONTRACTION_INVENTORY_COMMANDS = Object.freeze([
   command({
-    packageScript: 'ops:report-legacy-recognition',
-    scriptPath: 'scripts/ops/report-legacy-recognition.ts',
-    kind: 'table_inventory',
-    authority: 'REC-01/CNV-01',
-    summary:
-      'Retained badge, leaderboard, and governed recognition tables for the dark Recognition capability.',
-    tables: [
-      'badge_awards',
-      'badge_definition_versions',
-      'badge_definitions',
-      'recognition_award_status_facts',
-      'recognition_awards',
-      'organization_badge_enablements',
-      'leaderboard_entries',
-      'leaderboard_snapshots',
-      'recognition_activation_groups',
-      'recognition_activations',
-      'recognition_board_entries',
-      'recognition_board_snapshots',
-      'recognition_reconciliation_events',
-    ],
-  }),
-  command({
     packageScript: 'ops:report-legacy-goals',
     scriptPath: 'scripts/ops/report-legacy-goals.ts',
     kind: 'table_inventory',
     authority: 'GOA-01/CNV-01',
     summary: 'Retained pre-beta Goal rows superseded by the governed Goal program model.',
     tables: ['goals', 'goal_progress'],
-  }),
-  command({
-    packageScript: 'ops:report-legacy-people-team',
-    scriptPath: 'scripts/ops/report-legacy-people-team.ts',
-    kind: 'table_inventory',
-    authority: 'PPL-01/CNV-01',
-    summary:
-      'Retained Team and legacy property-access rows superseded by the governed people-access model.',
-    tables: [
-      'property_access_grants',
-      'staff_assignments',
-      'teams',
-      'team_memberships',
-      'team_portal_group_scopes',
-    ],
   }),
   command({
     packageScript: 'ops:report-compatibility-read-surfaces',

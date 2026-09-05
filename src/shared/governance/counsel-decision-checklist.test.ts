@@ -223,7 +223,6 @@ describe('counsel decision checklist', () => {
       expect.arrayContaining([
         'retention_classes.unresolved_contact_requests',
         'rights.contact_request_consent',
-        'staff_metrics.recognition_retained_only',
       ]),
     )
 

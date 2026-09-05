@@ -1,31 +1,15 @@
-import type { Capability } from '#/shared/auth/beta-capabilities'
-
 export type RawRoleDecisionDisposition =
-  'central_product_vocabulary' | 'presentation_only' | 'legacy_dark'
+  'central_product_vocabulary' | 'presentation_only'
 
 type RawRoleDecisionBase = Readonly<{
   path: string
   authority: string
 }>
 
-type NonAuthorizingRawRoleDecisionRow = RawRoleDecisionBase &
+export type RawRoleDecisionRow = RawRoleDecisionBase &
   Readonly<{
-    disposition: Exclude<RawRoleDecisionDisposition, 'legacy_dark'>
+    disposition: RawRoleDecisionDisposition
   }>
-
-export type LegacyDarkRawRoleDecisionRow = RawRoleDecisionBase &
-  Readonly<{
-    disposition: 'legacy_dark'
-    capability: Extract<Capability, 'badge.use' | 'leaderboard.use' | 'team.use'>
-    enforcement:
-      | 'execution_policy_in_file'
-      | 'execution_policy_at_public_seam'
-      | 'inert_context_build'
-    publicSeam: string
-  }>
-
-export type RawRoleDecisionRow =
-  NonAuthorizingRawRoleDecisionRow | LegacyDarkRawRoleDecisionRow
 
 /**
  * Exhaustive ownership for direct comparisons against RepKey's built-in role

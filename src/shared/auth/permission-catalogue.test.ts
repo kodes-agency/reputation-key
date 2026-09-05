@@ -94,10 +94,10 @@ describe('parsePermissionStatement', () => {
   })
 
   it('skips non-array actions and non-string action entries', () => {
-    const raw = JSON.stringify({ portal: 'read', team: ['read', 7, { x: 1 }, 'create'] })
+    const raw = JSON.stringify({ portal: 'read', goal: ['read', 7, { x: 1 }, 'create'] })
     expect([...parsePermissionStatement(raw)].sort()).toEqual([
-      'team.create',
-      'team.read',
+      'goal.create',
+      'goal.read',
     ])
   })
 })

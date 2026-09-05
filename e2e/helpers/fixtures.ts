@@ -1427,20 +1427,6 @@ export async function seedPublishedReply(input: {
   return { replyId: rows[0].id }
 }
 
-/** A staff_assignments row — the notification recipient source
- * (db-user-lookup.adapter findAssignedManagers reads this table). */
-export async function seedStaffAssignment(input: {
-  organizationId: string
-  propertyId: string
-  userId: string
-}): Promise<void> {
-  await dbQuery(
-    `INSERT INTO staff_assignments (organization_id, user_id, property_id)
-     VALUES ($1, $2, $3)`,
-    [input.organizationId, input.userId, input.propertyId],
-  )
-}
-
 /** A reply stuck after an ambiguous publish outcome (timeout post-send on the
  * final attempt): publish_failed + publication_state 'ambiguous', reconcile due. */
 /** A reply whose send outcome is unknown — the shape a real ambiguous publish
@@ -1727,13 +1713,6 @@ export async function cleanupE2eData(input: {
     `DELETE FROM property_access_grant WHERE organization_id = $1 AND (
        user_id IN (SELECT id FROM "user" WHERE email LIKE $2) OR
        property_id IN (SELECT id FROM properties WHERE organization_id = $1 AND slug LIKE $2))`,
-    [input.organizationId, like],
-  )
-  // staff assignments for prefix-matched users (property-linked rows cascade
-  // with the property delete below; user-linked rows need this explicit pass)
-  await dbQuery(
-    `DELETE FROM staff_assignments WHERE organization_id = $1 AND
-       user_id IN (SELECT id FROM "user" WHERE email LIKE $2)`,
     [input.organizationId, like],
   )
   await dbQuery(

@@ -95,21 +95,6 @@ const REVIEWED_METRIC_READING_DIRECT_READ_AUTHORITIES = [
       availability: 'per_family_projection_evidence',
     },
   },
-  {
-    id: 'identity.people-attribution-reconciliation',
-    source:
-      'src/contexts/identity/infrastructure/repositories/people-authority-reconciliation.attribution-query.ts',
-    symbol: 'attributionPeopleAuthorityRowsSql',
-    context: 'identity',
-    posture: 'audit_only',
-    contract: {
-      definitionVersions: 'all_retained_for_integrity_audit',
-      consumer: 'no_product_metric_consumer',
-      sourcePolicy: 'observed_not_aggregated',
-      correction: 'full_history_compared_with_original',
-      availability: 'explicit_exact_conflict_or_orphan_outcome',
-    },
-  },
 ] as const satisfies readonly MetricReadingDirectReadAuthority[]
 
 export const METRIC_READING_DIRECT_READ_AUTHORITIES = Object.freeze(
@@ -148,7 +133,6 @@ export function metricReadingAuthorityViolations(
     }
 
     // Audit-only readers have a closed contract and no product consumer.
-    // Badge/Leaderboard direct readers are absent after REC-01 contraction.
   }
 
   return violations

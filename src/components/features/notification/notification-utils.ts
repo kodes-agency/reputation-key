@@ -7,7 +7,6 @@
 // icon a type gets, and how a timestamp reads in the user's own locale.
 
 import {
-  Award,
   Bell,
   MessageSquare,
   CheckCircle,
@@ -143,7 +142,6 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'integration.reauthorization_required': AlertTriangle,
   'goal.completed': Target,
   'goal.result_revised': Target,
-  'badge.awarded': Award,
 }
 
 export function getNotificationIcon(type: NotificationType): LucideIcon {

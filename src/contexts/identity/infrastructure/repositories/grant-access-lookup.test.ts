@@ -1,10 +1,8 @@
 // BQC-2.3 — grant-backed accessible-property lookup (real PostgreSQL).
 //
 // The money tests of the slice (phase BQC-2 §2.3 + ADR 0039):
-//   - a staff_assignment WITHOUT a grant does NOT authorize (participation
-//     is not an authorization input);
-//   - a grant WITHOUT any staff_assignment DOES authorize (grants are the
-//     only source);
+//   - a Property without a grant does not authorize;
+//   - active grants authorize independently of any Staff state;
 //   - revoked/expired grants never authorize;
 //   - the version-keyed cache invalidates on policy_version bump (grants
 //     bump it in the same statement) — revocation is visible on the next call.
@@ -25,9 +23,9 @@ const ORG = 'org-lookup'
 const USER_A = 'user-lookup-a'
 const USER_B = 'user-lookup-b'
 
-let propStaffOnly: string
-let propGrantOnly: string
-let propBoth: string
+let propNoGrant: string
+let propMigrationGrant: string
+let propOperatorGrant: string
 let propExpired: string
 let propRevoked: string
 
@@ -44,15 +42,7 @@ async function insertProperty(slug: string): Promise<string> {
   return (rows.rows[0] as { id: string }).id
 }
 
-async function insertStaffAssignment(property: string, user: string): Promise<void> {
-  await db.execute(sql`
-    INSERT INTO staff_assignments (organization_id, user_id, property_id)
-    VALUES (${ORG}, ${user}, ${property})
-  `)
-}
-
 beforeAll(async () => {
-  await db.execute(sql`DELETE FROM staff_assignments WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM "user" WHERE id IN (${USER_A}, ${USER_B})`)
@@ -67,24 +57,22 @@ beforeAll(async () => {
       (${USER_B}, 'Lookup B', 'user-lookup-b@example.com', false)
   `)
 
-  propStaffOnly = await insertProperty('lookup-staff-only')
-  propGrantOnly = await insertProperty('lookup-grant-only')
-  propBoth = await insertProperty('lookup-both')
+  propNoGrant = await insertProperty('lookup-no-grant')
+  propMigrationGrant = await insertProperty('lookup-migration-grant')
+  propOperatorGrant = await insertProperty('lookup-operator-grant')
   propExpired = await insertProperty('lookup-expired')
   propRevoked = await insertProperty('lookup-revoked')
 
-  // USER_A: staff assignment only (participation, no grant)
-  await insertStaffAssignment(propStaffOnly, USER_A)
-  // USER_B: grants only (no staff assignments at all)
+  // USER_A starts without access; USER_B receives two active grants.
   await grantPropertyAccess(db, {
     organizationId: ORG,
-    propertyId: propGrantOnly,
+    propertyId: propMigrationGrant,
     userId: USER_B,
     source: 'migration',
   })
   await grantPropertyAccess(db, {
     organizationId: ORG,
-    propertyId: propBoth,
+    propertyId: propOperatorGrant,
     userId: USER_B,
     source: 'operator',
   })
@@ -109,7 +97,6 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  await db.execute(sql`DELETE FROM staff_assignments WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM "user" WHERE id IN (${USER_A}, ${USER_B})`)
@@ -117,18 +104,17 @@ afterAll(async () => {
 })
 
 describe('grant-backed access lookup (BQC-2.3)', () => {
-  it('staff_assignment WITHOUT a grant does NOT authorize', async () => {
+  it('a Property without a grant does not authorize', async () => {
     const lookup = createGrantAccessLookup(db, () => new Date())
     const ids = await lookup(ORG_ID, USER_A_ID)
-    expect(ids).not.toContain(propertyId(propStaffOnly))
     expect(ids).toEqual([])
   })
 
-  it('grants WITHOUT staff_assignment DO authorize; revoked/expired never do', async () => {
+  it('active grants authorize; revoked and expired grants do not', async () => {
     const lookup = createGrantAccessLookup(db, () => new Date())
     const ids = await lookup(ORG_ID, USER_B_ID)
-    expect(ids).toContain(propertyId(propGrantOnly))
-    expect(ids).toContain(propertyId(propBoth))
+    expect(ids).toContain(propertyId(propMigrationGrant))
+    expect(ids).toContain(propertyId(propOperatorGrant))
     expect(ids).not.toContain(propertyId(propExpired))
     expect(ids).not.toContain(propertyId(propRevoked))
     expect(ids).toHaveLength(2)
@@ -143,17 +129,17 @@ describe('grant-backed access lookup (BQC-2.3)', () => {
     // set is orphaned and the very next call sees the grant.
     await grantPropertyAccess(db, {
       organizationId: ORG,
-      propertyId: propStaffOnly,
+      propertyId: propNoGrant,
       userId: USER_A,
       source: 'operator',
     })
     const second = await lookup(ORG_ID, USER_A_ID)
-    expect(second).toContain(propertyId(propStaffOnly))
+    expect(second).toContain(propertyId(propNoGrant))
 
     // Revocation bumps again — next call denies.
     await revokePropertyAccess(db, {
       organizationId: ORG,
-      propertyId: propStaffOnly,
+      propertyId: propNoGrant,
       userId: USER_A,
     })
     const third = await lookup(ORG_ID, USER_A_ID)

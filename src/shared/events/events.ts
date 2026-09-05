@@ -28,21 +28,6 @@ export type {
   PropertyRestored,
 } from '#/contexts/property/domain/events'
 
-// Team context events
-export type {
-  TeamEvent,
-  TeamCreated,
-  TeamUpdated,
-  TeamDeleted,
-} from '#/contexts/team/domain/events'
-
-// Staff context events
-export type {
-  StaffEvent,
-  StaffAssigned,
-  StaffUnassigned,
-} from '#/contexts/staff/domain/events'
-
 // Portal context events
 export type {
   PortalEvent,
@@ -134,9 +119,6 @@ export type {
   MetricCorrected,
 } from '#/contexts/metric/domain/events'
 
-// Badge context events
-export type { BadgeEvent, BadgeAwarded } from '#/contexts/badge/domain/events'
-
 // AI context events
 export type {
   AiEvent,
@@ -145,11 +127,8 @@ export type {
 } from '#/contexts/ai/domain/events'
 
 // Master union — adding a new context's events requires extending this.
-import type { BadgeEvent } from '#/contexts/badge/domain/events'
 import type { IdentityEvent } from '#/contexts/identity/domain/events'
 import type { PropertyEvent } from '#/contexts/property/domain/events'
-import type { TeamEvent } from '#/contexts/team/domain/events'
-import type { StaffEvent } from '#/contexts/staff/domain/events'
 import type { PortalEvent } from '#/contexts/portal/domain/events'
 import type { GuestEvent } from '#/contexts/guest/domain/events'
 import type { IntegrationEvent } from '#/contexts/integration/domain/events'
@@ -162,8 +141,6 @@ import type { AiEvent } from '#/contexts/ai/domain/events'
 export type DomainEvent =
   | IdentityEvent
   | PropertyEvent
-  | TeamEvent
-  | StaffEvent
   | PortalEvent
   | GuestEvent
   | IntegrationEvent
@@ -171,5 +148,4 @@ export type DomainEvent =
   | InboxEvent
   | GoalEvent
   | MetricEvent
-  | BadgeEvent
   | AiEvent

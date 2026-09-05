@@ -17,7 +17,6 @@ export type RatingId = Brand<string, 'RatingId'>
 export type FeedbackId = Brand<string, 'FeedbackId'>
 export type TeamId = Brand<string, 'TeamId'>
 export type StaffId = Brand<string, 'StaffId'>
-export type StaffAssignmentId = Brand<string, 'StaffAssignmentId'>
 export type PortalLinkCategoryId = Brand<string, 'PortalLinkCategoryId'>
 export type PortalLinkId = Brand<string, 'PortalLinkId'>
 export type InboxItemId = Brand<string, 'InboxItemId'>
@@ -74,9 +73,6 @@ export function feedbackId(id: string): FeedbackId {
 
 export function teamId(id: string): TeamId {
   return id as TeamId
-}
-export function staffAssignmentId(id: string): StaffAssignmentId {
-  return id as StaffAssignmentId
 }
 
 export function portalLinkCategoryId(id: string): PortalLinkCategoryId {

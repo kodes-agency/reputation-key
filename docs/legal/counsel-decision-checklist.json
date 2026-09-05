@@ -580,21 +580,6 @@
     },
     {
       "blocksDocuments": ["internal-beta-agreement"],
-      "capabilityPosture": "dark",
-      "category": "staff_metrics",
-      "decidedBy": null,
-      "decidedOn": null,
-      "decision": null,
-      "evidenceRef": null,
-      "id": "staff_metrics.recognition_retained_only",
-      "question": "How must the agreement describe retained competitive scoring code that has no activation path?",
-      "repositoryFactRef": "src/shared/governance/capability-fate.ts",
-      "sourceAnchor": "competitive Badge/Leaderboard behavior",
-      "sourceDocument": "internal-beta-agreement",
-      "status": "open"
-    },
-    {
-      "blocksDocuments": ["internal-beta-agreement"],
       "capabilityPosture": "core",
       "category": "support_terms",
       "decidedBy": null,

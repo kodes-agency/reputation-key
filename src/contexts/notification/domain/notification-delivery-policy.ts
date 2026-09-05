@@ -55,12 +55,11 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   // Recognition, NOT a digest: `digest_summary` defaulted to
   // {in_app:false, email:false}, so a goal completion classified as a digest
   // was DROPPED entirely for any tenant without preference rows — nothing was
-  // persisted and nothing was mailed. A completed goal is recognition
-  // (ADR 0046: "On privately"), same as a badge. The digest category itself is
-  // retired; a daily digest is a cadence (see domain/types.ts).
+  // persisted and nothing was mailed. A completed goal is recognition under
+  // ADR 0046 ("On privately"). The digest category itself is retired; a daily
+  // digest is a cadence (see domain/types.ts).
   'goal.completed': 'recognition',
   'goal.result_revised': 'recognition',
-  'badge.awarded': 'recognition',
 }
 
 export function classifyNotification(type: NotificationType): NotificationCategory {

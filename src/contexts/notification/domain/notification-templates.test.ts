@@ -1,8 +1,7 @@
 // These tests are the copy contract. They exist because the shipped copy was
-// unusable — "Inbox item 61ed98fc-9cf8-44e9-b49d-cd25e744fd6c has been
-// escalated and requires attention" and "Badge definition: <uuid>" — and
-// because the same renderer now feeds the in-app row, the urgent email and the
-// digest line, so a regression here regresses every channel at once.
+// unusable — raw identifiers reached user-visible copy. The same renderer now
+// feeds the in-app row, urgent email and digest line, so a regression here
+// regresses every channel at once.
 //
 // The invariants worth defending, in priority order:
 //   1. No identifier ever reaches user-visible copy.
@@ -31,9 +30,6 @@ const FULL: NotificationPayload = {
   actorRole: 'property_manager',
   moderationReason: 'Tone is too defensive.',
   goalName: 'Q3 response time',
-  badgeName: 'Fast Responder',
-  recipientName: 'Front Desk',
-  targetKind: 'portal_group',
 }
 
 describe('renderNotification — invariants across every type', () => {
@@ -154,23 +150,6 @@ describe('renderNotification — the copy that was broken', () => {
       actionLabel: 'View item',
       summary: 'Riverside Hotel · 2-star feedback · follow-up reopened',
     })
-  })
-
-  it('renders a retained badge row as neutral notification history', () => {
-    const r = renderNotification('badge.awarded', {
-      badgeName: 'Fast Responder',
-      recipientName: 'Front Desk',
-      targetKind: 'portal_group',
-      propertyName: 'Riverside Hotel',
-    })
-
-    expect(r.title).toBe('Earlier award: Fast Responder')
-    expect(r.body).toBe(
-      'Front Desk received this award at Riverside Hotel. This earlier update remains in your notification history.',
-    )
-    expect(r.actionLabel).toBe('View property')
-    expect(r.summary).toContain('Fast Responder')
-    expect([r.title, r.body, r.actionLabel].join(' ')).not.toMatch(/recognition/i)
   })
 
   it('reply.pending_approval leads with the decision and says who and how long', () => {
@@ -308,13 +287,6 @@ describe('notificationLink', () => {
   it('lands legacy reply rows on the inbox list rather than a stale reply', () => {
     expect(notificationLink('reply', 'reply-1', 'prop-1')).toEqual({
       path: '/inbox',
-      search: {},
-    })
-  })
-
-  it('lands a retained badge row on its property, not the unavailable program', () => {
-    expect(notificationLink('badge', 'badge-1', 'prop-1')).toEqual({
-      path: '/properties/prop-1',
       search: {},
     })
   })

@@ -59,21 +59,18 @@ export type BetaPosture = 'core' | 'non_core' | 'blocked'
 export type EntryPointOwner =
   | 'activity'
   | 'ai'
-  | 'badge'
   | 'dashboard'
   | 'goal'
   | 'guest'
   | 'identity'
   | 'inbox'
   | 'integration'
-  | 'leaderboard'
   | 'metric'
   | 'notification'
   | 'portal'
   | 'property'
   | 'review'
   | 'staff'
-  | 'team'
   | 'operations'
   | 'shared'
   | 'web'
@@ -176,10 +173,6 @@ export type SystemAction =
   | 'system:goal.spawn'
   | 'system:goal.progress'
   | 'system:goal.maintain'
-  | 'system:badge.reconcile'
-  | 'system:badge.evaluate'
-  | 'system:leaderboard.reconcile'
-  | 'system:leaderboard.refresh'
   | 'system:activity.record'
   | 'system:notification.insert'
   | 'system:notification.insert_goal'
@@ -506,21 +499,18 @@ const MUTATION_DEBT_EXPIRY = '2026-10-31'
 const ENTRY_POINT_OWNERS = new Set<EntryPointOwner>([
   'activity',
   'ai',
-  'badge',
   'dashboard',
   'goal',
   'guest',
   'identity',
   'inbox',
   'integration',
-  'leaderboard',
   'metric',
   'notification',
   'portal',
   'property',
   'review',
   'staff',
-  'team',
   'operations',
   'shared',
   'web',
@@ -3426,14 +3416,6 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
         'retained URL compatibility only; Staff returns home and authorized managers move to the canonical Property Goal Program surface',
     }),
     ui(
-      '/leaderboard',
-      `${AUTHED}/leaderboard.tsx`,
-      'system:ui.render',
-      'leaderboard.use',
-      'organization',
-      { notes: 'staff leaderboard surface (dark)' },
-    ),
-    ui(
       '/properties/import-google',
       `${AUTHED}/properties/import-google/index.tsx`,
       'integration.manage',
@@ -3537,14 +3519,6 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'identity.invite',
       'organization',
       { notes: 'loader caps allowedRoles by inviter role' },
-    ),
-    ui(
-      '/settings/recognition',
-      `${AUTHED}/settings/recognition.tsx`,
-      'badge.manage',
-      'badge.use',
-      'organization',
-      { notes: 'badge admin surface (dark)' },
     ),
     ui(
       '/settings/ai',
@@ -4980,15 +4954,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/ops/reconcile-staff-grants.ts',
-    'scripts/ops/reconcile-staff-grants.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:reconcile-grants — report/apply staff→grant reconciliation (BQC-2.3); anomalies never auto-converted; --apply + --reason audited (BQC-7.5)',
-    },
-  ),
-  ops(
     'scripts/ops/reconcile-regions.ts',
     'scripts/ops/reconcile-regions.ts',
     'tenant_cross',
@@ -5007,30 +4972,12 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/ops/reconcile-people-team.ts',
-    'scripts/ops/reconcile-people-team.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:reconcile-people-team — report/apply legacy assignment reconciliation; --apply verifies canonical participation/responsibility/Portal Group parity, leaves Team membership opaque and untouched, and writes one immutable audited version-2 evidence artifact; version-1 evidence and anomalies remain blocking findings',
-    },
-  ),
-  ops(
     'scripts/ops/report-capability-refusal.ts',
     'scripts/ops/report-capability-refusal.ts',
     'tenant_cross',
     {
       notes:
         'ops:report-capability-refusal — read-only live refusal explanation across capability fate, tenant policy, Google execution control/approval, and empirical permit outcomes; no apply path, and it never invokes or duplicates the mutating Postgres start authority',
-    },
-  ),
-  ops(
-    'scripts/ops/report-people-authority.ts',
-    'scripts/ops/report-people-authority.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-people-authority — read-only, explicit-time reconciliation of membership, access, Staff participation/attribution, manager responsibility, and retained Team/legacy rows; stable exact/mappable/conflict/orphan/unsafe output',
     },
   ),
   ops(
@@ -5103,24 +5050,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:report-legacy-goals — read-only, explicit-time GOA-01/CNV-01 inventory of the two retained pre-beta Goal tables, exact row counts, all-schema foreign-key dependencies, fixed data-fate classifications, and a content-free fingerprint; no record identifiers or apply path',
-    },
-  ),
-  ops(
-    'scripts/ops/report-legacy-people-team.ts',
-    'scripts/ops/report-legacy-people-team.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-legacy-people-team — read-only, explicit-time PPL-01/CNV-01 inventory of all five mixed-owner contraction tables: the Identity-owned plural PropertyAccessGrant plus retained StaffAssignment, Team, TeamMembership, and Team-to-Portal-Group rows and foreign-key dependencies; content-free counts and fingerprints only, with no apply path',
-    },
-  ),
-  ops(
-    'scripts/ops/report-legacy-recognition.ts',
-    'scripts/ops/report-legacy-recognition.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-legacy-recognition — read-only REC-01 inventory of all 13 retained Badge/Leaderboard/Recognition tables, exact row counts, foreign-key dependencies, data-fate classifications, and a content-free fingerprint; no record identifiers or apply path',
     },
   ),
   ops('scripts/ops/property-erase.ts', 'scripts/ops/property-erase.ts', 'property', {
@@ -5899,22 +5828,10 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/migrations/create-missing-tables.sql',
-    'scripts/migrations/create-missing-tables.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): notifications/badges/leaderboards tables' },
-  ),
-  ops(
     'scripts/migrations/fix-portal-schema-sync.sql',
     'scripts/migrations/fix-portal-schema-sync.sql',
     'tenant_cross',
     { notes: 'DIRECT-DB (psql): portal sort_key + group-members table' },
-  ),
-  ops(
-    'scripts/migrations/add-missing-indexes.sql',
-    'scripts/migrations/add-missing-indexes.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): composite/FK indexes; idempotent' },
   ),
   ops(
     'scripts/migrations/add-goals-parent-period-uniq.sql',
@@ -5930,12 +5847,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'scripts/migrations/add-reply-unique-index.sql',
     'tenant_cross',
     { notes: 'DIRECT-DB (psql): one published reply per review' },
-  ),
-  ops(
-    'scripts/migrations/add-invitation-property-ids.sql',
-    'scripts/migrations/add-invitation-property-ids.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): invitation propertyIds JSON column' },
   ),
   // ── local beta stack ───────────────────────────────────────────────
   ops('scripts/local-stack/stack.ts', 'scripts/local-stack/stack.ts', 'tenant_cross', {
@@ -6122,15 +6033,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'release:migrate-cell — audited first-rollout schema bootstrap: verifies the signed manifest and fresh exact-target no-drift Railway plan, attaches only the manifest web-image digest to the one-shot schema-migrator, and requires SUCCESS at that digest',
-    },
-  ),
-  ops(
-    'scripts/release/deploy-beta.ts',
-    'scripts/release/deploy-beta.ts',
-    'tenant_cross',
-    {
-      notes:
-        'release:beta — before any Railway mutation, recomputes global people-authority parity and matches it to audited cutover evidence; then deploys one signed revision to every service, waits for settlement, and verifies it; --apply runs through the operator harness',
     },
   ),
   // ── package.json-only commands (CLI tools, no repo script file) ───

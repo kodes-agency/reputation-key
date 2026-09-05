@@ -20,11 +20,6 @@ let pool: Pool
 
 async function truncateProperties(pool: Pool) {
   // Only delete properties from our test orgs to avoid affecting parallel test files
-  await pool.query('DELETE FROM staff_assignments WHERE organization_id IN ($1, $2)', [
-    ORG_A,
-    ORG_B,
-  ])
-  await pool.query('DELETE FROM teams WHERE organization_id IN ($1, $2)', [ORG_A, ORG_B])
   await pool.query('DELETE FROM properties WHERE organization_id IN ($1, $2)', [
     ORG_A,
     ORG_B,

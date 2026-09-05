@@ -52,10 +52,7 @@ export const CAPABILITIES = [
   'portal.guest_text',
   'portal.guest_contact',
   'portal.guest_media',
-  'team.use',
   'goal.use',
-  'badge.use',
-  'leaderboard.use',
   'ai.analyze',
   'ai.generate_reply',
   'ai.detect_trends',
@@ -142,11 +139,6 @@ const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
  * controlled-beta features: they remain off by default and require persisted
  * organization/property policy.
  *
- * `badge.use` and `leaderboard.use` describe retained legacy recognition and
- * ranking implementations. The beta explicitly rejects competitive ranking;
- * neither capability may be reopened by an Organization allowlist or test
- * override. A future Healthy Guest Gateway design requires a new, separately
- * reviewed capability rather than reusing these legacy authorities.
  */
 const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   // Runtime role definitions and assignment are excluded from beta. The
@@ -159,9 +151,6 @@ const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   // Disconnect. Permanent erasure needs a separate support-mediated workflow;
   // the legacy destructive product path cannot be promoted in the meantime.
   'property.erase',
-  'team.use',
-  'badge.use',
-  'leaderboard.use',
   'portal.upload',
   'portal.guest_contact',
   'portal.guest_media',
@@ -640,11 +629,8 @@ export function isCapabilityJobEnabled(capability: Capability): boolean {
  * those are listed in PORTAL_DARK_CAPABILITIES.
  */
 export const DARK_CONTEXT_CAPABILITIES = {
-  team: 'team.use',
   portal: 'portal.read',
   guest: 'portal.read',
-  badge: 'badge.use',
-  leaderboard: 'leaderboard.use',
 } as const satisfies Readonly<Record<string, Capability>>
 
 /** All capabilities used by Portal management and the public/guest edge. */

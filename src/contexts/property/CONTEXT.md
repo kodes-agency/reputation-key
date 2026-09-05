@@ -15,7 +15,7 @@ Property management — creation, updates, lifecycle containment, and cross-cont
 ## Relationships
 
 - Property → Organization (required `organizationId`).
-- Property ← Portal, Team, StaffAssignment, Goal, Review (all reference `propertyId`).
+- Property ← Portal, StaffParticipation, PortalResponsibility, PropertyAccessGrant, Goal, and Review (all reference `propertyId`).
 - Property ← Integration context (via `PropertyGoogleBindingPublicApi` for canonical binding lifecycle).
 - Property ← Guest context (via slug lookup for public portal resolution).
 - Property context **depends on** `StaffPublicApi` for accessible property filtering and linked participation eligibility.

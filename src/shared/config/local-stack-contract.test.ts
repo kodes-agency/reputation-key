@@ -49,9 +49,6 @@ describe('local beta stack contract', () => {
       expect.arrayContaining([
         'portal.upload',
         'portal.guest_media',
-        'team.use',
-        'badge.use',
-        'leaderboard.use',
         'identity.register',
         'organization.create',
         'gbp.reply.auto_publish',

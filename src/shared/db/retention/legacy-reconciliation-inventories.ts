@@ -3,10 +3,9 @@
  * multi-organization and legacy-Guest data that must be reconciled or archived
  * before migration.
  *
- * Billing is already covered by `ops:manage-dormant-billing-data` and the Team
- * tables by `ops:report-legacy-people-team`; these three had no report at all,
- * which meant the bullet-12 preconditions were being asserted rather than
- * observed.
+ * Billing is already covered by `ops:manage-dormant-billing-data`; these three
+ * had no report at all, which meant the bullet-12 preconditions were being
+ * asserted rather than observed.
  *
  * Every query below is a COUNT over a static predicate. There is no delete, no
  * update and no write path in this module, because the rows that make a

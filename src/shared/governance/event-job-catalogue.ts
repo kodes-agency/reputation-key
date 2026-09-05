@@ -179,7 +179,7 @@ export type JobFamilyRow = Readonly<{
 
 // ── Row factories (records of functions — no classes) ───────────────
 
-const DARK_CONTEXT_MODULE_RE = /\/contexts\/(team|portal|guest|badge|leaderboard)\//
+const DARK_CONTEXT_MODULE_RE = /\/contexts\/(portal|guest)\//
 
 /** Consumer ref; dark posture derived from the module path. */
 function ref(name: string, module: string, kind: EventConsumerKind): EventConsumerRef {
@@ -353,8 +353,6 @@ const REVIEW_EVENTS = 'src/contexts/review/domain/events.ts'
 const INBOX_EVENTS = 'src/contexts/inbox/domain/events.ts'
 const IDENTITY_EVENTS = 'src/contexts/identity/domain/events.ts'
 const PROPERTY_EVENTS = 'src/contexts/property/domain/events.ts'
-const TEAM_EVENTS = 'src/contexts/team/domain/events.ts'
-const STAFF_EVENTS = 'src/contexts/staff/domain/events.ts'
 const PORTAL_EVENTS = 'src/contexts/portal/domain/events.ts'
 const PORTAL_OUTBOX = 'src/contexts/portal/infrastructure/outbox-consumers.ts'
 const PORTAL_HEALTH_OUTBOX =
@@ -363,7 +361,6 @@ const GUEST_EVENTS = 'src/contexts/guest/domain/events.ts'
 const INTEGRATION_EVENTS = 'src/contexts/integration/domain/events.ts'
 const METRIC_EVENTS = 'src/contexts/metric/domain/events.ts'
 const GOAL_EVENTS = 'src/contexts/goal/domain/events.ts'
-const BADGE_EVENTS = 'src/contexts/badge/domain/events.ts'
 const AI_EVENTS = 'src/contexts/ai/domain/events.ts'
 
 const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -1362,99 +1359,6 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
   ),
 ]
 
-const TEAM_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev(
-    'team.created',
-    TEAM_EVENTS,
-    {
-      stateOwner: 'team',
-      capability: 'team.use',
-      action: 'none',
-      schemaRegistered: true,
-      recordedInOutbox: false,
-      consumers: [],
-      disposition: 'denied_dark',
-    },
-    {
-      notes:
-        'historical schema and constructor retained for reconciliation/restore interpretation; no production producer or consumer',
-    },
-  ),
-  ev(
-    'team.updated',
-    TEAM_EVENTS,
-    {
-      stateOwner: 'team',
-      capability: 'team.use',
-      action: 'none',
-      schemaRegistered: true,
-      recordedInOutbox: false,
-      consumers: [],
-      disposition: 'denied_dark',
-    },
-    {
-      notes:
-        'historical schema and constructor retained for reconciliation/restore interpretation; no production producer or consumer',
-    },
-  ),
-  ev(
-    'team.deleted',
-    TEAM_EVENTS,
-    {
-      stateOwner: 'team',
-      capability: 'team.use',
-      action: 'none',
-      schemaRegistered: true,
-      recordedInOutbox: false,
-      consumers: [],
-      disposition: 'denied_dark',
-    },
-    {
-      notes:
-        'historical schema and constructor retained for reconciliation/restore interpretation; no production producer or consumer',
-    },
-  ),
-]
-
-const STAFF_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev(
-    'staff.assigned',
-    STAFF_EVENTS,
-    {
-      stateOwner: 'staff',
-      capability: 'staff.use',
-      action: 'none',
-      schemaRegistered: true,
-      recordedInOutbox: true,
-      consumers: [],
-      disposition: 'quarantined',
-    },
-    {
-      ownerSlice: 'PPL-01',
-      notes:
-        'quarantined legacy StaffAssignment producer retained for reconciliation; no runtime endpoint or consumer',
-    },
-  ),
-  ev(
-    'staff.unassigned',
-    STAFF_EVENTS,
-    {
-      stateOwner: 'staff',
-      capability: 'staff.use',
-      action: 'none',
-      schemaRegistered: true,
-      recordedInOutbox: true,
-      consumers: [],
-      disposition: 'quarantined',
-    },
-    {
-      ownerSlice: 'PPL-01',
-      notes:
-        'quarantined legacy StaffAssignment producer retained for reconciliation; no runtime endpoint or consumer',
-    },
-  ),
-]
-
 const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev(
     'portal.created',
@@ -2287,7 +2191,7 @@ const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
     {
       notes:
-        "canonical recorded fact from the atomic Metric command store (BQC-3.5); schema corrected in place at v1 — the registered recordedAt never matched the domain event's occurredAt and the build never wired outboxRepo (zero historical rows); REC-01 removed the unreachable Badge/Leaderboard subscribers; canonical Goal Programs read governed Metric sources and do not subscribe to this event",
+        "canonical recorded fact from the atomic Metric command store (BQC-3.5); schema corrected in place at v1 — the registered recordedAt never matched the domain event's occurredAt and the build never wired outboxRepo (zero historical rows); canonical Goal Programs read governed Metric sources and do not subscribe to this event",
     },
   ),
   ev(
@@ -2391,39 +2295,16 @@ const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ),
 ]
 
-const BADGE_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev(
-    'badge.awarded',
-    BADGE_EVENTS,
-    {
-      stateOwner: 'badge',
-      capability: 'badge.use',
-      action: 'system:badge.evaluate',
-      schemaRegistered: false,
-      recordedInOutbox: false,
-      consumers: [],
-      disposition: 'denied_dark',
-    },
-    {
-      notes:
-        'no schema, producer, subscription, or materialization handler is active; Notification retains only neutral rendering for already-persisted historical rows',
-    },
-  ),
-]
-
 export const EVENT_FAMILY_ROWS: ReadonlyArray<EventFamilyRow> = [
   ...REVIEW_ROWS,
   ...INBOX_ROWS,
   ...IDENTITY_ROWS,
   ...PROPERTY_ROWS,
-  ...TEAM_ROWS,
-  ...STAFF_ROWS,
   ...PORTAL_ROWS,
   ...GUEST_ROWS,
   ...INTEGRATION_ROWS,
   ...METRIC_ROWS,
   ...GOAL_ROWS,
-  ...BADGE_ROWS,
 ]
 
 // ── Job families ────────────────────────────────────────────────────

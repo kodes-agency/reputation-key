@@ -112,7 +112,6 @@ describe('capability refusal explainer', () => {
   it.each([
     ['portal.upload', 'safety_blocked', 'SAFE-01'],
     ['portal.guest_contact', 'safety_blocked', 'counsel'],
-    ['badge.use', 'legacy_blocked', 'Never reactivate'],
     ['gbp.reply.auto_publish', 'permanently_denied', 'No activation path'],
     ['identity.register', 'beta_disabled', 'code posture change'],
   ])(

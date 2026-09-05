@@ -37,8 +37,6 @@ export const ACTIVITY_RESOURCE_TYPES = [
   'note',
   'property',
   'member',
-  'team',
-  'staff_assignment',
   'integration',
   'organization',
   'portal',

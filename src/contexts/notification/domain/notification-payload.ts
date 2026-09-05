@@ -12,10 +12,9 @@
 // THE BOUNDARY (ADR 0046 r.8, ADR 0031, BQC-1.2). Payload carries
 // "property/resource/status metadata" ONLY:
 //
-//   ALLOWED   property name (tenant-authored), goal/badge/portal display names
-//             (registered non-sensitive), the locally collected 1-5 guest
-//             rating, actor ROLE, counts, ages in hours, platform enum, and an
-//             internal moderation reason (staff-authored).
+//   ALLOWED   tenant-authored property and goal names, the locally collected
+//             1-5 guest rating, actor ROLE, counts, ages in hours, platform
+//             enum, and an internal moderation reason (staff-authored).
 //   FORBIDDEN Google/provider review ratings and content, reply text,
 //             guest/reviewer name, media URLs, sentiment or any derived score,
 //             and any other employee's NAME or email.
@@ -36,8 +35,6 @@ export type NotificationActorRole = 'account_admin' | 'property_manager' | 'staf
 
 export type NotificationPlatform = 'google' | 'portal'
 
-export type NotificationTargetKind = 'portal' | 'portal_group'
-
 export type NotificationPayload = Readonly<{
   /** Tenant-authored property name. Present on every payload we mint. */
   propertyName?: string
@@ -53,12 +50,6 @@ export type NotificationPayload = Readonly<{
   moderationReason?: string
   /** Tenant-authored goal name (goal.completed). */
   goalName?: string
-  /** Badge display name (badge.awarded). */
-  badgeName?: string
-  /** Portal / portal-group display name — registered non-sensitive. */
-  recipientName?: string
-  /** Whether the badge target is a portal or a portal group. */
-  targetKind?: NotificationTargetKind
   /** Repeat-event count when a row has coalesced. */
   occurrences?: number
   /** Number of Inbox items represented by one grouped assignment fact. */
@@ -72,8 +63,6 @@ const ACTOR_ROLES: Record<string, true> = {
 }
 
 const PLATFORMS: Record<string, true> = { google: true, portal: true }
-
-const TARGET_KINDS: Record<string, true> = { portal: true, portal_group: true }
 
 /** Longest free-ish text we accept. Names, not prose. */
 const MAX_NAME_LENGTH = 120
@@ -132,9 +121,6 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set('actorRole', takeMember(raw.actorRole, ACTOR_ROLES))
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
   set('goalName', takeText(raw.goalName, MAX_NAME_LENGTH))
-  set('badgeName', takeText(raw.badgeName, MAX_NAME_LENGTH))
-  set('recipientName', takeText(raw.recipientName, MAX_NAME_LENGTH))
-  set('targetKind', takeMember(raw.targetKind, TARGET_KINDS))
   set('occurrences', takeCount(raw.occurrences))
   set('itemCount', takeCount(raw.itemCount))
 

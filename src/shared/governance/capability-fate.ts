@@ -6,12 +6,7 @@ import type { Capability } from '#/shared/auth/beta-capabilities'
  * the same runtime set but have different reactivation rules.
  */
 export type CapabilityFate =
-  | 'core'
-  | 'controlled_beta'
-  | 'beta_disabled'
-  | 'safety_blocked'
-  | 'legacy_blocked'
-  | 'permanently_denied'
+  'core' | 'controlled_beta' | 'beta_disabled' | 'safety_blocked' | 'permanently_denied'
 
 export type CapabilityFateRecord = Readonly<{
   fate: CapabilityFate
@@ -104,21 +99,8 @@ export const CAPABILITY_FATE = Object.freeze({
   'portal.guest_media': DISABLED(
     'Guest media is excluded from the first beta cohort and has no public issuance surface.',
   ),
-  'team.use': DISABLED(
-    'Team is quarantined historical data; Portal Groups are not Teams.',
-  ),
   'goal.use': CONTROLLED(
     'Property, Portal Group, and individual Portal Goals over scans, rating count, and rating average are controlled beta.',
-  ),
-  'badge.use': fate(
-    'legacy_blocked',
-    'Legacy Badge behavior is not the accepted recognition model.',
-    'Never reactivate; contract/delete legacy paths. Future Healthy Guest Gateway recognition needs a new capability.',
-  ),
-  'leaderboard.use': fate(
-    'legacy_blocked',
-    'Competitive ranking is rejected beta behavior.',
-    'Never reactivate; contract/delete legacy paths. Future Healthy Guest Gateway recognition needs a new capability.',
   ),
   'ai.analyze': CONTROLLED(
     'Per-Property Review Analysis requires independent merchant authorization and readiness.',

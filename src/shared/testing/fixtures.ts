@@ -2,20 +2,12 @@
 // Per patterns.md: deterministic builders so tests don't depend on random state.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
-import {
-  organizationId,
-  userId,
-  propertyId,
-  teamId,
-  staffAssignmentId,
-} from '#/shared/domain/ids'
+import { organizationId, userId, propertyId } from '#/shared/domain/ids'
 import {
   DEFAULT_PROPERTY_GOOGLE_PROFILE,
   DEFAULT_PROPERTY_ROUTING,
   type Property,
 } from '#/contexts/property/domain/types'
-import type { Team } from '#/contexts/team/domain/types'
-import type { StaffAssignment } from '#/contexts/staff/domain/types'
 import type {
   Portal,
   PortalLinkCategory,
@@ -105,52 +97,6 @@ export function buildTestProperty(
     ...rest,
     dataCellId: inferredDataCellId,
   } as Property
-}
-
-/** Build a deterministic Team for tests. */
-export function buildTestTeam(
-  overrides: Partial<Omit<Team, 'id'>> & { id?: string } = {},
-): Team {
-  const idStr = overrides.id
-    ? toTestId(overrides.id)
-    : 'b0000000-0000-0000-0000-000000000001'
-  const resolvedId = teamId(idStr)
-  const { id: _ignored, ...rest } = overrides
-  return {
-    id: resolvedId,
-    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
-    propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
-    name: 'Test Team',
-    description: null,
-    teamLeadId: null,
-    createdAt: new Date('2026-04-15T12:00:00Z'),
-    updatedAt: new Date('2026-04-15T12:00:00Z'),
-    deletedAt: null,
-    ...rest,
-  } as Team
-}
-
-/** Build a deterministic StaffAssignment for tests. */
-export function buildTestStaffAssignment(
-  overrides: Partial<Omit<StaffAssignment, 'id'>> & { id?: string } = {},
-): StaffAssignment {
-  const idStr = overrides.id
-    ? toTestId(overrides.id)
-    : 'c0000000-0000-0000-0000-000000000001'
-  const resolvedId = staffAssignmentId(idStr)
-  const { id: _ignored, ...rest } = overrides
-  return {
-    id: resolvedId,
-    organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
-    userId: userId('user-00000000-0000-0000-0000-000000000001'),
-    propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
-    teamId: null,
-    portalId: null,
-    createdAt: new Date('2026-04-15T12:00:00Z'),
-    updatedAt: new Date('2026-04-15T12:00:00Z'),
-    deletedAt: null,
-    ...rest,
-  } as StaffAssignment
 }
 
 /** Build a deterministic Portal for tests. */

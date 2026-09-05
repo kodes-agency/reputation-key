@@ -13,7 +13,6 @@ describe('permissions statement', () => {
     expect(resources).toContain('member')
     expect(resources).toContain('invitation')
     expect(resources).toContain('property')
-    expect(resources).toContain('team')
     expect(resources).toContain('staff')
     expect(resources).toContain('ac')
     expect(resources).toContain('portal')
@@ -37,10 +36,6 @@ describe('permissions statement', () => {
     expect(statement.property).toContain('create')
     expect(statement.property).toContain('update')
     expect(statement.property).toContain('delete')
-    expect(statement.team).toContain('create')
-    expect(statement.team).toContain('update')
-    expect(statement.team).toContain('delete')
-    expect(statement.team).toContain('membership.manage')
     expect(statement.staff).toContain('manage')
     expect(statement.staff).toContain('read')
     expect(statement.portal).toContain('admin')
@@ -118,18 +113,6 @@ describe('owner role (AccountAdmin)', () => {
       expect(can('AccountAdmin', permission)).toBe(true)
     }
   })
-
-  it('does not grant quarantined Team permissions', () => {
-    for (const permission of [
-      'team.create',
-      'team.update',
-      'team.delete',
-      'team.read',
-      'team.membership.manage',
-    ] satisfies Permission[]) {
-      expect(can('AccountAdmin', permission)).toBe(false)
-    }
-  })
 })
 
 describe('admin role (PropertyManager)', () => {
@@ -176,11 +159,6 @@ describe('admin role (PropertyManager)', () => {
     'member.update',
     'member.delete',
     'property.delete',
-    'team.create',
-    'team.update',
-    'team.delete',
-    'team.read',
-    'team.membership.manage',
     'ac.create',
     'ac.read',
     'ac.update',
@@ -240,14 +218,6 @@ describe('memberRole (Staff)', () => {
   it('cannot read live GBP Performance or import properties', () => {
     expect(can('Staff', 'property.read_gbp_performance')).toBe(false)
     expect(can('Staff', 'property.import_gbp_v2')).toBe(false)
-  })
-
-  it('has no Team permissions', () => {
-    expect(can('Staff', 'team.create')).toBe(false)
-    expect(can('Staff', 'team.update')).toBe(false)
-    expect(can('Staff', 'team.delete')).toBe(false)
-    expect(can('Staff', 'team.read')).toBe(false)
-    expect(can('Staff', 'team.membership.manage')).toBe(false)
   })
 
   it('cannot manage staff participation lifecycle', () => {

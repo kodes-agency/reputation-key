@@ -240,7 +240,7 @@ async function main() {
 
   // ── Background queue — cron-scheduled maintenance jobs ────────────
   // Separate queue so retained background work never blocks user-facing jobs.
-  // Dark Badge/Leaderboard work is absent from this runtime. Lower concurrency.
+  // This runtime carries no dark work. Lower concurrency.
   if (container.backgroundQueue) {
     backgroundWorker = createJobWorker(
       'background',

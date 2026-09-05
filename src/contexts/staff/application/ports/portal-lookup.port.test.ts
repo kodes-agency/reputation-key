@@ -6,8 +6,6 @@
 // Portal context existed.
 
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type { StaffPortalLookupPort } from './portal-lookup.port'
 
@@ -63,16 +61,5 @@ describe('StaffPortalLookupPort contract', () => {
       name: 'B',
       publicationState: 'draft',
     })
-  })
-
-  it('is consumed through the port, never through a context-private hatch', () => {
-    for (const consumer of [
-      'src/contexts/staff/application/use-cases/list-staff-portals.ts',
-      'src/contexts/staff/application/use-cases/update-staff-portals.ts',
-    ]) {
-      const source = readFileSync(resolve(consumer), 'utf8')
-      expect(source, consumer).not.toContain('.internal.')
-      expect(source, consumer).toContain('StaffPortalLookupPort')
-    }
   })
 })

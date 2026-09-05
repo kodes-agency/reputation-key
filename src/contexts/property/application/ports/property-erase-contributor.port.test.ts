@@ -70,7 +70,7 @@ describe('PROPERTY_ERASE_CONTEXTS', () => {
     // context in the total the AccountAdmin agrees to destroy.
     expect(registered).toEqual([...new Set(registered)])
     expect(registered).toEqual([...registered].sort())
-    expect(registered).toHaveLength(17)
+    expect(registered).toHaveLength(14)
   })
 
   it('fits every context into the receipt column, so each receipt is writable', () => {

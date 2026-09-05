@@ -74,9 +74,9 @@ describe('policy state persistence (BQC-2.2)', () => {
   })
 
   it('adds and removes organization capabilities with PK uniqueness', async () => {
-    await addOrganizationCapability(db, ORG, 'team.use', 'op-test')
+    await addOrganizationCapability(db, ORG, 'identity.custom_roles', 'op-test')
     await expect(
-      addOrganizationCapability(db, ORG, 'team.use', 'op-test'),
+      addOrganizationCapability(db, ORG, 'identity.custom_roles', 'op-test'),
     ).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof Error &&
@@ -87,15 +87,15 @@ describe('policy state persistence (BQC-2.2)', () => {
     let snapshot = await loadPolicySnapshot(db)
     expect(
       snapshot.orgCapabilities.some(
-        (c) => c.organizationId === ORG && c.capability === 'team.use',
+        (c) => c.organizationId === ORG && c.capability === 'identity.custom_roles',
       ),
     ).toBe(true)
 
-    await removeOrganizationCapability(db, ORG, 'team.use')
+    await removeOrganizationCapability(db, ORG, 'identity.custom_roles')
     snapshot = await loadPolicySnapshot(db)
     expect(
       snapshot.orgCapabilities.some(
-        (c) => c.organizationId === ORG && c.capability === 'team.use',
+        (c) => c.organizationId === ORG && c.capability === 'identity.custom_roles',
       ),
     ).toBe(false)
   })

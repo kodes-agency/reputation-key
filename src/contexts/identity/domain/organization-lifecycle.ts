@@ -39,21 +39,18 @@ export const DEFAULT_ORGANIZATION_CLOSURE_RECOVERY_MS = 30 * 24 * 60 * 60 * 1000
 export const ORGANIZATION_LIFECYCLE_CONTEXTS = [
   'activity',
   'ai',
-  'badge',
   'dashboard',
   'goal',
   'guest',
   'identity',
   'inbox',
   'integration',
-  'leaderboard',
   'metric',
   'notification',
   'portal',
   'property',
   'review',
   'staff',
-  'team',
 ] as const
 
 export type OrganizationLifecycleContext =

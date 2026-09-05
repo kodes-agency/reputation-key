@@ -1,9 +1,9 @@
 // Shared period presets → concrete [start, end] ranges (BQC-5.9 E3).
 //
-// Single source for the badge/leaderboard period mapping — both contexts
-// must agree on what 'this_week' (etc.) means. Range math uses SERVER local
-// time (Date#setHours etc.), matching the pre-extraction behavior of both
-// copies; tenant-timezone day bucketing is dayKeyInTimezone's job.
+// Single source for the period mapping, so every caller agrees on what
+// 'this_week' (etc.) means. Range math uses SERVER local time
+// (Date#setHours etc.); tenant-timezone day bucketing is dayKeyInTimezone's
+// job.
 
 export type PeriodPreset =
   | 'today'

@@ -56,7 +56,7 @@ describe('persisted policy store (BQC-2.2)', () => {
     const store = createPersistedPolicyStore(l)
     expect(store.isOrgSuspended('org-1')).toBe(true)
     expect(store.isPropertySuspended('prop-1')).toBe(true)
-    expect(store.isOrgAllowlisted('org-1', 'team.use')).toBe(false)
+    expect(store.isOrgAllowlisted('org-1', 'goal.use')).toBe(false)
     expect(store.isPropertyAllowlisted('prop-1', 'portal.read')).toBe(false)
     // Never installed unwrapped: global enablement denies too (loud, fail-closed).
     expect(store.isCapabilityGloballyEnabled('property.create')).toBe(false)
@@ -83,7 +83,7 @@ describe('persisted policy store (BQC-2.2)', () => {
     expect(store.currentVersion()).toBe(7)
     expect(store.isOrgSuspended('org-sus')).toBe(true)
     expect(store.isOrgAllowlisted('org-ok', 'goal.use')).toBe(true)
-    expect(store.isOrgAllowlisted('org-ok', 'badge.use')).toBe(false)
+    expect(store.isOrgAllowlisted('org-ok', 'portal.read')).toBe(false)
     expect(l.loadSnapshot).toHaveBeenCalledTimes(1)
   })
 

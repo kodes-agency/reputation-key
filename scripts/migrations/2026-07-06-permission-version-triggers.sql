@@ -13,7 +13,7 @@
 --
 -- Casing verified against the live BA tables (\d on Neon, 2026-07-06):
 --   member("organizationId","role","userId",...)  organizationRole("organizationId","role",...)
---   staff_assignments(organization_id,...)  invitation("role" NULLABLE, ...)
+--   invitation("role" NULLABLE, ...)
 
 -- ── 2. Case-insensitive unique index on BA's organizationRole ────────────────
 -- BA's own migration ships only non-unique indexes + an app-level count() check,
@@ -106,13 +106,6 @@ CREATE TRIGGER organization_role_perm_ver_iud
 DROP TRIGGER IF EXISTS organization_role_policy_perm_ver_iud ON organization_role_policy;
 CREATE TRIGGER organization_role_policy_perm_ver_iud
   AFTER INSERT OR UPDATE OR DELETE ON organization_role_policy
-  FOR EACH ROW EXECUTE FUNCTION tgr_bump_perm_app();
-
--- staff_assignments: assigned-property visibility source (soft-delete via deleted_at
--- is an UPDATE, caught here). Over-invalidates on cosmetic updates — acceptable v1.
-DROP TRIGGER IF EXISTS staff_assignments_perm_ver_iud ON staff_assignments;
-CREATE TRIGGER staff_assignments_perm_ver_iud
-  AFTER INSERT OR UPDATE OR DELETE ON staff_assignments
   FOR EACH ROW EXECUTE FUNCTION tgr_bump_perm_app();
 
 -- property_access_grant is the canonical assigned-Property authority (ADR

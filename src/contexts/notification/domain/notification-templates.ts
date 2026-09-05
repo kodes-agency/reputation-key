@@ -342,22 +342,6 @@ const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification =
   summary: facts(p.propertyName ?? '', p.goalName ?? 'goal result updated'),
 })
 
-const renderBadgeAwarded = (p: NotificationPayload): RenderedNotification => {
-  const badge = p.badgeName
-  const target =
-    p.recipientName ?? (p.targetKind === 'portal_group' ? 'A portal group' : 'A portal')
-  const location = p.propertyName === undefined ? '' : ` at ${p.propertyName}`
-  return {
-    title: badge === undefined ? 'Earlier award recorded' : `Earlier award: ${badge}`,
-    body: sentence(
-      `${target} received this award${location}.`,
-      'This earlier update remains in your notification history.',
-    ),
-    actionLabel: 'View property',
-    summary: facts(p.propertyName ?? '', badge ?? 'earlier award'),
-  }
-}
-
 const RENDERERS: Record<
   NotificationType,
   (payload: NotificationPayload) => RenderedNotification
@@ -388,7 +372,6 @@ const RENDERERS: Record<
   'integration.reauthorization_required': renderIntegrationReauthorizationRequired,
   'goal.completed': renderGoalCompleted,
   'goal.result_revised': renderGoalResultRevised,
-  'badge.awarded': renderBadgeAwarded,
 }
 
 /**

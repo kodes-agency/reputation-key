@@ -304,7 +304,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     })
     expect(
       container.identityLifecycleRuntime.maintenance.readiness.missingContexts,
-    ).toHaveLength(17)
+    ).toHaveLength(14)
     expect(
       container.identityLifecycleRuntime.maintenance.runScheduledPass,
     ).toBeUndefined()

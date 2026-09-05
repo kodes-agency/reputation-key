@@ -442,7 +442,6 @@ export const DOCUMENTED_ELSEWHERE = Object.freeze([
       'Staff CONTEXT.md documents the three read seams consumers may use and deliberately leaves the rest of the barrel unadvertised.',
     names: [
       'StaffAssigned',
-      'StaffEvent',
       'StaffParticipation',
       'StaffPortalEntry',
       'StaffPublicApi',

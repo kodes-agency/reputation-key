@@ -6,10 +6,9 @@ product
 
 ## Users
 
-Three distinct audiences, each with their own context:
+Two distinct audiences, each with their own context:
 
 - **Property managers** monitor incoming reviews, track staff performance metrics, and review property-level statistics. They work in focused sessions, often daily, comparing performance across staff and properties. Primarily desktop, occasional tablet. Often in low-light environments — evening review sessions, dim offices.
-- **Staff participants** are manager-maintained profiles attributed to Portal performance; a Staff login and self-service progress view are deferred beyond the beta.
 - **Clients** (guests/tenants) use public-facing portals to leave reviews and browse property link-tree pages. Brief, low-commitment visits, almost always mobile.
 
 ## Product Purpose
@@ -38,14 +37,11 @@ The interface feels like a precision instrument: every element earns its place, 
 1. **Tool-like precision** — Every surface is intentional. Spacing, type scale, and alignment signal craft without decoration. The interface reads as a well-made tool, not a styled page.
 2. **Surface for the task** — Every screen answers one primary question well. Supporting information is available but never competes. Density matches the user's need in that moment.
 3. **Breathe between sections** — Generous spacing is structural, not decorative. Information density comes from thoughtful grouping, not tighter gaps.
-4. **Mobile-native for staff and clients** — Responsive is not a fallback. A guest scanning a Portal on their phone deserves the same craft as a manager on desktop.
-5. **Transparent attribution** — Portal performance and goals feel earned and honest, not gamified; competitive ranking and badges are not part of the beta.
 
 ## Accessibility & Inclusion
 
 - WCAG 2.1 AA compliance as baseline
-- Responsive across phone, tablet, and desktop (all three user groups)
-- Color contrast sufficient for outdoor mobile use (staff checking between tasks)
+- Responsive across phone, tablet, and desktop (both user groups)
 - Respects reduced motion preferences
-- Touch targets appropriate for mobile use by all user groups
+- Touch targets appropriate for mobile use by both user groups
 - Dark theme default benefits low-light environments (evening manager sessions)

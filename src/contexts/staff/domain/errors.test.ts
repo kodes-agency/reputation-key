@@ -13,7 +13,7 @@ describe('staffError', () => {
   })
 
   it('includes context when provided', () => {
-    const err = staffError('already_assigned', 'duplicate', {
+    const err = staffError('revision_conflict', 'stale change', {
       userId: 'user-1',
       propertyId: 'prop-1',
     })
@@ -29,10 +29,11 @@ describe('staffError', () => {
     const codes = [
       'forbidden',
       'invalid_input',
-      'assignment_not_found',
-      'already_assigned',
+      'participation_not_found',
+      'participation_archived',
+      'responsibility_conflict',
+      'revision_conflict',
       'property_not_found',
-      'team_not_found',
     ] as const
     for (const code of codes) {
       const err = staffError(code, `test ${code}`)

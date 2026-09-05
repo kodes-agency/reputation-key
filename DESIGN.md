@@ -98,11 +98,6 @@ components:
     textColor: '{colors.ink-primary}'
     rounded: '{rounded.md}'
     padding: '8px 12px'
-  badge:
-    backgroundColor: '{colors.spectral-violet-muted}'
-    textColor: '{colors.spectral-violet-foreground}'
-    rounded: '{rounded.full}'
-    padding: '2px 8px'
 ---
 
 # Design System: Reputation Key
@@ -135,7 +130,7 @@ A restrained palette built on tinted violet-graphite neutrals with one deliberat
 
 - **Spectral Violet** (#9660D8 / oklch(62% 0.18 290)): The system's sole accent. Used on primary buttons, active navigation states, links, focus rings, and selection highlights. Its deliberate scarcity is the point — it signals action, not decoration.
 - **Spectral Violet Hover** (#AB72E8 / oklch(68% 0.19 290)): Hover state on accent elements. Brighter but same hue; the shift communicates interactivity without breaking the palette.
-- **Spectral Violet Muted** (#272040 / oklch(20% 0.04 290)): Background for accent contexts — sidebar active items, badge backgrounds, selected rows. Dark enough to recede, saturated enough to read as purple.
+- **Spectral Violet Muted** (#272040 / oklch(20% 0.04 290)): Background for accent contexts — sidebar active items and selected rows. Dark enough to recede, saturated enough to read as purple.
 - **Spectral Violet Foreground** (#E8E8F0 / oklch(93% 0.008 270)): Text on accent backgrounds in dark mode. Near-white with a whisper of violet.
 
 **Light mode primaries** are the same hue family, darkened for contrast against white backgrounds:
@@ -161,7 +156,7 @@ A restrained palette built on tinted violet-graphite neutrals with one deliberat
 ### Semantic
 
 - **Signal Red** (#D45346 / oklch(65% 0.22 25)): Destructive actions, error states, deletion confirmations.
-- **Signal Red Muted** (#351A18 / oklch(22% 0.04 25)): Error backgrounds, destructive badges.
+- **Signal Red Muted** (#351A18 / oklch(22% 0.04 25)): Error backgrounds and destructive states.
 - **Signal Green** (#3DB878 / oklch(72% 0.15 155)): Confirmation states, positive metrics, success indicators.
 - **Signal Green Muted** (#1A3328 / oklch(22% 0.03 155)): Success backgrounds.
 
@@ -231,14 +226,6 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 - **Placeholder:** Ink Tertiary, matching the 4.5:1 contrast requirement.
 - **Error:** Border shifts to Signal Red with a matching red ring.
 - **Disabled:** 50% opacity, `cursor: not-allowed`.
-
-### Badges
-
-- **Shape:** Fully rounded (9999px), 2px horizontal padding, 2px vertical. Font size 12px, medium weight.
-- **Default:** Spectral Violet Muted background, Spectral Violet Foreground text. The purple reads as a category tag, not a button.
-- **Secondary:** Graphite Surface background, Ink Secondary text. For neutral metadata.
-- **Destructive:** Signal Red Muted background, white text.
-- **Outline:** Transparent background, Graphite Border border, Ink Primary text.
 
 ### Navigation (Sidebar)
 

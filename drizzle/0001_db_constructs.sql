@@ -5867,17 +5867,6 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.reject_recognition_immutable_mutation()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-  RAISE EXCEPTION 'recognition governance facts are append-only'
-    USING ERRCODE = '55000';
-END;
-$function$
-;
---> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.reject_reply_publication_authorization_mutation_v1()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -8465,8 +8454,6 @@ CREATE TRIGGER backup_erasure_ledger_truncate_guard BEFORE TRUNCATE ON public.ba
 --> statement-breakpoint
 CREATE TRIGGER backup_erasure_ledger_update_delete_guard BEFORE DELETE OR UPDATE ON public.backup_erasure_ledger FOR EACH ROW EXECUTE FUNCTION reject_backup_erasure_ledger_mutation_v1();
 --> statement-breakpoint
-CREATE TRIGGER badge_definition_versions_append_only BEFORE DELETE OR UPDATE ON public.badge_definition_versions FOR EACH ROW EXECUTE FUNCTION reject_recognition_immutable_mutation();
---> statement-breakpoint
 CREATE TRIGGER beta_feedback_triage_revision_guard BEFORE UPDATE ON public.beta_feedback_triage FOR EACH ROW EXECUTE FUNCTION guard_beta_feedback_triage_revision_v1();
 --> statement-breakpoint
 CREATE TRIGGER beta_feedback_triage_transition_truncate_guard BEFORE TRUNCATE ON public.beta_feedback_triage_transitions FOR EACH STATEMENT EXECUTE FUNCTION guard_beta_feedback_triage_transition_immutable_v1();
@@ -8641,16 +8628,6 @@ CREATE TRIGGER property_erase_context_receipts_mutation_guard BEFORE DELETE OR U
 --> statement-breakpoint
 CREATE TRIGGER property_erase_context_receipts_truncate_guard BEFORE TRUNCATE ON public.property_erase_context_receipts FOR EACH STATEMENT EXECUTE FUNCTION reject_property_erase_authority_mutation_v1();
 --> statement-breakpoint
-CREATE TRIGGER recognition_award_status_facts_append_only BEFORE DELETE OR UPDATE ON public.recognition_award_status_facts FOR EACH ROW EXECUTE FUNCTION reject_recognition_immutable_mutation();
---> statement-breakpoint
-CREATE TRIGGER recognition_awards_append_only BEFORE DELETE OR UPDATE ON public.recognition_awards FOR EACH ROW EXECUTE FUNCTION reject_recognition_immutable_mutation();
---> statement-breakpoint
-CREATE TRIGGER recognition_board_entries_append_only BEFORE DELETE OR UPDATE ON public.recognition_board_entries FOR EACH ROW EXECUTE FUNCTION reject_recognition_immutable_mutation();
---> statement-breakpoint
-CREATE TRIGGER recognition_board_snapshots_append_only BEFORE DELETE OR UPDATE ON public.recognition_board_snapshots FOR EACH ROW EXECUTE FUNCTION reject_recognition_immutable_mutation();
---> statement-breakpoint
-CREATE TRIGGER recognition_reconciliation_events_append_only BEFORE DELETE OR UPDATE ON public.recognition_reconciliation_events FOR EACH ROW EXECUTE FUNCTION reject_recognition_immutable_mutation();
---> statement-breakpoint
 CREATE TRIGGER region_moves_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.region_moves FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('state', 'requested', 'writes_paused', 'queues_drained', 'data_copied', 'verified', 'target_activated', 'source_erased', 'failed', 'rolling_back');
 --> statement-breakpoint
 CREATE TRIGGER replies_advance_state_revision_on_delete BEFORE DELETE ON public.replies FOR EACH ROW EXECUTE FUNCTION advance_review_reply_state_revision_on_delete_v1();
@@ -8671,8 +8648,6 @@ CREATE TRIGGER reviews_protect_reply_state_revision BEFORE UPDATE OF reply_state
 --> statement-breakpoint
 CREATE TRIGGER reviews_purge_ai_reply_drafts AFTER UPDATE ON public.reviews FOR EACH ROW EXECUTE FUNCTION purge_ai_reply_drafts_for_review_change_v1();
 --> statement-breakpoint
-CREATE TRIGGER staff_assignments_perm_ver_iud AFTER INSERT OR DELETE OR UPDATE ON public.staff_assignments FOR EACH ROW EXECUTE FUNCTION tgr_bump_perm_app();
---> statement-breakpoint
 
 -- ── Exclusion constraints ──────────────────────────────────────────────
 --
@@ -8689,8 +8664,4 @@ ALTER TABLE portal_group_memberships ADD CONSTRAINT pgm_no_overlapping_portal_in
 ALTER TABLE portal_responsibilities ADD CONSTRAINT pr_no_overlapping_primary_intervals EXCLUDE USING gist (organization_id WITH =, property_id WITH =, portal_id WITH =, tstzrange(effective_from, effective_to, '[)'::text) WITH &&) WHERE ((kind = 'primary'::responsibility_kind));
 --> statement-breakpoint
 ALTER TABLE portal_responsibilities ADD CONSTRAINT pr_no_overlapping_responsibility_intervals EXCLUDE USING gist (organization_id WITH =, property_id WITH =, portal_id WITH =, staff_participation_id WITH =, kind WITH =, tstzrange(effective_from, effective_to, '[)'::text) WITH &&);
---> statement-breakpoint
-ALTER TABLE team_memberships ADD CONSTRAINT tm_no_overlapping_participation_intervals EXCLUDE USING gist (organization_id WITH =, property_id WITH =, staff_participation_id WITH =, tstzrange(effective_from, effective_to, '[)'::text) WITH &&);
---> statement-breakpoint
-ALTER TABLE team_portal_group_scopes ADD CONSTRAINT tpgs_no_overlapping_scope_intervals EXCLUDE USING gist (organization_id WITH =, property_id WITH =, team_id WITH =, portal_group_id WITH =, tstzrange(effective_from, effective_to, '[)'::text) WITH &&);
 --> statement-breakpoint

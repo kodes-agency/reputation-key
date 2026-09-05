@@ -927,7 +927,6 @@ const TENANT_IDENTIFIER_LOG_KEYS = [
   'noteId',
   'feedbackId',
   'portalId',
-  'staffAssignmentId',
   'invitationId',
   'goalId',
   'notificationId',

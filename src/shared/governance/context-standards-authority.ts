@@ -7,7 +7,7 @@ const REQUIRED_CONTEXT_HEADINGS = Object.freeze([
   '## Public API',
 ] as const)
 
-export type ContextDocumentationMode = 'active' | 'controlled' | 'quarantined' | 'legacy'
+export type ContextDocumentationMode = 'active' | 'controlled'
 
 export type ContextStandardsRow = Readonly<{
   name: string
@@ -17,7 +17,7 @@ export type ContextStandardsRow = Readonly<{
 }>
 
 /**
- * Executable inventory for the 17 retained context packages. Capability fate
+ * Executable inventory for the 14 retained context packages. Capability fate
  * remains owned by capability-fate.ts; this matrix binds every capability to
  * the context document responsible for explaining its product posture.
  */
@@ -38,12 +38,6 @@ export const CONTEXT_STANDARDS_AUTHORITY = Object.freeze([
       'ai.detect_trends',
       'gbp.ai.cross_property_summary',
     ],
-  },
-  {
-    name: 'Badge',
-    directory: 'badge',
-    documentationMode: 'legacy',
-    capabilities: ['badge.use'],
   },
   {
     name: 'Dashboard',
@@ -97,12 +91,6 @@ export const CONTEXT_STANDARDS_AUTHORITY = Object.freeze([
     ],
   },
   {
-    name: 'Leaderboard',
-    directory: 'leaderboard',
-    documentationMode: 'legacy',
-    capabilities: ['leaderboard.use'],
-  },
-  {
     name: 'Metric',
     directory: 'metric',
     documentationMode: 'active',
@@ -143,12 +131,6 @@ export const CONTEXT_STANDARDS_AUTHORITY = Object.freeze([
     directory: 'staff',
     documentationMode: 'active',
     capabilities: ['staff.use'],
-  },
-  {
-    name: 'Team',
-    directory: 'team',
-    documentationMode: 'quarantined',
-    capabilities: ['team.use'],
   },
 ] as const satisfies ReadonlyArray<ContextStandardsRow>)
 

@@ -44,21 +44,18 @@ export const CLASSIFICATIONS_BY_CONTEXT: Readonly<
 > = {
   activity: ['tenant_visible'],
   ai: ['retained_ai_derivative'],
-  badge: ['tenant_visible'],
   dashboard: ['tenant_visible'],
   goal: ['tenant_visible'],
   guest: ['tenant_visible', 'permitted_guest_content'],
   identity: ['tenant_visible'],
   inbox: ['tenant_visible', 'manager_authored'],
   integration: ['content_free_lifecycle'],
-  leaderboard: ['tenant_visible'],
   metric: ['tenant_visible'],
   notification: ['tenant_visible'],
   portal: ['tenant_visible'],
   property: ['tenant_visible'],
   review: ['manager_authored'],
   staff: ['tenant_visible'],
-  team: ['tenant_visible'],
 }
 
 export type OrganizationExportEntry = Readonly<{

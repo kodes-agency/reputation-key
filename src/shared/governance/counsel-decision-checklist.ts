@@ -596,17 +596,6 @@ const OPEN_ITEMS: readonly OpenItem[] = [
     capabilityPosture: 'core',
   },
   {
-    id: 'staff_metrics.recognition_retained_only',
-    category: 'staff_metrics',
-    question:
-      'How must the agreement describe retained competitive scoring code that has no activation path?',
-    sourceDocument: 'internal-beta-agreement',
-    sourceAnchor: 'competitive Badge/Leaderboard behavior',
-    repositoryFactRef: 'src/shared/governance/capability-fate.ts',
-    blocksDocuments: ['internal-beta-agreement'],
-    capabilityPosture: 'dark',
-  },
-  {
     id: 'support_terms.service_and_liability',
     category: 'support_terms',
     question:

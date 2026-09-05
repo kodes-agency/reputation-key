@@ -12,13 +12,9 @@
  *
  * The surfaces below were found by schema inspection, not by guessing:
  *
- * - `team_memberships.team_id` and `team_portal_group_scopes.team_id` are
- *   `uuid(...).notNull()` with no `.references()` to `teams.id`
- *   (people-access.schema.ts:227 and :331);
  * - `recent_activity_entries.resource_type` / `.resource_id` are varchar with
  *   no constraint, and the `ACTIVITY_RESOURCE_TYPES` vocabulary still contains
- *   `team`, `staff_assignment` and `goal` — exactly the resource kinds whose
- *   rows are contraction candidates;
+ *   `goal` — a resource kind whose rows are contraction candidates;
  * - `recent_activity_replay_facts` repeats that pair and adds a textual
  *   `source_aggregate_id`;
  * - `outbox_events` carries `source_context`, `source_aggregate_id` and
@@ -47,8 +43,7 @@ export type NonFkProbeKind =
  *   surrogate `id`, because any of those ids can appear as text inside an
  *   aggregate identifier or a jsonb document.
  */
-export type NonFkReferentScope =
-  'declared' | 'activity_vocabulary' | 'surrogate_identified_candidates'
+export type NonFkReferentScope = 'activity_vocabulary' | 'surrogate_identified_candidates'
 
 export type NonFkReferenceSurface = Readonly<{
   id: string
@@ -61,8 +56,6 @@ export type NonFkReferenceSurface = Readonly<{
   /** Column carrying the resource-kind token; null unless a pair probe. */
   discriminatorColumn: string | null
   referentScope: NonFkReferentScope
-  /** Used only when `referentScope` is `declared`. */
-  declaredReferents: readonly string[]
   reason: string
 }>
 
@@ -72,8 +65,6 @@ const nonFkSurface = <const Definition extends NonFkReferenceSurface>(
 
 /** Recent Activity resource tokens whose rows are contraction candidates. */
 export const ACTIVITY_RESOURCE_REFERENTS = Object.freeze([
-  Object.freeze({ token: 'team', tableName: 'teams' }),
-  Object.freeze({ token: 'staff_assignment', tableName: 'staff_assignments' }),
   Object.freeze({ token: 'goal', tableName: 'goals' }),
 ] as const)
 
@@ -83,32 +74,6 @@ export const ACTIVITY_RESOURCE_REFERENTS = Object.freeze([
  */
 export const NON_FK_REFERENCE_SURFACES = Object.freeze([
   nonFkSurface({
-    id: 'team_memberships.team_id',
-    schema: 'public',
-    table: 'team_memberships',
-    columns: ['team_id'],
-    kind: 'uuid_column',
-    identifierColumn: 'team_id',
-    discriminatorColumn: null,
-    referentScope: 'declared',
-    declaredReferents: ['teams'],
-    reason:
-      'people-access.schema.ts:227 declares uuid(team_id).notNull() with no .references() to teams.id, so PostgreSQL will not refuse a membership row whose team has been contracted away.',
-  }),
-  nonFkSurface({
-    id: 'team_portal_group_scopes.team_id',
-    schema: 'public',
-    table: 'team_portal_group_scopes',
-    columns: ['team_id'],
-    kind: 'uuid_column',
-    identifierColumn: 'team_id',
-    discriminatorColumn: null,
-    referentScope: 'declared',
-    declaredReferents: ['teams'],
-    reason:
-      'people-access.schema.ts:331 declares uuid(team_id).notNull() with no .references() to teams.id; the scope row outlives the team it scopes.',
-  }),
-  nonFkSurface({
     id: 'recent_activity_entries.resource',
     schema: 'public',
     table: 'recent_activity_entries',
@@ -117,7 +82,6 @@ export const NON_FK_REFERENCE_SURFACES = Object.freeze([
     identifierColumn: 'resource_id',
     discriminatorColumn: 'resource_type',
     referentScope: 'activity_vocabulary',
-    declaredReferents: [],
     reason:
       'Both columns are varchar with no constraint, and the ACTIVITY_RESOURCE_TYPES vocabulary still contains team, staff_assignment and goal, so the projection can name a contracted row forever.',
   }),
@@ -130,7 +94,6 @@ export const NON_FK_REFERENCE_SURFACES = Object.freeze([
     identifierColumn: 'resource_id',
     discriminatorColumn: 'resource_type',
     referentScope: 'activity_vocabulary',
-    declaredReferents: [],
     reason:
       'The replay fact repeats the projection pair as nullable varchar so a replay can be reconstructed; the same dangling-reference exposure applies.',
   }),
@@ -143,7 +106,6 @@ export const NON_FK_REFERENCE_SURFACES = Object.freeze([
     identifierColumn: 'source_aggregate_id',
     discriminatorColumn: null,
     referentScope: 'surrogate_identified_candidates',
-    declaredReferents: [],
     reason:
       'The aggregate identifier is free text copied from the source event, so it can hold the surrogate id of any contraction candidate that ever emitted an event.',
   }),
@@ -156,7 +118,6 @@ export const NON_FK_REFERENCE_SURFACES = Object.freeze([
     identifierColumn: 'source_aggregate_id',
     discriminatorColumn: null,
     referentScope: 'surrogate_identified_candidates',
-    declaredReferents: [],
     reason:
       'source_context, source_aggregate_id and event_type are text with no constraint; published rows expire on their own schedule, not with the aggregate they name.',
   }),
@@ -169,7 +130,6 @@ export const NON_FK_REFERENCE_SURFACES = Object.freeze([
     identifierColumn: 'payload',
     discriminatorColumn: null,
     referentScope: 'surrogate_identified_candidates',
-    declaredReferents: [],
     reason:
       'The jsonb payload is unconstrained and routinely embeds the identifiers of the resources an entry describes.',
   }),
@@ -182,7 +142,6 @@ export const NON_FK_REFERENCE_SURFACES = Object.freeze([
     identifierColumn: 'transition_payload',
     discriminatorColumn: null,
     referentScope: 'surrogate_identified_candidates',
-    declaredReferents: [],
     reason:
       'The retained transition document is unconstrained jsonb and can embed the identifier of any aggregate involved in the transition.',
   }),
@@ -195,7 +154,6 @@ export const NON_FK_REFERENCE_SURFACES = Object.freeze([
     identifierColumn: 'payload',
     discriminatorColumn: null,
     referentScope: 'surrogate_identified_candidates',
-    declaredReferents: [],
     reason:
       'Event payloads are unconstrained jsonb; an identifier embedded there is invisible to every foreign-key check.',
   }),
@@ -208,7 +166,6 @@ export const NON_FK_REFERENCE_SURFACES = Object.freeze([
     identifierColumn: 'payload',
     discriminatorColumn: null,
     referentScope: 'surrogate_identified_candidates',
-    declaredReferents: [],
     reason:
       'notification.schema.ts:58 declares a nullable jsonb payload holding a rendered snapshot; it can embed the identifier of the resource that triggered the notification.',
   }),
@@ -241,30 +198,13 @@ export const NON_FK_UNREFERENCEABLE_CANDIDATES = Object.freeze(
  * the decision.
  */
 export const NON_FK_SURROGATE_IDENTIFIED_CANDIDATES = Object.freeze([
-  'badge_awards',
-  'badge_definition_versions',
-  'badge_definitions',
   'feedback',
   'goal_progress',
   'goals',
-  'leaderboard_entries',
-  'leaderboard_snapshots',
-  'organization_badge_enablements',
   'portal_group_members',
   'property_access_grants',
   'ratings',
-  'recognition_activation_groups',
-  'recognition_activations',
-  'recognition_award_status_facts',
-  'recognition_awards',
-  'recognition_board_entries',
-  'recognition_board_snapshots',
-  'recognition_reconciliation_events',
   'scan_events',
-  'staff_assignments',
-  'team_memberships',
-  'team_portal_group_scopes',
-  'teams',
 ] as const)
 
 export type NonFkProbe = Readonly<{
@@ -306,10 +246,6 @@ export function resolveNonFkProbes(
         referentIdentifierColumn: 'id' as const,
         discriminator,
       })
-    if (surface.referentScope === 'declared') {
-      const declared: readonly string[] = surface.declaredReferents
-      return declared.includes(referentTable) ? [probe(null)] : []
-    }
     if (surface.referentScope === 'activity_vocabulary') {
       return token ? [probe(token)] : []
     }

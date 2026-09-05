@@ -119,7 +119,6 @@ export type BetaFeedbackRouteKey =
   | 'home'
   | 'dashboard'
   | 'inbox'
-  | 'leaderboard'
   | 'notifications'
   | 'progress'
   | 'properties.list'
@@ -143,7 +142,6 @@ export type BetaFeedbackRouteKey =
   | 'settings.organization'
   | 'settings.preferences'
   | 'settings.profile'
-  | 'settings.recognition'
   | 'settings.security'
   | 'other_authenticated'
 export type BetaFeedbackViewport = BetaFeedbackInput['viewport']
@@ -152,7 +150,6 @@ const EXACT_ROUTES: Readonly<Record<string, BetaFeedbackRouteKey>> = {
   '/home': 'home',
   '/dashboard': 'dashboard',
   '/inbox': 'inbox',
-  '/leaderboard': 'leaderboard',
   '/notifications': 'notifications',
   '/progress': 'progress',
   '/properties': 'properties.list',
@@ -165,7 +162,6 @@ const EXACT_ROUTES: Readonly<Record<string, BetaFeedbackRouteKey>> = {
   '/settings/organization': 'settings.organization',
   '/settings/preferences': 'settings.preferences',
   '/settings/profile': 'settings.profile',
-  '/settings/recognition': 'settings.recognition',
   '/settings/security': 'settings.security',
 }
 
@@ -211,7 +207,6 @@ export function classifyBetaFeedbackViewport(width: number): BetaFeedbackViewpor
 const ATTACHMENT_ALLOWED_ROUTES: ReadonlySet<BetaFeedbackRouteKey> = new Set([
   'home',
   'dashboard',
-  'leaderboard',
   'progress',
   'properties.list',
   'properties.property.overview',
@@ -225,7 +220,6 @@ const ATTACHMENT_ALLOWED_ROUTES: ReadonlySet<BetaFeedbackRouteKey> = new Set([
   'settings.notifications',
   'settings.organization',
   'settings.preferences',
-  'settings.recognition',
 ])
 
 /**

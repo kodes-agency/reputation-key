@@ -46,22 +46,13 @@ describe('accepted beta capability fate authority', () => {
         record.fate === 'core',
       )
       expect(isBlockedCapability(capability), `${capability} blocked drift`).toBe(
-        [
-          'beta_disabled',
-          'safety_blocked',
-          'legacy_blocked',
-          'permanently_denied',
-        ].includes(record.fate),
+        ['beta_disabled', 'safety_blocked', 'permanently_denied'].includes(record.fate),
       )
     }
   })
 
   it('makes the settled high-risk decisions explicit', () => {
     // @proof GOAL_RECOGNITION_RUNTIME#1
-    expect(listCapabilitiesByFate('legacy_blocked')).toEqual([
-      'badge.use',
-      'leaderboard.use',
-    ])
     expect(listCapabilitiesByFate('permanently_denied')).toEqual([
       'gbp.ai.cross_property_summary',
       'gbp.reply.auto_publish',
@@ -71,7 +62,6 @@ describe('accepted beta capability fate authority', () => {
     expect(CAPABILITY_FATE['portal.guest_contact'].fate).toBe('safety_blocked')
     expect(CAPABILITY_FATE['portal.guest_media'].fate).toBe('beta_disabled')
     expect(CAPABILITY_FATE['identity.custom_roles'].fate).toBe('beta_disabled')
-    expect(CAPABILITY_FATE['team.use'].fate).toBe('beta_disabled')
   })
 
   it('keeps each independently authorized AI operation controlled and opt-in', () => {

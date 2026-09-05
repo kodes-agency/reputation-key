@@ -84,8 +84,7 @@ export type ContextStandardsMatrixRow = Readonly<{
   standards: Readonly<Record<ContextStandardDimension, ContextStandardCell>>
 }>
 
-const EVENTLESS = new Set(['activity', 'dashboard', 'leaderboard', 'notification'])
-const CONTRACTED_RUNTIME_CONTEXTS = new Set(['badge', 'leaderboard'])
+const EVENTLESS = new Set(['activity', 'dashboard', 'notification'])
 const EVENTFUL = CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory).filter(
   (directory) => !EVENTLESS.has(directory),
 )
@@ -93,7 +92,6 @@ const EVIDENCED = {
   tags: EVENTFUL.filter((directory) => directory !== 'portal'),
   envelope: [
     'ai',
-    'badge',
     'goal',
     'guest',
     'identity',
@@ -104,24 +102,21 @@ const EVIDENCED = {
     'property',
     'review',
     'staff',
-    'team',
   ],
   assert: EVENTFUL,
   union: EVENTFUL,
-  errors: CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory)
-    .filter((directory) => !CONTRACTED_RUNTIME_CONTEXTS.has(directory))
-    .filter(
-      (directory) =>
-        ![
-          'activity',
-          'goal',
-          'guest',
-          'identity',
-          'metric',
-          'notification',
-          'review',
-        ].includes(directory),
-    ),
+  errors: CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory).filter(
+    (directory) =>
+      ![
+        'activity',
+        'goal',
+        'guest',
+        'identity',
+        'metric',
+        'notification',
+        'review',
+      ].includes(directory),
+  ),
   build: CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory),
   docs: CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory),
   repositories: [
@@ -134,26 +129,22 @@ const EVIDENCED = {
     'portal',
     'property',
     'staff',
-    'team',
   ],
   factories: [
     'activity',
     'ai',
-    'badge',
     'dashboard',
     'goal',
     'guest',
     'identity',
     'inbox',
     'integration',
-    'leaderboard',
     'metric',
     'notification',
     'portal',
     'property',
     'review',
     'staff',
-    'team',
   ],
 } as const satisfies Record<ContextStandardDimension, readonly string[]>
 const NOT_APPLICABLE = {
@@ -161,10 +152,10 @@ const NOT_APPLICABLE = {
   envelope: [...EVENTLESS],
   assert: [...EVENTLESS],
   union: [...EVENTLESS],
-  errors: [...CONTRACTED_RUNTIME_CONTEXTS],
+  errors: [],
   build: [],
   docs: [],
-  repositories: ['ai', 'identity', ...CONTRACTED_RUNTIME_CONTEXTS],
+  repositories: ['ai', 'identity'],
   factories: [],
 } as const satisfies Record<ContextStandardDimension, readonly string[]>
 const ACCEPTED_EXCEPTIONS: Partial<
@@ -239,9 +230,6 @@ function repositoryEvidence(
   context: string,
   directory: string,
 ): readonly ContextStandardEvidence[] {
-  if (CONTRACTED_RUNTIME_CONTEXTS.has(directory)) {
-    return [{ path: `${context}/build.ts`, kind: 'file', contains: ['repos: {}'] }]
-  }
   if (directory === 'activity') {
     return [
       {
@@ -272,18 +260,13 @@ function evidenceFor(
     return eventDimensionEvidence(context, directory, dimension)
   }
   if (dimension === 'errors')
-    return CONTRACTED_RUNTIME_CONTEXTS.has(directory)
-      ? [{ path: `${context}/build.ts`, kind: 'file', contains: ['publicApi: {}'] }]
-      : [{ path: `${context}/domain/errors.ts`, kind: 'file' }]
+    return [{ path: `${context}/domain/errors.ts`, kind: 'file' }]
   if (dimension === 'build') return [{ path: `${context}/build.ts`, kind: 'file' }]
   if (dimension === 'docs')
     return [
       { path: `${context}/CONTEXT.md`, kind: 'file', contains: ['## Events produced'] },
     ]
   if (dimension === 'repositories') return repositoryEvidence(context, directory)
-  if (dimension === 'factories' && directory === 'badge') {
-    return [{ path: `${context}/build.ts`, kind: 'file', contains: ['repos: {}'] }]
-  }
   return [{ path: `${context}/infrastructure`, kind: 'directory' }]
 }
 
@@ -291,9 +274,6 @@ function notApplicableRationale(
   directory: string,
   dimension: ContextStandardDimension,
 ): string {
-  if (CONTRACTED_RUNTIME_CONTEXTS.has(directory)) {
-    return 'REC-01 retains no product use case, error flow, or entity repository in this context; its inert build and content-free compatibility boundary are governed separately.'
-  }
   if (dimension !== 'repositories') return 'This context produces no domain events.'
   if (directory === 'ai') {
     return 'AI owns store and adapter ports rather than entity repository ports.'

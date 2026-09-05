@@ -15,7 +15,7 @@ const registered = BETA_NOTIFICATION_TRIGGER_MATRIX.map(
 describe('executable beta notification trigger matrix', () => {
   it('covers every implemented beta type with a durable trigger and derived category', () => {
     expect(betaNotificationTriggerMatrixViolations(registered)).toEqual([])
-    expect(BETA_DARK_NOTIFICATION_TYPES).toEqual(['badge.awarded'])
+    expect(BETA_DARK_NOTIFICATION_TYPES).toEqual([])
   })
 
   it('proves Goal close/revision, resolution, material-revision, and reopen delivery', () => {

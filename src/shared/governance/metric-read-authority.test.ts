@@ -1,8 +1,7 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
-import { CAPABILITY_FATE } from './capability-fate'
 import {
   METRIC_READING_DIRECT_READ_AUTHORITIES,
   metricReadingAuthorityViolations,
@@ -180,23 +179,6 @@ describe('Metric reading authority inventory', () => {
         (entry) => entry.posture === 'active_versioned_projection',
       ).map(({ id }) => id),
     ).toEqual(['dashboard.legacy-kpi-projection', 'dashboard.fleet-overview-projection'])
-  })
-
-  it('retains no Badge, legacy Leaderboard, or Recognition metric reader', () => {
-    expect(CAPABILITY_FATE['badge.use'].fate).toBe('legacy_blocked')
-    expect(CAPABILITY_FATE['leaderboard.use'].fate).toBe('legacy_blocked')
-    expect(
-      METRIC_READING_DIRECT_READ_AUTHORITIES.some(({ source }) =>
-        /src\/contexts\/(?:badge|leaderboard)\//u.test(source),
-      ),
-    ).toBe(false)
-    expect(
-      [
-        'src/contexts/badge/infrastructure/repositories/badge.repository.ts',
-        'src/contexts/leaderboard/infrastructure/repositories/leaderboard.repository.ts',
-        'src/contexts/leaderboard/infrastructure/repositories/recognition.repository.ts',
-      ].filter(existsSync),
-    ).toEqual([])
   })
 
   it('rejects an active reader without a version or consumer', () => {

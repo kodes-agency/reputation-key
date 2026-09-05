@@ -71,18 +71,9 @@ const POPULATED: readonly StubRows[] = [
   [PARTICIPATION],
   [],
   [],
-  [],
 ]
 
-const EMPTY: readonly StubRows[] = [
-  [{ snapshot_at: SNAPSHOT_AT }],
-  [],
-  [],
-  [],
-  [],
-  [],
-  [],
-]
+const EMPTY: readonly StubRows[] = [[{ snapshot_at: SNAPSHOT_AT }], [], [], [], [], []]
 
 const EXPECTED_ENTRIES = [
   { path: 'staff/participants.csv', mediaType: 'text/csv' },
@@ -176,14 +167,16 @@ describe('Staff Organization Export contributor', () => {
       excludedRecordClasses: readonly { recordClass: string; reasonCode: string }[]
     }
 
-    expect(payload.excludedRecordClasses).toContainEqual({
-      recordClass: 'property_access_authority_owned_by_identity',
-      reasonCode: 'exported_by_identity_contributor',
-    })
-    expect(payload.excludedRecordClasses).toContainEqual({
-      recordClass: 'staff_user_login_credentials_and_sessions',
-      reasonCode: 'security_secret_material',
-    })
+    expect(payload.excludedRecordClasses).toEqual([
+      {
+        recordClass: 'property_access_authority_owned_by_identity',
+        reasonCode: 'exported_by_identity_contributor',
+      },
+      {
+        recordClass: 'staff_user_login_credentials_and_sessions',
+        reasonCode: 'security_secret_material',
+      },
+    ])
   })
 
   it('fails closed when the request is older than the bounded snapshot window', async () => {
