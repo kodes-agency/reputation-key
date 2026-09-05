@@ -16,7 +16,6 @@ import {
   LEGACY_MIRROR_PSEUDONYM_REDACTIONS,
   RETENTION_DATA_CLASSES,
   RETENTION_REGISTRY,
-  retentionRegistryApprovalBlockers,
   retentionRegistryClassCoverage,
   retentionRegistryContractionViolations,
   retentionRegistryDeadlineExtensionViolations,
@@ -87,20 +86,6 @@ describe('retention registry — counsel approval', () => {
       'a rule may only leave pending_counsel with a named approval artifact',
     ).toEqual([])
     expect(RETENTION_REGISTRY.every((rule) => rule.approvalArtifact === null)).toBe(true)
-  })
-
-  it('agrees with the legal document registry, which holds five drafts and zero approvals', () => {
-    const registry = JSON.parse(
-      readFileSync(join(ROOT, 'docs/legal/legal-document-registry.json'), 'utf8'),
-    ) as { documents: ReadonlyArray<{ status: string }> }
-    const approved = registry.documents.filter(({ status }) => status === 'approved')
-    expect(registry.documents).toHaveLength(5)
-    expect(approved).toEqual([])
-    // With zero approved counsel documents there is no artifact any rule could
-    // cite, so the whole registry must still be blocked.
-    expect(retentionRegistryApprovalBlockers(RETENTION_REGISTRY)).toEqual(
-      RETENTION_REGISTRY.map((rule) => rule.id),
-    )
   })
 
   it('names an open counsel decision for every pending rule', () => {

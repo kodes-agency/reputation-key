@@ -42,12 +42,6 @@
 //      newer Node, and that is exactly why the drift must be caught in CI.
 //
 // ── SKIP/TODO/SKIPIF/RUNIF REGISTER (owner + reason + maxHits — keep narrow) ──
-//
-//   - src/shared/architecture/domain-error-convention.test.ts (owner: engineering)
-//     Conditional presence fallback: contexts with domain/ but no
-//     domain/errors.ts module are legitimately absent from the BQR-1.2
-//     convention check, so the per-context test registers as skipped.
-//
 //   - The five ICU-fenced AI-language files (owner: engineering). Measured
 //     2026-08-21: these account for ALL 146 tests the unit project reports as
 //     skipped on a non-pinned runtime, per file —
@@ -126,13 +120,6 @@ const SKIP_REGISTER = [
       'same dark capability as dashboard-governance: the test signs in as a Staff user to prove a property-scoped account cannot see another property. The scoping property is worth keeping and comes back with Staff User login',
     maxHits: 1,
     skippedTests: 1,
-  },
-  {
-    file: 'src/shared/architecture/domain-error-convention.test.ts',
-    owner: 'engineering',
-    reason:
-      'conditional presence fallback — contexts without a domain errors module are legitimately absent from the convention check',
-    maxHits: 1,
   },
   {
     file: 'src/shared/ai-review-language-catalogue.test.ts',

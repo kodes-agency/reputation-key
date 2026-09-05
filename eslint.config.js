@@ -1606,6 +1606,26 @@ export default tseslint.config(
     },
   },
 
+  // Replaces src/shared/architecture/runtime-config-injection.test.ts, deleted
+  // in WP1.2. That suite walked the import graph to prove routes and contexts
+  // never read ambient configuration; the one rule it actually enforced is
+  // expressible as a selector, so the lint carries it instead of a bespoke
+  // authority module plus a source-text test.
+  {
+    files: ['src/routes/**/*.{ts,tsx}', 'src/contexts/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[object.object.name='process'][object.property.name='env']",
+          message:
+            'Read configuration through the container, not process.env — routes and contexts receive config as a dependency.',
+        },
+      ],
+    },
+  },
+
   // ─── BQC-7.7: static security analysis (eslint-plugin-security) ────
   // Recommended ruleset as ERRORS on production code — a red lint blocks the
   // PR (no continue-on-error). Deliberate, documented deviations (full triage

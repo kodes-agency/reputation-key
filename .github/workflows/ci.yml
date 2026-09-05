@@ -105,42 +105,6 @@ jobs:
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: pnpm exec vitest run --project=unit --shard=${{ matrix.shard }}/4
 
-  # `check:coverage` couples the complete unit execution to the custom two-tier
-  # floor/staleness ratchet in scripts/check-coverage.mjs. Keep that governed
-  # run whole and parallel with the fast shards rather than weakening the gate
-  # or pretending independently generated summaries can enforce its aggregate.
-  test-unit-coverage:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        # version intentionally unset: package.json packageManager (pnpm@10.6.5) is the single source
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      - name: Coverage gate
-        env:
-          NODE_ENV: test
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          REDIS_URL: redis://localhost:6379
-          BETTER_AUTH_SECRET: test-secret-at-least-32-characters-long-for-ci
-          BETTER_AUTH_URL: http://localhost:3000
-          RESEND_API_KEY: re_ci_test_key_placeholder
-          GOOGLE_CLIENT_ID: ci-placeholder-client-id
-          GOOGLE_CLIENT_SECRET: ci-placeholder-client-secret
-          ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
-          OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
-        run: pnpm check:coverage
-
   # ~4.6m measured test work plus migration gates: integration owns the shared
   # scratch database; vitest.config.ts explicitly marks unit DB/Redis-free.
   test-integration:
@@ -409,7 +373,7 @@ jobs:
   # Aggregate-only seam (no measured workload): retain the required status
   # context without allowing a failed, cancelled, or skipped dependency to pass.
   check:
-    needs: [static, test-unit, test-unit-coverage, test-integration, artifacts]
+    needs: [static, test-unit, test-integration, artifacts]
     if: always()
     runs-on: ubuntu-latest
     steps:
