@@ -12,10 +12,16 @@ describe('production error-monitoring wiring', () => {
     }
     // Bundle the wrapper so its build-only uploader never enters the prod
     // dependency tree; keep @sentry/node external so the --import preload,
-    // Nitro hook and Start middlewares share one SDK instance.
-    expect(manifest.dependencies?.['@sentry/node']).toBe('10.71.0')
+    // Nitro hook and Start middlewares share one SDK instance. That sharing is
+    // what matters, so assert the two packages move TOGETHER at an exact
+    // version rather than pinning a literal here — a literal only forces a
+    // re-pin on every Sentry release and proves nothing about the pairing.
+    const nodeSdk = manifest.dependencies?.['@sentry/node']
+    const wrapper = manifest.devDependencies?.['@sentry/tanstackstart-react']
+    expect(nodeSdk).toMatch(/^\d+\.\d+\.\d+$/u)
+    expect(wrapper).toBe(nodeSdk)
     expect(manifest.dependencies?.['@sentry/tanstackstart-react']).toBeUndefined()
-    expect(manifest.devDependencies?.['@sentry/tanstackstart-react']).toBe('10.71.0')
+    expect(manifest.devDependencies?.['@sentry/node']).toBeUndefined()
   })
 
   it('preloads monitoring before both production application entries', () => {
