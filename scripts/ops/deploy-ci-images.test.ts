@@ -4,7 +4,7 @@ import {
   buildClosedBetaImageDeploymentPlan,
   CI_IMAGE_DIGEST_MAP_VERSION,
   CI_PRODUCTION_IMAGE_NAMES,
-  CLOSED_BETA_IMAGE_SERVICES,
+  closedBetaImageServices,
   CLOSED_BETA_ENVIRONMENT,
   parseCiImageDigestMap,
   resolveDeploymentRevision,
@@ -53,7 +53,7 @@ function gitReader(isAncestor: boolean): GitRevisionReader {
 }
 
 function serviceInventory(): RailwayServiceObservation[] {
-  return CLOSED_BETA_IMAGE_SERVICES.map(({ serviceId, serviceName }, index) => ({
+  return closedBetaImageServices(true).map(({ serviceId, serviceName }, index) => ({
     id: serviceId,
     name: serviceName,
     source: {
@@ -96,7 +96,7 @@ describe('closed-beta CI image deployment authority', () => {
         imageReference,
       })),
     ).toEqual(
-      CLOSED_BETA_IMAGE_SERVICES.map(({ imageName, serviceName, serviceId }) => ({
+      closedBetaImageServices(false).map(({ imageName, serviceName, serviceId }) => ({
         imageName,
         serviceName,
         serviceId,
@@ -105,6 +105,33 @@ describe('closed-beta CI image deployment authority', () => {
         ).repeat(64)}`,
       })),
     )
+  })
+
+  it('leaves the provider Redis substrate out of the default plan', () => {
+    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
+    const names = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory()).map(
+      ({ serviceName }) => serviceName,
+    )
+
+    // The six GitHub-backed services are a same-bits source change. The
+    // provider Redis runs upstream `redis:7` today, so including it by default
+    // would swap the live queue substrate for a never-deployed image.
+    expect(names).not.toContain('google-provider-redis')
+    expect(names).toHaveLength(6)
+  })
+
+  it('appends the provider Redis last when it is explicitly opted in', () => {
+    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
+    const names = buildClosedBetaImageDeploymentPlan(
+      digestMap,
+      serviceInventory(),
+      true,
+    ).map(({ serviceName }) => serviceName)
+
+    // Last, never first: a substrate failure must not precede the services
+    // that depend on it.
+    expect(names).toHaveLength(7)
+    expect(names.at(-1)).toBe('google-provider-redis')
   })
 
   it('refuses a deployment plan when a fixed Railway service is absent', () => {

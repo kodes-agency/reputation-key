@@ -139,7 +139,20 @@ the revision is an ancestor of `origin/main`, and prints the fixed project,
 environment, seven service IDs, current sources, and proposed digest references.
 It does not mutate Railway.
 
-After reviewing that output, apply the same default revision with the explicit
+### Scope: six services by default, not seven
+
+The default plan is the **six GitHub-backed services** (`web`, `worker`, the two
+Google sidecars, the two AI sidecars). For those, a digest cutover is a
+same-bits source change: Railway stops rebuilding what CI already built.
+
+`google-provider-redis` is deliberately excluded. It currently runs upstream
+`redis:7` by digest, so pointing it at `repkey-google-provider-redis` is not a
+source change but a substitution of the live queue and cache substrate with an
+image that has never been deployed. It needs its own watched change window.
+`--include-provider-redis` opts in, and when opted in it is ordered LAST so a
+substrate failure cannot precede the services that depend on it.
+
+After reviewing the report, apply the same default revision with the explicit
 live-environment opt-in:
 
 ```bash
