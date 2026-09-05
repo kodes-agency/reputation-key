@@ -1,0 +1,113 @@
+# RepKey closed beta — the contract
+
+Authority for the closed beta. If this page and a document disagree, this page wins; if this page and the code disagree, that is a bug in one of them — say which. Rules here name the test or lint path that enforces them. A rule with no enforcement is marked **UNENFORCED** and is a liability, not a rule.
+
+## 1. What the beta is
+
+- One Organization, six Properties, one developer. `CURRENT_RELEASE_POSTURE = 'closed-beta'` (`src/shared/release/release-posture.ts:49`).
+- Accounts exist only by invitation. No self-service registration, no second Organization, no billing, no MFA.
+- Exactly one logical data cell, `us` (Railway `us-west2`, bucket `sjc`); all 245 supported countries map to it. `europe` and `global` resolve `region_denied` (`src/contexts/identity/infrastructure/repositories/region-diagnostic.test.ts`).
+- No contractual uptime SLA, no service credits, no 24/7 support. Requests handled Mon–Fri 09:00–18:00 Europe/Sofia, excluding Bulgarian public holidays.
+
+## 2. External obligations
+
+Written commitments to Google (2026-07-14 response) and to users. Not changeable unilaterally; they outrank everything below.
+
+- **Property-local AI only** — insights generated per Business Profile, never combined across unrelated properties. `gbp.ai.cross_property_summary` is `permanently_denied`, "No activation path exists" (`capability-fate.ts:137-141`).
+- **No automated reply publication** — publishing is a separate manual action. `gbp.reply.auto_publish` is `permanently_denied`; the Google adapter rejects any authorization that is not exactly `property.publish_reply` (`google-review-api.adapter.ts:391-395`).
+- **Raw Google content lives at most 30 days from fetch** — `rawContentTtlMs` 30 d, refresh due at 25 d, expiry always derived from last successful fetch and never reset by publication (`source-content-policy.ts:57-58,75-80`).
+- **PII removed before transmission** — `reviewerDisplayName` never reaches the canonical source; free text passes the `gbp-review-global-v1` redactor (≤64 intervals, ≤3/5 ratio); a surviving placeholder fails the request closed (`ai-review-source-contract.ts:88-102,306-307`).
+- **Merchant opt-in before any AI feature** — every AI capability binds to an authorization carrying `noticeVersion` + `noticeDigest`; drift withholds stored output (`ai-authorization.port.ts:21-26`, `ai/domain/rules.ts:278-281,355-358`).
+- **Derived metadata is exempt from the 30-day limit but not from retention** — notice states 24 months for de-identified insights; the binding retention matrix is still unaccepted (`docs/legal/privacy-notice.md:206-212`).
+- **GAP — the merchant AI notice is false as shipped.** The digest-pinned notice promises prompt caching "at most one hour" (`merchant-ai-notice-contract.ts:93`); every request sends `prompt_cache_retention: '24h'` (`ai-openai-request-contract.ts:21,211`). 24× the stated maximum. Forced by `gpt-5.6-luna` rejecting `in_memory` with HTTP 400; the model-switch document required sign-off _before_ landing because it changes a merchant-facing retention claim (`docs/operations/model-switch-5-6-luna-2026-08-19.md:419-420`). Never signed off; neither notice text nor digest updated, so every beta merchant consented to the one-hour wording. No duration was ever promised to Google, but "materially longer provider content retention" is a re-submission trigger in Google's own change-control rule.
+- **GAP — regional processing was promised and is contradicted.** We told Google US/EU regional processing would be used where required; the shipped notice pins `processingRegion: 'global'` and provider claims record `providerResidencyClaim: 'none'` (`merchant-ai-notice-contract.ts:56,172`, `ai-openai-provider-profile.ts:85`). Only our own hosting cell is US-pinned, which is not provider processing.
+- **GAP — the privacy notice merchants are sent to cannot be published.** The AI consent dialog links `/privacy` and `/privacy#contact`; neither is an application route, and the backing document is not `approved`, so the repo's own `isLegalLinkPublishable('/privacy')` returns `false` (`legal-link-targets.ts:149-162,204-213`).
+- **UNENFORCED — provider must not train on submitted data.** Promised to Google; exists only as the assertion string `trainingPosture: 'api-not-used-for-training-unless-organization-opts-in'` (`ai-openai-provider-profile.ts:83`). Nothing can detect or block that org-level opt-in.
+- **`SourceContentPolicy` booleans are documentation, not gates.** `mayCombineAcrossProperties`, `requiresMerchantOptIn`, `requiresPiiRedaction`, `requiresApprovedProvider`, `requiresHumanReplyPublish` are set at `source-content-policy.ts:61-66` and read by nothing; only `rawContentTtlMs` and `policyVersion` are consumed. Each obligation is enforced elsewhere, so this is duplicated truth — editing the object changes no behaviour.
+- **Reply few-shot was never confirmed by Google and is not built** — beta reply AI selects one fixed application-owned localized template rather than authoring prose (`merchant-ai-notice-contract.ts:125`).
+- **Notice duties with no code** — accepted retention schedule, subprocessor schedule, rights procedure and channel, international-transfer analysis, controller/processor roles, legal bases, effective date, named counsel approval, and advance notice of material changes (`docs/legal/privacy-notice.md:10-11,137-138,228-232,256-259`).
+- **Guest horizons already promised** — private feedback 90 d with a 24 h withdrawal window; contacts 30 d; network-pressure records exactly 7 d; de-identified facts 24 months; session/destination receipts ≤24 h. Recurring production erasure is a release gate, not proven behaviour.
+
+## 3. Product contract
+
+- **Accounts.** An account is created only by consuming a valid email-bound invitation; `/register` redirects to `/login` behind the disabled `identity.register` gate. Interactive roles are `AccountAdmin` and `PropertyManager`; runtime custom roles are off. A Staff Participant is a manager-maintained profile with no login. A user holds exactly one active Organization Membership; a conflicting invitation pauses for support. No MFA, no step-up, no billing surface.
+- **Properties.** Beta accepts hotels, resorts, hostels, serviced accommodation, restaurants, cafés, bars and related operator-approved establishments; an unsupported classification is refused. Geographic availability is not localization — the manager app and operational email are English. Every Property gets an immutable beta Data Cell from country/residency policy; editing country or timezone changes business facts without moving data, and cell relocation is operator-managed, audited and reversible until cutover.
+- **Portal.** A review gateway first, link tree second, with mandatory first-party Portal-scoped analytics that cannot be declined. The visitor gives a private 1–5 rating first; the Google Review Action then stays available to everyone and records only that the visitor selected the verified destination — RepKey cannot observe whether a review was written.
+- At or below the Private Feedback Threshold (inclusive, valid `1..5`, default `3`) the visitor is additionally offered private feedback; `0` and `6` are rejected, so private feedback cannot be disabled and Google is never blocked (`guest-response-lifecycle.test.ts`).
+- A stale, `awaiting_refresh` or `unavailable` Google destination degrades the Portal to rating plus private feedback; a stale URI is never rendered.
+- The creator is immutable provenance and, when eligible, the default Portal Responsible Manager; only active assigned Responsible Managers get Portal notifications, with AccountAdmin as fallback. A Portal belongs to zero or one Portal Group. Removal is recoverable Archive; restoration returns the Portal to Disabled until a deliberate republish.
+- Contact collection exists only behind explicit "Please contact me" consent, off by default, never required, masked until an audited reveal, excluded from analytics and routine export, purged exactly 30 days after submission (DB check `expires_at = submitted_at + '720:00:00'`). RepKey does not message guests.
+- **Guest retention as the sweep executes it** — private feedback 90 d, contacts 30 d, network-pressure exactly 7 d, abuse pseudonyms 7 d, de-identified facts 24 months, session pseudonyms **1 day** (`retention-sweep.job.ts:139-148`). The program document says 7 days for session pseudonyms; the code is 1 day and the code is right.
+- **Google and Review.** A Google Connection is Organization-owned; AccountAdmins connect, reauthorize and disconnect. "Select all eligible locations" imports through resumable batches of at most 100, which is a worker bound and never a product selection cap. Pub/Sub is the fast path, targeted fetch handles a notification, adaptive polling reconciles, manual sync recovers; a quiet healthy Property is discovered within six hours worst case.
+- A Review keeps stable identity — provider content can expire without deleting replies, Inbox work or history, and re-observation reconnects the same Review. A Material Review Revision is created only when the original rating or normalized original guest text changes.
+- **Inbox.** An Inbox Item holds numbered Handling Cycles, each anchored to exactly one source revision. Status is only `open | closed`; assignment, escalation and personal seen state are independent; closure records an eligible reason and actor. A material revision, loss of a live provider reply, or another catalogued trigger opens a new cycle, preserves prior history, notifies Responsible Recipients and fences stale drafts.
+- Assignment is optional, singular, limited to active AccountAdmins or PropertyManagers with current membership and PropertyAccessGrant, grants no access by itself, and auto-unassigns an invalid assignee. Escalation is an explicit manager action resolved independently of closure.
+- The Google Review **Response Target** — not an SLA — defaults to 2,880 minutes (48 h) Organization-wide, AccountAdmin-configurable within 1–43,200 minutes. Timing starts at Google's original publication, historic onboarding imports are excluded, a material revision starts a new target, and `Overdue` is derived and never mutates status. Completion is `confirmed_on_google` **or** `external_current_live` (`inbox/CONTEXT.md:76`); the program document names only the first.
+- Reply publication is an explicit **Confirm & Publish** by an authorized manager; the author may confirm their own draft. Bulk Reopen works; `bulk_close` is a dark-surface token no release journey may exercise.
+- Private feedback carries its own Handling Target: Organization default 2,880 minutes with optional Property override, no Portal override. Only an explicit **Mark as handled** with an approved outcome completes it; guest withdrawal cancels it; exactly one halfway and one target-passed reminder per active cycle.
+- **AI.** Three separately controlled per-Property capabilities — `review_analysis`, `reply_drafting`, `property_trends`. Analysis and drafting are independent; trends requires analysis. All stay off until AccountAdmin AI Authorization, live access, notice version, provider policy and platform gates pass.
+- AccountAdmin owns the maximum authorized capability set and irreversible AI-data erasure. Disabling fences new and in-flight work immediately and hides outputs; erasure purges local derivatives within 24 h while retaining content-free evidence; re-enabling reuses data only when lineage, policy, model and freshness remain valid.
+- AI processes only eligible Google review content. Private ratings, private feedback, contact details, Inbox notes and manager-internal text never leave for AI. Outputs are advisory and cannot mutate Inbox, assignment, escalation, publication, Portal behaviour, Goals, notifications or Staff metrics.
+- **Metrics and goals.** Exactly three measures — `qualified_scans`, `portal_rating_count`, `portal_rating_average` — at Property, Portal Group and individual Portal scope. Person- and Team-scoped goals are prohibited. Reporting defaults to a rolling 30 days against the preceding 30; All Time is absolute with no fabricated trend; missing, stale or insufficient data is never coerced to zero — surfaces show `Data through…`, `Updating`, `Insufficient data` or `Temporarily unavailable`.
+- Badge and Leaderboard are unreachable and are not the recognition model. The replacement is the post-core **Manager Achievement Board**: per-Property authorization off by default, manager-only, non-competitive, limited to the system-defined Healthy Guest Gateway achievement, with no rank, composite score, bottom list or Staff audience.
+- **Notifications.** Responsible Recipients are scope-specific and never inferred from access alone, and every recipient is revalidated for current role and access at delivery; an actor's own synchronous notifications are suppressed for them. The Notification Bell counts unread notifications; the Inbox badge means new open work since the user's last successful Inbox load. Activating a row marks only that row read; read is not resolved; dismiss hides without deleting. The popover offers Mark all read, not Clear all; full-page Dismiss all requires confirmation.
+- **Analytics and feedback.** Privacy-safe product analytics and error monitoring are always on; Essential Portal Telemetry is first-party and server-side only — no analytics cookie, third-party tracker, advertising ID, fingerprinting, or raw IP/user-agent analytical fact. Beta Feedback accepts Bug and Suggestion; continuous replay is prohibited, media needs explicit per-submission consent with preview and removal, and is retained no more than 30 days.
+
+## 4. Capability authority
+
+- `src/shared/governance/capability-fate.ts` is the single table: 37 capabilities, each with a `fate`, an `authority` (why) and an `activation` (what would change it). It closes with `satisfies Readonly<Record<Capability, CapabilityFateRecord>>`, so a new capability cannot compile without an explicit fate.
+- Counts today: `core` 12, `controlled_beta` 12, `beta_disabled` 6, `safety_blocked` 2, `legacy_blocked` 2, `permanently_denied` 3. Blocked at runtime = 13.
+- The runtime derives its sets from the table (`capability-fate.test.ts:42-57` proves both directions agree). Decision order in `checkScopedCapability`: blocked → kill switch → org suspended → property suspended → globally enabled → org allowlist → property allowlist. `RESTORE_MODE=isolated` denies everything ahead of any store.
+- Fate is not flattened at the gate: `safety_blocked` shows _temporarily unavailable_, every other blocked fate shows _not in beta_ (`capability-refusal-category.ts:15-19`).
+
+## 5. Enforced architecture rules
+
+- **Context boundaries** — layered dependencies and cross-context access only through a public API; every file and import target classified. `eslint.config.js` (`boundaries/*`, `local/cross-context-public-api`) + `scripts/check-architecture-boundary-controls.mjs`, both in `pnpm lint`. Catches domain importing `#/shared/db`, or an unclassified file routing around the policy.
+- **Atomic state + fact** — a fact commits in the same `db.transaction` as the state it describes; `emitAndRecord` is forbidden across review, inbox, identity, property, integration and metric. `src/shared/architecture/atomic-{review,inbox,family}-outbox.test.ts`. Catches an orphaned outbox row or a state change with no fact.
+- **Tenant scoping** — every query on a tenant-owned table carries a tenant predicate; exemptions unique, explained, bound to real code. `tenant-predicate-canary.test.ts`.
+- **Server-only import protection** — no Node-only module reachable from the browser. `browser-reachability.test.ts` mirrors the build-time deny list at `vite.config.ts:189-218`. Catches a component importing a repository or the DB client.
+- **Identifier-only facts** — event payloads carry identifiers and facts, never protected content; free-text-shaped fields must be registered. `content-free-facts.test.ts`.
+- **No auto-publish** — a reply reaches Google only through the `publish-reply` job, only after a human moves it `pending_approval → approved`. `no-auto-publish.test.ts` plus `src/contexts/review/domain/rules.test.ts`.
+- **Guest contact containment** — Contact Request has no activation path and contact fields never leave the Guest context. `guest-contact-containment.test.ts`.
+- **Privacy exfiltration** — one synthetic marker crosses logs, traces, Sentry, metrics, outbox and beta feedback and must be scrubbed at every one. `privacy-exfiltration-canary.test.ts`.
+- **Provider egress targets** — Google endpoint URLs exist only in the composition `providerConfigFor` mapping; no adapter URL, no fallback, one construction site each. `provider-target-selection.test.ts`.
+- **One provider SDK boundary** — the live Google Performance path has no repository, queue, cache or Metric dependency, so a Performance value can never become durable. `google-performance-live-boundary.test.ts`.
+
+## 6. Release checklist
+
+- CI green on the `main` SHA being released.
+- `pnpm db:migrate-deploy` applied; `pnpm check:schema-drift` clean.
+- `/api/health/ready` returns 200.
+- One authenticated journey observed end to end: Google review → Inbox → Confirm & Publish → published reply observed.
+- Backup verified within the last 30 days, once a production database exists again.
+- 24-hour watch after release, with a named owner.
+
+## 7. Operating commitments
+
+Internal engineering objectives, never a customer SLA. ADR 0038 is still `status: proposed`.
+
+- **RPO ≤ 15 minutes**, verified by PITR interval plus restore drill. **RTO ≤ 4 hours**, verified by full restore to operational state.
+- Zero data loss from a committed source and zero duplicate externally visible replies, both proven by fault injection.
+- Seven stop conditions — any one triggers an immediate stop of all external effects with data preserved: tenant isolation breach; unauthorized Google action; unexplained loss of committed data; duplicate externally visible reply or email; leaked token or secret in logs or responses; inability to restore within RTO; privacy or policy violation.
+- Stop procedure: set `BETA_CAPABILITIES_OFF` (`1|true|all` kills everything, a comma list kills exactly those), stop schedulers, preserve canonical data, drain or quarantine queues, follow the incident runbook.
+- Every deviation needs a signed exception naming reachability, mitigation, owner, expiry and remediation issue. Exceptions auto-expire.
+
+## 8. Deferred capabilities
+
+Verbatim `activation` from `capability-fate.ts`. The 12 `controlled_beta` capabilities — `property.import_gbp_v2`, `property.read_gbp_performance`, `notification.send_email`, `portal.read`, `portal.write`, `portal.public_read`, `portal.guest_response`, `portal.guest_text`, `goal.use`, `ai.analyze`, `ai.generate_reply`, `ai.detect_trends` — each require "persisted Organization and, where applicable, Property policy plus readiness gates".
+
+| capability                                                                                                              | fate                 | activation                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `identity.custom_roles`, `identity.register`, `organization.create`, `property.erase`, `portal.guest_media`, `team.use` | `beta_disabled`      | "Cannot be activated by tenant policy; requires an accepted product decision and code posture change."                                                                                            |
+| `portal.upload`                                                                                                         | `safety_blocked`     | "Remove the safety block only after the signed SAFE-01 completion record; tenant policy alone cannot enable it."                                                                                  |
+| `portal.guest_contact`                                                                                                  | `safety_blocked`     | "Remove the safety block only after named counsel/product approval and complete guest-notice, manager-handling, retention, and channel-readiness evidence; tenant policy alone cannot enable it." |
+| `badge.use`, `leaderboard.use`                                                                                          | `legacy_blocked`     | "Never reactivate; contract/delete legacy paths. Future Healthy Guest Gateway recognition needs a new capability."                                                                                |
+| `gbp.reply.auto_publish`, `gbp.ai.cross_property_summary`, `gbp.review_solicitation_gamification`                       | `permanently_denied` | "No activation path exists."                                                                                                                                                                      |
+
+## 9. Precedence
+
+External obligations (§2) → this page → ADRs → `docs/standards.md` → code. `docs/archive/**` is provenance only and carries no authority.
+
+## 10. Change log
+
+- 2026-09: replaces the 42-package program as authority.
