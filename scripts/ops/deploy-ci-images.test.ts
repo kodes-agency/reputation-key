@@ -53,7 +53,10 @@ function gitReader(isAncestor: boolean): GitRevisionReader {
 }
 
 function serviceInventory(): RailwayServiceObservation[] {
-  return closedBetaImageServices(true).map(({ serviceId, serviceName }, index) => ({
+  return closedBetaImageServices({
+    includeSidecars: true,
+    includeProviderRedis: true,
+  }).map(({ serviceId, serviceName }, index) => ({
     id: serviceId,
     name: serviceName,
     source: {
@@ -96,7 +99,10 @@ describe('closed-beta CI image deployment authority', () => {
         imageReference,
       })),
     ).toEqual(
-      closedBetaImageServices(false).map(({ imageName, serviceName, serviceId }) => ({
+      closedBetaImageServices({
+        includeSidecars: false,
+        includeProviderRedis: false,
+      }).map(({ imageName, serviceName, serviceId }) => ({
         imageName,
         serviceName,
         serviceId,
@@ -107,26 +113,36 @@ describe('closed-beta CI image deployment authority', () => {
     )
   })
 
-  it('leaves the provider Redis substrate out of the default plan', () => {
+  it('plans only the services proven on a digest source by default', () => {
     const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
     const names = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory()).map(
       ({ serviceName }) => serviceName,
     )
 
-    // The six GitHub-backed services are a same-bits source change. The
-    // provider Redis runs upstream `redis:7` today, so including it by default
-    // would swap the live queue substrate for a never-deployed image.
-    expect(names).not.toContain('google-provider-redis')
+    // Only web and worker survived an image-sourced boot. The gateway crashes
+    // on the platform-supplied RELEASE_SHA it cannot get from an image, so a
+    // default plan containing it would take the Google path down every run.
+    expect(names).toEqual(['web', 'worker'])
+  })
+
+  it('appends the sidecars only when they are explicitly opted in', () => {
+    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
+    const names = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory(), {
+      includeSidecars: true,
+      includeProviderRedis: false,
+    }).map(({ serviceName }) => serviceName)
+
+    expect(names.slice(0, 2)).toEqual(['web', 'worker'])
     expect(names).toHaveLength(6)
+    expect(names).not.toContain('google-provider-redis')
   })
 
   it('appends the provider Redis last when it is explicitly opted in', () => {
     const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
-    const names = buildClosedBetaImageDeploymentPlan(
-      digestMap,
-      serviceInventory(),
-      true,
-    ).map(({ serviceName }) => serviceName)
+    const names = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory(), {
+      includeSidecars: true,
+      includeProviderRedis: true,
+    }).map(({ serviceName }) => serviceName)
 
     // Last, never first: a substrate failure must not precede the services
     // that depend on it.
