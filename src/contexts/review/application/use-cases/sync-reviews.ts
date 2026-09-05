@@ -117,9 +117,9 @@ type StableIdentity = Awaited<
   ReturnType<ReviewRepository['findStableIdentityByProviderSubjects']>
 >
 
-/** The provider observation may only advance the Review it names. A row found by
- * external id or by stable provider subject that sits in another property,
- * organization, source epoch, or identity is not this observation's subject. */
+/** An external-id match may be this property's Review from a superseded source
+ * epoch; that identity is carried forward. A different tenant/property or a
+ * newer epoch is foreign, while stable provider subjects must match exactly. */
 function assertObservationScope(
   existing: Review | null,
   stableIdentity: StableIdentity,
@@ -131,8 +131,9 @@ function assertObservationScope(
 ): void {
   if (
     existing != null &&
-    (existing.propertyId !== scope.propertyId ||
-      existing.sourceEpoch !== scope.sourceEpoch)
+    (existing.organizationId !== scope.organizationId ||
+      existing.propertyId !== scope.propertyId ||
+      existing.sourceEpoch > scope.sourceEpoch)
   ) {
     throw domainError(
       'observation_scope_mismatch',
@@ -262,8 +263,9 @@ function buildObservedReview(
   }
 }
 
-/** Which write path this observation takes: a first sighting, a re-observation
- * of expired source content, or an unchanged body that needs no new revision. */
+/** Which write path this observation takes: a first sighting, an epoch carry
+ * or material change that needs a recorded update, expired-content restore,
+ * or a same-epoch unchanged body that only refreshes the source cache. */
 function classifyObservation(
   existing: Review | null,
   stableIdentity: StableIdentity,
@@ -278,7 +280,10 @@ function classifyObservation(
     isNew: existing == null && stableIdentity == null,
     expired,
     contentUnchanged:
-      existing != null && !expired && existing.aiSourceDigest === review.aiSourceDigest,
+      existing != null &&
+      existing.sourceEpoch === review.sourceEpoch &&
+      !expired &&
+      existing.aiSourceDigest === review.aiSourceDigest,
   }
 }
 

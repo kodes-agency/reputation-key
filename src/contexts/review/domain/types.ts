@@ -61,7 +61,8 @@ export type Review = Readonly<{
   sourceSeenGeneration: string | null
   /** Property binding generation captured for this source observation. */
   sourceEpoch: number
-  /** Monotonic content revision; unchanged refreshes preserve it. */
+  /** Monotonic exact-material binding revision. Same-epoch unchanged refreshes
+   * preserve it; an epoch carry advances it to keep prior bindings immutable. */
   sourceRevision: number
   /** Gap-free source event sequence within the Property/source epoch. */
   analysisSequence: number

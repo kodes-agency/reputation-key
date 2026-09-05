@@ -204,7 +204,7 @@ export const updateProperty =
       fields.newName !== existing.name || fields.newTimezone !== existing.timezone
     const timezoneChanged = fields.newTimezone !== existing.timezone
     const nextProfileVersion = existing.profileVersion + (profileChanged ? 1 : 0)
-    const nextSourceEpoch = existing.sourceEpoch + (timezoneChanged ? 1 : 0)
+    const nextSourceEpoch = existing.sourceEpoch
 
     await deps.commandStore.updateProperty({
       organizationId: ctx.organizationId,

@@ -35,23 +35,28 @@ const setup = (
 }
 
 describe('updateProperty', () => {
-  it('updates name and timezone', async () => {
+  it('updates profile and timezone provenance without advancing the source epoch', async () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const prop = buildTestProperty({ name: 'Old Name', timezone: 'UTC' })
+    const prop = buildTestProperty({ timezone: 'UTC' })
     propertyRepo.seed([prop])
 
-    const updated = await useCase(
-      { propertyId: prop.id, name: 'New Name', timezone: 'Europe/London' },
-      ctx,
-    )
+    const updated = await useCase({ propertyId: prop.id, timezone: 'Europe/London' }, ctx)
 
-    expect(updated.name).toBe('New Name')
     expect(updated.timezone).toBe('Europe/London')
     expect(updated.profileVersion).toBe(prop.profileVersion + 1)
-    expect(updated.sourceEpoch).toBe(prop.sourceEpoch + 1)
+    expect(updated.sourceEpoch).toBe(prop.sourceEpoch)
     expect(updated.timezoneSource).toBe('tenant_confirmed')
     expect(updated.timezoneResolvedAt).toEqual(FIXED_TIME)
+    await expect(
+      propertyRepo.findById(ctx.organizationId, prop.id),
+    ).resolves.toMatchObject({
+      profileVersion: prop.profileVersion + 1,
+      sourceEpoch: prop.sourceEpoch,
+      timezone: 'Europe/London',
+      timezoneSource: 'tenant_confirmed',
+      timezoneResolvedAt: FIXED_TIME,
+    })
   })
 
   it('updates slug', async () => {
