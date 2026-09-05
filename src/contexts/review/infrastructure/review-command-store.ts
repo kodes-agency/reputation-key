@@ -188,8 +188,8 @@ async function readTransactionClock(tx: Tx): Promise<Date> {
   return occurredAt
 }
 
-/** Take the source-epoch fence and the expired Review row together. The row is
- * returned locked, and only when the database itself agrees it is expired. */
+/** Take the current Property epoch fence and an expired Review row together.
+ * The row may be from an older epoch that this observation will carry forward. */
 async function lockExpiredReviewRow(
   tx: Tx,
   review: Omit<Review, 'createdAt' | 'updatedAt'>,
@@ -214,7 +214,7 @@ async function lockExpiredReviewRow(
       sql`${reviews.id} = ${review.id}
         AND ${reviews.organizationId} = ${review.organizationId}
         AND ${reviews.propertyId} = ${review.propertyId}
-        AND ${reviews.sourceEpoch} = ${review.sourceEpoch}
+        AND ${reviews.sourceEpoch} <= ${review.sourceEpoch}
         AND (
           ${reviews.sourceContentState} IN ('source_expired', 'provider_deleted')
           OR ${reviews.contentExpiresAt} <= transaction_timestamp()
@@ -365,8 +365,13 @@ export const createAtomicReviewCommandStore = (
           const recordedEvents: DomainEvent[] = []
           let previousSequence: number | null = null
 
-          // An already-erased Review has already recorded its lifecycle fact.
-          if (existingRow.sourceContentState === 'active') {
+          // An already-erased Review has recorded its lifecycle fact. A row from
+          // a superseded epoch cannot allocate another old-epoch sequence after
+          // the Property fence moves; this observation replaces it atomically.
+          if (
+            existingRow.sourceEpoch === review.sourceEpoch &&
+            existingRow.sourceContentState === 'active'
+          ) {
             const expiry = await redactJustExpiredSourceContent(
               tx,
               stableIdentity,
@@ -381,7 +386,11 @@ export const createAtomicReviewCommandStore = (
             review,
             'Re-observed Review sequence is not contiguous',
           )
-          if (previousSequence != null && reobserveSequence !== previousSequence + 1) {
+          if (
+            previousSequence != null &&
+            existingRow.sourceEpoch === review.sourceEpoch &&
+            reobserveSequence !== previousSequence + 1
+          ) {
             throw reviewError(
               'repo_upsert_failed',
               'Re-observed Review sequence is not contiguous',

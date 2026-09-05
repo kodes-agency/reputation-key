@@ -24,8 +24,9 @@ export type ReviewCommandStore = Readonly<{
   /**
    * At the database expiry equality boundary, atomically emit the old source
    * expiry and restore the same durable Review identity from a fresh
-   * observation. The material revision advances only for a material change;
-   * dependent staff-authored records remain attached to the identity.
+   * observation. The revision advances for a material change or source-epoch
+   * carry so prior exact bindings stay immutable; dependent staff records
+   * remain attached to the Review identity.
    */
   reobserveExpiredAndRecord(
     review: Omit<Review, 'createdAt' | 'updatedAt'>,

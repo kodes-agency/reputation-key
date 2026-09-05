@@ -24,6 +24,7 @@ import {
   compareMaterialReviewRevision,
   computeReviewSourceObservationDigest,
   REVIEW_MATERIAL_NORMALIZATION_VERSION,
+  type MaterialReviewComparisonResult,
   type ReviewMaterialComparison,
 } from '../../domain/material-review-revision'
 import { reviewError } from '../../domain/errors'
@@ -173,6 +174,8 @@ async function insertOrRestoreMaterialRevision(
   const adoptComparisonBaseline =
     input.comparison === 'normalization_shadow_match' ||
     input.comparison === 'baseline_unavailable'
+  // Non-creating comparisons are same-epoch only. Historical exact bindings
+  // may already be referenced and must remain immutable.
   const rows = await tx
     .update(materialReviewRevisions)
     .set({
@@ -193,6 +196,7 @@ async function insertOrRestoreMaterialRevision(
       and(
         eq(materialReviewRevisions.reviewId, input.review.id),
         eq(materialReviewRevisions.revision, input.materialRevision),
+        eq(materialReviewRevisions.sourceEpoch, input.review.sourceEpoch),
       ),
     )
     .returning({ revision: materialReviewRevisions.revision })
@@ -222,8 +226,8 @@ function resolveObservationKey(
   return observationKey
 }
 
-/** Lock the Review this observation names. A row that exists under a different
- * tenant, property, platform, or source epoch is a different subject. */
+/** Lock the Review this observation names. The same tenant/property/platform at
+ * an older source epoch is carried forward; a newer epoch or other scope is not. */
 async function lockStableIdentity(
   tx: Tx,
   input: ObservationInput,
@@ -239,15 +243,16 @@ async function lockStableIdentity(
     (existing.organizationId !== input.review.organizationId ||
       existing.propertyId !== input.review.propertyId ||
       existing.platform !== input.review.platform ||
-      existing.sourceEpoch !== input.review.sourceEpoch)
+      existing.sourceEpoch > input.review.sourceEpoch)
   ) {
     throw reviewError('repo_upsert_failed', 'Review stable identity scope collision')
   }
   return existing
 }
 
-/** The provider's external id may only ever belong to this Review, in this
- * property, at this source epoch. */
+/** The provider's external id may only belong to this Review and property. An
+ * older epoch is the same stable identity to carry forward; a newer one fences
+ * a stale observation. */
 async function assertProviderIdentityScope(
   tx: Tx,
   input: ObservationInput,
@@ -272,10 +277,39 @@ async function assertProviderIdentityScope(
     external != null &&
     (external.id !== input.review.id ||
       external.propertyId !== input.review.propertyId ||
-      external.sourceEpoch !== input.review.sourceEpoch)
+      external.sourceEpoch > input.review.sourceEpoch)
   ) {
     throw reviewError('repo_upsert_failed', 'Review provider identity scope collision')
   }
+}
+
+/**
+ * Material revision numbers are stable across the Review's lifetime, while
+ * exact bindings include source epoch. An unchanged Review crossing an epoch
+ * therefore needs a new numbered row: moving the old row would rewrite
+ * historical reply/publication foreign-key targets.
+ */
+function bindMaterialRevisionToSourceEpoch(
+  existing: ReviewRow | null,
+  sourceEpoch: number,
+  material: MaterialReviewComparisonResult,
+): MaterialReviewComparisonResult {
+  if (
+    existing == null ||
+    existing.sourceEpoch === sourceEpoch ||
+    material.createsMaterialRevision
+  ) {
+    return material
+  }
+  const materialRevision = material.materialRevision + 1
+  if (!Number.isSafeInteger(materialRevision)) {
+    throw reviewError('repo_upsert_failed', 'Material Review Revision overflow')
+  }
+  return Object.freeze({
+    ...material,
+    materialRevision,
+    createsMaterialRevision: true,
+  })
 }
 
 /** An exact replay returns the already-recorded result. The same key carrying
@@ -328,8 +362,8 @@ async function findReplayedObservation(
   }
 }
 
-/** Provider evidence older than what the Review already holds is recorded as
- * history but never applied to the current source. */
+/** Within one source epoch, older provider evidence is recorded as history but
+ * never applied. A newer epoch is authoritative and carries the row forward. */
 async function recordOutOfOrderObservation(
   tx: Tx,
   input: ObservationInput,
@@ -425,6 +459,7 @@ async function writeObservedReviewRow(
             contentExpiresAt: row.contentExpiresAt,
             contentHash: row.contentHash,
             sourceSeenGeneration: row.sourceSeenGeneration,
+            sourceEpoch: row.sourceEpoch,
             sourceRevision: material.materialRevision,
             sourceObservationSequence: observationSequence,
             materialNormalizationVersion: material.normalizationVersion,
@@ -493,16 +528,20 @@ export async function persistReviewObservation(
   )
   if (replayed) return replayed
 
-  const material = compareMaterialReviewRevision({
-    // A compatibility row written after the expand migration has no explicit
-    // comparison baseline. Its first governed observation becomes revision 1;
-    // only migration-backed `legacy-unverified-v0` rows enter shadow compare.
-    previous:
-      existing == null || existing.materialNormalizationVersion == null
-        ? null
-        : currentMaterial(existing),
-    incoming: { rating: input.review.rating, text: input.review.text },
-  })
+  const material = bindMaterialRevisionToSourceEpoch(
+    existing,
+    input.review.sourceEpoch,
+    compareMaterialReviewRevision({
+      // A compatibility row written after the expand migration has no explicit
+      // comparison baseline. Its first governed observation becomes revision 1;
+      // only migration-backed `legacy-unverified-v0` rows enter shadow compare.
+      previous:
+        existing == null || existing.materialNormalizationVersion == null
+          ? null
+          : currentMaterial(existing),
+      incoming: { rating: input.review.rating, text: input.review.text },
+    }),
+  )
   const observationSequence = (existing?.sourceObservationSequence ?? 0) + 1
   if (!Number.isSafeInteger(observationSequence) || observationSequence <= 0) {
     throw reviewError('repo_upsert_failed', 'Review observation sequence overflow')
@@ -512,6 +551,7 @@ export async function persistReviewObservation(
   const currentProviderVersion = existing == null ? null : providerVersion(existing)
   if (
     existing != null &&
+    existing.sourceEpoch === input.review.sourceEpoch &&
     incomingProviderVersion != null &&
     currentProviderVersion != null &&
     incomingProviderVersion.getTime() < currentProviderVersion.getTime()
