@@ -9,8 +9,8 @@ Owner: Platform/Operations
 
 | Service                      | Source                                               |
 | ---------------------------- | ---------------------------------------------------- |
-| `web`                        | `ghcr.io/kodes-agency/repkey-web@sha256:47fe7eb…`    |
-| `worker`                     | `ghcr.io/kodes-agency/repkey-worker@sha256:94c00fd…` |
+| `web`                        | `ghcr.io/kodes-agency/repkey-web@sha256:7e76c8e…`    |
+| `worker`                     | `ghcr.io/kodes-agency/repkey-worker@sha256:080efe3…` |
 | `google-egress-gateway`      | GitHub `release`                                     |
 | `google-execution-admission` | GitHub `release`                                     |
 | `ai-egress-gateway`          | GitHub `release`                                     |
@@ -56,6 +56,46 @@ were restored by reconnecting them to GitHub `release` and redeploying; the
 gateway needed a second redeploy because its dependency was still down on the
 first. Rollback took about five minutes per service and is the procedure at
 the end of this document.
+
+## Open: two quarantined reply observations, awaiting a data-semantics call
+
+`GET /api/health/metrics` reports `quarantine.count = 2`. Both are
+`review.reply.observed` for property `14e312ca` ("Urban Move"), emitted by its
+first ever successful sync at `2026-09-05T07:31:57Z`. They are inert: both
+Inbox items are `closed`, the reviews are synced, and ratings and metrics are
+unaffected.
+
+Chain: #438 unwedged that property's sync by carrying its reviews to the
+current `source_epoch`, appending material revision 2. #441 then let an
+epoch-carried observation advance the Inbox head, but only on a Review
+attestation that the predecessor and successor revisions share a normalization
+version and normalized digest. These two rows cannot satisfy that:
+
+| Revision | `source_epoch` | `normalization_version` | `normalized_digest` |
+| -------- | -------------- | ----------------------- | ------------------- |
+| 1        | 0              | `legacy-unverified-v0`  | NULL                |
+| 2        | 1              | `review-material-v1`    | present             |
+
+Revision 1 predates verified normalization and has no digest, so equivalence
+cannot be PROVEN — only assumed. Redriving both events after #441 deployed
+still failed with `InboxError: revision_conflict` / "Current reply observation
+is waiting for the Inbox material revision", which is the guard behaving as
+designed.
+
+This needs an owner decision, not another guard change, because it is a claim
+about legacy data:
+
+1. Treat a `legacy-unverified-v0` predecessor as equivalent when rating and
+   content state match — cheap, but it asserts equivalence without proof and
+   would apply to every legacy row, not just these two.
+2. Record the two events `obsolete` with the reason that a closed item at a
+   legacy revision has no work to carry — honest, and loses nothing observable.
+3. Advance the Inbox head through the ordinary projection path, treating the
+   first verified normalization as the material change it arguably is — the
+   most faithful option and the largest change.
+
+Do not discard the events before deciding: they are the only remaining
+evidence of the case.
 
 This is the delivery path for the existing `google-closed-beta` environment. It
 is deliberately separate from the governed `cell-us` promotion ceremony in
@@ -192,18 +232,46 @@ the revision is an ancestor of `origin/main`, and prints the fixed project,
 environment, seven service IDs, current sources, and proposed digest references.
 It does not mutate Railway.
 
-### Scope: six services by default, not seven
+### Scope: `web` and `worker` by default
 
-The default plan is the **six GitHub-backed services** (`web`, `worker`, the two
-Google sidecars, the two AI sidecars). For those, a digest cutover is a
-same-bits source change: Railway stops rebuilding what CI already built.
+The default plan is **only `web` and `worker`** — the two services proven on a
+digest source. Both moved on 2026-09-05 and stayed healthy across two
+revisions. For them a digest cutover is a same-bits source change: Railway
+stops rebuilding what CI already built.
 
-`google-provider-redis` is deliberately excluded. It currently runs upstream
-`redis:7` by digest, so pointing it at `repkey-google-provider-redis` is not a
-source change but a substitution of the live queue and cache substrate with an
-image that has never been deployed. It needs its own watched change window.
+The four sidecars are excluded, and re-attempting them is not a harmless
+retry: `google-egress-gateway` CRASHES on its first image-sourced boot with
+`required Google gateway setting is missing: RELEASE_SHA`, which takes the
+Google review path down until it is reconnected to `release` and redeployed.
+`--include-sidecars` opts in, and should only be used after the `RELEASE_SHA`
+coupling above is fixed.
+
+`google-provider-redis` is excluded for a different reason: it currently runs
+upstream `redis:7` by digest, so pointing it at
+`repkey-google-provider-redis` is not a source change but a substitution of
+the live queue and cache substrate with an image that has never been
+deployed. It needs its own watched change window.
 `--include-provider-redis` opts in, and when opted in it is ordered LAST so a
 substrate failure cannot precede the services that depend on it.
+
+### A digest-pinned service no longer follows `release`
+
+This is the operational consequence to internalise. `git push origin
+origin/main:refs/heads/release` still deploys every repo-sourced service, but
+`web` and `worker` ignore it — they run the digest they were pinned to until
+`ops:deploy-ci-images` moves them. `railway deployment list` is misleading
+here: it reports the branch commit for the environment, so it will happily
+show `@<release-head>` for a service that is actually running an older image.
+Confirm the real source with the service config, not the deployment list.
+
+Two known consequences while the sidecars stay repo-sourced:
+
+- A fix must be deployed twice — push `release` for the sidecars, then run
+  `ops:deploy-ci-images` for `web` and `worker`.
+- `GET /api/health/metrics` reports `release.sha` as `unknown` for the
+  image-sourced services, because `RELEASE_SHA` is the same platform-supplied
+  name the sidecars require and an image source does not receive it. Release
+  identity in the ops snapshot is therefore degraded until that is fixed.
 
 After reviewing the report, apply the same default revision with the explicit
 live-environment opt-in:
