@@ -53,7 +53,7 @@ async function resolveOrgId(container: Container): Promise<string> {
     // freshly migrated, EMPTY database, so the row this id names may not exist
     // yet. Everything downstream — the capability allowlist first, then the
     // scenario — carries an FK to `organization`, so create it here rather
-    // than letting `organization_policy_organization_id_fkey` fail. Mirrors how
+    // than letting the organization_policy tenant FK fail. Mirrors how
     // the isolation org is created below. Idempotent for repeat local runs.
     await container.db
       .insert(organization)

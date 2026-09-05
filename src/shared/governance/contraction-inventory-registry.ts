@@ -123,30 +123,13 @@ export const CONTRACTION_INVENTORY_COMMANDS = Object.freeze([
     ],
   }),
   command({
-    packageScript: 'ops:report-legacy-import-control',
-    scriptPath: 'scripts/ops/report-legacy-import-control.ts',
-    kind: 'table_inventory',
-    authority: 'GGL-01/CNV-01',
-    summary:
-      'Legacy Google import control row and its effect leases, retained while the v1 import path is being closed.',
-    tables: ['legacy_import_control', 'legacy_import_effect_leases'],
-  }),
-  command({
     packageScript: 'ops:report-compatibility-read-surfaces',
     scriptPath: 'scripts/ops/report-compatibility-read-surfaces.ts',
     kind: 'table_inventory',
     authority: 'GST-01/MET-01/GGL-01/POR-01/PPL-01/CNV-01',
     summary:
       'Every compatibility mirror still readable during replacement parity; inventory only, removal stays blocked.',
-    tables: [
-      'feedback',
-      'ratings',
-      'scan_events',
-      'gbp_import_legacy_history',
-      'gbp_cache',
-      'gbp_import_jobs',
-      'portal_group_members',
-    ],
+    tables: ['feedback', 'ratings', 'scan_events', 'portal_group_members'],
   }),
   command({
     packageScript: 'ops:report-non-fk-references',

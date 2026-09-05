@@ -475,17 +475,6 @@ describe('retention rule registry (BQC-3.7)', () => {
     expect(outboxRule!.olderThanMs).toBe(30 * 24 * 60 * 60 * 1000)
   })
 
-  it('no longer drains the legacy GBP cache compatibility mirror (LIF-01-T16)', () => {
-    // `gbp_cache` is a compatibility_read mirror gated on one verified release
-    // plus a restore proof. Deleting its expired rows contracted it early and
-    // hollowed out the inventory that decision depends on. The class is now
-    // carried report-only in the counsel retention registry.
-    expect(RETENTION_RULES.find((rule) => rule.subject === 'gbp_cache.expired')).toBe(
-      undefined,
-    )
-    expect(RETENTION_RULES.some((rule) => rule.table === 'gbp_cache')).toBe(false)
-  })
-
   it('touches a compatibility mirror only through row-preserving redaction', () => {
     const mirrors = new Set(['scan_events', 'ratings', 'feedback'])
     const mirrorRules = RETENTION_RULES.filter((rule) => mirrors.has(rule.table))

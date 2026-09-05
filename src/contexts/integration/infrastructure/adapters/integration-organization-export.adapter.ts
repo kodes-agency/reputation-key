@@ -81,7 +81,6 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  * - `google_import_discovery_records` are pre-confirmation provider candidate
  *   pages behind HMAC handles — raw Google-controlled content with a 24-hour
  *   bound, copied for one browser session and never a tenant record.
- * - `gbp_cache` (`legacy_gbp_cache`) is cached provider response material.
  * - Business Profile Performance reports are live-only and never persisted;
  *   there is nothing to read and re-fetching one would export a live provider
  *   payload.

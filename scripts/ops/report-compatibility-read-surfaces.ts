@@ -1,6 +1,6 @@
 // Read-only CNV-01 inventory of every `compatibility_read` mirror: the
 // pre-beta guest tables (feedback, ratings, scan_events), the legacy Google
-// import mirrors (gbp_import_legacy_history, gbp_cache, gbp_import_jobs) and
+// import mirrors (deleted with the compatibility surface) and
 // the pre-beta portal group membership mirror (portal_group_members).
 //
 // The hard rule blocks removing a mirror until one verified release plus a
@@ -18,7 +18,6 @@
 import { getDb } from '../../src/shared/db'
 import { canonicalCompatibilityReadInventoryReport } from '../../src/contexts/guest/application/compatibility-read-inventory'
 import { readCompatibilityReadInventory } from '../../src/contexts/guest/infrastructure/compatibility-read-inventory.repository'
-import { readLegacyGbpCompatibilitySection } from '../../src/contexts/integration/infrastructure/legacy-gbp-compatibility-inventory.repository'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:report-compatibility-read-surfaces'
@@ -60,12 +59,7 @@ async function main(): Promise<void> {
     async (_context, _args, io) => {
       const db = getDb()
       const report = await readCompatibilityReadInventory(db, asOf)
-      // The Integration context owns the physical-name/Drizzle-export mapping
-      // for its three mirrors; carrying it in the same artifact keeps the
-      // naming trap visible to whoever reads the evidence later.
-      const gbpCompatibility = await readLegacyGbpCompatibilitySection(db, asOf)
       io.out(canonicalCompatibilityReadInventoryReport(report))
-      io.out(JSON.stringify({ gbpCompatibility }, null, 2))
     },
     withoutAsOf(argv),
   )

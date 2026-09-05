@@ -89,12 +89,6 @@ function evidenceRef(
     request.closureLineageId,
     `r${request.lifecycleRevision}`,
     ...counts.map((count) => `n${count}`),
-    // A purge receipt that said nothing about the deferred compatibility
-    // mirrors would let a partial purge read as complete. Their rows are
-    // scrubbed by the Google import compatibility lifecycle, which is a
-    // separate artifact; this marker is how a reviewer sees that from the
-    // receipt alone.
-    ...(phase === 'purge' ? ['compatdeferred'] : []),
   ].join(':')
 }
 
@@ -102,22 +96,18 @@ function evidenceRef(
 async function integrationFootprint(
   tx: Tx,
   organizationId: string,
-): Promise<Readonly<{ connections: number; imports: number; legacy: number }>> {
+): Promise<Readonly<{ connections: number; imports: number }>> {
   const result = await tx.execute(sql`
     SELECT
       (SELECT count(*)::int FROM google_connections
         WHERE organization_id = ${organizationId}) AS connections,
       (SELECT count(*)::int FROM gbp_import_requests
-        WHERE organization_id = ${organizationId}) AS imports,
-      -- The legacy mirror is counted by the compatibility build, not here: the
-      -- final artifact may not name Google import compatibility paths at all.
-      (SELECT 0) AS legacy
+        WHERE organization_id = ${organizationId}) AS imports
   `)
   const row = result.rows[0] as CountRow | undefined
   return {
     connections: readCount(row, 'connections'),
     imports: readCount(row, 'imports'),
-    legacy: readCount(row, 'legacy'),
   }
 }
 
@@ -144,11 +134,7 @@ const prepareClosing =
     request: OrganizationLifecycleContributionRequest,
   ): Promise<OrganizationLifecyclePhaseOutcome> => {
     const footprint = await integrationFootprint(tx, request.organizationId)
-    if (
-      footprint.connections === 0 &&
-      footprint.imports === 0 &&
-      footprint.legacy === 0
-    ) {
+    if (footprint.connections === 0 && footprint.imports === 0) {
       // Affirmative absence. An Organization that never connected Google has no
       // provider effects to stop, and that is evidence — not an omission.
       return {
@@ -353,7 +339,7 @@ const verifyPurgeReadiness = async (
   })).filter((blocker) => blocker.count > 0)
   if (blockers.length > 0) throw new IntegrationPurgeReadinessBlockedError(blockers)
 
-  if (footprint.connections === 0 && footprint.imports === 0 && footprint.legacy === 0) {
+  if (footprint.connections === 0 && footprint.imports === 0) {
     return {
       outcome: 'no_data',
       evidenceRef: evidenceRef('readiness', request, [0]),
@@ -364,7 +350,6 @@ const verifyPurgeReadiness = async (
     evidenceRef: evidenceRef('readiness', request, [
       footprint.connections,
       footprint.imports,
-      footprint.legacy,
     ]),
   }
 }
@@ -388,13 +373,6 @@ const PURGE_DELETE_TABLES = Object.freeze([
   'google_import_discovery_records',
   // The crash boundary that can hold an application-encrypted token response.
   'google_oauth_exchange_attempts',
-  // The Google import compatibility mirrors are DELIBERATELY ABSENT here, and
-  // this is a real deferral rather than an oversight. `check-google-import-
-  // artifacts.mjs` forbids those paths in the FINAL artifact entirely — the
-  // compatibility build owns them — so naming them in a worker-bundled module
-  // fails the artifact gate. Their rows are scrubbed by the Google import
-  // compatibility lifecycle, and `purge` records that deferral in its evidence
-  // so a partial purge cannot read as complete.
   // Cross-cell broker grants.
   'google_credential_broker_replay',
 ] as const)
@@ -425,8 +403,7 @@ const purge = async (
   // replay after a rolled-back attempt reports the same outcome instead of
   // degrading `complete` into `no_data`.
   const footprint = await integrationFootprint(tx, request.organizationId)
-  const hasFootprint =
-    footprint.connections > 0 || footprint.imports > 0 || footprint.legacy > 0
+  const hasFootprint = footprint.connections > 0 || footprint.imports > 0
 
   let deleted = 0
   for (const table of PURGE_DELETE_TABLES) {

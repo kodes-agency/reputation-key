@@ -440,7 +440,7 @@ describe.sequential('notification delivery lag report (real PostgreSQL)', () => 
     `)
 
     expect(result.rows).toHaveLength(1)
-    expect(result.rows[0]?.indexdef).toContain('(created_at DESC, id)')
+    expect(result.rows[0]?.indexdef).toMatch(/\(created_at DESC[^,]*, id\)/u)
     expect(result.rows[0]?.indexdef).toMatch(
       /WHERE .*cadence.*=.*'immediate'.*not_before IS NULL/iu,
     )

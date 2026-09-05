@@ -169,7 +169,6 @@ jobs:
         run: |
           pnpm auth:migrate
           pnpm db:migrate
-          pnpm db:google-property-binding-index
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrations/2026-07-06-permission-version-triggers.sql
 
       # BQC-7.1: predeploy migration parity — the deploy runner
@@ -321,9 +320,6 @@ jobs:
           pnpm build:google-egress-gateway
           pnpm check:google-runtime-bundle gateway
 
-      - name: Google import compatibility build
-        run: pnpm build:google-import-compatibility
-
       - name: Production artifact boundary
         run: >-
           pnpm check:production-artifacts
@@ -336,8 +332,6 @@ jobs:
 
       - name: Google import artifact boundary
         run: |
-          pnpm check:google-import-artifacts final .output dist-worker
-          pnpm check:google-import-artifacts compatibility dist-google-import-compatibility
 
       # BQC-7.1: artifact digest — deterministic tarball of the deploy
       # artifacts (sorted names, zeroed mtimes/owners, gzip -n), digest in
@@ -347,7 +341,6 @@ jobs:
           tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf - \
             .output dist-worker dist-ai-execution-admission dist-ai-egress-gateway \
             dist-google-execution-admission dist-google-egress-gateway \
-            dist-google-import-compatibility \
             | gzip -n > /tmp/artifact.tgz
           DIGEST=$(shasum -a 256 /tmp/artifact.tgz | cut -d' ' -f1)
           echo "sha256:$DIGEST  (all deploy artifacts)"
@@ -405,12 +398,14 @@ jobs:
         include:
           - group: web-compatibility
             images: >-
-              [{"name":"web","dockerfile":"Dockerfile","tag":"repkey-web:ci","publish":true},{"name":"google-import-compatibility","dockerfile":"Dockerfile.google-import-compatibility","tag":"repkey-google-import-compatibility:ci","publish":false},{"name":"google-provider-redis","dockerfile":"Dockerfile.google-provider-redis","tag":"repkey-google-provider-redis:ci","publish":true}]
+              [{"name":"web","dockerfile":"Dockerfile","tag":"repkey-web:ci","publish":true},{"name":"google-provider-redis","dockerfile":"Dockerfile.google-provider-redis","tag":"repkey-google-provider-redis:ci","publish":true}]
           - group: worker-tools
             images: >-
               [{"name":"worker","dockerfile":"Dockerfile","tag":"repkey-worker:ci","publish":true},{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
+              [{"name":"worker","dockerfile":"Dockerfile","tag":"repkey-worker:ci","publish":true},{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
           - group: sidecars
             images: >-
+              [{"name":"google-execution-admission","dockerfile":"Dockerfile.google-execution-admission","tag":"repkey-google-execution-admission:ci","publish":true},{"name":"google-egress-gateway","dockerfile":"Dockerfile.google-egress-gateway","tag":"repkey-google-egress-gateway:ci","publish":true},{"name":"ai-execution-admission","dockerfile":"Dockerfile.ai-execution-admission","tag":"repkey-ai-execution-admission:ci","publish":true},{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]
               [{"name":"google-execution-admission","dockerfile":"Dockerfile.google-execution-admission","tag":"repkey-google-execution-admission:ci","publish":true},{"name":"google-egress-gateway","dockerfile":"Dockerfile.google-egress-gateway","tag":"repkey-google-egress-gateway:ci","publish":true},{"name":"ai-execution-admission","dockerfile":"Dockerfile.ai-execution-admission","tag":"repkey-ai-execution-admission:ci","publish":true},{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]
 
     steps:
@@ -472,7 +467,6 @@ jobs:
               done
               test "$(docker image inspect repkey-web:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
               test "$(docker image inspect repkey-web:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
-              docker run --rm --entrypoint test repkey-web:ci ! -e /app/dist-google-import-compatibility
               docker run --rm --entrypoint test repkey-web:ci ! -e /app/dist-local-tools
               docker run --rm --entrypoint sh repkey-web:ci -c \
                 "! find /app/.output /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/.output /app/dist-worker 2>/dev/null"
@@ -495,7 +489,6 @@ jobs:
               done
               test "$(docker image inspect repkey-worker:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "final"
               test "$(docker image inspect repkey-worker:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
-              docker run --rm --entrypoint test repkey-worker:ci ! -e /app/dist-google-import-compatibility
               docker run --rm --entrypoint test repkey-worker:ci ! -e /app/dist-local-tools
               docker run --rm --entrypoint sh repkey-worker:ci -c \
                 "! find /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/dist-worker 2>/dev/null"
@@ -545,21 +538,6 @@ jobs:
               test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-google-egress-gateway/index.js"
               docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/control-proxy.js
               docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/tcp-relay.js
-              ;;
-            google-import-compatibility)
-              docker run --rm --entrypoint node repkey-google-import-compatibility:ci -e "process.exit(0)"
-              test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{.Config.User}}')" = "node"
-              docker run --rm --entrypoint test repkey-google-import-compatibility:ci -e /app/node_modules/pg
-              docker run --rm --entrypoint node repkey-google-import-compatibility:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
-              for sentinel in vitest typescript eslint prettier; do
-                if docker run --rm --entrypoint test repkey-google-import-compatibility:ci -e "/app/node_modules/$sentinel"; then
-                  echo "::error::devDependency $sentinel leaked into repkey-google-import-compatibility:ci prod node_modules"
-                  exit 1
-                fi
-              done
-              test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "compatibility"
-              test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "google-import-only"
-              test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{len .Config.Entrypoint}} {{join .Config.Entrypoint " "}}')" = "2 node dist-google-import-compatibility/google-import-lifecycle.js"
               ;;
             provider-sandbox)
               docker run --rm --entrypoint sh repkey-provider-sandbox:ci -c 'set -eu; node provider-sandbox.mjs --kind=gbp --port=3000 >/tmp/provider-sandbox.log 2>&1 & child=$!; trap '\''kill "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true'\'' EXIT; attempt=0; until node -e "fetch('\''http://127.0.0.1:3000/__control/health'\'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; do attempt=$((attempt+1)); if [ "$attempt" -ge 30 ]; then cat /tmp/provider-sandbox.log; exit 1; fi; sleep 0.2; done'

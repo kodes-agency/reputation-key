@@ -146,7 +146,7 @@ location suffixes, the Google review URI, import replay digests, the disconnect
 credential binding and cleanup permit, `google_oauth_exchange_attempts`,
 `credential_revoke_permits`, `authorization_execution_permits`,
 `google_credential_broker_replay`, the signed routing directory,
-`google_import_discovery_records`, `gbp_cache`, credential-home operator identity
+`google_import_discovery_records`, credential-home operator identity
 and change ticket, and live Business Profile Performance payloads. Every
 exclusion is enumerated in the emitted `excludedRecordClasses`.
 

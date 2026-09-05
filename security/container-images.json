@@ -65,15 +65,6 @@
       "purpose": "Production Google egress-policy gateway."
     },
     {
-      "id": "google-import-compatibility",
-      "dockerfile": "Dockerfile.google-import-compatibility",
-      "ciImage": "repkey-google-import-compatibility:ci",
-      "classification": "production-rollout-tool",
-      "promotion": "release-candidate",
-      "releaseRole": "googleImportCompatibility",
-      "purpose": "Digest-retained, rollout-only Google import compatibility operator."
-    },
-    {
       "id": "provider-sandbox",
       "dockerfile": "Dockerfile.sandbox",
       "ciImage": "repkey-provider-sandbox:ci",

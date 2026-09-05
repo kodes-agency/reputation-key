@@ -27,8 +27,6 @@ const zeroRecoveryCounts = {
   googleExecutionPermitsFenced: 0,
   googleSourceOperationsFenced: 0,
   googleRevokePermitsFenced: 0,
-  legacyImportJobsCanceled: 0,
-  legacyImportEffectLeasesReleased: 0,
   googleImportV2ParentsFenced: 0,
   googleImportV2ItemsFenced: 0,
   aiIssuedPermitsReleased: 0,

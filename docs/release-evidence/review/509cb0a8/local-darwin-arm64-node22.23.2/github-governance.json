@@ -1,0 +1,39 @@
+{
+  "url": "https://api.github.com/repos/kodes-agency/reputation-key/branches/main/protection",
+  "required_status_checks": {
+    "url": "https://api.github.com/repos/kodes-agency/reputation-key/branches/main/protection/required_status_checks",
+    "strict": false,
+    "contexts": [
+      "check",
+      "docker",
+      "e2e",
+      "secrets",
+      "audit",
+      "Analyze (javascript-typescript)"
+    ],
+    "contexts_url": "https://api.github.com/repos/kodes-agency/reputation-key/branches/main/protection/required_status_checks/contexts",
+    "checks": [
+      { "context": "check", "app_id": 15368 },
+      { "context": "docker", "app_id": 15368 },
+      { "context": "e2e", "app_id": 15368 },
+      { "context": "secrets", "app_id": 15368 },
+      { "context": "audit", "app_id": 15368 },
+      { "context": "Analyze (javascript-typescript)", "app_id": 15368 }
+    ]
+  },
+  "required_signatures": {
+    "url": "https://api.github.com/repos/kodes-agency/reputation-key/branches/main/protection/required_signatures",
+    "enabled": false
+  },
+  "enforce_admins": {
+    "url": "https://api.github.com/repos/kodes-agency/reputation-key/branches/main/protection/enforce_admins",
+    "enabled": false
+  },
+  "required_linear_history": { "enabled": true },
+  "allow_force_pushes": { "enabled": false },
+  "allow_deletions": { "enabled": false },
+  "block_creations": { "enabled": false },
+  "required_conversation_resolution": { "enabled": false },
+  "lock_branch": { "enabled": false },
+  "allow_fork_syncing": { "enabled": false }
+}

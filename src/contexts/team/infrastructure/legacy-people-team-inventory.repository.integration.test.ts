@@ -44,20 +44,11 @@ describe('legacy People/Team inventory (real PostgreSQL)', () => {
       ),
     ).toBe(true)
     expect(report.externalInboundDependencies).toEqual([])
-    expect(
-      report.foreignKeys
-        .filter(({ validated }) => !validated)
-        .map(({ constraintName }) => constraintName)
-        .sort(),
-    ).toEqual([
-      'pag_property_tenant_fk',
-      'teams_property_tenant_fk',
-      'tm_participation_tenant_fk',
-      'tm_team_tenant_fk',
-      'tpgs_portal_group_tenant_fk',
-      'tpgs_team_tenant_fk',
-    ])
-    expect(report.blockers).toContain('unvalidated_foreign_keys_require_repair')
+    // The regenerated baseline creates every tenant foreign key VALIDATED.
+    // The 182-migration journal left ten of them NOT VALID, which is the
+    // repair debt this report used to carry.
+    expect(report.foreignKeys.filter(({ validated }) => !validated)).toEqual([])
+    expect(report.blockers).not.toContain('unvalidated_foreign_keys_require_repair')
     expect(report.schemaContractionCandidate).toBe(false)
   })
 

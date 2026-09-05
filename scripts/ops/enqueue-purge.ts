@@ -101,7 +101,7 @@ async function main(): Promise<void> {
             'report is content-free and read-only; re-run with --apply --yes ops:purge to enqueue the bounded apply',
           )
           io.out(
-            'Google import lifecycle backlog is reported separately by ops:google-import-lifecycle inspect',
+            'Google import lifecycle backlog is no longer reported: the compatibility surface was deleted with its five tables.',
           )
           return
         }

@@ -356,15 +356,6 @@ describe('Integration Organization lifecycle contributor', () => {
       expect(result.evidenceRef).toMatch(CONTENT_FREE_EVIDENCE_REF)
       const statements = executed.map((statement) => statement.text).join('\n')
       expect(statements).not.toMatch(/DROP |TRUNCATE/u)
-      // The Google import compatibility mirrors are DEFERRED, not handled here.
-      // The final artifact may not name those paths at all — the compatibility
-      // build owns them — so this contributor must not touch them, and its
-      // receipt must say so rather than letting a partial purge read as
-      // complete.
-      expect(statements).not.toMatch(
-        /gbp_cache|gbp_import_jobs|gbp_import_legacy_history/u,
-      )
-      expect(result.evidenceRef).toContain('compatdeferred')
       // Retained evidence is scrubbed in place rather than deleted.
       expect(statements).toContain('UPDATE google_disconnect_revoke_attempts')
     })
@@ -387,7 +378,7 @@ describe('Integration Organization lifecycle contributor', () => {
 
       expect(result).toEqual({
         outcome: 'no_data',
-        evidenceRef: `integration:purge:${LINEAGE}:r3:n0:n0:compatdeferred`,
+        evidenceRef: `integration:purge:${LINEAGE}:r3:n0:n0`,
       })
       expect(result.evidenceRef).toMatch(CONTENT_FREE_EVIDENCE_REF)
     })

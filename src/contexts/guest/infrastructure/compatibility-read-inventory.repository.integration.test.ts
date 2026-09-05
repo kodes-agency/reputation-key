@@ -50,12 +50,9 @@ describe('compatibility-read inventory (real PostgreSQL)', () => {
       AS_OF,
     )
 
-    expect(report.tableCount).toBe(7)
+    expect(report.tableCount).toBe(4)
     expect(report.tables.map(({ tableName }) => tableName).sort()).toEqual([
       'feedback',
-      'gbp_cache',
-      'gbp_import_jobs',
-      'gbp_import_legacy_history',
       'portal_group_members',
       'ratings',
       'scan_events',

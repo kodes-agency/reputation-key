@@ -105,8 +105,10 @@ export const properties = pgTable(
     index('properties_org_lower_name_id_active_idx')
       .on(t.organizationId, sql`lower(${t.name})`, t.id)
       .where(sql`${t.deletedAt} IS NULL`),
-    // F6: declared in Drizzle for schema parity, but created only by the
-    // dedicated autocommit sidecar (never by the transactional migrator).
+    // The regenerated baseline creates this. It used to be built only by a
+    // dedicated autocommit sidecar because CREATE INDEX CONCURRENTLY cannot run
+    // inside the transactional migrator; a fresh database has no rows to lock,
+    // so the ordinary declaration is enough.
     uniqueIndex('properties_org_gbp_location_id_unique')
       .on(t.organizationId, t.gbpLocationId)
       .where(sql`gbp_location_id IS NOT NULL AND deleted_at IS NULL`),

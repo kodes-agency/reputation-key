@@ -10,7 +10,6 @@
 import { getTableName, isTable } from 'drizzle-orm'
 import * as badgeSchema from './schema/badge.schema'
 import * as goalSchema from './schema/goal.schema'
-import * as googleImportCompatibilitySchema from './schema/google-import-compatibility.schema'
 import * as guestSchema from './schema/guest.schema'
 import * as leaderboardSchema from './schema/leaderboard.schema'
 import * as peopleAccessSchema from './schema/people-access.schema'
@@ -29,7 +28,6 @@ export type SchemaModuleMap = Readonly<Record<string, Readonly<Record<string, un
 export const CONTRACTION_SCHEMA_MODULES: SchemaModuleMap = Object.freeze({
   'badge.schema.ts': badgeSchema,
   'goal.schema.ts': goalSchema,
-  'google-import-compatibility.schema.ts': googleImportCompatibilitySchema,
   'guest.schema.ts': guestSchema,
   'leaderboard.schema.ts': leaderboardSchema,
   'people-access.schema.ts': peopleAccessSchema,

@@ -36,9 +36,6 @@ const OWNED_TABLES = [
   'gbp_import_sagas',
   'gbp_import_requests',
   'gbp_import_request_items',
-  'gbp_import_jobs',
-  'gbp_import_legacy_history',
-  'gbp_cache',
   'google_oauth_exchange_attempts',
   'google_disconnect_revoke_attempts',
   'google_credential_broker_replay',
@@ -53,28 +50,8 @@ const RETAINED_TABLES = [
   'authorization_execution_permits',
 ] as const
 
-/**
- * Rows this contributor DEFERS rather than deletes — the Google import
- * compatibility mirrors.
- *
- * Not an oversight and not a gap in the purge: `check-google-import-
- * artifacts.mjs` forbids these paths in the FINAL worker artifact entirely, so
- * a worker-bundled module may not even name them. The compatibility build owns
- * their scrubbing, and `purge` records the deferral in its evidence reference
- * so a partial purge cannot read as a complete one. This list exists so the
- * obligation stays VISIBLE here: if the compatibility lifecycle ever stops
- * owning them, the rows are still in the database and this test still says so.
- */
-const DEFERRED_TABLES = [
-  'gbp_import_jobs',
-  'gbp_import_legacy_history',
-  'gbp_cache',
-] as const
-
 const PURGED_TABLES = OWNED_TABLES.filter(
-  (table) =>
-    !RETAINED_TABLES.includes(table as (typeof RETAINED_TABLES)[number]) &&
-    !DEFERRED_TABLES.includes(table as (typeof DEFERRED_TABLES)[number]),
+  (table) => !RETAINED_TABLES.includes(table as (typeof RETAINED_TABLES)[number]),
 )
 
 /** Tenant markers that must be gone (or never emitted) after each phase. */
@@ -351,35 +328,6 @@ async function seedFixture(): Promise<Fixture> {
       new Date(CREATED_AT.getTime() + 60_000),
       new Date(CREATED_AT.getTime() + 120_000),
     ],
-  )
-  await lease.pool.query(
-    `INSERT INTO gbp_cache (
-       id, organization_id, property_id, gbp_place_id, data_type, payload,
-       fetched_at, expires_at, updated_at
-     ) VALUES ($1, $2, $3, 'place', 'location', $4::jsonb, $5, $6, $5)`,
-    [
-      randomUUID(),
-      fixture.organizationId,
-      fixture.propertyId,
-      JSON.stringify({ marker: 'provider-cache' }),
-      CREATED_AT,
-      new Date(CREATED_AT.getTime() + 3_600_000),
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO gbp_import_jobs (
-       id, organization_id, initiated_by, status, total_count, imported_count,
-       skipped_count, failed_count, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'completed', 1, 1, 0, 0, $4, $4)`,
-    [randomUUID(), fixture.organizationId, fixture.userId, CREATED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO gbp_import_legacy_history (
-       id, organization_id, initiated_by, original_status, normalized_status,
-       total_count, imported_count, skipped_count, failed_count,
-       original_created_at, original_updated_at, archived_at, row_digest, created_at
-     ) VALUES ($1, $2, $3, 'completed', 'completed', 1, 1, 0, 0, $4, $4, $4, $5, $4)`,
-    [randomUUID(), fixture.organizationId, fixture.userId, CREATED_AT, 'f'.repeat(64)],
   )
   return fixture
 }
@@ -780,10 +728,6 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
     for (const table of PURGED_TABLES) expect(counts[table]).toBe(0)
     // Independently retained, content-free evidence survives.
     for (const table of RETAINED_TABLES) expect(counts[table]).toBeGreaterThan(0)
-    // The compatibility mirrors are still here, and the receipt SAYS SO. A
-    // deferral that stayed silent would read as a complete purge.
-    for (const table of DEFERRED_TABLES) expect(counts[table]).toBeGreaterThan(0)
-    expect(result.evidenceRef).toContain('compatdeferred')
 
     const connection = await lease.pool.query(
       `SELECT connected_by, credential_authorized_by, credential_authorized_at,
@@ -812,22 +756,11 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
 
     // No tenant identifier or provider marker survives anywhere this
     // contributor purges or retains.
-    const purgedTables = OWNED_TABLES.filter(
-      (table) => !DEFERRED_TABLES.includes(table as (typeof DEFERRED_TABLES)[number]),
-    )
-    const surviving = await tableSnapshot(fixture.organizationId, purgedTables)
+    const surviving = await tableSnapshot(fixture.organizationId, OWNED_TABLES)
     for (const marker of Object.values(MARKERS)) {
       expect(surviving).not.toContain(marker)
     }
     expect(surviving).not.toContain(fixture.userId)
-
-    // And the deferral is a REAL gap while it lasts, asserted rather than
-    // implied: tenant content is still in the compatibility mirrors until the
-    // compatibility lifecycle scrubs them. If that ever stops being true this
-    // assertion fails and the deferral can be retired.
-    expect(await tableSnapshot(fixture.organizationId, DEFERRED_TABLES)).toContain(
-      fixture.userId,
-    )
 
     // A neighbouring tenant is byte-identical.
     expect(await tableSnapshot(neighbour.organizationId)).toEqual(neighbourBefore)

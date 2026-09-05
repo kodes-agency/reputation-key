@@ -1127,7 +1127,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       (e: unknown) =>
         e instanceof Error &&
         e.cause instanceof Error &&
-        /insert or update on table "event_consumer_receipts" violates foreign key constraint "event_consumer_receipts_event_id_fkey"/.test(
+        /insert or update on table "event_consumer_receipts" violates foreign key constraint/.test(
           e.cause.message,
         ),
     )

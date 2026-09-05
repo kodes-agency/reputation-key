@@ -25,7 +25,6 @@ import { getTableName, isTable, SQL } from 'drizzle-orm'
 import { getTableConfig, PgDialect } from 'drizzle-orm/pg-core'
 import type { Index, PgColumn } from 'drizzle-orm/pg-core'
 import * as schema from './schema'
-import * as googleImportCompatibilitySchema from './schema/google-import-compatibility.schema'
 import { DB_ONLY_CONSTRUCTS } from './schema/db-only-constructs'
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -377,105 +376,6 @@ function extractModel(): readonly ModelTable[] {
     typeof getTableConfig
   >[0][]
   return tables.map(toModelTable).sort((a, b) => a.name.localeCompare(b.name))
-}
-
-/**
- * Expand-schema bridge columns remain queryable only by the compatibility
- * binary. The contract-ready table definitions deliberately omit them so the
- * same code runs after contract DDL. While the durable compatibility control
- * table exists, augment the drift-only model with the exact frozen bridge
- * shape; this still validates every column, predicate, and identity check.
- */
-function withGoogleImportExpandBridge(
-  model: readonly ModelTable[],
-  catalog: Catalog,
-): readonly ModelTable[] {
-  if (!catalog.tables.has('legacy_import_control')) return model
-
-  const compatibilityTables = Object.values(googleImportCompatibilitySchema)
-    .filter(isTable)
-    .map((table) => toModelTable(table as Parameters<typeof getTableConfig>[0]))
-
-  return [...model, ...compatibilityTables].map((table): ModelTable => {
-    if (table.name === 'google_connections') {
-      return {
-        ...table,
-        columns: [
-          ...table.columns,
-          {
-            name: 'google_account_id',
-            type: 'varchar(255)',
-            notNull: false,
-            defaultSql: null,
-            primary: false,
-            isUnique: false,
-            enumName: null,
-            enumValues: null,
-          },
-          {
-            name: 'google_email',
-            type: 'varchar(255)',
-            notNull: false,
-            defaultSql: null,
-            primary: false,
-            isUnique: false,
-            enumName: null,
-            enumValues: null,
-          },
-        ],
-        checks: table.checks.map((check) =>
-          check.name === 'google_connections_identity_check'
-            ? {
-                ...check,
-                expr:
-                  'google_subject is not nullandgoogle_account_id is nullandgoogle_email is nullor' +
-                  'google_subject is nullandgoogle_account_id is not nullandgoogle_email is not nullor' +
-                  "status = 'disconnected'andgoogle_subject is nullandgoogle_account_id is nullandgoogle_email is null",
-              }
-            : check,
-        ),
-        indexes: [
-          ...table.indexes,
-          {
-            name: 'google_connections_google_account_idx',
-            unique: true,
-            columns: ['google_account_id'],
-            predicate: 'google_account_id is not null',
-          },
-        ],
-      }
-    }
-
-    if (table.name === 'properties') {
-      return {
-        ...table,
-        columns: [
-          ...table.columns,
-          {
-            name: 'gbp_place_id',
-            type: 'varchar(500)',
-            notNull: false,
-            defaultSql: null,
-            primary: false,
-            isUnique: false,
-            enumName: null,
-            enumValues: null,
-          },
-        ],
-        indexes: [
-          ...table.indexes,
-          {
-            name: 'properties_org_gbp_place_id_unique',
-            unique: true,
-            columns: ['organization_id', 'gbp_place_id'],
-            predicate: 'gbp_place_id is not nullanddeleted_at is null',
-          },
-        ],
-      }
-    }
-
-    return table
-  })
 }
 
 // ─── Catalog extraction ─────────────────────────────────────────────
@@ -1095,7 +995,7 @@ function compareRegistered(catalog: Catalog): Drift[] {
         drift(
           'missing-registered-object',
           `${construct.kind} ${construct.name}`,
-          `registered DB-only construct absent in db (source: ${construct.source})`,
+          'registered DB-only construct absent in db',
         ),
       )
     }
@@ -1218,7 +1118,7 @@ function compareJournal(catalog: Catalog): Drift[] {
  */
 export async function collectSchemaDrift(q: Queryable): Promise<readonly Drift[]> {
   const catalog = await fetchCatalog(q)
-  const model = withGoogleImportExpandBridge(extractModel(), catalog)
+  const model = extractModel()
   const drifts: Drift[] = [...compareTableSets(model, catalog)]
   for (const table of model) {
     if (catalog.tables.has(table.name)) {

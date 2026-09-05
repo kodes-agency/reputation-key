@@ -6,7 +6,6 @@ import { isSafeOpaqueIdentifier } from '#/shared/domain/safe-identifier'
  *
  * Seven tables are still readable during replacement parity: the pre-beta guest
  * tables (`feedback`, `ratings`, `scan_events`), the legacy Google import
- * mirrors (`gbp_import_legacy_history`, `gbp_cache`, `gbp_import_jobs`) and the
  * pre-beta portal group membership mirror (`portal_group_members`).
  *
  * The hard rule blocks the DROP, not the inventory. Without an inventory there
@@ -17,8 +16,7 @@ import { isSafeOpaqueIdentifier } from '#/shared/domain/safe-identifier'
  * restore proof, and neither of those is observable from a database snapshot.
  *
  * Three of the Drizzle exports do not match their physical table names
- * (`legacyGbpCache` → `gbp_cache`, `legacyGbpImportJobs` → `gbp_import_jobs`,
- * `gbpImportLegacyHistory` → `gbp_import_legacy_history`). The mapping is
+ * The mapping is
  * recorded per row so a report keyed on the export name cannot silently
  * inventory nothing.
  */
@@ -86,33 +84,6 @@ export const COMPATIBILITY_READ_TABLES = Object.freeze([
       'src/contexts/guest/infrastructure/repositories/guest-interaction.repository.ts',
       'src/contexts/guest/infrastructure/guest-observation-store.ts',
     ],
-  }),
-  compatibilityReadTable({
-    tableName: 'gbp_import_legacy_history',
-    drizzleExportName: 'gbpImportLegacyHistory',
-    sourceContext: 'integration',
-    lifecycleOwner: 'integration',
-    dataClass: 'legacy_google_import_mirror',
-    authority: 'GGL-01/CNV-01',
-    activeReaders: [],
-  }),
-  compatibilityReadTable({
-    tableName: 'gbp_cache',
-    drizzleExportName: 'legacyGbpCache',
-    sourceContext: 'integration',
-    lifecycleOwner: 'integration',
-    dataClass: 'legacy_google_import_mirror',
-    authority: 'GGL-01/CNV-01',
-    activeReaders: [],
-  }),
-  compatibilityReadTable({
-    tableName: 'gbp_import_jobs',
-    drizzleExportName: 'legacyGbpImportJobs',
-    sourceContext: 'integration',
-    lifecycleOwner: 'integration',
-    dataClass: 'legacy_google_import_mirror',
-    authority: 'GGL-01/CNV-01',
-    activeReaders: [],
   }),
   compatibilityReadTable({
     tableName: 'portal_group_members',

@@ -68,8 +68,9 @@ describe('canonical Recent Activity identifiers', () => {
       'src/shared/ops/identity-invitation-fact-contract.ts',
       'src/shared/outbox/identity-invitation-fact-contract.ts',
     ])
-    expect(filesContaining("name: 'activity_log'")).toEqual([
-      'src/shared/db/schema/db-only-constructs.ts',
-    ])
+    // `activity_log` was a rollback-compatibility view with no pgTable, so the
+    // regenerated baseline does not create it and the register no longer names
+    // it. Nothing in the tree may reintroduce the physical name.
+    expect(filesContaining("name: 'activity_log'")).toEqual([])
   })
 })

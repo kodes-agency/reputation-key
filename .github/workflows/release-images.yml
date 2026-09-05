@@ -142,9 +142,6 @@ jobs:
           - role: aiEgressGateway
             slug: ai-egress-gateway
             dockerfile: Dockerfile.ai-egress-gateway
-          - role: googleImportCompatibility
-            slug: google-import-compatibility
-            dockerfile: Dockerfile.google-import-compatibility
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

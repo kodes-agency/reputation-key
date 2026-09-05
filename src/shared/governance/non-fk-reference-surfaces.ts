@@ -224,13 +224,11 @@ export type NonFkUnreferenceableCandidate = Readonly<{
  * fact that makes that true. This is the explicit "no non-FK referent" record
  * the coverage rule accepts in place of a probe.
  */
-export const NON_FK_UNREFERENCEABLE_CANDIDATES = Object.freeze([
-  Object.freeze({
-    tableName: 'legacy_import_control',
-    reason:
-      'Keyed by environment name. Its only reference is the validated legacy_import_effect_leases_control_fk foreign key, which the import-control inventory already reports.',
-  }),
-] satisfies ReadonlyArray<NonFkUnreferenceableCandidate>)
+// `legacy_import_control` was the only entry; it was deleted with the Google
+// import compatibility surface and its five tables.
+export const NON_FK_UNREFERENCEABLE_CANDIDATES = Object.freeze(
+  [] satisfies ReadonlyArray<NonFkUnreferenceableCandidate>,
+)
 
 /**
  * Contraction candidates whose rows carry a surrogate `id`. Any of those ids
@@ -247,14 +245,10 @@ export const NON_FK_SURROGATE_IDENTIFIED_CANDIDATES = Object.freeze([
   'badge_definition_versions',
   'badge_definitions',
   'feedback',
-  'gbp_cache',
-  'gbp_import_jobs',
-  'gbp_import_legacy_history',
   'goal_progress',
   'goals',
   'leaderboard_entries',
   'leaderboard_snapshots',
-  'legacy_import_effect_leases',
   'organization_badge_enablements',
   'portal_group_members',
   'property_access_grants',

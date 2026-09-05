@@ -2,7 +2,6 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { getTableName, isTable } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
-import * as googleImportCompatibilitySchema from '#/shared/db/schema/google-import-compatibility.schema'
 import * as guestSchema from '#/shared/db/schema/guest.schema'
 import * as portalSchema from '#/shared/db/schema/portal.schema'
 import { DATA_FATE_AUTHORITY } from '#/shared/governance/data-fate-authority'
@@ -32,12 +31,11 @@ const RECONSTRUCTABLE_FK = Object.freeze({
 const SCHEMA_MODULES: Readonly<Record<string, Readonly<Record<string, unknown>>>> =
   Object.freeze({
     'guest.schema.ts': guestSchema,
-    'google-import-compatibility.schema.ts': googleImportCompatibilitySchema,
     'portal.schema.ts': portalSchema,
   })
 
 describe('compatibility-read inventory', () => {
-  it('covers exactly the seven compatibility_read tables, including the Drizzle naming trap', () => {
+  it('covers exactly the four remaining compatibility_read tables', () => {
     const authorityRows = DATA_FATE_AUTHORITY.filter(
       ({ disposition }) => disposition === 'compatibility_read',
     )
@@ -47,12 +45,9 @@ describe('compatibility-read inventory', () => {
       return getTableName(value as Parameters<typeof getTableName>[0])
     })
 
-    expect(authorityRows).toHaveLength(7)
+    expect(authorityRows).toHaveLength(4)
     expect([...authorityTableNames].sort()).toEqual([
       'feedback',
-      'gbp_cache',
-      'gbp_import_jobs',
-      'gbp_import_legacy_history',
       'portal_group_members',
       'ratings',
       'scan_events',
@@ -60,18 +55,6 @@ describe('compatibility-read inventory', () => {
     expect(COMPATIBILITY_READ_TABLES.map(({ tableName }) => tableName).sort()).toEqual(
       [...authorityTableNames].sort(),
     )
-
-    // The naming trap: these Drizzle exports do not match their physical table
-    // names, and a report keyed on the export name would inventory nothing.
-    const byExport = new Map(
-      COMPATIBILITY_READ_TABLES.map((table) => [
-        table.drizzleExportName,
-        table.tableName,
-      ]),
-    )
-    expect(byExport.get('legacyGbpCache')).toBe('gbp_cache')
-    expect(byExport.get('legacyGbpImportJobs')).toBe('gbp_import_jobs')
-    expect(byExport.get('gbpImportLegacyHistory')).toBe('gbp_import_legacy_history')
 
     for (const table of COMPATIBILITY_READ_TABLES) {
       const row = authorityRows.find(
@@ -85,10 +68,6 @@ describe('compatibility-read inventory', () => {
       COMPATIBILITY_READ_TABLES.filter(
         ({ authority }) => authority === 'GST-01/MET-01/CNV-01',
       ).length,
-    ).toBe(3)
-    expect(
-      COMPATIBILITY_READ_TABLES.filter(({ authority }) => authority === 'GGL-01/CNV-01')
-        .length,
     ).toBe(3)
     expect(
       COMPATIBILITY_READ_TABLES.filter(
@@ -116,11 +95,8 @@ describe('compatibility-read inventory', () => {
         table.activeReaderCount,
       ]),
     )
-    // The Google import mirrors have no reader left; the block on removing them
-    // is the verified-release and restore-proof rule, not a live consumer.
-    expect(byTable.get('gbp_cache')).toBe(0)
-    expect(byTable.get('gbp_import_jobs')).toBe(0)
-    expect(byTable.get('gbp_import_legacy_history')).toBe(0)
+    // The three Google import mirrors that used to sit here were deleted with
+    // their tables; what remains all has live readers.
     expect(byTable.get('feedback')).toBeGreaterThan(0)
     expect(byTable.get('portal_group_members')).toBeGreaterThan(0)
   })
@@ -188,7 +164,7 @@ describe('compatibility-read inventory', () => {
     expect(report).toMatchObject({
       version: 'compatibility-read-inventory-v1',
       evaluatedAt: '2026-08-28T00:00:00.000Z',
-      tableCount: 7,
+      tableCount: 4,
       nonemptyTableCount: 1,
       totalRows: 9,
     })

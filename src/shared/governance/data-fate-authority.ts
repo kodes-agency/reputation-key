@@ -355,22 +355,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'GGL-01/REG-01',
   }),
   ...rows({
-    schemaFile: 'google-import-compatibility.schema.ts',
-    exportNames: ['gbpImportLegacyHistory', 'legacyGbpCache', 'legacyGbpImportJobs'],
-    owner: 'integration',
-    disposition: 'compatibility_read',
-    authority: 'GGL-01/CNV-01',
-    exitCriteria: COMPATIBILITY_EXIT,
-  }),
-  ...rows({
-    schemaFile: 'google-import-compatibility.schema.ts',
-    exportNames: ['legacyImportControl', 'legacyImportEffectLeases'],
-    owner: 'integration',
-    disposition: 'bounded_contraction',
-    authority: 'GGL-01/CNV-01',
-    exitCriteria: CONTRACT_AFTER_EXPORT,
-  }),
-  ...rows({
     schemaFile: 'google-import-v2.schema.ts',
     exportNames: [
       'gbpImportItemRetryReceipts',

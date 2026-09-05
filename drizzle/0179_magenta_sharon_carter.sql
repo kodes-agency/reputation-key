@@ -1,1 +1,0 @@
--- snapshot alignment: these tables were created by earlier hand-written migrations; no DDL

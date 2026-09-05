@@ -2,35 +2,64 @@
 
 **Audience:** AI agents and developers working in `src/shared/db/`.
 
-## Schema authority (BQC-5.4)
+## Schema authority
 
-**The migration SQL track is the schema authority.** Three owned tracks make
-up the deployed schema:
+**The pgTable declarations are the authority.** The journal is regenerated from
+them, not appended to. Three owned tracks make up the deployed schema:
 
-1. **Drizzle journal track** — `drizzle/0000_init.sql` …
-   `0181_big_killmonger.sql` with `drizzle/meta/_journal.json` (182 entries).
-   The migratable barrel currently owns 225 application tables.
-   Managed by `pnpm db:generate` / `pnpm db:migrate`; the count is derived from
-   that barrel, never maintained as a second allowlist. Recount when touching
-   migrations.
+1. **Drizzle journal track** — exactly three migrations, all generated:
+   `drizzle/0000_baseline.sql` (every application table, derived from the
+   migratable barrel — 225 tables today), `drizzle/0001_db_constructs.sql`
+   (a copy of `db-constructs.sql`: 114 functions, 140 triggers and 7 btree_gist
+   exclusion constraints drizzle-orm has no DSL for) and
+   `drizzle/0002_db_seed.sql` (a copy of `db-seed.sql`: 63 control-plane rows —
+   the AI operation/routing catalogues, the metric definition registry and the
+   single-cell topology row — which the 182-migration journal seeded by hand
+   and a DDL-only baseline would silently omit). Applied by `drizzle-orm`'s
+   own `migrate()`; `pnpm db:migrate` is the local wrapper.
 2. **Better Auth schema track** — `pnpm auth:migrate`
    (`scripts/better-auth-schema.ts` using the exact pinned `better-auth`
    runtime and `src/shared/auth/auth-cli.ts` config). Owns the 8 auth tables
    (`user`, `session`, `account`, `verification`, `organization`, `member`,
    `invitation`, `organizationRole`). Drizzle never manages these;
    `schema/auth.ts` is a read-only query mirror of them.
-3. **Registered deploy sidecars** — constructs Drizzle cannot safely own:
-   `scripts/google-property-binding-index.ts` owns the duplicate-audited,
-   advisory-locked `CREATE UNIQUE INDEX CONCURRENTLY` lifecycle for
-   `properties_org_gbp_location_id_unique`; and
+3. **Registered deploy sidecar** —
    `scripts/migrations/2026-07-06-permission-version-triggers.sql` owns the
    idempotent DAC functions/triggers plus the `organizationRole` expression
-   index. `scripts/migrations/0000-auth-tables-bootstrap.sql` is a
-   parity-tested recovery-only compatibility path; every other file in
+   index, because they sit on Better Auth-owned tables where two migrators must
+   not share DDL ownership. `scripts/migrations/0000-auth-tables-bootstrap.sql`
+   is a parity-tested recovery-only compatibility path; every other file in
    `scripts/migrations/` is a historical one-off — do not apply it.
 
-The Drizzle model (`schema/*.ts`) is the application-side model of track 1 (+2
-as a mirror). It is **verified semantically** against the actually-migrated
+## The schema-change loop
+
+```bash
+$EDITOR src/shared/db/schema/<context>.schema.ts   # 1. edit the declarations
+pnpm db:baseline                                   # 2. regenerate both migrations
+pnpm db:reset                                      # 3. drop, recreate, migrate
+pnpm check:schema-drift                            # 4. prove model == catalog
+```
+
+`db:baseline` refuses to finish unless `drizzle/` holds exactly
+`0000_baseline.sql`, `0001_db_constructs.sql`, `meta/0000_snapshot.json`,
+`meta/0001_snapshot.json` and `meta/_journal.json`. It also hoists every
+`CREATE UNIQUE INDEX` above the foreign keys: a composite FK referencing an
+indexed column pair fails if that index does not exist yet, and drizzle-kit
+emits tables, then keys, then indexes.
+
+To change a function, trigger or exclusion constraint, edit
+`db-constructs.sql` directly — it is the source, and
+`schema/db-only-constructs.ts` parses the object names back out of it, so the
+drift check needs no hand-maintained register. Two ordering facts are
+load-bearing there and documented in the file's own header: extension-owned
+functions are excluded, and SQL-language functions come after plpgsql ones.
+
+**This only works because every environment starts from an empty database.**
+A regenerated journal cannot be applied over a database that already recorded
+the old entries. If a database ever needs preserving, append a migration
+instead of re-baselining.
+
+The Drizzle model is **verified semantically** against the actually-migrated
 PostgreSQL metadata — tables/columns/types/nullability/defaults, PK/unique/
 check/FK constraints incl. actions, indexes incl. column order/direction/
 expressions/partial predicates, enum labels, and journal continuity — by
@@ -38,59 +67,54 @@ expressions/partial predicates, enum labels, and journal continuity — by
 migrated DB). The comparator lives in `schema-drift.ts` and is also runnable
 standalone: `pnpm check:schema-drift` (see `scripts/check-schema-drift.ts`).
 
-**Deploy apply order:** `pnpm auth:migrate` → `pnpm db:migrate` →
-`pnpm db:google-property-binding-index` → the registered SQL sidecar. The
-`db:migrate` wrapper applies the journal through immutable migration 0033 and
-commits, autocommits the `cleanup_required` enum label, then applies 0034 onward.
-PostgreSQL otherwise rejects 0034 for using a new enum label in the transaction
-that added it. The stages are idempotent on fresh, partial, and already-current
-databases. CI applies the same order, so the tested DB matches deploy state.
-BQC-7.1: the first single-US rollout runs the sequence from the signed web
-image in Railway's one-shot `schema-migrator`; later web deployments rerun it
-via `preDeployCommand` (`node dist-worker/migrate-deploy.js`, source
-`scripts/migrate-deploy.ts`). Railway runs prove their exact `cell-us`
-project/environment/service identity before opening the database, and migration
-0140's control row is bound to the platform-provided opaque IDs. A deployment
-advisory lock serializes the full sequence; the Property index sidecar takes
-its own session lock and runs its concurrent DDL outside the Drizzle
-transactions. Recovery is
-fix-forward-and-rerun (never hand-roll partial schema). CI's “Predeploy migration
-parity” step proves the manual and production runners converge to the same end
-state on every PR.
-
-## How to change the schema
-
-1. Edit the model in `schema/*.ts` (or hand-write SQL when Drizzle cannot
-   express the change).
-2. `pnpm db:generate` for model-expressible changes (the snapshot chain was
-   repaired in BQC-5.4 — see `drizzle/REPAIR.md` — so generate works
-   again), or hand-write `drizzle/NNNN_name.sql` + a `_journal.json` entry
-   (the 0011–0016 pattern; keep idx contiguous and add a snapshot via a
-   scratch generate, never a copy).
-3. Commit `drizzle/`. Deploy runs `pnpm db:migrate`.
-4. The semantic test is the gate either way: it compares the model against
-   the migrated catalog, not symbol presence.
-5. **Never `pnpm db:push`** against any shared database — it bypasses the
-   journal and was the root cause of the pre-2026 drift.
+**Deploy apply order:** `pnpm auth:migrate` → `pnpm db:migrate` → the
+registered SQL sidecar. The stages are idempotent on fresh, partial, and
+already-current databases; CI applies the same order, so the tested DB matches
+deploy state. Railway runs the sequence from the signed web image via
+`preDeployCommand` (`node dist-worker/migrate-deploy.js`, source
+`scripts/migrate-deploy.ts`), proving its exact `cell-us`
+project/environment/service identity before opening the database. A deployment
+advisory lock serializes the whole sequence. Recovery is
+fix-forward-and-rerun — never hand-roll partial schema state. CI's "Predeploy
+migration parity" step proves the manual and production runners converge on the
+same end state on every PR.
 
 ## DB-only constructs
 
-Constructs the model deliberately does not own are registered in
-`schema/db-only-constructs.ts` with `name / kind / owner / source / reason`.
+Constructs the model deliberately does not own live in `db-constructs.sql`,
+which is the second migration. `schema/db-only-constructs.ts` PARSES their
+names out of that file — functions from `CREATE OR REPLACE FUNCTION`, triggers
+from `CREATE TRIGGER` — so there is no hand-maintained copy to drift. Only a
+dozen entries stay explicit there: the btree_gist exclusion constraints and
+CHECK constraints authored in migration SQL, plus DDL on Better Auth-owned
+tables.
+
 The drift test verifies every registered construct EXISTS in pg_catalog and
 fails on any UNREGISTERED trigger/function/index/check/enum/view it finds
 (both directions closed).
 
-To add one: land it via a journaled migration or the registered sidecar,
-append a register entry with an explicit owner and reason, and keep the entry
-in sync when the object is dropped. `kind: 'other'` entries are
-documentation-only; all other kinds are existence-verified.
+To add one: append it to `db-constructs.sql`, then `pnpm db:baseline &&
+pnpm db:reset && pnpm check:schema-drift`. The parser picks the name up; there
+is nothing else to register.
 
-What belongs in the register vs the model: if drizzle-orm 0.45 can express it
-(plain/partial/unique/expression-free indexes incl. `col.desc()` direction,
-`check()`, `pgEnum`, composite `foreignKey`), it MUST be declared in the
-model — the register is only for what the model cannot own (functions,
-triggers, DDL on Better Auth–owned tables).
+What belongs in `db-constructs.sql` vs the model: if drizzle-orm 0.45 can
+express it (plain/partial/unique/expression indexes incl. `col.desc()`
+direction, `check()`, `pgEnum`, composite `foreignKey`), it MUST be declared in
+the model. The constructs file is only for what the model cannot own —
+functions, triggers, EXCLUDE constraints, and DDL on Better Auth-owned tables.
+
+**Never `pnpm db:push`** against any shared database — it bypasses the journal
+and was the root cause of the pre-2026 drift.
+
+## Control-plane seed rows
+
+`db-seed.sql` is the third migration: 63 rows the application reads but never
+writes at runtime — AI operation/routing/capability catalogues, the metric
+definition registry, and the single-cell topology row. They were seeded by
+`INSERT` inside 20 of the old 182 migrations, so a DDL-only baseline booted an
+empty control plane and every AI and metric path failed closed. Extracted once
+from the fully-migrated database; regenerate the same way (`pg_dump
+--data-only --column-inserts` of the seeded tables) if a catalogue changes.
 
 ## Auth table mirror (`schema/auth.ts`)
 

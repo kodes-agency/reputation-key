@@ -361,26 +361,10 @@ async function seedFixture(): Promise<Fixture> {
       new Date(createdAt.getTime() + 60_000),
     ],
   )
-  await lease.pool.query(
-    `INSERT INTO gbp_cache (
-       id, organization_id, property_id, gbp_place_id, data_type, payload,
-       fetched_at, expires_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'location', $5::jsonb, $6, $7, $6)`,
-    [
-      randomUUID(),
-      fixture.organizationId,
-      fixture.propertyId,
-      MARKERS.providerAccountSuffix,
-      JSON.stringify({ marker: MARKERS.cachePayload }),
-      createdAt,
-      new Date(createdAt.getTime() + 3_600_000),
-    ],
-  )
   return fixture
 }
 
 const ORGANIZATION_SCOPED_TABLES = [
-  'gbp_cache',
   'google_credential_broker_replay',
   'google_oauth_exchange_attempts',
   'google_disconnect_revoke_attempts',

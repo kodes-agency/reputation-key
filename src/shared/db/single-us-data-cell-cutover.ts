@@ -18,8 +18,6 @@ export type DataCellCutoverPhase =
 
 export type DataCellCutoverBlockers = Readonly<{
   regionMoves: number
-  legacyImportJobs: number
-  legacyImportEffectLeases: number
   importRequests: number
   importRequestItems: number
   executionPermits: number
@@ -253,8 +251,6 @@ async function readControl(
 
 const WORKFLOW_BLOCKER_KEYS = [
   'regionMoves',
-  'legacyImportJobs',
-  'legacyImportEffectLeases',
   'importRequests',
   'importRequestItems',
   'executionPermits',
@@ -325,10 +321,6 @@ export async function createSingleUsDataCellCutoverReport(
         AS unresolved_properties,
       (SELECT count(*) FROM region_moves
        WHERE state NOT IN ('completed', 'rolled_back')) AS region_moves,
-      (SELECT count(*) FROM gbp_import_jobs
-       WHERE status IN ('queued', 'in_progress')) AS legacy_import_jobs,
-      (SELECT count(*) FROM legacy_import_effect_leases
-       WHERE state = 'active') AS legacy_import_effect_leases,
       (SELECT count(*) FROM gbp_import_requests
        WHERE status IN ('queued', 'processing')) AS import_requests,
       (SELECT count(*) FROM gbp_import_request_items
@@ -410,8 +402,6 @@ export async function createSingleUsDataCellCutoverReport(
   if (!row) throw new Error('Data Cell cutover report is unavailable')
   const blockers: DataCellCutoverBlockers = {
     regionMoves: exactCount(row.region_moves),
-    legacyImportJobs: exactCount(row.legacy_import_jobs),
-    legacyImportEffectLeases: exactCount(row.legacy_import_effect_leases),
     importRequests: exactCount(row.import_requests),
     importRequestItems: exactCount(row.import_request_items),
     executionPermits: exactCount(row.execution_permits),

@@ -52,8 +52,7 @@ import { fileURLToPath } from 'node:url'
 import { config as loadEnv } from 'dotenv'
 import { Client, type Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import { buildGooglePropertyBindingIndex } from './google-property-binding-index'
-import { runStagedDrizzleMigrations } from '../src/shared/db/staged-drizzle-migrator'
+import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { authorizeDeployMigrationRuntime } from '../src/shared/db/deploy-migration-runtime'
 import { bindSingleUsDataCellCutoverTarget } from '../src/shared/db/single-us-data-cell-target-binding'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
@@ -134,10 +133,14 @@ async function main(): Promise<void> {
       await authMigrations.runMigrations()
       log('auth track applied')
 
-      // 2. Apply through 0033, commit the enum prerequisite, then apply the
-      // remaining Drizzle journal entries.
-      const stagedMigration = await runStagedDrizzleMigrations(client, MIGRATIONS_FOLDER)
-      log('staged drizzle track applied', stagedMigration)
+      // 2. Apply the Drizzle journal. Two entries now: the regenerated
+      // baseline and the DB-only constructs. The staged migrator existed only
+      // to replay 182 historical migrations onto a populated database — a tag
+      // cutoff at 0033, three enum preflights between batches and a
+      // review-source backfill. None of that has meaning against a baseline,
+      // and every environment starts empty.
+      await migrate(migrationDb, { migrationsFolder: MIGRATIONS_FOLDER })
+      log('drizzle track applied')
 
       // Migration 0140 creates an unbound, open singleton. The first signed
       // Railway migrator atomically binds it to Railway's platform-provided
@@ -152,15 +155,6 @@ async function main(): Promise<void> {
           deploymentProfile: runtime.deploymentProfile,
           service: runtime.service,
         })
-      }
-
-      // 3. Autocommit-only Google Property binding index gate
-      const googlePropertyBindingIndex = await buildGooglePropertyBindingIndex(client)
-      log('google property binding index', googlePropertyBindingIndex)
-      if (!googlePropertyBindingIndex.ok) {
-        throw new Error(
-          `Google Property binding index denied: ${googlePropertyBindingIndex.code}`,
-        )
       }
 
       // 4. Registered deploy SQL sidecar

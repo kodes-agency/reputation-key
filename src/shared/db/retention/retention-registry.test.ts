@@ -193,7 +193,6 @@ describe('retention registry — compatibility mirrors are untouchable', () => {
     expect(candidates).toContain('feedback')
     expect(candidates).toContain('ratings')
     expect(candidates).toContain('scan_events')
-    expect(candidates).toContain('gbp_cache')
     expect(candidates).toContain('portal_group_members')
   })
 

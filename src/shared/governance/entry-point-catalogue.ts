@@ -5177,15 +5177,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/ops/report-legacy-import-control.ts',
-    'scripts/ops/report-legacy-import-control.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-legacy-import-control — read-only GGL-01/CNV-01 inventory of the two legacy Google import control tables with counts, foreign-key metadata and a content-free fingerprint at an explicit --as-of; there is no apply path. The table names are deliberately NOT written here: this catalogue is bundled into the final worker artifact, which may not contain Google import compatibility paths',
-    },
-  ),
-  ops(
     'scripts/ops/report-compatibility-read-surfaces.ts',
     'scripts/ops/report-compatibility-read-surfaces.ts',
     'tenant_cross',
@@ -5335,15 +5326,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'check:bundles — CI build gate (BQC-6.8): client bundle budgets on .output/public/assets; exits 1 over budget',
   }),
-  ops(
-    'scripts/check-google-import-artifacts.mjs',
-    'scripts/check-google-import-artifacts.mjs',
-    'none',
-    {
-      notes:
-        'check:google-import-artifacts — fails when browser/build/log artifacts contain protected Google import identifiers or Content',
-    },
-  ),
   ops(
     'scripts/check-production-artifacts.mjs',
     'scripts/check-production-artifacts.mjs',
@@ -5650,15 +5632,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/google-property-binding-index.ts',
-    'scripts/google-property-binding-index.ts',
-    'tenant_cross',
-    {
-      notes:
-        'expand-migration sidecar: advisory-locked concurrent binding backfill and unique-index convergence',
-    },
-  ),
-  ops(
     'scripts/ops/google-content-approval.ts',
     'scripts/ops/google-content-approval.ts',
     'tenant_cross',
@@ -5702,15 +5675,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:google-admission-role — explicit --apply infrastructure provisioner/rotator; uses the Railway PostgreSQL owner credential to grant one login only the four journaled Google permit operations and no tables or sequences',
-    },
-  ),
-  ops(
-    'scripts/ops/google-import-lifecycle.ts',
-    'scripts/ops/google-import-lifecycle.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:google-import-lifecycle — tenant-scoped import backlog inspection and guarded cancellation',
     },
   ),
   ops(
@@ -5907,15 +5871,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'scripts/migrations/2026-07-06-permission-version-triggers.sql',
     'tenant_cross',
     { notes: 'DIRECT-DB (psql): DAC permission-version triggers + last-owner guard' },
-  ),
-  ops(
-    'scripts/migrations/google-import-contract.sql',
-    'scripts/migrations/google-import-contract.sql',
-    'tenant_cross',
-    {
-      notes:
-        'DIRECT-DB compatibility contract probe for additive Google import schema and final cutover invariants',
-    },
   ),
   ops(
     'scripts/migrations/verify-existing-emails.sql',

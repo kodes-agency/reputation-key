@@ -81,9 +81,7 @@ describe('policy state persistence (BQC-2.2)', () => {
       (e: unknown) =>
         e instanceof Error &&
         e.cause instanceof Error &&
-        /duplicate key value violates unique constraint "organization_capability_pkey"/.test(
-          e.cause.message,
-        ),
+        /duplicate key value violates unique constraint/.test(e.cause.message),
     )
 
     let snapshot = await loadPolicySnapshot(db)

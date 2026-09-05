@@ -1,4 +1,0 @@
-DROP INDEX "portal_upload_issuances_source_cleanup_idx";--> statement-breakpoint
-ALTER TABLE "portal_upload_issuances" ADD COLUMN "orphan_derivatives_deleted_at" timestamp with time zone;--> statement-breakpoint
-CREATE INDEX "portal_upload_issuances_source_cleanup_idx" ON "portal_upload_issuances" USING btree ("expires_at","id") WHERE "portal_upload_issuances"."source_deleted_at" IS NULL OR ("portal_upload_issuances"."orphan_derivatives_deleted_at" IS NULL AND "portal_upload_issuances"."state" IN ('superseded', 'rejected', 'expired'));--> statement-breakpoint
-ALTER TABLE "portal_upload_issuances" ADD CONSTRAINT "portal_upload_issuances_orphan_derivative_cleanup_valid" CHECK ("portal_upload_issuances"."orphan_derivatives_deleted_at" IS NULL OR "portal_upload_issuances"."state" IN ('superseded', 'rejected', 'expired'));

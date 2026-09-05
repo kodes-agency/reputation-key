@@ -52,25 +52,6 @@ const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
  * proof of erasure; table size is monitored via the metrics snapshot
  * instead. Documented in docs/operations/backup-and-lifecycle.md.
  *
- * DELIBERATELY ABSENT — gbp_cache (LIF-01-T16): `gbp_cache` is a
- * `compatibility_read` mirror (legacyGbpCache), superseded by
- * google-import-v2 and written by nothing in production. Deleting its expired
- * rows performed the CNV-01 contraction early and quietly: the contraction
- * decision rests on the inventory in
- * `ops:report-compatibility-read-surfaces`, and a sweep that drains the table
- * makes that inventory read "already empty" without the one verified release
- * plus restore proof the mirror is gated on. `retention_classes.
- * expiring_google_cache` and `retention_classes.
- * unresolved_legacy_compatibility_rows` are both still open with counsel. The
- * class is carried report-only in RETENTION_REGISTRY instead.
- *
- * The only rules below that touch a contraction candidate are the
- * `scan_events` / `ratings` / `feedback` pseudonym REDACTIONS. Redaction keeps
- * every row, so the inventory count is unchanged and the §3.3.10 seven-day
- * pseudonym default still reaches the mirrors. See
- * LEGACY_MIRROR_PSEUDONYM_REDACTIONS in
- * src/shared/db/retention/retention-registry.ts, which locks that exception to
- * exactly these six subjects.
  */
 export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
   {

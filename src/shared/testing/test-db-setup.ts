@@ -292,7 +292,6 @@ async function applyMigrations(url: string): Promise<void> {
   } as NodeJS.ProcessEnv
   await run('pnpm', ['auth:migrate'], env)
   await run('pnpm', ['db:migrate'], env)
-  await run('pnpm', ['db:google-property-binding-index'], env)
   await withPool(url, (pool) => pool.query(readFileSync(SIDECAR_URL, 'utf8')))
 }
 

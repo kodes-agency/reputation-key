@@ -1,2 +1,0 @@
-DROP INDEX "inbox_items_org_source_date_idx";--> statement-breakpoint
-CREATE INDEX "inbox_items_org_source_date_idx" ON "inbox_items" USING btree ("organization_id","source_date" DESC NULLS LAST,"id" DESC NULLS LAST);

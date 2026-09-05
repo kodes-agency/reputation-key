@@ -19,7 +19,6 @@ export const PROMOTED_IMAGE_ROLES = [
   'googleEgressGateway',
   'aiExecutionAdmission',
   'aiEgressGateway',
-  'googleImportCompatibility',
 ] as const
 export type PromotedImageRole = (typeof PROMOTED_IMAGE_ROLES)[number]
 
@@ -36,7 +35,6 @@ export const PROMOTED_IMAGE_REPOSITORIES = Object.freeze({
   googleEgressGateway: 'ghcr.io/kodes-agency/repkey-google-egress-gateway',
   aiExecutionAdmission: 'ghcr.io/kodes-agency/repkey-ai-execution-admission',
   aiEgressGateway: 'ghcr.io/kodes-agency/repkey-ai-egress-gateway',
-  googleImportCompatibility: 'ghcr.io/kodes-agency/repkey-google-import-compatibility',
 } as const satisfies Readonly<Record<PromotedImageRole, string>>)
 
 export const RAILWAY_SERVICE_IMAGE_ROLES = Object.freeze({

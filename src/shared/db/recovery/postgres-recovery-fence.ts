@@ -21,8 +21,6 @@ const ZERO_COUNTS: RecoveryFenceCounts = Object.freeze({
   googleExecutionPermitsFenced: 0,
   googleSourceOperationsFenced: 0,
   googleRevokePermitsFenced: 0,
-  legacyImportJobsCanceled: 0,
-  legacyImportEffectLeasesReleased: 0,
   googleImportV2ParentsFenced: 0,
   googleImportV2ItemsFenced: 0,
   aiIssuedPermitsReleased: 0,
@@ -91,10 +89,6 @@ export async function inspectRecoveryFence(
         WHERE state IN ('registered', 'provider_started', 'provider_outcome_ambiguous')) AS "googleSourceOperationsFenced",
       (SELECT count(*)::int FROM credential_revoke_permits
         WHERE state IN ('dormant', 'active', 'dispatching')) AS "googleRevokePermitsFenced",
-      (SELECT count(*)::int FROM gbp_import_jobs
-        WHERE status IN ('queued', 'in_progress')) AS "legacyImportJobsCanceled",
-      (SELECT count(*)::int FROM legacy_import_effect_leases
-        WHERE state = 'active') AS "legacyImportEffectLeasesReleased",
       (SELECT count(*)::int FROM gbp_import_requests request
         WHERE request.status IN ('queued', 'processing')
            OR EXISTS (
@@ -339,18 +333,6 @@ export async function applyRecoveryFence(
           outcome_code = 'restore_recovery_fence',
           updated_at = clock_timestamp()
       WHERE state IN ('dormant', 'active', 'dispatching')
-      RETURNING id
-    `)
-    const legacyImportJobs = await tx.execute(sql`
-      UPDATE gbp_import_jobs
-      SET status = 'failed', updated_at = clock_timestamp()
-      WHERE status IN ('queued', 'in_progress')
-      RETURNING id
-    `)
-    const legacyImportLeases = await tx.execute(sql`
-      UPDATE legacy_import_effect_leases
-      SET state = 'released', released_at = clock_timestamp()
-      WHERE state = 'active'
       RETURNING id
     `)
 
@@ -685,8 +667,6 @@ export async function applyRecoveryFence(
       googleExecutionPermitsFenced: googlePermits.rows.length,
       googleSourceOperationsFenced: googleSources.rows.length,
       googleRevokePermitsFenced: googleRevokes.rows.length,
-      legacyImportJobsCanceled: legacyImportJobs.rows.length,
-      legacyImportEffectLeasesReleased: legacyImportLeases.rows.length,
       googleImportV2ParentsFenced: googleImportV2Parents.rows.length,
       googleImportV2ItemsFenced: googleImportV2Items.rows.length,
       aiIssuedPermitsReleased: aiIssued.rows.length,

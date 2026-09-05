@@ -20,8 +20,6 @@ const SESSION_ID = 'recovery-proof-session'
 const VERIFICATION_ID = 'recovery-proof-verification'
 const INVITATION_ID = 'recovery-proof-invitation'
 const DIGEST_ID = '10000000-0000-4000-8000-000000000401'
-const LEGACY_JOB_ID = '10000000-0000-4000-8000-000000000402'
-const LEGACY_LEASE_ID = '10000000-0000-4000-8000-000000000403'
 const MOVE_PROPERTY_ID = '10000000-0000-4000-8000-000000000404'
 const MOVE_ID = '10000000-0000-4000-8000-000000000405'
 const GOOGLE_CONNECTION_ID = '10000000-0000-4000-8000-000000000406'
@@ -109,26 +107,6 @@ describe('restore recovery fence (REG-04, integration)', () => {
           )
         `)
         await transaction.execute(sql`
-          INSERT INTO gbp_import_jobs (
-            id, organization_id, initiated_by, status, created_at, updated_at
-          ) VALUES (
-            ${LEGACY_JOB_ID}::uuid, 'org-recovery-proof', ${USER_ID}, 'queued',
-            clock_timestamp(), clock_timestamp()
-          )
-        `)
-        await transaction.execute(sql`
-          INSERT INTO legacy_import_control (environment)
-          VALUES ('recovery-proof')
-        `)
-        await transaction.execute(sql`
-          INSERT INTO legacy_import_effect_leases (
-            id, environment, job_id, generation, worker_id, state, acquired_at, created_at
-          ) VALUES (
-            ${LEGACY_LEASE_ID}::uuid, 'recovery-proof', ${LEGACY_JOB_ID}::uuid,
-            1, 'recovery-proof-worker', 'active', clock_timestamp(), clock_timestamp()
-          )
-        `)
-        await transaction.execute(sql`
           INSERT INTO gbp_import_requests (
             id, organization_id, request_id, initiated_by, status, total_count,
             processed_count, pending_count, processing_count, created_at, updated_at
@@ -212,8 +190,6 @@ describe('restore recovery fence (REG-04, integration)', () => {
           verificationTokensInvalidated: expect.any(Number),
           invitationsCanceled: expect.any(Number),
           digestBatchesTerminated: expect.any(Number),
-          legacyImportJobsCanceled: expect.any(Number),
-          legacyImportEffectLeasesReleased: expect.any(Number),
           googleImportV2ParentsFenced: expect.any(Number),
           googleImportV2ItemsFenced: expect.any(Number),
         })
@@ -221,8 +197,6 @@ describe('restore recovery fence (REG-04, integration)', () => {
         expect(first.counts.verificationTokensInvalidated).toBeGreaterThanOrEqual(1)
         expect(first.counts.invitationsCanceled).toBeGreaterThanOrEqual(1)
         expect(first.counts.digestBatchesTerminated).toBeGreaterThanOrEqual(1)
-        expect(first.counts.legacyImportJobsCanceled).toBeGreaterThanOrEqual(1)
-        expect(first.counts.legacyImportEffectLeasesReleased).toBeGreaterThanOrEqual(1)
         expect(first.counts.googleImportV2ParentsFenced).toBeGreaterThanOrEqual(1)
         expect(first.counts.googleImportV2ItemsFenced).toBeGreaterThanOrEqual(2)
 
@@ -259,8 +233,6 @@ describe('restore recovery fence (REG-04, integration)', () => {
             (SELECT count(*)::int FROM verification WHERE id = ${VERIFICATION_ID}) AS verifications,
             (SELECT status FROM invitation WHERE id = ${INVITATION_ID}) AS invitation,
             (SELECT state FROM notification_digest_batches WHERE id = ${DIGEST_ID}::uuid) AS digest,
-            (SELECT status FROM gbp_import_jobs WHERE id = ${LEGACY_JOB_ID}::uuid) AS legacy_job,
-            (SELECT state FROM legacy_import_effect_leases WHERE id = ${LEGACY_LEASE_ID}::uuid) AS legacy_lease,
             (SELECT status FROM gbp_import_requests WHERE id = ${IMPORT_V2_PARENT_ID}::uuid) AS v2_parent,
             (SELECT status FROM gbp_import_request_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_item,
             (SELECT outcome_code FROM gbp_import_request_items WHERE id = ${IMPORT_V2_CANCELLED_ITEM_ID}::uuid) AS v2_cancelled_outcome,
@@ -276,8 +248,6 @@ describe('restore recovery fence (REG-04, integration)', () => {
           verifications: 0,
           invitation: 'canceled',
           digest: 'terminal',
-          legacy_job: 'failed',
-          legacy_lease: 'released',
           v2_parent: 'completed_with_issues',
           v2_cancelled_item: 'cancelled',
           v2_cancelled_outcome: 'authorization_changed',

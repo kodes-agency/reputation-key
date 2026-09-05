@@ -1,2 +1,0 @@
-ALTER TABLE "region_moves" ADD COLUMN "state_revision" integer DEFAULT 1 NOT NULL;--> statement-breakpoint
-ALTER TABLE "region_moves" ADD CONSTRAINT "region_moves_state_revision_check" CHECK ("region_moves"."state_revision" > 0);

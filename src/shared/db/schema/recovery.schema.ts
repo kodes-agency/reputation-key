@@ -25,8 +25,6 @@ export type RecoveryFenceCounts = Readonly<{
   googleExecutionPermitsFenced: number
   googleSourceOperationsFenced: number
   googleRevokePermitsFenced: number
-  legacyImportJobsCanceled: number
-  legacyImportEffectLeasesReleased: number
   googleImportV2ParentsFenced: number
   googleImportV2ItemsFenced: number
   aiIssuedPermitsReleased: number
