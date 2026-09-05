@@ -1,8 +1,61 @@
 # Closed-beta CI image delivery
 
-Status: publish and operator paths prepared; live source cutover has not happened
+Status: `web` and `worker` run CI digests. The four sidecars are still
+repo-sourced, blocked on the `RELEASE_SHA` coupling described below.
 
 Owner: Platform/Operations
+
+## Current state, 2026-09-05
+
+| Service                      | Source                                               |
+| ---------------------------- | ---------------------------------------------------- |
+| `web`                        | `ghcr.io/kodes-agency/repkey-web@sha256:47fe7eb…`    |
+| `worker`                     | `ghcr.io/kodes-agency/repkey-worker@sha256:94c00fd…` |
+| `google-egress-gateway`      | GitHub `release`                                     |
+| `google-execution-admission` | GitHub `release`                                     |
+| `ai-egress-gateway`          | GitHub `release`                                     |
+| `ai-execution-admission`     | GitHub `release`                                     |
+| `google-provider-redis`      | upstream `redis:7` by digest (out of scope)          |
+
+### Blocker: the sidecars require platform-supplied `RELEASE_SHA`
+
+`web` and `worker` moved and stayed healthy. `google-egress-gateway` then
+CRASHED on its first image-sourced boot with:
+
+```
+required Google gateway setting is missing: RELEASE_SHA
+```
+
+`RELEASE_SHA` is in `BASE_OWNED_NAMES` and is required unconditionally by
+`assertCommonRequiredEnvironment` (`services/google-egress-gateway/environment.ts:137`),
+then checked as 40-hex alongside `IMAGE_SOURCE_REVISION` at `:176-180`. It is
+NOT a service or shared variable — verified absent from both the Railway
+variables API and `railway variable list` for the gateway and for `web` — and
+it is not baked by `Dockerfile.google-egress-gateway` (which sets only
+`IMAGE_SOURCE_REVISION`) nor defined by `tsup.google-egress-gateway.config.ts`.
+It is platform-supplied deployment metadata that exists only for a
+repo-sourced deployment, in the same class as the `RAILWAY_GIT_*` names the
+gateway allowlists but which likewise never appear in the variables API.
+
+So an image-sourced sidecar cannot satisfy it, and `ai-*` would fail
+identically: the same requirement lives at
+`services/ai-egress-gateway/environment.ts:69,106,289,337`.
+
+**Recommended fix**, deliberately left for a watched change window rather than
+applied unattended: when the platform supplies no release metadata, treat the
+baked `IMAGE_SOURCE_REVISION` as the release identity. For a digest-pinned
+source that is exactly correct — Railway runs the referenced digest, so there
+is no stale-image hazard for `assertReleaseIdentity`
+(`src/shared/config/release-identity.ts:22-38`) to catch. The guard keeps
+firing whenever `RELEASE_SHA` IS supplied and disagrees with the image, which
+is the mutable-branch case it was written for. Do not simply drop the
+requirement.
+
+During the attempt both Google sidecars went down for roughly ten minutes and
+were restored by reconnecting them to GitHub `release` and redeploying; the
+gateway needed a second redeploy because its dependency was still down on the
+first. Rollback took about five minutes per service and is the procedure at
+the end of this document.
 
 This is the delivery path for the existing `google-closed-beta` environment. It
 is deliberately separate from the governed `cell-us` promotion ceremony in
