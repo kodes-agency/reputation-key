@@ -150,9 +150,8 @@ describe('throwContextError with GuestError', () => {
 
 // ── Server-fn gates (source-pinned) ───────────────────────────────
 //
-// public.ts imports the composition root, so it cannot be imported here; the
-// catalogue guard (entry-point-catalogue.test.ts) verifies the row ↔ code
-// capability match and these pin the invariants that guard alone cannot see.
+// public.ts imports the composition root, so it cannot be imported here; these
+// pin the capability invariants no runtime import of the module can reach.
 
 describe('guest response server-fn gates', () => {
   const source = readFileSync(new URL('./public.ts', import.meta.url), 'utf8')

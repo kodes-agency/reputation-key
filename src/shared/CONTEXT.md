@@ -125,16 +125,6 @@ green lint.
 
 Shared code is **used by 2+ modules** across the codebase. If only one context uses it, it belongs in that context. Wait for the second importer before extracting to shared.
 
-## Technology-stack authority
-
-`security/technology-stack.json` is the machine-checked runtime, core-package,
-CLI, external Docker-base, GitHub Action, and exception authority. Run
-`pnpm check:technology-stack` after changing package versions, runtime files,
-Dockerfiles, workflows, queue/Redis configuration, pino wiring, or the pg pool.
-The gate reuses `security/container-images.json`; never create a parallel image
-inventory. See `docs/operations/technology-stack-authority.md` for the upgrade
-and evidence protocol.
-
 ## Auth (`shared/auth/`)
 
 - **`auth.ts`** — better-auth server config with organization plugin and access control statement. Raw invitation/member lifecycle hooks fail closed before mutation; app-owned Identity commands receive their lifecycle collaborators through the container, and this shared module owns no mutable lifecycle callback.

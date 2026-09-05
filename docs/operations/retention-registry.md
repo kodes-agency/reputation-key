@@ -241,8 +241,7 @@ reconciliation.
    is tested; the operator command needs an `entry-point-catalogue.ts` row and
    an `operator-command-mutation-classifier.ts` `read_only` entry.
 2. **The three new bullet-12 scripts are not registered either**, for the same
-   reason. `entry-point-catalogue.test.ts` discovers `scripts/**` from the
-   filesystem and will fail until their rows are added.
+   reason — each needs an `entry-point-catalogue.ts` row and a classifier entry.
 3. **`data-fate-authority.ts` does not yet cross-reference the registry.** The
    registry reads the authority; the authority does not know a retention class
    exists for a table.

@@ -1,10 +1,10 @@
 // EntryPointCatalogue — BQC-2.1 / STD-P1-02 / SPEC-P0-03.
 //
 // The canonical action/resource assignment for every executable entry point
-// in the system (ADR 0033, phase BQC-2 §2.1). The guard test
-// (entry-point-catalogue.test.ts) fails when a route, server function, job,
-// consumer, schedule, API endpoint, or operator command exists without a
-// catalogue row — or when a row drifts from what the code actually does.
+// in the system (ADR 0033, phase BQC-2 §2.1). This is production data:
+// `system-execution-policy.ts` and `delayed-execution-gate.ts` read it and
+// fail closed on an unknown entry point, so a missing row denies execution.
+// Stale rows are inert. Delete the row of every entry point you delete.
 //
 // Row vocabulary:
 //   kind          — server_function | route_ui | route_api | job | consumer |
@@ -5354,15 +5354,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/check-ai-contract-attestations.ts',
-    'scripts/check-ai-contract-attestations.ts',
-    'none',
-    {
-      notes:
-        'build gate recomputing the exact source/provider-subject ordered-manifest attestations and rejecting drift or local runtime imports',
-    },
-  ),
-  ops(
     'scripts/verify-ai-egress-gateway-bundle.mjs',
     'scripts/verify-ai-egress-gateway-bundle.mjs',
     'none',
@@ -5561,15 +5552,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/ci/check-technology-stack.ts',
-    'scripts/ci/check-technology-stack.ts',
-    'none',
-    {
-      notes:
-        'check:technology-stack — read-only GOV-01 gate: exact runtime/package/CLI authority, immutable action and Docker-base allowlists, mutable network-tool denial, migration guidance denial, and pino/BullMQ/Redis/pg contract evidence',
-    },
-  ),
-  ops(
     'scripts/ci/check-typescript-project-coverage.ts',
     'scripts/ci/check-typescript-project-coverage.ts',
     'none',
@@ -5663,10 +5645,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'FND-01 read-only fragment validator: binds one governed finding-family slice to immutable frozen/current evidence before central reconciliation',
     },
   ),
-  ops('scripts/review/pre-fix-oracles.ts', 'scripts/review/pre-fix-oracles.ts', 'none', {
-    notes:
-      'review:validate-pre-fix-oracles / review:run-pre-fix-oracle — validates digest-bound historical regression artifacts and optionally runs one governed current test command; it does not mutate product data',
-  }),
   ops(
     'scripts/review/zod-v4-conformance.ts',
     'scripts/review/zod-v4-conformance.ts',

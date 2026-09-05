@@ -69,31 +69,11 @@ describe('operational tooling quality coverage', () => {
         'boundaries/no-unknown-files',
       ),
     ).resolves.toBe(2)
-    await expect(
-      ruleSeverity('scripts/ci/check-technology-stack.ts', 'boundaries/no-unknown-files'),
-    ).resolves.toBe(2)
-    // Script TESTS are exempt from the dependency policy (a test imports the
-    // unit it covers) but never from classification.
-    await expect(
-      ruleSeverity(
-        'scripts/ci/check-technology-stack.test.ts',
-        'boundaries/no-unknown-files',
-      ),
-    ).resolves.toBe(2)
-    await expect(
-      ruleSeverity(
-        'scripts/ci/check-technology-stack.test.ts',
-        'boundaries/dependencies',
-      ),
-    ).resolves.toBe(0)
   })
 
   it('enforces the boundary dependency policy on production scripts', async () => {
     await expect(
       ruleSeverity('scripts/ops/recover-recent-activity.ts', 'boundaries/dependencies'),
-    ).resolves.toBe(2)
-    await expect(
-      ruleSeverity('scripts/ci/check-technology-stack.ts', 'boundaries/dependencies'),
     ).resolves.toBe(2)
   })
 

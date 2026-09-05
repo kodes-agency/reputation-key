@@ -67,8 +67,8 @@ describe('policy.admin least privilege (BQC-2.7)', () => {
 })
 
 describe('getRegionDiagnosticFn gate (BQC-4.4)', () => {
-  // The catalogue guard (entry-point-catalogue.test.ts) mechanically verifies
-  // the row ↔ code match; this pins the gate explicitly on the fn slice.
+  // The catalogue row records the action/resource assignment; this pins the
+  // gate explicitly on the fn slice.
   it('is gated by requireExecutionAllowed policy.admin with the target property', () => {
     const source = readFileSync(
       join(process.cwd(), 'src/contexts/identity/server/policy-admin.ts'),
