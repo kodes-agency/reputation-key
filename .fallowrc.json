@@ -17,33 +17,20 @@
     "scripts/generate-ai-review-language-regions.ts",
     "scripts/generate-ai-unicode-case-folding.ts",
     "scripts/generate-ai-zh-orthography-table.ts",
-    "scripts/local-stack/provision-ai-admission-role.ts",
     "scripts/migrations/null-inbox-source-copies.ts",
     "scripts/ops/report-portal-access-artifacts.ts",
     "scripts/seed-demo-reviews.ts",
     "scripts/test-db-setup.ts",
-    "scripts/verify-ai-gateway-runtime-assets.ts",
-    "scripts/verify-ai-runtime-image.mjs",
     "vite.config.ts",
     "drizzle.config.ts",
-    "services/ai-egress-gateway/canary-entry.ts",
-    "services/ai-egress-gateway/index.ts",
-    "services/ai-egress-gateway/local-provider-entry.ts",
-    "services/ai-egress-gateway/runtime-egress-probe.ts",
-    "services/ai-execution-admission/entry.ts",
-    "services/ai-execution-admission/index.ts",
     "services/google-egress-gateway/control-proxy.ts",
     "services/google-egress-gateway/entry.ts",
     "services/google-egress-gateway/index.ts",
     "services/google-egress-gateway/tcp-relay.ts",
     "services/google-execution-admission/entry.ts",
     "services/google-execution-admission/index.ts",
-    "tsup.ai-egress-gateway-local.config.ts",
-    "tsup.ai-egress-gateway-runtime-assets.config.ts",
-    "tsup.ai-egress-probe.config.ts",
     "src/shared/testing/process-fixtures/web-process.fixture.ts",
     "src/shared/testing/process-fixtures/worker-process.fixture.ts",
-    "src/shared/testing/process-fixtures/sidecar-process.fixture.ts",
     "src/shared/testing/process-fixtures/simulation-process.fixture.ts"
   ],
   "ignorePatterns": [
@@ -153,10 +140,6 @@
     },
     {
       "exports": ["GATE_F_APPROVAL_FAILURE_CODES"]
-    },
-    {
-      "file": "services/ai-egress-gateway/bootstrap.ts",
-      "exports": ["startAiEgressGateway"]
     },
     {
       "file": "src/contexts/activity/server/activity.ts",

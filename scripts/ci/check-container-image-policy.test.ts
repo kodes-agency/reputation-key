@@ -61,16 +61,16 @@ describe('container image policy', () => {
     const policy = loadContainerImagePolicy(ROOT)
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
     const overflowed = workflow.replace(
-      '{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]',
-      '{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true},{"name":"overflow-1","dockerfile":"Dockerfile","tag":"overflow-1:ci","publish":false},{"name":"overflow-2","dockerfile":"Dockerfile","tag":"overflow-2:ci","publish":false},{"name":"overflow-3","dockerfile":"Dockerfile","tag":"overflow-3:ci","publish":false}]',
+      '{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]',
+      '{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false},{"name":"overflow-1","dockerfile":"Dockerfile","tag":"overflow-1:ci","publish":false},{"name":"overflow-2","dockerfile":"Dockerfile","tag":"overflow-2:ci","publish":false}]',
     )
 
     expect(validateCiContainerCoverage(policy, overflowed)).toContain(
-      'CI image group sidecars must contain 1-4 images, found 5',
+      'CI image group worker-tools must contain 1-4 images, found 5',
     )
   })
 
-  it('pins the five continuous runtimes versus non-published CI descriptors', () => {
+  it('pins the three production runtimes versus two CI-only descriptors', () => {
     const policy = loadContainerImagePolicy(ROOT)
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
     const webMadeCiOnly = workflow.replace(
@@ -118,7 +118,7 @@ describe('container image policy', () => {
     expect(aggregate).toContain('merge-multiple: true')
     expect(aggregate).toContain('name: sbom-images-spdx')
     expect(aggregate).toContain(
-      `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 7`,
+      `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 5`,
     )
   })
 

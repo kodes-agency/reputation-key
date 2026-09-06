@@ -1,12 +1,5 @@
 import type { AlertSeverity } from './alert-definitions'
 
-export const REG04_SIDECAR_SERVICES = Object.freeze([
-  'ai-execution-admission',
-  'ai-egress-gateway',
-] as const)
-
-type Reg04SidecarService = (typeof REG04_SIDECAR_SERVICES)[number]
-
 type PlatformSignalBase = Readonly<{
   name: string
   dataCellId: 'us'
@@ -18,16 +11,7 @@ type PlatformSignalBase = Readonly<{
   evidence: readonly string[]
 }>
 
-type SidecarReadinessSignal = PlatformSignalBase &
-  Readonly<{
-    kind: 'sidecar_readiness'
-    source: 'external_synthetic'
-    service: Reg04SidecarService
-    path: '/health/ready'
-    requiresDistinctNonMtlsPort: true
-  }>
-
-type ExternalPlatformSignal = PlatformSignalBase &
+export type Reg04PlatformSignal = PlatformSignalBase &
   Readonly<{
     kind:
       | 'backup_age'
@@ -45,8 +29,6 @@ type ExternalPlatformSignal = PlatformSignalBase &
       | 'release_controller'
     service?: 'Postgres' | 'web'
   }>
-
-export type Reg04PlatformSignal = SidecarReadinessSignal | ExternalPlatformSignal
 
 const base = Object.freeze({
   dataCellId: 'us' as const,
@@ -115,23 +97,6 @@ export const REG04_PLATFORM_SIGNALS: readonly Reg04PlatformSignal[] = Object.fre
     runbook: 'runbooks.md §12',
     evidence: ['external_probe_configuration', 'alert_injection_receipt'],
   },
-  ...REG04_SIDECAR_SERVICES.map((service): SidecarReadinessSignal => ({
-    ...base,
-    name: `cell-us.sidecar.${service}.readiness`,
-    kind: 'sidecar_readiness',
-    source: 'external_synthetic',
-    service,
-    path: '/health/ready',
-    requiresDistinctNonMtlsPort: true,
-    severity: 'P1',
-    runbook: 'runbooks.md §19',
-    evidence: [
-      'platform_health_configuration',
-      'post_boot_dependency_loss',
-      'protected_mtls_route_refusal',
-      'replacement_or_alert_receipt',
-    ],
-  })),
   {
     ...base,
     name: 'cell-us.error-monitoring.error-rate',

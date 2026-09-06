@@ -20,8 +20,8 @@ const nameList = z.array(z.string()).readonly()
 const bootReportSchema = z
   .object({
     /** Which deployable this process is. */
-    deployable: z.enum(['web', 'worker', 'operator', 'sidecar', 'simulation']),
-    /** Complete Application Containers (or sidecar composition units) built. */
+    deployable: z.enum(['web', 'worker', 'operator', 'simulation']),
+    /** Complete Application Containers built. */
     containerBoots: z.number().int().min(0),
     /** Registered job handler names. */
     jobNames: nameList,

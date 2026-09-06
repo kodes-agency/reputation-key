@@ -513,6 +513,7 @@ function buildContainer(
     // composition boundary is the ONE place allowed to fall back to ambient state.
     runtimeEnvironment: options?.runtimeEnvironment ?? process.env,
     enableJobs,
+    pool,
     inferenceOverride: options?.providers?.aiInference,
     subjectHmacOverride: options?.providers?.aiSubjectHmac,
   })

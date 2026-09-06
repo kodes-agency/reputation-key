@@ -228,7 +228,7 @@ jobs:
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: pnpm test:integration
 
-  # ~48s measured: build output and every consumer/boundary stay in one chain.
+  # Build output and every consumer/boundary stay in one chain.
   # The booted security-header probe needs Redis, but no PostgreSQL.
   artifacts:
     runs-on: ubuntu-latest
@@ -305,18 +305,11 @@ jobs:
       - name: Worker build
         run: pnpm build:worker
 
-      - name: AI execution admission build
-        run: pnpm build:ai-execution-admission
-      - name: AI egress gateway build
-        run: pnpm build:ai-egress-gateway
-
       - name: Production artifact boundary
         run: >-
           pnpm check:production-artifacts
           .output
           dist-worker
-          dist-ai-execution-admission
-          dist-ai-egress-gateway
 
       # BQC-7.1: artifact digest — deterministic tarball of the deploy
       # artifacts (sorted names, zeroed mtimes/owners, gzip -n), digest in
@@ -324,7 +317,7 @@ jobs:
       - name: Artifact digest
         run: |
           tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf - \
-            .output dist-worker dist-ai-execution-admission dist-ai-egress-gateway \
+            .output dist-worker \
             | gzip -n > /tmp/artifact.tgz
           DIGEST=$(shasum -a 256 /tmp/artifact.tgz | cut -d' ' -f1)
           echo "sha256:$DIGEST  (all deploy artifacts)"
@@ -365,9 +358,8 @@ jobs:
   # (nixpacks removed) — prove every classified image builds reproducibly on
   # every PR and satisfies its explicit runtime contract.
   #
-  # Three bounded groups keep the two heaviest web and worker builds concurrent,
-  # while the AI sidecars share a runner row. Every descriptor still owns its
-  # build, smoke, SBOM, and Grype evidence.
+  # Two bounded groups keep the two heaviest web and worker builds concurrent.
+  # Every descriptor still owns its build, smoke, SBOM, and Grype evidence.
   docker-images:
     name: docker image group (${{ matrix.group }})
     runs-on: ubuntu-latest
@@ -384,9 +376,6 @@ jobs:
           - group: worker-tools
             images: >-
               [{"name":"worker","dockerfile":"Dockerfile","tag":"repkey-worker:ci","publish":true},{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
-          - group: sidecars
-            images: >-
-              [{"name":"ai-execution-admission","dockerfile":"Dockerfile.ai-execution-admission","tag":"repkey-ai-execution-admission:ci","publish":true},{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -449,7 +438,7 @@ jobs:
               test "$(docker image inspect repkey-web:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
               docker run --rm --entrypoint test repkey-web:ci ! -e /app/dist-local-tools
               docker run --rm --entrypoint sh repkey-web:ci -c \
-                "! find /app/.output /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/.output /app/dist-worker 2>/dev/null"
+                "! find /app/.output /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/.output /app/dist-worker 2>/dev/null"
               ;;
             worker)
               docker run --rm repkey-worker:ci node -e "process.exit(0)"
@@ -471,35 +460,10 @@ jobs:
               test "$(docker image inspect repkey-worker:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "serving-final"
               docker run --rm --entrypoint test repkey-worker:ci ! -e /app/dist-local-tools
               docker run --rm --entrypoint sh repkey-worker:ci -c \
-                "! find /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/dist-worker 2>/dev/null"
+                "! find /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/dist-worker 2>/dev/null"
               ;;
             google-provider-redis)
               sh scripts/ci/smoke-provider-redis-image.sh repkey-google-provider-redis:ci
-              ;;
-            ai-execution-admission)
-              docker run --rm --entrypoint node repkey-ai-execution-admission:ci -e "process.exit(0)"
-              test "$(docker image inspect repkey-ai-execution-admission:ci --format '{{.Config.User}}')" = "node"
-              docker run --rm --entrypoint test repkey-ai-execution-admission:ci ! -e /app/node_modules
-              docker run --rm --entrypoint test repkey-ai-execution-admission:ci ! -e /app/package.json
-              test "$(docker image inspect repkey-ai-execution-admission:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
-              docker run --rm --entrypoint node \
-                -v "$PWD/scripts/verify-ai-runtime-image.mjs:/tmp/verify-ai-runtime-image.mjs:ro" \
-                repkey-ai-execution-admission:ci /tmp/verify-ai-runtime-image.mjs admission
-              ;;
-            ai-egress-gateway)
-              docker run --rm --entrypoint node repkey-ai-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
-              for governed_entry in index.js canary.js; do
-                docker run --rm --entrypoint test repkey-ai-egress-gateway:ci -e "/app/dist-ai-egress-gateway/$governed_entry"
-              done
-              docker run --rm --entrypoint test repkey-ai-egress-gateway:ci -e /app/dist-ai-egress-probe/runtime-egress-probe.js
-              test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-ai-egress-gateway/index.js"
-              test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{.Config.User}}')" = "node"
-              docker run --rm --entrypoint test repkey-ai-egress-gateway:ci ! -e /app/node_modules
-              docker run --rm --entrypoint test repkey-ai-egress-gateway:ci ! -e /app/package.json
-              test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
-              docker run --rm --entrypoint node \
-                -v "$PWD/scripts/verify-ai-runtime-image.mjs:/tmp/verify-ai-runtime-image.mjs:ro" \
-                repkey-ai-egress-gateway:ci /tmp/verify-ai-runtime-image.mjs gateway
               ;;
             provider-sandbox)
               docker run --rm --entrypoint sh repkey-provider-sandbox:ci -c 'set -eu; node provider-sandbox.mjs --kind=gbp --port=3000 >/tmp/provider-sandbox.log 2>&1 & child=$!; trap '\''kill "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true'\'' EXIT; attempt=0; until node -e "fetch('\''http://127.0.0.1:3000/__control/health'\'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; do attempt=$((attempt+1)); if [ "$attempt" -ge 30 ]; then cat /tmp/provider-sandbox.log; exit 1; fi; sleep 0.2; done'
@@ -535,7 +499,7 @@ jobs:
 
       # BQC-7.7: every built image gets an SPDX JSON inventory. Each bounded
       # group stages its files under one unique artifact; the `docker`
-      # aggregate job still proves and publishes the exact seven-file set.
+      # aggregate job still proves and publishes the exact five-file set.
       - name: Install pinned Syft
         id: syft
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -602,8 +566,8 @@ jobs:
           done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
 
       # Each group pushes its scanned bytes under a unique run/attempt staging
-      # tag. The source-SHA tags are created only by the aggregate after all
-      # three groups pass, preventing a failed row from stranding a partial set.
+      # tag. The source-SHA tags are created only by the aggregate after both
+      # groups pass, preventing a failed row from stranding a partial set.
       - name: Authenticate production image stager
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -652,9 +616,9 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-  # Keep the protected `docker` context stable while three measured image
-  # groups fan out above. The final artifacts are assembled here because
-  # upload-artifact v4+ forbids concurrent jobs mutating one shared artifact.
+  # Keep the protected `docker` context stable while two measured image groups
+  # fan out above. The final artifacts are assembled here because upload-artifact
+  # v4+ forbids concurrent jobs mutating one shared artifact.
   docker:
     needs: [docker-images]
     if: always()
@@ -674,8 +638,8 @@ jobs:
           path: image-sboms
           merge-multiple: true
 
-      - name: Require all seven image SBOMs
-        run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 7
+      - name: Require all five image SBOMs
+        run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 5
 
       - name: Upload image SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -697,13 +661,13 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
-          test "$(find staged-image-digests -maxdepth 1 -type f -name '*.json' | wc -l)" -eq 5
+          test "$(find staged-image-digests -maxdepth 1 -type f -name '*.json' | wc -l)" -eq 3
           jq -sS \
             --arg revision "$GITHUB_SHA" \
             --arg runId "$GITHUB_RUN_ID" \
             --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
             'sort_by(.image) as $entries
-            | ["ai-egress-gateway","ai-execution-admission","google-provider-redis","web","worker"] as $expected
+            | ["google-provider-redis","web","worker"] as $expected
             | ($entries | map(.image)) as $observed
             | if $observed != $expected then error("staged image set is incomplete or unexpected") else . end
             | if any($entries[];
@@ -757,7 +721,7 @@ jobs:
             fi
           done < <(jq -c '.[]' validated-image-digests.json)
 
-          # The release map is written only after all five final tags resolve
+          # The release map is written only after all three final tags resolve
           # to the staged digests.
           while IFS= read -r image; do
             repository=$(jq -r '.repository' <<<"$image")

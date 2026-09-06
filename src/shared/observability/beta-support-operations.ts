@@ -186,11 +186,7 @@ export const OBS01_EXTERNAL_EVIDENCE_GATES: readonly Obs01ExternalEvidenceGate[]
       'subprocessor_configuration',
       'release_and_cell_filters',
     ]),
-    externalGate('per_process_cell_test_events', [
-      'web_event',
-      'worker_event',
-      'four_sidecar_events',
-    ]),
+    externalGate('per_process_cell_test_events', ['web_event', 'worker_event']),
     externalGate('inbound_scrubber_inspection', [
       'seeded_marker_set',
       'provider_event_inspection',

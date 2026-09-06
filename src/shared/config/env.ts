@@ -225,18 +225,32 @@ const baseEnvSchema = z.object({
   GOOGLE_CREDENTIAL_BROKER_REPLAY_HMAC_KEYS: z.string().max(195).optional(),
   GOOGLE_CREDENTIAL_ROUTING_HMAC_KEYS: z.string().max(195).optional(),
 
-  // Web/worker -> AI egress gateway. All transport and settlement-verification
-  // values are configured together; composition rejects partial configuration.
-  AI_EGRESS_GATEWAY_ORIGIN: z.url().optional(),
-  AI_EGRESS_GATEWAY_SERVER_NAME: z.string().min(1).optional(),
-  AI_INTERNAL_MTLS_CA_B64: z.string().min(1).optional(),
-  AI_INTERNAL_MTLS_CERT_B64: z.string().min(1).optional(),
-  AI_INTERNAL_MTLS_KEY_B64: z.string().min(1).optional(),
+  // Settlement-receipt and provenance verification keyrings. The transport that
+  // used to sit beside them here — gateway origin, server name and three mTLS
+  // blobs — went with the sidecars in WP2.3.
   AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: z.string().max(65_536).optional(),
   AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON: z.string().max(65_536).optional(),
   AI_KEY_INVENTORY_PROFILE: z.enum(['production-v1', 'local-stack-v1']).optional(),
   // Worker-only keyed pseudonym authority for durable AI operation subjects.
   AI_SUBJECT_HMAC_KEYS: z.string().max(195).optional(),
+
+  // WP2.3 — the AI egress gateway and execution admission sidecars used to read
+  // these from their own container environments. The collapse puts both in this
+  // process, so they become part of the parsed contract rather than raw
+  // `process.env` reads inside a bootstrap.
+  OPENAI_API_KEY: z.string().min(1).max(512).optional(),
+  AI_REQUEST_BINDING_HMAC_KEYS: z.string().max(4_096).optional(),
+  AI_SAFETY_IDENTIFIER_HMAC_KEYS: z.string().max(4_096).optional(),
+  AI_ADMISSION_ED25519_PRIVATE_KEY_B64: z.string().max(4_096).optional(),
+  AI_ADMISSION_ED25519_KID: z.string().max(64).optional(),
+  AI_PROVENANCE_ED25519_PRIVATE_KEY_B64: z.string().max(4_096).optional(),
+  AI_PROVENANCE_ED25519_KID: z.string().max(64).optional(),
+  // Local rehearsal only: sends provider calls to the Compose `ai-provider-stub`
+  // instead of api.openai.com. Deliberately a SELECTOR and not a URL — the stub
+  // address is compiled into `ai-provider-control/local-provider-fetch.ts`, so no
+  // environment value can retarget where the provider key and merchant content
+  // go. Refused in a deployed cell (see composition/ai-egress-runtime.ts).
+  AI_PROVIDER_LOCAL_STUB: z.enum(['enabled']).optional(),
 
   // Google Pub/Sub webhook audience verification (optional — defaults to /webhooks/gbp path)
   GBP_PUBSUB_AUDIENCE: z.string().optional(),

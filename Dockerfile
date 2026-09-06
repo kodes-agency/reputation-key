@@ -56,14 +56,14 @@ ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 # every analysis and reply draft. If a bump must move the triple, regenerate
 # src/shared/generated/ai-review-language-canonical-regions-v1.ts
 # (pnpm tsx scripts/generate-ai-review-language-regions.ts) and re-run the AI
-# language corpus in the same change. Same assertion and failure style as
-# Dockerfile.ai-egress-gateway / Dockerfile.ai-execution-admission.
+# language corpus in the same change. The image asserts the triple again in the
+# final runtime stage so build and serving environments cannot drift.
 FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS base
 # HUSKY=0: Husky's `prepare` must not try to install git hooks in the image.
 # COREPACK_HOME + the pinned `corepack install` below: identical to the other
 # Node-based Dockerfiles ON PURPOSE. Docker keys a layer on the instruction text, so
 # any drift in this prefix gives each image its own `pnpm install` layer instead
-# of one shared chain — five installs per cold daemon in CI.
+# of one shared chain, multiplying cold installs in CI.
 ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     HUSKY=0

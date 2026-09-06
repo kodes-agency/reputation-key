@@ -23,10 +23,6 @@ import {
   OPENAI_REQUEST_SHAPE_V1_DIGEST,
 } from '#/shared/ai-openai-provider-profile'
 import {
-  AI_GATEWAY_BUILD_ATTESTATION_DIGEST,
-  AI_GATEWAY_BUILD_ATTESTATION_VERSION,
-} from '#/shared/ai-gateway-build-attestation'
-import {
   renderOpenAiStaticTokenBearingMaterial,
   type AiReasoningEffortV1,
 } from '#/shared/ai-openai-request-contract'
@@ -77,10 +73,6 @@ const SDK_ATTESTATION = Object.freeze({
   requestShapeVersion: 'openai-responses-request-shape-v1',
   requestShapeDigest: OPENAI_REQUEST_SHAPE_V1_DIGEST,
   providerTransportProfile: 'openai-provider-transport-v1',
-})
-const GATEWAY_BUILD_ATTESTATION = Object.freeze({
-  version: AI_GATEWAY_BUILD_ATTESTATION_VERSION,
-  digest: AI_GATEWAY_BUILD_ATTESTATION_DIGEST,
 })
 
 const REVIEW_SOURCE_ATTESTATION = Object.freeze({
@@ -239,7 +231,6 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
       source: REVIEW_SOURCE_ATTESTATION,
       calendar: PROPERTY_CALENDAR_ATTESTATION,
       sdk: SDK_ATTESTATION,
-      gatewayBuild: GATEWAY_BUILD_ATTESTATION,
       attentionFormulaVersion: 'review-attention-v1',
     }),
     sourceByteLimit: 16_384,
@@ -273,7 +264,6 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
       source: REPLY_ATTESTATION,
       calendar: PROPERTY_CALENDAR_ATTESTATION,
       sdk: SDK_ATTESTATION,
-      gatewayBuild: GATEWAY_BUILD_ATTESTATION,
     }),
     sourceByteLimit: 16_384,
     providerPayloadByteLimit: 16_384,
@@ -305,7 +295,6 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
       trend: TREND_ATTESTATION,
       calendar: PROPERTY_CALENDAR_ATTESTATION,
       sdk: SDK_ATTESTATION,
-      gatewayBuild: GATEWAY_BUILD_ATTESTATION,
     }),
     sourceByteLimit: 65_536,
     providerPayloadByteLimit: 65_536,
@@ -337,7 +326,6 @@ export const AI_OPERATION_PROFILES: ReadonlyArray<AiOperationProfile> = Object.f
       safetyIdentifierProfileVersion: 'synthetic-canary-safety-v1',
       promptCacheShard: 0,
       sdk: SDK_ATTESTATION,
-      gatewayBuild: GATEWAY_BUILD_ATTESTATION,
     }),
     sourceByteLimit: 16_384,
     providerPayloadByteLimit: 16_384,

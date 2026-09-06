@@ -465,9 +465,6 @@ async function main() {
  * there is no tenant data to leak, and the redacted form is unusable —
  * `{"err":{"name":"Error"}}` names no cause at all, which is exactly what a
  * failing container produced in CI.
- *
- * Mirrors `emitStartupFailure` in services/sidecar-operational-runtime.ts,
- * which exists for the same reason and was added after the same symptom.
  */
 function emitWorkerStartupFailure(error: unknown): void {
   const named = error instanceof Error ? error : undefined

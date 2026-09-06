@@ -181,7 +181,6 @@ export function buildLocalStackEnv(
       'google-admission-database',
     ),
     GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: `local:${secret(input.revision, 'google-credential-binding')}`,
-    AI_CONTROL_DATABASE_PASSWORD: secret(input.revision, 'ai-control-database'),
     AI_SUBJECT_HMAC_KEYS: `subject-v1:${secret(input.revision, 'ai-subject')}`,
     AI_REQUEST_BINDING_HMAC_KEYS: `local:${secret(input.revision, 'ai-request-binding')}`,
     AI_ADMISSION_ED25519_KID: 'admission-v1',

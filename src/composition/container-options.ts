@@ -38,7 +38,7 @@ export type CreateContainerOptions = {
   redis?: Redis
   /** Override env (simulations against throwaway config). */
   env?: Env
-  /** ARC-03-T14: override the raw process environment handed to sidecar
+  /** ARC-03-T14: override the raw process environment handed to in-process
    * provider runtimes (deterministic process fixtures inject a fixed set). */
   runtimeEnvironment?: NodeJS.ProcessEnv
   /** Override the clock (fast-forward time in tests/simulations). ADR 0017. */
@@ -59,7 +59,7 @@ export type CreateContainerOptions = {
   opsQuarantineQueue?: Queue
   /** Override the identity port (simulations use the in-memory identity fake). */
   identityPort?: IdentityPort
-  /** ARC-03-T13: override the ambient request context (worker/sidecar/fixture
+  /** ARC-03-T13: override the ambient request context (worker and fixture
    * processes have no server request; simulations inject fixed headers). */
   requestContext?: RequestContextPort
   /** ARC-03-T13: override the authenticated session provider. */

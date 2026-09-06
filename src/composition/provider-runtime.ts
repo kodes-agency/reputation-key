@@ -1,3 +1,4 @@
+import type { Pool } from 'pg'
 import type { Env } from '#/shared/config/env'
 import type { ProviderEndpoints } from '#/shared/routing/processing-router'
 import type {
@@ -17,20 +18,15 @@ import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyr
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
 import type { AiInferencePort } from '#/contexts/ai/application/ports/ai-inference.port'
 import type { AiSubjectHmacPort } from '#/contexts/ai/application/ports/ai-subject-hmac.port'
-import { createAiGatewayAdapter } from '#/contexts/ai/infrastructure/adapters/ai-gateway.adapter'
+import { createAiInProcessInference } from '#/contexts/ai/infrastructure/adapters/ai-inprocess.adapter'
+import { createAiEgressRuntime } from './ai-egress-runtime'
 import { createAiSubjectHmacAdapter } from '#/contexts/ai/infrastructure/adapters/ai-subject-hmac.adapter'
 import { loadNamedEd25519PublicKeyring } from '#/shared/ed25519-key-material'
 import {
-  assertAiAdmissionPublicKeyringInventory,
   assertAiProvenancePublicKeyringInventory,
   resolveAiGatewayRuntimeKeyInventory,
 } from '#/shared/ai-gateway-key-inventory'
-import { AI_INTERNAL_RESPONSE_MAX_BYTES } from '#/shared/ai-internal-transport-contract'
 import type { AiGatewayCaller } from '#/shared/ai-gateway-transport-contract'
-import {
-  createInternalMtlsJsonTransport,
-  loadInternalMtlsMaterialFromBase64,
-} from '../../services/internal-mtls'
 
 /**
  * External adapters are explicit container inputs. Absent overrides select the
@@ -181,6 +177,8 @@ export function createAiRuntimeProviders(
     env: Env
     runtimeEnvironment: Readonly<Record<string, string | undefined>>
     enableJobs: boolean
+    /** The application's own pool — the admission authority runs on it now. */
+    pool: Pool
     inferenceOverride?: AiInferencePort
     subjectHmacOverride?: AiSubjectHmacPort
   }>,
@@ -189,50 +187,25 @@ export function createAiRuntimeProviders(
     ...input.runtimeEnvironment,
     AI_KEY_INVENTORY_PROFILE: input.env.AI_KEY_INVENTORY_PROFILE,
   })
-  const gatewayConfig = [
-    input.env.AI_EGRESS_GATEWAY_ORIGIN,
-    input.env.AI_EGRESS_GATEWAY_SERVER_NAME,
-    input.env.AI_INTERNAL_MTLS_CA_B64,
-    input.env.AI_INTERNAL_MTLS_CERT_B64,
-    input.env.AI_INTERNAL_MTLS_KEY_B64,
-    input.env.AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON,
-  ] as const
-  const configured = gatewayConfig.filter((value): value is string => value !== undefined)
-  if (configured.length !== 0 && configured.length !== gatewayConfig.length) {
-    throw new Error('AI egress gateway transport configuration is incomplete')
-  }
   if (!input.enableJobs && input.env.AI_SUBJECT_HMAC_KEYS !== undefined) {
     throw new Error('AI subject HMAC authority is worker-only')
   }
 
+  // WP2.3: "AI is wired" used to mean a six-value all-or-nothing mTLS group
+  // (gateway origin, server name, three key blobs, admission public keys). Five
+  // of those six described how to reach a sidecar that no longer exists, so the
+  // signal is now the one value a provider call cannot be made without.
   const caller: AiGatewayCaller = input.enableJobs ? 'worker' : 'web'
   let inference = input.inferenceOverride
-  if (!inference && configured.length > 0) {
-    const [origin, serverName, ca, cert, key, publicKeysJson] = configured
-    const publicKeys = loadNamedEd25519PublicKeyring(
-      publicKeysJson,
-      [
-        keyInventory.admissionSigning.activeKid,
-        ...keyInventory.admissionSigning.retainedKids,
-      ],
-      keyInventory.admissionSigning.maximumConfiguredKeys,
-    )
-    assertAiAdmissionPublicKeyringInventory(publicKeys, keyInventory)
-    inference = createAiGatewayAdapter({
-      transport: createInternalMtlsJsonTransport({
-        origin,
-        serverName,
-        tls: loadInternalMtlsMaterialFromBase64({ ca, cert, key }),
-        peerIdentityPolicy: {
-          uri: 'spiffe://repkey.internal/ai-egress-gateway',
-          dnsName: serverName,
-          extendedKeyUsages: ['serverAuth', 'clientAuth'],
-        },
-        timeoutMs: 105_000,
-        maxResponseBytes: AI_INTERNAL_RESPONSE_MAX_BYTES,
-      }),
+  if (!inference && input.env.OPENAI_API_KEY !== undefined) {
+    const runtime = createAiEgressRuntime({
+      env: input.env,
+      pool: input.pool,
+      runtimeEnvironment: input.runtimeEnvironment,
+    })
+    inference = createAiInProcessInference({
+      gateway: () => runtime.service(),
       caller,
-      admissionSettlementPublicKeys: publicKeys,
     })
   }
 
@@ -245,7 +218,7 @@ export function createAiRuntimeProviders(
     : undefined
   if (provenancePublicKeys) {
     assertAiProvenancePublicKeyringInventory(provenancePublicKeys, keyInventory)
-  } else if (!input.enableJobs && configured.length > 0) {
+  } else if (!input.enableJobs && inference !== undefined) {
     throw new Error('AI provenance public keyring is unavailable')
   }
 

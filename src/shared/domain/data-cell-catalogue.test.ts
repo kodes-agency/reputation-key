@@ -60,9 +60,14 @@ describe('Data Cell catalogue', () => {
     expect(dataCellById('constructor')).toBeNull()
     expect(dataCellById('toString')).toBeNull()
     expect(dataCellById('__proto__')).toBeNull()
-    expect(DATA_CELL_CATALOGUE.us.resources).toMatchObject({
+    expect(DATA_CELL_CATALOGUE.us.resources).toEqual({
+      web: 'web',
+      worker: 'worker',
+      postgres: 'Postgres',
       cacheRedis: 'Cache Redis',
       queueRedis: 'Queue Redis',
+      providerRedis: 'google-provider-redis',
+      objectStore: 'object-store',
     })
   })
 

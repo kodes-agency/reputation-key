@@ -40,7 +40,6 @@ describe('REG-04 incident runbook catalogue', () => {
     expect(runbooks).toContain(
       '**Default communications/support owner: Bozhidar Denev.**',
     )
-    expect(runbooks).toContain('Post-Boot Sidecar Dependency Loss')
     expect(runbooks).toContain('Cross-Tenant Isolation Suspicion')
     expect(runbooks).toContain('Lost Bucket Object')
     expect(runbooks).toContain('Privacy Request Incident')

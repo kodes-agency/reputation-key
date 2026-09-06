@@ -4210,42 +4210,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/verify-ai-egress-gateway-bundle.mjs',
-    'scripts/verify-ai-egress-gateway-bundle.mjs',
-    'none',
-    {
-      notes:
-        'build-time inventory gate proving the gateway bundle alone owns the OpenAI SDK and excludes caller, database, Google, browser, probe, and local-stub paths',
-    },
-  ),
-  ops(
-    'scripts/verify-ai-execution-admission-bundle.mjs',
-    'scripts/verify-ai-execution-admission-bundle.mjs',
-    'none',
-    {
-      notes:
-        'build-time inventory gate proving the admission bundle excludes provider SDKs, gateway dependencies, browsers, queues, and Google clients',
-    },
-  ),
-  ops(
-    'scripts/verify-ai-gateway-runtime-assets.ts',
-    'scripts/verify-ai-gateway-runtime-assets.ts',
-    'none',
-    {
-      notes:
-        'build-time digest and inventory gate for immutable AI gateway runtime assets',
-    },
-  ),
-  ops(
-    'scripts/verify-ai-runtime-image.mjs',
-    'scripts/verify-ai-runtime-image.mjs',
-    'none',
-    {
-      notes:
-        'build-time image-profile gate for the pinned AI runtime, ICU, Unicode, and production dependency inventory',
-    },
-  ),
-  ops(
     'scripts/verify-google-runtime-bundle.mjs',
     'scripts/verify-google-runtime-bundle.mjs',
     'none',
@@ -4540,15 +4504,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:identity-invitation-facts — report-first rolling v1→v2 fact issuance, bounded PostgreSQL/live-queue/quarantine redaction, zero-copy verification, and pre-verification rollback; mutations require quiesced queues and typed confirmation',
-    },
-  ),
-  ops(
-    'scripts/local-stack/provision-ai-admission-role.ts',
-    'scripts/local-stack/provision-ai-admission-role.ts',
-    'tenant_cross',
-    {
-      notes:
-        'local acceptance provisioner for the execute-only AI admission PostgreSQL role; rejects owner/superuser/BYPASSRLS and verifies exact grants plus session limits',
     },
   ),
   ops(

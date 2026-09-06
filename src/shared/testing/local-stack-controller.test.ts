@@ -76,7 +76,6 @@ describe('local stack controller', () => {
     expect(env.NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
     expect(env.GOOGLE_ADMISSION_DATABASE_PASSWORD).toMatch(/^[a-f0-9]{64}$/)
     expect(env.GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
-    expect(env.AI_CONTROL_DATABASE_PASSWORD).toMatch(/^[a-f0-9]{64}$/)
     expect(env.AI_SUBJECT_HMAC_KEYS).toMatch(/^subject-v1:[a-f0-9]{64}$/)
     expect(env.AI_REQUEST_BINDING_HMAC_KEYS).toMatch(/^local:[a-f0-9]{64}$/)
     expect(env.AI_ADMISSION_ED25519_KID).toBe('admission-v1')

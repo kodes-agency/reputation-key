@@ -56,11 +56,6 @@ const controls = [
     source: "import '#/shared/db'\n",
   },
   {
-    name: 'trust-boundary service cannot import context internals',
-    file: 'services/ai-egress-gateway/boundary-negative-control.ts',
-    source: "import '#/contexts/review/infrastructure/review-command-store'\n",
-  },
-  {
     name: 'Nitro plugin cannot import UI',
     file: 'server/plugins/boundary-negative-control.ts',
     source: "import '#/components/ui/button'\n",
@@ -105,23 +100,6 @@ const controls = [
     name: 'CI script cannot resolve the composition root',
     file: 'scripts/ci/boundary-negative-control.ts',
     source: "import '../../src/composition'\n",
-  },
-  // ARC-03-T2: the sidecars run outside the application trust boundary.
-  // "shared/" is not a package they inherit — only the named provider kernel.
-  {
-    name: 'trust-boundary service cannot import the application database',
-    file: 'services/ai-egress-gateway/boundary-negative-control.ts',
-    source: "import '../../src/shared/db'\n",
-  },
-  {
-    name: 'trust-boundary service cannot import the auth kernel',
-    file: 'services/ai-egress-gateway/boundary-negative-control.ts',
-    source: "import '../../src/shared/auth/auth'\n",
-  },
-  {
-    name: 'trust-boundary service cannot import the job queue factory',
-    file: 'services/ai-egress-gateway/boundary-negative-control.ts',
-    source: "import '../../src/shared/jobs/queue'\n",
   },
   // ARC-03-T3: shared/ is no longer one mutually self-importing bucket. The
   // browser-reachable query namespace and the server-only job runtime are
@@ -182,11 +160,6 @@ const allowedControls = [
     source: "import '#/contexts/review/build'\n",
   },
   {
-    name: 'trust-boundary service may import a shared kernel',
-    file: 'services/ai-egress-gateway/boundary-positive-control.ts',
-    source: "import '../../src/shared/ai-runtime-capability-contract'\n",
-  },
-  {
     name: 'router may import a UI primitive',
     file: 'src/router.tsx',
     source: "import '#/components/ui/button'\n",
@@ -216,16 +189,6 @@ const allowedControls = [
     name: 'CI script may import a shared governance catalogue',
     file: 'scripts/ci/boundary-positive-control.ts',
     source: "import '../../src/shared/governance/entry-point-catalogue'\n",
-  },
-  // ARC-03-T2: the named kernel must stay reachable from a trust-boundary
-  // service. It used to have two halves probed here, a nested provider module
-  // and a root contract file; the nested half was `google-provider-control`,
-  // which WP2.1 removed from the kernel because no surviving sidecar imports
-  // it. A root contract file is what is left to prove.
-  {
-    name: 'trust-boundary service may import the AI transport contract',
-    file: 'services/ai-egress-gateway/boundary-positive-control.ts',
-    source: "import '../../src/shared/ai-internal-transport-contract'\n",
   },
   // ARC-03-T3: the same edge from the area that owns queue-depth readiness is
   // documented and must stay open — the split is a placement rule, not a ban.

@@ -43,10 +43,6 @@ const SNAPSHOT_PATH = resolve(
  * single test, because the tests check the repository against itself.
  */
 const CONTRACT_FILES: readonly string[] = Object.freeze([
-  'services/ai-egress-gateway/environment.ts',
-  'services/ai-execution-admission/environment.ts',
-  'services/sidecar-runtime-ports.ts',
-  'services/internal-mtls.ts',
   'src/shared/config/env.ts',
   'src/shared/config/release-identity.ts',
   // Added 2026-08-31 after it caused exactly the failure this gate exists to

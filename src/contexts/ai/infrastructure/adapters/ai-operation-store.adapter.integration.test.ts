@@ -59,7 +59,7 @@ import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createAiPropertyAggregateStoreAdapter } from './ai-property-aggregate-store.adapter'
 import { createAiPropertyTrendScheduleStore } from './ai-property-trend-schedule-store.adapter'
 import { createAiOutputStoreAdapter } from './ai-output-store.adapter'
-import { createPostgresAiAdmissionAuthority } from '../../../../../services/ai-execution-admission/postgres-admission-authority'
+import { createPostgresAiAdmissionAuthority } from '#/shared/ai-provider-control/postgres-admission-authority'
 import {
   acquireAiReadDeliveryLease,
   assertAiReadDeliveryLease,

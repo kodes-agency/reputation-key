@@ -42,13 +42,8 @@ describe('production artifact boundary', () => {
     const productionConfig = projectFile('tsup.config.ts')
     const localToolsConfig = projectFile('tsup.local-tools.config.ts')
 
-    expect(productionConfig).not.toMatch(
-      /seed-e2e-user|provision-(?:ai|google)-admission-role/u,
-    )
+    expect(productionConfig).not.toMatch(/seed-e2e-user|provision-google-admission-role/u)
     expect(localToolsConfig).toContain("'seed-e2e-user': 'scripts/seed-e2e-user.ts'")
-    expect(localToolsConfig).toMatch(
-      /'provision-ai-admission-role':\s*'scripts\/local-stack\/provision-ai-admission-role\.ts'/u,
-    )
     expect(localToolsConfig).toMatch(
       /'provision-google-admission-role':\s*'scripts\/ops\/provision-google-admission-role\.ts'/u,
     )
@@ -58,22 +53,16 @@ describe('production artifact boundary', () => {
   it('runs local one-shot services from the isolated local-tools image', () => {
     const compose = projectFile('compose.local.yml')
     const seed = serviceBlock(compose, 'seed')
-    const admissionRole = serviceBlock(compose, 'ai-admission-role')
     const googleAdmissionRole = serviceBlock(compose, 'google-admission-role')
 
     expect(compose).toContain('x-local-tools-image: &local-tools-image')
     expect(seed).toContain('*local-tools-image')
     expect(seed).toContain('dist-local-tools/seed-e2e-user.js')
-    expect(admissionRole).toContain('*local-tools-image')
-    expect(admissionRole).toContain('dist-local-tools/provision-ai-admission-role.js')
     expect(googleAdmissionRole).toContain('*local-tools-image')
     expect(googleAdmissionRole).toContain(
       'dist-local-tools/provision-google-admission-role.js',
     )
     expect(seed).toContain('LOCAL_TOOL_EXECUTION_IDENTITY: repkey-local-stack-v1')
-    expect(admissionRole).toContain(
-      'LOCAL_TOOL_EXECUTION_IDENTITY: repkey-local-stack-v1',
-    )
   })
 
   it('fails closed unless the local stack supplies its exact execution identity', () => {
@@ -107,13 +96,6 @@ describe('production artifact boundary', () => {
 
   it.each([
     ['forbidden executable name', 'seed-e2e-user.js', 'export {}\n'],
-    [
-      'forbidden source-map import',
-      'index.js.map',
-      JSON.stringify({
-        sources: ['../scripts/local-stack/provision-ai-admission-role.ts'],
-      }),
-    ],
     [
       'forbidden Google provisioner import',
       'index.js.map',

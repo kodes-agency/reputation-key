@@ -34,23 +34,12 @@ const fallowConfig = JSON.parse(read('.fallowrc.json')) as {
   ignorePatterns: string[]
 }
 
-const DYNAMIC_SCRIPT_ENTRIES = [
-  'scripts/local-stack/provision-ai-admission-role.ts',
-  'scripts/verify-ai-runtime-image.mjs',
-] as const
-
 describe('operational tooling quality coverage', () => {
   it('keeps scripts in ESLint and Fallow analysis', () => {
     const eslint = read('eslint.config.js')
     expect(eslint).not.toContain("      'scripts/**',")
     expect(eslint).toContain("files: ['scripts/**/*.{ts,mjs}']")
     expect(fallowConfig.ignorePatterns).not.toContain('scripts/**')
-  })
-
-  it('declares dynamically invoked and bundled scripts as Fallow entry points', () => {
-    for (const entry of DYNAMIC_SCRIPT_ENTRIES) {
-      expect(fallowConfig.entry).toContain(entry)
-    }
   })
 
   it('puts scripts under eslint-plugin-boundaries', () => {

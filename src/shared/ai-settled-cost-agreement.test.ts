@@ -16,14 +16,12 @@ import {
  * "A suggestion is unavailable right now."
  */
 const COST_CRITICAL_SOURCES = [
-  'services/ai-egress-gateway/service.ts',
-  'services/ai-egress-gateway/canary.ts',
-  'services/ai-execution-admission/postgres-admission-authority.ts',
+  'src/shared/ai-provider-control/service.ts',
+  'src/shared/ai-provider-control/postgres-admission-authority.ts',
   // The fakes belong here too: both stood in for the real admission authority
   // while pricing differently from it, which is precisely how the repricing
   // shipped with green tests.
-  'services/ai-egress-gateway/canary.test.ts',
-  'services/ai-egress-gateway/service-orchestration.test.ts',
+  'src/shared/ai-provider-control/service-orchestration.test.ts',
 ] as const
 
 /** Every per-million rate in the catalogue, in the spellings TS allows. */

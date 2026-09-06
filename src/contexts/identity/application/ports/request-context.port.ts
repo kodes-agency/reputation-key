@@ -4,8 +4,7 @@
 // current request's headers: the composition root and the better-auth identity
 // adapter, each with its own dynamic import of the web framework's server runtime.
 // A framework call inside infrastructure (and inside the root) means the
-// container cannot be built deterministically in a worker, a sidecar or a
-// process fixture.
+// container cannot be built deterministically in a worker or process fixture.
 //
 // Identity declares WHAT it needs — the current request's headers, or empty
 // ones outside a server context — and the composition boundary supplies the

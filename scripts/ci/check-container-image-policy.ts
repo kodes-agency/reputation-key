@@ -26,16 +26,10 @@ export type ContainerImagePolicy = Readonly<{
   images: readonly ContainerImagePolicyRow[]
 }>
 
-// CI builds all seven classified image descriptors. On main, it publishes the
-// five production runtimes below under immutable source-revision tags;
+// CI builds all five classified image descriptors. On main, it publishes the
+// three production runtimes below under immutable source-revision tags;
 // sandbox and perf-runner remain CI-only.
-const CI_PUBLISHED_IMAGE_IDS = [
-  'ai-egress-gateway',
-  'ai-execution-admission',
-  'google-provider-redis',
-  'web',
-  'worker',
-] as const
+const CI_PUBLISHED_IMAGE_IDS = ['google-provider-redis', 'web', 'worker'] as const
 
 const IGNORED_DIRECTORIES = new Set([
   '.git',
@@ -298,9 +292,9 @@ function ciMatrixShapeViolations(
   matrixGroups: readonly CiImageMatrixGroup[],
 ): readonly string[] {
   const violations: string[] = []
-  if (matrixGroups.length !== 3)
+  if (matrixGroups.length !== 2)
     violations.push(
-      `CI image matrix must use exactly 3 bounded groups, found ${matrixGroups.length}`,
+      `CI image matrix must use exactly 2 bounded groups, found ${matrixGroups.length}`,
     )
   for (const group of matrixGroups) {
     if (group.images.length < 1 || group.images.length > 4) {
@@ -635,7 +629,7 @@ export function runContainerImagePolicyCli(args: readonly string[]): number {
     ({ promotion }) => promotion === 'release-candidate',
   )
   process.stdout.write(
-    `[container-images] OK — ${policy.images.length} Dockerfiles: ${promoted.length} promoted, ${policy.images.length - promoted.length} CI-only; every image built, smoke-tested, SBOMed, scanned, and dependency-monitored\n`,
+    `[container-images] OK — ${policy.images.length} images: ${promoted.length} promoted, ${policy.images.length - promoted.length} CI-only; every image built, smoke-tested, SBOMed, scanned, and dependency-monitored\n`,
   )
   return 0
 }

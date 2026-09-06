@@ -11,7 +11,7 @@ import {
 import {
   createAiExecutionAdmissionService,
   type AiAdmissionDatabaseAuthority,
-} from '../../services/ai-execution-admission/service'
+} from '#/shared/ai-provider-control/admission-service'
 
 const UUIDS = {
   operation: '20000000-0000-4000-8000-000000000001',

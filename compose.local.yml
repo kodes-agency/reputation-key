@@ -47,6 +47,26 @@ x-app-environment: &app-environment
   GOOGLE_OAUTH_REVOKE_URL: http://provider-sandbox:4100/oauth/revoke
   LOG_LEVEL: info
 
+x-ai-runtime-environment: &ai-runtime-environment
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-local-ai-provider-stub-not-live}
+  AI_PROVIDER_LOCAL_STUB: enabled
+  AI_KEY_INVENTORY_PROFILE: ${AI_KEY_INVENTORY_PROFILE}
+  AI_REQUEST_BINDING_HMAC_KEYS: ${AI_REQUEST_BINDING_HMAC_KEYS}
+  AI_REQUEST_BINDING_KEYRING_GENERATION: '1'
+  AI_SAFETY_IDENTIFIER_HMAC_KEYS: ${AI_SAFETY_IDENTIFIER_HMAC_KEYS}
+  AI_SAFETY_IDENTIFIER_KEYRING_GENERATION: '1'
+  AI_ADMISSION_ED25519_PRIVATE_KEY_B64: ${AI_ADMISSION_ED25519_PRIVATE_KEY_B64}
+  AI_ADMISSION_ED25519_KID: ${AI_ADMISSION_ED25519_KID}
+  AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: ${AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON}
+  AI_ADMISSION_KEYRING_GENERATION: '1'
+  AI_PROVENANCE_ED25519_PRIVATE_KEY_B64: ${AI_PROVENANCE_ED25519_PRIVATE_KEY_B64}
+  AI_PROVENANCE_ED25519_KID: ${AI_PROVENANCE_ED25519_KID}
+  AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON: ${AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON}
+  AI_PROVENANCE_KEYRING_GENERATION: '1'
+  AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION: ${AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION}
+  AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST: ${AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST}
+  AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST: ${AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST}
+
 x-app-runtime: &app-runtime
   init: true
   read_only: true
@@ -81,43 +101,15 @@ x-local-tools-image: &local-tools-image
       SOURCE_REVISION: ${SOURCE_REVISION}
 
 services:
-  postgres-tls-init:
-    profiles: [backend]
-    image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
-    user: '0:0'
-    entrypoint: [/bin/sh, -ec]
-    command:
-      - >-
-        install -d -m 0700 -o postgres -g postgres /run/repkey/postgres-tls &&
-        install -m 0644 -o postgres -g postgres /source/control-db-server.crt /run/repkey/postgres-tls/server.crt &&
-        install -m 0600 -o postgres -g postgres /source/control-db-server.key /run/repkey/postgres-tls/server.key
-    volumes:
-      - ${STACK_E2E_DIR}/ai-runtime:/source:ro
-      - postgres-tls:/run/repkey/postgres-tls
-    security_opt:
-      - no-new-privileges:true
-    restart: 'no'
-
   postgres:
     profiles: [backend]
     image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
-    command:
-      - postgres
-      - -c
-      - ssl=on
-      - -c
-      - ssl_cert_file=/run/repkey/postgres-tls/server.crt
-      - -c
-      - ssl_key_file=/run/repkey/postgres-tls/server.key
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - '127.0.0.1:${POSTGRES_HOST_PORT}:5432'
-    depends_on:
-      postgres-tls-init:
-        condition: service_completed_successfully
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB']
       interval: 2s
@@ -125,13 +117,11 @@ services:
       retries: 30
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - postgres-tls:/run/repkey/postgres-tls:ro
     security_opt:
       - no-new-privileges:true
     networks:
-      app:
-      admission-data:
-        aliases: [ai-control-postgres]
+      - app
+      - admission-data
 
   redis:
     profiles: [backend]
@@ -418,30 +408,6 @@ services:
       postgres:
         condition: service_healthy
 
-  ai-admission-role:
-    profiles: [backend]
-    <<: *local-tools-image
-    command: [node, dist-local-tools/provision-ai-admission-role.js]
-    environment:
-      NODE_ENV: production
-      LOCAL_TOOL_EXECUTION_IDENTITY: repkey-local-stack-v1
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      AI_CONTROL_DATABASE_PASSWORD: ${AI_CONTROL_DATABASE_PASSWORD}
-    init: true
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=8m
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    restart: 'no'
-    networks:
-      - admission-data
-    depends_on:
-      migrator:
-        condition: service_completed_successfully
-
   google-admission-role:
     profiles: [backend]
     <<: *local-tools-image
@@ -466,133 +432,6 @@ services:
       migrator:
         condition: service_completed_successfully
 
-  ai-execution-admission:
-    profiles: [backend]
-    image: repkey-local-ai-execution-admission:${SOURCE_REVISION}
-    build:
-      context: .
-      dockerfile: Dockerfile.ai-execution-admission
-      args:
-        SOURCE_REVISION: ${SOURCE_REVISION}
-    environment:
-      NODE_ENV: production
-      AI_KEY_INVENTORY_PROFILE: ${AI_KEY_INVENTORY_PROFILE}
-      HOST: '::'
-      PORT: '8080'
-      INTERNAL_MTLS_PORT: '8443'
-      PROCESSING_CELL: us
-      AI_CONTROL_DATABASE_URL: postgresql://repkey_ai_admission_local:${AI_CONTROL_DATABASE_PASSWORD}@ai-control-postgres:5432/${POSTGRES_DB}
-      AI_CONTROL_DATABASE_CA_B64: ${AI_CONTROL_DATABASE_CA_B64}
-      AI_INTERNAL_MTLS_CA_B64: ${AI_INTERNAL_MTLS_CA_B64}
-      AI_INTERNAL_MTLS_CERT_B64: ${AI_ADMISSION_INTERNAL_MTLS_CERT_B64}
-      AI_INTERNAL_MTLS_KEY_B64: ${AI_ADMISSION_INTERNAL_MTLS_KEY_B64}
-      AI_REQUEST_BINDING_HMAC_KEYS: ${AI_REQUEST_BINDING_HMAC_KEYS}
-      AI_REQUEST_BINDING_KEYRING_GENERATION: '1'
-      AI_ADMISSION_ED25519_PRIVATE_KEY_B64: ${AI_ADMISSION_ED25519_PRIVATE_KEY_B64}
-      AI_ADMISSION_ED25519_KID: ${AI_ADMISSION_ED25519_KID}
-      AI_ADMISSION_KEYRING_GENERATION: '1'
-      AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION: private-beta-global-v1
-      AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST: ${AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST}
-      AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST: ${AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST}
-      RELEASE_SHA: ${SOURCE_REVISION}
-    expose:
-      - '8443'
-    init: true
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=8m
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    restart: 'no'
-    networks:
-      ai-admission-control:
-        aliases:
-          - ai-execution-admission.railway.internal
-      admission-data:
-    healthcheck:
-      test:
-        [
-          CMD,
-          node,
-          -e,
-          "fetch('http://[::1]:8080/health/ready').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 2s
-      timeout: 3s
-      retries: 30
-    depends_on:
-      ai-admission-role:
-        condition: service_completed_successfully
-
-  ai-egress-gateway:
-    profiles: [backend]
-    image: repkey-local-ai-egress-gateway:${SOURCE_REVISION}
-    build:
-      context: .
-      dockerfile: Dockerfile.ai-egress-gateway
-      target: local-provider
-      args:
-        SOURCE_REVISION: ${SOURCE_REVISION}
-    command: [node, dist-ai-egress-gateway-local/local-provider-entry.js]
-    environment:
-      NODE_ENV: production
-      AI_KEY_INVENTORY_PROFILE: ${AI_KEY_INVENTORY_PROFILE}
-      HOST: '::'
-      PORT: '8080'
-      INTERNAL_MTLS_PORT: '8443'
-      PROCESSING_CELL: us
-      RELEASE_SHA: ${SOURCE_REVISION}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-local-ai-provider-stub-not-live}
-      AI_EXECUTION_ADMISSION_ORIGIN: https://ai-execution-admission.railway.internal:8443
-      AI_INTERNAL_MTLS_CA_B64: ${AI_INTERNAL_MTLS_CA_B64}
-      AI_INTERNAL_MTLS_CERT_B64: ${AI_GATEWAY_INTERNAL_MTLS_CERT_B64}
-      AI_INTERNAL_MTLS_KEY_B64: ${AI_GATEWAY_INTERNAL_MTLS_KEY_B64}
-      AI_REQUEST_BINDING_HMAC_KEYS: ${AI_REQUEST_BINDING_HMAC_KEYS}
-      AI_REQUEST_BINDING_KEYRING_GENERATION: '1'
-      AI_SAFETY_IDENTIFIER_HMAC_KEYS: ${AI_SAFETY_IDENTIFIER_HMAC_KEYS}
-      AI_SAFETY_IDENTIFIER_KEYRING_GENERATION: '1'
-      AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: ${AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON}
-      AI_ADMISSION_KEYRING_GENERATION: '1'
-      AI_PROVENANCE_ED25519_PRIVATE_KEY_B64: ${AI_PROVENANCE_ED25519_PRIVATE_KEY_B64}
-      AI_PROVENANCE_ED25519_KID: ${AI_PROVENANCE_ED25519_KID}
-      AI_PROVENANCE_KEYRING_GENERATION: '1'
-      AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION: private-beta-global-v1
-      AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST: ${AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST}
-      AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST: ${AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST}
-      AI_GATEWAY_BUILD_ATTESTATION_DIGEST: ${AI_GATEWAY_BUILD_ATTESTATION_DIGEST}
-    expose:
-      - '8443'
-    init: true
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=8m
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    restart: 'no'
-    networks:
-      - ai-gateway-ingress
-      - ai-admission-control
-      - ai-provider-egress
-    healthcheck:
-      test:
-        [
-          CMD,
-          node,
-          -e,
-          "fetch('http://[::1]:8080/health/ready').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 2s
-      timeout: 3s
-      retries: 30
-    depends_on:
-      ai-execution-admission:
-        condition: service_healthy
-      ai-provider-stub:
-        condition: service_healthy
   seed:
     profiles: [backend]
     <<: [*local-tools-image, *app-runtime]
@@ -616,7 +455,7 @@ services:
     profiles: [frontend]
     <<: [*web-image, *app-runtime]
     environment:
-      <<: *app-environment
+      <<: [*app-environment, *ai-runtime-environment]
       BETTER_AUTH_URL: http://127.0.0.1:3000
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: '3000'
@@ -646,21 +485,13 @@ services:
       GOOGLE_EGRESS_GATEWAY_IDENTITY: ${GOOGLE_EGRESS_GATEWAY_IDENTITY}
       GOOGLE_ADMISSION_GRANT_HMAC_KEYS: ${GOOGLE_ADMISSION_GRANT_HMAC_KEYS}
       GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: ${GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS}
-      AI_EGRESS_GATEWAY_ORIGIN: https://ai-egress-gateway:8443
-      AI_EGRESS_GATEWAY_SERVER_NAME: ai-egress-gateway
-      AI_INTERNAL_MTLS_CA_B64: ${AI_INTERNAL_MTLS_CA_B64}
-      AI_INTERNAL_MTLS_CERT_B64: ${AI_WEB_INTERNAL_MTLS_CERT_B64}
-      AI_INTERNAL_MTLS_KEY_B64: ${AI_WEB_INTERNAL_MTLS_KEY_B64}
-      AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: ${AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON}
-      AI_KEY_INVENTORY_PROFILE: ${AI_KEY_INVENTORY_PROFILE}
-      AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON: ${AI_PROVENANCE_ED25519_PUBLIC_KEYS_JSON}
     volumes:
       - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/provider-ca.crt:ro
     networks:
       - app
       - provider-ephemeral
       - provider-egress
-      - ai-gateway-ingress
+      - ai-provider-egress
     ports:
       - 127.0.0.1:3000:3000
     healthcheck:
@@ -687,20 +518,24 @@ services:
         condition: service_healthy
       mail-stub:
         condition: service_healthy
-      ai-egress-gateway:
+      ai-provider-stub:
         condition: service_healthy
 
   web-locked:
     profiles: [frontend]
     <<: [*web-image, *app-runtime]
     environment:
-      <<: *app-environment
+      <<: [*app-environment, *ai-runtime-environment]
       BETTER_AUTH_URL: http://127.0.0.1:3001
       NITRO_HOST: 0.0.0.0
       NITRO_PORT: '3000'
       BETA_E2E_GLOBAL_CAPABILITIES: ''
       BETA_E2E_EXECUTION_IDENTITY: ''
       BETA_CAPABILITIES_OFF: ${E2E_WEB_CAPABILITY_OVERRIDE}
+    networks:
+      - app
+      - provider-ephemeral
+      - ai-provider-egress
     ports:
       - 127.0.0.1:3001:3000
     healthcheck:
@@ -727,6 +562,8 @@ services:
         condition: service_healthy
       mail-stub:
         condition: service_healthy
+      ai-provider-stub:
+        condition: service_healthy
 
   worker:
     profiles: [backend]
@@ -747,7 +584,7 @@ services:
         'dist-worker/index.js',
       ]
     environment:
-      <<: *app-environment
+      <<: [*app-environment, *ai-runtime-environment]
       # The worker never CONNECTS to this origin — it reads it as `appBaseUrl`
       # to build the links inside digest and urgent emails (see
       # digest-notification.job.ts / urgent-email.job.ts). So it must be the
@@ -762,13 +599,6 @@ services:
       GOOGLE_ADMISSION_GRANT_HMAC_KEYS: ${GOOGLE_ADMISSION_GRANT_HMAC_KEYS}
       GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: ${GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS}
       REVIEW_PROVIDER_SUBJECT_HMAC_KEYS: ${REVIEW_PROVIDER_SUBJECT_HMAC_KEYS}
-      AI_EGRESS_GATEWAY_ORIGIN: https://ai-egress-gateway:8443
-      AI_EGRESS_GATEWAY_SERVER_NAME: ai-egress-gateway
-      AI_INTERNAL_MTLS_CA_B64: ${AI_INTERNAL_MTLS_CA_B64}
-      AI_INTERNAL_MTLS_CERT_B64: ${AI_WORKER_INTERNAL_MTLS_CERT_B64}
-      AI_INTERNAL_MTLS_KEY_B64: ${AI_WORKER_INTERNAL_MTLS_KEY_B64}
-      AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: ${AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON}
-      AI_KEY_INVENTORY_PROFILE: ${AI_KEY_INVENTORY_PROFILE}
       AI_SUBJECT_HMAC_KEYS: ${AI_SUBJECT_HMAC_KEYS}
     volumes:
       - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/provider-ca.crt:ro
@@ -776,7 +606,7 @@ services:
       - app
       - provider-ephemeral
       - provider-egress
-      - ai-gateway-ingress
+      - ai-provider-egress
     healthcheck:
       test:
         [CMD, node, -e, 'try{process.kill(1,0);process.exit(0)}catch{process.exit(1)}']
@@ -796,7 +626,7 @@ services:
         condition: service_healthy
       mail-stub:
         condition: service_healthy
-      ai-egress-gateway:
+      ai-provider-stub:
         condition: service_healthy
     <<: *app-runtime
 
@@ -810,7 +640,7 @@ services:
         SOURCE_REVISION: ${SOURCE_REVISION}
     command: [sleep, infinity]
     environment:
-      <<: *app-environment
+      <<: [*app-environment, *ai-runtime-environment]
       # Same reason as the worker: BETTER_AUTH_URL is a link-building origin and
       # must be recipient-openable. E2E_BASE_URL is different — that IS a dial
       # target, so it keeps the in-network service name.
@@ -824,10 +654,13 @@ services:
       - app
       - provider-ephemeral
       - provider-egress
+      - ai-provider-egress
     depends_on:
       web:
         condition: service_healthy
       worker:
+        condition: service_healthy
+      ai-provider-stub:
         condition: service_healthy
     <<: *app-runtime
 
@@ -844,10 +677,6 @@ networks:
     internal: true
   provider-egress:
     internal: true
-  ai-gateway-ingress:
-    internal: true
-  ai-admission-control:
-    internal: true
   ai-provider-egress:
     internal: true
 
@@ -856,4 +685,3 @@ volumes:
   redis-data:
   queue-redis-data:
   object-store-data:
-  postgres-tls:

@@ -26,30 +26,30 @@ exit / failed action) and therefore blocks the PR. There is no
 | Lockfile integrity                       | every job that installs                                            | `pnpm install --frozen-lockfile` (ci.yml, simulation.yml, Dockerfiles)   | install fails on lockfile/manifest drift                                                                        | —                                                |
 | Pinned actions/images                    | `check` job, step "Action/image pin policy"                        | `pnpm check:action-pins` → `scripts/check-action-pins.mjs`               | any `uses:` not full-SHA + `# v…` comment; any `image:` not digest-pinned                                       | Step log                                         |
 | SBOM — source                            | `check` job, steps "Generate SBOM" + "Upload SBOM"                 | `anchore/sbom-action` (SPDX-JSON, source scope) — BQC-7.1                | generation failure                                                                                              | `sbom-spdx` artifact, 30d                        |
-| SBOM — images                            | three-row `docker-images` matrix + `docker` aggregate              | pinned Syft CLI (`image:`, SPDX-JSON; one inventory/image)               | generation failure                                                                                              | merged `sbom-images-spdx` artifact, 30d          |
+| SBOM — images                            | two-row `docker-images` matrix + `docker` aggregate                | pinned Syft CLI (`image:`, SPDX-JSON; one inventory/image)               | generation failure                                                                                              | merged `sbom-images-spdx` artifact, 30d          |
 | Container/image + artifact-content scan  | `docker-images` matrix, step "Vulnerability scan grouped images"   | pinned Grype CLI (`sbom:`, `.grype.yaml`, hard fail)                     | **high+critical** (`--fail-on high`)                                                                            | per-group SARIF files; step log table            |
 | Production dependency/prune verification | `docker-images` matrix, step "Smoke images"                        | per-image inline shell inside each bounded group                         | any runtime-contract failure or sentinel devDependency in `/app/node_modules`                                   | Step log                                         |
 | Migration artifact consistency           | `check` job, steps "Predeploy migration parity" + "Schema drift …" | `pnpm db:migrate-deploy` (BQC-7.1) + `pnpm check:schema-drift`           | parity divergence / model↔catalog drift                                                                         | Step log                                         |
 
-**Artifact-content scanning — interpretation:** each classified image is the
-artifact that actually runs. The promoted web image contains `.output` plus
-`dist-worker`; the worker and sidecar images contain their named bundles; the
+**Artifact-content scanning — interpretation:** each classified descriptor is
+an artifact that actually runs or supports acceptance. The promoted web and
+worker descriptors build the same application content (`.output` plus
+`dist-worker`), while provider Redis carries its hardened upstream runtime. The
 CI-only sandbox and performance runner contain only their prebuilt support
-bundles and required runtime dependencies. Scanning all ten images with grype
-therefore is the artifact-content scan: OS packages, bundles, and the production
-`node_modules` that ship. The source-tree SBOM plus the ten image SBOMs cover
-both sides of the build without treating non-promoted tools as production.
+bundles and required runtime dependencies. Scanning all five images with Grype
+therefore covers the shipped OS packages, bundles, and production
+`node_modules`. The source-tree SBOM plus the five image SBOMs cover both sides
+of the build without treating non-promoted tools as production.
 
-The matrix uses three measured groups (three, three, and four images) rather
-than one runner per image. Web and worker remain in separate groups. Every
-descriptor is still built, smoked, inventoried, and scanned independently, and
-Buildx reads and writes a per-image GHA cache scope (`ci-image-<name>`) so
-layers can never cross image contracts. The seven continuously deployed
-production runtimes first receive unique `ci-run-<run>-<attempt>` staging tags
-after their local Grype checks. Only the `docker` aggregate, after all three
-groups succeed and all seven digests validate, creates immutable source-SHA
-tags and the digest map. The rollout-only Google import compatibility image
-remains governed by the release workflow; sandbox and performance stay CI-only.
+The matrix uses two measured groups (two and three images) rather than one
+runner per image. Web and worker remain in separate groups. Every descriptor is
+still built, smoked, inventoried, and scanned independently, and Buildx reads
+and writes a per-image GHA cache scope (`ci-image-<name>`) so layers can never
+cross image contracts. The three promoted descriptors first receive unique
+`ci-run-<run>-<attempt>` staging tags after their local Grype checks. Only the
+`docker` aggregate, after both groups succeed and all three digests validate,
+creates immutable source-SHA tags and the digest map; sandbox and performance
+stay CI-only.
 
 ## Severity and exception policy
 

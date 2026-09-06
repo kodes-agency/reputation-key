@@ -29,24 +29,6 @@
       "purpose": "Disposable, policy-constrained provider-control Redis runtime."
     },
     {
-      "id": "ai-execution-admission",
-      "dockerfile": "Dockerfile.ai-execution-admission",
-      "ciImage": "repkey-ai-execution-admission:ci",
-      "classification": "production-runtime",
-      "promotion": "release-candidate",
-      "releaseRole": "aiExecutionAdmission",
-      "purpose": "Production AI execution-admission sidecar."
-    },
-    {
-      "id": "ai-egress-gateway",
-      "dockerfile": "Dockerfile.ai-egress-gateway",
-      "ciImage": "repkey-ai-egress-gateway:ci",
-      "classification": "production-runtime",
-      "promotion": "release-candidate",
-      "releaseRole": "aiEgressGateway",
-      "purpose": "Production AI egress-policy gateway and runtime probe bundle."
-    },
-    {
       "id": "provider-sandbox",
       "dockerfile": "Dockerfile.sandbox",
       "ciImage": "repkey-provider-sandbox:ci",

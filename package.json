@@ -16,8 +16,6 @@
     "build": "vite build && tsup --config tsup.web-observability.config.ts",
     "build:worker": "tsup",
     "build:local-tools": "tsup --config tsup.local-tools.config.ts",
-    "build:ai-execution-admission": "tsup --config tsup.ai-execution-admission.config.ts",
-    "build:ai-egress-gateway": "tsup --config tsup.ai-egress-gateway.config.ts",
     "preview": "vite preview",
     "clean": "rm -rf .output dist dist-worker dist-local-tools dist-provider-services storybook-static coverage test-results",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json --noEmit && pnpm check:typescript-project-coverage",

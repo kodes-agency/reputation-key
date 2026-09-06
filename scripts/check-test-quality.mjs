@@ -89,10 +89,9 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-// The runtime triple asserted at image build (Dockerfile:61,105;
-// Dockerfile.ai-egress-gateway:11,31; Dockerfile.ai-execution-admission:12,28)
-// and installed by every ci.yml job (`node-version: 22.23.2`). The fenced
-// AI-language suites execute on this runtime and only on this runtime.
+// The runtime triple is asserted in both the build and final stages of the
+// application Dockerfile and installed by every ci.yml job (`node-version:
+// 22.23.2`). The fenced AI-language suites execute only on this runtime.
 const PINNED_RUNTIME = { node: '22.23.2', icu: '78.2', unicode: '17.0' }
 const RUNTIME_DRIFT = Object.entries(PINNED_RUNTIME)
   .filter(([key, want]) => process.versions[key] !== want)

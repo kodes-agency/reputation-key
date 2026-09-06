@@ -476,35 +476,21 @@ export type AiGatewayFailure =
   | z.infer<typeof replyErrorSchema>
   | z.infer<typeof trendErrorSchema>
 
-export const AI_GATEWAY_PATHS_V1 = Object.freeze(
-  Object.fromEntries(
-    AI_RUNTIME_CAPABILITIES_V1.map((entry) => [entry.sourceRoute, entry.gatewayPath]),
-  ) as Readonly<Record<AiGatewayRouteRequestV1['route'], string>>,
-)
-
-const PEER_CALLERS = Object.freeze({
-  'spiffe://repkey.internal/repkey-web': 'web',
-  'spiffe://repkey.internal/repkey-worker': 'worker',
-} as const)
-
-export type AiGatewayCaller = (typeof PEER_CALLERS)[keyof typeof PEER_CALLERS]
-
-export function assertAiGatewayPeerRoute(
-  route: AiGatewayRouteRequestV1['route'],
-  peerIdentity: string | null,
-): AiGatewayCaller {
-  const caller =
-    peerIdentity === null
-      ? undefined
-      : PEER_CALLERS[peerIdentity as keyof typeof PEER_CALLERS]
-  const entry = AI_RUNTIME_CAPABILITIES_V1.find(
-    (candidate) => candidate.sourceRoute === route,
-  )
-  if (caller === undefined || entry === undefined || entry.caller !== caller) {
-    throw new TypeError('AI gateway peer identity is not authorized for route')
-  }
-  return caller
-}
+/**
+ * Which process may invoke which route.
+ *
+ * This used to be derived from a map of SPIFFE peer identities, because the
+ * caller arrived as an mTLS client certificate and `assertAiGatewayPeerRoute`
+ * turned that certificate into a caller before authorizing the route. WP2.3
+ * collapsed the gateway into the calling process, so there is no peer to
+ * identify and no certificate to map — the caller is simply which process this
+ * is. The route authorization itself did not go with it: it still runs, against
+ * `AI_RUNTIME_CAPABILITIES_V1`, in `ai-inprocess.adapter.ts`.
+ *
+ * `AI_GATEWAY_PATHS_V1` went at the same time. It mapped each route to the URL
+ * path the sidecar served it on, and nothing serves URLs any more.
+ */
+export type AiGatewayCaller = 'web' | 'worker'
 
 export function parseAiGatewayRouteRequest(value: unknown): AiGatewayRouteRequestV1 {
   return aiGatewayRouteRequestSchema.parse(value)

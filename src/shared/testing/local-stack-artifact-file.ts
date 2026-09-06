@@ -3,8 +3,7 @@ import { closeSync, constants, fstatSync, openSync, readFileSync } from 'node:fs
 // Stat the descriptor, not the path. The local stack controller used to check a
 // path with `existsSync` and then read it, which inspects one inode and reads
 // another if the path is swapped in between — the artifact root holds generated
-// Ed25519 keys, HMAC keys and mTLS material, so that swap hands the stack key
-// bytes it never inspected. Opening once and reading the open descriptor makes
+// Ed25519, HMAC and TLS private-key material, so that swap hands the stack key
 // the inspected object and the read object the same object by construction.
 //
 // O_NONBLOCK is what keeps that safe: the `isFile()` guard can only run AFTER

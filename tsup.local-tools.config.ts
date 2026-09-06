@@ -6,7 +6,6 @@ export default defineConfig({
   entry: {
     'control-proxy': 'scripts/local-stack/control-proxy.ts',
     'seed-e2e-user': 'scripts/seed-e2e-user.ts',
-    'provision-ai-admission-role': 'scripts/local-stack/provision-ai-admission-role.ts',
     'provision-google-admission-role': 'scripts/ops/provision-google-admission-role.ts',
     'tcp-relay': 'scripts/local-stack/tcp-relay.ts',
   },

@@ -77,45 +77,6 @@ context's public application interface instead.
 
 <!-- shared-root-category-ownership:end -->
 
-## Trust-boundary sidecar kernel
-
-`services/**` are separately deployed processes that sit _outside_ the
-application's trust boundary. They live in this repository for build and
-version reasons only; `src/shared/` is not a package they inherit. The list
-below is the entire shared surface a sidecar may link. It is enforced three
-ways, and all three are asserted equal by
-`services/sidecar-entrypoint-wiring.test.ts`:
-
-1. the `shared-provider-kernel` file category in `eslint.config.js`, which is
-   the only `shared/` target the `service` element is allowed to import;
-2. this table;
-3. the static import walk in that test, which also covers files a linter rule
-   would miss if the element pattern ever stopped matching.
-
-A trailing `-` marks a root file family and a trailing `/` a directory;
-every other entry is one exact module.
-
-<!-- sidecar-shared-kernel:start -->
-
-| Kernel entry                                 | Why a process outside the boundary may link it                         |
-| -------------------------------------------- | ---------------------------------------------------------------------- |
-| `src/shared/ai-`                             | Versioned AI transport, redaction, language and capability contracts.  |
-| `src/shared/closed-json-contract`            | Bounded plain-JSON validation for digest-pinned contract construction. |
-| `src/shared/merchant-ai-`                    | Merchant AI notice and capability-disclosure contracts.                |
-| `src/shared/observability/telemetry`         | Capture/redaction TYPES only. The AI pair may not link the client.     |
-| `src/shared/openai-`                         | Exact OpenAI request/output vocabulary enforced at the wire.           |
-| `src/shared/security/versioned-hmac-keyring` | Versioned keyring primitives for internal transport authentication.    |
-
-<!-- sidecar-shared-kernel:end -->
-
-Everything else is deliberately absent. In particular `db/`, `auth/`, `jobs/`,
-`events/`, `cache/`, `outbox/` and `rate-limit/` are application-runtime
-surfaces: a sidecar that can open the application database, construct the
-better-auth kernel or enqueue a job is not a sidecar, it is a second copy of
-the application with no request authentication in front of it. Adding an entry
-here is a trust-boundary change and needs the owning area's review, not just a
-green lint.
-
 ## What goes here
 
 Shared code is **used by 2+ modules** across the codebase. If only one context uses it, it belongs in that context. Wait for the second importer before extracting to shared.

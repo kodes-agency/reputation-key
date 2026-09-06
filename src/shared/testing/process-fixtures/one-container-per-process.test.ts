@@ -18,7 +18,6 @@ import { parseBootReport, type BootReport } from './boot-report'
 const FIXTURES = {
   web: 'src/shared/testing/process-fixtures/web-process.fixture.ts',
   worker: 'src/shared/testing/process-fixtures/worker-process.fixture.ts',
-  sidecar: 'src/shared/testing/process-fixtures/sidecar-process.fixture.ts',
   simulation: 'src/shared/testing/process-fixtures/simulation-process.fixture.ts',
 } as const
 
@@ -100,23 +99,6 @@ describe('one Application Container per process', () => {
         'delayedExecutionPolicy',
         'executionPolicy',
       ])
-    },
-    SPAWN_TIMEOUT_MS,
-  )
-
-  it(
-    'boots one composition unit in a sidecar, with no database or queue handle',
-    () => {
-      const report = bootReport(FIXTURES.sidecar)
-
-      expect(report.deployable).toBe('sidecar')
-      expect(report.containerBoots).toBe(1)
-      expect(report.openHandleNames).not.toContain('database')
-      expect(report.openHandleNames).not.toContain('database-pool')
-      expect(report.openHandleNames).not.toContain('job-queue')
-      expect(report.openHandleNames).not.toContain('background-queue')
-      expect(report.jobNames).toHaveLength(0)
-      expect(report.consumerNames).toHaveLength(0)
     },
     SPAWN_TIMEOUT_MS,
   )

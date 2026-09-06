@@ -38,8 +38,6 @@ export const CI_PRODUCTION_IMAGE_NAMES = Object.freeze([
   'web',
   'worker',
   'google-provider-redis',
-  'ai-egress-gateway',
-  'ai-execution-admission',
 ] as const)
 
 export type CiProductionImageName = (typeof CI_PRODUCTION_IMAGE_NAMES)[number]
@@ -101,35 +99,20 @@ const WEB_HEALTH_URLS = Object.freeze([
   'https://web-google-closed-beta.up.railway.app/api/health/started',
 ] as const)
 
-/** The four GitHub-backed services deploy from immutable CI digests. This
- * command writes `RELEASE_SHA` before connecting each source because the AI
- * gateway requires it at boot and runtime health evidence must identify the
- * exact revision.
- *
- * The provider Redis stays out. It runs upstream `redis:7` by digest, so
- * repointing it is not a source change but a substitution of the live queue
+/** Provider Redis stays out by default. It runs upstream `redis:7` by digest,
+ * so repointing it is not a source change but a substitution of the live queue
  * and cache substrate with an image that has never been deployed. It is also
  * ordered LAST so a substrate failure cannot precede the services that depend
  * on it. */
-const GITHUB_BACKED_IMAGE_SERVICES = Object.freeze([
-  {
-    imageName: 'ai-execution-admission',
-    serviceName: 'ai-execution-admission',
-    serviceId: 'b37bf32a-6d64-4f8b-92af-c03695a1907f',
-  },
-  {
-    imageName: 'ai-egress-gateway',
-    serviceName: 'ai-egress-gateway',
-    serviceId: '24c15645-70ed-4144-8e5a-fee2cfdf51c7',
-  },
-] as const)
-
 const PROVIDER_REDIS_IMAGE_SERVICE = Object.freeze({
   imageName: 'google-provider-redis',
   serviceName: 'google-provider-redis',
   serviceId: '91935481-1aae-4dcd-b0f2-a84b0b3b34f3',
 })
 
+/** The application image is deployed to the two GitHub-backed services under
+ * immutable CI digests. This command writes `RELEASE_SHA` before connecting
+ * each source so runtime health evidence identifies the exact revision. */
 export const CLOSED_BETA_IMAGE_SERVICES = Object.freeze([
   {
     imageName: 'web',
@@ -141,7 +124,6 @@ export const CLOSED_BETA_IMAGE_SERVICES = Object.freeze([
     serviceName: 'worker',
     serviceId: 'a667f978-ee3e-4707-9d38-7c23a4f2e4cc',
   },
-  ...GITHUB_BACKED_IMAGE_SERVICES,
 ] as const satisfies ReadonlyArray<
   Readonly<{
     imageName: CiProductionImageName
@@ -299,7 +281,7 @@ function assertExactCiImageDigestNames(rawImages: JsonRecord): void {
       unexpected.length > 0 ? `unexpected ${unexpected.join(', ')}` : '',
     ].filter(Boolean)
     throw new Error(
-      `CI image digest map must contain exactly five production images: ${details}`,
+      `CI image digest map must contain exactly three production images: ${details}`,
     )
   }
 }
@@ -853,20 +835,15 @@ async function waitForWebHealth(out: (line: string) => void): Promise<void> {
 }
 
 /** An image source receives no Railway git metadata, so nothing supplies
- * `RELEASE_SHA`. The AI gateway requires it unconditionally and refuses to
- * boot (`services/ai-egress-gateway/environment.ts:106`), while
- * `/api/health/metrics` reports `release.sha` as `unknown`.
+ * `RELEASE_SHA`. This command writes it before connecting each immutable image
+ * source so `/api/health/metrics` reports the exact revision.
  *
- * This command owns that identity explicitly: it writes `RELEASE_SHA` as a
- * Railway service variable before connecting each immutable image source for
- * `google-closed-beta`.
- *
- * `--skip-deploys` keeps this from starting its own deployment; the source
- * connect that follows is the single deploy, so the new container starts with
- * the identity already in place. Setting the value also makes
+ * `--skip-deploys` keeps the variable write from starting its own deployment;
+ * the source connect that follows is the single deploy, so the new container
+ * starts with the identity already in place. Setting the value also makes
  * `assertReleaseIdentity` (`src/shared/config/release-identity.ts:22-38`)
- * meaningful again instead of vacuous: it now compares a written identity
- * against the revision baked into the image, and a stale pin fails closed. */
+ * meaningful instead of vacuous: it compares a written identity against the
+ * revision baked into the image, and a stale pin fails closed. */
 function writeReleaseIdentity(
   service: ClosedBetaImageDeployment,
   runner: CommandRunner,

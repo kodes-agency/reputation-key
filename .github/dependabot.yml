@@ -46,22 +46,20 @@ updates:
         # backfill an issuer per provider, then set NOT NULL) plus the mirror
         # column — a data decision, not a version bump.
         #
-        # `openai` is an EXACT pin (no range) because its version is attested,
-        # not merely depended on. `7.4.0` appears in
+        # `openai` is an EXACT pin (no range) because its version is part of the
+        # provider request contract, not merely a dependency. `7.4.0` appears in
         # `OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1.sdkVersion`
         # (src/shared/ai-openai-provider-profile.ts), which the
-        # `ai_provider_profiles_contract_valid` CHECK constraint compares the
-        # stored `ai_provider_deployment_profiles.deployment_contract` JSONB
-        # against verbatim; in `AI_GATEWAY_BUILD_ATTESTATION_V1.sdk.version`,
-        # which feeds an RFC 8785 digest; and in the gateway's exact-header
-        # allowlist `expectedPinnedSdkHeaders`
-        # (services/ai-egress-gateway/openai-connector.ts), which refuses to
-        # dispatch unless the SDK's own `user-agent: OpenAI/JS <v>` and
-        # `x-stainless-package-version: <v>` match the attested version byte
-        # for byte. 7.5.0 therefore turns every egress into `no_dispatch`
-        # (PR #331), and landing it needs a new deployment-contract migration
-        # plus a re-run of the ZDR request-shape assessment — a governance
-        # decision, not a version bump.
+        # `ai_provider_profiles_contract_valid` CHECK constraint compares against
+        # the stored `ai_provider_deployment_profiles.deployment_contract` JSONB,
+        # and in the exact-header allowlist `expectedPinnedSdkHeaders`
+        # (src/shared/ai-provider-control/openai-connector.ts). Dispatch is
+        # refused unless the SDK's own `user-agent: OpenAI/JS <v>` and
+        # `x-stainless-package-version: <v>` match the attested version byte for
+        # byte. 7.5.0 therefore turns every egress into `no_dispatch` (PR #331),
+        # and landing it needs a new deployment-contract migration plus a re-run
+        # of the ZDR request-shape assessment — a governance decision, not a
+        # version bump.
         #
         # No pattern uses a wildcard, so `vite` matches only vite (vitest and
         # @vitejs/* stay grouped), `better-auth` only better-auth

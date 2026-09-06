@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   REG04_MONITORING_REQUIREMENTS,
   REG04_PLATFORM_SIGNALS,
-  REG04_SIDECAR_SERVICES,
 } from './regional-platform-signals'
 import { ALERT_DEFINITIONS } from './alert-definitions'
 import { BETA_DEPLOYMENT_DATA_CELL_IDS } from '#/shared/domain/data-cell-catalogue'
@@ -30,26 +29,9 @@ describe('REG-04 regional platform signal authority', () => {
         'cell-us.pitr.restore-range',
         'cell-us.pitr.wal-health',
         'cell-us.release.config-drift',
-        'cell-us.sidecar.ai-egress-gateway.readiness',
-        'cell-us.sidecar.ai-execution-admission.readiness',
         'cell-us.web.external-availability',
       ].sort(),
     )
-  })
-
-  it('requires independent post-boot readiness for every retained mTLS sidecar', () => {
-    const readiness = REG04_PLATFORM_SIGNALS.filter(
-      (signal) => signal.kind === 'sidecar_readiness',
-    )
-    expect(readiness.map((signal) => signal.service).sort()).toEqual(
-      [...REG04_SIDECAR_SERVICES].sort(),
-    )
-    for (const signal of readiness) {
-      expect(signal.source).toBe('external_synthetic')
-      expect(signal.path).toBe('/health/ready')
-      expect(signal.requiresDistinctNonMtlsPort).toBe(true)
-      expect(signal.evidence).toContain('post_boot_dependency_loss')
-    }
   })
 
   it('maps every program monitoring requirement to one implemented or external signal', () => {

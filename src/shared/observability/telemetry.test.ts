@@ -245,7 +245,7 @@ describe('error monitoring runtime', () => {
     stderr.mockRestore()
   })
 
-  it('retains the provider process-fatal integrations for the web process', () => {
+  it('retains the SDK process-fatal integrations for the web process', () => {
     const sentry = sdk()
     const monitor = createErrorMonitor({ sentry, logger: logger() })
     monitor.initialize({ ...baseConfig, service: 'web' })
@@ -262,40 +262,6 @@ describe('error monitoring runtime', () => {
       ]),
     ).toEqual([{ name: 'OnUncaughtException' }, { name: 'OnUnhandledRejection' }])
   })
-
-  it.each(['ai-execution-admission', 'ai-egress-gateway'] as const)(
-    'supports error monitoring for the %s process without competing fatal handlers',
-    (service) => {
-      const sentry = sdk()
-      const monitor = createErrorMonitor({ sentry, logger: logger() })
-
-      monitor.initialize({ ...baseConfig, service })
-      monitor.captureException(new Error('provider payload must not be logged'), {
-        source: 'sidecar-process',
-        trigger: 'uncaughtException',
-      })
-
-      const options = sentry.init.mock.calls[0]![0]
-      expect(options.serverName).toBe(`repkey-${service}`)
-      expect(
-        options.integrations([
-          { name: 'Http' },
-          { name: 'OnUncaughtException' },
-          { name: 'OnUnhandledRejection' },
-          { name: 'LocalVariablesAsync' },
-          { name: 'ContextLines' },
-          { name: 'Replay' },
-          { name: 'ReplayCanvas' },
-        ]),
-      ).toEqual([{ name: 'Http' }])
-      expect(sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
-        tags: {
-          runtime_source: 'sidecar-process',
-          termination_trigger: 'uncaughtException',
-        },
-      })
-    },
-  )
 
   it('is disabled without a DSN and never loads or captures data', async () => {
     const sentry = sdk()
@@ -444,7 +410,7 @@ describe('error monitoring runtime', () => {
       }),
     ).toThrow('US ingestion host')
     expect(
-      buildObservabilityConfig('ai-egress-gateway', {
+      buildObservabilityConfig('worker', {
         ...deployed,
         SENTRY_DSN: 'https://public@o1.ingest.us.sentry.io/1',
       }),
@@ -452,7 +418,7 @@ describe('error monitoring runtime', () => {
       environment: 'google-closed-beta',
       processingCell: 'us',
       release: 'b'.repeat(40),
-      service: 'ai-egress-gateway',
+      service: 'worker',
     })
   })
 

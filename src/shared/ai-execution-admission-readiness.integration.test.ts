@@ -1,7 +1,7 @@
 import { DEFAULT_TEST_DATABASE_URL } from './testing/test-environment'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
-import { createPostgresAiAdmissionAuthority } from '../../services/ai-execution-admission/postgres-admission-authority'
+import { createPostgresAiAdmissionAuthority } from '#/shared/ai-provider-control/postgres-admission-authority'
 
 let pool: Pool
 

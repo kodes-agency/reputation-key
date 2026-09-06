@@ -30,7 +30,6 @@ import {
   googleContentRoleSignaturePayload,
   type GoogleContentApprovalCandidate,
 } from '../../src/shared/auth/google-content-approval'
-import { AI_GATEWAY_BUILD_ATTESTATION_DIGEST } from '../../src/shared/ai-gateway-build-attestation'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
 import { AI_RUNTIME_CAPABILITIES_V1_DIGEST } from '../../src/shared/ai-runtime-capability-contract'
 import { selectProbeEvidence } from '#/shared/testing/probe-evidence'
@@ -62,8 +61,6 @@ const WORKER_READY_LINE = 'BullMQ worker started on default queue'
 const APP_SERVICES = [
   'provider-sandbox',
   'ai-provider-stub',
-  'ai-execution-admission',
-  'ai-egress-gateway',
   'mail-stub',
   'migrator',
   'seed',
@@ -371,335 +368,6 @@ function prepareProviderRedisAssets(state: StackPaths, providerPassword: string)
   chmodSync(tlsProfile, 0o644)
   for (const name of generatedAssets) chmodSync(asset(name), 0o644)
 }
-function prepareAiInternalMtlsAssets(state: StackPaths): void {
-  const specs = [
-    {
-      name: 'ai-execution-admission',
-      subjectAltNames: [
-        'DNS:ai-execution-admission',
-        'URI:spiffe://repkey.internal/ai-execution-admission',
-      ],
-      extendedKeyUsage: 'serverAuth',
-    },
-    {
-      name: 'ai-egress-gateway',
-      subjectAltNames: [
-        'DNS:ai-egress-gateway',
-        'URI:spiffe://repkey.internal/ai-egress-gateway',
-      ],
-      extendedKeyUsage: 'serverAuth,clientAuth',
-    },
-    {
-      name: 'repkey-web',
-      subjectAltNames: ['URI:spiffe://repkey.internal/repkey-web'],
-      extendedKeyUsage: 'clientAuth',
-    },
-    {
-      name: 'repkey-worker',
-      subjectAltNames: ['URI:spiffe://repkey.internal/repkey-worker'],
-      extendedKeyUsage: 'clientAuth',
-    },
-  ] as const
-  mkdirSync(state.aiRuntime, { recursive: true, mode: 0o700 })
-  chmodSync(state.aiRuntime, 0o700)
-  const asset = (name: string) => resolve(state.aiRuntime, name)
-  const caCertificate = asset('ca.crt')
-  const expected = specs.flatMap(({ name }) => [`${name}.crt`, `${name}.key`])
-  if (!existsSync(caCertificate) || expected.some((name) => !existsSync(asset(name)))) {
-    for (const name of [
-      'ca.crt',
-      'ca.key',
-      'ca.srl',
-      ...specs.flatMap(({ name }) => [
-        `${name}.crt`,
-        `${name}.csr`,
-        `${name}.key`,
-        `${name}.ext`,
-      ]),
-    ]) {
-      rmSync(asset(name), { force: true })
-    }
-    run(
-      'openssl',
-      [
-        'req',
-        '-x509',
-        '-newkey',
-        'rsa:2048',
-        '-nodes',
-        '-keyout',
-        asset('ca.key'),
-        '-out',
-        caCertificate,
-        '-subj',
-        '/CN=repkey-local-ai-internal-ca',
-        '-days',
-        '30',
-      ],
-      { capture: true },
-    )
-    for (const spec of specs) {
-      run(
-        'openssl',
-        [
-          'req',
-          '-newkey',
-          'rsa:2048',
-          '-nodes',
-          '-keyout',
-          asset(`${spec.name}.key`),
-          '-out',
-          asset(`${spec.name}.csr`),
-          '-subj',
-          `/CN=${spec.name}`,
-        ],
-        { capture: true },
-      )
-      writeFileSync(
-        asset(`${spec.name}.ext`),
-        [
-          `subjectAltName=${spec.subjectAltNames.join(',')}`,
-          `extendedKeyUsage=${spec.extendedKeyUsage}`,
-          '',
-        ].join('\n'),
-        { mode: 0o600 },
-      )
-      run(
-        'openssl',
-        [
-          'x509',
-          '-req',
-          '-in',
-          asset(`${spec.name}.csr`),
-          '-CA',
-          caCertificate,
-          '-CAkey',
-          asset('ca.key'),
-          '-CAcreateserial',
-          '-out',
-          asset(`${spec.name}.crt`),
-          '-days',
-          '30',
-          '-sha256',
-          '-extfile',
-          asset(`${spec.name}.ext`),
-        ],
-        { capture: true },
-      )
-    }
-    for (const name of [
-      'ca.key',
-      'ca.srl',
-      ...specs.flatMap(({ name }) => [`${name}.csr`, `${name}.ext`]),
-    ]) {
-      rmSync(asset(name), { force: true })
-    }
-  }
-  chmodSync(caCertificate, 0o644)
-  for (const { name } of specs) {
-    chmodSync(asset(`${name}.crt`), 0o644)
-    chmodSync(asset(`${name}.key`), 0o600)
-  }
-  const providerCaCertificate = asset('provider-ca.crt')
-  const providerCertificate = asset('ai-provider-stub.crt')
-  const providerKey = asset('ai-provider-stub.key')
-  if (
-    !existsSync(providerCaCertificate) ||
-    !existsSync(providerCertificate) ||
-    !existsSync(providerKey)
-  ) {
-    for (const name of [
-      'provider-ca.crt',
-      'provider-ca.key',
-      'provider-ca.srl',
-      'ai-provider-stub.crt',
-      'ai-provider-stub.csr',
-      'ai-provider-stub.key',
-      'ai-provider-stub.ext',
-    ]) {
-      rmSync(asset(name), { force: true })
-    }
-    run(
-      'openssl',
-      [
-        'req',
-        '-x509',
-        '-newkey',
-        'rsa:2048',
-        '-nodes',
-        '-keyout',
-        asset('provider-ca.key'),
-        '-out',
-        providerCaCertificate,
-        '-subj',
-        '/CN=repkey-local-ai-provider-ca',
-        '-days',
-        '30',
-      ],
-      { capture: true },
-    )
-    run(
-      'openssl',
-      [
-        'req',
-        '-newkey',
-        'rsa:2048',
-        '-nodes',
-        '-keyout',
-        providerKey,
-        '-out',
-        asset('ai-provider-stub.csr'),
-        '-subj',
-        '/CN=ai-provider-stub',
-      ],
-      { capture: true },
-    )
-    writeFileSync(
-      asset('ai-provider-stub.ext'),
-      'subjectAltName=DNS:ai-provider-stub\nextendedKeyUsage=serverAuth\n',
-      { mode: 0o600 },
-    )
-    run(
-      'openssl',
-      [
-        'x509',
-        '-req',
-        '-in',
-        asset('ai-provider-stub.csr'),
-        '-CA',
-        providerCaCertificate,
-        '-CAkey',
-        asset('provider-ca.key'),
-        '-CAcreateserial',
-        '-out',
-        providerCertificate,
-        '-days',
-        '30',
-        '-sha256',
-        '-extfile',
-        asset('ai-provider-stub.ext'),
-      ],
-      { capture: true },
-    )
-    for (const name of [
-      'provider-ca.key',
-      'provider-ca.srl',
-      'ai-provider-stub.csr',
-      'ai-provider-stub.ext',
-    ]) {
-      rmSync(asset(name), { force: true })
-    }
-  }
-  chmodSync(providerCaCertificate, 0o644)
-  chmodSync(providerCertificate, 0o644)
-  chmodSync(providerKey, 0o600)
-}
-
-function prepareAiControlDatabaseTlsAssets(state: StackPaths): void {
-  const asset = (name: string) => resolve(state.aiRuntime, name)
-  const caCertificate = asset('control-db-ca.crt')
-  const serverCertificate = asset('control-db-server.crt')
-  const serverKey = asset('control-db-server.key')
-  const tlsProfile = asset('control-database-tls-v2')
-  if (
-    !existsSync(caCertificate) ||
-    !existsSync(serverCertificate) ||
-    !existsSync(serverKey) ||
-    !existsSync(tlsProfile)
-  ) {
-    for (const name of [
-      'control-db-ca.crt',
-      'control-db-ca.key',
-      'control-db-ca.srl',
-      'control-db-server.crt',
-      'control-db-server.csr',
-      'control-db-server.key',
-      'control-db-server.ext',
-      'control-database-tls-v2',
-    ]) {
-      rmSync(asset(name), { force: true })
-    }
-    run(
-      'openssl',
-      [
-        'req',
-        '-x509',
-        '-newkey',
-        'rsa:2048',
-        '-nodes',
-        '-keyout',
-        asset('control-db-ca.key'),
-        '-out',
-        caCertificate,
-        '-subj',
-        '/CN=repkey-local-ai-control-database-ca',
-        '-days',
-        '30',
-      ],
-      { capture: true },
-    )
-    run(
-      'openssl',
-      [
-        'req',
-        '-newkey',
-        'rsa:2048',
-        '-nodes',
-        '-keyout',
-        serverKey,
-        '-out',
-        asset('control-db-server.csr'),
-        '-subj',
-        '/CN=ai-control-postgres',
-      ],
-      { capture: true },
-    )
-    writeFileSync(
-      asset('control-db-server.ext'),
-      [
-        'subjectAltName=DNS:ai-control-postgres,DNS:postgres',
-        'extendedKeyUsage=serverAuth',
-        '',
-      ].join('\n'),
-      { mode: 0o600 },
-    )
-    run(
-      'openssl',
-      [
-        'x509',
-        '-req',
-        '-in',
-        asset('control-db-server.csr'),
-        '-CA',
-        caCertificate,
-        '-CAkey',
-        asset('control-db-ca.key'),
-        '-CAcreateserial',
-        '-out',
-        serverCertificate,
-        '-days',
-        '30',
-        '-sha256',
-        '-extfile',
-        asset('control-db-server.ext'),
-      ],
-      { capture: true },
-    )
-    for (const name of [
-      'control-db-ca.key',
-      'control-db-ca.srl',
-      'control-db-server.csr',
-      'control-db-server.ext',
-    ]) {
-      rmSync(asset(name), { force: true })
-    }
-    writeFileSync(tlsProfile, 'control-database-tls-v2\n', { mode: 0o644 })
-  }
-  chmodSync(caCertificate, 0o644)
-  chmodSync(serverCertificate, 0o644)
-  chmodSync(serverKey, 0o640)
-  chmodSync(tlsProfile, 0o644)
-}
 
 type LocalApprovalRoleKeys = Readonly<
   Record<GoogleContentApprovalRole, Readonly<{ publicKey: string; privateKey: string }>>
@@ -879,7 +547,10 @@ function buildLocalGoogleContentApprovalEnv(
     GOOGLE_CONTENT_LOCAL_APPROVAL_BUNDLES_JSON: JSON.stringify(bundles),
   }
 }
-function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, string>> {
+
+function prepareLocalAiRuntimeEnv(state: StackPaths): Readonly<Record<string, string>> {
+  mkdirSync(state.aiRuntime, { recursive: true, mode: 0o700 })
+  chmodSync(state.aiRuntime, 0o700)
   const admissionPrivateKeyPath = resolve(state.aiRuntime, 'ai-admission-ed25519.pk8')
   const provenancePrivateKeyPath = resolve(state.aiRuntime, 'ai-provenance-ed25519.pk8')
   const requestBindingKeyPath = resolve(state.aiRuntime, 'ai-request-binding-hmac.key')
@@ -939,22 +610,10 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
     )
       .export({ format: 'der', type: 'spki' })
       .toString('base64')
-  const encoded = (name: string): string =>
-    readLocalStackFile(resolve(state.aiRuntime, name)).toString('base64')
   const admissionKid = 'admission-v1'
   const provenanceKid = 'provenance-v1'
   return {
     AI_KEY_INVENTORY_PROFILE: 'local-stack-v1',
-    AI_CONTROL_DATABASE_CA_B64: encoded('control-db-ca.crt'),
-    AI_INTERNAL_MTLS_CA_B64: encoded('ca.crt'),
-    AI_ADMISSION_INTERNAL_MTLS_CERT_B64: encoded('ai-execution-admission.crt'),
-    AI_ADMISSION_INTERNAL_MTLS_KEY_B64: encoded('ai-execution-admission.key'),
-    AI_GATEWAY_INTERNAL_MTLS_CERT_B64: encoded('ai-egress-gateway.crt'),
-    AI_GATEWAY_INTERNAL_MTLS_KEY_B64: encoded('ai-egress-gateway.key'),
-    AI_WEB_INTERNAL_MTLS_CERT_B64: encoded('repkey-web.crt'),
-    AI_WEB_INTERNAL_MTLS_KEY_B64: encoded('repkey-web.key'),
-    AI_WORKER_INTERNAL_MTLS_CERT_B64: encoded('repkey-worker.crt'),
-    AI_WORKER_INTERNAL_MTLS_KEY_B64: encoded('repkey-worker.key'),
     AI_REQUEST_BINDING_HMAC_KEYS: `request-v1:${readLocalStackFile(requestBindingKeyPath).toString('hex')}`,
     AI_SAFETY_IDENTIFIER_HMAC_KEYS: `safety-v1:${readLocalStackFile(safetyIdentifierKeyPath).toString('hex')}`,
     AI_SUBJECT_HMAC_KEYS: `subject-v1:${readLocalStackFile(subjectHmacKeyPath).toString('hex')}`,
@@ -971,7 +630,6 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
     AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
     AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST: AI_PROVIDER_DEPLOYMENT_PROFILE.profileDigest,
     AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST: AI_RUNTIME_CAPABILITIES_V1_DIGEST,
-    AI_GATEWAY_BUILD_ATTESTATION_DIGEST,
   }
 }
 
@@ -1004,13 +662,11 @@ function prepare(mode: LocalStackMode, clearArtifacts = false): StackPaths {
     e2eDir: state.e2eArtifacts,
   })
   prepareProviderRedisAssets(state, baseEnv.PROVIDER_EPHEMERAL_REDIS_PASSWORD!)
-  prepareAiInternalMtlsAssets(state)
-  prepareAiControlDatabaseTlsAssets(state)
   const env = {
     ...baseEnv,
     GOOGLE_EGRESS_GATEWAY_IDENTITY: 'local-google-provider-runtime-v1',
     ...buildLocalGoogleContentApprovalEnv(state, releaseSha),
-    ...prepareLocalAiAdmissionEnv(state),
+    ...prepareLocalAiRuntimeEnv(state),
   }
   writeFileSync(state.env, serializeEnv(env), { mode: 0o600 })
   chmodSync(state.env, 0o600)
@@ -1241,23 +897,18 @@ function assertTcpRoute(
   ])
 }
 
-function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths): void {
+function assertProviderIsolationTopology(mode: LocalStackMode, state: StackPaths): void {
   const project = localStackProject(mode)
   const expected: Readonly<Record<string, readonly string[]>> = {
-    web: ['ai-gateway-ingress', 'app', 'provider-egress', 'provider-ephemeral'],
-    'web-locked': ['app', 'provider-ephemeral'],
-    worker: ['ai-gateway-ingress', 'app', 'provider-egress', 'provider-ephemeral'],
+    web: ['ai-provider-egress', 'app', 'provider-egress', 'provider-ephemeral'],
+    'web-locked': ['ai-provider-egress', 'app', 'provider-ephemeral'],
+    worker: ['ai-provider-egress', 'app', 'provider-egress', 'provider-ephemeral'],
+    'perf-runner': ['ai-provider-egress', 'app', 'provider-egress', 'provider-ephemeral'],
     'provider-redis': ['provider-redis-data'],
     'provider-redis-ingress': ['provider-ephemeral', 'provider-redis-data'],
     'provider-sandbox': ['provider-egress'],
     'provider-control-proxy': ['provider-control', 'provider-egress'],
     'ai-provider-stub': ['ai-provider-egress'],
-    'ai-execution-admission': ['admission-data', 'ai-admission-control'],
-    'ai-egress-gateway': [
-      'ai-admission-control',
-      'ai-gateway-ingress',
-      'ai-provider-egress',
-    ],
   }
   const observed = Object.fromEntries(
     Object.entries(expected).map(([service, networks]) => {
@@ -1280,9 +931,13 @@ function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths):
       port: 6379,
       reachable: true,
     },
-    { source: 'web', host: 'ai-egress-gateway', port: 8443, reachable: true },
-    { source: 'web', host: 'ai-provider-stub', port: 4102, reachable: false },
-    { source: 'web', host: 'ai-execution-admission', port: 8443, reachable: false },
+    { source: 'web', host: 'ai-provider-stub', port: 4102, reachable: true },
+    {
+      source: 'web-locked',
+      host: 'ai-provider-stub',
+      port: 4102,
+      reachable: true,
+    },
     { source: 'worker', host: 'provider-sandbox', port: 4100, reachable: true },
     { source: 'worker', host: 'provider-redis', port: 6379, reachable: false },
     {
@@ -1291,44 +946,28 @@ function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths):
       port: 6379,
       reachable: true,
     },
-    { source: 'worker', host: 'ai-egress-gateway', port: 8443, reachable: true },
-    { source: 'worker', host: 'ai-provider-stub', port: 4102, reachable: false },
-    { source: 'worker', host: 'ai-execution-admission', port: 8443, reachable: false },
+    { source: 'worker', host: 'ai-provider-stub', port: 4102, reachable: true },
     {
-      source: 'ai-egress-gateway',
+      source: 'perf-runner',
       host: 'ai-provider-stub',
       port: 4102,
       reachable: true,
     },
     {
-      source: 'ai-egress-gateway',
-      host: 'ai-execution-admission',
-      port: 8443,
-      reachable: true,
-    },
-    { source: 'ai-egress-gateway', host: 'postgres', port: 5432, reachable: false },
-    { source: 'ai-egress-gateway', host: 'redis', port: 6379, reachable: false },
-    {
-      source: 'ai-execution-admission',
+      source: 'ai-provider-stub',
       host: 'postgres',
       port: 5432,
-      reachable: true,
-    },
-    {
-      source: 'ai-execution-admission',
-      host: 'redis',
-      port: 6379,
       reachable: false,
     },
     {
-      source: 'ai-execution-admission',
-      host: 'ai-provider-stub',
-      port: 4102,
+      source: 'ai-provider-stub',
+      host: 'provider-redis-ingress',
+      port: 6379,
       reachable: false,
     },
   ] as const
   for (const route of routes) assertTcpRoute(mode, state, route)
-  writeEvidence(state, 'google-isolation-topology', {
+  writeEvidence(state, 'provider-isolation-topology', {
     checkedAt: new Date().toISOString(),
     observed,
     routes,
@@ -1506,12 +1145,7 @@ function migrationHeadProof(
 function oneShot(
   mode: LocalStackMode,
   state: StackPaths,
-  service:
-    | 'object-store-init'
-    | 'migrator'
-    | 'ai-admission-role'
-    | 'google-admission-role'
-    | 'seed',
+  service: 'object-store-init' | 'migrator' | 'google-admission-role' | 'seed',
 ): void {
   dockerCompose(mode, state, [
     'up',
@@ -1537,7 +1171,7 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
   //
   // COMPOSE_PARALLEL_LIMIT: compose builds every service at once by default,
   // and each of these stages runs its own `pnpm install --frozen-lockfile`.
-  // Nine of those concurrently exhausted a 4 GiB Docker VM: the guest kernel
+  // Too many concurrent stages exhausted a 4 GiB Docker VM: the guest kernel
   // logged `global_oom` and killed whatever was largest, twice taking `dockerd`
   // itself, which surfaces to the client as the useless
   // `failed to solve: Unavailable: error reading from server: EOF`. Capping the
@@ -1546,16 +1180,7 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
   dockerCompose(
     mode,
     state,
-    [
-      'build',
-      'web',
-      'worker',
-      'seed',
-      'provider-sandbox',
-      'ai-execution-admission',
-      'ai-egress-gateway',
-      'perf-runner',
-    ],
+    ['build', 'web', 'worker', 'seed', 'provider-sandbox', 'perf-runner'],
     { env: { ...process.env, COMPOSE_PARALLEL_LIMIT: '3' } },
   )
 }
@@ -1581,25 +1206,9 @@ function startDependencies(mode: LocalStackMode, state: StackPaths): void {
   ])
 }
 
-/**
- * Admission roles depend on the migrator, and the AI admission/egress chain
- * must start only after those one-shots complete.
- */
-function startAdmissionInfrastructure(mode: LocalStackMode, state: StackPaths): void {
+/** Provision the Google admission role after the migrator creates its procedures. */
+function provisionGoogleAdmissionRole(mode: LocalStackMode, state: StackPaths): void {
   oneShot(mode, state, 'google-admission-role')
-  oneShot(mode, state, 'ai-admission-role')
-  for (const service of ['ai-execution-admission', 'ai-egress-gateway'] as const) {
-    dockerCompose(mode, state, [
-      'up',
-      '--no-deps',
-      '--detach',
-      '--force-recreate',
-      '--wait',
-      '--wait-timeout',
-      '180',
-      service,
-    ])
-  }
 }
 
 function sanitationEvidence(
@@ -1694,7 +1303,7 @@ async function smoke(mode: LocalStackMode, state: StackPaths): Promise<void> {
   await waitWorker(mode, state)
   inspectIdentities(mode, state)
   copySeedState(state)
-  assertGoogleIsolationTopology(mode, state)
+  assertProviderIsolationTopology(mode, state)
 }
 
 function removeProject(mode: LocalStackMode, state: StackPaths): void {
@@ -1729,7 +1338,7 @@ async function up(
     const sanitation = options.cleanStart ? sanitationEvidence(mode, state) : undefined
     if (!options.cleanStart) oneShot(mode, state, 'object-store-init')
     oneShot(mode, state, 'migrator')
-    startAdmissionInfrastructure(mode, state)
+    provisionGoogleAdmissionRole(mode, state)
     await startApplications(mode, state)
     await smoke(mode, state)
     return { state, sanitation }
@@ -2374,7 +1983,7 @@ async function upgrade(
       throw new Error('Versioned upgrade fixture has no pending migrations')
     }
     oneShot(mode, state, 'migrator')
-    startAdmissionInfrastructure(mode, state)
+    provisionGoogleAdmissionRole(mode, state)
     await startApplications(mode, state)
     const upgradedHead = migrationHeadProof(mode, state, 'upgrade')
     const images = inspectIdentities(mode, state)

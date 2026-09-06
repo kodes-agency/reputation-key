@@ -371,10 +371,6 @@ export default tseslint.config(
           pattern: 'src/worker/**',
         },
         {
-          type: 'service',
-          pattern: 'services/**',
-        },
-        {
           type: 'runtime-plugin',
           pattern: 'server/**',
         },
@@ -488,25 +484,6 @@ export default tseslint.config(
         {
           category: 'story-file',
           pattern: ['src/**/*.stories.ts', 'src/**/*.stories.tsx'],
-        },
-        // ARC-03-T2: the shared kernel the separately deployed trust-boundary
-        // sidecars are allowed to link. These processes run outside the
-        // application's trust boundary, so "shared/" is not a package-level
-        // dependency they inherit — this list IS the dependency boundary the
-        // repository layout cannot express. It is a file category rather than
-        // an element type so that reclassifying it does not change what the
-        // in-process application layers may import.
-        // Documented in src/shared/CONTEXT.md "Trust-boundary sidecar kernel".
-        {
-          category: 'shared-provider-kernel',
-          pattern: [
-            'src/shared/ai-*',
-            'src/shared/openai-*',
-            'src/shared/merchant-ai-*',
-            'src/shared/closed-json-contract.ts',
-            'src/shared/security/versioned-hmac-keyring.ts',
-            'src/shared/observability/telemetry.ts',
-          ],
         },
       ],
     },
@@ -1012,7 +989,6 @@ export default tseslint.config(
                   'shared-events',
                   ...sharedAreaElements,
                   'shared-outbox-infra',
-                  'service',
                 ),
               },
             },
@@ -1064,21 +1040,6 @@ export default tseslint.config(
               allow: { to: fileCategory('composition-root') },
             },
 
-            // ARC-03-T2: the trust-boundary sidecars are separately deployed
-            // processes. They may link service-local modules and the NAMED
-            // shared-provider-kernel category — nothing else. Blanket
-            // shared-auth/shared-db/shared-other access is what let an
-            // out-of-boundary process reach the application database, the
-            // better-auth kernel and the job queue with no package-level
-            // dependency boundary to stop it.
-            {
-              from: elementType('service'),
-              allow: { to: elementType('service') },
-            },
-            {
-              from: elementType('service'),
-              allow: { to: fileCategory('shared-provider-kernel') },
-            },
             {
               from: elementType('runtime-plugin'),
               allow: {

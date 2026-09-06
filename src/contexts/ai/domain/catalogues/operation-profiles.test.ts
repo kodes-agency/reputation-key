@@ -39,10 +39,6 @@ import {
   AI_ZH_ORTHOGRAPHY_VERSION,
 } from '#/shared/ai-zh-orthography-verifier'
 import {
-  AI_GATEWAY_BUILD_ATTESTATION_DIGEST,
-  AI_GATEWAY_BUILD_ATTESTATION_VERSION,
-} from '#/shared/ai-gateway-build-attestation'
-import {
   AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
 } from '#/shared/ai-personalized-reply-contract'
@@ -298,14 +294,6 @@ describe('PR5 immutable AI execution catalogues', () => {
       promptCacheShard: 0,
       safetyIdentifierProfileVersion: 'synthetic-canary-safety-v1',
     })
-    for (const profile of AI_OPERATION_PROFILES) {
-      expect(profile.artifactAttestations).toMatchObject({
-        gatewayBuild: {
-          version: AI_GATEWAY_BUILD_ATTESTATION_VERSION,
-          digest: AI_GATEWAY_BUILD_ATTESTATION_DIGEST,
-        },
-      })
-    }
     for (const profile of AI_OPERATION_PROFILES) {
       expect(profile.staticTokenBearingBytes).toBeGreaterThan(0)
       expect(profile.staticTokenBearingDigest).toMatch(/^[0-9a-f]{64}$/)

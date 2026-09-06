@@ -26,7 +26,7 @@ export function deterministicContainerOptions() {
     redis: undefined,
     identityPort: createInMemoryIdentityPort(),
     email: async () => {},
-    // ARC-03-T14: the sidecar provider runtime reads this instead of ambient
+    // ARC-03-T14: in-process provider runtimes read this instead of ambient
     // process state, so the fixture's environment is the whole environment.
     runtimeEnvironment: {},
     /** ARC-03-T13: no server request exists in a fixture process. */

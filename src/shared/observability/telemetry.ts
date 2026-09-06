@@ -29,8 +29,7 @@ import {
 
 const ERROR_MONITOR_FLUSH_BUDGET_MS = 1_500
 
-export type ObservabilityService =
-  'web' | 'worker' | 'ai-execution-admission' | 'ai-egress-gateway'
+export type ObservabilityService = 'web' | 'worker'
 export type ObservabilityInitResult = 'enabled' | 'disabled' | 'failed'
 
 export interface ObservabilityConfig {
@@ -104,9 +103,6 @@ export interface ErrorCaptureContext {
     | 'worker-startup'
     | 'bullmq-worker'
     | 'bullmq-job'
-    | 'sidecar-process'
-    | 'sidecar-startup'
-    | 'sidecar-dependency'
     | 'alert-dispatcher'
   readonly trigger?:
     | 'SIGTERM'
@@ -288,10 +284,10 @@ export function createErrorMonitor(deps: {
             sendDefaultPii: false,
             includeLocalVariables: false,
             serverName: `repkey-${config.service}`,
-            // RepKey owns worker and sidecar process-fatal drain/exit
-            // semantics. Sentry's default handlers would duplicate captures
-            // and race that owner; web retains them because it has no
-            // equivalent fatal owner. Replay stays globally absent. A
+            // RepKey owns worker process-fatal drain/exit semantics. Sentry's
+            // default handlers would duplicate captures and race that owner;
+            // web retains them because it has no equivalent fatal owner.
+            // Replay stays globally absent. A
             // consented Bug may carry only the separately validated masked
             // layout SVG; it never enables an SDK Replay integration. Local
             // variables/source context are excluded for data minimization.
@@ -436,10 +432,10 @@ const preloadSafeLogger: ErrorMonitoringLogger = Object.freeze({
 
 const processMonitor = createErrorMonitor({
   sentry: Sentry as unknown as ErrorMonitoringSdk,
-  // Monitoring is preloaded before the application environment parser and is
-  // bundled into least-privileged sidecars. Keep this diagnostic sink
-  // dependency-free and content-free; createErrorMonitor's public seam still
-  // accepts the normal structured logger in unit tests and other embeddings.
+  // Monitoring is preloaded before the application environment parser. Keep
+  // this diagnostic sink dependency-free and content-free;
+  // createErrorMonitor's public seam still accepts the normal structured
+  // logger in unit tests and other embeddings.
   logger: preloadSafeLogger,
 })
 

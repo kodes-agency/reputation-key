@@ -34,24 +34,6 @@ describe('runtime environment contract tripwire', () => {
     expect(compareSnapshots(before, after)).toEqual([{ path: 'b.ts', reason: 'changed' }])
   })
 
-  it('catches the sidecar port split that took production down', () => {
-    // The real regression: PORT stopped being '8443' and INTERNAL_MTLS_PORT
-    // became required. The repository stayed self-consistent, so only a
-    // change-detector could have raised it.
-    const beforeSource = "values.PORT !== '8443'"
-    const afterSource = "values.PORT !== '8080' || values.INTERNAL_MTLS_PORT !== '8443'"
-    const files = ['services/ai-egress-gateway/environment.ts']
-
-    const drift = compareSnapshots(
-      buildSnapshot(read({ [files[0]!]: beforeSource }), files),
-      buildSnapshot(read({ [files[0]!]: afterSource }), files),
-    )
-
-    expect(drift).toEqual([
-      { path: 'services/ai-egress-gateway/environment.ts', reason: 'changed' },
-    ])
-  })
-
   it('distinguishes an added contract file from a changed one', () => {
     const recorded: ContractSnapshot = {
       version: 1,

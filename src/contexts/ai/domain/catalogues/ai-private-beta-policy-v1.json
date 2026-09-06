@@ -118,12 +118,6 @@
       "contentClass": "content_free"
     },
     {
-      "id": "ai-egress-gateway-build",
-      "stage": "candidate",
-      "owner": "PR5",
-      "contentClass": "content_free"
-    },
-    {
       "id": "ai-governance-drift",
       "stage": "candidate",
       "owner": "PR3",
