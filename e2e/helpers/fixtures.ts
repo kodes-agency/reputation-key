@@ -1606,8 +1606,14 @@ export async function getActivityRows(input: {
   resourceType: string
   resourceId: string
 }) {
+  // `recent_activity_entries` is the table. This read used to go through the
+  // `activity_log` view, which existed only so an OLD BINARY could be rolled
+  // back onto a new schema — a guarantee this repository stopped making when
+  // the schema was squashed to one baseline. The view had no `pgTable`, so the
+  // regenerated baseline simply does not contain it, and the probe timed out
+  // for 30s on `relation "activity_log" does not exist` before reporting.
   return dbQuery(
-    `SELECT * FROM activity_log
+    `SELECT * FROM recent_activity_entries
      WHERE organization_id = $1 AND resource_type = $2 AND resource_id = $3
      ORDER BY created_at`,
     [input.organizationId, input.resourceType, input.resourceId],

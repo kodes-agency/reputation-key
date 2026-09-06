@@ -159,17 +159,19 @@ source-context facts and projects rebuildable Recent Activity rows.
 
 Production code and the public interface now use only `RecentActivityEntry` and
 `createRecentActivityEntry`; the deprecated domain aliases have been removed.
-Migration 0160 makes `recent_activity_entries`, `project-recent-activity`, and
-`listRecentActivity` canonical across schema, repository, worker, query, server,
-catalogues, and active documentation. Its automatically updatable
-`activity_log` view exists only for bounded old-binary rollback compatibility;
-the legacy `insert-activity-log` handler is registered only to drain work queued
-before cutover and is never an enqueue authority. Broader
-historical enum values remain read-compatible while new writes are bounded by
-`RECENT_ACTIVITY_KINDS`. Migration 0146 captures a minimized, explicitly
-labelled legacy projection baseline without inventing missing event
-type/version provenance. Migration 0155 and the internal bounded privacy use
-case implement actor-label redaction and a delayed-delivery/rebuild fence;
+`recent_activity_entries`, `project-recent-activity`, and `listRecentActivity`
+are canonical across schema, repository, worker, query, server, catalogues, and
+active documentation. The `activity_log` view is **gone**: it existed only so an
+old binary could be rolled back onto a new schema, it had no `pgTable`, and the
+squash to a single regenerated baseline dropped it. Nothing reads it — the last
+reader was an e2e fixture, which now reads the table. `LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME`
+survives as a drain-only handler for work queued before the cutover and is
+never an enqueue authority. Broader historical enum values remain
+read-compatible while new writes are bounded by `RECENT_ACTIVITY_KINDS`. The
+legacy projection baseline is minimized and explicitly labelled, without
+inventing missing event type/version provenance. Actor-label redaction and the
+delayed-delivery/rebuild fence are implemented by the internal bounded privacy
+use case;
 Recent Activity persists no resource labels to redact. The product-wide account
 anonymization/offboarding workflow that invokes this seam remains owned by
 LIF-01 and is not inferred from ordinary membership removal. The curated Portal
