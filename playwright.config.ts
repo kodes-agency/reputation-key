@@ -103,6 +103,20 @@ export default defineConfig({
       // Critical journeys mutate shared policy state and restore it; one worker
       // prevents another browser from observing the bounded kill-switch window.
       workers: 1,
+      // Shard granularity, not execution order. `--shard` distributes "test
+      // groups", and a group is one FILE when fullyParallel is false or one
+      // TEST when it is true. With `workers: 1` above, both settings execute
+      // identically inside a shard — declaration order, one browser — so this
+      // only constrains where --shard may cut.
+      //
+      // It must cut on file boundaries. These journeys depend on the order they
+      // are declared in, and measured against the inherited `fullyParallel:
+      // true`, `--shard=N/4` put auth-and-shell.spec.ts in shards 1 AND 2 and
+      // guest-portal.spec.ts in 2 AND 3, running the back half of a file
+      // without its front half. `--shard=N/3` happened to align to files, but
+      // that was arithmetic luck: one added test would have moved the cut
+      // silently, and the symptom would have been a CI flake, not an error.
+      fullyParallel: false,
       use: { ...devices['Desktop Chrome'] },
     },
     {

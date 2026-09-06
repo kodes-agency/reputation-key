@@ -866,13 +866,39 @@ jobs:
       - name: Run storybook tests
         run: pnpm test:storybook
 
-  e2e:
+  # Sharded because e2e WAS the entire CI critical path: 9m05s of a 9m05s wall,
+  # 283s of it the `critical` project at one worker and 148s booting the Compose
+  # stack. Measured per file from the uploaded Playwright JSON, not estimated.
+  #
+  # WHY SHARDS AND NOT MORE WORKERS. The `critical` project pins `workers: 1`
+  # because its journeys toggle a shared kill switch and restore it, so a second
+  # browser against the same stack observes the bounded window and fails
+  # (playwright.config.ts). Every shard below boots its OWN Compose stack and
+  # seeds it from empty, so that constraint holds inside each shard while the
+  # shards run concurrently. Raising `workers` would have broken it; sharding
+  # does not, and that was checked first rather than last.
+  #
+  # PROVEN BEFORE LANDING. Each shard was run locally against a freshly reseeded
+  # stack and passed alone: 23 / 21 / 12 / 17 tests. Shards are file-atomic by
+  # construction — see the `fullyParallel: false` note in playwright.config.ts.
+  #
+  # COST. Four Compose stacks instead of one: roughly 4x the runner minutes for
+  # this job, bought to remove ~4 minutes of wall from every push. Stack boot
+  # (148s) is now the floor and the next thing worth attacking.
+  e2e-shard:
+    name: e2e shard (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     # BQR-5.1: critical Playwright project is a hard gate (auth + properties shell).
     # BQC-6.7: the full suite is a hard gate too — deterministic and green
     # (fake mail outbox, hydration-safe specs, F-PEOPLE fix); required for
     # release-candidate promotion.
     timeout-minutes: 25
+    strategy:
+      # Every shard reports its own failures; one red shard must not hide the
+      # others, exactly as test-unit does.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     env:
       CI: '1'
@@ -916,7 +942,7 @@ jobs:
         id: e2e_critical
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-critical-report.json
-        run: pnpm test:e2e --project=critical --max-failures=1 ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
+        run: pnpm test:e2e --project=critical --shard=${{ matrix.shard }}/4 --max-failures=1 ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
       # BQC-6.4: stop scheduling critical journeys after the first failure, but
       # preserve that attempt's trace even when the configured retry succeeds.
       # This upload runs before the full suite clears Playwright's outputDir.
@@ -924,12 +950,20 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-artifacts-critical
+          name: e2e-artifacts-critical-${{ matrix.shard }}
           path: test-results/playwright/**
           if-no-files-found: ignore
           retention-days: 7
+      # `full` (34s) and the compatibility gate (49s) are too small to justify
+      # their own Compose stack, so both ride the lightest critical shard
+      # instead of being sharded themselves. Measured critical seconds per
+      # shard: 1=66.6, 2=84.9, 3=14.4, 4=111.8. Loading both onto shard 3 puts
+      # it at 97.4s, still under shard 4's 111.8s, so neither becomes the long
+      # pole. Shard 4 — nine `workflows/` files — is now this job's floor apart
+      # from stack boot.
       - name: Run full e2e suite (hard gate — BQC-6.7)
         id: e2e_full
+        if: matrix.shard == 3
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-full-report.json
         run: pnpm test:e2e --project=full ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
@@ -941,12 +975,13 @@ jobs:
         if: steps.e2e_full.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-artifacts-full
+          name: e2e-artifacts-full-${{ matrix.shard }}
           path: test-results/playwright/**
           if-no-files-found: ignore
           retention-days: 7
       - name: Run bounded browser and mobile compatibility gate
         id: e2e_compatibility
+        if: matrix.shard == 3
         env:
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-compatibility-report.json
         run: pnpm test:e2e:compatibility ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
@@ -954,7 +989,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-browser-reports
+          name: e2e-browser-reports-${{ matrix.shard }}
           path: |
             test-results/e2e-critical-report.json
             test-results/e2e-full-report.json
@@ -965,7 +1000,7 @@ jobs:
         if: steps.e2e_compatibility.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-artifacts-compatibility
+          name: e2e-artifacts-compatibility-${{ matrix.shard }}
           path: test-results/playwright/**
           if-no-files-found: ignore
           retention-days: 7
@@ -976,10 +1011,24 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: e2e-local-stack-evidence
+          name: e2e-local-stack-evidence-${{ matrix.shard }}
           path: test-results/local-stack/**
           if-no-files-found: ignore
           retention-days: 7
       - name: Tear down local Compose application stack
         if: always()
         run: pnpm e2e:stack:down
+
+  # Keeps the required status check named exactly `e2e` after the matrix split.
+  # Renaming the job to `e2e-shard` without this would leave branch protection
+  # waiting forever for a check that no longer exists — the same failure mode as
+  # the `audit` check that sat red for eight commits because its config named a
+  # deleted file. Same house pattern as `docker` over `docker-images`.
+  e2e:
+    needs: [e2e-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every e2e shard to succeed
+        if: needs.e2e-shard.result != 'success'
+        run: exit 1
