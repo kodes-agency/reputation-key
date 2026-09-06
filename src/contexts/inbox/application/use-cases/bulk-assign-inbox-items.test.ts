@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { bulkAssignInboxItems } from './bulk-assign-inbox-items'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import {
   feedbackId,
   inboxItemId,
@@ -68,8 +68,8 @@ const staffApi = (accessible: readonly ReturnType<typeof propertyId>[] | null) =
 
 const setup = (accessible: readonly ReturnType<typeof propertyId>[] | null = null) => {
   const repo = createInMemoryInboxRepo()
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialInboxCommandStore({ repo, events })
+  const events = createRecordedOutbox()
+  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
   const execute = bulkAssignInboxItems({
     repo,
     commandStore,
@@ -107,10 +107,10 @@ describe('bulkAssignInboxItems', () => {
       ],
     })
     expect(repo.items.map((entry) => entry.assignedTo)).toEqual([ASSIGNEE, ASSIGNEE])
-    const perItem = events.capturedByTag('inbox.inbox_item.assigned')
+    const perItem = events.byTag('inbox.inbox_item.assigned')
     expect(perItem).toHaveLength(2)
     expect(perItem.every((fact) => fact.bulkId === BULK_ID)).toBe(true)
-    expect(events.capturedByTag('inbox.inbox_items.bulk_assignment_completed')).toEqual([
+    expect(events.byTag('inbox.inbox_items.bulk_assignment_completed')).toEqual([
       expect.objectContaining({
         bulkId: BULK_ID,
         count: 2,
@@ -157,7 +157,7 @@ describe('bulkAssignInboxItems', () => {
     })
     expect(storeCall).not.toHaveBeenCalled()
     expect(repo.items.every((entry) => entry.assignedTo === null)).toBe(true)
-    expect(events.capturedByTag('inbox.inbox_item.assigned')).toEqual([])
+    expect(events.byTag('inbox.inbox_item.assigned')).toEqual([])
   })
 
   it('does not disclose or mutate an inaccessible item and aborts the visible peer', async () => {
@@ -183,7 +183,7 @@ describe('bulkAssignInboxItems', () => {
     expect(repo.items.every((entry) => entry.assignedTo === null)).toBe(true)
   })
 
-  it('keeps unchanged items in the validated batch without emitting a false transition', async () => {
+  it('keeps unchanged items in the validated batch without recording a false transition', async () => {
     const { repo, events, execute } = setup()
     const current = item('00000000-0000-4000-8000-000000000008', PROP_A, ASSIGNEE)
     repo.items.push(current)
@@ -195,10 +195,8 @@ describe('bulkAssignInboxItems', () => {
       bulkId: BULK_ID,
       results: [{ inboxItemId: current.id, outcome: 'unchanged' }],
     })
-    expect(events.capturedByTag('inbox.inbox_item.assigned')).toEqual([])
-    expect(events.capturedByTag('inbox.inbox_items.bulk_assignment_completed')).toEqual(
-      [],
-    )
+    expect(events.byTag('inbox.inbox_item.assigned')).toEqual([])
+    expect(events.byTag('inbox.inbox_items.bulk_assignment_completed')).toEqual([])
   })
 
   it('rejects duplicate selections and callers without assignment management', async () => {

@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest'
 import { createProperty } from './create-property'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
 import { createSequentialPropertyCommandStore } from '#/shared/testing/sequential-property-command-store'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import { isPropertyError } from '../../domain/errors'
 import { assertRegionResolved } from '../../domain/processing-routing'
@@ -16,16 +16,16 @@ const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
 const setup = (extra: Partial<Parameters<typeof createProperty>[0]> = {}) => {
   const propertyRepo = createInMemoryPropertyRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const deps = {
     propertyRepo,
-    commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, events }),
+    commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, outbox }),
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
     ...extra,
   }
   const useCase = createProperty(deps)
-  return { useCase, propertyRepo, events }
+  return { useCase, propertyRepo, outbox }
 }
 
 describe('createProperty', () => {
@@ -142,16 +142,16 @@ describe('createProperty', () => {
     )
   })
 
-  it('emits property.created event on success', async () => {
-    const { useCase, events } = setup()
+  it('records a property.created fact on success', async () => {
+    const { useCase, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await useCase({ name: 'Grand Hotel', timezone: 'UTC', countryCode: 'US' }, ctx)
 
-    const emitted = events.capturedByTag('property.created')
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0].name).toBe('Grand Hotel')
-    expect(emitted[0].dataCellId).toBe('us')
+    const recorded = outbox.byTag('property.created')
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0].name).toBe('Grand Hotel')
+    expect(recorded[0].dataCellId).toBe('us')
   })
 
   it('rejects invalid timezone', async () => {

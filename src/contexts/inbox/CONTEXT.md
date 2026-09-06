@@ -45,13 +45,13 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 - Role downgrade, Property grant revocation, and Staff participation archive re-run an idempotent Inbox reconciliation. It proves each assigned Review/feedback permission inside the release transaction and durably clears only assignments that are now ineligible; a retained legacy non-UUID Property key is always releasable and is preserved verbatim in assignment history.
 - Every human command authorizes its complete unique `(principal, Property)` requirement set once inside the write transaction. Multi-item commands cannot lock the permission generation after one item and then acquire a later item's membership or grant row.
 - Human-authored status, assignment, escalation, resolution, and note commands compare-and-swap the client-observed item command revision. Adding a note advances the same item fence atomically with the note and its identifier-only fact.
-- Bulk Close is unavailable. Bulk Reopen accepts at most 100 distinct item/revision pairs, preauthorizes the complete candidate set once, applies compare-and-swap writes in stable Inbox-item-ID order, and reconstructs privacy-safe results in caller order. Only landed rows emit a durable fact; a racing row is reported without rolling back another landed reopen.
+- Bulk Close is unavailable. Bulk Reopen accepts at most 100 distinct item/revision pairs, preauthorizes the complete candidate set once, applies compare-and-swap writes in stable Inbox-item-ID order, and reconstructs privacy-safe results in caller order. Only landed rows record a durable fact; a racing row is reported without rolling back another landed reopen.
 - Review visibility requires `inbox.read ∧ review.read`; private-feedback visibility requires `inbox.read ∧ feedback.read`.
 - Review workflow changes require `inbox.write ∧ review.read`; private-feedback workflow changes require `inbox.write ∧ feedback.handle`. Assignment never grants either permission.
 - Generic status commands never close work. Review closure is provider/source-authoritative; a manager closes an open private-feedback cycle only through `markFeedbackHandled` with exactly one controlled outcome.
 - A feedback Handling Outcome is allowed only for an open feedback cycle. `guest_withdrawn` is a separate guest lifecycle transition and records no manager outcome.
 - Outcome corrections append a directly superseding fact under exact item/cycle/source/state/outcome revision fences. They preserve the first completion instant and deadline result, leave the cycle closed, and never alter the source rating.
-- Feedback outcome history is immutable at the database boundary. The optional internal note is returned only when the caller has current `inbox.write ∧ feedback.handle` Property scope; it is absent from guest surfaces and emitted Inbox lifecycle facts.
+- Feedback outcome history is immutable at the database boundary. The optional internal note is returned only when the caller has current `inbox.write ∧ feedback.handle` Property scope; it is absent from guest surfaces and recorded Inbox lifecycle facts.
 - Each inbox item has exactly one source (review or feedback), never both.
 - Feedback list/detail results may carry an eligible rating value from the Guest-owned lookup; the Inbox handling stores remain content-free.
 - List cursors are bounded canonical base64 JSON. Their `sourceDate` must be a canonical ISO instant and `id` a UUID; malformed cursors are discarded before repository/SQL access and never echoed into logs.
@@ -59,7 +59,7 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 - A Review cycle opening is append-only at the database boundary. Starting a later cycle advances the head only when expected cycle number, Material Review Revision, and state revision all match.
 - `material_revision_changed` must advance to a genuinely changed Review Material Revision. A revision created only to carry unchanged normalized material into a newer source epoch advances the head's material fence in place: it does not open or reopen a Handling Cycle, change status, or manufacture work. `manual_reopen` may create another numbered cycle on the same revision. All paths preserve every earlier opening fact.
 - Automatic Review closure requires a `review.reply.observed` fact whose identifiers still name the exact current Review-owned live observation head and current source epoch and Material Review Revision. A `confirmed_on_google` observation additionally binds the exact current Reply publication attempt and cycle; an `external_current_live` observation closes as current external truth without claiming RepKey provenance. The event is only a wake-up hint: Inbox receives a content-free permit through its own `ReplyObservationAuthorityPort`, never queries Review tables, and treats a refused permit as obsolete.
-- Review holds its observation-write fence from exact-head validation until the Inbox callback commits. Within that interval, Inbox commits receipt reservation, status/cycle changes, and the emitted Inbox fact in one transaction. This explicit two-transaction fence is necessary because each context owns its writes; it prevents a newer Review head from landing in the validation-to-Inbox-commit interval, while the Inbox receipt makes an outer read-only commit failure replay-safe.
+- Review holds its observation-write fence from exact-head validation until the Inbox callback commits. Within that interval, Inbox commits receipt reservation, status/cycle changes, and the Inbox outbox facts in one transaction. This explicit two-transaction fence is necessary because each context owns its writes; it prevents a newer Review head from landing in the validation-to-Inbox-commit interval, while the Inbox receipt makes an outer read-only commit failure replay-safe.
 - A current `review.reply.observed` fact that overtakes `review.created` remains retryable: Inbox records no receipt until the item and Handling Cycle materialize. If the observation's Material Review Revision is ahead because of a genuine material change, delivery likewise retries without a receipt; Review may instead attest one immediate source-epoch carry of unchanged normalized material, which Inbox co-commits as a head-fence advance without changing the cycle or status. If Inbox is already newer, the observation receives an obsolete receipt. A fact whose Review head is already obsolete also receives an obsolete receipt even when no Inbox item exists.
 - A current observed Google reply deletion reopens the active Review work when the Handling Cycle's material/cycle fences still permit it. An external live edit remains handled and does not reopen work. The retained legacy `diverged` value is receipt-only and never a reopen authority. A stale/replayed fact cannot close or reopen twice.
 - Provider write acknowledgement and the internal `review.reply.published` lifecycle fact are not Google truth and cannot mutate Inbox status.
@@ -97,23 +97,23 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 | `inbox.response_target.reminder_due`          | inbox/cycle/Organization/Property/target/reminder identifiers and scheduled/occurred times | A halfway or target-passed slot is released once to the durable outbox boundary |
 | `inbox.response_target.policy_changed`        | Organization/Property scope, target kind, duration/version, actor, occurredAt              | A compare-and-set policy revision commits                                       |
 
-Note: `inbox.inbox_item.created` has no `userId` — it's emitted by sync pipeline event handlers, not user actions. Activity log attributes it to `'system'`.
+Note: `inbox.inbox_item.created` has no `userId` — durable source-lifecycle consumers record it, not user actions. Activity log attributes it to `'system'`.
 
-Note (BQC-3.4): `inbox.inbox_note.added` carries the note ID, never the note text — notes remain context-owned content. Every fact above is committed atomically with its state change via the `InboxCommandStore` (one PostgreSQL transaction: state + outbox row; post-commit bus emit is best-effort). The `rebuildInboxProjection` repair command remains bounded, idempotent, report-first, and Review-specific; Guest lifecycle delivery owns feedback materialization, while active reads fail closed when its current Cycle Head is absent.
+Note (BQC-3.4): `inbox.inbox_note.added` carries the note ID, never the note text — notes remain context-owned content. Every fact above is committed atomically with its state change via the `InboxCommandStore`; its outbox row is the fact relayed to durable consumers. The `rebuildInboxProjection` repair command remains bounded, idempotent, report-first, and Review-specific; Guest lifecycle delivery owns feedback materialization, while active reads fail closed when its current Cycle Head is absent.
 
 ## Events consumed
 
-| Tag                          | Source context | Handler action                                                                                                                                                                             |
-| ---------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `review.created`             | review         | Create metadata-only inbox item (bus + durable `inbox.on-review-created`, applyOnce co-commits receipt)                                                                                    |
-| `review.updated`             | review         | Metadata-only refresh of sourceDate/platform (durable `inbox.on-review-updated`, BQC-3.4)                                                                                                  |
-| `review.source_transitioned` | review         | Preserve identity, scrub legacy provider fields, and close open unservable work (durable `inbox.on-review-source-transitioned`)                                                            |
-| `guest.feedback.submitted`   | guest          | Create metadata-only feedback item (bus + durable `inbox.on-guest-feedback-submitted`)                                                                                                     |
-| `guest.feedback.retracted`   | guest          | Close open feedback work after Guest purges the body; bus acceleration and durable delivery share the same receipt-coordinated Cycle Head apply seam (`inbox.on-guest-feedback-retracted`) |
-| `review.reply.published`     | review         | Compatibility receipt only; never closes or reopens work (durable `inbox.on-reply-published`)                                                                                              |
-| `review.reply.observed`      | review         | Request an exact-current Review permit; an exact live reply closes once, a deletion reopens once, and an external live edit stays closed (durable `inbox.on-reply-observed`)               |
-| `review.reply.submitted`     | review         | Stamp `firstReplySubmittedAt` milestone on inbox item (bus only)                                                                                                                           |
-| `review.expired`             | review         | Legacy transition compatibility: preserve identity and scrub provider copies only; the unversioned event never changes workflow status (bus + durable `inbox.on-review-expired`)           |
+| Tag                          | Source context | Handler action                                                                                                                                                               |
+| ---------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `review.created`             | review         | Durable `inbox.on-review-created` creates a metadata-only item and co-commits its applyOnce receipt                                                                          |
+| `review.updated`             | review         | Metadata-only refresh of sourceDate/platform (durable `inbox.on-review-updated`, BQC-3.4)                                                                                    |
+| `review.source_transitioned` | review         | Preserve identity, scrub legacy provider fields, and close open unservable work (durable `inbox.on-review-source-transitioned`)                                              |
+| `guest.feedback.submitted`   | guest          | Durable `inbox.on-guest-feedback-submitted` creates a metadata-only feedback item                                                                                            |
+| `guest.feedback.retracted`   | guest          | Durable `inbox.on-guest-feedback-retracted` closes open feedback work after Guest purges the body through the receipt-coordinated Cycle Head apply seam                      |
+| `review.reply.published`     | review         | Compatibility receipt only; never closes or reopens work (durable `inbox.on-reply-published`)                                                                                |
+| `review.reply.observed`      | review         | Request an exact-current Review permit; an exact live reply closes once, a deletion reopens once, and an external live edit stays closed (durable `inbox.on-reply-observed`) |
+| `review.reply.submitted`     | review         | Durable `inbox.on-reply-submitted` stamps the `firstReplySubmittedAt` milestone                                                                                              |
+| `review.expired`             | review         | Durable `inbox.on-review-expired` preserves identity and scrubs provider copies; the unversioned event never changes workflow status                                         |
 
 ## Architecture layers
 
@@ -142,8 +142,6 @@ inbox/
     feedback-handling.store.ts        atomic feedback close + append-only outcome correction
     outbox-consumers.ts  durable consumers (applyOnce): review.created/.updated/.expired,
                       reply.published compatibility receipt, reply.observed authority
-    event-handlers/    on-review-created.ts, on-review-expired.ts, on-feedback-submitted.ts,
-                      on-reply-submitted.ts (bus paths); on-reply-published.ts is quarantined
     (test fake: src/shared/testing/sequential-inbox-command-store.ts)
   server/              inbox.ts, inbox-item-queries.ts, inbox-status.ts, inbox-item-actions.ts,
                       inbox-feedback-handling.ts,
@@ -309,7 +307,7 @@ All ports are implemented by adapters from their respective contexts, wired at c
   `RecentActivityEntry` projection. It can show allowlisted workflow summaries but
   is never evidence that an Inbox command or provider effect committed.
 - **Delivery and recovery**: source contexts own durable facts. Activity consumes
-  them through the outbox/queue path with an in-process low-latency acceleration;
+  them through the durable outbox/queue path;
   projection, replay authority, and delivery receipt commit together. An exact
   source-event replay is idempotent, while conflicting evidence fails closed.
 - **Content boundary**: entries may contain identifiers and allowlisted transition

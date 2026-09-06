@@ -1,8 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 import { propertyError } from '../domain/errors'
@@ -50,7 +49,6 @@ const assertCommandIntegrity = (command: PropertyLifecycleTransitionCommand): vo
  */
 export const createPropertyLifecycleCommandStore = (
   db: Database,
-  events: EventBus,
   localCell?: DataCellId,
 ): PropertyLifecycleCommandStore => ({
   transitionLifecycle: (command) =>
@@ -120,7 +118,6 @@ export const createPropertyLifecycleCommandStore = (
         await insertOutboxRow(tx, command.event)
         return row
       })
-      await emitAfterCommit(events, command.event)
       return propertyFromRow(updated)
     }),
 })

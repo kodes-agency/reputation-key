@@ -54,20 +54,7 @@ async function waitForDatabaseCondition(
 
 describe('review provider snapshot repository (real PostgreSQL)', () => {
   const db = getDb()
-  // `finishMainScan` publishes nothing, so a recording bus is enough and keeps
-  // the test to the statements under examination.
-  const published: unknown[] = []
-  const repository = createReviewProviderSnapshotRepository(
-    db,
-    {
-      on: () => {},
-      emit: async (event: unknown) => {
-        published.push(event)
-      },
-      clear: () => {},
-    } as unknown as Parameters<typeof createReviewProviderSnapshotRepository>[1],
-    () => RUN_ID,
-  )
+  const repository = createReviewProviderSnapshotRepository(db, () => RUN_ID)
 
   const clear = async () => {
     await db.execute(sql`

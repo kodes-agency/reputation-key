@@ -82,7 +82,7 @@ Owns Google OAuth connections, provider access, opaque property-import discovery
 
 ## Events produced
 
-| Tag                                                   | Payload                                                                                                                   | When emitted                                                                     |
+| Tag                                                   | Payload                                                                                                                   | When recorded                                                                    |
 | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `integration.google_account.connected`                | eventId, connectionId, organizationId, userId, occurredAt, correlationId                                                  | An Organization-owned Google connection is established                           |
 | `integration.google_account.disconnected`             | eventId, connectionId, organizationId, occurredAt, correlationId                                                          | The current Google connection is disconnected                                    |
@@ -148,7 +148,7 @@ credential binding and cleanup permit, `google_oauth_exchange_attempts`,
 `google_credential_broker_replay`, the signed routing directory,
 `google_import_discovery_records`, credential-home operator identity
 and change ticket, and live Business Profile Performance payloads. Every
-exclusion is enumerated in the emitted `excludedRecordClasses`.
+exclusion is listed in the returned `excludedRecordClasses`.
 
 An Organization that never connected Google contributes `no_data`, never an
 invented empty CSV.
@@ -198,5 +198,8 @@ evidence, never an omitted contributor.
 - `dashboard.performance_google` — retrieve live property Performance reporting.
 
 ## Background jobs
+
+The durable outbox relay and dispatcher are always on; worker boot fails when
+their delivery dependencies are unavailable.
 
 - **`import-gbp-property-item-v2`** — deterministic, fenced per-item create/relink execution with bounded retries and domain-owned convergence.

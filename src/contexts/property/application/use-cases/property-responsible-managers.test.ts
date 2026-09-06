@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import type { PropertyResponsibleManager } from '../../domain/property-responsible-manager'
 import type { PropertyResponsibleManagerRepository } from '../ports/property-responsible-manager.repository'
 import {
@@ -18,14 +18,12 @@ const PROPERTY = buildTestProperty({
 const setup = () => {
   const propertyRepo = createInMemoryPropertyRepo()
   propertyRepo.seed([PROPERTY])
+  const outbox = createRecordedOutbox()
   let active: PropertyResponsibleManager[] = []
   const managerRepo: PropertyResponsibleManagerRepository = {
     listActive: async () => active,
     listActiveForUser: async () => active,
-    releaseForUser: async () => ({
-      released: 0,
-      responsibilityNeededEvents: [],
-    }),
+    releaseForUser: async () => ({ released: 0 }),
     replace: async (input) => {
       const hadManagers = active.length > 0
       active = input.managerUserIds.map((userId, index) => ({
@@ -38,14 +36,17 @@ const setup = () => {
         createdBy: input.actorId,
         endReason: null,
       }))
+      const becameResponsibilityNeeded = hadManagers && active.length === 0
+      if (becameResponsibilityNeeded) {
+        await outbox.record(input.responsibilityNeededEvent)
+      }
       return {
         assignments: active,
         revision: input.expectedRevision + 1,
-        becameResponsibilityNeeded: hadManagers && active.length === 0,
+        becameResponsibilityNeeded,
       }
     },
   }
-  const events = createCapturingEventBus()
   const deps = {
     propertyRepo,
     managerRepo,
@@ -75,10 +76,9 @@ const setup = () => {
       findActiveParticipation: async (_org: string, _property: string, userId: string) =>
         userId === 'manager-ineligible' ? null : ({} as never),
     },
-    events,
     clock: () => NOW,
   }
-  return { deps, events }
+  return { deps, outbox }
 }
 
 describe('Property Responsible Managers', () => {
@@ -138,8 +138,8 @@ describe('Property Responsible Managers', () => {
     })
   })
 
-  it('raises recovery only when an owned Property loses its last manager', async () => {
-    const { deps, events } = setup()
+  it('records recovery only when an owned Property loses its last manager', async () => {
+    const { deps, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await updatePropertyResponsibleManagers(deps)(
@@ -155,7 +155,7 @@ describe('Property Responsible Managers', () => {
       ctx,
     )
 
-    expect(events.capturedByTag('property.responsibility_became_needed')).toEqual([
+    expect(outbox.byTag('property.responsibility_became_needed')).toEqual([
       expect.objectContaining({
         propertyId: PROPERTY.id,
         organizationId: PROPERTY.organizationId,

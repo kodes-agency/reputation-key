@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { userId } from '#/shared/domain/ids'
-import type { EventBus } from '#/shared/events/event-bus'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { buildTestProperty } from '#/shared/testing/fixtures'
@@ -77,13 +76,6 @@ describe('createPropertyLifecycleCommandStore', () => {
         return result
       }),
     } as unknown as Database
-    const events: EventBus = {
-      on: vi.fn(),
-      clear: vi.fn(),
-      emit: vi.fn(async () => {
-        order.push('emit')
-      }),
-    }
     const event = propertyArchived({
       organizationId: property.organizationId,
       propertyId: property.id,
@@ -96,7 +88,6 @@ describe('createPropertyLifecycleCommandStore', () => {
 
     const result = await createPropertyLifecycleCommandStore(
       db,
-      events,
       'us',
     ).transitionLifecycle({
       organizationId: property.organizationId,
@@ -138,7 +129,7 @@ describe('createPropertyLifecycleCommandStore', () => {
       organizationId: property.organizationId,
       propertyId: property.id,
     })
-    expect(order).toEqual(['begin', 'state', 'fact', 'commit', 'emit'])
+    expect(order).toEqual(['begin', 'state', 'fact', 'commit'])
     expect(tx).not.toHaveProperty('delete')
   })
 
@@ -188,11 +179,6 @@ describe('createPropertyLifecycleCommandStore', () => {
     const db = {
       transaction: vi.fn((run: (value: typeof tx) => Promise<unknown>) => run(tx)),
     } as unknown as Database
-    const events: EventBus = {
-      on: vi.fn(),
-      clear: vi.fn(),
-      emit: vi.fn(),
-    }
     const event = propertyRestored({
       organizationId: property.organizationId,
       propertyId: property.id,
@@ -205,7 +191,6 @@ describe('createPropertyLifecycleCommandStore', () => {
 
     const result = await createPropertyLifecycleCommandStore(
       db,
-      events,
       'us',
     ).transitionLifecycle({
       organizationId: property.organizationId,
@@ -268,11 +253,6 @@ describe('createPropertyLifecycleCommandStore', () => {
     const db = {
       transaction: vi.fn((run: (value: typeof tx) => Promise<unknown>) => run(tx)),
     } as unknown as Database
-    const events: EventBus = {
-      on: vi.fn(),
-      clear: vi.fn(),
-      emit: vi.fn(),
-    }
     const event = propertyArchived({
       organizationId: property.organizationId,
       propertyId: property.id,
@@ -284,7 +264,7 @@ describe('createPropertyLifecycleCommandStore', () => {
     })
 
     await expect(
-      createPropertyLifecycleCommandStore(db, events, 'us').transitionLifecycle({
+      createPropertyLifecycleCommandStore(db, 'us').transitionLifecycle({
         organizationId: property.organizationId,
         propertyId: property.id,
         from: 'active',
@@ -301,7 +281,6 @@ describe('createPropertyLifecycleCommandStore', () => {
     ).rejects.toMatchObject({ _tag: 'PropertyError', code: 'stale_property' })
     expect(tx.update).not.toHaveBeenCalled()
     expect(tx.insert).not.toHaveBeenCalled()
-    expect(events.emit).not.toHaveBeenCalled()
   })
 
   it('rejects mismatched recovery evidence before opening a transaction', async () => {
@@ -313,11 +292,6 @@ describe('createPropertyLifecycleCommandStore', () => {
       processingRegion: 'us',
     })
     const db = { transaction: vi.fn() } as unknown as Database
-    const events: EventBus = {
-      on: vi.fn(),
-      clear: vi.fn(),
-      emit: vi.fn(),
-    }
     const event = propertyArchived({
       organizationId: property.organizationId,
       propertyId: property.id,
@@ -329,7 +303,7 @@ describe('createPropertyLifecycleCommandStore', () => {
     })
 
     await expect(
-      createPropertyLifecycleCommandStore(db, events, 'us').transitionLifecycle({
+      createPropertyLifecycleCommandStore(db, 'us').transitionLifecycle({
         organizationId: property.organizationId,
         propertyId: property.id,
         from: 'active',
@@ -345,6 +319,5 @@ describe('createPropertyLifecycleCommandStore', () => {
       }),
     ).rejects.toMatchObject({ _tag: 'PropertyError', code: 'stale_property' })
     expect(db.transaction).not.toHaveBeenCalled()
-    expect(events.emit).not.toHaveBeenCalled()
   })
 })

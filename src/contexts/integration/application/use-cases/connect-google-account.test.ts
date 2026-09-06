@@ -7,7 +7,7 @@ import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-g
 import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequential-integration-command-store'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import {
   buildTestAuthContext,
   buildTestGoogleConnection,
@@ -130,7 +130,7 @@ const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
     exchangeCode,
   }
   const encryption = createInMemoryTokenEncryption()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   let credentialHomeInspection: OrganizationGoogleCredentialHomeInspection = {
     authority: {
       organizationId: organizationId('org-default'),
@@ -146,7 +146,7 @@ const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
     connectionRepo,
     oauth: recoverableOauth,
     encryption,
-    commandStore: createSequentialIntegrationCommandStore({ connectionRepo, events }),
+    commandStore: createSequentialIntegrationCommandStore({ connectionRepo, outbox }),
     exchangeRecovery,
     clock: () => FIXED_TIME,
     idGen: () => 'test-connection-id',
@@ -170,7 +170,7 @@ const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
     connectionRepo,
     oauth,
     exchangeCode,
-    events,
+    outbox,
     markAttemptCompleted: () => {
       if (!attempt || attempt.state !== 'applying') {
         throw new Error('Expected an applying OAuth exchange attempt')
@@ -186,7 +186,7 @@ const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
 
 describe('connectGoogleAccount', () => {
   it('creates an OIDC connection and records the v2 lifecycle fact', async () => {
-    const { useCase, connectionRepo, events, oauth } = setup()
+    const { useCase, connectionRepo, outbox, oauth } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const result = await useCase(input(), ctx)
@@ -198,9 +198,9 @@ describe('connectGoogleAccount', () => {
     expect(result.credentialHomeCellId).toBe('us')
     expect(result.credentialHomePolicyVersion).toBe(DATA_CELL_CATALOGUE_POLICY_VERSION)
     expect(oauth.exchangeVerifierCalls()).toEqual([VERIFIER])
-    const emitted = events.capturedByTag('integration.google_account.connected')
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0]).toMatchObject({ connectionId: result.id })
+    const facts = outbox.byTag('integration.google_account.connected')
+    expect(facts).toHaveLength(1)
+    expect(facts[0]).toMatchObject({ connectionId: result.id })
   })
 
   it('returns the exact committed connection on callback replay without re-exchange', async () => {
@@ -278,7 +278,7 @@ describe('connectGoogleAccount', () => {
   })
 
   it('reconnects only the exact targeted subject in the same organization', async () => {
-    const { useCase, connectionRepo, events } = setup()
+    const { useCase, connectionRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const existing = buildTestGoogleConnection({
       googleSubject: 'google-subject-123',
@@ -304,11 +304,9 @@ describe('connectGoogleAccount', () => {
       scopes: ['openid', 'https://www.googleapis.com/auth/business.manage'],
     })
     expect(connectionRepo.all()).toHaveLength(1)
-    expect(events.capturedByTag('integration.google_account.connected')[0]).toMatchObject(
-      {
-        connectionId: existing.id,
-      },
-    )
+    expect(outbox.byTag('integration.google_account.connected')[0]).toMatchObject({
+      connectionId: existing.id,
+    })
   })
 
   it('uses governed reconnect to capture a home for a disconnected legacy row', async () => {
@@ -339,7 +337,7 @@ describe('connectGoogleAccount', () => {
     })
   })
   it('does not let a new ceremony adopt an existing same-organization subject', async () => {
-    const { useCase, connectionRepo, events } = setup()
+    const { useCase, connectionRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const existing = buildTestGoogleConnection({
       googleSubject: 'google-subject-123',
@@ -353,11 +351,11 @@ describe('connectGoogleAccount', () => {
         (error as { code: string }).code === 'account_already_connected',
     )
     expect(connectionRepo.all()).toEqual([existing])
-    expect(events.capturedByTag('integration.google_account.connected')).toEqual([])
+    expect(outbox.byTag('integration.google_account.connected')).toEqual([])
   })
 
   it('rejects a targeted ceremony when the returned subject belongs to another row', async () => {
-    const { useCase, connectionRepo, events } = setup()
+    const { useCase, connectionRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const target = buildTestGoogleConnection({
       id: '00000000-0000-4000-8000-000000000111',
@@ -385,7 +383,7 @@ describe('connectGoogleAccount', () => {
         (error as { code: string }).code === 'account_already_connected',
     )
     expect(connectionRepo.all()).toEqual([target, mapped])
-    expect(events.capturedByTag('integration.google_account.connected')).toEqual([])
+    expect(outbox.byTag('integration.google_account.connected')).toEqual([])
   })
 
   it('rejects a signed subject already claimed by another organization', async () => {

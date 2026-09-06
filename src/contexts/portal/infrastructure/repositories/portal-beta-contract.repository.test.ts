@@ -80,11 +80,7 @@ beforeEach(async () => {
 
 describe.sequential('Portal beta contract repositories (real PostgreSQL)', () => {
   it('governs Property destinations, including later explicit AccountAdmin approval', async () => {
-    const repo = createPortalApprovedDestinationRepository(getDb(), {
-      on: () => {},
-      emit: async () => {},
-      clear: () => {},
-    })
+    const repo = createPortalApprovedDestinationRepository(getDb())
     const recognized = await repo.request({
       id: portalApprovedDestinationId('fa300000-0000-4000-8000-000000000001'),
       organizationId: ORG_A,
@@ -150,11 +146,7 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
   })
 
   it('admits public redirects only for scoped, recently validated approvals and removes quarantine immediately', async () => {
-    const repo = createPortalApprovedDestinationRepository(getDb(), {
-      on: () => {},
-      emit: async () => {},
-      clear: () => {},
-    })
+    const repo = createPortalApprovedDestinationRepository(getDb())
     const destination = validatePortalDestinationUri(
       'https://www.tripadvisor.com/Hotel_Review',
     )
@@ -216,11 +208,7 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
   })
 
   it('versions Property branding and removes an empty Portal-local override', async () => {
-    const repo = createPortalExperienceRepository(getDb(), {
-      on: () => {},
-      emit: async () => {},
-      clear: () => {},
-    })
+    const repo = createPortalExperienceRepository(getDb())
     const firstProfile = await repo.savePropertyProfile({
       id: 'fa400000-0000-4000-8000-000000000001',
       organizationId: ORG_A,

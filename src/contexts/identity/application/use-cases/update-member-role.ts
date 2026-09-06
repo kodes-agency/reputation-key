@@ -1,6 +1,5 @@
 // Identity context — update member role use case
-// Per architecture: "Every use case follows this order:
-// 1. Authorize → 2. Validate → 3. Check invariants → 4. Build → 5. Persist → 6. Emit → 7. Return"
+// Order: authorize → validate → check invariants → build → persist → return.
 // This started as a thin use case but evolved to full: loading the target member
 // is step 2 (validate referenced entities), and the role hierarchy check with the
 // actual current role is step 3 (check business invariants).
@@ -47,7 +46,7 @@ export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
  * 3. Check business invariants — role hierarchy with the actual current role,
  *    plus the last-owner UX guard (the command store re-enforces it under the
  *    org advisory lock)
- * 4. Persist + emit — command store: role update + role_changed fact, atomic
+ * 4. Persist — command store: role update + role_changed fact, atomic
  * 5. Return
  */
 export const updateMemberRole =

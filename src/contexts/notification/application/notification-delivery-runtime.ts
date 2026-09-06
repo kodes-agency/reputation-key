@@ -21,9 +21,9 @@ export function createNotificationDeliveryRuntime<
     /** Persistence the worker's delivery jobs bind directly (BQC-3 job wiring). */
     repos: TRepos
     /**
-     * Webhook ingestion, audience authorization and the sweep that heals what
-     * the best-effort in-process bus path drops. Individual handlers stay
-     * undefined without a job queue, exactly as before the extraction.
+     * Webhook ingestion, audience authorization, and the bounded sweep that
+     * repairs a durable delivery missing its notification row. Queue-backed
+     * capabilities stay undefined when no job queue is configured.
      */
     handlers: THandlers
   }>,

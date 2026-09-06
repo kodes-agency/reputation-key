@@ -15,7 +15,6 @@ import type { Clock } from '#/shared/domain/clock'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { IdentityPort } from './application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { EventBus } from '#/shared/events/event-bus'
 import { invitationId } from '#/shared/domain/ids'
 import { inviteMember } from './application/use-cases/invite-member'
 import { createCustomRole } from './application/use-cases/create-custom-role'
@@ -179,7 +178,6 @@ export type IdentityOrganizationLifecycleComposition = Readonly<{
 type IdentityContextDeps = Readonly<{
   db: Database
   identityPort: IdentityPort
-  events: EventBus
   clock: Clock
   idGen: () => string
   /**
@@ -391,10 +389,7 @@ function buildOrganizationLifecycleComposition(
   }>,
 ) {
   const { policyStore, managerMembershipRepo } = bindings
-  const organizationLifecycleStore = createOrganizationLifecycleCommandStore(
-    deps.db,
-    deps.events,
-  )
+  const organizationLifecycleStore = createOrganizationLifecycleCommandStore(deps.db)
   const organizationLifecycle = createOrganizationLifecycle({
     store: organizationLifecycleStore,
     clock: deps.clock,
@@ -536,7 +531,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     },
   )
   // BQC-3.5: every identity state mutation + fact commits atomically here.
-  const commandStore = createAtomicIdentityCommandStore(deps.db, deps.events, deps.idGen)
+  const commandStore = createAtomicIdentityCommandStore(deps.db, deps.idGen)
   /**
    * LIF-01-T21 fail-closed default. Refusing to answer is the only safe
    * answer: reporting an empty worklist would let a member walk out leaving
@@ -577,12 +572,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       managerMembershipRepo,
     })
   const merchantAiAuthorization = createMerchantAiAuthorization({
-    store: createMerchantAiAuthorizationStore(
-      deps.db,
-      deps.events,
-      deps.idGen,
-      deps.logger,
-    ),
+    store: createMerchantAiAuthorizationStore(deps.db, deps.idGen),
     authorizeManagement: async (input) => {
       const role = await getMemberRole(deps.db, input.organizationId, input.actorUserId)
       if (!role) return false

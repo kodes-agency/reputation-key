@@ -10,14 +10,13 @@ import {
 import { properties } from '#/shared/db/schema/property.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type {
   PortalHealthReconciliationInput,
   PortalHealthReconciliationStore,
 } from '../application/ports/portal-health-reconciliation.port'
-import { portalHealthChanged, type PortalHealthChanged } from '../domain/events'
+import { portalHealthChanged } from '../domain/events'
 import {
   derivePortalHealth,
   type PortalHealthReason,
@@ -58,7 +57,6 @@ const laterInstant = (left: Date, right: Date): Date =>
  */
 export const createPortalHealthReconciliationStore = (
   db: Database,
-  events: EventBus,
   runtime: Readonly<{
     clock: () => Date
     idGen: () => string
@@ -68,7 +66,6 @@ export const createPortalHealthReconciliationStore = (
     reconcile: (input: PortalHealthReconciliationInput) =>
       trace('portal.health.reconcileDependencies', async () => {
         const observedAt = runtime.clock()
-        const emitted: PortalHealthChanged[] = []
         const result = await db.transaction(async (tx) => {
           const reserved = await tx
             .insert(eventConsumerReceipts)
@@ -249,13 +246,11 @@ export const createPortalHealthReconciliationStore = (
               occurredAt: effectiveFrom,
             })
             await insertOutboxRow(tx, fact, { recordedAt: effectiveFrom })
-            emitted.push(fact)
             changed += 1
           }
           return { status: 'applied' as const, changed }
         })
 
-        for (const event of emitted) await emitAfterCommit(events, event)
         return result
       }),
   }

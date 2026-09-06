@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { escalateInboxItem } from './escalate-inbox-item'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import { isInboxError } from '../../domain/errors'
@@ -74,8 +74,8 @@ const allAccess: StaffPublicApi = {
 
 const setup = (staffPublicApi: StaffPublicApi = allAccess) => {
   const repo = createInMemoryInboxRepo()
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialInboxCommandStore({ repo, events })
+  const events = createRecordedOutbox()
+  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
   const execute = escalateInboxItem({
     repo,
     commandStore,
@@ -114,16 +114,16 @@ describe('escalateInboxItem', () => {
     expect(updated.commandRevision).toBe(2)
   })
 
-  it('emits the standalone escalated event (no oldStatus)', async () => {
+  it('records the standalone escalated fact without oldStatus', async () => {
     const { useCase, repo, events } = setup()
     repo.items.push(seedOpen())
 
     await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
-    const emitted = events.capturedEvents
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0]._tag).toBe('inbox.inbox_item.escalated')
-    expect(emitted[0]).not.toHaveProperty('oldStatus')
+    const facts = events.facts
+    expect(facts).toHaveLength(1)
+    expect(facts[0]._tag).toBe('inbox.inbox_item.escalated')
+    expect(facts[0]).not.toHaveProperty('oldStatus')
   })
 
   it('is idempotent when already actively escalated', async () => {
@@ -133,7 +133,7 @@ describe('escalateInboxItem', () => {
     const updated = await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
     expect(updated.isEscalated).toBe(true)
-    expect(events.capturedEvents).toHaveLength(0)
+    expect(events.facts).toHaveLength(0)
   })
 
   it('re-escalates a resolved escalation', async () => {

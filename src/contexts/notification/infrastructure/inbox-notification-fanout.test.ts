@@ -1,18 +1,15 @@
-// Notification context — the shared inbox fan-out.
+// Notification context — shared fan-out for durable delivery and repair.
 //
-// The bus handler's own suite (event-handlers/on-inbox-item-created.test.ts)
-// covers recipient resolution and the payload allowlist through the handler.
-// What is pinned here is what the fan-out adds for its other two callers: the
-// outcome it reports back (so the durable consumer can choose a receipt status
-// and the sweep can count) and the deterministic job id.
+// These tests pin the recipient outcomes and deterministic job identity used by
+// the outbox consumer and reconciliation sweep.
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { fanoutInboxItemNotifications } from './inbox-notification-fanout'
 import {
-  createEventHandlerDeps,
-  type FakeEventHandlerDeps,
+  createNotificationConsumerDeps,
+  type FakeNotificationConsumerDeps,
   NOTIF_TEST_IDS,
-} from './event-handlers/test-fixtures'
+} from './notification-consumer-test-fixtures'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 import { unbrand } from '#/shared/domain/ids'
 
@@ -26,10 +23,10 @@ const input = (overrides: Record<string, unknown> = {}) => ({
 })
 
 describe('fanoutInboxItemNotifications', () => {
-  let deps: FakeEventHandlerDeps
+  let deps: FakeNotificationConsumerDeps
 
   beforeEach(() => {
-    deps = createEventHandlerDeps()
+    deps = createNotificationConsumerDeps()
   })
 
   it('reports how many recipients it enqueued for', async () => {

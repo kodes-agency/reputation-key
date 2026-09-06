@@ -2,34 +2,17 @@
 // fake. Applies the same state → outbox → emit order as the production store
 // without importing Drizzle into application-layer tests.
 
-import type { EventBus } from '#/shared/events/event-bus'
-import type { DomainEvent } from '#/shared/events/events'
-import { getLogger } from '#/shared/observability/logger'
+import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import { integrationError } from '#/contexts/integration/domain/errors'
 import type { GoogleConnectionRepository } from '#/contexts/integration/application/ports/google-connection.repository'
 import type { IntegrationCommandStore } from '#/contexts/integration/application/ports/integration-command-store.port'
 
-/** Post-commit emit, failure-isolated — same contract as the atomic store. */
-async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<void> {
-  try {
-    await events.emit(event)
-  } catch (err) {
-    getLogger().warn(
-      { err, eventType: event._tag, correlationId: event.correlationId ?? undefined },
-      'BQC-3.5: in-process emit failed after sequential store state write',
-    )
-  }
-}
-
 export function createSequentialIntegrationCommandStore(deps: {
   connectionRepo: GoogleConnectionRepository
-  events: EventBus
-  recordOutbox?: (event: DomainEvent) => Promise<void>
+  outbox?: RecordedOutbox
 }): IntegrationCommandStore {
-  const recordAndEmit = async (event: DomainEvent): Promise<void> => {
-    if (deps.recordOutbox) await deps.recordOutbox(event)
-    await emitAfterCommit(deps.events, event)
-  }
+  const outbox = deps.outbox ?? createRecordedOutbox()
+  const recordAndEmit = outbox.record
 
   return {
     connectGoogleAccount: async (command) => {

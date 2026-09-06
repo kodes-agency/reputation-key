@@ -5,8 +5,7 @@ import {
   googleConnections,
   googleDisconnectRevokeAttempts,
 } from '#/shared/db/schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { googleConnectionFromRow } from '../mappers/google-connection.mapper'
 import type {
   GoogleDisconnectRevokeOutcome,
@@ -227,14 +226,12 @@ async function redactConnection(
 
 export const createGoogleDisconnectRevokeRepository = (
   db: Database,
-  events: EventBus,
 ): GoogleDisconnectRevokeStore => {
   const settle = async (
     input: Parameters<GoogleDisconnectRevokeStore['settle']>[0],
   ): Promise<GoogleDisconnectRevokeResult<GoogleConnection>> => {
     if (!OUTCOME_CODE.test(input.outcomeCode)) return fail('invalid_transition')
-    let eventCommitted = false
-    const result = await db.transaction(
+    return db.transaction(
       async (tx): Promise<GoogleDisconnectRevokeResult<GoogleConnection>> => {
         const [attempt] = await tx
           .select()
@@ -292,12 +289,9 @@ export const createGoogleDisconnectRevokeRepository = (
           .returning({ id: googleDisconnectRevokeAttempts.id })
         if (!updated[0]) return fail('invalid_transition')
         await insertOutboxRow(tx, input.event)
-        eventCommitted = true
         return success(googleConnectionFromRow(connection))
       },
     )
-    if (eventCommitted && result.ok) await emitAfterCommit(events, input.event)
-    return result
   }
 
   return Object.freeze({
@@ -433,10 +427,7 @@ export const createGoogleDisconnectRevokeRepository = (
       if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 100) {
         return { visited: 0, confirmedNotSent: 0, cleanupAmbiguous: 0 }
       }
-      const committedEvents: Array<
-        ReturnType<typeof integrationGoogleAccountDisconnected>
-      > = []
-      const counts = await db.transaction(async (tx) => {
+      return db.transaction(async (tx) => {
         const attempts = await tx
           .select()
           .from(googleDisconnectRevokeAttempts)
@@ -492,7 +483,6 @@ export const createGoogleDisconnectRevokeRepository = (
             })
             .where(eq(googleDisconnectRevokeAttempts.id, attempt.id))
           await insertOutboxRow(tx, event)
-          committedEvents.push(event)
           if (outcome === 'confirmed_not_sent') confirmedNotSent += 1
           else cleanupAmbiguous += 1
         }
@@ -502,8 +492,6 @@ export const createGoogleDisconnectRevokeRepository = (
           cleanupAmbiguous,
         }
       })
-      for (const event of committedEvents) await emitAfterCommit(events, event)
-      return counts
     },
   })
 }

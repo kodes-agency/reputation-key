@@ -9,7 +9,7 @@ import { removeMember } from './remove-member'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
 import type { SequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../../domain/errors'
 import { userId } from '#/shared/domain/ids'
@@ -38,11 +38,11 @@ const seedMemberBoth = (
 
 const setup = (seeded: ReadonlyArray<MemberRecord> = []) => {
   const identity = createInMemoryIdentityPort()
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialIdentityCommandStore({ events })
+  const outbox = createRecordedOutbox()
+  const commandStore = createSequentialIdentityCommandStore({ outbox })
   for (const m of seeded) seedMemberBoth(identity, commandStore, m)
   const useCase = removeMember({ identity, commandStore, clock: () => FIXED_TIME })
-  return { useCase, identity, events, commandStore }
+  return { useCase, identity, outbox, commandStore }
 }
 
 const STAFF_MEMBER: MemberRecord = {
@@ -69,15 +69,15 @@ const ADMIN_MEMBER: MemberRecord = {
 
 describe('removeMember', () => {
   it('allows AccountAdmin to remove a member', async () => {
-    const { useCase, events, commandStore } = setup([STAFF_MEMBER, ADMIN_MEMBER])
+    const { useCase, outbox, commandStore } = setup([STAFF_MEMBER, ADMIN_MEMBER])
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const result = await useCase({ memberId: 'member-1' }, ctx)
 
     expect(result.success).toBe(true)
     expect(commandStore.memberById('member-1')).toBeNull()
-    expect(events.capturedEvents).toHaveLength(1)
-    expect(events.capturedEvents[0]._tag).toBe('identity.member.removed')
+    expect(outbox.facts).toHaveLength(1)
+    expect(outbox.facts[0]._tag).toBe('identity.member.removed')
   })
 
   it('rejects PropertyManager from removing members', async () => {
@@ -98,25 +98,25 @@ describe('removeMember', () => {
     )
   })
 
-  it('emits member.removed event with correct data', async () => {
-    const { useCase, events } = setup([STAFF_MEMBER, ADMIN_MEMBER])
+  it('records the member.removed fact with correct data', async () => {
+    const { useCase, outbox } = setup([STAFF_MEMBER, ADMIN_MEMBER])
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase({ memberId: 'member-1' }, ctx)
 
-    const emitted = events.capturedByTag('identity.member.removed')
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0].organizationId).toBe(ctx.organizationId)
-    expect(emitted[0].removedBy).toBe(ctx.userId)
-    // Fix #1: the event must carry the removed user's id (targetMember.userId),
-    // NOT the better-auth member-row id (memberId === 'member-1').
-    expect(emitted[0].userId).toBe(userId('user-target'))
+    const facts = outbox.byTag('identity.member.removed')
+    expect(facts).toHaveLength(1)
+    expect(facts[0].organizationId).toBe(ctx.organizationId)
+    expect(facts[0].removedBy).toBe(ctx.userId)
+    // The fact must carry the removed user's id (targetMember.userId), not the
+    // better-auth member-row id (memberId === 'member-1').
+    expect(facts[0].userId).toBe(userId('user-target'))
   })
 
   it('fences the removed user import scope before deleting membership', async () => {
     const identity = createInMemoryIdentityPort()
-    const events = createCapturingEventBus()
-    const commandStore = createSequentialIdentityCommandStore({ events })
+    const outbox = createRecordedOutbox()
+    const commandStore = createSequentialIdentityCommandStore({ outbox })
     for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
@@ -147,8 +147,8 @@ describe('removeMember', () => {
 
   it('releases the target member authorities before deleting membership', async () => {
     const identity = createInMemoryIdentityPort()
-    const events = createCapturingEventBus()
-    const commandStore = createSequentialIdentityCommandStore({ events })
+    const outbox = createRecordedOutbox()
+    const commandStore = createSequentialIdentityCommandStore({ outbox })
     for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
@@ -178,8 +178,8 @@ describe('removeMember', () => {
    */
   it('completes every cross-context fence before the membership transaction', async () => {
     const identity = createInMemoryIdentityPort()
-    const events = createCapturingEventBus()
-    const commandStore = createSequentialIdentityCommandStore({ events })
+    const outbox = createRecordedOutbox()
+    const commandStore = createSequentialIdentityCommandStore({ outbox })
     for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
@@ -220,8 +220,8 @@ describe('removeMember', () => {
 
   it('preserves membership when import fencing fails', async () => {
     const identity = createInMemoryIdentityPort()
-    const events = createCapturingEventBus()
-    const commandStore = createSequentialIdentityCommandStore({ events })
+    const outbox = createRecordedOutbox()
+    const commandStore = createSequentialIdentityCommandStore({ outbox })
     for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
@@ -240,13 +240,13 @@ describe('removeMember', () => {
     )
 
     expect(commandStore.memberById(STAFF_MEMBER.id)).not.toBeNull()
-    expect(events.capturedByTag('identity.member.removed')).toEqual([])
+    expect(outbox.byTag('identity.member.removed')).toEqual([])
   })
 
   it('preserves membership when connector departure fencing fails', async () => {
     const identity = createInMemoryIdentityPort()
-    const events = createCapturingEventBus()
-    const commandStore = createSequentialIdentityCommandStore({ events })
+    const outbox = createRecordedOutbox()
+    const commandStore = createSequentialIdentityCommandStore({ outbox })
     for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
@@ -268,7 +268,7 @@ describe('removeMember', () => {
 
     expect(cancelGoogleImportsForUser).not.toHaveBeenCalled()
     expect(commandStore.memberById(STAFF_MEMBER.id)).not.toBeNull()
-    expect(events.capturedByTag('identity.member.removed')).toEqual([])
+    expect(outbox.byTag('identity.member.removed')).toEqual([])
   })
 
   it('forbids removing the last AccountAdmin of the organization', async () => {
@@ -316,7 +316,7 @@ describe('removeMember', () => {
       image: null,
       createdAt: new Date('2026-01-01'),
     }
-    const { useCase, events, commandStore } = setup([adminA, adminB])
+    const { useCase, outbox, commandStore } = setup([adminA, adminB])
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const result = await useCase({ memberId: 'admin-a' }, ctx)
@@ -324,6 +324,6 @@ describe('removeMember', () => {
     expect(result.success).toBe(true)
     expect(commandStore.memberById('admin-a')).toBeNull()
     expect(commandStore.memberById('admin-b')).not.toBeNull()
-    expect(events.capturedByTag('identity.member.removed')).toHaveLength(1)
+    expect(outbox.byTag('identity.member.removed')).toHaveLength(1)
   })
 })

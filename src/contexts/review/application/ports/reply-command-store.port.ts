@@ -1,9 +1,8 @@
 // Reply command store — atomic reply/review state mutation + outbox record (BQC-3.3).
 //
 // Callers must not know Drizzle transaction types or outbox tables.
-// The production implementation commits the state write and the outbox_events
-// row in one PostgreSQL transaction, then emits on the in-process bus after
-// commit (expand-phase dual path until durable switch).
+// The production implementation commits the state write and its outbox_events
+// rows in one PostgreSQL transaction.
 //
 // BQC-3.8: the publication state machine (domain/reply-publication-workflow.ts)
 // is persisted through this store. Every external-interaction transition is a
@@ -43,7 +42,7 @@ export type MirrorSyncedReplyCommand = Readonly<{
   /**
    * review.reply.published{source:'import'} fact for newly-discovered Google
    * replies. Null → no fact (existing-mirror refresh and the delete path
-   * never emit one).
+   * never record one).
    */
   event: ReviewReplyPublished | null
   now?: Date
@@ -62,9 +61,8 @@ export type CancelPublicationCommand = Readonly<{
 }>
 
 /**
- * Facts committed with one approval/edit/retry authorization. The lifecycle
- * event remains the in-process notification/activity fact; publicationIntent
- * is always durable and is consumed by the worker recovery path.
+ * Durable facts committed with one approval/edit/retry authorization.
+ * `publicationIntent` drives worker recovery.
  */
 export type PublicationAuthorizationFacts = Readonly<{
   lifecycleEvent: ReviewReplyApproved | null

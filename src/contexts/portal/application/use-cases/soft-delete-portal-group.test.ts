@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { softDeletePortalGroup } from './soft-delete-portal-group'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import {
@@ -99,11 +99,11 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const commandStore = createInMemoryPortalCommandStore({
     portalRepo: createInMemoryPortalRepo(),
     portalGroupRepo,
-    events,
+    outbox,
   })
   const deps = {
     portalGroupRepo,
@@ -112,7 +112,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
     clock: () => FIXED_TIME,
   }
   const useCase = softDeletePortalGroup(deps)
-  return { useCase, portalGroupRepo, events }
+  return { useCase, portalGroupRepo, outbox }
 }
 
 const seedGroup = (orgId: PortalGroup['organizationId']): PortalGroup => ({
@@ -127,8 +127,8 @@ const seedGroup = (orgId: PortalGroup['organizationId']): PortalGroup => ({
 })
 
 describe('softDeletePortalGroup', () => {
-  it('soft deletes a group and emits deleted event (AccountAdmin bypasses assignment)', async () => {
-    const { useCase, portalGroupRepo, events } = setup(null)
+  it('soft deletes a group and records the fact (AccountAdmin bypasses assignment)', async () => {
+    const { useCase, portalGroupRepo, outbox } = setup(null)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
 
@@ -140,7 +140,7 @@ describe('softDeletePortalGroup', () => {
       updatedAt: new Date(FIXED_TIME.getTime() + 1),
     })
 
-    const emitted = events.capturedByTag('portal_group.deleted')
+    const emitted = outbox.byTag('portal_group.deleted')
     expect(emitted).toHaveLength(1)
     expect(String(emitted[0].portalGroupId)).toBe(String(GROUP_ID))
   })

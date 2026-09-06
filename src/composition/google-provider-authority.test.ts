@@ -11,7 +11,6 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { Database } from '#/shared/db'
 import type { Env } from '#/shared/config/env'
-import type { EventBus } from '#/shared/events/event-bus'
 import { providerConfigFor } from './provider-runtime'
 import {
   buildGoogleProviderAuthority,
@@ -29,11 +28,6 @@ const dbStub = new Proxy(
   },
 ) as unknown as Database
 
-const eventBusStub = {
-  emit: async () => {},
-  on: () => {},
-} as unknown as EventBus
-
 const FIXED_DATE = new Date('2026-02-01T00:00:00.000Z')
 
 /** Minimal env stand-in: only the keys this trust boundary reads matter. */
@@ -49,7 +43,6 @@ function buildInput(
 ): GoogleProviderAuthorityInput {
   return {
     db: dbStub,
-    eventBus: eventBusStub,
     clock: () => FIXED_DATE,
     logger: { warn: () => {}, info: () => {} },
     env: envWith({}),

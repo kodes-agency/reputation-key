@@ -253,7 +253,8 @@ function assertBuiltCounts(
 }
 
 async function main(): Promise<void> {
-  const { container, queue, advanceClock } = await createSimulationContainer()
+  const { container, queue, advanceClock, drainOutbox } =
+    await createSimulationContainer()
   const orgId = await resolveOrgId(container)
 
   // Before the scenario: the org allowlist must exist so every property the
@@ -265,6 +266,10 @@ async function main(): Promise<void> {
 
   // ── Round 1: Build scenario + initial invariants ──
   const result = await buildScenario(container, spec)
+  // Projections (Inbox items, metric readings, activity) are built by the
+  // durable consumers, so the recorded facts are delivered before anything
+  // reads them.
+  const delivered = await drainOutbox()
   console.log('\n✓ Scenario built:')
   console.log(`  Properties: ${result.propertiesCreated}`)
   console.log(`  Portals:    ${result.portalsCreated}`)
@@ -272,7 +277,7 @@ async function main(): Promise<void> {
   console.log(`  Replies:    ${result.repliesCreated}`)
   console.log(`  Goals:      ${result.goalsCreated}`)
   console.log(`  Guest:      ${result.guestInteractions}`)
-  console.log(`  Events:     ${result.eventsEmitted}`)
+  console.log(`  Facts:      ${result.factsRecorded} recorded, ${delivered} delivered`)
   assertBuiltCounts('Round 1', spec, result)
 
   // ── Create second org for multi-tenant isolation testing ──
@@ -303,6 +308,7 @@ async function main(): Promise<void> {
     ],
   }
   const result2 = await buildScenario(container, spec2)
+  await drainOutbox()
   assertBuiltCounts('Org 2', spec2, result2)
   console.log(`\n✓ Multi-tenant: org 2 created (${result2.reviewsCreated} reviews)`)
 

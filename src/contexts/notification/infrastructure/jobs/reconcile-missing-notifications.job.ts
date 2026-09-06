@@ -1,15 +1,9 @@
 // Notification context — BullMQ job handler that heals missing notifications.
 //
-// Why this exists at all: `emitAfterCommit` (src/shared/outbox/commit.ts)
-// catches and warns, so a throw anywhere in the inbox or notification handler
-// left the review committed, the inbox item committed, and no notification —
-// with nothing retrying. The durable consumer in ../outbox-consumers.ts is the
-// structural prevention path. OUTBOX_DISPATCHER_ENABLED is enabled in
-// google-closed-beta (with QUEUE_REDIS_URL set), so that consumer delivers.
-// This sweep remains the bounded at-least-once repair for gaps that predate or
-// exhaust normal delivery. The DURABLE_CUTOVER_INBOX* flags are NOT involved:
-// they govern the dual-path review.* Inbox projection families, not
-// inbox.inbox_item.created.
+// Consumer delivery is at-least-once via the outbox. This job is the backstop
+// for a consumer that recorded a receipt without a notification: after a grace
+// period it finds Inbox items with no notification row and re-enqueues their
+// ordinary insert-notification jobs.
 //
 // Shape follows discover-new-reviews.job.ts:
 //   - keyset-cursor batches ordered by (created_at, id), bounded batch budget,

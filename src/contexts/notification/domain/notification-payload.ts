@@ -66,7 +66,7 @@ const PLATFORMS: Record<string, true> = { google: true, portal: true }
 
 /** Longest free-ish text we accept. Names, not prose. */
 const MAX_NAME_LENGTH = 120
-/** Moderation reasons are staff-authored sentences, capped like the event bus caps them. */
+/** Staff-authored moderation reasons are capped before durable delivery. */
 const MAX_REASON_LENGTH = 500
 
 /** Trimmed non-empty string under `max`, else undefined. Never throws. */

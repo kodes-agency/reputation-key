@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as ExecutionPolicyModule from '#/shared/auth/execution-policy'
-import type * as RequestRuntimeConfigModule from '#/shared/config/request-runtime-config'
 import type * as LoggerModule from '#/shared/observability/logger'
 import { GoogleImportTransactionError } from '../application/google-import-transaction'
 
@@ -16,7 +15,6 @@ type StandardValidator = Readonly<{
 }>
 
 const mocks = vi.hoisted(() => ({
-  requestRuntimeConfig: vi.fn(),
   start: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
@@ -83,10 +81,6 @@ vi.mock('#/shared/auth/execution-policy', async (importOriginal) => {
   const actual = await importOriginal<typeof ExecutionPolicyModule>()
   return { ...actual, requireExecutionAllowed: mocks.requireExecutionAllowed }
 })
-vi.mock('#/shared/config/request-runtime-config', async (importOriginal) => {
-  const actual = await importOriginal<typeof RequestRuntimeConfigModule>()
-  return { ...actual, requestRuntimeConfig: mocks.requestRuntimeConfig }
-})
 
 import { startPropertyImportV2 } from './gbp-import'
 
@@ -126,27 +120,8 @@ beforeEach(() => {
   mocks.start.mockResolvedValue({ importJobId: IMPORT_JOB_ID, replayed: false })
 })
 
-describe('startPropertyImportV2 dispatcher admission', () => {
-  it('returns 503 in production when the outbox dispatcher is off', async () => {
-    mocks.requestRuntimeConfig.mockReturnValue({
-      nodeEnv: 'production',
-      outboxDispatcherEnabled: false,
-    })
-
-    await expect(callStart()).rejects.toMatchObject({
-      name: 'GoogleImportTransactionError',
-      code: 'temporarily_unavailable',
-      status: 503,
-    })
-    expect(mocks.start).not.toHaveBeenCalled()
-  })
-
-  it('admits production imports when the outbox dispatcher is on', async () => {
-    mocks.requestRuntimeConfig.mockReturnValue({
-      nodeEnv: 'production',
-      outboxDispatcherEnabled: true,
-    })
-
+describe('startPropertyImportV2', () => {
+  it('starts a durable import', async () => {
     await expect(callStart()).resolves.toEqual({
       importJobId: IMPORT_JOB_ID,
       replayed: false,
@@ -156,10 +131,6 @@ describe('startPropertyImportV2 dispatcher admission', () => {
   })
 
   it('surfaces a durable contract rejection as a non-availability failure', async () => {
-    mocks.requestRuntimeConfig.mockReturnValue({
-      nodeEnv: 'production',
-      outboxDispatcherEnabled: true,
-    })
     mocks.start.mockRejectedValueOnce(
       new GoogleImportTransactionError('contract_rejected'),
     )
@@ -169,17 +140,5 @@ describe('startPropertyImportV2 dispatcher admission', () => {
       code: 'contract_rejected',
       status: 500,
     })
-  })
-
-  it('admits non-production imports regardless of the dispatcher flag', async () => {
-    for (const dispatcherEnabled of [false, true]) {
-      mocks.requestRuntimeConfig.mockReturnValue({
-        nodeEnv: 'test',
-        outboxDispatcherEnabled: dispatcherEnabled,
-      })
-      await expect(callStart()).resolves.toMatchObject({ importJobId: IMPORT_JOB_ID })
-    }
-
-    expect(mocks.start).toHaveBeenCalledTimes(2)
   })
 })

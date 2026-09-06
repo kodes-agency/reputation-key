@@ -21,7 +21,6 @@
 // Runtime halves of these proofs live in:
 //   - src/composition.test.ts (providerConfigFor fails closed)
 //   - src/shared/observability/health-metrics.test.ts (marker-content proof)
-//   - src/contexts/activity/infrastructure/event-handlers/activity-content-safety.test.ts
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'

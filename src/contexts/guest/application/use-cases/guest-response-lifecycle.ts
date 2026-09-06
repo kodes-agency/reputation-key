@@ -291,20 +291,16 @@ export function guestResponseLifecycle(
     return deps.storage.confirmUpload(media.objectKey)
   }
 
-  // PB2.4 / ADR 0044: the aggregate submit is the LIVE producer of the guest
-  // rating and feedback facts. The former submit-rating/submit-feedback use
-  // cases emitted them, but no server function ever reached those use cases —
-  // the metric handlers (portal.rating, portal.feedback) had no producer and
-  // both metrics read 0 forever. Those two use cases are gone with this change.
+  // The aggregate submission derives rating and feedback facts from the
+  // aggregate's resolved consent flags, never from raw input. submitResponse()
+  // normalizes those flags, and a row may legitimately retain a rating the
+  // guest declined to share; an unconsented fact must not become a metric
+  // reading (ADR 0044 consent scope).
   //
-  // Gated on the aggregate's resolved consent flags — never on the raw input.
-  // submitResponse() normalizes those booleans and a row may legitimately hold
-  // a rating the guest declined to share; an unconsented fact must not become
-  // a metric reading (ADR 0044 consent scope).
-  //
-  // The aggregate row id is the identity of both facts: one submit yields at
-  // most one rating and one feedback, and inbox keys its item on feedbackId,
-  // so a replayed emission is idempotent rather than duplicated.
+  // The aggregate row id is the identity of both facts: one successful submit
+  // records at most one rating and one feedback outbox row in the same
+  // transaction. Durable consumers use source-event identity, so replay
+  // converges without duplicate metric or Inbox projections.
   const submissionFacts = (response: GuestResponse): GuestSubmissionFact[] => {
     const facts: GuestSubmissionFact[] = []
     const scopeIds = {
@@ -548,8 +544,8 @@ export function guestResponseLifecycle(
           initialGuestResponseIntegrityDecision(submitted, initialIntegrityAssessment),
         )) === 'applied'
       ) {
-        // Only the winning insert emits: the `existing`/`raced` paths return an
-        // already-counted response, so a refresh or a lost race adds no facts.
+        // Only the winning insert records facts. The `existing`/`raced` paths
+        // return an already-counted response, so refreshes and lost races add none.
         return toView(submitted, deps.clock())
       }
       const raced = await deps.repo.findForSession(scope, sessionId, deps.clock())

@@ -161,7 +161,7 @@ describe('Activity delivery store (real PostgreSQL)', () => {
     ).toEqual([])
   })
 
-  it('repairs a bus-first row and records a duplicate receipt without a second row', async () => {
+  it('repairs an existing row and records a duplicate receipt without a second row', async () => {
     const store = createActivityDeliveryStore(db)
     await db
       .insert(recentActivityEntries)

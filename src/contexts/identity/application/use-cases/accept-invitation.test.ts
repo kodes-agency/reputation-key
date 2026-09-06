@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest'
 import { acceptInvitation } from './accept-invitation'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { isIdentityError } from '../../domain/errors'
 import { invitationId, userId, organizationId } from '#/shared/domain/ids'
 import type { InvitationId, UserId } from '#/shared/domain/ids'
@@ -18,15 +18,15 @@ const HEADERS: Headers = new Headers()
 
 const setup = () => {
   const identity = createInMemoryIdentityPort()
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialIdentityCommandStore({ events })
+  const outbox = createRecordedOutbox()
+  const commandStore = createSequentialIdentityCommandStore({ outbox })
   const useCase = acceptInvitation({ identity, commandStore, clock: () => FIXED_TIME })
-  return { useCase, identity, events, commandStore }
+  return { useCase, identity, outbox, commandStore }
 }
 
 describe('acceptInvitation', () => {
-  it('emits identity.invitation.accepted with the joined org, user, and property ids', async () => {
-    const { useCase, identity, events, commandStore } = setup()
+  it('records identity.invitation.accepted with the joined org, user, and property ids', async () => {
+    const { useCase, identity, outbox, commandStore } = setup()
     const invId: InvitationId = invitationId('inv-accept-1')
     const joiningUserId: UserId = userId('user-joining')
     const orgId = organizationId('org-joined')
@@ -61,13 +61,13 @@ describe('acceptInvitation', () => {
       ),
     ).toBe(true)
 
-    const emitted = events.capturedByTag('identity.invitation.accepted')
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0].organizationId).toBe(orgId)
-    expect(emitted[0].userId).toBe(joiningUserId)
-    expect(emitted[0].invitationId).toBe(invId)
-    expect(emitted[0].propertyIds).toEqual(['prop-a', 'prop-b'])
-    expect(emitted[0].occurredAt).toBe(FIXED_TIME)
+    const facts = outbox.byTag('identity.invitation.accepted')
+    expect(facts).toHaveLength(1)
+    expect(facts[0].organizationId).toBe(orgId)
+    expect(facts[0].userId).toBe(joiningUserId)
+    expect(facts[0].invitationId).toBe(invId)
+    expect(facts[0].propertyIds).toEqual(['prop-a', 'prop-b'])
+    expect(facts[0].occurredAt).toBe(FIXED_TIME)
 
     // Post-commit hook: explicit Property access for the invited properties.
     expect(identity.acceptInvitationHookCalls).toEqual([
@@ -80,7 +80,7 @@ describe('acceptInvitation', () => {
   })
 
   it('rejects when there is no active session', async () => {
-    const { useCase, events } = setup()
+    const { useCase, outbox } = setup()
 
     await expect(
       useCase({
@@ -90,11 +90,11 @@ describe('acceptInvitation', () => {
       }),
     ).rejects.toSatisfy((e: unknown) => isIdentityError(e) && e.code === 'forbidden')
 
-    expect(events.capturedEvents).toHaveLength(0)
+    expect(outbox.facts).toHaveLength(0)
   })
 
   it('propagates (does not swallow) the error when the store rejects', async () => {
-    const { useCase, identity, events, commandStore } = setup()
+    const { useCase, identity, outbox, commandStore } = setup()
     identity.setSessionUser({ id: 'user-fail', email: 'joiner@test.com' })
     commandStore.seedInvitation({
       id: 'inv-fail',
@@ -118,8 +118,8 @@ describe('acceptInvitation', () => {
       (e: unknown) => isIdentityError(e) && e.code === 'invitation_not_found',
     )
 
-    // No event should be emitted when the accept failed.
-    expect(events.capturedEvents).toHaveLength(0)
+    // No fact is recorded when acceptance fails.
+    expect(outbox.facts).toHaveLength(0)
     expect(identity.acceptInvitationHookCalls).toHaveLength(0)
   })
 })

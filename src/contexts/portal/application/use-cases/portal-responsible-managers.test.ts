@@ -7,11 +7,6 @@ import {
   listPortalResponsibleManagers,
   updatePortalResponsibleManagers,
 } from './portal-responsible-managers'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
-import {
-  portalResponsibilityNeeded,
-  portalResponsibleManagersUpdated,
-} from '../../domain/events'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
 const PORTAL = buildTestPortal({ responsibleManagerRevision: 1 })
@@ -35,10 +30,7 @@ const setup = () => {
   const managerRepo: PortalResponsibleManagerRepository = {
     listActive: async () => active,
     listActiveForUser: async () => active,
-    releaseForUser: async () => ({
-      released: 0,
-      responsibilityNeededEvents: [],
-    }),
+    releaseForUser: async () => ({ released: 0 }),
     replace: async (input) => {
       const hadManagers = active.length > 0
       active = input.managerUserIds.map((userId, index) => ({
@@ -56,28 +48,9 @@ const setup = () => {
         assignments: active,
         revision: input.expectedRevision + 1,
         becameResponsibilityNeeded: hadManagers && active.length === 0,
-        updatedEvent: portalResponsibleManagersUpdated({
-          portalId: PORTAL.id,
-          organizationId: PORTAL.organizationId,
-          propertyId: PORTAL.propertyId,
-          assignmentCount: active.length,
-          sourceAggregateVersion: NOW.toISOString(),
-          occurredAt: NOW,
-        }),
-        responsibilityNeededEvent:
-          hadManagers && active.length === 0
-            ? portalResponsibilityNeeded({
-                portalId: PORTAL.id,
-                organizationId: PORTAL.organizationId,
-                propertyId: PORTAL.propertyId,
-                sourceAggregateVersion: NOW.toISOString(),
-                occurredAt: NOW,
-              })
-            : null,
       }
     },
   }
-  const events = createCapturingEventBus()
   const deps = {
     portalRepo,
     managerRepo,
@@ -107,10 +80,9 @@ const setup = () => {
       findActiveParticipation: async (_org: string, _property: string, userId: string) =>
         userId === 'manager-ineligible' ? null : ({} as never),
     },
-    events,
     clock: () => NOW,
   }
-  return { deps, managerRepo, events }
+  return { deps, managerRepo }
 }
 
 describe('Portal Responsible Managers', () => {
@@ -139,7 +111,7 @@ describe('Portal Responsible Managers', () => {
   })
 
   it('supports multiple assigned managers without granting access', async () => {
-    const { deps, events } = setup()
+    const { deps } = setup()
     const result = await updatePortalResponsibleManagers(deps)(
       {
         portalId: PORTAL.id,
@@ -150,14 +122,10 @@ describe('Portal Responsible Managers', () => {
     )
 
     expect(result.assignments.map((row) => row.userId)).toEqual(['admin-1', 'manager-1'])
-    expect(events.capturedByTag('portal.responsible_managers.updated')).toEqual([
-      expect.objectContaining({
-        portalId: PORTAL.id,
-        assignmentCount: 2,
-        sourceAggregateVersion: NOW.toISOString(),
-        occurredAt: NOW,
-      }),
-    ])
+    expect(result).toMatchObject({
+      revision: 2,
+      becameResponsibilityNeeded: false,
+    })
   })
 
   it('rejects a manager who lacks the role-specific property eligibility', async () => {
@@ -177,27 +145,20 @@ describe('Portal Responsible Managers', () => {
     })
   })
 
-  it('raises one recovery fact only when the last manager is removed', async () => {
-    const { deps, events } = setup()
+  it('reports the transition only when the last manager is removed', async () => {
+    const { deps } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await updatePortalResponsibleManagers(deps)(
+    const first = await updatePortalResponsibleManagers(deps)(
       { portalId: PORTAL.id, managerUserIds: [], expectedRevision: 1 },
       ctx,
     )
-    await updatePortalResponsibleManagers(deps)(
+    const second = await updatePortalResponsibleManagers(deps)(
       { portalId: PORTAL.id, managerUserIds: [], expectedRevision: 2 },
       ctx,
     )
 
-    expect(events.capturedByTag('portal.responsibility_became_needed')).toEqual([
-      expect.objectContaining({
-        portalId: PORTAL.id,
-        organizationId: PORTAL.organizationId,
-        propertyId: PORTAL.propertyId,
-        sourceAggregateVersion: NOW.toISOString(),
-        occurredAt: NOW,
-      }),
-    ])
+    expect(first.becameResponsibilityNeeded).toBe(true)
+    expect(second.becameResponsibilityNeeded).toBe(false)
   })
 })

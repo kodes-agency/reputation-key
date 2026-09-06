@@ -1,16 +1,21 @@
+import type { PropertyResponsibilityNeeded } from '#/contexts/property/application/public-api'
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import {
-  onPropertyResponsibilityNeeded,
-  type PropertyResponsibilityNotificationDeps,
-} from './event-handlers/on-property-responsibility-needed'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { UserLookupPort } from '../application/ports/user-lookup.port'
+import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
+import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 
 export const ON_PROPERTY_RESPONSIBILITY_NEEDED_CONSUMER =
   'notification.on-property-responsibility-needed' as const
 
-export type PropertyNotificationConsumerDeps = PropertyResponsibilityNotificationDeps &
-  Readonly<{ receipts: Pick<OutboxRepository, 'insertReceipt'> }>
+export type PropertyNotificationConsumerDeps = Readonly<{
+  queue: NotificationJobEnqueuePort
+  userLookup: UserLookupPort
+  logger: LoggerPort
+  receipts: Pick<OutboxRepository, 'insertReceipt'>
+}>
 
 type Payload = Readonly<{
   organizationId: string
@@ -34,12 +39,48 @@ function parse(event: ConsumerEvent): Payload {
   return payload
 }
 
+async function enqueuePropertyResponsibilityNotification(
+  deps: PropertyNotificationConsumerDeps,
+  event: PropertyResponsibilityNeeded,
+): Promise<void> {
+  const recipients = await deps.userLookup.findByRole(
+    event.organizationId,
+    'AccountAdmin',
+  )
+  if (recipients.length === 0) {
+    deps.logger.warn(
+      { correlationId: event.correlationId ?? undefined },
+      'Property responsibility notification has no AccountAdmin recipients',
+    )
+    return
+  }
+  await Promise.all(
+    recipients.map((recipientId) =>
+      deps.queue.add(
+        INSERT_NOTIFICATION_JOB_NAME,
+        {
+          userId: recipientId,
+          organizationId: event.organizationId,
+          propertyId: event.propertyId,
+          type: 'property.responsibility_needed',
+          resourceType: 'property',
+          resourceId: event.propertyId,
+          eventId: event.eventId,
+          payload: {},
+          audience: { kind: 'account_admin' },
+        },
+        { jobId: `${event.eventId}-${recipientId}` },
+      ),
+    ),
+  )
+}
+
 export async function handleNotificationPropertyResponsibilityNeeded(
   deps: PropertyNotificationConsumerDeps,
   event: ConsumerEvent,
 ): Promise<Readonly<{ status: 'applied' }>> {
   const payload = parse(event)
-  await onPropertyResponsibilityNeeded(deps)({
+  await enqueuePropertyResponsibilityNotification(deps, {
     _tag: 'property.responsibility_became_needed',
     eventId: event.eventId,
     correlationId: event.correlationId ?? null,

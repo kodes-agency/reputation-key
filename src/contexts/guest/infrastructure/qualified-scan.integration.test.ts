@@ -11,7 +11,6 @@ import {
 } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { guestQualifiedScanRecorded, guestQualifiedScanRetracted } from '../domain/events'
 import { createPortalGroupRepository } from '#/contexts/portal/infrastructure/repositories/portal-group.repository'
@@ -20,8 +19,10 @@ import { createAtomicGuestObservationStore } from './guest-observation-store'
 import { recordMetrics } from '#/contexts/metric/application/use-cases/record-metric'
 import { retractMetrics } from '#/contexts/metric/application/use-cases/retract-metric'
 import { METRIC_VERSION_IDS } from '#/contexts/metric/domain/metric-registry'
-import { onQualifiedScanRecordedDurably } from '#/contexts/metric/infrastructure/event-handlers/on-qualified-scan-recorded'
-import { onQualifiedScanRetractedDurably } from '#/contexts/metric/infrastructure/event-handlers/on-qualified-scan-retracted'
+import {
+  onQualifiedScanRecordedDurably,
+  onQualifiedScanRetractedDurably,
+} from '#/contexts/metric/infrastructure/record-portal-metric'
 import { createAtomicMetricCommandStore } from '#/contexts/metric/infrastructure/metric-command-store'
 import { createMetricRegistryRepository } from '#/contexts/metric/infrastructure/repositories/metric-registry.repository'
 import { createMetricRepository } from '#/contexts/metric/infrastructure/repositories/metric.repository'
@@ -240,8 +241,7 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
   })
 
   it('serializes rolling 24-hour dedupe and applies one replay-safe correction', async () => {
-    const events = createCapturingEventBus()
-    const store = createAtomicGuestObservationStore(getDb(), events)
+    const store = createAtomicGuestObservationStore(getDb())
     const makeScan = (id: string, occurredAt: Date) => {
       const scanId = qualifiedScanId(id)
       const fact = guestQualifiedScanRecorded({
@@ -271,12 +271,12 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
     const first = makeScan('73000000-0000-4000-8000-000000000011', EVENT_TIME)
     const concurrent = makeScan('73000000-0000-4000-8000-000000000012', EVENT_TIME)
 
-    await expect(
-      Promise.all([
-        store.commitQualifiedScan(first.scan, SESSION, first.fact),
-        store.commitQualifiedScan(concurrent.scan, SESSION, concurrent.fact),
-      ]),
-    ).resolves.toEqual(expect.arrayContaining(['applied', 'duplicate']))
+    const outcomes = await Promise.all([
+      store.commitQualifiedScan(first.scan, SESSION, first.fact),
+      store.commitQualifiedScan(concurrent.scan, SESSION, concurrent.fact),
+    ])
+    expect(outcomes).toEqual(expect.arrayContaining(['applied', 'duplicate']))
+    const original = outcomes[0] === 'applied' ? first.fact : concurrent.fact
     expect(
       await getPool().query(
         `SELECT id, portal_group_id, access_artifact_id
@@ -319,9 +319,14 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       ),
     ).toMatchObject({ rows: [{ count: 2 }] })
 
-    const recorded = events.capturedByTag('guest.qualified_scan.recorded')
-    expect(recorded).toHaveLength(2)
-    const original = recorded[0]!
+    const recorded = await getPool().query(
+      `SELECT id FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type = 'guest.qualified_scan.recorded'`,
+      [ORG],
+    )
+    expect(recorded.rows).toHaveLength(2)
+    expect(recorded.rows).toContainEqual({ id: original.eventId })
     const correction = guestQualifiedScanRetracted({
       qualifiedScanId: original.qualifiedScanId,
       organizationId: original.organizationId,
@@ -347,8 +352,7 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
   })
 
   it('projects one replay-safe Metric contribution and removes it by correction', async () => {
-    const events = createCapturingEventBus()
-    const commandStore = createAtomicMetricCommandStore(getDb(), events, randomUUID)
+    const commandStore = createAtomicMetricCommandStore(getDb(), randomUUID)
     const readingIds = [
       metricReadingId('73000000-0000-4000-8000-000000000021'),
       metricReadingId('73000000-0000-4000-8000-000000000022'),
@@ -457,7 +461,6 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
     )
     const retractedHandler = onQualifiedScanRetractedDurably({
       retractMetrics: retractMetrics(commandStore),
-      logger: createMockLogger(),
     })
     await retractedHandler(correction)
     await retractedHandler(correction)

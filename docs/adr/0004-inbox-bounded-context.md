@@ -45,7 +45,7 @@ Add feedback-reading and inbox logic to the existing `review` context.
 New `inbox` context owns: unified item projection, status workflow, assignment, notes, filtering, pagination, events. Subscribes to `review.created` and `feedback.submitted` events to create inbox items.
 
 - **Pros:** Clean domain boundary. Inbox owns its rules. Events enable unread badge and Phase 19 notifications. Phase 12 reply UI lives here without contaminating review domain. Guest context stays write-only.
-- **Cons:** More wiring in `composition.ts`. Cross-context event handlers needed.
+- **Cons:** More wiring in `composition.ts`. Cross-context outbox consumers needed.
 
 ## Key Architectural Decisions
 
@@ -59,7 +59,7 @@ New `inbox` context owns: unified item projection, status workflow, assignment, 
 | 6   | Forward-only cursor pagination on `(sourceDate DESC, id)`                               | Stable composite cursor across two source types. No backward pagination — inbox loads newest first.                                                                                          |
 | 7   | Inbox emits events: `inbox.item.created`, `inbox.status.changed`, `inbox.item.assigned` | Enables Redis unread badge invalidation. Enables Phase 19 notification subscriptions. Follows existing architecture pattern.                                                                 |
 | 8   | No feedback category column in Phase 11                                                 | Category is an Arc 7 (AI) feature. Add the nullable column when AI categorization is built.                                                                                                  |
-| 9   | Creation triggers: `review.created`, `feedback.submitted`                               | Event handlers in `inbox/infrastructure/event-handlers/` create `inbox_items` rows. Denormalize filter/sort columns at creation time.                                                        |
+| 9   | Creation triggers: `review.created`, `feedback.submitted`                               | Durable consumers in `inbox/infrastructure/outbox-consumers.ts` create `inbox_items` rows. Denormalize filter/sort columns at creation time.                                                 |
 | 10  | Email split UI layout with chat-like thread in detail panel                             | List panel for triage speed and bulk actions. Detail panel shows item content + notes/replies in a vertical thread (newest at bottom, input at bottom). Existing `Sidebar` component reused. |
 
 ## Consequences

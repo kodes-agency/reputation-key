@@ -4,7 +4,7 @@ import {
   type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { assertBetaNotificationTriggerMatrix } from '../application/beta-notification-trigger-matrix'
-import { createEventHandlerDeps } from './event-handlers/test-fixtures'
+import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
 import { registerNotificationConsumers } from './outbox-consumers'
 import { registerWorkflowNotificationConsumers } from './workflow-outbox-consumers'
 import { registerPortalNotificationConsumers } from './portal-outbox-consumers'
@@ -33,7 +33,7 @@ describe('registered durable notification matrix', () => {
   })
 
   it('matches the consumers actually registered by the worker composition', () => {
-    const fakes = createEventHandlerDeps()
+    const fakes = createNotificationConsumerDeps()
     const receipts = { insertReceipt: vi.fn(async () => {}) }
 
     registerIdentityAccountNotificationConsumers(consumerRegistry, {

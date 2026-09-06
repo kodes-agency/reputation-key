@@ -75,7 +75,7 @@ const portal = () =>
   })
 
 describe('portal responsible manager repository', () => {
-  it('offboarding preserves other managers and raises recovery only for the last one', async () => {
+  it('offboarding preserves other managers until the last manager leaves', async () => {
     const db = getDb()
     await createPostgresPortalFixtureStore(db).insert(
       organizationId(ORG),
@@ -102,7 +102,7 @@ describe('portal responsible manager repository', () => {
         at: UNASSIGNED,
         endReason: 'manager_became_ineligible',
       }),
-    ).toEqual({ released: 0, responsibilityNeededEvents: [] })
+    ).toEqual({ released: 0 })
 
     const first = await repo.releaseForUser({
       organizationId: ORG,
@@ -110,7 +110,7 @@ describe('portal responsible manager repository', () => {
       at: UNASSIGNED,
       endReason: 'manager_offboarded',
     })
-    expect(first).toEqual({ released: 1, responsibilityNeededEvents: [] })
+    expect(first).toEqual({ released: 1 })
     expect((await repo.listActive(ORG, PORTAL)).map((row) => row.userId)).toEqual([
       'admin-1',
     ])
@@ -121,8 +121,7 @@ describe('portal responsible manager repository', () => {
       at: new Date(UNASSIGNED.getTime() + 1_000),
       endReason: 'manager_offboarded',
     })
-    expect(last.released).toBe(1)
-    expect(last.responsibilityNeededEvents).toHaveLength(1)
+    expect(last).toEqual({ released: 1 })
     expect(await repo.listActive(ORG, PORTAL)).toEqual([])
     expect(
       await repo.releaseForUser({
@@ -131,7 +130,7 @@ describe('portal responsible manager repository', () => {
         at: new Date(UNASSIGNED.getTime() + 2_000),
         endReason: 'manager_offboarded',
       }),
-    ).toEqual({ released: 0, responsibilityNeededEvents: [] })
+    ).toEqual({ released: 0 })
   })
 
   it('persists the eligible creator default atomically with the portal', async () => {
@@ -265,7 +264,7 @@ describe('portal responsible manager repository', () => {
         at: UNASSIGNED,
         endReason: 'manager_offboarded',
       }),
-    ).resolves.toEqual({ released: 2, responsibilityNeededEvents: [] })
+    ).resolves.toEqual({ released: 2 })
 
     const facts = await pool.query(
       `SELECT event_version, payload

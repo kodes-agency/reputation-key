@@ -1,10 +1,9 @@
 // Identity context — accept invitation use case
-// Extracted from the server fn (D8-007): the better-auth acceptInvitation call
-// + identity.invitation.accepted event emission now live in a use case,
-// testable independently. User may not have an org yet (they're joining), so
-// there is no AuthContext — the caller resolves auth (userId) and passes headers.
-// BQC-3.5: the member insert + invitation status update + accepted fact now
-// commit in ONE transaction via the command store.
+// Owns the Better Auth invitation-acceptance orchestration and is independently
+// testable. A joining user may not have an Organization yet, so there is no
+// AuthContext — the caller resolves auth (userId) and passes headers. The
+// command store commits the member insert, invitation status update, and
+// accepted fact in one transaction.
 
 import type { IdentityPort } from '../ports/identity.port'
 import type { IdentityCommandStore } from '../ports/identity-command-store.port'
@@ -38,10 +37,9 @@ export type AcceptInvitation = (
  *
  * Steps:
  * 1. Resolve the session — the acceptor's email authorizes the acceptance
- * 2. Persist + emit — command store: lock the invitation, re-validate it,
- *    create the membership, mark accepted, and record the fact atomically
- *    (identity.invitation.accepted) so downstream handlers (e.g.
- *    property-access provisioning) react
+ * 2. Persist — command store: lock the invitation, re-validate it, create the
+ *    membership, mark accepted, and record identity.invitation.accepted
+ *    atomically
  * 3. Post-commit — provision explicit access grants for invited Properties
  */
 export const acceptInvitation =

@@ -1,8 +1,7 @@
 // Atomic property command store (BQC-3.5).
 //
-// One PostgreSQL transaction per command: properties state mutation +
-// outbox_events insert. After commit: in-process EventBus emit for
-// expand-phase legacy consumers.
+// One PostgreSQL transaction commits each property state mutation with its
+// outbox_events row. A fact exists exactly when that durable row commits.
 //
 // Crash contract:
 // - Crash anywhere inside the transaction rolls back BOTH the state mutation
@@ -10,15 +9,13 @@
 //   pre-BQC-3.5 use cases could lose the fact between the repo write and
 //   the separate fact record, and the integration property-event adapter
 //   never recorded at all).
-// - Crash after commit but before the bus emit leaves a durable outbox row
-//   for the relay; the emit is best-effort (failure-isolated, logged).
+// - A successful commit makes the durable fact available to the outbox relay.
 
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import { propertyOperationReceipts } from '#/shared/db/schema/property-operation-receipt.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { propertyError } from '../domain/errors'
 import type { Property } from '../domain/types'
@@ -73,7 +70,6 @@ function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySet
 
 export const createAtomicPropertyCommandStore = (
   db: Database,
-  events: EventBus,
   localCell?: DataCellId,
 ): PropertyCommandStore => {
   return {
@@ -104,7 +100,6 @@ export const createAtomicPropertyCommandStore = (
           await insertOutboxRow(tx, command.event)
           return rows[0]
         })
-        await emitAfterCommit(events, command.event)
         return propertyFromRow(inserted)
       })
     },
@@ -134,7 +129,6 @@ export const createAtomicPropertyCommandStore = (
           }
           await insertOutboxRow(tx, command.event)
         })
-        await emitAfterCommit(events, command.event)
       })
     },
 
@@ -207,10 +201,6 @@ export const createAtomicPropertyCommandStore = (
             await insertOutboxRow(tx, command.bindingEvent)
           }
         })
-        await emitAfterCommit(events, command.event)
-        if (command.bindingEvent) {
-          await emitAfterCommit(events, command.bindingEvent)
-        }
       })
     },
   }

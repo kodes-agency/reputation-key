@@ -4,7 +4,6 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
-import type { EventBus } from '#/shared/events/event-bus'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
@@ -31,14 +30,6 @@ const CONNECTION_ID_2 = googleConnectionId('00000000-0000-4000-8000-000000000102
 
 let pool: Pool
 const db = getDb()
-const emitted: Array<{ _tag: string; [key: string]: unknown }> = []
-const events: EventBus = {
-  on: () => {},
-  emit: async (event) => {
-    emitted.push(event as (typeof emitted)[number])
-  },
-  clear: () => {},
-}
 
 function makeProperty(idSuffix: string, overrides: Partial<Property> = {}): Property {
   const id = propertyId(`10000000-0000-4000-8000-${idSuffix.padStart(12, '0')}`)
@@ -122,7 +113,6 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  emitted.length = 0
   await cleanup()
 })
 
@@ -141,7 +131,7 @@ function bindingError(code: PropertyGoogleBindingError['code']) {
 
 describe.sequential('Property Google binding store', () => {
   it('atomically creates and exactly replays a confirmed binding receipt', async () => {
-    const store = createPropertyGoogleBindingStore(db, events)
+    const store = createPropertyGoogleBindingStore(db)
     const property = makeActiveProperty('1', 'location-1')
     const idempotencyKey = '20000000-0000-4000-8000-000000000001'
 
@@ -167,9 +157,6 @@ describe.sequential('Property Google binding store', () => {
       tombstone: false,
     })
     expect(replayed).toEqual({ ...committed, replayed: true })
-    expect(emitted.map((event) => event._tag)).toEqual([
-      'property.google_binding.changed',
-    ])
 
     const summary = await store.readSummary(ORG_ID, property.id)
     expect(summary).toEqual({
@@ -214,7 +201,7 @@ describe.sequential('Property Google binding store', () => {
     expect(outbox.rows[0].payload).not.toHaveProperty('locationId')
   })
   it('reads a bounded tenant-scoped import discovery view by location suffix', async () => {
-    const store = createPropertyGoogleBindingStore(db, events)
+    const store = createPropertyGoogleBindingStore(db)
     const property = makeActiveProperty('11', 'location-discovery')
     await store.createBoundProperty({
       organizationId: ORG_ID,
@@ -268,7 +255,7 @@ describe.sequential('Property Google binding store', () => {
   })
 
   it('serializes duplicate active locations across concurrent creates', async () => {
-    const store = createPropertyGoogleBindingStore(db, events)
+    const store = createPropertyGoogleBindingStore(db)
     const results = await Promise.allSettled([
       store.createBoundProperty({
         organizationId: ORG_ID,
@@ -293,7 +280,7 @@ describe.sequential('Property Google binding store', () => {
   })
 
   it('relinks with source/profile CAS, confirmed profile replacement, and exact replay', async () => {
-    const store = createPropertyGoogleBindingStore(db, events)
+    const store = createPropertyGoogleBindingStore(db)
     const property = makeActiveProperty('4', 'old-location')
     const disconnected = {
       ...property,
@@ -379,7 +366,7 @@ describe.sequential('Property Google binding store', () => {
   })
 
   it('disconnects then scrubs provider identity while preserving profile generations', async () => {
-    const store = createPropertyGoogleBindingStore(db, events)
+    const store = createPropertyGoogleBindingStore(db)
     const property = makeActiveProperty('5', 'location-5')
     await db.insert(properties).values(propertyToRow(property))
 
@@ -434,15 +421,23 @@ describe.sequential('Property Google binding store', () => {
         uri: null,
       },
     })
-    expect(emitted.map((event) => event.change)).toEqual([
-      'disconnected',
+    const outbox = await pool.query(
+      `SELECT payload->>'change' AS change
+       FROM outbox_events
+       WHERE organization_id = $1
+         AND property_id = $2
+         AND event_type = 'property.google_binding.changed'`,
+      [ORG_ID, property.id],
+    )
+    expect(outbox.rows.map((row) => row.change).sort()).toEqual([
       'deletion_started',
+      'disconnected',
     ])
   })
 
   it('turns receipts into deletion tombstones and sweeps only released expiries', async () => {
-    const store = createPropertyGoogleBindingStore(db, events)
-    const commandStore = createAtomicPropertyCommandStore(db, events)
+    const store = createPropertyGoogleBindingStore(db)
+    const commandStore = createAtomicPropertyCommandStore(db)
     const deletedProperty = makeActiveProperty('6', 'location-6')
     const retainedProperty = makeActiveProperty('7', 'location-7')
     const deletedKey = '20000000-0000-4000-8000-000000000007'

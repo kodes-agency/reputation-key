@@ -12,7 +12,7 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import { createEventHandlerDeps } from './event-handlers/test-fixtures'
+import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
 import {
   handleNotificationGoogleReauthorizationRequired,
   ON_GOOGLE_REAUTHORIZATION_REQUIRED_CONSUMER,
@@ -47,7 +47,7 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
 })
 
 const makeDeps = () => {
-  const fakes = createEventHandlerDeps()
+  const fakes = createNotificationConsumerDeps()
   fakes.userLookup.findByRole.mockResolvedValue([ADMIN])
   return {
     queue: fakes.queue,

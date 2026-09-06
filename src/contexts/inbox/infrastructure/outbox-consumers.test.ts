@@ -1,5 +1,5 @@
 // BQC-3.4 — durable inbox consumers apply projections via applyOnce:
-// state change, emitted facts, and the receipt co-commit through the inbox
+// state change, outbox facts, and the receipt co-commit through the inbox
 // command store. Duplicate deliveries record receipts without second facts;
 // missing items/reviews are applied no-ops (rebuild heals).
 
@@ -20,7 +20,7 @@ import {
 } from './guest-feedback-outbox-consumers'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import type {
   ReviewLookupPort,
@@ -164,11 +164,11 @@ function makeDeps(overrides: {
   const item = overrides.item === undefined ? makeItem() : overrides.item
   const repo = createInMemoryInboxRepo()
   if (item) repo.items.push(item)
-  const events = createCapturingEventBus()
+  const events = createRecordedOutbox()
   const receipts: ReceiptRow[] = []
   const commandStore = createSequentialInboxCommandStore({
     repo,
-    events,
+    outbox: events,
     recordReceipt: async (eventId, consumerName, status) => {
       receipts.push({ eventId, consumerName, status })
     },
@@ -445,7 +445,7 @@ describe('handleInboxGuestFeedbackSubmitted (durable private feedback)', () => {
       snippet: null,
       reviewerName: null,
     })
-    expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(1)
+    expect(events.byTag('inbox.inbox_item.created')).toHaveLength(1)
     expect(receipts).toEqual([
       {
         eventId: 'evt-1',
@@ -551,7 +551,7 @@ describe('handleInboxGuestFeedbackRetracted (durable private feedback)', () => {
 
     expect(result).toEqual({ status: 'applied' })
     expect(repo.items[0]).toMatchObject({ status: 'closed', closedAt: NOW })
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toMatchObject([
+    expect(events.byTag('inbox.inbox_item.status_changed')).toMatchObject([
       { oldStatus: 'open', newStatus: 'closed' },
     ])
     expect(receipts).toEqual([
@@ -694,7 +694,7 @@ describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
     expect(repo.items[0]!.platform).toBe('google')
     expect(repo.items[0]!.rating).toBeNull()
     expect(repo.items[0]!.snippet).toBeNull()
-    expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(1)
+    expect(events.byTag('inbox.inbox_item.created')).toHaveLength(1)
     expect(apply).toHaveBeenCalledWith(
       expect.objectContaining({
         eventKind: 'created',
@@ -745,7 +745,7 @@ describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
 
     expect(result).toEqual({ status: 'duplicate' })
     expect(repo.items).toHaveLength(1)
-    expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.created')).toHaveLength(0)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-review-created', status: 'duplicate' },
     ])
@@ -778,7 +778,7 @@ describe('handleInboxReviewExpired (BQC-3.4 applyOnce)', () => {
       snippet: null,
       reviewerName: null,
     })
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-review-expired', status: 'applied' },
     ])
@@ -810,7 +810,7 @@ describe('handleInboxReviewExpired (BQC-3.4 applyOnce)', () => {
       snippet: null,
       reviewerName: null,
     })
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-review-expired', status: 'applied' },
     ])
@@ -880,7 +880,7 @@ describe('handleInboxReviewSourceTransitioned (REV-01 content-free handoff)', ()
       snippet: null,
       reviewerName: null,
     })
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(1)
     expect(receipts).toEqual([
       {
         eventId: 'evt-1',
@@ -920,7 +920,7 @@ describe('handleInboxReviewSourceTransitioned (REV-01 content-free handoff)', ()
       status: 'open',
       closedAt: null,
     })
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
     expect(receipts).toEqual([
       {
         eventId: 'evt-1',
@@ -1074,7 +1074,7 @@ describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () =>
     expect(result).toEqual({ status: 'applied' })
     expect(repo.items).toHaveLength(1)
     expect(repo.items[0]).toMatchObject({ sourceType: 'review', sourceId: REV })
-    expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(1)
+    expect(events.byTag('inbox.inbox_item.created')).toHaveLength(1)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-review-updated', status: 'applied' },
     ])
@@ -1119,9 +1119,11 @@ describe('handleInboxReplySubmitted (first-reply milestone)', () => {
     const result = await handleInboxReplySubmitted(deps, submitted())
 
     expect(result).toEqual({ status: 'applied' })
-    expect(repo.items[0]!.firstReplySubmittedAt).toEqual(new Date('2026-06-15T13:00:00.000Z'))
+    expect(repo.items[0]!.firstReplySubmittedAt).toEqual(
+      new Date('2026-06-15T13:00:00.000Z'),
+    )
     expect(repo.items[0]!.status).toBe('open')
-    expect(events.capturedEvents).toHaveLength(0)
+    expect(events.facts).toHaveLength(0)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-reply-submitted', status: 'applied' },
     ])
@@ -1129,7 +1131,9 @@ describe('handleInboxReplySubmitted (first-reply milestone)', () => {
 
   it('never overwrites an existing milestone on redelivery or a later reply', async () => {
     const first = new Date('2026-06-15T13:00:00.000Z')
-    const { deps, repo, receipts } = makeDeps({ item: makeItem({ firstReplySubmittedAt: first }) })
+    const { deps, repo, receipts } = makeDeps({
+      item: makeItem({ firstReplySubmittedAt: first }),
+    })
 
     await handleInboxReplySubmitted(deps, submitted('2026-06-16T09:00:00.000Z'))
 
@@ -1168,7 +1172,7 @@ describe('handleInboxReplyPublished (compatibility receipt only)', () => {
     expect(repo.items[0]!.status).toBe('open')
     expect(repo.items[0]!.closedAt).toBeNull()
     expect(repo.items[0]!.firstReplyPublishedAt).toBeNull()
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-reply-published', status: 'applied' },
     ])
@@ -1189,7 +1193,7 @@ describe('handleInboxReplyPublished (compatibility receipt only)', () => {
 
     expect(result).toEqual({ status: 'applied' })
     expect(repo.items[0]!.firstReplyPublishedAt).toBeNull()
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
     expect(receipts).toHaveLength(1)
   })
 
@@ -1213,7 +1217,7 @@ describe('handleInboxReplyPublished (compatibility receipt only)', () => {
 
     expect(result).toEqual({ status: 'applied' })
     expect(repo.items[0]!.firstReplyPublishedAt).toEqual(stamped)
-    expect(events.capturedEvents).toHaveLength(0)
+    expect(events.facts).toHaveLength(0)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-reply-published', status: 'applied' },
     ])
@@ -1268,7 +1272,7 @@ describe('handleInboxReplyObserved (provider-observation authority)', () => {
       closedAt: NOW,
       firstReplyPublishedAt: NOW,
     })
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(1)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-reply-observed', status: 'applied' },
     ])
@@ -1358,7 +1362,7 @@ describe('handleInboxReplyObserved (provider-observation authority)', () => {
       ),
     ).resolves.toEqual({ status: 'applied' })
     expect(repo.items[0]).toMatchObject({ status: 'closed', closedAt })
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-reply-observed', status: 'applied' },
     ])
@@ -1411,7 +1415,7 @@ describe('handleInboxReplyObserved (provider-observation authority)', () => {
       closedAt: null,
       firstReplyPublishedAt: first,
     })
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(1)
   })
 
   it.each([
@@ -1449,7 +1453,7 @@ describe('handleInboxReplyObserved (provider-observation authority)', () => {
         closedAt: first,
         firstReplyPublishedAt: first,
       })
-      expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+      expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
     },
   )
 

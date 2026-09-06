@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
-import type { RecordMetricInput } from '../../application/use-cases/record-metric'
+import { METRIC_VERSION_IDS } from '../domain/metric-registry'
+import type { RecordMetricInput } from '../application/use-cases/record-metric'
 import {
   onApprovedDestinationRatioRecorded,
   onConfigurationCompletenessRecorded,
   onContentReviewCompleted,
   type PortalMetricAttribution,
-} from './on-portal-workflow-metric'
+} from './outbox-consumers'
 
 const occurredAt = new Date('2026-08-09T12:00:00.000Z')
 const orgId = organizationId('org-1')

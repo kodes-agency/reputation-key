@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { resolveEscalation } from './resolve-escalation'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import { isInboxError } from '../../domain/errors'
@@ -74,8 +74,8 @@ const allAccess: StaffPublicApi = {
 
 const setup = (staffPublicApi: StaffPublicApi = allAccess) => {
   const repo = createInMemoryInboxRepo()
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialInboxCommandStore({ repo, events })
+  const events = createRecordedOutbox()
+  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
   const execute = resolveEscalation({
     repo,
     commandStore,
@@ -114,15 +114,15 @@ describe('resolveEscalation', () => {
     expect(updated.commandRevision).toBe(2)
   })
 
-  it('emits the escalation_resolved event', async () => {
+  it('records the escalation_resolved fact', async () => {
     const { useCase, repo, events } = setup()
     repo.items.push(seedEscalated())
 
     await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
-    const emitted = events.capturedEvents
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0]._tag).toBe('inbox.inbox_item.escalation_resolved')
+    const facts = events.facts
+    expect(facts).toHaveLength(1)
+    expect(facts[0]._tag).toBe('inbox.inbox_item.escalation_resolved')
   })
 
   it('is idempotent when not actively escalated', async () => {
@@ -131,7 +131,7 @@ describe('resolveEscalation', () => {
 
     await useCase({ inboxItemId: ITEM_ID }, ctxFor('AccountAdmin'))
 
-    expect(events.capturedEvents).toHaveLength(0)
+    expect(events.facts).toHaveLength(0)
   })
 
   it('does not change status', async () => {

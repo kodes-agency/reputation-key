@@ -20,7 +20,6 @@ import { operationalActionHistoryRecordId } from '#/contexts/activity/domain/ope
 import type { Queue } from 'bullmq'
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { OutboxRepository } from '#/shared/outbox'
 import type { buildStaffContext } from '#/contexts/staff/build'
@@ -33,7 +32,6 @@ import type { InboxContextApi } from '#/contexts/inbox/build'
 
 export type ReadAndNotifyContextsInput = Readonly<{
   db: Database
-  events: EventBus
   clock: Clock
   idGen: () => string
   logger: LoggerPort
@@ -53,7 +51,6 @@ export type ReadAndNotifyContextsInput = Readonly<{
 export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
   const metricApi = buildMetricContext({
     db: input.db,
-    events: input.events,
     clock: input.clock,
     idGen: input.idGen,
     logger: input.logger,
@@ -110,10 +107,8 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
   // ── Activity context ────────────────────────────────────────────
   const activity = buildActivityContext({
     db: input.db,
-    events: input.events,
     outboxRepo: input.outboxRepo,
     staffPublicApi: input.staff.publicApi,
-    queue: input.jobQueue,
     clock: input.clock,
     logger: input.logger,
     idGen: () => recentActivityEntryId(crypto.randomUUID()),
@@ -125,7 +120,6 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
   // ── Notification context ──────────────────────────────────────────
   const notification = buildNotificationContext({
     db: input.db,
-    events: input.events,
     outboxRepo: input.outboxRepo,
     queue: input.jobQueue,
     clock: input.clock,

@@ -26,7 +26,7 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import {
   createAtomicInboxCommandStore,
   type InboxCommandAuthority,
@@ -49,11 +49,6 @@ const repositoryRuntime = { clock: () => TEST_NOW, logger: createMockLogger() }
 let pool: Pool
 const db = getDb()
 
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
 
 // Stub lookup ports — inbox repo owns the SQL, these just provide enrichment data
@@ -98,7 +93,6 @@ function createInboxRepository(database: Database, ports: RepositoryPorts) {
         return (
           await createAtomicInboxCommandStore(
             database,
-            silentEvents,
             allowAllCommandAuthority,
             () => TEST_NOW,
           ).createItem(item, null, {
@@ -146,7 +140,6 @@ function createInboxRepository(database: Database, ports: RepositoryPorts) {
       return (
         await createAtomicInboxCommandStore(
           database,
-          silentEvents,
           allowAllCommandAuthority,
           () => TEST_NOW,
         ).createItem(item, null, { materialReviewRevision: 1 })

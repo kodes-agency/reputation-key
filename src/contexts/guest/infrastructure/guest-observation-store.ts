@@ -6,8 +6,7 @@ import {
   guestQualifiedScans,
   scanEvents,
 } from '#/shared/db/schema/guest.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type { GuestObservationStore } from '../application/ports/guest-observation-store.port'
 import { scanEventToRow } from './mappers/guest.mapper'
@@ -45,7 +44,6 @@ const qualifiedScanAttributionPredicate = (
 
 export const createAtomicGuestObservationStore = (
   db: Database,
-  events: EventBus,
 ): GuestObservationStore => {
   return {
     commitScan: (scan, fact) =>
@@ -78,7 +76,6 @@ export const createAtomicGuestObservationStore = (
           await insertOutboxRow(tx, fact)
           return 'applied' as const
         })
-        if (outcome === 'applied') await emitAfterCommit(events, fact)
         return outcome
       }),
 
@@ -156,7 +153,6 @@ export const createAtomicGuestObservationStore = (
           await insertOutboxRow(tx, fact, { recordedAt: scan.occurredAt })
           return 'applied' as const
         })
-        if (outcome === 'applied') await emitAfterCommit(events, fact)
         return outcome
       }),
 
@@ -201,7 +197,6 @@ export const createAtomicGuestObservationStore = (
           await insertOutboxRow(tx, fact, { recordedAt: fact.occurredAt })
           return 'applied' as const
         })
-        if (outcome === 'applied') await emitAfterCommit(events, fact)
         return outcome
       }),
 
@@ -250,7 +245,6 @@ export const createAtomicGuestObservationStore = (
           await insertOutboxRow(tx, fact, { recordedAt: action.occurredAt })
           return 'applied' as const
         })
-        if (outcome === 'applied') await emitAfterCommit(events, fact)
         return outcome
       }),
   }

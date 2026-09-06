@@ -21,7 +21,10 @@ import type { ReplyRepository, ConditionalReplyUpdate } from '../ports/reply.rep
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { ReplyQueuePort } from '../ports/reply-queue.port'
-import type { EventBus } from '#/shared/events/event-bus'
+import {
+  createRecordedOutbox,
+  type RecordedOutbox,
+} from '#/shared/testing/recorded-outbox'
 import type { DomainEvent } from '#/shared/events/events'
 import type { Reply, Review } from '../../domain/types'
 import { isReviewError } from '../../domain/errors'
@@ -125,15 +128,15 @@ const replyRepoWith = (reply: Reply | null): ReplyRepository => ({
 })
 
 /**
- * In-process fake of ReplyCommandStore (application zone must not import
+ * In-memory fake of ReplyCommandStore (application zone must not import
  * infra). Mirrors the production contract: guarded conditionalUpdate first,
- * then post-commit bus emit; a lost race (conditionalUpdate → null) emits
+ * then the outbox fact; a lost race (conditionalUpdate → null) records
  * nothing. `getReplyRepo` resolves lazily so per-test replyRepo overrides
  * take effect.
  */
 function makeReplyCommandStoreFake(
   getReplyRepo: () => ReplyRepository,
-  events: EventBus,
+  outbox: RecordedOutbox,
 ): ReplyCommandStore {
   const transition = async (
     reply: Reply,
@@ -148,7 +151,7 @@ function makeReplyCommandStoreFake(
       updates,
       now,
     )
-    if (saved && event) await events.emit(event)
+    if (saved && event) await outbox.record(event)
     return saved
   }
   return {
@@ -214,13 +217,10 @@ function makeReplyCommandStoreFake(
   }
 }
 
-type TestReplyDeps = ReplyDeps & { events: EventBus }
+type TestReplyDeps = ReplyDeps & { outbox: RecordedOutbox }
 
 function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
-  const events = {
-    emit: vi.fn(async () => {}),
-    on: vi.fn(),
-  } as unknown as EventBus
+  const outbox = createRecordedOutbox()
   const deps = {
     replyRepo: {
       upsert: vi.fn(async (r: Reply) => r),
@@ -280,8 +280,8 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
     staffPublicApi: makeStaffApi(null),
     ...overrides,
   }
-  deps.commandStore = makeReplyCommandStoreFake(() => deps.replyRepo, events)
-  return { ...deps, events }
+  deps.commandStore = makeReplyCommandStoreFake(() => deps.replyRepo, outbox)
+  return { ...deps, outbox }
 }
 
 const MANAGER_CTX = {
@@ -637,7 +637,7 @@ describe('submitReply', () => {
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
   })
 
-  it('emits reviewReplySubmitted event with correct data', async () => {
+  it('records the reviewReplySubmitted fact with correct data', async () => {
     const draft = makeReply({ status: 'draft' })
     const review = makeReview()
     const deps = makeDeps({
@@ -650,15 +650,14 @@ describe('submitReply', () => {
       } as unknown as ReviewRepository,
     })
     await submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
-    expect(deps.events.emit).toHaveBeenCalledTimes(1)
-    const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(emittedEvent._tag).toBe('review.reply.submitted')
-    expect(emittedEvent.replyId).toBe(REPLY_ID)
-    expect(emittedEvent.reviewId).toBe(REVIEW_ID)
-    expect(emittedEvent.propertyId).toBe(PROP_ID)
-    expect(emittedEvent.organizationId).toBe(ORG_ID)
-    expect(emittedEvent.userId).toBe(USER_ID)
-    expect(emittedEvent.occurredAt).toBe(NOW)
+    expect(deps.outbox.byTag('review.reply.submitted')).toHaveLength(1)
+    const fact = deps.outbox.byTag('review.reply.submitted')[0]!
+    expect(fact.replyId).toBe(REPLY_ID)
+    expect(fact.reviewId).toBe(REVIEW_ID)
+    expect(fact.propertyId).toBe(PROP_ID)
+    expect(fact.organizationId).toBe(ORG_ID)
+    expect(fact.userId).toBe(USER_ID)
+    expect(fact.occurredAt).toBe(NOW)
   })
 
   it('treats a lost race (conditionalUpdate returns null) as invalid_transition', async () => {
@@ -675,7 +674,7 @@ describe('submitReply', () => {
     await expect(
       submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
-    expect(deps.events.emit).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
   })
 })
 
@@ -739,7 +738,7 @@ describe('approveReply', () => {
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
   })
 
-  it('emits reviewReplyApproved event with correct data', async () => {
+  it('records the reviewReplyApproved fact with correct data', async () => {
     const pending = makeReply({ status: 'pending_approval' })
     const review = makeReview()
     const deps = makeDeps({
@@ -752,15 +751,14 @@ describe('approveReply', () => {
       } as unknown as ReviewRepository,
     })
     await approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
-    expect(deps.events.emit).toHaveBeenCalledTimes(1)
-    const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(emittedEvent._tag).toBe('review.reply.approved')
-    expect(emittedEvent.replyId).toBe(REPLY_ID)
-    expect(emittedEvent.reviewId).toBe(REVIEW_ID)
-    expect(emittedEvent.propertyId).toBe(PROP_ID)
-    expect(emittedEvent.organizationId).toBe(ORG_ID)
-    expect(emittedEvent.userId).toBe(USER_ID)
-    expect(emittedEvent.occurredAt).toBe(NOW)
+    expect(deps.outbox.byTag('review.reply.approved')).toHaveLength(1)
+    const fact = deps.outbox.byTag('review.reply.approved')[0]!
+    expect(fact.replyId).toBe(REPLY_ID)
+    expect(fact.reviewId).toBe(REVIEW_ID)
+    expect(fact.propertyId).toBe(PROP_ID)
+    expect(fact.organizationId).toBe(ORG_ID)
+    expect(fact.userId).toBe(USER_ID)
+    expect(fact.occurredAt).toBe(NOW)
   })
 })
 
@@ -776,7 +774,7 @@ describe('editPublishedReply', () => {
       publishedAt: NOW,
     })
 
-  it('edits text, re-enters the publication machine, emits review.reply.updated, and enqueues the republish', async () => {
+  it('edits text, re-enters the publication machine, records review.reply.updated, and enqueues the republish', async () => {
     const reply = published()
     const review = makeReview()
     const deps = makeDeps({
@@ -802,13 +800,12 @@ describe('editPublishedReply', () => {
     expect(result.publicationLastErrorClass).toBeNull()
     expect(result.reconcileDueAt).toBeNull()
 
-    const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(emittedEvent._tag).toBe('review.reply.updated')
-    expect(emittedEvent.replyId).toBe(REPLY_ID)
-    expect(emittedEvent.reviewId).toBe(REVIEW_ID)
-    expect(emittedEvent.propertyId).toBe(PROP_ID)
-    expect(emittedEvent.organizationId).toBe(ORG_ID)
-    expect(emittedEvent.userId).toBe(USER_ID)
+    const fact = deps.outbox.byTag('review.reply.updated')[0]!
+    expect(fact.replyId).toBe(REPLY_ID)
+    expect(fact.reviewId).toBe(REVIEW_ID)
+    expect(fact.propertyId).toBe(PROP_ID)
+    expect(fact.organizationId).toBe(ORG_ID)
+    expect(fact.userId).toBe(USER_ID)
 
     expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
       {
@@ -840,7 +837,7 @@ describe('editPublishedReply', () => {
     )
 
     expect(result).toBe(reply)
-    expect(deps.events.emit).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
@@ -941,7 +938,7 @@ describe('rejectReply', () => {
     expect(result.rejectionReason).toBeNull()
   })
 
-  it('emits reviewReplyRejected event with correct data', async () => {
+  it('records the reviewReplyRejected fact with correct data', async () => {
     const pending = makeReply({ status: 'pending_approval' })
     const review = makeReview()
     const deps = makeDeps({
@@ -957,16 +954,15 @@ describe('rejectReply', () => {
       { reviewId: REVIEW_ID, reason: 'Tone too aggressive' },
       MANAGER_CTX,
     )
-    expect(deps.events.emit).toHaveBeenCalledTimes(1)
-    const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(emittedEvent._tag).toBe('review.reply.rejected')
-    expect(emittedEvent.replyId).toBe(REPLY_ID)
-    expect(emittedEvent.reviewId).toBe(REVIEW_ID)
-    expect(emittedEvent.propertyId).toBe(PROP_ID)
-    expect(emittedEvent.organizationId).toBe(ORG_ID)
-    expect(emittedEvent.userId).toBe(USER_ID)
-    expect(emittedEvent.reason).toBe('Tone too aggressive')
-    expect(emittedEvent.occurredAt).toBe(NOW)
+    expect(deps.outbox.byTag('review.reply.rejected')).toHaveLength(1)
+    const fact = deps.outbox.byTag('review.reply.rejected')[0]!
+    expect(fact.replyId).toBe(REPLY_ID)
+    expect(fact.reviewId).toBe(REVIEW_ID)
+    expect(fact.propertyId).toBe(PROP_ID)
+    expect(fact.organizationId).toBe(ORG_ID)
+    expect(fact.userId).toBe(USER_ID)
+    expect(fact.reason).toBe('Tone too aggressive')
+    expect(fact.occurredAt).toBe(NOW)
   })
 })
 
@@ -1318,14 +1314,14 @@ describe('retryPublish', () => {
 // ── TOCTOU guard — conditionalUpdate atomicity ─────────────────────────
 // Every transition use case must use conditionalUpdate (not upsert) so that a
 // concurrent status change invalidates the write. A null return = lost race →
-// invalid_transition, and no event/job side-effects must fire.
+// invalid_transition, and no fact/job side-effects must fire.
 
 describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid_transition)', () => {
   const nullConditional = vi.fn(
     async () => null,
   ) as unknown as ReplyRepository['conditionalUpdate']
 
-  it('approveReply: lost race throws invalid_transition, no job enqueued, no event', async () => {
+  it('approveReply: lost race throws invalid_transition, no job enqueued or fact', async () => {
     const pending = makeReply({ status: 'pending_approval' })
     const deps = makeDeps({
       replyRepo: {
@@ -1338,10 +1334,10 @@ describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid
       approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
-    expect(deps.events.emit).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
   })
 
-  it('rejectReply: lost race throws invalid_transition, no event', async () => {
+  it('rejectReply: lost race throws invalid_transition, no fact', async () => {
     const pending = makeReply({ status: 'pending_approval' })
     const deps = makeDeps({
       replyRepo: {
@@ -1353,7 +1349,7 @@ describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid
     await expect(
       rejectReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
-    expect(deps.events.emit).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
   })
 
   it('retryPublish: lost race throws invalid_transition, no job enqueued', async () => {
@@ -1371,7 +1367,7 @@ describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
-  it('submitReply: lost race throws invalid_transition, no event', async () => {
+  it('submitReply: lost race throws invalid_transition, no fact', async () => {
     const draft = makeReply({ status: 'draft' })
     const deps = makeDeps({
       replyRepo: {
@@ -1383,7 +1379,7 @@ describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid
     await expect(
       submitReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
-    expect(deps.events.emit).not.toHaveBeenCalled()
+    expect(deps.outbox.facts).toHaveLength(0)
   })
 })
 

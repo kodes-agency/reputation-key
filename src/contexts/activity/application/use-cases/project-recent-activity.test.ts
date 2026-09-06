@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 
 import { projectRecentActivity } from './project-recent-activity'
-import { createSimulationContainer } from '#/shared/testing/simulation-container.server'
 import {
   organizationId,
   userId,
@@ -11,7 +10,7 @@ import {
 import type { Role } from '#/shared/domain/roles'
 
 describe('projectRecentActivity', () => {
-  it('inserts log via repo and emits event', async () => {
+  it('inserts the projection through the repository', async () => {
     const insert = vi.fn().mockResolvedValue(undefined)
     const repo = { insert, findDuplicate: vi.fn().mockResolvedValue(null) } as any // eslint-disable-line @typescript-eslint/no-explicit-any
     const logger = {
@@ -47,13 +46,6 @@ describe('projectRecentActivity', () => {
     })
 
     expect(insert).toHaveBeenCalled()
-  })
-
-  it('demonstrates simulation harness integration (SIM-01)', async () => {
-    // Example integration of simulation for test isolation (per ADR 0019)
-    const sim = await createSimulationContainer()
-    expect(sim).toBeDefined()
-    // In real use: use sim.container for wired deps with fakes/clock
   })
 
   it('removes legacy invitation detail again at the persistence boundary', async () => {

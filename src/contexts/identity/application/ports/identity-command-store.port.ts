@@ -5,9 +5,7 @@
 // The production implementation commits the better-auth-owned state rows
 // (invitation / member / organization — the app-owned write path, same
 // precedent as the pre-existing acceptInvitation transaction) and the
-// outbox_events fact in ONE PostgreSQL transaction, then emits on the
-// in-process bus after commit (expand-phase dual path until the durable
-// switch).
+// outbox_events fact in one PostgreSQL transaction.
 
 import type { InvitationId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type {

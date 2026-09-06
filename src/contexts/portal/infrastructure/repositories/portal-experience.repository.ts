@@ -19,8 +19,7 @@ import type {
   PropertyPortalBrandProfile,
 } from '../../application/ports/portal-experience.repository'
 import { trace } from '#/shared/observability/trace'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
   lockPortalPublicationProperty,
   lockPortalPublicationWorkingCopy,
@@ -84,7 +83,6 @@ const overrideFromRow = (
 
 export const createPortalExperienceRepository = (
   db: Database,
-  events: EventBus,
 ): PortalExperienceRepository => ({
   getPropertyExperience: (orgId, propertyIdValue) =>
     trace('portalExperience.getProperty', async () => {
@@ -181,10 +179,10 @@ export const createPortalExperienceRepository = (
           occurredAt: input.at,
         })
         await insertOutboxRow(tx, event, { recordedAt: input.at })
-        return { result: profileFromRow(row), event }
+        return profileFromRow(row)
       })
-      await emitAfterCommit(events, committed.event)
-      return committed.result
+
+      return committed
     }),
 
   savePropertyContent: (input) =>
@@ -240,10 +238,10 @@ export const createPortalExperienceRepository = (
           occurredAt: input.at,
         })
         await insertOutboxRow(tx, event, { recordedAt: input.at })
-        return { result: contentFromRow(row), event }
+        return contentFromRow(row)
       })
-      await emitAfterCommit(events, committed.event)
-      return committed.result
+
+      return committed
     }),
 
   savePortalOverride: (input) =>
@@ -292,9 +290,9 @@ export const createPortalExperienceRepository = (
               occurredAt: input.at,
             })
             await insertOutboxRow(tx, event, { recordedAt: input.at })
-            return { result: null, event }
+            return null
           }
-          return { result: null, event: null }
+          return null
         }
         const [row] = await tx
           .insert(portalLocalizedOverrides)
@@ -344,9 +342,9 @@ export const createPortalExperienceRepository = (
           occurredAt: input.at,
         })
         await insertOutboxRow(tx, event, { recordedAt: input.at })
-        return { result: overrideFromRow(row), event }
+        return overrideFromRow(row)
       })
-      if (committed.event) await emitAfterCommit(events, committed.event)
-      return committed.result
+
+      return committed
     }),
 })

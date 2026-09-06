@@ -27,8 +27,6 @@ export type RequestRuntimeConfig = Readonly<{
   /** Auth catch-all: the deployment's canonical origin and environment. */
   nodeEnv: string
   betterAuthUrl: string
-  /** Whether durable outbox dispatch is admitted for request-triggered work. */
-  outboxDispatcherEnabled: boolean
   /** Bearer token gating the operator metrics endpoint. Absent = endpoint closed. */
   opsMetricsToken: string | undefined
   /** Keyring for one-click unsubscribe links. */
@@ -43,7 +41,6 @@ export function requestRuntimeConfig(): RequestRuntimeConfig {
     env,
     nodeEnv: env.NODE_ENV,
     betterAuthUrl: env.BETTER_AUTH_URL,
-    outboxDispatcherEnabled: env.OUTBOX_DISPATCHER_ENABLED,
     opsMetricsToken: env.OPS_METRICS_TOKEN,
     notificationUnsubscribeHmacKeys: env.NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS,
     resendWebhookSecret: env.RESEND_WEBHOOK_SECRET,

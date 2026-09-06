@@ -337,6 +337,6 @@ Co-located context files in the source tree:
 
 - ADR 0010: Activity Context BullMQ Delivery
 - Events master union: `src/shared/events/events.ts`
-- Event bus: `src/shared/events/event-bus.ts`
+- Outbox commit + delivery: `src/shared/outbox/commit.ts`, `src/shared/outbox/relay.ts`, `src/shared/outbox/dispatcher.ts`
 - Layer guide: `src/contexts/CONTEXT.md`
 - Root glossary: `CONTEXT.md`

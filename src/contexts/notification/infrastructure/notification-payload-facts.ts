@@ -1,9 +1,8 @@
-// Notification context — payload assembly for event handlers (ADR 0046 r.8).
+// Notification context — payload assembly for durable consumers (ADR 0046 r.8).
 //
-// Handlers used to hand-write sentences ("Inbox item 61ed98fc-… has been
-// escalated"), because the events they consume carry ids and nothing else. They
-// now emit FACTS and let domain/notification-templates.ts write the sentence.
-// This module is where those facts are gathered.
+// Consumers enqueue facts and let domain/notification-templates.ts write the
+// sentence. This module gathers the allowlisted facts shared by inbox-backed
+// notification routes.
 //
 // Two rules hold everywhere below:
 //
@@ -13,18 +12,17 @@
 //     (goal/badge/portal). The inbox row also holds a snippet, a reviewer name
 //     and media — those are never read here.
 //  2. BEST EFFORT. A failed or empty lookup degrades the COPY, never loses the
-//     notification: every template renders correctly from `{}`. So each lookup
-//     is wrapped and a failure yields fewer keys rather than a thrown handler,
-//     which BullMQ would only retry into the same failure.
+//     notification: every template renders correctly from `{}`. Each lookup is
+//     wrapped so BullMQ delivery does not retry a permanently unavailable detail.
 
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
-import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
-import type { UserLookupPort } from '../../application/ports/user-lookup.port'
+import type { InboxItemLookupPort } from '../application/ports/inbox-item-lookup.port'
+import type { UserLookupPort } from '../application/ports/user-lookup.port'
 import type {
   NotificationPayload,
   NotificationPlatform,
-} from '../../domain/notification-payload'
+} from '../domain/notification-payload'
 
 const MS_PER_HOUR = 3_600_000
 

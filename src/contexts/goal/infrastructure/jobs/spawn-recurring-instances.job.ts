@@ -4,7 +4,6 @@
 
 import type { Job } from 'bullmq'
 import type { GoalRepository } from '../../application/ports/goal.repository'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { GoalProgress, RecurrenceFrequency } from '../../domain/types'
 import { buildGoal } from '../../domain/constructors'
 import { goalId, goalProgressId } from '#/shared/domain/ids'
@@ -19,7 +18,6 @@ import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-g
 
 export type SpawnRecurringInstancesDeps = Readonly<{
   goalRepo: GoalRepository
-  events: EventBus
   clock: () => Date
   idGen: () => string
   authorizeScope: ScheduledScopeAuthorizer

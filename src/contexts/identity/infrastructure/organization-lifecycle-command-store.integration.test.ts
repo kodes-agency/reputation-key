@@ -5,7 +5,6 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { EventBus } from '#/shared/events/event-bus'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -19,16 +18,6 @@ let lease: TestLease
 let db: Database
 const organizations = new Set<string>()
 const users = new Set<string>()
-
-function events(captured: unknown[] = []): EventBus {
-  return {
-    on: () => {},
-    emit: async (event) => {
-      captured.push(event)
-    },
-    clear: () => {},
-  }
-}
 
 type Fixture = Readonly<{
   organizationId: string
@@ -164,8 +153,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
 
   it('co-commits the recoverable lifecycle revision, global suspension, and minimal fact', async () => {
     const fixture = await seedFixture()
-    const captured: unknown[] = []
-    const store = createOrganizationLifecycleCommandStore(db, events(captured))
+    const store = createOrganizationLifecycleCommandStore(db)
     const versionBefore = await lease.pool.query(
       `SELECT version::int AS version FROM policy_version WHERE scope = 'global'`,
     )
@@ -194,14 +182,13 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
     )
     expect(versionAfter.rows[0]!.version).toBeGreaterThan(versionBefore.rows[0]!.version)
     expect(await factCount(fixture.organizationId)).toBe(1)
-    expect(captured).toHaveLength(1)
   })
 
   it.each(['after_state_and_fence', 'after_fact'] as const)(
     'rolls back state, suspension, receipt, and fact when interrupted at %s',
     async (faultStage) => {
       const fixture = await seedFixture()
-      const store = createOrganizationLifecycleCommandStore(db, events(), {
+      const store = createOrganizationLifecycleCommandStore(db, {
         interrupt: async (stage) => {
           if (stage === faultStage) throw new Error('simulated interruption')
         },
@@ -225,11 +212,10 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
     },
   )
 
-  it('replays one operation without adding a revision, fact, or second emission', async () => {
+  it('replays one operation without adding a revision or second fact', async () => {
     const fixture = await seedFixture()
     const operationId = randomUUID()
-    const captured: unknown[] = []
-    const store = createOrganizationLifecycleCommandStore(db, events(captured))
+    const store = createOrganizationLifecycleCommandStore(db)
 
     const first = await store.requestClosure(request(fixture, operationId))
     const replay = await store.requestClosure(request(fixture, operationId))
@@ -237,13 +223,12 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
     expect(replay).toEqual(first)
     expect(await state(fixture.organizationId)).toMatchObject({ revision: 1 })
     expect(await factCount(fixture.organizationId)).toBe(1)
-    expect(captured).toHaveLength(1)
   })
 
   it('binds an operation id to the original actor, reason, and evidence reference', async () => {
     const fixture = await seedFixture()
     const operationId = randomUUID()
-    const store = createOrganizationLifecycleCommandStore(db, events())
+    const store = createOrganizationLifecycleCommandStore(db)
     await store.requestClosure(request(fixture, operationId))
 
     await expect(
@@ -270,7 +255,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
 
   it('serializes competing requests so exactly one establishes the closure lineage', async () => {
     const fixture = await seedFixture()
-    const store = createOrganizationLifecycleCommandStore(db, events())
+    const store = createOrganizationLifecycleCommandStore(db)
 
     const outcomes = await Promise.allSettled([
       store.requestClosure(request(fixture, randomUUID())),
@@ -287,7 +272,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
     const target = await seedFixture()
     const manager = await seedFixture('admin')
     const otherOwner = await seedFixture()
-    const store = createOrganizationLifecycleCommandStore(db, events())
+    const store = createOrganizationLifecycleCommandStore(db)
 
     await expect(store.requestClosure(request(manager))).rejects.toMatchObject({
       code: 'forbidden',
@@ -308,7 +293,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
 
   it('cancels only inside the recoverable window and retains the global suspension', async () => {
     const fixture = await seedFixture()
-    const store = createOrganizationLifecycleCommandStore(db, events())
+    const store = createOrganizationLifecycleCommandStore(db)
     await store.requestClosure(request(fixture))
     const cancelOperationId = randomUUID()
 
@@ -355,7 +340,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
 
   it('allows cancellation from Closing while preserving explicit reactivation', async () => {
     const fixture = await seedFixture()
-    const store = createOrganizationLifecycleCommandStore(db, events())
+    const store = createOrganizationLifecycleCommandStore(db)
     const requested = await store.requestClosure(request(fixture))
     await store.transition({
       ...transition(fixture, {
@@ -384,7 +369,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
 
   it('refuses reactivation from a state other than active-awaiting-reactivation', async () => {
     const fixture = await seedFixture()
-    const store = createOrganizationLifecycleCommandStore(db, events())
+    const store = createOrganizationLifecycleCommandStore(db)
     const requested = await store.requestClosure(request(fixture))
 
     await expect(
@@ -407,7 +392,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
 
   it('compare-and-sets reactivation on the revision its readiness evidence describes', async () => {
     const fixture = await seedFixture()
-    const store = createOrganizationLifecycleCommandStore(db, events())
+    const store = createOrganizationLifecycleCommandStore(db)
     const requested = await store.requestClosure(request(fixture))
     const cancelled = await store.cancelClosure({
       operationId: randomUUID(),
@@ -449,7 +434,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
    */
   it('fails closed at the database until the reactivation migration lands', async () => {
     const fixture = await seedFixture()
-    const store = createOrganizationLifecycleCommandStore(db, events())
+    const store = createOrganizationLifecycleCommandStore(db)
     const requested = await store.requestClosure(request(fixture))
     const cancelled = await store.cancelClosure({
       operationId: randomUUID(),
@@ -490,7 +475,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
 
   it('advances through a recoverable Purge Pending state before the irreversible boundary', async () => {
     const fixture = await seedFixture()
-    const store = createOrganizationLifecycleCommandStore(db, events())
+    const store = createOrganizationLifecycleCommandStore(db)
     const requested = await store.requestClosure(request(fixture))
     const lineage = requested.closureLineageId!
 
@@ -547,7 +532,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
 
   it('allows an authorized recovery from Purge Pending while retaining the reactivation fence', async () => {
     const fixture = await seedFixture()
-    const store = createOrganizationLifecycleCommandStore(db, events())
+    const store = createOrganizationLifecycleCommandStore(db)
     const requested = await store.requestClosure(request(fixture))
     const lineage = requested.closureLineageId!
 
@@ -597,7 +582,7 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
 
   it('replays an exact stage transition without another revision or fact', async () => {
     const fixture = await seedFixture()
-    const store = createOrganizationLifecycleCommandStore(db, events())
+    const store = createOrganizationLifecycleCommandStore(db)
     const requested = await store.requestClosure(request(fixture))
     const command = {
       ...transition(fixture, {

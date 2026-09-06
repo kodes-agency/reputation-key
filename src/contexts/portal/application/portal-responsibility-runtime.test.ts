@@ -37,14 +37,9 @@ const createRepo = (seed: readonly PortalResponsibleManager[] = []) => ({
     assignments: seed,
     revision: 2,
     becameResponsibilityNeeded: false,
-    responsibilityNeededEvent: null,
-    updatedEvent: null,
   })),
   releaseForUser: vi.fn<PortalResponsibleManagerRepository['releaseForUser']>(
-    async () => ({
-      released: seed.length,
-      responsibilityNeededEvents: [],
-    }),
+    async () => ({ released: seed.length }),
   ),
 })
 
@@ -98,7 +93,7 @@ describe('createPortalResponsibilityRuntime', () => {
     ])
   })
 
-  it('returns the release facts the repository reports', async () => {
+  it('returns the release count the repository reports', async () => {
     const repo = createRepo([assignment('portal-1'), assignment('portal-2')])
     const runtime = createPortalResponsibilityRuntime(repo)
 
@@ -109,7 +104,7 @@ describe('createPortalResponsibilityRuntime', () => {
         at: AT,
         endReason: 'manager_offboarded',
       }),
-    ).resolves.toEqual({ released: 2, responsibilityNeededEvents: [] })
+    ).resolves.toEqual({ released: 2 })
   })
 
   it('carries only the two lifecycle operations, not the rest of the repository', () => {
@@ -129,7 +124,6 @@ describe('createPortalResponsibilityRuntime', () => {
     expect(() => {
       ;(runtime as unknown as { releaseForUser: unknown }).releaseForUser = async () => ({
         released: 0,
-        responsibilityNeededEvents: [],
       })
     }).toThrow(TypeError)
     expect(() => {

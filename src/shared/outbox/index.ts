@@ -20,7 +20,6 @@
  * relay subtree stopped being reachable from every shared area.
  */
 export { DEFAULT_LEASE_DURATION_MS } from './infrastructure/outbox-repository'
-export { emitAndRecord } from './emit-and-record'
 // ARC-03-T7: no free registration function. Consumers are registered on the
 // registry their container owns, so a second container in one process can
 // register the same consumers without colliding with the first.

@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { createLinkCategory } from './create-link-category'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -21,7 +21,7 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const deps = {
     portalRepo,
     portalLinkRepo,
@@ -29,13 +29,13 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     commandStore: createInMemoryPortalCommandStore({
       portalRepo,
       portalLinkRepo,
-      events,
+      outbox,
     }),
     idGen: () => 'c0000000-0000-0000-0000-000000000001',
     clock: () => FIXED_TIME,
   }
   const useCase = createLinkCategory(deps)
-  return { useCase, portalRepo, portalLinkRepo, events }
+  return { useCase, portalRepo, portalLinkRepo, outbox }
 }
 
 describe('createLinkCategory', () => {
@@ -71,15 +71,15 @@ describe('createLinkCategory', () => {
     )
   })
 
-  it('emits portal_link_category.created event', async () => {
-    const { useCase, portalRepo, events } = setup()
+  it('records a portal_link_category.created outbox fact', async () => {
+    const { useCase, portalRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({})
     portalRepo.seed([portal])
 
     await useCase({ portalId: portal.id, title: 'Reviews' }, ctx)
 
-    const emitted = events.capturedByTag('portal_link_category.created')
+    const emitted = outbox.byTag('portal_link_category.created')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].categoryId).toBe('c0000000-0000-0000-0000-000000000001')
   })

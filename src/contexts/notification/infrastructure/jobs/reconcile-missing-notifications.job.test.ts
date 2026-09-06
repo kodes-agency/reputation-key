@@ -25,10 +25,10 @@ import { insertNotification } from '../../application/use-cases/insert-notificat
 import type { InsertNotificationInput } from '../../application/use-cases/insert-notification'
 import { buildFakeInsertNotificationDeps } from '../../application/use-cases/test-fixtures'
 import {
-  createEventHandlerDeps,
-  type FakeEventHandlerDeps,
+  createNotificationConsumerDeps,
+  type FakeNotificationConsumerDeps,
   NOTIF_TEST_IDS,
-} from '../event-handlers/test-fixtures'
+} from '../notification-consumer-test-fixtures'
 import { unbrand, type UserId } from '#/shared/domain/ids'
 import type { NotificationPreference } from '../../domain/types'
 
@@ -131,7 +131,7 @@ const fakeGapRepo = (
 
 type Harness = Readonly<{
   handler: (job: Job) => Promise<void>
-  fakes: FakeEventHandlerDeps
+  fakes: FakeNotificationConsumerDeps
   gapRepo: FakeGapRepo
   notified: Set<string>
 }>
@@ -141,7 +141,7 @@ const makeHarness = (
   overrides: Partial<ReconcileMissingNotificationsDeps> = {},
   recipients: readonly UserId[] = [NOTIF_TEST_IDS.manager1],
 ): Harness => {
-  const fakes = createEventHandlerDeps()
+  const fakes = createNotificationConsumerDeps()
   fakes.responsibleManagers.findForProperty.mockResolvedValue(recipients)
   const notified = new Set<string>()
   const gapRepo = fakeGapRepo(items, notified)

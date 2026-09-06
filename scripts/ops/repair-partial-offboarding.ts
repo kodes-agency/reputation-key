@@ -23,7 +23,6 @@
 //     --apply --yes ops:repair-partial-offboarding
 
 import { getDb } from '../../src/shared/db'
-import { createEventBus } from '../../src/shared/events/event-bus'
 import { createAtomicIdentityCommandStore } from '../../src/contexts/identity/infrastructure/identity-command-store'
 import { createPartialOffboardingLookup } from '../../src/contexts/identity/infrastructure/partial-offboarding.lookup'
 import { repairPartialOffboarding } from '../../src/contexts/identity/application/use-cases/repair-partial-offboarding'
@@ -48,11 +47,7 @@ const main = async (): Promise<void> => {
       const db = getDb()
       const command = repairPartialOffboarding({
         lookup: createPartialOffboardingLookup(db),
-        // A short-lived CLI has no in-process subscribers; the durable outbox
-        // row written inside the transaction is the fact that matters.
-        commandStore: createAtomicIdentityCommandStore(db, createEventBus(), () =>
-          crypto.randomUUID(),
-        ),
+        commandStore: createAtomicIdentityCommandStore(db, () => crypto.randomUUID()),
         clock: () => new Date(),
         operatorUserId: context.operatorId,
       })

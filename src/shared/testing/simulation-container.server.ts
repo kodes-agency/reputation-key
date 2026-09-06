@@ -1,9 +1,10 @@
 // Simulation container — builds a container with deterministic backends for
 // testing and simulation (ADR 0019).
 //
-// Uses the REAL event bus (so event handlers fire synchronously in-process)
-// and an in-memory queue (so jobs are recorded and optionally processed inline,
-// no Redis required). The clock is injectable for fast-forward time.
+// Uses an in-memory queue (so jobs are recorded and optionally processed
+// inline, no Redis required) and an inline outbox drain (relay + dispatcher
+// run against the container's own consumer registry when `drainOutbox()` is
+// called). The clock is injectable for fast-forward time.
 //
 // The DB is still real by default — for ephemeral isolation, pass a per-run
 // Database override. Identity and externals (better-auth, Google, Resend) are
@@ -23,10 +24,12 @@ import {
   type ProcessPolicyBundle,
 } from '#/shared/auth/process-policy-binding'
 import { createInMemoryQueue, type InMemoryQueue } from './in-memory-queue'
+import { createOutboxRelay } from '#/shared/outbox/relay'
+import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import type { Job, Queue } from 'bullmq'
 import type { Clock } from '#/shared/domain/clock'
 import type { Database } from '#/shared/db'
 import type { Redis } from 'ioredis'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
 import type { sendInvitationEmail as SendInvitationEmail } from '#/shared/auth/emails'
 import { getEnv, type Env } from '#/shared/config/env'
@@ -38,8 +41,6 @@ export type SimulationContainerOptions = {
   db?: Database
   /** Override Redis. Omit the option to use ambient Redis; pass undefined to skip it. */
   redis?: Redis
-  /** Override the event bus. Defaults to a fresh real bus (handlers fire). */
-  eventBus?: EventBus
   /** Override the identity port (in-memory identity for logic sims). */
   identityPort?: IdentityPort
   /** Override the email sender (capture emails instead of sending). */
@@ -57,6 +58,12 @@ export type SimulationHandle = Readonly<{
   queue: InMemoryQueue
   /** Advance the simulation clock and trigger time-dependent jobs. */
   advanceClock: (ms: number) => void
+  /**
+   * Relay every unpublished outbox row through the dispatcher to this
+   * container's durable consumers, inline, until a poll claims nothing.
+   * Returns the number of envelopes dispatched.
+   */
+  drainOutbox: () => Promise<number>
 }>
 
 /**
@@ -103,7 +110,6 @@ export async function createSimulationContainer(
     clock,
     db: options?.db,
     redis: options?.redis,
-    eventBus: options?.eventBus,
     identityPort: options?.identityPort,
     email: options?.email,
     providers: options?.providers,
@@ -130,11 +136,40 @@ export async function createSimulationContainer(
   // 5. Connect the queue to the registry so jobs process inline
   queue.connectRegistry(simulationContainer.jobRegistry)
 
+  // 6. Inline outbox delivery: the real relay claims/marks rows, and its
+  //    "queue" hands each envelope straight to the real dispatcher.
+  const outboxRepo = simulationContainer.outboxRepo
+  if (!outboxRepo) throw new Error('Simulation container has no outbox repository')
+  const dispatch = createDispatcherHandler(outboxRepo, {
+    consumers: simulationContainer.consumerRegistry,
+  })
+  let dispatched = 0
+  const inlineQueue = {
+    async add(name: string, data: unknown, opts: Readonly<{ jobId?: string }>) {
+      dispatched += 1
+      await dispatch({ id: opts.jobId, name, data, attemptsMade: 1 } as unknown as Job)
+      return { id: opts.jobId } as unknown as Job
+    },
+  } as unknown as Queue
+  const relay = createOutboxRelay(outboxRepo, inlineQueue, {
+    relayId: 'simulation',
+    batchSize: 200,
+  })
+
   return {
     container: simulationContainer,
     queue,
     advanceClock(ms: number) {
       currentTime = new Date(currentTime.getTime() + ms)
+    },
+    async drainOutbox() {
+      const before = dispatched
+      for (let polls = 0; polls < 100; polls++) {
+        const seen = dispatched
+        await relay.poll()
+        if (dispatched === seen) break
+      }
+      return dispatched - before
     },
   }
 }

@@ -17,7 +17,6 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { EventBus } from '#/shared/events/event-bus'
 import {
   organizationId,
   portalId,
@@ -39,7 +38,7 @@ import type { GuestQualifiedScanRecorded } from '#/contexts/guest/application/pu
 import { recordMetric, recordMetrics } from '../../application/use-cases/record-metric'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createPropertyLocalDateResolver } from './property-local-date'
-import { onQualifiedScanRecordedDurably } from '../event-handlers/on-qualified-scan-recorded'
+import { onQualifiedScanRecordedDurably } from '../record-portal-metric'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import { registerPublicReputationMetricConsumers } from '../public-reputation-outbox-consumers'
@@ -69,12 +68,6 @@ const QUALIFIED_AT = new Date('2026-09-01T12:00:00.000Z')
 
 let pool: Pool
 const db = getDb()
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 function makeReading(overrides: Partial<MetricReading> = {}): MetricReading {
   return createReading({
@@ -241,7 +234,7 @@ beforeEach(async () => {
 
 describe.sequential('metricCommandStore (integration)', () => {
   it('recordMetric commits the reading + recorded fact in one transaction', async () => {
-    const store = createAtomicMetricCommandStore(db, silentEvents, randomUUID)
+    const store = createAtomicMetricCommandStore(db, randomUUID)
     const reading = makeReading()
     const event = recordedEvent(reading)
 
@@ -306,7 +299,7 @@ describe.sequential('metricCommandStore (integration)', () => {
 
     const outcomes: ReadingResult[] = []
     const project = recordMetrics({
-      commandStore: createAtomicMetricCommandStore(db, silentEvents, randomUUID),
+      commandStore: createAtomicMetricCommandStore(db, randomUUID),
       registry: createMetricRegistryRepository(db),
       clock: () => QUALIFIED_AT,
       idGen: () => metricReadingId(randomUUID()),
@@ -388,7 +381,7 @@ describe.sequential('metricCommandStore (integration)', () => {
        ) VALUES ($1, 'guest.rating.submitted', 1, '{}'::jsonb, $2, $3, 'guest', $4)`,
       [sourceEventId, ORG_ID, PROP_ID, PORTAL_ID],
     )
-    const store = createAtomicMetricCommandStore(db, silentEvents, randomUUID)
+    const store = createAtomicMetricCommandStore(db, randomUUID)
     const buildEntries = (eventId: string) => {
       const definitions = [
         {
@@ -520,7 +513,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     const originalSourceEventId = '4f000000-0000-4000-8000-000000000041'
     const retractionEventId = '4f000000-0000-4000-8000-000000000042'
     const missingRetractionEventId = '4f000000-0000-4000-8000-000000000043'
-    const store = createAtomicMetricCommandStore(db, silentEvents, randomUUID)
+    const store = createAtomicMetricCommandStore(db, randomUUID)
     const definitions = [
       {
         id: '11111111-1111-4111-8111-111111111202',
@@ -670,7 +663,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     }
 
     const record = recordMetric({
-      commandStore: createAtomicMetricCommandStore(db, silentEvents, randomUUID),
+      commandStore: createAtomicMetricCommandStore(db, randomUUID),
       registry: createMetricRegistryRepository(db),
       clock: () => QUALIFIED_AT,
       idGen: () => metricReadingId(randomUUID()),
@@ -835,7 +828,7 @@ describe.sequential('metricCommandStore (integration)', () => {
   })
 
   it('recordMetric rolls back the reading when the fact insert fails (unregistered type)', async () => {
-    const store = createAtomicMetricCommandStore(db, silentEvents, randomUUID)
+    const store = createAtomicMetricCommandStore(db, randomUUID)
     const ghost = {
       ...recordedEvent(),
       _tag: 'metric.ghost',
@@ -853,7 +846,7 @@ describe.sequential('metricCommandStore (integration)', () => {
   })
 
   it('retracts a specific Guest source fact without replacing it with zero', async () => {
-    const store = createAtomicMetricCommandStore(db, silentEvents, randomUUID)
+    const store = createAtomicMetricCommandStore(db, randomUUID)
     const reading = makeReading({
       definitionVersionId: '11111111-1111-4111-8111-111111111303',
       metricKey: 'portal.rating_average',

@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { reorderLinks } from './reorder-links'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import {
   buildTestAuthContext,
@@ -30,7 +30,7 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const deps = {
     portalRepo,
     portalLinkRepo,
@@ -38,12 +38,12 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     commandStore: createInMemoryPortalCommandStore({
       portalRepo,
       portalLinkRepo,
-      events,
+      outbox,
     }),
     clock: () => FIXED_TIME,
   }
   const useCase = reorderLinks(deps)
-  return { useCase, portalRepo, portalLinkRepo, events }
+  return { useCase, portalRepo, portalLinkRepo, outbox }
 }
 
 describe('reorderLinks', () => {
@@ -119,8 +119,8 @@ describe('reorderLinks', () => {
     ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'forbidden')
   })
 
-  it('emits portal_link.reordered event', async () => {
-    const { useCase, portalRepo, portalLinkRepo, events } = setup()
+  it('records a portal_link.reordered outbox fact', async () => {
+    const { useCase, portalRepo, portalLinkRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({})
     portalRepo.seed([portal])
@@ -136,7 +136,7 @@ describe('reorderLinks', () => {
       ctx,
     )
 
-    const emitted = events.capturedByTag('portal_link.reordered')
+    const emitted = outbox.byTag('portal_link.reordered')
     expect(emitted).toHaveLength(1)
   })
 

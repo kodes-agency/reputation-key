@@ -8,9 +8,7 @@
 // Not for production — production must use createAtomicIdentityCommandStore
 // (src/contexts/identity/infrastructure/identity-command-store.ts).
 
-import type { EventBus } from '#/shared/events/event-bus'
-import type { DomainEvent } from '#/shared/events/events'
-import { getLogger } from '#/shared/observability/logger'
+import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import { isOwnerToken } from '#/shared/domain/roles'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
@@ -65,18 +63,6 @@ export type SequentialIdentityCommandStore = IdentityCommandStore &
     readonly allMembers: ReadonlyArray<StoredMember>
   }>
 
-/** Post-commit emit, failure-isolated — same contract as the atomic store. */
-async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<void> {
-  try {
-    await events.emit(event)
-  } catch (err) {
-    getLogger().warn(
-      { err, eventType: event._tag, correlationId: event.correlationId ?? undefined },
-      'BQC-3.5: in-process emit failed after sequential store state write',
-    )
-  }
-}
-
 function parsePropertyIds(raw: string | null): ReadonlyArray<string> {
   if (!raw) return []
   try {
@@ -90,18 +76,15 @@ function parsePropertyIds(raw: string | null): ReadonlyArray<string> {
 }
 
 export function createSequentialIdentityCommandStore(deps: {
-  events: EventBus
-  recordOutbox?: (event: DomainEvent) => Promise<void>
+  outbox?: RecordedOutbox
 }): SequentialIdentityCommandStore {
   const invitations = new Map<string, StoredInvitation>()
   const members = new Map<string, StoredMember>()
   const organizations = new Map<string, StoredOrganization>()
   const customRoles = new Set<string>()
 
-  const recordAndEmit = async (event: DomainEvent): Promise<void> => {
-    if (deps.recordOutbox) await deps.recordOutbox(event)
-    await emitAfterCommit(deps.events, event)
-  }
+  const outbox = deps.outbox ?? createRecordedOutbox()
+  const recordAndEmit = outbox.record
 
   const countOwners = (organizationId: string): number =>
     [...members.values()].filter(

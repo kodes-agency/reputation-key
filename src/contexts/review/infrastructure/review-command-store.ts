@@ -1,14 +1,12 @@
 // Atomic review command store (BQR-2.3).
 //
-// One PostgreSQL transaction: reviews upsert + outbox_events insert.
-// After commit: in-process EventBus emit for expand-phase legacy consumers.
-// Crash after commit but before emit leaves a durable outbox row for relay.
+// One PostgreSQL transaction commits each Review mutation with its outbox
+// rows, so the durable fact and state change are atomic.
 
 import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
   replies,
   replyPublicationAttempts,
@@ -50,7 +48,7 @@ async function supersedeStaleReviewPublications(
   tx: Tx,
   review: Review,
   occurredAt: Date,
-): Promise<DomainEvent[]> {
+): Promise<void> {
   const staleRows = await tx
     .select({
       id: replies.id,
@@ -89,7 +87,6 @@ async function supersedeStaleReviewPublications(
     )
     .for('update', { of: replies })
 
-  const facts: DomainEvent[] = []
   for (const stale of staleRows) {
     if (stale.publicationAttempts > 0) {
       await tx
@@ -128,7 +125,8 @@ async function supersedeStaleReviewPublications(
       )
       .returning({ id: replies.id })
     if (!cancelled[0]) continue
-    facts.push(
+    await insertOutboxRow(
+      tx,
       reviewReplyPublicationCancelled({
         replyId: replyId(stale.id),
         reviewId: review.id,
@@ -139,7 +137,6 @@ async function supersedeStaleReviewPublications(
       }),
     )
   }
-  return facts
 }
 
 type ReviewSourceScope = Readonly<{
@@ -241,15 +238,14 @@ type StableReviewIdentity = Readonly<{
 
 /**
  * A row whose deadline has just elapsed is redacted first, in the same
- * transaction, without removing its stable identity or history. Returns the
- * expiry fact and the sequence it consumed, so the re-observation can prove its
- * own sequence is contiguous with it.
+ * transaction, without removing its stable identity or history. The returned
+ * sequence lets the re-observation prove its own sequence is contiguous.
  */
 async function redactJustExpiredSourceContent(
   tx: Tx,
   identity: StableReviewIdentity,
   occurredAt: Date,
-): Promise<Readonly<{ event: DomainEvent; sequence: number }>> {
+): Promise<number> {
   const expirySequence = await allocateAnalysisSequence(
     tx,
     identity,
@@ -277,7 +273,7 @@ async function redactJustExpiredSourceContent(
     throw reviewError('repo_upsert_failed', 'Expired Review redaction failed')
   }
   await insertOutboxRow(tx, expiredEvent)
-  return { event: expiredEvent, sequence: expirySequence }
+  return expirySequence
 }
 
 type PersistObservation = (
@@ -292,14 +288,13 @@ type PersistObservation = (
 
 export const createAtomicReviewCommandStore = (
   db: Database,
-  events: EventBus,
   clock: () => Date,
   persistObservation: PersistObservation = persistReviewObservation,
 ): ReviewCommandStore => {
   return {
     upsertAndRecord: async (review, event, now, observationKey, observationOrigin) => {
       return trace('review.commandStore.upsertAndRecord', async () => {
-        const committed = await db.transaction(async (tx) => {
+        return db.transaction(async (tx) => {
           const analysisSequence = await allocateAnalysisSequence(
             tx,
             review,
@@ -315,7 +310,7 @@ export const createAtomicReviewCommandStore = (
           })
           const saved = observation.review
           if (observation.duplicate || observation.outOfOrder) {
-            return { saved, events: [] as DomainEvent[] }
+            return saved
           }
           const candidateEvent = typeof event === 'function' ? event(saved) : event
           const recordedEvent =
@@ -328,20 +323,10 @@ export const createAtomicReviewCommandStore = (
                 }
               : candidateEvent
           await insertOutboxRow(tx, recordedEvent)
-          const cancellationEvents = await supersedeStaleReviewPublications(
-            tx,
-            saved,
-            updatedAt,
-          )
-          for (const cancellationEvent of cancellationEvents) {
-            await insertOutboxRow(tx, cancellationEvent)
-          }
+          await supersedeStaleReviewPublications(tx, saved, updatedAt)
 
-          return { saved, events: [recordedEvent, ...cancellationEvents] }
+          return saved
         })
-
-        for (const event of committed.events) await emitAfterCommit(events, event)
-        return committed.saved
       })
     },
     reobserveExpiredAndRecord: async (
@@ -351,7 +336,7 @@ export const createAtomicReviewCommandStore = (
       observationOrigin,
     ) => {
       return trace('review.commandStore.reobserveExpiredAndRecord', async () => {
-        const committed = await db.transaction(async (tx) => {
+        return db.transaction(async (tx) => {
           const existingRow = await lockExpiredReviewRow(tx, review)
           const occurredAt = await readTransactionClock(tx)
 
@@ -362,7 +347,6 @@ export const createAtomicReviewCommandStore = (
             sourceEpoch: existingRow.sourceEpoch,
             sourceRevision: existingRow.sourceRevision,
           }
-          const recordedEvents: DomainEvent[] = []
           let previousSequence: number | null = null
 
           // An already-erased Review has recorded its lifecycle fact. A row from
@@ -372,13 +356,11 @@ export const createAtomicReviewCommandStore = (
             existingRow.sourceEpoch === review.sourceEpoch &&
             existingRow.sourceContentState === 'active'
           ) {
-            const expiry = await redactJustExpiredSourceContent(
+            previousSequence = await redactJustExpiredSourceContent(
               tx,
               stableIdentity,
               occurredAt,
             )
-            recordedEvents.push(expiry.event)
-            previousSequence = expiry.sequence
           }
 
           const reobserveSequence = await allocateAnalysisSequence(
@@ -420,31 +402,17 @@ export const createAtomicReviewCommandStore = (
             occurredAt,
           })
           await insertOutboxRow(tx, updatedEvent)
-          recordedEvents.push(updatedEvent)
-          const cancellationEvents = await supersedeStaleReviewPublications(
-            tx,
-            observation.review,
-            occurredAt,
-          )
-          for (const cancellationEvent of cancellationEvents) {
-            await insertOutboxRow(tx, cancellationEvent)
-          }
-          recordedEvents.push(...cancellationEvents)
-          return {
-            review: observation.review,
-            events: recordedEvents,
-          }
+          await supersedeStaleReviewPublications(tx, observation.review, occurredAt)
+          return observation.review
         })
-        for (const event of committed.events) await emitAfterCommit(events, event)
-        return committed.review
       })
     },
   }
 }
 
 /**
- * Non-transactional store for unit tests / expand-phase fakes.
- * Upserts via the repository, records outbox if provided, then emits.
+ * Non-transactional store for unit tests. Upserts via the repository and
+ * records outbox facts through the optional test seam.
  * Not for production — production must use createAtomicReviewCommandStore.
  */
 export const createSequentialReviewCommandStore = (deps: {
@@ -453,7 +421,6 @@ export const createSequentialReviewCommandStore = (deps: {
     now?: Date,
     observationKey?: string,
   ) => Promise<Review>
-  events: EventBus
   clock: () => Date
   recordOutbox?: (event: DomainEvent) => Promise<void>
 }): ReviewCommandStore => {
@@ -464,7 +431,6 @@ export const createSequentialReviewCommandStore = (deps: {
       if (deps.recordOutbox) {
         await deps.recordOutbox(recordedEvent)
       }
-      await emitAfterCommit(deps.events, recordedEvent)
       return saved
     },
     reobserveExpiredAndRecord: async (
@@ -503,8 +469,6 @@ export const createSequentialReviewCommandStore = (deps: {
         await deps.recordOutbox(expiredEvent)
         await deps.recordOutbox(updatedEvent)
       }
-      await emitAfterCommit(deps.events, expiredEvent)
-      await emitAfterCommit(deps.events, updatedEvent)
       return saved
     },
   }

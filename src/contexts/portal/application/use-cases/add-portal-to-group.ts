@@ -1,5 +1,5 @@
 // Portal context — add portal to group use case
-// Full pattern: authorize → find group → check not already grouped → add → emit → return
+// Full pattern: authorize → find group → check not already grouped → atomically add with fact → return
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'

@@ -5,7 +5,6 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { EventBus } from '#/shared/events/event-bus'
 import {
   inboxItemId,
   organizationId,
@@ -70,13 +69,8 @@ const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
 })
 const logger = createMockLogger()
 
-const createAtomicInboxCommandStore = (database: Database, events: EventBus) =>
-  createProductionInboxCommandStore(
-    database,
-    events,
-    allowAllCommandAuthority,
-    () => OBSERVED_AT,
-  )
+const createAtomicInboxCommandStore = (database: Database) =>
+  createProductionInboxCommandStore(database, allowAllCommandAuthority, () => OBSERVED_AT)
 const EVENT_STALE = 'b2000000-0000-0000-0000-000000000104'
 const EVENT_AHEAD = 'b2000000-0000-0000-0000-000000000105'
 const EVENT_OLDER = 'b2000000-0000-0000-0000-000000000106'
@@ -89,12 +83,6 @@ const EVENT_EPOCH_MATERIAL_CHANGE = 'b2000000-0000-0000-0000-000000000112'
 
 let pool: Pool
 let lease: TestLease
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 function makeItem(): InboxItem {
   return {
@@ -176,7 +164,7 @@ async function seed(): Promise<InboxItem> {
     [REVIEW, ORG, PROPERTY, '1'.repeat(64), OPENED_AT],
   )
   const item = makeItem()
-  await createAtomicInboxCommandStore(getDb(), silentEvents).createItem(item, null, {
+  await createAtomicInboxCommandStore(getDb()).createItem(item, null, {
     materialReviewRevision: 1,
   })
   return item
@@ -369,7 +357,7 @@ function observedEvent(eventId: string, observation: Observation): ConsumerEvent
 }
 
 function consumerDeps(): InboxConsumerDeps {
-  const commandStore = createAtomicInboxCommandStore(getDb(), silentEvents)
+  const commandStore = createAtomicInboxCommandStore(getDb())
   const reviewLookup = {
     getReviewSnippetById: async () => ({ status: 'not_found' as const }),
     getReviewSnippetsByIds: async () => new Map(),
@@ -452,7 +440,7 @@ async function applyObservation(
   eventId: string,
   observation: Observation,
 ): Promise<'applied' | 'obsolete'> {
-  const store = createAtomicInboxCommandStore(getDb(), silentEvents)
+  const store = createAtomicInboxCommandStore(getDb())
   const authority = createReplyObservationAuthorityAdapter(
     createReviewReplyObservationAuthority(getDb()),
   )
@@ -546,7 +534,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     const item = await seed()
     await insertObservation(live)
     await seedDeliveryEvent(EVENT_LIVE)
-    const store = createAtomicInboxCommandStore(getDb(), silentEvents)
+    const store = createAtomicInboxCommandStore(getDb())
     const authority = createReplyObservationAuthorityAdapter(
       createReviewReplyObservationAuthority(getDb()),
     )
@@ -569,7 +557,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     await entered
 
     let writerSettled = false
-    const writer = createGoogleReplyObservationStore(getDb(), silentEvents)
+    const writer = createGoogleReplyObservationStore(getDb())
       .record({
         organizationId: ORG,
         propertyId: PROPERTY,

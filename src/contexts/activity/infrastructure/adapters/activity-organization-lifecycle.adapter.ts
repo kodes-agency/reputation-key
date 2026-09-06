@@ -198,9 +198,9 @@ export const assertNoActiveOperationalHistoryLegalHold = (
  *     NOT stop it. A pre-closure fact still queued when closure begins can
  *     therefore still be projected.
  *
- * That residue is bounded and safe: the originating contexts stop emitting at
- * their own Closing, so the backlog can only shrink, and projecting an
- * already-committed fact into an unreachable surface creates no new tenant
+ * That residue is bounded and safe: the originating contexts stop accepting
+ * tenant work at their own Closing, so the backlog can only shrink. Projecting
+ * an already-committed fact into an unreachable surface creates no new tenant
  * work and no external effect. It is also exactly why Purge deletes the replay
  * authority as well as the projection — a late fact must not be able to rebuild
  * what Purge erased.

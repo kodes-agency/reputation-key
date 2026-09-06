@@ -15,8 +15,8 @@ export type GuestMutationFact =
 export type GuestResponseCommandStore = Readonly<{
   /**
    * Commit the canonical response and every derived submission fact in one
-   * transaction. Duplicate means the session/Portal anchor already exists;
-   * no new facts are written or emitted in that case.
+   * transaction. Duplicate means the session/Portal anchor already exists and
+   * no new facts are recorded.
    */
   commitSubmitted(
     response: GuestResponse,

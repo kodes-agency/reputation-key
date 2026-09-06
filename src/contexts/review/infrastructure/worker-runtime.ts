@@ -1,7 +1,6 @@
 import type { Job, Queue } from 'bullmq'
 import type { Pool } from 'pg'
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { JobRegistry } from '#/shared/jobs/registry'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
@@ -60,7 +59,6 @@ type ReconcileHandlerDependencies = Parameters<
 export type ReviewWorkerRegistrationInput = Readonly<{
   db: Database
   pool: Pool
-  events: EventBus
   registry: Pick<JobRegistry, 'register'>
   backgroundQueue: Pick<Queue, 'add'> | undefined
   reviewQueue: ReviewQueuePort
@@ -122,7 +120,6 @@ export async function registerReviewWorkerJobs(
 
   const reviewProviderSnapshotRepository = createReviewProviderSnapshotRepository(
     input.db,
-    input.events,
     input.idGen,
   )
   const enqueueProviderLifecycleContinuation = async (
@@ -236,10 +233,7 @@ export async function registerReviewWorkerJobs(
     replyRepo: input.replyRepo,
     reviewRepo: input.reviewRepo,
     googleReviewApi: input.googleReviewApi,
-    googleReplyObservationStore: createGoogleReplyObservationStore(
-      input.db,
-      input.events,
-    ),
+    googleReplyObservationStore: createGoogleReplyObservationStore(input.db),
     replyCommandStore: input.replyCommandStore,
     clock: input.clock,
     logger: input.logger,

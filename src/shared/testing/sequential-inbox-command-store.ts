@@ -2,15 +2,13 @@
 // (BQC-3.4). Lives in shared/testing (with the in-memory inbox repo) so
 // application-zone tests and browser bundles (Storybook) can use it without
 // importing the drizzle-backed atomic store (application must not import
-// infrastructure). Applies the same operation order (state → outbox → emit)
+// infrastructure). Applies the same operation order (state → outbox)
 // against the repository ports without a real transaction.
 //
 // Not for production — production must use createAtomicInboxCommandStore
 // (src/contexts/inbox/infrastructure/inbox-command-store.ts).
 
-import type { EventBus } from '#/shared/events/event-bus'
-import type { DomainEvent } from '#/shared/events/events'
-import { getLogger } from '#/shared/observability/logger'
+import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import { timestampFieldsForStatus } from '#/contexts/inbox/domain/rules'
 import type { InboxRepository } from '#/contexts/inbox/application/ports/inbox.repository'
 import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inbox-note.repository'
@@ -25,33 +23,18 @@ import {
   inboxItemUnassigned,
 } from '#/contexts/inbox/domain/events'
 
-/** Post-commit emit, failure-isolated — same contract as the atomic store. */
-async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<void> {
-  try {
-    await events.emit(event)
-  } catch (err) {
-    getLogger().warn(
-      { err, eventType: event._tag, correlationId: event.correlationId ?? undefined },
-      'BQC-3.4: in-process emit failed after sequential store state write',
-    )
-  }
-}
-
 export function createSequentialInboxCommandStore(deps: {
   repo: InboxRepository
   noteRepo?: InboxNoteRepository
-  events: EventBus
-  recordOutbox?: (event: DomainEvent) => Promise<void>
+  outbox?: RecordedOutbox
   recordReceipt?: (
     eventId: string,
     consumerName: string,
     status: ApplyReceiptStatus,
   ) => Promise<void>
 }): InboxCommandStore {
-  const recordAndEmit = async (event: DomainEvent): Promise<void> => {
-    if (deps.recordOutbox) await deps.recordOutbox(event)
-    await emitAfterCommit(deps.events, event)
-  }
+  const outbox = deps.outbox ?? createRecordedOutbox()
+  const recordAndEmit = outbox.record
 
   const receipt = async (
     eventId: string,

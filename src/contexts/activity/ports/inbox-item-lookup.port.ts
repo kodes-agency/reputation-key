@@ -1,5 +1,5 @@
 // Activity context — port for resolving inbox item IDs from source context IDs.
-// Used by reply event handlers to map reviewId → inboxItemId so that reply
+// Used by durable reply-fact consumers to map reviewId → inboxItemId so that reply
 // activity entries appear in the inbox item timeline.
 
 export type InboxItemLookupPort = Readonly<{

@@ -3,9 +3,7 @@
 //
 // Callers must not know Drizzle transaction types or outbox tables.
 // The production implementation commits the metric_readings state write and
-// the outbox_events fact in ONE PostgreSQL transaction, then emits on the
-// in-process bus after commit (expand-phase dual path until the durable
-// switch).
+// its outbox_events fact in one PostgreSQL transaction.
 
 import type { MetricReading, ReadingResult } from '../../domain/metric-reading'
 import type { MetricRecorded } from '../../domain/events'

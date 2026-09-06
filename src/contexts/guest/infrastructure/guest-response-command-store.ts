@@ -8,8 +8,7 @@ import {
   guestResponseSessionBindings,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import type { GuestResponseCommandStore } from '../application/ports/guest-response-command-store.port'
 import type { GuestMutationFact } from '../application/ports/guest-response-command-store.port'
 import { guestResponseToInsertRow } from './mappers/guest-response.mapper'
@@ -127,7 +126,6 @@ function initialIntegrityFactsMatch(
 /** Atomic canonical response + rating/feedback fact writer. */
 export const createAtomicGuestResponseCommandStore = (
   db: Database,
-  events: EventBus,
   clock: Clock,
 ): GuestResponseCommandStore => {
   const factsMatchStaffAttribution = (
@@ -288,9 +286,6 @@ export const createAtomicGuestResponseCommandStore = (
             if (error instanceof GuestCommandConflict) return 'duplicate' as const
             throw error
           })
-        if (outcome === 'applied') {
-          for (const fact of facts) await emitAfterCommit(events, fact)
-        }
         return outcome
       }),
 
@@ -355,9 +350,6 @@ export const createAtomicGuestResponseCommandStore = (
           for (const fact of facts) await insertOutboxRow(tx, fact)
           return 'applied' as const
         })
-        if (outcome === 'applied') {
-          for (const fact of facts) await emitAfterCommit(events, fact)
-        }
         return outcome
       }),
 
@@ -432,9 +424,6 @@ export const createAtomicGuestResponseCommandStore = (
           for (const fact of facts) await insertOutboxRow(tx, fact)
           return 'applied' as const
         })
-        if (outcome === 'applied') {
-          for (const fact of facts) await emitAfterCommit(events, fact)
-        }
         return outcome
       }),
 
@@ -536,7 +525,6 @@ export const createAtomicGuestResponseCommandStore = (
             if (error instanceof GuestCommandConflict) return 'conflict' as const
             throw error
           })
-        if (outcome === 'applied') await emitAfterCommit(events, fact)
         return outcome
       }),
 
@@ -610,7 +598,6 @@ export const createAtomicGuestResponseCommandStore = (
             if (error instanceof GuestCommandConflict) return 'conflict' as const
             throw error
           })
-        if (outcome === 'applied') await emitAfterCommit(events, fact)
         return outcome
       }),
 
@@ -691,9 +678,6 @@ export const createAtomicGuestResponseCommandStore = (
             objectKeys: media.map((item) => item.objectKey),
           }
         })
-        if (committed.outcome === 'applied') {
-          for (const fact of facts) await emitAfterCommit(events, fact)
-        }
         return committed
       }),
   }

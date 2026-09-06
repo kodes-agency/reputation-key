@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import {
   organizationId as toOrganizationId,
@@ -60,8 +60,8 @@ function setup(
   }>,
 ) {
   const identity = createInMemoryIdentityPort()
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialIdentityCommandStore({ events })
+  const outbox = createRecordedOutbox()
+  const commandStore = createSequentialIdentityCommandStore({ outbox })
   identity.seedMembers([...input.members])
   for (const seeded of input.members) {
     commandStore.seedMember({
@@ -103,7 +103,7 @@ function setup(
     useCase,
     ctx,
     commandStore,
-    events,
+    outbox,
     transfer,
     prepareGoogleConnectorDeparture,
     cancelGoogleImportsForUser,
@@ -245,7 +245,7 @@ describe('leaveOrganization', () => {
    * writes inside it.
    */
   it('delegates the offboarding writes to the single atomic transaction', async () => {
-    const { useCase, ctx, commandStore, events } = setup({
+    const { useCase, ctx, commandStore, outbox } = setup({
       members: [OWNER, LEAVER],
       actor: LEAVER,
     })
@@ -253,10 +253,8 @@ describe('leaveOrganization', () => {
     await useCase({ transfers: [] }, ctx)
 
     expect(commandStore.memberById(LEAVER.id)).toBeNull()
-    expect(events.capturedEvents.map((event) => event._tag)).toEqual([
-      'identity.member.removed',
-    ])
-    expect(events.capturedEvents[0]).toMatchObject({
+    expect(outbox.facts.map((event) => event._tag)).toEqual(['identity.member.removed'])
+    expect(outbox.facts[0]).toMatchObject({
       userId: LEAVER.userId,
       removedBy: LEAVER.userId,
       occurredAt: FIXED_TIME,

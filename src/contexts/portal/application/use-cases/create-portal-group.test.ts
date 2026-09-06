@@ -2,7 +2,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { createPortalGroup } from './create-portal-group'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
@@ -129,7 +129,7 @@ const createPortalRepoMock = (portal: Portal | null): PortalRepository =>
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const portalRepo = createPortalRepoMock(seedPortal())
   const deps = {
     portalGroupRepo,
@@ -150,13 +150,13 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     commandStore: createInMemoryPortalCommandStore({
       portalRepo,
       portalGroupRepo,
-      events,
+      outbox,
     }),
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
   }
   const useCase = createPortalGroup(deps)
-  return { useCase, portalGroupRepo, events }
+  return { useCase, portalGroupRepo, outbox }
 }
 
 describe('createPortalGroup', () => {
@@ -211,8 +211,8 @@ describe('createPortalGroup', () => {
     )
   })
 
-  it('adds portals on creation and emits events', async () => {
-    const { useCase, events } = setup()
+  it('records group and membership outbox facts on creation', async () => {
+    const { useCase, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await useCase(
@@ -224,16 +224,16 @@ describe('createPortalGroup', () => {
       ctx,
     )
 
-    const created = events.capturedByTag('portal_group.created')
+    const created = outbox.byTag('portal_group.created')
     expect(created).toHaveLength(1)
     expect(created[0].name).toBe('Group With Portals')
 
-    const added = events.capturedByTag('portal_group.portal_added')
+    const added = outbox.byTag('portal_group.portal_added')
     expect(added).toHaveLength(1)
   })
 
-  it('emits created event on success without portals', async () => {
-    const { useCase, events } = setup()
+  it('records the created outbox fact without portals', async () => {
+    const { useCase, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await useCase(
@@ -241,7 +241,7 @@ describe('createPortalGroup', () => {
       ctx,
     )
 
-    const emitted = events.capturedByTag('portal_group.created')
+    const emitted = outbox.byTag('portal_group.created')
     expect(emitted).toHaveLength(1)
     expect(emitted[0].name).toBe('Solo Group')
   })

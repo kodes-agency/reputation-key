@@ -27,10 +27,6 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
       )
       expect(
         source,
-        `${file} must not use the legacy post-write outbox helper`,
-      ).not.toContain('emitAndRecord')
-      expect(
-        source,
         `${file} must not write Portal state through the repository`,
       ).not.toMatch(/portalRepo\.(?:insert|update|softDelete)\s*\(/)
       expect(
@@ -42,7 +38,7 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
 
   it('constructs one atomic command store in the Portal composition boundary', () => {
     const source = read('src/contexts/portal/build.ts')
-    expect(source).toContain('createAtomicPortalCommandStore(deps.db, deps.events)')
+    expect(source).toContain('createAtomicPortalCommandStore(deps.db)')
     expect(source).toContain('commandStore: portalCommandStore')
   })
 

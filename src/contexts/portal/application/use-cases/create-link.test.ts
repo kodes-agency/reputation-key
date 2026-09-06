@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { createLink } from './create-link'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import {
   buildTestAuthContext,
@@ -26,7 +26,7 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const deps = {
     portalRepo,
     portalLinkRepo,
@@ -34,7 +34,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     commandStore: createInMemoryPortalCommandStore({
       portalRepo,
       portalLinkRepo,
-      events,
+      outbox,
     }),
     destinationRepo: {
       request: async (
@@ -72,7 +72,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     clock: () => FIXED_TIME,
   }
   const useCase = createLink(deps)
-  return { useCase, portalRepo, portalLinkRepo, events }
+  return { useCase, portalRepo, portalLinkRepo, outbox }
 }
 
 describe('createLink', () => {
@@ -185,8 +185,8 @@ describe('createLink', () => {
     ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'invalid_url')
   })
 
-  it('emits portal_link.created event', async () => {
-    const { useCase, portalRepo, portalLinkRepo, events } = setup()
+  it('records a portal_link.created outbox fact', async () => {
+    const { useCase, portalRepo, portalLinkRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({})
     portalRepo.seed([portal])
@@ -203,9 +203,9 @@ describe('createLink', () => {
       ctx,
     )
 
-    const emitted = events.capturedByTag('portal_link.created')
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0].linkId).toBe('10000000-0000-0000-0000-000000000001')
+    const recorded = outbox.byTag('portal_link.created')
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0].linkId).toBe('10000000-0000-0000-0000-000000000001')
   })
 
   it('rejects when role lacks portal.update permission', async () => {

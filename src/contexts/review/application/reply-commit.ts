@@ -1,6 +1,6 @@
 // Review context — BQC-3.3 reply commit sequence (single source, BQC-5.9 E5).
 //
-// Every fact-emitting reply transition runs the same sequence: the domain
+// Every fact-producing reply transition runs the same sequence: the domain
 // transition check (transitionReply is the authority) → the atomic guarded
 // command-store commit → invalid_transition when the guard matches no row
 // (a lost TOCTOU race). The mutation use cases throw the error; the

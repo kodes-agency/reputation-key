@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest'
 import { cancelInvitation } from './cancel-invitation'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../../domain/errors'
 import { invitationId } from '#/shared/domain/ids'
@@ -15,15 +15,15 @@ import type { InvitationId } from '#/shared/domain/ids'
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
 const setup = () => {
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialIdentityCommandStore({ events })
+  const outbox = createRecordedOutbox()
+  const commandStore = createSequentialIdentityCommandStore({ outbox })
   const useCase = cancelInvitation({ commandStore, clock: () => FIXED_TIME })
-  return { useCase, events, commandStore }
+  return { useCase, outbox, commandStore }
 }
 
 describe('cancelInvitation', () => {
-  it('emits identity.invitation.canceled with the org and invitation id', async () => {
-    const { useCase, events, commandStore } = setup()
+  it('records identity.invitation.canceled with the org and invitation id', async () => {
+    const { useCase, outbox, commandStore } = setup()
     const invId: InvitationId = invitationId('inv-cancel-1')
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     commandStore.seedInvitation({
@@ -40,11 +40,11 @@ describe('cancelInvitation', () => {
 
     await useCase({ invitationId: invId }, ctx)
 
-    const emitted = events.capturedByTag('identity.invitation.canceled')
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0].invitationId).toBe(invId)
-    expect(emitted[0].organizationId).toBe(ctx.organizationId)
-    expect(emitted[0].occurredAt).toBe(FIXED_TIME)
+    const facts = outbox.byTag('identity.invitation.canceled')
+    expect(facts).toHaveLength(1)
+    expect(facts[0].invitationId).toBe(invId)
+    expect(facts[0].organizationId).toBe(ctx.organizationId)
+    expect(facts[0].occurredAt).toBe(FIXED_TIME)
 
     // The invitation row is marked canceled (better-auth semantics).
     expect(commandStore.invitationById(invId as string)?.status).toBe('canceled')
@@ -60,7 +60,7 @@ describe('cancelInvitation', () => {
   })
 
   it('propagates (does not swallow) the error when the store rejects', async () => {
-    const { useCase, events } = setup()
+    const { useCase, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await expect(
@@ -69,7 +69,7 @@ describe('cancelInvitation', () => {
       (e: unknown) => isIdentityError(e) && e.code === 'invitation_not_found',
     )
 
-    // No event should be emitted when the cancel failed.
-    expect(events.capturedEvents).toHaveLength(0)
+    // No fact is recorded when cancellation fails.
+    expect(outbox.facts).toHaveLength(0)
   })
 })

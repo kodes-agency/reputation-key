@@ -9,8 +9,8 @@
 // Reconciles:
 // - missing items created in an open Handling Cycle with
 //   reply milestones (idempotent create — creation-during-rebuild does NOT
-//   re-emit created facts: rebuild is repair, not new information; the durable
-//   record is the report);
+//   record another created fact: rebuild is repair, not new information; the
+//   durable record is the report);
 // - missing reply milestones stamped (no fact — milestones have no event
 //   type).
 //

@@ -48,7 +48,7 @@ export type ResourceType = (typeof ACTIVITY_RESOURCE_TYPES)[number]
 /**
  * Exact combinations the current Recent Activity projection is allowed to
  * create. The wider action/resource unions above remain read-compatible with
- * historical rows while new projections stay bounded to active event handlers.
+ * historical rows while new projections stay bounded to durable event consumers.
  */
 export const RECENT_ACTIVITY_KINDS = [
   { action: 'created', resourceType: 'inbox_item' },

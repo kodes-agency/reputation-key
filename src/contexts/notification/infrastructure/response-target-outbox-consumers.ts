@@ -13,7 +13,7 @@ import type { NotificationType } from '../domain/types'
 import type { NotificationAudience } from '../application/notification-audience'
 import { resolveResponseTargetReminderRecipients } from '../application/response-target-reminder-recipients'
 import type { InboxFanoutDeps } from './inbox-notification-fanout'
-import { buildInboxItemPayload } from './event-handlers/payload-facts'
+import { buildInboxItemPayload } from './notification-payload-facts'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 
 const EVENT_TYPE = 'inbox.response_target.reminder_due' as const

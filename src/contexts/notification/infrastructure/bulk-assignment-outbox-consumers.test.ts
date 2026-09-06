@@ -6,7 +6,7 @@ import {
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createEventHandlerDeps } from './event-handlers/test-fixtures'
+import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
 import {
   handleNotificationBulkAssignmentCompleted,
   ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER,
@@ -70,7 +70,7 @@ const event = (payloadOverrides: Record<string, unknown> = {}): ConsumerEvent =>
 })
 
 const makeDeps = () => {
-  const fakes = createEventHandlerDeps()
+  const fakes = createNotificationConsumerDeps()
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,

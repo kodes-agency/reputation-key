@@ -3,7 +3,6 @@ import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   feedbackId,
@@ -47,8 +46,7 @@ const STAFF_EFFECTIVE_FROM = new Date('2026-08-01T00:00:00.000Z')
 
 const createAtomicGuestResponseCommandStore = (
   database: Parameters<typeof createAtomicGuestResponseCommandStoreFactory>[0],
-  events: Parameters<typeof createAtomicGuestResponseCommandStoreFactory>[1],
-) => createAtomicGuestResponseCommandStoreFactory(database, events, () => NOW)
+) => createAtomicGuestResponseCommandStoreFactory(database, () => NOW)
 
 const createGuestResponseRepository = (
   database: Parameters<typeof createGuestResponseRepositoryFactory>[0],
@@ -220,7 +218,7 @@ afterAll(async () => {
 
 describe.sequential('atomic Guest response submission', () => {
   it('keeps the original Primary Staff snapshot through reassignment and correction', async () => {
-    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const store = createAtomicGuestResponseCommandStore(db)
     const attributed = { ...response(), staffAttribution: STAFF_ATTRIBUTION }
     const originalRating = guestRatingSubmitted({
       ratingId: ratingId(RESPONSE),
@@ -337,8 +335,7 @@ describe.sequential('atomic Guest response submission', () => {
   })
 
   it('commits the response and both content-free facts together', async () => {
-    const events = createCapturingEventBus()
-    const store = createAtomicGuestResponseCommandStore(db, events)
+    const store = createAtomicGuestResponseCommandStore(db)
     const submissionFacts = facts()
 
     await expect(store.commitSubmitted(response(), submissionFacts)).resolves.toBe(
@@ -412,11 +409,10 @@ describe.sequential('atomic Guest response submission', () => {
       'guest.feedback.submitted',
       'guest.rating.submitted',
     ])
-    expect(events.capturedEvents).toHaveLength(2)
   })
 
   it('rolls back the response and earlier fact when any fact is invalid', async () => {
-    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const store = createAtomicGuestResponseCommandStore(db)
     const [ratingFact, feedbackFact] = facts()
     const invalid = {
       ...feedbackFact,
@@ -437,9 +433,8 @@ describe.sequential('atomic Guest response submission', () => {
     expect(outbox.rows).toHaveLength(0)
   })
 
-  it('retains an automatic initial filter without publishing a rating fact', async () => {
-    const events = createCapturingEventBus()
-    const store = createAtomicGuestResponseCommandStore(db, events)
+  it('retains an automatic initial filter without recording a rating fact', async () => {
+    const store = createAtomicGuestResponseCommandStore(db)
     const assessment: GuestResponseInitialIntegrityAssessment = {
       outcome: 'filtered_automatically',
       reasonCode: 'honeypot_signal',
@@ -492,7 +487,6 @@ describe.sequential('atomic Guest response submission', () => {
       SELECT id FROM outbox_events WHERE organization_id = ${ORG}
     `)
     expect(outbox.rows).toHaveLength(0)
-    expect(events.capturedEvents).toHaveLength(0)
 
     const reviewedAt = new Date('2026-08-27T09:00:00.000Z')
     const restored = changeGuestResponseIntegrity(
@@ -537,7 +531,7 @@ describe.sequential('atomic Guest response submission', () => {
   })
 
   it('fails closed when a new submission has no experience snapshot', async () => {
-    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const store = createAtomicGuestResponseCommandStore(db)
 
     await expect(
       store.commitSubmitted({ ...response(), experienceSnapshot: null }, facts()),
@@ -549,11 +543,9 @@ describe.sequential('atomic Guest response submission', () => {
     expect(rows.rows).toHaveLength(0)
   })
 
-  it('returns duplicate without emitting new facts for the session anchor', async () => {
-    const events = createCapturingEventBus()
-    const store = createAtomicGuestResponseCommandStore(db, events)
+  it('returns duplicate without recording new facts for the session anchor', async () => {
+    const store = createAtomicGuestResponseCommandStore(db)
     await store.commitSubmitted(response(), facts())
-    events.clear()
 
     await expect(store.commitSubmitted(response(), facts())).resolves.toBe('duplicate')
 
@@ -561,12 +553,10 @@ describe.sequential('atomic Guest response submission', () => {
       SELECT id FROM outbox_events WHERE organization_id = ${ORG}
     `)
     expect(outbox.rows).toHaveLength(2)
-    expect(events.capturedEvents).toHaveLength(0)
   })
 
   it('atomically audits eligibility changes and their correction facts', async () => {
-    const events = createCapturingEventBus()
-    const store = createAtomicGuestResponseCommandStore(db, events)
+    const store = createAtomicGuestResponseCommandStore(db)
     const [originalRating, originalFeedback] = facts()
     await store.commitSubmitted(response(), [originalRating, originalFeedback])
     const persisted = {
@@ -649,7 +639,6 @@ describe.sequential('atomic Guest response submission', () => {
       WHERE organization_id = ${ORG} AND event_type = 'guest.rating.retracted'
     `)
     expect(outbox.rows).toHaveLength(1)
-    expect(events.capturedByTag('guest.rating.retracted')).toHaveLength(1)
   })
 
   it('summarizes current outcomes by corrected rating time with half-open bounds', async () => {
@@ -705,7 +694,7 @@ describe.sequential('atomic Guest response submission', () => {
   })
 
   it('denies stale reads and expires each storage class independently', async () => {
-    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const store = createAtomicGuestResponseCommandStore(db)
     await store.commitSubmitted(response(), facts())
     const scope = {
       organizationId: ORG,
@@ -774,8 +763,7 @@ describe.sequential('atomic Guest response submission', () => {
   })
 
   it('adds private feedback atomically without consuming the rating correction', async () => {
-    const events = createCapturingEventBus()
-    const store = createAtomicGuestResponseCommandStore(db, events)
+    const store = createAtomicGuestResponseCommandStore(db)
     const [ratingFact] = facts()
     const ratingOnly: GuestResponse = {
       ...response(),
@@ -831,7 +819,7 @@ describe.sequential('atomic Guest response submission', () => {
   })
 
   it('renews the separated recovery binding from a late feedback submission', async () => {
-    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const store = createAtomicGuestResponseCommandStore(db)
     const [ratingFact] = facts()
     const ratingOnly: GuestResponse = {
       ...response(),
@@ -879,8 +867,7 @@ describe.sequential('atomic Guest response submission', () => {
   })
 
   it('purges private feedback and records its retraction without changing the rating', async () => {
-    const events = createCapturingEventBus()
-    const store = createAtomicGuestResponseCommandStore(db, events)
+    const store = createAtomicGuestResponseCommandStore(db)
     const [ratingFact, feedbackFact] = facts()
     await store.commitSubmitted(response(), [ratingFact, feedbackFact])
     const previous: GuestResponse = {
@@ -937,11 +924,10 @@ describe.sequential('atomic Guest response submission', () => {
         AND event_type = 'guest.feedback.retracted'
     `)
     expect(outbox.rows).toEqual([{ event_type: 'guest.feedback.retracted' }])
-    expect(events.capturedByTag('guest.rating.retracted')).toHaveLength(0)
   })
 
   it('does not let a stale rating correction erase concurrently added feedback', async () => {
-    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const store = createAtomicGuestResponseCommandStore(db)
     const [ratingFact] = facts()
     const ratingOnly: GuestResponse = {
       ...response(),
@@ -1021,8 +1007,7 @@ describe.sequential('atomic Guest response submission', () => {
   })
 
   it('commits the corrected response and superseding rating fact atomically', async () => {
-    const events = createCapturingEventBus()
-    const store = createAtomicGuestResponseCommandStore(db, events)
+    const store = createAtomicGuestResponseCommandStore(db)
     const [originalRating, originalFeedback] = facts()
     await store.commitSubmitted(response(), [originalRating, originalFeedback])
 
@@ -1090,7 +1075,7 @@ describe.sequential('atomic Guest response submission', () => {
   })
 
   it('rejects a stale withdrawal that raced a committed correction', async () => {
-    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const store = createAtomicGuestResponseCommandStore(db)
     const [originalRating, originalFeedback] = facts()
     await store.commitSubmitted(response(), [originalRating, originalFeedback])
 
@@ -1166,7 +1151,7 @@ describe.sequential('atomic Guest response submission', () => {
   })
 
   it('withdraws content and records rating/feedback retractions atomically', async () => {
-    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const store = createAtomicGuestResponseCommandStore(db)
     const [originalRating, originalFeedback] = facts()
     await store.commitSubmitted(response(), [originalRating, originalFeedback])
     const deletedAt = new Date('2026-08-25T12:45:00.000Z')

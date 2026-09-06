@@ -890,6 +890,7 @@ export default tseslint.config(
                   'shared-health',
                   'shared-jobs',
                   'shared-observability',
+                  'shared-outbox',
                   'test-helpers',
                 ),
               },
@@ -1146,8 +1147,11 @@ export default tseslint.config(
               from: elementType('shared-outbox'),
               allow: { to: fileCategory('shared-outbox-runtime') },
             },
+            // The worker and the simulation harness (the worker's in-process
+            // twin: relay + dispatcher run inline against the container's own
+            // consumer registry) are the only runtime consumers.
             {
-              from: elementType('top-level'),
+              from: elementTypes('top-level', 'test-helpers'),
               allow: { to: fileCategory('shared-outbox-runtime') },
             },
             {

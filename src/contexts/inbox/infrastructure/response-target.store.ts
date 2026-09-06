@@ -14,8 +14,7 @@ import {
   propertyId,
   type PropertyId,
 } from '#/shared/domain/ids'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type {
   GoogleReviewTargetAnalytics,
@@ -577,10 +576,7 @@ const targetView = (row: TargetRow, timezone: string, now: Date): ResponseTarget
   ),
 })
 
-export const createResponseTargetStore = (
-  db: Database,
-  events: EventBus,
-): ResponseTargetStore => ({
+export const createResponseTargetStore = (db: Database): ResponseTargetStore => ({
   getCycleTarget: async (itemId, orgId, now) =>
     trace('inbox.responseTarget.getCycleTarget', async () => {
       const [row] = await db
@@ -856,7 +852,7 @@ export const createResponseTargetStore = (
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
         throw inboxError('invalid_input', 'Reminder batch limit must be 1–100')
       }
-      const facts = await db.transaction(async (tx) => {
+      const released = await db.transaction(async (tx) => {
         const due = await tx
           .select({ reminder: inboxResponseTargetReminders })
           .from(inboxResponseTargetReminders)
@@ -909,7 +905,7 @@ export const createResponseTargetStore = (
             of: inboxHandlingCycleResponseTargets,
             skipLocked: true,
           })
-        const emitted = []
+        let released = 0
         for (const { reminder } of due) {
           const [saved] = await tx
             .update(inboxResponseTargetReminders)
@@ -937,11 +933,10 @@ export const createResponseTargetStore = (
             occurredAt: now,
           })
           await insertOutboxRow(tx, fact, { recordedAt: now })
-          emitted.push(fact)
+          released += 1
         }
-        return emitted
+        return released
       })
-      for (const fact of facts) await emitAfterCommit(events, fact)
-      return { released: facts.length }
+      return { released }
     }),
 })

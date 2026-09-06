@@ -1,6 +1,4 @@
-import type { EventBus } from '#/shared/events/event-bus'
-import type { DomainEvent } from '#/shared/events/events'
-import { getLogger } from '#/shared/observability/logger'
+import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import type { MetricReading } from '#/contexts/metric/domain/metric-reading'
 import type {
   MetricCommandStore,
@@ -11,36 +9,22 @@ import type {
   RetractMetricCommand,
 } from '#/contexts/metric/application/ports/metric-command-store.port'
 
-async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<void> {
-  try {
-    await events.emit(event)
-  } catch (err) {
-    getLogger().warn(
-      { err, eventType: event._tag, correlationId: event.correlationId ?? undefined },
-      'in-process emit failed after sequential metric store state write',
-    )
-  }
-}
-
 export function createSequentialMetricCommandStore(deps: {
   insertReading: (reading: MetricReading) => Promise<MetricReading>
   quarantine?: (command: QuarantineMetricCommand) => Promise<void>
-  events: EventBus
-  recordOutbox?: (event: DomainEvent) => Promise<void>
+  outbox?: RecordedOutbox
   recordReceipt?: (receipt: MetricSourceReceipt) => Promise<void>
 }): MetricCommandStore {
+  const outbox = deps.outbox ?? createRecordedOutbox()
   const recordMetrics = async (command: RecordMetricsCommand) => {
     const results = []
     for (const entry of command.readings) {
       const inserted = await deps.insertReading(entry.reading)
-      if (deps.recordOutbox) await deps.recordOutbox(entry.event)
+      await outbox.record(entry.event)
       results.push({ status: 'recorded' as const, reading: inserted })
     }
     if (command.sourceReceipt && deps.recordReceipt) {
       await deps.recordReceipt(command.sourceReceipt)
-    }
-    for (const entry of command.readings) {
-      await emitAfterCommit(deps.events, entry.event)
     }
     return results
   }

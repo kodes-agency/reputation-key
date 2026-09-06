@@ -22,7 +22,6 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import {
   organizationId,
@@ -56,12 +55,6 @@ const USER_A = userId('user-pub-state-bbbb-2222222222')
 const NOW = new Date('2026-07-17T12:00:00.000Z')
 
 let pool: Pool
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 async function seedOrgAndProperty(p: Pool) {
   const slug = 't-' + ORG_A.replace(/-/g, '').slice(-12)
@@ -263,7 +256,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     const db = getDb()
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
+    const store = createAtomicReplyCommandStore(db, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     // One review, three replies is impossible (unique review+source+org) —
@@ -367,7 +360,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     const db = getDb()
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
+    const store = createAtomicReplyCommandStore(db, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ publicationState: 'authorized' }))
@@ -437,7 +430,6 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     const replyRepo = createReplyRepository(db, () => new Date())
     const store = createAtomicReplyCommandStore(
       db,
-      silentEvents,
       () => new Date(),
       async () => true,
     )
@@ -528,7 +520,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('cancelPublications tolerates purge-deleted rows (guarded update matches nothing)', async () => {
     const db = getDb()
-    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
+    const store = createAtomicReplyCommandStore(db, () => new Date())
 
     // No rows seeded at all — the disconnect purge already deleted them.
     const count = await store.cancelPublications([
@@ -551,7 +543,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     const db = getDb()
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
+    const store = createAtomicReplyCommandStore(db, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ publicationState: 'authorized' }))

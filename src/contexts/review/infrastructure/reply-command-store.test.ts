@@ -1,12 +1,9 @@
 // BQC-3.3 — atomic reply command store contract tests.
 // BQC-3.8 — persisted publication state machine transitions.
 //
-// Every command must commit its state mutation and its outbox_events row in
-// ONE transaction, then emit on the in-process bus AFTER commit:
-//   ['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit']
-// A lost guarded-transition race (no row matched) commits nothing and emits
-// nothing: ['tx.start', 'tx.state', 'tx.commit'].
-// A post-commit bus failure must not propagate (durable row already retained).
+// Every command commits its state mutation and outbox_events row in one
+// transaction. A lost guarded-transition race (no row matched) records no
+// fact: ['tx.start', 'tx.state', 'tx.commit'].
 //
 // BQC-3.8 publication commands additionally:
 //   - pre-check the transition against the domain authority
@@ -29,7 +26,6 @@ import {
   replyPublicationAttempts,
   reviews,
 } from '#/shared/db/schema/review.schema'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -82,10 +78,9 @@ const REVIEW_ID = reviewId('41000000-0000-4000-8000-000000000010')
 const REPLY_ID = replyId('41000000-0000-4000-8000-000000000020')
 const USER_ID = userId('user-1')
 
-function createAtomicReplyCommandStore(db: Database, events: EventBus) {
+function createAtomicReplyCommandStore(db: Database) {
   return createProductionReplyCommandStore(
     db,
-    events,
     () => NOW,
     async () => true,
   )
@@ -295,17 +290,6 @@ function createMockDb(opts: {
   return { db: db as unknown as Database, tx }
 }
 
-function makeEvents(order: string[], fail = false): EventBus {
-  return {
-    on: vi.fn(),
-    emit: vi.fn(async () => {
-      if (fail) throw new Error('bus down')
-      order.push('emit')
-    }),
-    clear: vi.fn(),
-  }
-}
-
 const submittedEvent = () =>
   reviewReplySubmitted({
     replyId: REPLY_ID,
@@ -384,11 +368,11 @@ describe('createAtomicReplyCommandStore', () => {
   })
 
   describe('guarded transition commands', () => {
-    it('submitReply runs guarded update + outbox insert in one tx before emit', async () => {
+    it('submitReply runs guarded update and outbox insert in one transaction', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order, updateRowsQueue: [[makeRow()]] })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.submitReply(
         makeReply({ status: 'draft' }),
@@ -398,17 +382,17 @@ describe('createAtomicReplyCommandStore', () => {
       )
 
       expect(result?.status).toBe('pending_approval')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
 
-    it('rejectReply commits update + outbox + emit in order', async () => {
+    it('rejectReply commits the update and outbox fact in order', async () => {
       const order: string[] = []
       const { db } = createMockDb({
         order,
         updateRowsQueue: [[makeRow({ status: 'rejected', rejectedBy: USER_ID })]],
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       await store.rejectReply(
         makeReply({ status: 'pending_approval' }),
@@ -426,10 +410,10 @@ describe('createAtomicReplyCommandStore', () => {
         NOW,
       )
 
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
 
-    it('markPublished commits update + outbox + emit in order and sets publication_state=published', async () => {
+    it('markPublished commits update and outbox fact and sets publication_state=published', async () => {
       const order: string[] = []
       const setPayloads: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
@@ -445,8 +429,8 @@ describe('createAtomicReplyCommandStore', () => {
         ],
         setPayloads,
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       await store.markPublished(
         sendingReply(),
@@ -455,7 +439,7 @@ describe('createAtomicReplyCommandStore', () => {
         NOW,
       )
 
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
       // BQC-3.8: provider confirmation persists publication_state='published'
       // and clears the reconcile schedule.
       expect(setPayloads[0]).toMatchObject({
@@ -464,12 +448,12 @@ describe('createAtomicReplyCommandStore', () => {
       })
     })
 
-    it('lost race (guard matches no row) returns null — no outbox row, no emit', async () => {
+    it('lost race (guard matches no row) returns null with no outbox row', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, outboxRows })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.submitReply(
         makeReply({ status: 'draft' }),
@@ -481,24 +465,6 @@ describe('createAtomicReplyCommandStore', () => {
       expect(result).toBeNull()
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
-    })
-
-    it('emit failure after commit does not propagate (durable row retained)', async () => {
-      const order: string[] = []
-      const { db } = createMockDb({ order, updateRowsQueue: [[makeRow()]] })
-      const events = makeEvents(order, true)
-      const store = createAtomicReplyCommandStore(db, events)
-
-      const result = await store.submitReply(
-        makeReply({ status: 'draft' }),
-        { status: 'pending_approval', submittedAt: NOW },
-        submittedEvent(),
-        NOW,
-      )
-
-      expect(result?.status).toBe('pending_approval')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
   })
 
@@ -524,8 +490,8 @@ describe('createAtomicReplyCommandStore', () => {
         outboxRows,
         setPayloads,
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationAuthorized(
         makeReply({ status: 'pending_approval' }),
@@ -545,7 +511,6 @@ describe('createAtomicReplyCommandStore', () => {
         'tx.outbox',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
       expect(setPayloads[0]).toMatchObject({
         publicationState: 'authorized',
@@ -560,7 +525,7 @@ describe('createAtomicReplyCommandStore', () => {
       ])
     })
 
-    it('retry re-authorization commits a durable intent without a lifecycle emit', async () => {
+    it('retry re-authorization commits only the durable intent', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
@@ -576,8 +541,8 @@ describe('createAtomicReplyCommandStore', () => {
         ],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationAuthorized(
         makeReply({
@@ -605,13 +570,12 @@ describe('createAtomicReplyCommandStore', () => {
       expect(outboxRows.map((row) => row.eventType)).toEqual([
         'review.reply.publication_requested',
       ])
-      expect(events.emit).not.toHaveBeenCalled()
     })
 
     it('impossible transition (already published) returns null WITHOUT touching the DB', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const store = createAtomicReplyCommandStore(db, makeEvents(order))
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationAuthorized(
         makeReply({ status: 'published', publicationState: 'published' }),
@@ -627,11 +591,11 @@ describe('createAtomicReplyCommandStore', () => {
       expect(order).toEqual([])
     })
 
-    it('lost race returns null — no outbox, no emit', async () => {
+    it('lost race returns null with no outbox fact', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationAuthorized(
         makeReply({ status: 'pending_approval' }),
@@ -645,7 +609,6 @@ describe('createAtomicReplyCommandStore', () => {
 
       expect(result).toBeNull()
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
-      expect(events.emit).not.toHaveBeenCalled()
     })
   })
 
@@ -677,8 +640,8 @@ describe('createAtomicReplyCommandStore', () => {
         ],
         setPayloads,
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.editPublishedReply(
         makeReply({ status: 'published', publicationState: 'published' }),
@@ -698,7 +661,6 @@ describe('createAtomicReplyCommandStore', () => {
         'tx.outbox',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
       expect(setPayloads[0]).toMatchObject({
         text: 'Improved public reply',
@@ -714,7 +676,7 @@ describe('createAtomicReplyCommandStore', () => {
     it('non-published reply returns null WITHOUT touching the DB (race guard)', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const store = createAtomicReplyCommandStore(db, makeEvents(order))
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.editPublishedReply(
         makeReply({ status: 'approved', publicationState: 'authorized' }),
@@ -748,8 +710,8 @@ describe('createAtomicReplyCommandStore', () => {
         ],
         setPayloads,
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationSending(
         makeReply({ status: 'approved', publicationState: 'authorized' }),
@@ -762,7 +724,6 @@ describe('createAtomicReplyCommandStore', () => {
       expect(setPayloads[0]).toMatchObject({ publicationState: 'sending' })
       // attempts+1 is an atomic SQL fragment, not a caller-computed value.
       expect(typeof setPayloads[0]!.publicationAttempts).not.toBe('number')
-      expect(events.emit).not.toHaveBeenCalled()
     })
 
     it('atomically cancels the cycle when the named manager lost current authority', async () => {
@@ -783,10 +744,9 @@ describe('createAtomicReplyCommandStore', () => {
         outboxRows,
         setPayloads,
       })
-      const events = makeEvents(order)
+
       const store = createProductionReplyCommandStore(
         db,
-        events,
         () => NOW,
         async () => false,
       )
@@ -809,7 +769,7 @@ describe('createAtomicReplyCommandStore', () => {
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]?.eventType).toBe('review.reply.publication_cancelled')
       expect(outboxRows[0]?.payload).toMatchObject({ cause: 'policy' })
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
 
     it('denies a sending re-claim without a newer targeted absence observation', async () => {
@@ -826,7 +786,7 @@ describe('createAtomicReplyCommandStore', () => {
           ],
         ],
       })
-      const store = createAtomicReplyCommandStore(db, makeEvents(order))
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationSending(
         sendingReply(),
@@ -841,8 +801,8 @@ describe('createAtomicReplyCommandStore', () => {
     it('guard miss (cancelled/racing) returns null — no write, no fact', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationSending(
         makeReply({ status: 'approved', publicationState: 'authorized' }),
@@ -852,13 +812,12 @@ describe('createAtomicReplyCommandStore', () => {
 
       expect(result).toBeNull()
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
-      expect(events.emit).not.toHaveBeenCalled()
     })
 
     it('cancelled row cannot be claimed — domain pre-check returns null without DB', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const store = createAtomicReplyCommandStore(db, makeEvents(order))
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationSending(
         makeReply({ status: 'draft', publicationState: 'cancelled' }),
@@ -872,7 +831,7 @@ describe('createAtomicReplyCommandStore', () => {
   })
 
   describe('markPublicationTerminal (BQC-3.8)', () => {
-    it('commits publish_failed + terminal + error class + fact in one tx before emit', async () => {
+    it('commits publish_failed, terminal state, error class, and fact in one transaction', async () => {
       const order: string[] = []
       const setPayloads: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
@@ -888,8 +847,8 @@ describe('createAtomicReplyCommandStore', () => {
         ],
         setPayloads,
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationTerminal(
         sendingReply(),
@@ -906,7 +865,6 @@ describe('createAtomicReplyCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
       expect(setPayloads[0]).toMatchObject({
         status: 'publish_failed',
@@ -923,8 +881,8 @@ describe('createAtomicReplyCommandStore', () => {
           [makeRow({ status: 'publish_failed', publicationState: 'terminal' })],
         ],
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationTerminal(
         sendingReply(),
@@ -935,15 +893,14 @@ describe('createAtomicReplyCommandStore', () => {
 
       expect(result?.publicationState).toBe('terminal')
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.state', 'tx.commit'])
-      expect(events.emit).not.toHaveBeenCalled()
     })
 
     it('guard miss (row no longer sending) returns null — no fact', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, outboxRows })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationTerminal(
         sendingReply(),
@@ -955,13 +912,12 @@ describe('createAtomicReplyCommandStore', () => {
       expect(result).toBeNull()
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
     })
 
     it('non-sending state (authorized) is rejected by the domain pre-check — no DB write', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const store = createAtomicReplyCommandStore(db, makeEvents(order))
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationTerminal(
         makeReply({ status: 'approved', publicationState: 'authorized' }),
@@ -993,8 +949,8 @@ describe('createAtomicReplyCommandStore', () => {
         ],
         setPayloads,
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationAmbiguous(
         sendingReply(),
@@ -1009,7 +965,6 @@ describe('createAtomicReplyCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
       expect(setPayloads[0]).toMatchObject({
         status: 'publish_failed',
@@ -1024,8 +979,8 @@ describe('createAtomicReplyCommandStore', () => {
     it('guard miss returns null — no fact', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationAmbiguous(
         sendingReply(),
@@ -1035,7 +990,6 @@ describe('createAtomicReplyCommandStore', () => {
 
       expect(result).toBeNull()
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
-      expect(events.emit).not.toHaveBeenCalled()
     })
   })
 
@@ -1050,8 +1004,8 @@ describe('createAtomicReplyCommandStore', () => {
         ],
         setPayloads,
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationRetryQueued(sendingReply(), NOW)
 
@@ -1061,13 +1015,12 @@ describe('createAtomicReplyCommandStore', () => {
       // last_error_class / attempts deliberately NOT in the set clause.
       expect(setPayloads[0]).not.toHaveProperty('publicationLastErrorClass')
       expect(setPayloads[0]).not.toHaveProperty('publicationAttempts')
-      expect(events.emit).not.toHaveBeenCalled()
     })
 
     it('guard miss returns null', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const store = createAtomicReplyCommandStore(db, makeEvents(order))
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.markPublicationRetryQueued(sendingReply(), NOW)
 
@@ -1077,7 +1030,7 @@ describe('createAtomicReplyCommandStore', () => {
   })
 
   describe('cancelPublications (BQC-3.8)', () => {
-    it('cancels each active reply in ONE batch tx: state write + fact per row, emits after commit', async () => {
+    it('cancels each active reply with its fact in one batch transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const setPayloads: Array<Record<string, unknown>> = []
@@ -1090,8 +1043,8 @@ describe('createAtomicReplyCommandStore', () => {
         outboxRows,
         setPayloads,
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const count = await store.cancelPublications([
         {
@@ -1110,8 +1063,6 @@ describe('createAtomicReplyCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
-        'emit',
       ])
       expect(outboxRows).toHaveLength(2)
       expect((outboxRows[0]!.payload as { cause?: string }).cause).toBe('disconnect')
@@ -1132,8 +1083,8 @@ describe('createAtomicReplyCommandStore', () => {
         ],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const count = await store.cancelPublications([
         {
@@ -1151,7 +1102,6 @@ describe('createAtomicReplyCommandStore', () => {
         'tx.outbox',
         'tx.state',
         'tx.commit',
-        'emit',
       ])
       expect(outboxRows).toHaveLength(1)
     })
@@ -1159,8 +1109,8 @@ describe('createAtomicReplyCommandStore', () => {
     it('a publication already terminal/published is skipped by the domain pre-check — no DB write for that row', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const count = await store.cancelPublications([
         {
@@ -1172,13 +1122,12 @@ describe('createAtomicReplyCommandStore', () => {
 
       expect(count).toBe(0)
       expect(order).toEqual(['tx.start', 'tx.commit'])
-      expect(events.emit).not.toHaveBeenCalled()
     })
 
     it('empty batch is a no-op (no tx)', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const store = createAtomicReplyCommandStore(db, makeEvents(order))
+      const store = createAtomicReplyCommandStore(db)
 
       expect(await store.cancelPublications([])).toBe(0)
       expect(order).toEqual([])
@@ -1186,14 +1135,14 @@ describe('createAtomicReplyCommandStore', () => {
   })
 
   describe('mirrorSyncedReply', () => {
-    it('new google_sync reply: upsert + published fact in one tx before emit', async () => {
+    it('new google_sync reply: commits upsert and published fact together', async () => {
       const order: string[] = []
       const { db } = createMockDb({
         order,
         upsertRows: [makeRow({ source: 'google_sync', status: 'published' })],
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const mirrored = makeReply({ source: 'google_sync', status: 'published' })
       const { createdAt: _c, updatedAt: _u, ...replyInput } = mirrored
@@ -1215,17 +1164,17 @@ describe('createAtomicReplyCommandStore', () => {
       })
 
       expect(result?.status).toBe('published')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
 
-    it('existing google_sync reply refresh: upsert only (no fact, no emit)', async () => {
+    it('existing google_sync reply refresh: upsert only with no fact', async () => {
       const order: string[] = []
       const { db } = createMockDb({
         order,
         upsertRows: [makeRow({ source: 'google_sync', status: 'published' })],
       })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const mirrored = makeReply({ source: 'google_sync', status: 'published' })
       const { createdAt: _c, updatedAt: _u, ...replyInput } = mirrored
@@ -1239,14 +1188,13 @@ describe('createAtomicReplyCommandStore', () => {
 
       expect(result?.status).toBe('published')
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
-      expect(events.emit).not.toHaveBeenCalled()
     })
 
-    it('mirror delete path: delete only — never emits a fact', async () => {
+    it('mirror delete path: deletes without recording a fact', async () => {
       const order: string[] = []
       const { db, tx } = createMockDb({ order })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       const result = await store.mirrorSyncedReply({
         reply: null,
@@ -1259,16 +1207,15 @@ describe('createAtomicReplyCommandStore', () => {
       expect(result).toBeNull()
       expect(tx.delete).toHaveBeenCalledTimes(1)
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
-      expect(events.emit).not.toHaveBeenCalled()
     })
   })
 
   describe('purgeExpiredReview', () => {
-    it('fails closed before opening a transaction or emitting a false expiry fact', async () => {
+    it('fails closed before opening a transaction or recording a false expiry fact', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const events = makeEvents(order)
-      const store = createAtomicReplyCommandStore(db, events)
+
+      const store = createAtomicReplyCommandStore(db)
 
       await expect(
         store.purgeExpiredReview(
@@ -1283,7 +1230,6 @@ describe('createAtomicReplyCommandStore', () => {
       ).rejects.toThrow('Review destructive lifecycle is quarantined')
 
       expect(order).toEqual([])
-      expect(events.emit).not.toHaveBeenCalled()
     })
   })
 
@@ -1395,7 +1341,7 @@ describe('createAtomicReplyCommandStore', () => {
         const order: string[] = []
         const outboxRows: Array<Record<string, unknown>> = []
         const { db } = createMockDb({ order, updateRowsQueue: [[makeRow()]], outboxRows })
-        const store = createAtomicReplyCommandStore(db, makeEvents(order))
+        const store = createAtomicReplyCommandStore(db)
 
         // Smuggle content fields onto the event — denylist strip + schema
         // allowlist must drop them before insert.
@@ -1430,7 +1376,7 @@ describe('createSequentialReplyCommandStore', () => {
     registerAllEventSchemas()
   })
 
-  it('applies the guarded update, then records outbox, then emits', async () => {
+  it('applies the guarded update, then records the outbox fact', async () => {
     const order: string[] = []
     const updated = makeReply({ status: 'pending_approval', submittedAt: NOW })
     const store = createSequentialReplyCommandStore({
@@ -1445,13 +1391,6 @@ describe('createSequentialReplyCommandStore', () => {
       recordOutbox: async () => {
         order.push('outbox')
       },
-      events: {
-        on: vi.fn(),
-        emit: vi.fn(async () => {
-          order.push('emit')
-        }),
-        clear: vi.fn(),
-      },
     })
 
     const result = await store.submitReply(
@@ -1462,12 +1401,11 @@ describe('createSequentialReplyCommandStore', () => {
     )
 
     expect(result).toEqual(updated)
-    expect(order).toEqual(['state', 'outbox', 'emit'])
+    expect(order).toEqual(['state', 'outbox'])
   })
 
-  it('markPublicationAuthorized returns null and skips outbox/emit when the guard loses the race', async () => {
+  it('markPublicationAuthorized skips outbox when the guard loses the race', async () => {
     const recordOutbox = vi.fn()
-    const emit = vi.fn()
     const store = createSequentialReplyCommandStore({
       clock: () => NOW,
       conditionalUpdate: vi.fn(async () => null),
@@ -1475,7 +1413,6 @@ describe('createSequentialReplyCommandStore', () => {
       deleteByReviewIdAndSource: vi.fn(),
       deleteReviewById: vi.fn(),
       recordOutbox,
-      events: { on: vi.fn(), emit, clear: vi.fn() },
     })
 
     const result = await store.markPublicationAuthorized(
@@ -1490,7 +1427,6 @@ describe('createSequentialReplyCommandStore', () => {
 
     expect(result).toBeNull()
     expect(recordOutbox).not.toHaveBeenCalled()
-    expect(emit).not.toHaveBeenCalled()
   })
 
   it('markPublicationSending routes through publicationUpdate with the sending claim', async () => {
@@ -1505,7 +1441,6 @@ describe('createSequentialReplyCommandStore', () => {
       deleteByReviewIdAndSource: vi.fn(),
       deleteReviewById: vi.fn(),
       publicationUpdate,
-      events: { on: vi.fn(), emit: vi.fn(), clear: vi.fn() },
     })
 
     const result = await store.markPublicationSending(
@@ -1530,7 +1465,6 @@ describe('createSequentialReplyCommandStore', () => {
       upsert: vi.fn(),
       deleteByReviewIdAndSource: vi.fn(),
       deleteReviewById: vi.fn(),
-      events: { on: vi.fn(), emit: vi.fn(), clear: vi.fn() },
     })
 
     await expect(
@@ -1542,13 +1476,10 @@ describe('createSequentialReplyCommandStore', () => {
     ).rejects.toMatchObject({ code: 'build_config_error' })
   })
 
-  it('cancelPublications records + emits one fact per cancelled row, skips guard misses', async () => {
+  it('cancelPublications records one fact per cancelled row and skips guard misses', async () => {
     const order: string[] = []
     const recordOutbox = vi.fn(async () => {
       order.push('outbox')
-    })
-    const emit = vi.fn(async () => {
-      order.push('emit')
     })
     const publicationUpdate = vi.fn(async (reply: Reply) => {
       order.push('state')
@@ -1565,7 +1496,6 @@ describe('createSequentialReplyCommandStore', () => {
       deleteReviewById: vi.fn(),
       publicationUpdate,
       recordOutbox,
-      events: { on: vi.fn(), emit, clear: vi.fn() },
     })
 
     const count = await store.cancelPublications([
@@ -1578,10 +1508,10 @@ describe('createSequentialReplyCommandStore', () => {
     ])
 
     expect(count).toBe(1)
-    expect(order).toEqual(['state', 'outbox', 'emit', 'state'])
+    expect(order).toEqual(['state', 'outbox', 'state'])
   })
 
-  it('sequential purgeExpiredReview is quarantined before delete, outbox, or emit', async () => {
+  it('sequential purgeExpiredReview is quarantined before delete or outbox', async () => {
     const order: string[] = []
     const store = createSequentialReplyCommandStore({
       clock: () => NOW,
@@ -1593,13 +1523,6 @@ describe('createSequentialReplyCommandStore', () => {
       }),
       recordOutbox: async () => {
         order.push('outbox')
-      },
-      events: {
-        on: vi.fn(),
-        emit: vi.fn(async () => {
-          order.push('emit')
-        }),
-        clear: vi.fn(),
       },
     })
 

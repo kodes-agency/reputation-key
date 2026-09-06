@@ -85,7 +85,7 @@ export const cancelPublicationsForConnection =
       const commands: CancelPublicationCommand[] = []
       for (const reply of active) {
         // Defensive: the reply resolved through these reviews, so the map
-        // always has its propertyId — skip rather than emit a fact-less id.
+        // always has its propertyId — skip rather than record a fact-less id.
         const propertyId = propertyByReviewId.get(reply.reviewId as string)
         if (!propertyId) continue
         commands.push({

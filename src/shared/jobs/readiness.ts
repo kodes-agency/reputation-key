@@ -13,35 +13,19 @@
 //       typo'd handler fails the boot. The 'domain-events' dispatcher is NOT
 //       a registered handler: it is a queue-level worker created with its own
 //       dispatch closure, so it never appears in the registry;
-//   (c) when the durable dispatcher is enabled, every catalogued durable
-//       consumer ref is registered unless its cutover family is record-only.
-//       Record-only deliberately has no durable consumer; shadow and switch
-//       require one. While OUTBOX_DISPATCHER_ENABLED is off the remaining
-//       consumer check is skipped and logged at info.
+//   (c) every catalogued durable consumer ref is registered. The outbox
+//       relay + dispatcher are the only delivery path, so a missing consumer
+//       is a fact with no reader.
 
 import {
   EVENT_FAMILY_ROWS,
   JOB_FAMILY_ROWS,
 } from '#/shared/governance/event-job-catalogue'
 import type { ConsumerListing } from '#/shared/outbox'
-import {
-  INBOX_CUTOVER_FAMILIES,
-  listActiveCutoverFamilies,
-  type ActiveCutoverFamily,
-} from '#/shared/outbox/cutover-flags'
 import type { JobRegistry } from './registry'
 import { validateOperationalCatalogueCoverage } from './operational-catalogue'
 
-const INBOX_CUTOVER_CONSUMER_BY_FAMILY: Readonly<
-  Record<(typeof INBOX_CUTOVER_FAMILIES)[number], string>
-> = {
-  'review.created': 'inbox.on-review-created',
-  'review.expired': 'inbox.on-review-expired',
-}
-
 export type JobReadinessOptions = Readonly<{
-  /** Validate durable consumer registration (only when the dispatcher runs). */
-  dispatcherEnabled?: boolean
   /**
    * ARC-03-T7: the container's consumer listing. REQUIRED — the old default
    * read a process-global registry, so readiness could pass against consumers
@@ -49,11 +33,6 @@ export type JobReadinessOptions = Readonly<{
    * worker is about to start.
    */
   listConsumers: () => ReadonlyArray<ConsumerListing>
-  /**
-   * BQC-3.9: families past record-only — defaults to the env resolution.
-   * Any active family (shadow/switch) requires the durable dispatcher.
-   */
-  activeCutoverFamilies?: () => ReadonlyArray<ActiveCutoverFamily>
 }>
 
 /** Minimal logging surface (pino satisfies this). */
@@ -88,27 +67,13 @@ function assertHandlersRegistered(registry: JobRegistry): void {
 
 function assertDurableConsumersRegistered(
   listConsumers: JobReadinessOptions['listConsumers'],
-  activeCutoverFamilies: ReadonlyArray<ActiveCutoverFamily>,
 ): void {
   const registered = new Set(
     listConsumers().map((consumer) => `${consumer.eventType}::${consumer.consumerName}`),
   )
-  const activeCutover = new Set(activeCutoverFamilies.map(({ family }) => family))
-  const missing = EVENT_FAMILY_ROWS.flatMap((row) => {
-    const cutoverFamily = INBOX_CUTOVER_FAMILIES.find(
-      (family) => family === row.eventType,
-    )
-    const omittedRecordOnlyConsumer =
-      cutoverFamily && !activeCutover.has(cutoverFamily)
-        ? INBOX_CUTOVER_CONSUMER_BY_FAMILY[cutoverFamily]
-        : null
-    return row.consumers
-      .filter(
-        (consumer) =>
-          consumer.kind === 'durable' && consumer.name !== omittedRecordOnlyConsumer,
-      )
-      .map((consumer) => `${row.eventType}::${consumer.name}`)
-  }).filter((key) => !registered.has(key))
+  const missing = EVENT_FAMILY_ROWS.flatMap((row) =>
+    row.consumers.map((consumer) => `${row.eventType}::${consumer.name}`),
+  ).filter((key) => !registered.has(key))
 
   if (missing.length > 0) {
     throw new Error(
@@ -116,25 +81,6 @@ function assertDurableConsumersRegistered(
         `catalogued durable consumer(s) not registered [${missing.join(', ')}]`,
     )
   }
-}
-
-/**
- * BQC-3.9: a family in shadow/switch runs the durable path — the boot fails
- * when the dispatcher is off, because the family would silently lose its
- * primary (switch) or comparison (shadow) delivery.
- */
-function assertCutoverDispatcher(
-  active: ReadonlyArray<ActiveCutoverFamily>,
-  dispatcherEnabled: boolean,
-): void {
-  if (active.length === 0 || dispatcherEnabled) return
-  const families = active.map((f) => `${f.family}=${f.state}`).join(', ')
-  throw new Error(
-    'durable cutover readiness failed (deployment/config mismatch): ' +
-      `cutover famil${active.length === 1 ? 'y' : 'ies'} [${families}] require ` +
-      'OUTBOX_DISPATCHER_ENABLED=true — shadow/switch families cannot run ' +
-      'record-only (BQC-3.9)',
-  )
 }
 
 /**
@@ -147,23 +93,10 @@ export function assertJobReadiness(
   options: JobReadinessOptions,
 ): void {
   validateOperationalCatalogueCoverage()
-  const activeCutoverFamilies = (
-    options.activeCutoverFamilies ?? listActiveCutoverFamilies
-  )()
-  assertCutoverDispatcher(activeCutoverFamilies, options.dispatcherEnabled === true)
   assertHandlersRegistered(registry)
-
-  if (options.dispatcherEnabled) {
-    assertDurableConsumersRegistered(options.listConsumers, activeCutoverFamilies)
-    logger.info(
-      { handlers: registry.getAll().size, dispatcherEnabled: true },
-      'job readiness OK — handlers and durable consumers match the catalogue',
-    )
-    return
-  }
-
+  assertDurableConsumersRegistered(options.listConsumers)
   logger.info(
-    { handlers: registry.getAll().size, dispatcherEnabled: false },
-    'job readiness OK — durable consumer validation skipped (dispatcher disabled)',
+    { handlers: registry.getAll().size },
+    'job readiness OK — handlers and durable consumers match the catalogue',
   )
 }

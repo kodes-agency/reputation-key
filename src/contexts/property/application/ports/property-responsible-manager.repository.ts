@@ -40,7 +40,6 @@ export type PropertyResponsibleManagerRepository = Readonly<{
   ) => Promise<
     Readonly<{
       released: number
-      responsibilityNeededEvents: readonly PropertyResponsibilityNeeded[]
     }>
   >
 }>
