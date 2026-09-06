@@ -448,6 +448,23 @@ The only lever on CI wall time is `e2e` itself, and `e2e` is the gate this progr
 
 **WP2.4 is therefore: simplify `ci.yml` in place.** Its real cost is complexity — 983 lines describing a 7-image, 6-sidecar world that no longer exists — not wall time. Remove the steps whose subjects Phase 2 deleted, keep every correctness gate on the push path, and add no second workflow.
 
+**WP2.4 closed 2026-09-06, and it is smaller than "983 lines" suggests.** The line budget by job:
+
+| job                | lines    |                                                                      |
+| ------------------ | -------- | -------------------------------------------------------------------- |
+| `docker-images`    | 278      | builds, smoke-tests, SBOMs and scans 5 images across 2 matrix groups |
+| `storybook-test`   | 155      | the a11y-enforcing Playwright gate                                   |
+| `docker`           | 142      | SBOM aggregation, staged-digest validation, promotion barrier        |
+| `test-integration` | 123      | real Postgres + Redis + migration apply order                        |
+| `artifacts`        | 114      | bundle budgets, production-artifact boundary                         |
+| everything else    | ≤45 each |                                                                      |
+
+One step was genuinely dead and is deleted: `Worker build` invoking `pnpm build:worker`, which WP2.5 folded into `pnpm build`. It would have failed on the next push.
+
+Beyond that there is nothing to remove without removing proof. `docker`'s 142 lines are the publishing boundary — SBOM completeness, staged-digest validation, source-revision binding, repository and reference verification, and the promotion barrier that refuses an unproven digest. `docker-images` is 278 lines because it builds five images with smoke contracts and a vulnerability scan, and that scan is the check that caught CVE-2026-86145 the moment it was made to print its findings. Shrinking either would be deleting the evidence chain, which is the opposite of the audit's complaint: the audit objected to machinery that proves _documents_ consistent, not to machinery that proves _artifacts_ sound.
+
+Same conclusion the deploy controller reached at 761 rather than 400 lines. The honest floor for a proof boundary is wherever the proofs end.
+
 ### WP2.5 then WP2.4 — build surface, then CI
 
 Both trail the deletions above because they clean up what those orphan. WP2.5: remaining sidecar Dockerfiles and tsup configs (collapse to one `defineConfig([...])`), `check:container-images`, `verify-*-image.mjs`, `smoke-provider-redis-image.sh`, `check:google-runtime-bundle`, `deploy-ci-images.ts` to ~400 lines. WP2.4: `ci.yml` to the minimal path plus a nightly workflow, per the bullet. Doing 2.5 first means 2.4 rewrites `ci.yml` once, against a build surface that has already stopped moving.
@@ -540,6 +557,34 @@ Two lessons worth carrying into Phase 2, both about the _shape_ of the gap rathe
 - **A duplicated definition and an eagerly-captured cross-module reference both fail silently and remotely.** Neither produced a build error, a type error, or a server log. The deletions in Phases 2–4 will keep shuffling the module graph, so the two pins added here (`ciphertext-format-singleton`, `route-server-fn-bundles`) are load-bearing for the rest of the program, not incidental to WP1.8.
 
 A third finding is recorded but not fixed, because it is local-only: on this machine the e2e stack's review sync refuses with `runtime_unavailable` from `google-provider-authority.ts:888`, where an absent runtime binding returns without logging. CI does not hit it. That silent return is a real observability gap — the file's own comment already calls out this class — and belongs with WP2.2's Google collapse.
+
+## Phase 2 close — measured 2026-09-06
+
+Entry `54779d0a` → `7f61ab8f`. **328 files changed, +3,181 / −24,457.** Every work package landed on `main` with CI green including `e2e`.
+
+| anchor                 | Phase 2 entry | now                              |
+| ---------------------- | ------------- | -------------------------------- |
+| sidecar deployables    | 6             | **0**                            |
+| `services/` TypeScript | 18,950 lines  | **0** (one shell script remains) |
+| container images       | 7             | 5 (3 promoted, 2 CI-only)        |
+| Dockerfiles            | 7             | 4                                |
+| tsup configs           | 8             | **1**                            |
+| tsconfig projects      | 4             | 2                                |
+| `deploy-ci-images.ts`  | 1,093 lines   | 761                              |
+| tracked files          | 4,226         | 4,130                            |
+| CI wall                | 9m05s         | 9m05s (`e2e`-bound; see WP2.4)   |
+
+Commit trail, each CI-green before the next started: `b8e0530b` (WP2.1) · `603be7de` (parity test) · `fb23aba8`+`08281f22` (WP2.2 step 1) · `8a92f310` (third typecheck project) · `372e5f02` (WP2.3) · `e4a6f3d6` (scan diagnosability) · `e3fc4096`+`1fac96d7` (CVE-2026-86145) · `f451eb19` (WP2.2 step 2 vector) · `b83b95cd` (dead contract fields) · `eb4ada82` (WP2.2 step 2 gate) · `7ce46aa7` (WP2.2 step 3) · `853ac364` (WP2.2 step 4) · `7f61ab8f` (WP2.5 + WP2.4).
+
+**The app was run, not just tested.** Against a from-scratch regenerated database: login succeeds, dashboard renders with the 30-day default, inbox renders, integrations settings renders, `/api/health/ready` returns 200, the deleted routes (`/home`, `/leaderboard`, `/register`, `/settings/closure`) all 404 while authenticated, and no request returned 5xx. This should have been happening from Phase 0; it was not, and CI green is not the same evidence.
+
+### What Phase 2 taught, beyond the deletions
+
+1. **Three separate times, an edit I reported as applied had silently no-opped** — a plain string `.replace()` whose success I printed unconditionally. One was a validator that still _required_ two removed keys and would have failed every import commit. Subagents caught two of the three. A tool result is not evidence that a change landed; re-reading the file is.
+2. **A test can pass vacuously for its entire life.** `provider-client-singleton.test.ts` stripped block comments before line comments, so a line comment naming a glob like `scripts/ops/*` opened an unbalanced comment that ate the rest of the file — `env.ts` reached the assertions at 6,199 of its 31,358 characters. Every assertion in it was searching a mangled string. It now has a positive control.
+3. **A gate that cannot say what it found makes its own remedies unusable.** The container scan failed for a day with only "discovered vulnerabilities at or above the severity threshold". Making it print the table named the finding on the first run: one High, `libpcre2-8-0`, with a fix available. Before that, the base was bumped blind and an exception was nearly written for a patchable CVE.
+4. **Measure before restructuring.** WP2.4's nightly split was dropped because `e2e` is 9m05s of a 9m05s run and every other job finishes inside it — the split would have cost a second workflow and bought zero seconds.
+5. **The honest floor for a proof boundary is where the proofs end.** Both the deploy controller (761 not 400 lines) and `ci.yml` stopped short of their targets, because what remained was artifact evidence rather than ceremony. The audit objected to machinery proving _documents_ consistent, not machinery proving _artifacts_ sound — a distinction worth keeping in Phases 3-4.
 
 ## Assumptions & contingencies
 
