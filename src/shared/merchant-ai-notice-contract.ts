@@ -1,12 +1,16 @@
 import { z } from 'zod/v4'
 export { canonicalizeRfc8785 } from './canonical-json'
 
-// Bumped from merchant-ai-notice-2026-08-15.v1 when bg-Cyrl entered the review
-// language catalogue: the notice enumerates the groups whose review text may be
-// sent for provider work, so widening the catalogue widens what the merchant is
-// being asked to consent to. Historical consent stays recorded at its own
-// version — see the known-version set in the enablement/evidence CHECKs.
-export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-08-19.v1' as const
+// Bumped from merchant-ai-notice-2026-08-19.v1 because the shipped text was
+// false: it promised "volatile in-memory prompt caching … at most one hour"
+// while every request sends prompt_cache_retention: '24h'
+// (ai-openai-request-contract.ts) — 24x the stated maximum — and the pinned
+// model rejects `in_memory` with HTTP 400, so the mechanism was wrong too. A
+// new version re-collects consent against the corrected statement. Historical
+// consent stays recorded at its own version — see the known-version set in the
+// enablement/evidence CHECKs (merchant-ai-authorization.schema.ts). The 08-19
+// bump before this one widened the review-language catalogue to bg-Cyrl.
+export const MERCHANT_AI_NOTICE_VERSION = 'merchant-ai-notice-2026-09-06.v1' as const
 
 const capabilitySchema = z
   .object({
@@ -90,7 +94,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
       id: 'provider_posture',
       title: 'OpenAI processing posture',
       body: Object.freeze([
-        "RepKey sends minimized and redacted inputs to OpenAI's global API. RepKey requests store:false, no tools, no background execution, and volatile in-memory prompt caching that is generally active for 5–10 minutes of inactivity and at most one hour.",
+        "RepKey sends minimized and redacted inputs to OpenAI's global API. RepKey requests store:false, no tools, no background execution, and 24-hour extended prompt caching: the pinned model does not support volatile in-memory caching, so cached prompt prefixes may persist with the provider for up to 24 hours.",
         "API data is not used to train OpenAI models unless RepKey's OpenAI organization explicitly opts in. Ordinary abuse-monitoring retention is generally up to 30 days, while documented legal or safety exceptions may retain data longer.",
         'There is no guaranteed provider deletion date, no US-only processing promise, no zero-data-retention promise, and no per-request deletion endpoint for this integration.',
       ]),
@@ -174,7 +178,7 @@ export const MERCHANT_AI_NOTICE_PAYLOAD: MerchantAiNoticePayload = Object.freeze
 noticePayloadSchema.parse(MERCHANT_AI_NOTICE_PAYLOAD)
 
 export const MERCHANT_AI_NOTICE_DIGEST =
-  'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31' as const
+  '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8' as const
 function isLowercaseSha256(value: string): boolean {
   if (value.length !== 64) return false
   for (let index = 0; index < value.length; index += 1) {

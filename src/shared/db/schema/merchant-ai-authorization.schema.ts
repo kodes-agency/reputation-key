@@ -149,7 +149,8 @@ export const merchantAiConsentEvidence = pgTable(
     // Consent evidence is append-only, so a notice re-version must not
     // invalidate consent already recorded under the previous notice. Each
     // known version is pinned to its own digest — a row may never mix a
-    // version with another version's digest (migration 0062).
+    // version with another version's digest. The set grows by one arm per
+    // notice version; the constants live in merchant-ai-notice-contract.ts.
     check(
       'merchant_ai_consent_evidence_contract_valid',
       sql`(
@@ -157,6 +158,8 @@ export const merchantAiConsentEvidence = pgTable(
             AND ${t.noticeDigest} = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')
           OR (${t.noticeVersion} = 'merchant-ai-notice-2026-08-19.v1'
             AND ${t.noticeDigest} = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-06.v1'
+            AND ${t.noticeDigest} = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')
         )
         AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
         AND ${t.routingPolicyVersion} = 1
@@ -260,9 +263,9 @@ export const merchantAiEnablement = pgTable(
       'merchant_ai_enablement_notice_digest_valid',
       sql`${t.noticeDigest} ~ '^[0-9a-f]{64}$'`,
     ),
-    // Same known-version set as the evidence table: the live enablement row was
-    // granted under the 08-15 notice and must stay valid until the owner
-    // re-consents under 08-19 (migration 0062).
+    // Same known-version set as the evidence table: an enablement row granted
+    // under an earlier notice stays valid until the owner re-consents under the
+    // current one; the settings page re-enables Save when the versions differ.
     check(
       'merchant_ai_enablement_contract_valid',
       sql`(
@@ -270,6 +273,8 @@ export const merchantAiEnablement = pgTable(
             AND ${t.noticeDigest} = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')
           OR (${t.noticeVersion} = 'merchant-ai-notice-2026-08-19.v1'
             AND ${t.noticeDigest} = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')
+          OR (${t.noticeVersion} = 'merchant-ai-notice-2026-09-06.v1'
+            AND ${t.noticeDigest} = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')
         )
         AND ${t.sourcePolicyId} = 'google-business-profile-source-policy-v1'
         AND ${t.routingPolicyVersion} = 1
