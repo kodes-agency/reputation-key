@@ -486,7 +486,12 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
             assertDirectCredentialEgressAllowed: deps.assertDirectCredentialEgressAllowed,
           }),
     })
-  const encryptionPort = createTokenEncryptionAdapter(deps.config.encryptionKey)
+  // One key today. The version prefix exists so a second can be added here
+  // without making the rows sealed by the first unreadable.
+  const encryptionPort = createTokenEncryptionAdapter({
+    activeVersion: 'v1',
+    keys: { v1: deps.config.encryptionKey },
+  })
   // Legacy-only test seam. Production no longer constructs the credential-
   // bearing direct account adapter; notification account discovery uses the
   // governed typed executor below.

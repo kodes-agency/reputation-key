@@ -89,7 +89,10 @@ describe('PostgreSQL Google OAuth exchange recovery repository', () => {
       refreshToken: 'provider-refresh-plaintext',
       idToken: 'provider-id-plaintext',
     })
-    const encryption = createTokenEncryptionAdapter('11'.repeat(32))
+    const encryption = createTokenEncryptionAdapter({
+      activeVersion: 'v1',
+      keys: { v1: '11'.repeat(32) },
+    })
     const encryptedResult = encryption.encrypt(plaintext)
     await expect(
       store.preserveSuccessfulResult({

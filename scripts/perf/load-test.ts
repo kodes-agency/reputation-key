@@ -191,7 +191,10 @@ async function buildReplyPublicationSeam(deps: {
     return undefined
   }
 
-  const encryption = createTokenEncryptionAdapter(deps.encryptionKey)
+  const encryption = createTokenEncryptionAdapter({
+    activeVersion: 'v1',
+    keys: { v1: deps.encryptionKey },
+  })
   const runTag = randomUUID().slice(0, 8)
   const accountName = `perf-bqc8-${runTag}`
   const locationName = `accounts/${accountName}/locations/perf-loc`

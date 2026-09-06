@@ -280,6 +280,12 @@ Only the four pins that are true today are written now; "provider client accepts
 
 Verification: `pnpm test:unit -- src/shared/architecture src/contexts/integration` green; intentionally add `import OpenAI from 'openai'` to a `src/` file → test fails → revert.
 
+**Executed 2026-09-06.** `pnpm vitest run --project=unit src/shared/architecture src/contexts/integration` → 115 files / 921 passed. Negative control performed: adding `import OpenAI from 'openai'` to `src/shared/config/release-identity.ts` failed `provider-client-singleton.test.ts` naming that exact file, then reverted. Three corrections:
+
+1. **Item 2 was already satisfied and needed the opposite of a trim.** The `googleapis.com` allowlist is exactly the six justified entries with a comment each; `security-headers.ts`, `fixtures.ts` and `in-memory-google-oauth-port.ts` are not in it because the detector already excludes `fonts.googleapis.com` and the testing tree. What was missing is the `fetch(` ratchet, so that was added instead: exactly three Integration modules may call `fetch` (`gbp-provider-fetch.ts`, `google-oauth.adapter.ts`, `google-review-api.adapter.ts`), pinned as a set so a fourth fails rather than quietly joining. The plan's instruction to reduce the file "to its allowlist describe" was not followed: the other describes assert distinct privacy invariants — health routes select no content columns, the activity context reads no content-bearing event fields — that neither `content-free-facts.test.ts` nor `privacy-exfiltration-canary.test.ts` covers, since those are runtime-marker based and these are static.
+2. **`createTokenEncryptionAdapter` has four call sites, not three.** The plan named `integration/build.ts`, `composition.ts` and the OAuth recovery integration test; `scripts/perf/load-test.ts:194` also constructs it and only typecheck found it. (`composition.ts` passes `encryptionKey` through config rather than calling the factory, so the real callers are build.ts, the integration test and the perf script.)
+3. **The version is bound as AAD, and the test proves what that buys.** Beyond the plan's three cases the suite pins the two ways versioning can be defeated: a ciphertext relabelled to a version the adapter _does_ hold fails GCM tag verification (asserted on `unable to authenticate data`, not a bare throw), and a version label containing the field separator is refused at construction because it would make the four-part split ambiguous.
+
 ## Phase 2 — Collapse the topology and its ceremony (weeks 3–7) — roadmap
 
 Entry criterion: Phase 1 complete; `pnpm test:unit` < 3 min — already true at `a9d7ffe1` (86 s), so treat it as a regression guard, not a target to earn. Each WP gets its own execution plan when started; the decisions below are settled now.
@@ -322,11 +328,32 @@ After Phase 0: `pnpm lint:ci` green with no version pin; `pnpm build && pnpm che
 
 After Phase 1, from a clean clone with only local Postgres + Redis:
 
-1. `pnpm install && pnpm db:reset` → migration completes from `drizzle/0000_baseline.sql` + `0001_db_constructs.sql` + `0002_db_seed.sql`; `pnpm check:schema-drift` clean. **Satisfied 2026-09-06:** 233 tables, journal 3/3, zero drift, and the control plane seeded (11 metric definitions, 4 AI operation profiles, 1 topology row).
+1. `pnpm install && pnpm db:reset` → migration completes from `drizzle/0000_baseline.sql` + `0001_db_constructs.sql` + `0002_db_seed.sql`; `pnpm check:schema-drift` clean. **Satisfied 2026-09-06:** 216 tables after WP1.4, journal 3/3, zero drift, and the control plane seeded (11 metric definitions, 4 AI operation profiles, 1 topology row).
 2. `pnpm test` (unit only, no database) green under 3 minutes wall (86 s at the `a9d7ffe1` baseline); `pnpm test:integration` green.
 3. `pnpm dev` → `/` redirects to `/login`; log in as the seeded manager (`pnpm seed:e2e-user`) → dashboard renders with the 30-day default; `/inbox` loads; `/home`, `/leaderboard`, `/register`, `/settings/closure` are not found; `/api/health/ready` → 200.
 4. `git ls-files | wc -l` and `wc -l` over `src/shared/governance src/shared/release scripts/release .railway drizzle` recorded in the final Phase 1 commit message against the audit's baselines (governance 23,286; release 17,877; scripts/release 18,666; `.railway` 1,952; `drizzle/meta` 2.96 M lines).
 5. `git grep -c "" docs/BETA.md` ≤ 120 and every enforced rule in its §5 names a test or lint path that exists. **Satisfied 2026-09-05 by the draft:** 114 lines; every path in §2 and §5 verified to exist; every capability count verified by executing the code. The inverse check is new and stricter — see WP1.2.
+
+**Phase 1 closed 2026-09-06. Every program-level item executed, not asserted:**
+
+1. Clean `dropdb`/`createdb` → `pnpm db:reset` → 216 tables, journal 3/3, `check:schema-drift` clean, control plane seeded (11 metric definitions, 4 AI operation profiles, 1 topology row).
+2. `pnpm test` with `DATABASE_URL` unset → 1,096 files / 10,147 passed in **86 s** wall, no database. `pnpm test:integration` → 212 files / 1,156 passed.
+3. Browser, against `pnpm dev` with the seeded manager: `/api/health/ready` → 200; `/` → `/login`; login → `/dashboard?timeRange=30d` with the 30-day default; `/inbox` loads its folder rail; `/home`, `/leaderboard`, `/register`, `/settings/closure` all render not-found.
+4. Line counts against the audit's baselines:
+
+| measure                 | audit baseline | after Phase 1 | delta      |        |
+| ----------------------- | -------------- | ------------- | ---------- | ------ |
+| tracked files           | 5,081          | 4,226         | −855       | −16.8% |
+| TS/TSX lines            | 806,737        | 698,534       | −108,203   | −13.4% |
+| `src/shared/governance` | 23,286         | 10,669        | −12,617    | −54.2% |
+| `src/shared/release`    | 17,877         | 808           | −17,069    | −95.5% |
+| `scripts/release`       | 18,666         | 0             | −18,666    | −100%  |
+| `.railway`              | 1,952          | 0             | −1,952     | −100%  |
+| `drizzle/meta`          | 2,960,000      | 120,014       | −2,839,986 | −95.9% |
+
+Migrations 182 → 3 generated files (94 MB → 3.9 MB); database tables 233 → 216. 5. `docs/BETA.md` is 114 lines, and every test or lint path its §5 cites resolves to a file that exists — the eight architecture canaries, `eslint.config.js`, `scripts/check-architecture-boundary-controls.mjs`, `src/contexts/review/domain/rules.test.ts`, the three `atomic-*-outbox` tests and the `vite.config.ts` import-protection block.
+
+**The 13.4% TS reduction is short of the audit's ~30% headline, and the gap is real rather than unfinished Phase 1 work:** the audit counted the whole five-phase program. Phase 3's schema collapse (~250 → ~80 tables) and context merges are where the remaining reduction lives. What Phase 1 actually removed is the _machinery_: the governance tree halved, the release and IaC trees went to zero, and the generated-JSON journal lost 96% of its lines.
 
 ## Assumptions & contingencies
 
