@@ -117,17 +117,17 @@ export async function policyAuthorizes(
   capability: GoogleContentCapability,
   organizationId: string,
   propertyId: string | null,
-): Promise<boolean> {
+): Promise<Readonly<{ version: number; emergencyKillVersion: number }> | null> {
   const allowlistExempt = isCoreCapability(capability)
-  // WP2.2: the `policy_version` generation and `capability_execution_control`
-  // kill switch were the approval control plane and are gone. What is left is
-  // the product's own authority to make the call at all: the organization is
-  // not suspended, it holds the capability unless the capability is core, and
-  // — when the call names a Property — that Property exists, belongs to the
-  // organization, is not deleted, is not suspended, and holds the capability.
   const result = await tx.execute(sql`
-    SELECT 1
-    WHERE NOT EXISTS (
+    SELECT pv.version, pv.emergency_kill_version
+    FROM policy_version pv
+    JOIN capability_execution_control control
+      ON control.capability = ${capability}::google_content_capability
+    WHERE pv.scope = 'global'
+      AND control.denied = false
+      AND control.emergency_kill_version = pv.emergency_kill_version
+      AND NOT EXISTS (
         SELECT 1 FROM organization_policy policy
         WHERE policy.organization_id = ${organizationId}
           AND policy.suspended_at IS NOT NULL
@@ -166,7 +166,14 @@ export async function policyAuthorizes(
       )
     LIMIT 1
   `)
-  return result.rows.length > 0
+  const row = result.rows[0] as
+    { version: number | string; emergency_kill_version: number | string } | undefined
+  return row
+    ? {
+        version: Number(row.version),
+        emergencyKillVersion: Number(row.emergency_kill_version),
+      }
+    : null
 }
 
 /**
@@ -684,13 +691,13 @@ export const createGoogleContentAuthorizationCheck = (
     const principal = await resolvePrincipalVector(tx, input, deps, shape)
     if (!principal.allowed) return principal
 
-    const policyAllows = await policyAuthorizes(
+    const policy = await policyAuthorizes(
       tx,
       input.capability,
       input.scope.organizationId,
       input.scope.propertyId,
     )
-    if (!policyAllows) return deny()
+    if (!policy) return deny()
 
     const connection = await loadConnection(tx, input, shape.oauthExchangeOperation)
     const oauth = await resolveOauthVector(
@@ -715,11 +722,9 @@ export const createGoogleContentAuthorizationCheck = (
     return {
       allowed: true,
       vector: {
-        // `googleContentPolicyVersion` and `emergencyKillVersion` used to ride
-        // here so the permit SQL could compare them against the approval
-        // control plane. That comparison is gone, so carrying the values would
-        // be carrying a number nothing reads.
         executionPolicyVersion: GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
+        googleContentPolicyVersion: policy.version,
+        emergencyKillVersion: policy.emergencyKillVersion,
         ...principal.value,
         ...connectionVersionVector(connection),
         ...oauth.value,
