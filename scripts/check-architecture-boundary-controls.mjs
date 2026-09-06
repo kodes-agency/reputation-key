@@ -57,7 +57,7 @@ const controls = [
   },
   {
     name: 'trust-boundary service cannot import context internals',
-    file: 'services/google-egress-gateway/boundary-negative-control.ts',
+    file: 'services/ai-egress-gateway/boundary-negative-control.ts',
     source: "import '#/contexts/review/infrastructure/review-command-store'\n",
   },
   {
@@ -183,8 +183,8 @@ const allowedControls = [
   },
   {
     name: 'trust-boundary service may import a shared kernel',
-    file: 'services/google-egress-gateway/boundary-positive-control.ts',
-    source: "import '../../src/shared/google-provider-control/contracts'\n",
+    file: 'services/ai-egress-gateway/boundary-positive-control.ts',
+    source: "import '../../src/shared/ai-runtime-capability-contract'\n",
   },
   {
     name: 'router may import a UI primitive',
@@ -217,13 +217,11 @@ const allowedControls = [
     file: 'scripts/ci/boundary-positive-control.ts',
     source: "import '../../src/shared/governance/entry-point-catalogue'\n",
   },
-  // ARC-03-T2: the two halves of the named kernel — a nested provider module
-  // and a root contract file — must both stay reachable.
-  {
-    name: 'trust-boundary service may import the provider kernel',
-    file: 'services/ai-egress-gateway/boundary-positive-control.ts',
-    source: "import '../../src/shared/google-provider-control/route-catalogue'\n",
-  },
+  // ARC-03-T2: the named kernel must stay reachable from a trust-boundary
+  // service. It used to have two halves probed here, a nested provider module
+  // and a root contract file; the nested half was `google-provider-control`,
+  // which WP2.1 removed from the kernel because no surviving sidecar imports
+  // it. A root contract file is what is left to prove.
   {
     name: 'trust-boundary service may import the AI transport contract',
     file: 'services/ai-egress-gateway/boundary-positive-control.ts',

@@ -45,8 +45,6 @@ const SNAPSHOT_PATH = resolve(
 const CONTRACT_FILES: readonly string[] = Object.freeze([
   'services/ai-egress-gateway/environment.ts',
   'services/ai-execution-admission/environment.ts',
-  'services/google-egress-gateway/environment.ts',
-  'services/google-execution-admission/environment.ts',
   'services/sidecar-runtime-ports.ts',
   'services/internal-mtls.ts',
   'src/shared/config/env.ts',

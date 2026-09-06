@@ -74,7 +74,7 @@ function serviceInventory(): RailwayServiceObservation[] {
 }
 
 describe('closed-beta CI image deployment authority', () => {
-  it('accepts exactly the seven production digests from the matching main CI run', () => {
+  it('accepts exactly the five production digests from the matching main CI run', () => {
     const parsed = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION, {
       id: '33891370093',
       attempt: 1,
@@ -119,10 +119,10 @@ describe('closed-beta CI image deployment authority', () => {
       ({ serviceName }) => serviceName,
     )
 
-    // All four sidecars settled healthy once the command started writing
-    // RELEASE_SHA itself, so they belong in the default plan again.
+    // The Git-backed AI sidecars follow web and worker; provider Redis remains
+    // an explicit opt-in.
     expect(names.slice(0, 2)).toEqual(['web', 'worker'])
-    expect(names).toHaveLength(6)
+    expect(names).toHaveLength(4)
     expect(names).not.toContain('google-provider-redis')
   })
 
@@ -134,7 +134,7 @@ describe('closed-beta CI image deployment authority', () => {
 
     // Last, never first: a substrate failure must not precede the services
     // that depend on it.
-    expect(names).toHaveLength(7)
+    expect(names).toHaveLength(5)
     expect(names.at(-1)).toBe('google-provider-redis')
   })
 
@@ -153,7 +153,7 @@ describe('closed-beta CI image deployment authority', () => {
     delete images.worker
 
     expect(() => parseCiImageDigestMap(JSON.stringify(value), REVISION)).toThrow(
-      'must contain exactly seven production images: missing worker',
+      'must contain exactly five production images: missing worker',
     )
   })
 
@@ -259,7 +259,7 @@ describe('closed-beta CI image deployment authority', () => {
       (call) => call[1] === 'service' && call[2] === 'source',
     )
     // An image source receives no Railway git metadata, so the identity must
-    // exist BEFORE the deploy that reads it - the gateways refuse to boot
+    // exist BEFORE the deploy that reads it—the AI gateway refuses to boot
     // without RELEASE_SHA and there is no second chance inside one deploy.
     expect(variableSet).toBeGreaterThanOrEqual(0)
     expect(sourceConnect).toBeGreaterThan(variableSet)

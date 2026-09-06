@@ -7,7 +7,7 @@ describe('sidecar process lifecycle (REG-04)', () => {
     const shutdown = vi.fn(async () => {})
     const exit = vi.fn()
     const lifecycle = createSidecarProcessLifecycle({
-      service: 'google-egress-gateway',
+      service: 'ai-egress-gateway',
       shutdown,
       exit,
       emit: (event) => void events.push(event),
@@ -25,13 +25,13 @@ describe('sidecar process lifecycle (REG-04)', () => {
     expect(events).toEqual([
       {
         event: 'sidecar_shutdown_requested',
-        service: 'google-egress-gateway',
+        service: 'ai-egress-gateway',
         trigger: 'SIGTERM',
         exitCode: 0,
       },
       {
         event: 'sidecar_shutdown_completed',
-        service: 'google-egress-gateway',
+        service: 'ai-egress-gateway',
         trigger: 'SIGTERM',
         exitCode: 0,
       },
@@ -72,7 +72,7 @@ describe('sidecar process lifecycle (REG-04)', () => {
     const events: unknown[] = []
     const exit = vi.fn()
     const lifecycle = createSidecarProcessLifecycle({
-      service: 'google-execution-admission',
+      service: 'ai-execution-admission',
       shutdown: vi.fn(async () => {
         throw new Error(marker)
       }),
@@ -87,7 +87,7 @@ describe('sidecar process lifecycle (REG-04)', () => {
     expect(exit).toHaveBeenCalledWith(1)
     expect(events).toContainEqual({
       event: 'sidecar_shutdown_failed',
-      service: 'google-execution-admission',
+      service: 'ai-execution-admission',
       trigger: 'SIGTERM',
       errorClass: 'Error',
     })
@@ -127,7 +127,7 @@ describe('sidecar process lifecycle (REG-04)', () => {
     const marker = 'raw-secret-rejection'
     const events: unknown[] = []
     const lifecycle = createSidecarProcessLifecycle({
-      service: 'google-egress-gateway',
+      service: 'ai-egress-gateway',
       shutdown: vi.fn(async () => {}),
       exit: vi.fn(),
       emit: (event) => void events.push(event),
@@ -139,7 +139,7 @@ describe('sidecar process lifecycle (REG-04)', () => {
 
     expect(events).toContainEqual({
       event: 'sidecar_fatal_process_error',
-      service: 'google-egress-gateway',
+      service: 'ai-egress-gateway',
       trigger: 'unhandledRejection',
       errorClass: 'NonErrorRejection',
     })
@@ -149,7 +149,7 @@ describe('sidecar process lifecycle (REG-04)', () => {
   it('does not trust arbitrary error names or codes as content-free metadata', async () => {
     const events: unknown[] = []
     const lifecycle = createSidecarProcessLifecycle({
-      service: 'google-execution-admission',
+      service: 'ai-execution-admission',
       shutdown: vi.fn(async () => {}),
       exit: vi.fn(),
       emit: (event) => void events.push(event),
@@ -165,7 +165,7 @@ describe('sidecar process lifecycle (REG-04)', () => {
 
     expect(events).toContainEqual({
       event: 'sidecar_fatal_process_error',
-      service: 'google-execution-admission',
+      service: 'ai-execution-admission',
       trigger: 'uncaughtException',
       errorClass: 'Error',
     })

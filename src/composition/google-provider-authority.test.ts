@@ -325,14 +325,18 @@ describe('buildGoogleProviderAuthority', () => {
     ).toBeUndefined()
   })
 
-  it('refuses a partially configured egress gateway instead of degrading', () => {
+  it('refuses a partially configured egress runtime instead of degrading', () => {
+    // The runtime signs grants with one secret, binds credentials with another
+    // and stamps permits with an identity. Any one of the three alone is a
+    // half-built egress path, and silently treating it as "Google is off"
+    // is how a misconfiguration reaches users as a 503 nobody ordered.
     expect(() =>
       buildGoogleProviderAuthority(
         buildInput({
-          env: envWith({ GOOGLE_EGRESS_GATEWAY_ORIGIN: 'https://gateway.internal' }),
+          env: envWith({ GOOGLE_EGRESS_GATEWAY_IDENTITY: 'google-egress-runtime-1' }),
         }),
       ),
-    ).toThrow('Google egress gateway transport configuration is incomplete')
+    ).toThrow('Google egress runtime configuration is incomplete')
   })
 
   it('takes configuration only as an argument — never from the ambient process', () => {

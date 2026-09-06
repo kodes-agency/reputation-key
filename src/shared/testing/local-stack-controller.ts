@@ -28,16 +28,15 @@ export function localStackProject(mode: LocalStackMode): string {
 // Redis, so `sync-property-reviews` and friends landed in a queue no worker
 // consumes and the tests waited out their budget on work that never ran.
 const HOST_PORTS = {
-  e2e: { postgres: 55432, redis: 56379, queueRedis: 56389, googleGateway: 58443 },
-  perf: { postgres: 55433, redis: 56380, queueRedis: 56390, googleGateway: 58444 },
-  beta: { postgres: 55434, redis: 56381, queueRedis: 56391, googleGateway: 58445 },
+  e2e: { postgres: 55432, redis: 56379, queueRedis: 56389 },
+  perf: { postgres: 55433, redis: 56380, queueRedis: 56390 },
+  beta: { postgres: 55434, redis: 56381, queueRedis: 56391 },
 } as const satisfies Record<LocalStackMode, LocalStackHostPorts>
 
 export type LocalStackHostPorts = Readonly<{
   postgres: number
   redis: number
   queueRedis: number
-  googleGateway: number
 }>
 
 export function localStackHostPorts(mode: LocalStackMode): LocalStackHostPorts {
@@ -165,7 +164,6 @@ export function buildLocalStackEnv(
     POSTGRES_HOST_PORT: String(hostPorts.postgres),
     REDIS_HOST_PORT: String(hostPorts.redis),
     QUEUE_REDIS_HOST_PORT: String(hostPorts.queueRedis),
-    GOOGLE_EGRESS_GATEWAY_HOST_PORT: String(hostPorts.googleGateway),
     BETTER_AUTH_SECRET: auth,
     RESEND_API_KEY: `re_${secret(input.revision, 'resend')}`,
     GOOGLE_CLIENT_ID: `local-${secret(input.revision, 'google-id').slice(0, 32)}`,

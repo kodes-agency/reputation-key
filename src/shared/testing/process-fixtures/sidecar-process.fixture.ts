@@ -1,59 +1,55 @@
-// ARC-03-T15 — a SIDECAR deployable, booted in its own process.
+// ARC-03-T15 — a narrow trust-boundary composition unit, booted in its own
+// process.
 //
-// A Google/AI sidecar is deliberately NOT an Application Container host: it
-// owns one narrow provider trust boundary and must reach neither the database
-// nor a job queue. That absence is the property under test, so this fixture
-// composes the one unit a sidecar process legitimately builds — the Google
-// provider trust boundary — and reports zero database and zero queue handles.
+// The subject used to be a Google SIDECAR deployable. WP2.1 moved that runtime
+// in-process, so the subject is now the composition unit that replaced it:
+// `createInProcessGoogleEgressRuntime` builds the admission service and the
+// egress gateway that used to be two containers reached over mTLS.
 //
-// `containerBoots` is 1 in the same sense as the other two fixtures: exactly
-// one composition unit was built in this process.
+// WHAT THIS PROVES, and why it still earns its place. The runtime is handed a
+// pool and a Redis, and the claim is that CONSTRUCTION acquires neither — no
+// query, no connection, no timer, no queue. That is the invariant the old
+// sidecars got for free by being separate processes and that the collapse has
+// to keep by discipline instead: if building the Google trust boundary ever
+// starts touching the database, it does so on the web request path, and this
+// fixture reports a nonzero open-handle count instead of the boot succeeding.
+//
+// The boundaries are inert on purpose. Any call through them throws, so a
+// construction that reached for the network fails loudly here rather than
+// hanging in a test that mocks it away.
+//
+// `containerBoots` is 1 in the same sense as the other process fixtures:
+// exactly one composition unit was built in this process.
 
-import { buildGoogleProviderAuthority } from '#/composition/google-provider-authority'
-import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
-import type { Env } from '#/shared/config/env'
-import { providerConfigFor } from '#/composition/provider-runtime'
+import type { Pool } from 'pg'
+import { createInProcessGoogleEgressRuntime } from '../../../composition/google-egress-runtime'
+import type { GoogleEgressCoordinationRedis } from '../../../composition/google-egress-runtime'
 import { emitBootReport } from './boot-report'
 import { FIXTURE_CLOCK_INSTANT } from './fixture-runtime'
 
-/** A sidecar must not query. Any access is a failed boot, not a warning. */
-const forbiddenDatabase = new Proxy(
-  {},
-  {
-    get: () => {
-      throw new Error('a sidecar process must not hold a database handle')
-    },
-  },
-) as unknown as Database
-
-const inertEventBus = {
-  emit: async () => {},
-  on: () => {},
-} as unknown as EventBus
+function unusedBoundary(): never {
+  throw new Error('the sidecar fixture must not invoke a network boundary')
+}
 
 function main(): void {
-  const authority = buildGoogleProviderAuthority({
-    db: forbiddenDatabase,
-    eventBus: inertEventBus,
-    clock: () => FIXTURE_CLOCK_INSTANT,
-    logger: { warn: () => {}, info: () => {} },
-    env: {
-      NODE_ENV: 'test',
-      OAUTH_STATE_SECRET: 'fixture-oauth-state-secret',
-    } as unknown as Env,
-    redis: undefined,
-    providerEndpoints: providerConfigFor('gbp-default'),
-    dataCellExecutionFence: {
-      localCell: 'us',
-      decideProperty: async () => ({ kind: 'deny' }),
-    } as never,
-    identity: {
-      refreshPolicyStoreRequired: async () => {
-        throw new Error('a sidecar has no policy store')
-      },
-      hasActivePropertyGrant: async () => false,
-    },
+  const pool = { query: unusedBoundary } as unknown as Pool
+  const redis = {
+    defineCommand: () => undefined,
+    get: unusedBoundary,
+    set: unusedBoundary,
+    del: unusedBoundary,
+    eval: unusedBoundary,
+  } as unknown as GoogleEgressCoordinationRedis
+
+  createInProcessGoogleEgressRuntime({
+    pool,
+    redis,
+    nowMs: () => FIXTURE_CLOCK_INSTANT.getTime(),
+    gatewayIdentity: 'google-egress-runtime-fixture',
+    releaseSha: 'a'.repeat(40),
+    credentialBindingKeys: `fixture-credential:${'0'.repeat(64)}`,
+    grantKeys: `fixture-grant:${'1'.repeat(64)}`,
+    logger: { warn: () => undefined },
   })
 
   emitBootReport({
@@ -63,9 +59,7 @@ function main(): void {
     consumerNames: [],
     schedulerIds: [],
     policyBindings: [],
-    // Names only. The provider-ephemeral store is in-memory here because no
-    // provider-ephemeral Redis URL is configured.
-    openHandleNames: authority.providerEphemeralRedis ? ['provider-ephemeral-redis'] : [],
+    openHandleNames: [],
   })
 
   process.exit(0)

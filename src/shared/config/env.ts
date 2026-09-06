@@ -199,22 +199,14 @@ const baseEnvSchema = z.object({
     .string()
     .max(100 * 1024)
     .optional(),
-  // App/worker -> Google egress gateway. All six values are an all-or-none
-  // protected transport configuration validated by the composition root.
-  GOOGLE_EGRESS_GATEWAY_ORIGIN: z.url().optional(),
-  GOOGLE_EGRESS_GATEWAY_SERVER_NAME: z.string().min(1).optional(),
-  GOOGLE_INTERNAL_MTLS_CA_PATH: z.string().min(1).optional(),
-  GOOGLE_INTERNAL_MTLS_CERT_PATH: z.string().min(1).optional(),
-  GOOGLE_INTERNAL_MTLS_KEY_PATH: z.string().min(1).optional(),
-  // Railway and other variable-only runtimes cannot mount secret files. The
-  // base64 triplet is the no-disk equivalent of the legacy path triplet above.
-  // Composition accepts exactly one complete triplet and rejects partial or
-  // mixed configuration. The path form remains during the deployment
-  // expand/cutover window and can be contracted after every environment has
-  // moved to the variable-only form.
-  GOOGLE_INTERNAL_MTLS_CA_B64: z.string().min(1).optional(),
-  GOOGLE_INTERNAL_MTLS_CERT_B64: z.string().min(1).optional(),
-  GOOGLE_INTERNAL_MTLS_KEY_B64: z.string().min(1).optional(),
+  // The Google egress runtime runs in THIS process (WP2.1). It used to be two
+  // sidecars reached over mTLS, which is why an origin, a server name and a
+  // private CA triplet — in two encodings, eight variables in all — used to
+  // live here. What remains is what the runtime actually needs: the two HMAC
+  // secrets it signs with and the identity its permits are bound to. All three
+  // are all-or-none, validated by the composition root.
+  GOOGLE_EGRESS_GATEWAY_IDENTITY: z.string().min(1).optional(),
+  GOOGLE_ADMISSION_GRANT_HMAC_KEYS: z.string().optional(),
   GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
   // Cross-environment credential broker Phase B. Railway exposes this through
   // a public TCP proxy, so validate-only mode requires self-TLS/mTLS and exact

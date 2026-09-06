@@ -453,12 +453,12 @@ describe('internal mTLS strict JSON response boundary', () => {
       key: Buffer.from('key'),
     }
     const base = {
-      origin: 'https://google-egress-gateway.internal:8443',
-      serverName: 'google-egress-gateway',
+      origin: 'https://ai-egress-gateway.internal:8443',
+      serverName: 'ai-egress-gateway',
       tls,
       peerIdentityPolicy: {
-        uri: 'spiffe://repkey.internal/google-egress-gateway',
-        dnsName: 'google-egress-gateway',
+        uri: 'spiffe://repkey.internal/ai-egress-gateway',
+        dnsName: 'ai-egress-gateway',
         extendedKeyUsages: ['serverAuth', 'clientAuth'],
       },
     } as const

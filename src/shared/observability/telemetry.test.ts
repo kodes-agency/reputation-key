@@ -263,12 +263,7 @@ describe('error monitoring runtime', () => {
     ).toEqual([{ name: 'OnUncaughtException' }, { name: 'OnUnhandledRejection' }])
   })
 
-  it.each([
-    'google-execution-admission',
-    'google-egress-gateway',
-    'ai-execution-admission',
-    'ai-egress-gateway',
-  ] as const)(
+  it.each(['ai-execution-admission', 'ai-egress-gateway'] as const)(
     'supports error monitoring for the %s process without competing fatal handlers',
     (service) => {
       const sentry = sdk()

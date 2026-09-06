@@ -62,7 +62,7 @@ describe('container image policy', () => {
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
     const overflowed = workflow.replace(
       '{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]',
-      '{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true},{"name":"overflow","dockerfile":"Dockerfile","tag":"overflow:ci","publish":false}]',
+      '{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true},{"name":"overflow-1","dockerfile":"Dockerfile","tag":"overflow-1:ci","publish":false},{"name":"overflow-2","dockerfile":"Dockerfile","tag":"overflow-2:ci","publish":false},{"name":"overflow-3","dockerfile":"Dockerfile","tag":"overflow-3:ci","publish":false}]',
     )
 
     expect(validateCiContainerCoverage(policy, overflowed)).toContain(
@@ -70,7 +70,7 @@ describe('container image policy', () => {
     )
   })
 
-  it('pins the seven continuous runtimes versus non-published CI descriptors', () => {
+  it('pins the five continuous runtimes versus non-published CI descriptors', () => {
     const policy = loadContainerImagePolicy(ROOT)
     const workflow = readFileSync(resolve(ROOT, '.github/workflows/ci.yml'), 'utf8')
     const webMadeCiOnly = workflow.replace(
@@ -118,7 +118,7 @@ describe('container image policy', () => {
     expect(aggregate).toContain('merge-multiple: true')
     expect(aggregate).toContain('name: sbom-images-spdx')
     expect(aggregate).toContain(
-      `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 9`,
+      `run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 7`,
     )
   })
 

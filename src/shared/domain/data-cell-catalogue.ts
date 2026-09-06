@@ -46,8 +46,6 @@ export type DataCellDefinition = Readonly<{
     queueRedis: 'Queue Redis'
     providerRedis: 'google-provider-redis'
     objectStore: 'object-store'
-    googleGateway: 'google-egress-gateway'
-    googleAdmission: 'google-execution-admission'
     aiGateway: 'ai-egress-gateway'
     aiAdmission: 'ai-execution-admission'
   }>
@@ -72,8 +70,6 @@ const RESOURCE_REFS = Object.freeze({
   queueRedis: 'Queue Redis',
   providerRedis: 'google-provider-redis',
   objectStore: 'object-store',
-  googleGateway: 'google-egress-gateway',
-  googleAdmission: 'google-execution-admission',
   aiGateway: 'ai-egress-gateway',
   aiAdmission: 'ai-execution-admission',
 } as const)

@@ -1,19 +1,19 @@
-import type { VersionedHmacKeyring } from '../../src/shared/security/versioned-hmac-keyring'
+import type { VersionedHmacKeyring } from '../security/versioned-hmac-keyring'
 import {
   compileGoogleProviderRequest,
   type CompiledGoogleProviderRequest,
   type GoogleProviderRouteDescriptor,
   type GoogleProviderRouteTarget,
-} from '../../src/shared/google-provider-control/route-catalogue'
-import { verifyGoogleAdmissionGrant } from '../../src/shared/google-provider-control/admission-grant-store'
-import { parseGoogleRetryAfterMs } from '../../src/shared/google-provider-control/provider-call'
+} from './route-catalogue'
+import { verifyGoogleAdmissionGrant } from './admission-grant-store'
+import { parseGoogleRetryAfterMs } from './provider-call'
 import type {
   GoogleAdmissionRedeemResult,
   GoogleAdmissionStartInput,
   GoogleAdmissionStartResult,
   GoogleExecutionAdmissionService,
   GoogleProviderOutcome,
-} from '../google-execution-admission/service'
+} from './admission-service'
 
 export type GoogleEgressGatewayRequest = Readonly<{
   permitId: string

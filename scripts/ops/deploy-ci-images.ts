@@ -38,8 +38,6 @@ export const CI_PRODUCTION_IMAGE_NAMES = Object.freeze([
   'web',
   'worker',
   'google-provider-redis',
-  'google-egress-gateway',
-  'google-execution-admission',
   'ai-egress-gateway',
   'ai-execution-admission',
 ] as const)
@@ -103,12 +101,10 @@ const WEB_HEALTH_URLS = Object.freeze([
   'https://web-google-closed-beta.up.railway.app/api/health/started',
 ] as const)
 
-/** All six GitHub-backed services are now proven on a digest source. The
- * sidecars were blocked until this command started writing `RELEASE_SHA`
- * itself: `google-egress-gateway` used to crash its first image-sourced boot
- * with `required Google gateway setting is missing: RELEASE_SHA`, because that
- * name is platform-supplied metadata a digest source never receives. With the
- * identity written before the deploy, all four settled healthy on 2026-09-05.
+/** The four GitHub-backed services deploy from immutable CI digests. This
+ * command writes `RELEASE_SHA` before connecting each source because the AI
+ * gateway requires it at boot and runtime health evidence must identify the
+ * exact revision.
  *
  * The provider Redis stays out. It runs upstream `redis:7` by digest, so
  * repointing it is not a source change but a substitution of the live queue
@@ -116,16 +112,6 @@ const WEB_HEALTH_URLS = Object.freeze([
  * ordered LAST so a substrate failure cannot precede the services that depend
  * on it. */
 const GITHUB_BACKED_IMAGE_SERVICES = Object.freeze([
-  {
-    imageName: 'google-execution-admission',
-    serviceName: 'google-execution-admission',
-    serviceId: '20be79ce-7067-4552-bf19-29c0216e6740',
-  },
-  {
-    imageName: 'google-egress-gateway',
-    serviceName: 'google-egress-gateway',
-    serviceId: 'af50a9d7-5aab-45f5-aa4b-89b0b89f355a',
-  },
   {
     imageName: 'ai-execution-admission',
     serviceName: 'ai-execution-admission',
@@ -313,7 +299,7 @@ function assertExactCiImageDigestNames(rawImages: JsonRecord): void {
       unexpected.length > 0 ? `unexpected ${unexpected.join(', ')}` : '',
     ].filter(Boolean)
     throw new Error(
-      `CI image digest map must contain exactly seven production images: ${details}`,
+      `CI image digest map must contain exactly five production images: ${details}`,
     )
   }
 }
@@ -867,11 +853,9 @@ async function waitForWebHealth(out: (line: string) => void): Promise<void> {
 }
 
 /** An image source receives no Railway git metadata, so nothing supplies
- * `RELEASE_SHA`. Two things then break: the Google and AI gateways require it
- * unconditionally and refuse to boot
- * (`services/google-egress-gateway/environment.ts:137`,
- * `services/ai-egress-gateway/environment.ts:106`), and `/api/health/metrics`
- * reports `release.sha` as `unknown`.
+ * `RELEASE_SHA`. The AI gateway requires it unconditionally and refuses to
+ * boot (`services/ai-egress-gateway/environment.ts:106`), while
+ * `/api/health/metrics` reports `release.sha` as `unknown`.
  *
  * This command owns that identity explicitly: it writes `RELEASE_SHA` as a
  * Railway service variable before connecting each immutable image source for

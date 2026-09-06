@@ -97,19 +97,14 @@ every other entry is one exact module.
 
 <!-- sidecar-shared-kernel:start -->
 
-| Kernel entry                                         | Why a process outside the boundary may link it                           |
-| ---------------------------------------------------- | ------------------------------------------------------------------------ |
-| `src/shared/ai-`                                     | Versioned AI transport, redaction, language and capability contracts.    |
-| `src/shared/canonical-json`                          | RFC 8785 canonicalization for byte-stable signed evidence.               |
-| `src/shared/closed-json-contract`                    | Bounded plain-JSON validation for digest-pinned contract construction.   |
-| `src/shared/config/release-identity`                 | Release identity stamped onto sidecar build attestations.                |
-| `src/shared/ed25519-key-material`                    | Public-key parsing used during privileged service composition.           |
-| `src/shared/google-provider-control/`                | Google route catalogue, binding, quota and admission-grant contracts.    |
-| `src/shared/merchant-ai-`                            | Merchant AI notice and capability-disclosure contracts.                  |
-| `src/shared/observability/telemetry`                 | Monitoring wiring — Google sidecars only; the AI pair must not reach it. |
-| `src/shared/openai-`                                 | Exact OpenAI request/output vocabulary enforced at the wire.             |
-| `src/shared/provider-ephemeral/runtime-verification` | Short-lived provider reference verification at the egress edge.          |
-| `src/shared/security/versioned-hmac-keyring`         | Versioned keyring primitives for internal transport authentication.      |
+| Kernel entry                                 | Why a process outside the boundary may link it                         |
+| -------------------------------------------- | ---------------------------------------------------------------------- |
+| `src/shared/ai-`                             | Versioned AI transport, redaction, language and capability contracts.  |
+| `src/shared/closed-json-contract`            | Bounded plain-JSON validation for digest-pinned contract construction. |
+| `src/shared/merchant-ai-`                    | Merchant AI notice and capability-disclosure contracts.                |
+| `src/shared/observability/telemetry`         | Capture/redaction TYPES only. The AI pair may not link the client.     |
+| `src/shared/openai-`                         | Exact OpenAI request/output vocabulary enforced at the wire.           |
+| `src/shared/security/versioned-hmac-keyring` | Versioned keyring primitives for internal transport authentication.    |
 
 <!-- sidecar-shared-kernel:end -->
 

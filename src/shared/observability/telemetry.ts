@@ -30,12 +30,7 @@ import {
 const ERROR_MONITOR_FLUSH_BUDGET_MS = 1_500
 
 export type ObservabilityService =
-  | 'web'
-  | 'worker'
-  | 'google-execution-admission'
-  | 'google-egress-gateway'
-  | 'ai-execution-admission'
-  | 'ai-egress-gateway'
+  'web' | 'worker' | 'ai-execution-admission' | 'ai-egress-gateway'
 export type ObservabilityInitResult = 'enabled' | 'disabled' | 'failed'
 
 export interface ObservabilityConfig {

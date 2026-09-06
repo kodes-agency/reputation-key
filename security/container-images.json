@@ -47,24 +47,6 @@
       "purpose": "Production AI egress-policy gateway and runtime probe bundle."
     },
     {
-      "id": "google-execution-admission",
-      "dockerfile": "Dockerfile.google-execution-admission",
-      "ciImage": "repkey-google-execution-admission:ci",
-      "classification": "production-runtime",
-      "promotion": "release-candidate",
-      "releaseRole": "googleExecutionAdmission",
-      "purpose": "Production Google execution-admission sidecar."
-    },
-    {
-      "id": "google-egress-gateway",
-      "dockerfile": "Dockerfile.google-egress-gateway",
-      "ciImage": "repkey-google-egress-gateway:ci",
-      "classification": "production-runtime",
-      "promotion": "release-candidate",
-      "releaseRole": "googleEgressGateway",
-      "purpose": "Production Google egress-policy gateway."
-    },
-    {
       "id": "provider-sandbox",
       "dockerfile": "Dockerfile.sandbox",
       "ciImage": "repkey-provider-sandbox:ci",

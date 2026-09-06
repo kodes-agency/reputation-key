@@ -310,16 +310,6 @@ jobs:
       - name: AI egress gateway build
         run: pnpm build:ai-egress-gateway
 
-      - name: Google execution admission build
-        run: |
-          pnpm build:google-execution-admission
-          pnpm check:google-runtime-bundle admission
-
-      - name: Google egress gateway build
-        run: |
-          pnpm build:google-egress-gateway
-          pnpm check:google-runtime-bundle gateway
-
       - name: Production artifact boundary
         run: >-
           pnpm check:production-artifacts
@@ -327,11 +317,6 @@ jobs:
           dist-worker
           dist-ai-execution-admission
           dist-ai-egress-gateway
-          dist-google-execution-admission
-          dist-google-egress-gateway
-
-      - name: Google import artifact boundary
-        run: |
 
       # BQC-7.1: artifact digest — deterministic tarball of the deploy
       # artifacts (sorted names, zeroed mtimes/owners, gzip -n), digest in
@@ -340,7 +325,6 @@ jobs:
         run: |
           tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -cf - \
             .output dist-worker dist-ai-execution-admission dist-ai-egress-gateway \
-            dist-google-execution-admission dist-google-egress-gateway \
             | gzip -n > /tmp/artifact.tgz
           DIGEST=$(shasum -a 256 /tmp/artifact.tgz | cut -d' ' -f1)
           echo "sha256:$DIGEST  (all deploy artifacts)"
@@ -381,11 +365,9 @@ jobs:
   # (nixpacks removed) — prove every classified image builds reproducibly on
   # every PR and satisfies its explicit runtime contract.
   #
-  # Main run 33891370093 measured uncached builds at web 70s, worker 54s,
-  # compatibility 52s, perf 45s, four sidecars 26–33s, sandbox 23s, and Redis
-  # 4s. These three groups balance at 126s/122s/121s of measured build work,
-  # keep web and worker apart, and reduce ten runner allocations to three.
-  # Every descriptor still owns its build, smoke, SBOM, and Grype evidence.
+  # Three bounded groups keep the two heaviest web and worker builds concurrent,
+  # while the AI sidecars share a runner row. Every descriptor still owns its
+  # build, smoke, SBOM, and Grype evidence.
   docker-images:
     name: docker image group (${{ matrix.group }})
     runs-on: ubuntu-latest
@@ -404,7 +386,7 @@ jobs:
               [{"name":"worker","dockerfile":"Dockerfile","tag":"repkey-worker:ci","publish":true},{"name":"perf-runner","dockerfile":"Dockerfile.perf-runner","tag":"repkey-perf-runner:ci","publish":false},{"name":"provider-sandbox","dockerfile":"Dockerfile.sandbox","tag":"repkey-provider-sandbox:ci","publish":false}]
           - group: sidecars
             images: >-
-              [{"name":"google-execution-admission","dockerfile":"Dockerfile.google-execution-admission","tag":"repkey-google-execution-admission:ci","publish":true},{"name":"google-egress-gateway","dockerfile":"Dockerfile.google-egress-gateway","tag":"repkey-google-egress-gateway:ci","publish":true},{"name":"ai-execution-admission","dockerfile":"Dockerfile.ai-execution-admission","tag":"repkey-ai-execution-admission:ci","publish":true},{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]
+              [{"name":"ai-execution-admission","dockerfile":"Dockerfile.ai-execution-admission","tag":"repkey-ai-execution-admission:ci","publish":true},{"name":"ai-egress-gateway","dockerfile":"Dockerfile.ai-egress-gateway","tag":"repkey-ai-egress-gateway:ci","publish":true}]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -519,24 +501,6 @@ jobs:
                 -v "$PWD/scripts/verify-ai-runtime-image.mjs:/tmp/verify-ai-runtime-image.mjs:ro" \
                 repkey-ai-egress-gateway:ci /tmp/verify-ai-runtime-image.mjs gateway
               ;;
-            google-execution-admission)
-              docker run --rm --entrypoint node repkey-google-execution-admission:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
-              test "$(docker image inspect repkey-google-execution-admission:ci --format '{{.Config.User}}')" = "node"
-              docker run --rm --entrypoint test repkey-google-execution-admission:ci ! -e /app/node_modules
-              docker run --rm --entrypoint test repkey-google-execution-admission:ci ! -e /app/package.json
-              test "$(docker image inspect repkey-google-execution-admission:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
-              test "$(docker image inspect repkey-google-execution-admission:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-google-execution-admission/index.js"
-              ;;
-            google-egress-gateway)
-              docker run --rm --entrypoint node repkey-google-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
-              test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{.Config.User}}')" = "node"
-              docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/node_modules
-              docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/package.json
-              test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
-              test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-google-egress-gateway/index.js"
-              docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/control-proxy.js
-              docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/tcp-relay.js
-              ;;
             provider-sandbox)
               docker run --rm --entrypoint sh repkey-provider-sandbox:ci -c 'set -eu; node provider-sandbox.mjs --kind=gbp --port=3000 >/tmp/provider-sandbox.log 2>&1 & child=$!; trap '\''kill "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true'\'' EXIT; attempt=0; until node -e "fetch('\''http://127.0.0.1:3000/__control/health'\'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; do attempt=$((attempt+1)); if [ "$attempt" -ge 30 ]; then cat /tmp/provider-sandbox.log; exit 1; fi; sleep 0.2; done'
               test "$(docker image inspect repkey-provider-sandbox:ci --format '{{.Config.User}}')" = "node"
@@ -571,7 +535,7 @@ jobs:
 
       # BQC-7.7: every built image gets an SPDX JSON inventory. Each bounded
       # group stages its files under one unique artifact; the `docker`
-      # aggregate job still proves and publishes the exact ten-file set.
+      # aggregate job still proves and publishes the exact seven-file set.
       - name: Install pinned Syft
         id: syft
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -598,11 +562,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      # BQC-7.7: hard fail on HIGH+ findings. Scanning the just-generated SBOM
-      # avoids re-cataloguing each image. Main run 33875276446 measured the ten
-      # SBOM scans at 10.6s total with Grype 0.116.1, versus 731s for image
-      # inputs. The explicit config keeps every reviewed exception in the
-      # fail-closed gate.
+      # BQC-7.7: hard fail on HIGH+ findings. Scanning each generated SBOM
+      # avoids re-cataloguing the image, and the explicit config keeps every
+      # reviewed exception in the fail-closed gate.
       #
       # Own the database cache and rotate its exact key once per UTC day; no
       # restore prefix may fall back to a stale prior-day DB.
@@ -712,8 +674,8 @@ jobs:
           path: image-sboms
           merge-multiple: true
 
-      - name: Require all nine image SBOMs
-        run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 9
+      - name: Require all seven image SBOMs
+        run: test "$(find image-sboms -maxdepth 1 -type f -name 'sbom-*.spdx.json' | wc -l)" -eq 7
 
       - name: Upload image SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -735,13 +697,13 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
-          test "$(find staged-image-digests -maxdepth 1 -type f -name '*.json' | wc -l)" -eq 7
+          test "$(find staged-image-digests -maxdepth 1 -type f -name '*.json' | wc -l)" -eq 5
           jq -sS \
             --arg revision "$GITHUB_SHA" \
             --arg runId "$GITHUB_RUN_ID" \
             --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
             'sort_by(.image) as $entries
-            | ["ai-egress-gateway","ai-execution-admission","google-egress-gateway","google-execution-admission","google-provider-redis","web","worker"] as $expected
+            | ["ai-egress-gateway","ai-execution-admission","google-provider-redis","web","worker"] as $expected
             | ($entries | map(.image)) as $observed
             | if $observed != $expected then error("staged image set is incomplete or unexpected") else . end
             | if any($entries[];
@@ -795,7 +757,7 @@ jobs:
             fi
           done < <(jq -c '.[]' validated-image-digests.json)
 
-          # The release map is written only after all seven final tags resolve
+          # The release map is written only after all five final tags resolve
           # to the staged digests.
           while IFS= read -r image; do
             repository=$(jq -r '.repository' <<<"$image")

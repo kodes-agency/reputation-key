@@ -28,7 +28,6 @@ const REQUIRED_PORTS = [
   { port: 3001, who: 'web-locked' },
   { port: 55432, who: 'postgres' },
   { port: 56379, who: 'redis' },
-  { port: 58443, who: 'google-egress-gateway' },
 ]
 
 const results = []

@@ -6,8 +6,6 @@ import { describe, expect, it } from 'vitest'
 const source = (path: string) => readFileSync(path, 'utf8')
 
 const RUNTIMES = [
-  'services/google-execution-admission/index.ts',
-  'services/google-egress-gateway/index.ts',
   'services/ai-execution-admission/index.ts',
   'services/ai-egress-gateway/bootstrap.ts',
 ] as const
@@ -22,15 +20,10 @@ const RUNTIMES = [
  */
 const SIDECAR_SHARED_KERNEL = [
   'src/shared/ai-',
-  'src/shared/canonical-json',
   'src/shared/closed-json-contract',
-  'src/shared/config/release-identity',
-  'src/shared/ed25519-key-material',
-  'src/shared/google-provider-control/',
   'src/shared/merchant-ai-',
   'src/shared/observability/telemetry',
   'src/shared/openai-',
-  'src/shared/provider-ephemeral/runtime-verification',
   'src/shared/security/versioned-hmac-keyring',
 ] as const
 
@@ -65,8 +58,6 @@ function outsideKernel(contents: string): readonly string[] {
 describe('sidecar executable operational wiring', () => {
   it('preloads monitoring before each protected runtime module', () => {
     for (const [entry, runtime] of [
-      ['services/google-execution-admission/entry.ts', "import('./index')"],
-      ['services/google-egress-gateway/entry.ts', "import('./index')"],
       ['services/ai-execution-admission/entry.ts', "import('./index')"],
     ] as const) {
       const contents = source(entry)
@@ -79,18 +70,12 @@ describe('sidecar executable operational wiring', () => {
     expect(aiGateway).toContain("import('./bootstrap')")
     expect(aiGateway).toContain("import('./openai-connector')")
 
-    expect(source('tsup.google-execution-admission.config.ts')).toContain(
-      "index: 'services/google-execution-admission/entry.ts'",
-    )
-    expect(source('tsup.google-egress-gateway.config.ts')).toContain(
-      "index: 'services/google-egress-gateway/entry.ts'",
-    )
     expect(source('tsup.ai-execution-admission.config.ts')).toContain(
       "index: 'services/ai-execution-admission/entry.ts'",
     )
   })
 
-  it('gives all four runtimes dynamic readiness and one lifecycle owner', () => {
+  it('gives both runtimes dynamic readiness and one lifecycle owner', () => {
     for (const path of RUNTIMES) {
       const contents = source(path)
       expect(contents, path).toContain('createSidecarPlatformHealthServer({')
@@ -137,21 +122,14 @@ describe('sidecar executable operational wiring', () => {
   })
 
   it('uses real bounded post-boot dependency probes', () => {
-    const googleAdmission = source(RUNTIMES[0])
-    expect(googleAdmission).toContain('redis.ping()')
-    expect(googleAdmission).toContain('authority.readiness()')
-
-    const googleGateway = source(RUNTIMES[1])
-    expect(googleGateway).toContain("admissionTransport.get('/health/ready', { signal })")
-
-    const aiAdmission = source(RUNTIMES[2])
+    const aiAdmission = source(RUNTIMES[0])
     expect(aiAdmission).toContain('service.readiness()')
 
-    const aiGateway = source(RUNTIMES[3])
+    const aiGateway = source(RUNTIMES[1])
     expect(aiGateway).toContain('service.readiness(signal)')
   })
 
-  it('never links a monitoring SDK into an AI sidecar, and always into a Google one', () => {
+  it('never links a monitoring SDK into an AI sidecar', () => {
     // `scripts/verify-ai-runtime-image.mjs` refuses an AI image whose bundle
     // contains `node_modules/@sentry/`. That gate only fires after a docker
     // build, so this walks the same static graph the bundler does and fails in
@@ -193,13 +171,17 @@ describe('sidecar executable operational wiring', () => {
       expect([...reachable(entry)], entry).not.toContain(TELEMETRY)
     }
 
-    // The same walk proves the Google pair still HAS one: a fix that silenced
-    // both halves would otherwise pass.
+    // The negative assertion above is only worth anything if the walk still
+    // reaches things. The Google pair used to be the positive control — it was
+    // the half that DID link a monitoring client — and WP2.1 moved that runtime
+    // in-process, so the control is now a module every AI entry provably links.
+    // Without this, a `reachable` that returned an empty set would pass.
+    const LIFECYCLE = 'services/sidecar-operational-runtime.ts'
     for (const entry of [
-      'services/google-execution-admission/entry.ts',
-      'services/google-egress-gateway/entry.ts',
+      'services/ai-execution-admission/entry.ts',
+      'services/ai-egress-gateway/index.ts',
     ]) {
-      expect([...reachable(entry)], entry).toContain(TELEMETRY)
+      expect([...reachable(entry)], entry).toContain(LIFECYCLE)
     }
   })
 
@@ -261,12 +243,7 @@ describe('sidecar executable operational wiring', () => {
   })
 
   it('exposes the same port pair from every sidecar runtime image', () => {
-    for (const stem of [
-      'google-execution-admission',
-      'google-egress-gateway',
-      'ai-execution-admission',
-      'ai-egress-gateway',
-    ]) {
+    for (const stem of ['ai-execution-admission', 'ai-egress-gateway']) {
       expect(source(`Dockerfile.${stem}`), stem).toContain('EXPOSE 8080 8443')
     }
   })

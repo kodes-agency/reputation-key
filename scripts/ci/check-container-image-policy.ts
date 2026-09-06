@@ -26,14 +26,12 @@ export type ContainerImagePolicy = Readonly<{
   images: readonly ContainerImagePolicyRow[]
 }>
 
-// CI builds all nine classified image descriptors. On main, it publishes the
-// seven production runtimes below under immutable source-revision tags;
+// CI builds all seven classified image descriptors. On main, it publishes the
+// five production runtimes below under immutable source-revision tags;
 // sandbox and perf-runner remain CI-only.
 const CI_PUBLISHED_IMAGE_IDS = [
   'ai-egress-gateway',
   'ai-execution-admission',
-  'google-egress-gateway',
-  'google-execution-admission',
   'google-provider-redis',
   'web',
   'worker',

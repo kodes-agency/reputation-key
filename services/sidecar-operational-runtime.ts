@@ -1,9 +1,9 @@
 // The monitoring client is a PARAMETER here, never an import.
 //
-// Two of the four sidecars are forbidden from linking one at all: the AI
-// egress gateway and the AI execution admission service are the boundary that
-// decides what may leave the cell, and `scripts/verify-ai-runtime-image.mjs`
-// refuses any AI image whose bundle contains `node_modules/@sentry/` or whose
+// Both remaining sidecars are forbidden from linking one at all: the AI egress
+// gateway and the AI execution admission service are the boundary that decides
+// what may leave the cell, and `scripts/verify-ai-runtime-image.mjs` refuses
+// any AI image whose bundle contains `node_modules/@sentry/` or whose
 // environment carries a `SENTRY_DSN`. A module-level import of
 // `shared/observability/telemetry` here linked the SDK into both AI bundles
 // through this file, because `noExternal: [/.*/]` bundles everything
@@ -11,9 +11,10 @@
 //
 // The types are still imported, as types: `import type` is erased, so the
 // contract stays shared while the implementation is named by each entry point
-// (`sidecar-monitored-observability` for the Google pair,
-// `sidecar-unmonitored-observability` for the AI pair). A new sidecar cannot
-// inherit a monitoring client it never asked for, because there is no default.
+// (`sidecar-unmonitored-observability`). There was a monitored counterpart for
+// the Google pair until WP2.1 moved that runtime in-process, where it uses the
+// application's own observability; a new sidecar cannot inherit a monitoring
+// client it never asked for, because there is still no default.
 import type {
   ErrorCaptureContext,
   ObservabilityInitResult,

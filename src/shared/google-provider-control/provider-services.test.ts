@@ -13,19 +13,14 @@ import {
   createGoogleExecutionAdmissionService,
   type GoogleAdmissionPermitAuthority,
   type GoogleAdmissionPermitSnapshot,
-} from '../../../services/google-execution-admission/service'
-import { handleGoogleExecutionAdmissionRequest } from '../../../services/google-execution-admission/http-api'
-import { createGoogleEgressGateway } from '../../../services/google-egress-gateway/service'
-import {
-  createGoogleEgressGatewayHttpClient,
-  handleGoogleEgressGatewayRequest,
-} from '../../../services/google-egress-gateway/http-api'
+} from './admission-service'
+import { createGoogleEgressGateway } from './egress-gateway'
 const grantKeyring = createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`)
 const bindCredential = (credential: string) =>
   createHmac('sha256', 'credential-binding-test-key').update(credential).digest('hex')
 type AuthorityStartResult = 'started' | 'changed' | 'expired' | 'unavailable'
 const projectFingerprint = 'd'.repeat(64)
-const gatewayIdentity = 'google-egress-gateway-1'
+const gatewayIdentity = 'google-egress-runtime-1'
 
 function permitFor(
   permitId: string,
@@ -121,7 +116,7 @@ function compile(descriptor: GoogleProviderRouteDescriptor) {
   return compileGoogleProviderRequest(descriptor, bindCredential)
 }
 
-describe('Google execution-admission service', () => {
+describe('Google in-process admission service', () => {
   it('rejects route substitution before quota use', async () => {
     const accounts = compile({
       routeKey: 'account-management.accounts.list',
@@ -270,7 +265,7 @@ describe('Google execution-admission service', () => {
   })
 })
 
-describe('Google egress gateway', () => {
+describe('Google in-process egress gateway', () => {
   function gatewayFixture(descriptor: GoogleProviderRouteDescriptor, response: Response) {
     const compiled = compile(descriptor)
     const fixture = admissionFixture({
@@ -361,140 +356,6 @@ describe('Google egress gateway', () => {
       retryAfterMs: 0,
     })
   })
-})
-describe('Google provider service HTTP boundaries', () => {
-  it('rejects an admission request without the gateway mTLS identity', async () => {
-    const compiled = compile({
-      routeKey: 'account-management.accounts.list',
-      accessToken: 'access-token',
-    })
-    const fixture = admissionFixture({
-      permit: permitFor('permit-http-0001', compiled.admission),
-    })
-    const response = await handleGoogleExecutionAdmissionRequest({
-      request: new Request('https://internal.invalid/v1/start', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          permitId: 'permit-http-0001',
-          admission: compiled.admission,
-          deadlineMs: 10_000,
-        }),
-      }),
-      gatewayIdentity: null,
-      service: fixture.service,
-    })
-
-    expect(response.status).toBe(401)
-    await expect(response.json()).resolves.toEqual({
-      ok: false,
-      code: 'unauthorized',
-    })
-    expect(fixture.authority.load).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unknown route before invoking the gateway', async () => {
-    const execute = vi.fn()
-    const response = await handleGoogleEgressGatewayRequest({
-      request: new Request('https://internal.invalid/v1/execute', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          permitId: 'permit-http-0002',
-          descriptor: { routeKey: 'unknown.route', accessToken: 'secret' },
-          deadlineMs: 10_000,
-        }),
-      }),
-      callerIdentity: 'google-web-1',
-      allowedCallerIdentities: new Set(['google-web-1']),
-      gateway: Object.freeze({ execute }),
-    })
-
-    expect(response.status).toBe(400)
-    expect(execute).not.toHaveBeenCalled()
-  })
-
-  it('rejects query-bearing admission paths before permit lookup', async () => {
-    const compiled = compile({
-      routeKey: 'account-management.accounts.list',
-      accessToken: 'access-token',
-    })
-    const fixture = admissionFixture({
-      permit: permitFor('permit-http-query-0001', compiled.admission),
-    })
-    const response = await handleGoogleExecutionAdmissionRequest({
-      request: new Request('https://internal.invalid/v1/start?unexpected=true', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          permitId: 'permit-http-query-0001',
-          admission: compiled.admission,
-          deadlineMs: 10_000,
-        }),
-      }),
-      gatewayIdentity,
-      service: fixture.service,
-    })
-
-    expect(response.status).toBe(404)
-    expect(fixture.authority.load).not.toHaveBeenCalled()
-  })
-
-  it('rejects non-JSON gateway bodies before invoking execution', async () => {
-    const execute = vi.fn()
-    const response = await handleGoogleEgressGatewayRequest({
-      request: new Request('https://internal.invalid/v1/execute', {
-        method: 'POST',
-        headers: { 'content-type': 'text/plain' },
-        body: JSON.stringify({
-          permitId: 'permit-http-media-0001',
-          descriptor: { routeKey: 'oauth.jwks' },
-          deadlineMs: 10_000,
-        }),
-      }),
-      callerIdentity: 'google-web-1',
-      allowedCallerIdentities: new Set(['google-web-1']),
-      gateway: Object.freeze({ execute }),
-    })
-
-    expect(response.status).toBe(400)
-    expect(execute).not.toHaveBeenCalled()
-  })
-  it('reconstructs a bounded upstream result through the gateway client', async () => {
-    const body = new TextEncoder().encode('{"accounts":[]}')
-    const client = createGoogleEgressGatewayHttpClient({
-      postRaw: vi.fn(async () => ({
-        status: 200,
-
-        headers: new Headers({
-          'x-repkey-provider-status': '206',
-          'x-repkey-provider-content-type': 'application/json',
-          'x-repkey-provider-retry-after': '5',
-        }),
-        body,
-      })),
-    })
-
-    await expect(
-      client.execute({
-        permitId: 'permit-http-0003',
-        descriptor: {
-          routeKey: 'account-management.accounts.list',
-          accessToken: 'provider-token',
-        },
-        deadlineMs: 10_000,
-      }),
-    ).resolves.toEqual({
-      ok: true,
-      status: 206,
-      headers: {
-        contentType: 'application/json',
-        cacheControl: null,
-        retryAfter: '5',
-      },
-      body,
-    })
-  })
 
   it('discards a provider response when durable completion is unavailable', async () => {
     const descriptor = {
@@ -502,7 +363,7 @@ describe('Google provider service HTTP boundaries', () => {
     }
     const compiled = compile(descriptor)
     const fixture = admissionFixture({
-      permit: permitFor('permit-http-0004', compiled.admission),
+      permit: permitFor('permit-completion-01', compiled.admission),
     })
     const gateway = createGoogleEgressGateway({
       nowMs: () => 1_000,
@@ -518,7 +379,7 @@ describe('Google provider service HTTP boundaries', () => {
 
     await expect(
       gateway.execute({
-        permitId: 'permit-http-0004',
+        permitId: 'permit-completion-01',
         descriptor,
         deadlineMs: 10_000,
       }),

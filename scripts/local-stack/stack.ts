@@ -61,8 +61,6 @@ const MIGRATION_DIR = resolve(ROOT, 'drizzle')
 const WORKER_READY_LINE = 'BullMQ worker started on default queue'
 const APP_SERVICES = [
   'provider-sandbox',
-  'google-execution-admission',
-  'google-egress-gateway',
   'ai-provider-stub',
   'ai-execution-admission',
   'ai-egress-gateway',
@@ -134,12 +132,7 @@ type DockerImageInspect = ReadonlyArray<{
 
 type ObservedImageIdentities = Readonly<
   Record<
-    | 'web'
-    | 'worker'
-    | 'provider'
-    | 'perf'
-    | 'googleExecutionAdmission'
-    | 'googleEgressGateway',
+    'web' | 'worker' | 'provider' | 'perf',
     Readonly<{ imageId: string; repoDigests: readonly string[]; revisionLabel: string }>
   >
 >
@@ -221,11 +214,7 @@ function serializeEnv(env: Readonly<Record<string, string>>): string {
     .join('\n')}\n`
 }
 
-function prepareProviderRedisAssets(
-  state: StackPaths,
-  providerPassword: string,
-  googleAdmissionPassword: string,
-): void {
+function prepareProviderRedisAssets(state: StackPaths, providerPassword: string): void {
   mkdirSync(state.googleRuntime, { recursive: true, mode: 0o700 })
   chmodSync(state.googleRuntime, 0o700)
   const asset = (name: string) => resolve(state.googleRuntime, name)
@@ -236,63 +225,22 @@ function prepareProviderRedisAssets(
       dnsName: 'provider-redis-ingress',
       usage: 'serverAuth',
     },
-    // The admission's dedicated store. Like provider-redis it is fronted by a
-    // TCP relay, so the SAN has to name the relay: that is the host the client
-    // dials and therefore the name TLS verifies.
-    {
-      name: 'google-admission-redis',
-      commonName: 'google-admission-redis-store',
-      dnsName: 'google-admission-redis-ingress',
-      usage: 'serverAuth',
-    },
     {
       name: 'provider-sandbox',
       commonName: 'provider-sandbox',
       dnsName: 'provider-sandbox',
       usage: 'serverAuth',
     },
-    {
-      name: 'google-egress-gateway',
-      commonName: 'google-egress-gateway-1',
-      dnsName: 'google-egress-gateway',
-      usage: 'serverAuth,clientAuth',
-      uriName: 'spiffe://repkey.internal/google-egress-gateway',
-    },
-    {
-      name: 'google-execution-admission',
-      commonName: 'google-execution-admission-1',
-      dnsName: 'google-execution-admission',
-      usage: 'serverAuth',
-      uriName: 'spiffe://repkey.internal/google-execution-admission',
-    },
-    {
-      name: 'repkey-web',
-      commonName: 'repkey-web-e2e',
-      usage: 'clientAuth',
-      uriName: 'spiffe://repkey.internal/repkey-web',
-    },
-    {
-      name: 'repkey-worker',
-      commonName: 'repkey-worker-e2e',
-      usage: 'clientAuth',
-      uriName: 'spiffe://repkey.internal/repkey-worker',
-    },
-    {
-      name: 'google-healthcheck',
-      commonName: 'google-healthcheck',
-      usage: 'clientAuth',
-      uriName: 'spiffe://repkey.internal/google-healthcheck',
-    },
   ] as const
   const caCertificate = asset('ca.crt')
-  const mtlsProfile = asset('google-mtls-spiffe-v2')
+  const tlsProfile = asset('provider-tls-v1')
   const generatedAssets = certificates.flatMap(({ name }) => [
     `${name}.crt`,
     `${name}.key`,
   ])
   if (
     !existsSync(caCertificate) ||
-    !existsSync(mtlsProfile) ||
+    !existsSync(tlsProfile) ||
     generatedAssets.some((name) => !existsSync(asset(name)))
   ) {
     for (const name of [
@@ -376,7 +324,7 @@ function prepareProviderRedisAssets(
         { capture: true },
       )
     }
-    writeFileSync(mtlsProfile, 'google-mtls-spiffe-v2\n', { mode: 0o644 })
+    writeFileSync(tlsProfile, 'provider-tls-v1\n', { mode: 0o644 })
     for (const name of [
       'ca.key',
       'ca.srl',
@@ -385,11 +333,10 @@ function prepareProviderRedisAssets(
       rmSync(asset(name), { force: true })
     }
   }
-  // Every provider-ephemeral Redis in the stack boots the same server shape,
-  // because verifyProviderEphemeralRedisRuntime inspects the live server at
-  // sidecar startup and refuses anything with persistence, replication, an
-  // unbounded maxmemory or a `default` ACL identity. Only the ACL identity's
-  // key space and command set differ per store.
+  // The in-process provider runtime refuses a store with persistence,
+  // replication, unbounded memory, or a default ACL identity.
+  // The same endpoint also carries Google grants, quota buckets, and in-flight
+  // leases, so its ACL must admit both namespaces and every Lua subcommand.
   const writeDedicatedRedis = (name: string, acl: string): void => {
     writeFileSync(asset(`${name}.acl`), acl, { mode: 0o600 })
     writeFileSync(
@@ -418,20 +365,10 @@ function prepareProviderRedisAssets(
   }
   writeDedicatedRedis(
     'provider-redis',
-    `user default off\nuser repkey on >${providerPassword} ~provider-ephemeral:* +ping +info +config|get +acl|whoami +acl|dryrun +get +set +getdel +del +eval\n`,
-  )
-  // The admission's key space is its own: grants live under
-  // `google-admission:{id}:grant` and quota/in-flight state under
-  // `google-provider:{coordination}:...`. The extra verbs are what the Lua
-  // bodies call — quota buckets are hashes, in-flight leases sorted sets — and
-  // ACL applies to commands invoked inside EVAL under the calling user, so
-  // omitting one fails at admission time rather than at boot.
-  writeDedicatedRedis(
-    'google-admission-redis',
-    `user default off\nuser repkey on >${googleAdmissionPassword} ~google-admission:* ~google-provider:* +ping +info +config|get +acl|whoami +acl|dryrun +get +set +del +hget +hset +pexpire +zadd +zcard +zrange +zrem +zremrangebyscore +eval\n`,
+    `user default off\nuser repkey on >${providerPassword} ~provider-ephemeral:* ~google-admission:* ~google-provider:* +ping +info +config|get +acl|whoami +acl|dryrun +get +set +getdel +del +hget +hset +pexpire +zadd +zcard +zrange +zrem +zremrangebyscore +eval\n`,
   )
   chmodSync(caCertificate, 0o644)
-  chmodSync(mtlsProfile, 0o644)
+  chmodSync(tlsProfile, 0o644)
   for (const name of generatedAssets) chmodSync(asset(name), 0o644)
 }
 function prepareAiInternalMtlsAssets(state: StackPaths): void {
@@ -1066,23 +1003,12 @@ function prepare(mode: LocalStackMode, clearArtifacts = false): StackPaths {
     artifactDir: state.artifacts,
     e2eDir: state.e2eArtifacts,
   })
-  // buildLocalStackEnv owns the shared secret set and knows nothing about the
-  // admission's own store, so its ACL password is derived here with the same
-  // revision-scoped formula: a clean stack must reproduce the exact password
-  // baked into the generated aclfile.
-  const googleAdmissionRedisPassword = sha256(
-    `rep-key/local/${releaseSha}/google-admission-redis`,
-  )
-  prepareProviderRedisAssets(
-    state,
-    baseEnv.PROVIDER_EPHEMERAL_REDIS_PASSWORD!,
-    googleAdmissionRedisPassword,
-  )
+  prepareProviderRedisAssets(state, baseEnv.PROVIDER_EPHEMERAL_REDIS_PASSWORD!)
   prepareAiInternalMtlsAssets(state)
   prepareAiControlDatabaseTlsAssets(state)
   const env = {
     ...baseEnv,
-    GOOGLE_ADMISSION_REDIS_PASSWORD: googleAdmissionRedisPassword,
+    GOOGLE_EGRESS_GATEWAY_IDENTITY: 'local-google-provider-runtime-v1',
     ...buildLocalGoogleContentApprovalEnv(state, releaseSha),
     ...prepareLocalAiAdmissionEnv(state),
   }
@@ -1318,24 +1244,13 @@ function assertTcpRoute(
 function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths): void {
   const project = localStackProject(mode)
   const expected: Readonly<Record<string, readonly string[]>> = {
-    web: ['ai-gateway-ingress', 'app', 'egress-control', 'provider-ephemeral'],
-    'web-locked': ['app', 'egress-control', 'provider-ephemeral'],
-    worker: ['ai-gateway-ingress', 'app', 'egress-control', 'provider-ephemeral'],
+    web: ['ai-gateway-ingress', 'app', 'provider-egress', 'provider-ephemeral'],
+    'web-locked': ['app', 'provider-ephemeral'],
+    worker: ['ai-gateway-ingress', 'app', 'provider-egress', 'provider-ephemeral'],
     'provider-redis': ['provider-redis-data'],
     'provider-redis-ingress': ['provider-ephemeral', 'provider-redis-data'],
-    'google-admission-redis-store': ['google-admission-redis-data'],
-    'google-admission-redis-ingress': [
-      'google-admission-redis',
-      'google-admission-redis-data',
-    ],
     'provider-sandbox': ['provider-egress'],
     'provider-control-proxy': ['provider-control', 'provider-egress'],
-    'google-execution-admission': [
-      'admission-control',
-      'admission-data',
-      'google-admission-redis',
-    ],
-    'google-egress-gateway': ['admission-control', 'egress-control', 'provider-egress'],
     'ai-provider-stub': ['ai-provider-egress'],
     'ai-execution-admission': ['admission-data', 'ai-admission-control'],
     'ai-egress-gateway': [
@@ -1357,84 +1272,28 @@ function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths):
     }),
   )
   const routes = [
-    { source: 'web', host: 'google-egress-gateway', port: 8443, reachable: true },
-    { source: 'web', host: 'provider-sandbox', port: 4100, reachable: false },
+    { source: 'web', host: 'provider-sandbox', port: 4100, reachable: true },
     { source: 'web', host: 'provider-redis', port: 6379, reachable: false },
     {
       source: 'web',
-      host: 'google-admission-redis-ingress',
+      host: 'provider-redis-ingress',
       port: 6379,
-      reachable: false,
+      reachable: true,
     },
     { source: 'web', host: 'ai-egress-gateway', port: 8443, reachable: true },
     { source: 'web', host: 'ai-provider-stub', port: 4102, reachable: false },
     { source: 'web', host: 'ai-execution-admission', port: 8443, reachable: false },
-    { source: 'worker', host: 'google-egress-gateway', port: 8443, reachable: true },
-    { source: 'worker', host: 'provider-sandbox', port: 4100, reachable: false },
+    { source: 'worker', host: 'provider-sandbox', port: 4100, reachable: true },
     { source: 'worker', host: 'provider-redis', port: 6379, reachable: false },
     {
       source: 'worker',
-      host: 'google-admission-redis-ingress',
+      host: 'provider-redis-ingress',
       port: 6379,
-      reachable: false,
+      reachable: true,
     },
     { source: 'worker', host: 'ai-egress-gateway', port: 8443, reachable: true },
     { source: 'worker', host: 'ai-provider-stub', port: 4102, reachable: false },
     { source: 'worker', host: 'ai-execution-admission', port: 8443, reachable: false },
-    {
-      source: 'google-egress-gateway',
-      host: 'provider-sandbox',
-      port: 4100,
-      reachable: true,
-    },
-    {
-      source: 'google-egress-gateway',
-      host: 'google-execution-admission',
-      port: 8443,
-      reachable: true,
-    },
-    { source: 'google-egress-gateway', host: 'postgres', port: 5432, reachable: false },
-    { source: 'google-egress-gateway', host: 'redis', port: 6379, reachable: false },
-    {
-      source: 'google-egress-gateway',
-      host: 'google-admission-redis-ingress',
-      port: 6379,
-      reachable: false,
-    },
-    {
-      source: 'google-execution-admission',
-      host: 'postgres',
-      port: 5432,
-      reachable: true,
-    },
-    // The admission reaches its own store only through the relay. The shared
-    // cache used to sit on google-admission-redis and was what REDIS_URL named;
-    // it is off that network now, because a plaintext no-ACL Redis within reach
-    // of this process is exactly what its startup contract forbids.
-    {
-      source: 'google-execution-admission',
-      host: 'google-admission-redis-ingress',
-      port: 6379,
-      reachable: true,
-    },
-    {
-      source: 'google-execution-admission',
-      host: 'google-admission-redis-store',
-      port: 6379,
-      reachable: false,
-    },
-    {
-      source: 'google-execution-admission',
-      host: 'redis',
-      port: 6379,
-      reachable: false,
-    },
-    {
-      source: 'google-execution-admission',
-      host: 'provider-sandbox',
-      port: 4100,
-      reachable: false,
-    },
     {
       source: 'ai-egress-gateway',
       host: 'ai-provider-stub',
@@ -1493,37 +1352,15 @@ function inspectIdentities(
 ): ObservedImageIdentities {
   const env = parseEnvFile(state.env)
   const selected: Array<
-    readonly [
-      (
-        | 'web'
-        | 'worker'
-        | 'provider'
-        | 'perf'
-        | 'googleExecutionAdmission'
-        | 'googleEgressGateway'
-      ),
-      ObservedImageIdentities['web'],
-    ]
+    readonly ['web' | 'worker' | 'provider' | 'perf', ObservedImageIdentities['web']]
   > = []
   const evidenceKey: Readonly<
-    Partial<
-      Record<
-        (typeof APP_SERVICES)[number],
-        | 'web'
-        | 'worker'
-        | 'provider'
-        | 'perf'
-        | 'googleExecutionAdmission'
-        | 'googleEgressGateway'
-      >
-    >
+    Partial<Record<(typeof APP_SERVICES)[number], 'web' | 'worker' | 'provider' | 'perf'>>
   > = {
     web: 'web',
     worker: 'worker',
     'provider-sandbox': 'provider',
     'perf-runner': 'perf',
-    'google-execution-admission': 'googleExecutionAdmission',
-    'google-egress-gateway': 'googleEgressGateway',
   }
   for (const service of APP_SERVICES) {
     const id = dockerCompose(mode, state, ['ps', '--all', '--quiet', service], {
@@ -1715,8 +1552,6 @@ function buildImages(mode: LocalStackMode, state: StackPaths): void {
       'worker',
       'seed',
       'provider-sandbox',
-      'google-execution-admission',
-      'google-egress-gateway',
       'ai-execution-admission',
       'ai-egress-gateway',
       'perf-runner',
@@ -1738,8 +1573,6 @@ function startDependencies(mode: LocalStackMode, state: StackPaths): void {
     'queue-redis',
     'provider-redis',
     'provider-redis-ingress',
-    'google-admission-redis-store',
-    'google-admission-redis-ingress',
     'object-store',
     'provider-sandbox',
     'provider-control-proxy',
@@ -1749,32 +1582,13 @@ function startDependencies(mode: LocalStackMode, state: StackPaths): void {
 }
 
 /**
- * The admission and egress pairs, started after the migrator has run.
- *
- * Both chains reach the migrator: `*-egress-gateway` needs `*-execution-admission`,
- * which needs `*-admission-role`, which `depends_on` the migrator. Naming one of
- * them in a `docker compose up` therefore MIGRATES THE DATABASE, because compose
- * starts a service's dependencies.
- *
- * The Google pair used to be listed in `startDependencies`, which runs before
- * `sanitationEvidence`. So the hermetic check — whose entire job is to prove the
- * stack begins with an empty database — ran against a database the dependency
- * graph had already migrated, and failed with 242 public tables and
- * `noStaleDatabase: false`. It could never have passed. That went unnoticed
- * because `beta-acceptance` only runs once `e2e` is green, and `e2e` was red.
- *
- * Both pairs are started here, in one place, so the asymmetry cannot come back:
- * anything that transitively requires the migrator belongs after it.
+ * Admission roles depend on the migrator, and the AI admission/egress chain
+ * must start only after those one-shots complete.
  */
 function startAdmissionInfrastructure(mode: LocalStackMode, state: StackPaths): void {
   oneShot(mode, state, 'google-admission-role')
   oneShot(mode, state, 'ai-admission-role')
-  for (const service of [
-    'google-execution-admission',
-    'google-egress-gateway',
-    'ai-execution-admission',
-    'ai-egress-gateway',
-  ] as const) {
+  for (const service of ['ai-execution-admission', 'ai-egress-gateway'] as const) {
     dockerCompose(mode, state, [
       'up',
       '--no-deps',

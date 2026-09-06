@@ -40,7 +40,7 @@ describe('runtime environment contract tripwire', () => {
     // change-detector could have raised it.
     const beforeSource = "values.PORT !== '8443'"
     const afterSource = "values.PORT !== '8080' || values.INTERNAL_MTLS_PORT !== '8443'"
-    const files = ['services/google-egress-gateway/environment.ts']
+    const files = ['services/ai-egress-gateway/environment.ts']
 
     const drift = compareSnapshots(
       buildSnapshot(read({ [files[0]!]: beforeSource }), files),
@@ -48,7 +48,7 @@ describe('runtime environment contract tripwire', () => {
     )
 
     expect(drift).toEqual([
-      { path: 'services/google-egress-gateway/environment.ts', reason: 'changed' },
+      { path: 'services/ai-egress-gateway/environment.ts', reason: 'changed' },
     ])
   })
 

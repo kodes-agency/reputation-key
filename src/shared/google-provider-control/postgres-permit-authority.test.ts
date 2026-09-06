@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
-import { compileGoogleProviderRequest } from '../../src/shared/google-provider-control/route-catalogue'
+import { compileGoogleProviderRequest } from './route-catalogue'
 import { createPostgresGoogleAdmissionPermitAuthority } from './postgres-permit-authority'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')

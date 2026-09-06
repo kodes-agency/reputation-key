@@ -1,23 +1,23 @@
-import type { VersionedHmacKeyring } from '../../src/shared/security/versioned-hmac-keyring'
+import type { VersionedHmacKeyring } from '../security/versioned-hmac-keyring'
 import type {
   GoogleInFlightCoordinator,
   GoogleProviderRouteKey,
   GoogleQuotaCoordinator,
   GoogleQuotaKey,
-} from '../../src/shared/google-provider-control/contracts'
-import { googleQuotaCredentialFingerprint } from '../../src/shared/google-provider-control/quota-coordinator'
+} from './contracts'
+import { googleQuotaCredentialFingerprint } from './quota-coordinator'
 import {
   GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   GOOGLE_PROVIDER_ROUTE_POLICIES,
   type GoogleProviderAdmissionMetadata,
-} from '../../src/shared/google-provider-control/route-catalogue'
+} from './route-catalogue'
 import {
   signGoogleAdmissionGrant,
   verifyGoogleAdmissionGrant,
   type GoogleAdmissionGrant,
   type GoogleAdmissionGrantRecord,
   type GoogleAdmissionGrantStore,
-} from '../../src/shared/google-provider-control/admission-grant-store'
+} from './admission-grant-store'
 
 export type GoogleAdmissionPermitSnapshot = Readonly<{
   permitId: string

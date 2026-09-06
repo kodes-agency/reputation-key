@@ -23,7 +23,7 @@ describe('sidecar operational runtime', () => {
     const order: string[] = []
 
     await runSidecarStartup(
-      'google-egress-gateway',
+      'ai-egress-gateway',
       async () => {
         order.push('runtime')
       },
@@ -45,7 +45,7 @@ describe('sidecar operational runtime', () => {
     vi.stubEnv('RAILWAY_GIT_COMMIT_SHA', '7aabe93ac8933626ca848cc09f8e46d405c476f4')
     let releaseAtInitialize: string | undefined
     try {
-      await runSidecarStartup('google-execution-admission', async () => {}, {
+      await runSidecarStartup('ai-execution-admission', async () => {}, {
         initialize: vi.fn(() => {
           releaseAtInitialize = process.env.RELEASE_SHA
           return 'enabled' as const
@@ -105,7 +105,7 @@ describe('sidecar operational runtime', () => {
     try {
       await expect(
         runSidecarStartup(
-          'google-execution-admission',
+          'ai-execution-admission',
           async () => {
             throw Object.assign(new Error('GOOGLE_ADMISSION_PORT is required'), {
               code: 'config_invalid',
@@ -126,7 +126,7 @@ describe('sidecar operational runtime', () => {
     const report = written.map((line) => JSON.parse(line) as Record<string, unknown>)
     expect(report).toContainEqual({
       event: 'sidecar.startup_failed',
-      service: 'google-execution-admission',
+      service: 'ai-execution-admission',
       name: 'Error',
       code: 'config_invalid',
       message: 'GOOGLE_ADMISSION_PORT is required',
@@ -139,7 +139,7 @@ describe('sidecar operational runtime', () => {
     const events: SidecarLifecycleEvent[] = []
 
     const lifecycle = registerSidecarOperationalLifecycle({
-      service: 'google-execution-admission',
+      service: 'ai-execution-admission',
       health: {
         beginDrain: () => order.push('not-ready'),
         stop: async () => {
@@ -217,7 +217,7 @@ describe('sidecar operational runtime', () => {
     const healthStop = vi.fn(async () => undefined)
 
     const lifecycle = registerSidecarOperationalLifecycle({
-      service: 'google-egress-gateway',
+      service: 'ai-egress-gateway',
       health: { beginDrain: vi.fn(), stop: healthStop },
       shutdown: vi.fn(async () => {
         throw shutdownFailure

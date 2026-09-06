@@ -1,12 +1,14 @@
 import { defineConfig } from 'tsup'
 
-// Local-stack-only one-shot commands. This bundle has its own image target and
-// must never be copied into a web, worker, sidecar, or Railway runtime image.
+// Tools that only the local-stack harness executes. The dedicated image keeps
+// this bundle out of serving and Railway runtimes.
 export default defineConfig({
   entry: {
+    'control-proxy': 'scripts/local-stack/control-proxy.ts',
     'seed-e2e-user': 'scripts/seed-e2e-user.ts',
     'provision-ai-admission-role': 'scripts/local-stack/provision-ai-admission-role.ts',
     'provision-google-admission-role': 'scripts/ops/provision-google-admission-role.ts',
+    'tcp-relay': 'scripts/local-stack/tcp-relay.ts',
   },
   outDir: 'dist-local-tools',
   format: ['esm'],

@@ -1,8 +1,4 @@
-export type SidecarServiceName =
-  | 'google-execution-admission'
-  | 'google-egress-gateway'
-  | 'ai-execution-admission'
-  | 'ai-egress-gateway'
+export type SidecarServiceName = 'ai-execution-admission' | 'ai-egress-gateway'
 
 export type SidecarTerminationTrigger =
   'SIGTERM' | 'SIGINT' | 'unhandledRejection' | 'uncaughtException'

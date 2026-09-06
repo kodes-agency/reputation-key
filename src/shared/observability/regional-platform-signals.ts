@@ -1,8 +1,6 @@
 import type { AlertSeverity } from './alert-definitions'
 
 export const REG04_SIDECAR_SERVICES = Object.freeze([
-  'google-execution-admission',
-  'google-egress-gateway',
   'ai-execution-admission',
   'ai-egress-gateway',
 ] as const)

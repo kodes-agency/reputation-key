@@ -32,8 +32,6 @@ describe('REG-04 regional platform signal authority', () => {
         'cell-us.release.config-drift',
         'cell-us.sidecar.ai-egress-gateway.readiness',
         'cell-us.sidecar.ai-execution-admission.readiness',
-        'cell-us.sidecar.google-egress-gateway.readiness',
-        'cell-us.sidecar.google-execution-admission.readiness',
         'cell-us.web.external-availability',
       ].sort(),
     )

@@ -3,14 +3,14 @@ import {
   GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   GOOGLE_PROVIDER_ROUTE_POLICIES,
   type GoogleProviderAdmissionMetadata,
-} from '../../src/shared/google-provider-control/route-catalogue'
-import type { GoogleProviderRouteKey } from '../../src/shared/google-provider-control/contracts'
-import { googleQuotaCredentialFingerprint } from '../../src/shared/google-provider-control/quota-coordinator'
+} from './route-catalogue'
+import type { GoogleProviderRouteKey } from './contracts'
+import { googleQuotaCredentialFingerprint } from './quota-coordinator'
 import type {
   GoogleAdmissionPermitAuthority,
   GoogleAdmissionPermitSnapshot,
   GoogleProviderOutcome,
-} from './service'
+} from './admission-service'
 
 const SHA256 = /^[a-f0-9]{64}$/
 const SAFE_REVISION = /^[A-Za-z0-9._:@/-]{1,255}$/

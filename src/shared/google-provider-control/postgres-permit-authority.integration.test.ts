@@ -16,7 +16,7 @@ import {
   compileGoogleProviderRequest,
   GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
 } from './route-catalogue'
-import { createPostgresGoogleAdmissionPermitAuthority } from '../../../services/google-execution-admission/postgres-permit-authority'
+import { createPostgresGoogleAdmissionPermitAuthority } from './postgres-permit-authority'
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
@@ -423,7 +423,7 @@ async function seedDispatchingCleanupPermit(): Promise<void> {
 function authority() {
   return createPostgresGoogleAdmissionPermitAuthority({
     pool,
-    gatewayIdentity: 'google-egress-gateway-1',
+    gatewayIdentity: 'google-egress-runtime-1',
     releaseSha: RELEASE_SHA,
   })
 }
