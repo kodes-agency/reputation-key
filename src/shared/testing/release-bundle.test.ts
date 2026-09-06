@@ -16,7 +16,7 @@ const identity: ReleaseIdentity = {
   releaseSha: 'a'.repeat(40),
   lockfileSha256: 'b'.repeat(64),
   artifactDigest: `sha256:${'c'.repeat(64)}`,
-  migrationVersion: '0016_region_move_workflow',
+  migrationVersion: '0000_baseline',
   capabilityPolicyVersion: 'bqc-0.3',
   sourceContentPolicyVersion: 2,
   routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,

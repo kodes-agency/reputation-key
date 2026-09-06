@@ -20,8 +20,6 @@ const SESSION_ID = 'recovery-proof-session'
 const VERIFICATION_ID = 'recovery-proof-verification'
 const INVITATION_ID = 'recovery-proof-invitation'
 const DIGEST_ID = '10000000-0000-4000-8000-000000000401'
-const MOVE_PROPERTY_ID = '10000000-0000-4000-8000-000000000404'
-const MOVE_ID = '10000000-0000-4000-8000-000000000405'
 const GOOGLE_CONNECTION_ID = '10000000-0000-4000-8000-000000000406'
 const IMPORT_V2_PARENT_ID = '10000000-0000-4000-8000-000000000407'
 const IMPORT_V2_CANCELLED_ITEM_ID = '10000000-0000-4000-8000-000000000408'
@@ -322,54 +320,5 @@ describe('restore recovery fence (REG-04, integration)', () => {
     ).rejects.toBe(ROLLBACK)
 
     expect(proofCompleted).toBe(true)
-  })
-
-  it('refuses to guess through unresolved Data Cell move authority', async () => {
-    await expect(
-      db.transaction(async (tx) => {
-        const transaction = tx as unknown as Database
-        await transaction.execute(sql`
-          INSERT INTO properties (
-            id, organization_id, name, slug, timezone, country_code,
-            processing_region, data_cell_id, processing_region_resolved_at
-          ) VALUES (
-            ${MOVE_PROPERTY_ID}::uuid, 'org-recovery-move-proof', 'Recovery Move',
-            'recovery-move-proof', 'UTC', 'US', 'us', 'us', clock_timestamp()
-          )
-        `)
-        await transaction.execute(sql`
-          INSERT INTO region_moves (
-            id, property_id, organization_id, from_region, to_region, state,
-            requested_by, requested_at, state_changed_at
-          ) VALUES (
-            ${MOVE_ID}::uuid, ${MOVE_PROPERTY_ID}::uuid, 'org-recovery-move-proof',
-            'us', 'europe', 'writes_paused', 'restore-proof@example.com',
-            clock_timestamp(), clock_timestamp()
-          )
-        `)
-
-        await expect(
-          applyRecoveryFence(transaction, {
-            dataCellId: 'us',
-            runId: '10000000-0000-4000-8000-000000000902',
-            generation: Number(
-              (
-                await transaction.execute(sql`
-                  SELECT COALESCE(MAX(generation), 0)::int + 1 AS generation
-                  FROM recovery_runs WHERE data_cell_id = 'us'
-                `)
-              ).rows[0]?.generation,
-            ),
-            sourceReleaseSha: 'e'.repeat(40),
-            sourceManifestSha256: 'f'.repeat(64),
-            restorePointAt: new Date(Date.now() - 60_000),
-            operatorId: 'restore-proof@example.com',
-            correlationId: 'restore-move-proof-correlation',
-          }),
-        ).rejects.toThrow(/Data Cell move exists/)
-
-        throw ROLLBACK
-      }),
-    ).rejects.toBe(ROLLBACK)
   })
 })

@@ -4815,24 +4815,6 @@ CREATE TABLE "property_operation_receipts" (
 	CONSTRAINT "property_operation_receipts_release_valid" CHECK ("property_operation_receipts"."retention_released_at" IS NULL OR "property_operation_receipts"."retention_released_at" >= "property_operation_receipts"."created_at")
 );
 --> statement-breakpoint
-CREATE TABLE "region_moves" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"property_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"from_region" text NOT NULL,
-	"to_region" text NOT NULL,
-	"state" text NOT NULL,
-	"state_revision" integer DEFAULT 1 NOT NULL,
-	"denial_reason" text,
-	"requested_by" varchar(255) NOT NULL,
-	"requested_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"state_changed_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"completed_at" timestamp with time zone,
-	"error" text,
-	CONSTRAINT "region_moves_state_check" CHECK ("region_moves"."state" IN ('requested', 'writes_paused', 'queues_drained', 'data_copied', 'verified', 'target_activated', 'source_erased', 'completed', 'failed', 'rolling_back', 'rolled_back')),
-	CONSTRAINT "region_moves_state_revision_check" CHECK ("region_moves"."state_revision" > 0)
-);
---> statement-breakpoint
 CREATE TABLE "recovery_runs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"data_cell_id" varchar(16) NOT NULL,
@@ -4897,43 +4879,6 @@ CREATE TABLE "review_lifecycle_recovery_executions" (
 	CONSTRAINT "review_lifecycle_recovery_counts_valid" CHECK ("review_lifecycle_recovery_executions"."report_expired" >= 0 AND "review_lifecycle_recovery_executions"."pages" >= 0 AND "review_lifecycle_recovery_executions"."scanned" >= 0 AND "review_lifecycle_recovery_executions"."rows_redacted" >= 0 AND "review_lifecycle_recovery_executions"."legacy_google_replies_reconciled" >= 0),
 	CONSTRAINT "review_lifecycle_recovery_checkpoint_valid" CHECK (("review_lifecycle_recovery_executions"."checkpoint_created_at" IS NULL) = ("review_lifecycle_recovery_executions"."checkpoint_review_id" IS NULL) AND ("review_lifecycle_recovery_executions"."state" = 'applying' OR "review_lifecycle_recovery_executions"."checkpoint_created_at" IS NULL) AND ("review_lifecycle_recovery_executions"."checkpoint_created_at" IS NULL OR "review_lifecycle_recovery_executions"."checkpoint_created_at" <= "review_lifecycle_recovery_executions"."evaluated_at")),
 	CONSTRAINT "review_lifecycle_recovery_completion_valid" CHECK (("review_lifecycle_recovery_executions"."state" = 'completed') = ("review_lifecycle_recovery_executions"."completed_at" IS NOT NULL))
-);
---> statement-breakpoint
-CREATE TABLE "data_cell_topology_cutovers" (
-	"singleton" boolean PRIMARY KEY DEFAULT true NOT NULL,
-	"cutover_key" varchar(64) NOT NULL,
-	"state" varchar(16) DEFAULT 'open' NOT NULL,
-	"phase" varchar(32) DEFAULT 'properties' NOT NULL,
-	"target_cell_id" varchar(16) NOT NULL,
-	"target_policy_version" integer NOT NULL,
-	"target_project_id" varchar(255),
-	"target_environment_id" varchar(255),
-	"property_checkpoint" uuid,
-	"organization_checkpoint" varchar(255),
-	"credential_active_organization_id" varchar(255),
-	"credential_connection_checkpoint" uuid,
-	"properties_processed" bigint DEFAULT 0 NOT NULL,
-	"credential_homes_processed" bigint DEFAULT 0 NOT NULL,
-	"credential_connections_processed" bigint DEFAULT 0 NOT NULL,
-	"error_count" bigint DEFAULT 0 NOT NULL,
-	"last_error_code" varchar(64),
-	"last_report_digest_sha256" varchar(64),
-	"completion_digest_sha256" varchar(64),
-	"operator_id" varchar(255),
-	"change_ticket" varchar(255),
-	"correlation_id" varchar(255),
-	"fenced_at" timestamp with time zone,
-	"completed_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "data_cell_topology_cutovers_cutover_key_unique" UNIQUE("cutover_key"),
-	CONSTRAINT "data_cell_topology_cutovers_singleton_valid" CHECK ("data_cell_topology_cutovers"."singleton" = TRUE AND "data_cell_topology_cutovers"."cutover_key" = 'single-us-beta-v3' AND "data_cell_topology_cutovers"."target_cell_id" = 'us' AND "data_cell_topology_cutovers"."target_policy_version" = 3),
-	CONSTRAINT "data_cell_topology_cutovers_state_valid" CHECK ("data_cell_topology_cutovers"."state" IN ('open', 'fenced', 'completed') AND "data_cell_topology_cutovers"."phase" IN ('properties', 'credential_homes', 'verify', 'completed')),
-	CONSTRAINT "data_cell_topology_cutovers_target_binding_valid" CHECK ((("data_cell_topology_cutovers"."target_project_id" IS NULL AND "data_cell_topology_cutovers"."target_environment_id" IS NULL) OR ("data_cell_topology_cutovers"."target_project_id" IS NOT NULL AND btrim("data_cell_topology_cutovers"."target_project_id") <> '' AND "data_cell_topology_cutovers"."target_environment_id" IS NOT NULL AND btrim("data_cell_topology_cutovers"."target_environment_id") <> '')) AND ("data_cell_topology_cutovers"."state" = 'open' OR "data_cell_topology_cutovers"."target_project_id" IS NOT NULL)),
-	CONSTRAINT "data_cell_topology_cutovers_checkpoint_valid" CHECK (("data_cell_topology_cutovers"."credential_active_organization_id" IS NULL AND "data_cell_topology_cutovers"."credential_connection_checkpoint" IS NULL) OR ("data_cell_topology_cutovers"."credential_active_organization_id" IS NOT NULL AND "data_cell_topology_cutovers"."phase" = 'credential_homes')),
-	CONSTRAINT "data_cell_topology_cutovers_progress_valid" CHECK ("data_cell_topology_cutovers"."properties_processed" >= 0 AND "data_cell_topology_cutovers"."credential_homes_processed" >= 0 AND "data_cell_topology_cutovers"."credential_connections_processed" >= 0 AND "data_cell_topology_cutovers"."error_count" >= 0),
-	CONSTRAINT "data_cell_topology_cutovers_digest_valid" CHECK (("data_cell_topology_cutovers"."last_report_digest_sha256" IS NULL OR "data_cell_topology_cutovers"."last_report_digest_sha256" ~ '^[a-f0-9]{64}$') AND ("data_cell_topology_cutovers"."completion_digest_sha256" IS NULL OR "data_cell_topology_cutovers"."completion_digest_sha256" ~ '^[a-f0-9]{64}$')),
-	CONSTRAINT "data_cell_topology_cutovers_lifecycle_valid" CHECK (("data_cell_topology_cutovers"."state" = 'open' AND "data_cell_topology_cutovers"."fenced_at" IS NULL AND "data_cell_topology_cutovers"."completed_at" IS NULL) OR ("data_cell_topology_cutovers"."state" = 'fenced' AND "data_cell_topology_cutovers"."fenced_at" IS NOT NULL AND "data_cell_topology_cutovers"."completed_at" IS NULL) OR ("data_cell_topology_cutovers"."state" = 'completed' AND "data_cell_topology_cutovers"."fenced_at" IS NOT NULL AND "data_cell_topology_cutovers"."completed_at" IS NOT NULL AND "data_cell_topology_cutovers"."phase" = 'completed' AND "data_cell_topology_cutovers"."completion_digest_sha256" IS NOT NULL))
 );
 --> statement-breakpoint
 CREATE TABLE "setup_checklist_milestones" (
@@ -6156,10 +6101,6 @@ CREATE INDEX "property_operation_receipts_releasable_expiry_idx" ON "property_op
 --> statement-breakpoint
 CREATE INDEX "property_operation_receipts_unreleased_expiry_idx" ON "property_operation_receipts" USING btree ("expires_at","id") WHERE "property_operation_receipts"."retention_released_at" IS NULL;
 --> statement-breakpoint
-CREATE INDEX "region_moves_property_state_idx" ON "region_moves" USING btree ("property_id","state");
---> statement-breakpoint
-CREATE INDEX "region_moves_org_requested_idx" ON "region_moves" USING btree ("organization_id","requested_at" desc);
---> statement-breakpoint
 CREATE INDEX "recovery_runs_completed_idx" ON "recovery_runs" USING btree ("data_cell_id","completed_at" DESC NULLS LAST);
 --> statement-breakpoint
 CREATE INDEX "review_lifecycle_recovery_state_idx" ON "review_lifecycle_recovery_executions" USING btree ("data_cell_id","state");
@@ -6531,8 +6472,6 @@ CREATE UNIQUE INDEX "properties_org_gbp_location_id_unique" ON "properties" USIN
 CREATE UNIQUE INDEX "property_rm_unique_active_manager" ON "property_responsible_managers" USING btree ("organization_id","property_id","user_id") WHERE effective_to IS NULL;
 --> statement-breakpoint
 CREATE UNIQUE INDEX "property_operation_receipts_org_idempotency_unique" ON "property_operation_receipts" USING btree ("organization_id","idempotency_key");
---> statement-breakpoint
-CREATE UNIQUE INDEX "region_moves_one_active_per_property_idx" ON "region_moves" USING btree ("property_id") WHERE "region_moves"."state" NOT IN ('completed', 'rolled_back');
 --> statement-breakpoint
 CREATE UNIQUE INDEX "recovery_runs_cell_generation_unique" ON "recovery_runs" USING btree ("data_cell_id","generation");
 --> statement-breakpoint
@@ -7077,8 +7016,6 @@ ALTER TABLE "properties" ADD CONSTRAINT "properties_google_connection_id_google_
 ALTER TABLE "property_responsible_managers" ADD CONSTRAINT "property_rm_property_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "property_operation_receipts" ADD CONSTRAINT "property_operation_receipts_destination_tenant_fk" FOREIGN KEY ("organization_id","destination_property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "region_moves" ADD CONSTRAINT "region_moves_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "google_reply_observation_heads" ADD CONSTRAINT "google_reply_observation_heads_exact_observation_fk" FOREIGN KEY ("organization_id","property_id","review_id","observation_id","observation_revision","source_epoch","material_review_revision","state","provenance") REFERENCES "public"."google_reply_observations"("organization_id","property_id","review_id","id","observation_revision","source_epoch","material_review_revision","state","provenance") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint

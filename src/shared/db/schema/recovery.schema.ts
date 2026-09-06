@@ -31,7 +31,6 @@ export type RecoveryFenceCounts = Readonly<{
   aiConsumedPermitsMadeAmbiguous: number
   aiOperationsFenced: number
   aiBackfillRunsStalled: number
-  regionMovesBlocking: number
 }>
 
 /**

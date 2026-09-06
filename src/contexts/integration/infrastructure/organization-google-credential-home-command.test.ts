@@ -15,34 +15,8 @@ function txWithRows(rows: readonly (readonly Record<string, unknown>[])[]) {
 }
 
 describe('atomic Organization Google credential-home command authority', () => {
-  it('refuses before taking the Organization lock while topology is fenced', async () => {
-    const { tx, execute } = txWithRows([[{ state: 'fenced' }]])
-    await expect(
-      applyOrganizationGoogleCredentialHome(tx, {
-        organizationId: ORG,
-        targetConnectionId: null,
-        requested: {
-          homeCellId: 'us',
-          cataloguePolicyVersion: 3,
-          authorityGeneration: 1,
-        },
-        reason: 'new_grant',
-        changedBy: ACTOR,
-        changeTicket: null,
-        now: NOW,
-      }),
-    ).rejects.toMatchObject({ code: 'data_cell_topology_cutover_fenced' })
-    expect(execute).toHaveBeenCalledOnce()
-  })
-
   it('establishes authority under lock before a first connection write', async () => {
-    const { tx, execute } = txWithRows([
-      [{ state: 'open' }],
-      [],
-      [],
-      [{ active_count: 0 }],
-      [],
-    ])
+    const { tx, execute } = txWithRows([[], [], [{ active_count: 0 }], []])
     await applyOrganizationGoogleCredentialHome(tx, {
       organizationId: ORG,
       targetConnectionId: null,
@@ -56,12 +30,11 @@ describe('atomic Organization Google credential-home command authority', () => {
       changeTicket: null,
       now: NOW,
     })
-    expect(execute).toHaveBeenCalledTimes(5)
+    expect(execute).toHaveBeenCalledTimes(4)
   })
 
   it('preserves an exact authority without a write', async () => {
     const { tx, execute } = txWithRows([
-      [{ state: 'open' }],
       [],
       [
         {
@@ -88,12 +61,11 @@ describe('atomic Organization Google credential-home command authority', () => {
       changeTicket: null,
       now: NOW,
     })
-    expect(execute).toHaveBeenCalledTimes(4)
+    expect(execute).toHaveBeenCalledTimes(3)
   })
 
   it('denies a new split grant before any authority mutation', async () => {
     const { tx, execute } = txWithRows([
-      [{ state: 'open' }],
       [],
       [
         {
@@ -122,12 +94,11 @@ describe('atomic Organization Google credential-home command authority', () => {
         now: NOW,
       }),
     ).rejects.toMatchObject({ code: 'oauth_failed' })
-    expect(execute).toHaveBeenCalledTimes(4)
+    expect(execute).toHaveBeenCalledTimes(3)
   })
 
   it('replaces append-only authority only for a reconnect with no other active grant', async () => {
     const { tx, execute } = txWithRows([
-      [{ state: 'open' }],
       [],
       [
         {
@@ -156,12 +127,11 @@ describe('atomic Organization Google credential-home command authority', () => {
       changeTicket: 'REG-home-move-1',
       now: NOW,
     })
-    expect(execute).toHaveBeenCalledTimes(6)
+    expect(execute).toHaveBeenCalledTimes(5)
   })
 
   it('rejects a stale pre-exchange authority generation under the transaction lock', async () => {
     const { tx, execute } = txWithRows([
-      [{ state: 'open' }],
       [],
       [
         {
@@ -190,6 +160,6 @@ describe('atomic Organization Google credential-home command authority', () => {
         now: NOW,
       }),
     ).rejects.toMatchObject({ code: 'oauth_failed' })
-    expect(execute).toHaveBeenCalledTimes(4)
+    expect(execute).toHaveBeenCalledTimes(3)
   })
 })

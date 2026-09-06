@@ -27,7 +27,6 @@ const ZERO_COUNTS: RecoveryFenceCounts = Object.freeze({
   aiConsumedPermitsMadeAmbiguous: 0,
   aiOperationsFenced: 0,
   aiBackfillRunsStalled: 0,
-  regionMovesBlocking: 0,
 })
 
 type CountRow = Readonly<Partial<Record<keyof RecoveryFenceCounts, number | string>>>
@@ -108,9 +107,7 @@ export async function inspectRecoveryFence(
       (SELECT count(*)::int FROM ai_operations
         WHERE state IN ('pending', 'executing', 'succeeded_pending_delivery')) AS "aiOperationsFenced",
       (SELECT count(*)::int FROM ai_review_analysis_backfill_runs
-        WHERE state = 'running') AS "aiBackfillRunsStalled",
-      (SELECT count(*)::int FROM region_moves
-        WHERE state NOT IN ('completed', 'rolled_back')) AS "regionMovesBlocking"
+        WHERE state = 'running') AS "aiBackfillRunsStalled"
   `)
   return countsFromRow(result.rows[0] as CountRow | undefined)
 }
@@ -191,16 +188,6 @@ export async function applyRecoveryFence(
       throw new Error('recovery run identity, generation, or source binding conflicts')
     }
 
-    const activeMoves = await tx.execute(sql`
-      SELECT count(*)::int AS count
-      FROM region_moves
-      WHERE state NOT IN ('completed', 'rolled_back')
-    `)
-    if (Number((activeMoves.rows[0] as { count?: number } | undefined)?.count ?? 0) > 0) {
-      throw new Error(
-        'active or unresolved Data Cell move exists; resolve it before recovery fencing',
-      )
-    }
     const activeAiOperations = await tx.execute(sql`
       SELECT count(*)::int AS count
       FROM ai_operations
@@ -670,7 +657,6 @@ export async function applyRecoveryFence(
       aiConsumedPermitsMadeAmbiguous: aiConsumed,
       aiOperationsFenced: activeAiOperationCount,
       aiBackfillRunsStalled: aiBackfills.rows.length,
-      regionMovesBlocking: 0,
     }
     const counts = existingRow
       ? addCounts(countsFromRow(existingRow.counts as unknown as CountRow), deltaCounts)

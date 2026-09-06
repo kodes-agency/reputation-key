@@ -33,7 +33,6 @@ const zeroRecoveryCounts = {
   aiConsumedPermitsMadeAmbiguous: 0,
   aiOperationsFenced: 0,
   aiBackfillRunsStalled: 0,
-  regionMovesBlocking: 0,
 } as const
 
 describe('Review lifecycle recovery execution repository (integration)', () => {

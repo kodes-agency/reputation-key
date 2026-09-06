@@ -55,7 +55,6 @@ const ZERO_RECOVERY = {
   aiConsumedPermitsMadeAmbiguous: 0,
   aiOperationsFenced: 0,
   aiBackfillRunsStalled: 0,
-  regionMovesBlocking: 0,
 } as const
 
 function memoryIO(): OperatorIO & { outLines: string[]; errLines: string[] } {
@@ -330,24 +329,6 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     expect(out).toMatch(/recovery generation 1 completed/)
     // Cutover reminder: RESTORE_MODE must be UNSET.
     expect(out).toMatch(/UNSET RESTORE_MODE/)
-  })
-
-  it('refuses apply before mutation when a Data Cell move is unresolved', async () => {
-    const io = memoryIO()
-    const deps = depsFor({
-      inspectRecoveryFence: vi.fn(async () => ({
-        ...ZERO_RECOVERY,
-        regionMovesBlocking: 1,
-      })),
-    })
-
-    const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
-
-    expect(code).toBe(1)
-    expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
-    expect(deps.sweepRetentionBacklog).not.toHaveBeenCalled()
-    expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
-    expect(io.errLines.join('\n')).toMatch(/Data Cell move/)
   })
 
   it('apply fails when Google import lifecycle backlog remains', async () => {

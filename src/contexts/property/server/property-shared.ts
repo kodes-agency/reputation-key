@@ -18,7 +18,7 @@ export const propertyErrorStatus = (code: PropertyErrorCode): number =>
   match(code)
     .with('forbidden', () => HTTP_STATUS.FORBIDDEN)
     .with('property_not_found', () => HTTP_STATUS.NOT_FOUND)
-    .with('slug_taken', 'region_locked', 'revision_conflict', () => HTTP_STATUS.CONFLICT)
+    .with('slug_taken', 'revision_conflict', () => HTTP_STATUS.CONFLICT)
     .with('property_not_active', 'invalid_transition', () => HTTP_STATUS.CONFLICT)
     .with(
       'property_recovery_expired',
@@ -26,12 +26,7 @@ export const propertyErrorStatus = (code: PropertyErrorCode): number =>
       'google_binding_not_disconnectable',
       () => HTTP_STATUS.CONFLICT,
     )
-    .with(
-      'region_unresolved',
-      'region_move_conflict',
-      'stale_property',
-      () => HTTP_STATUS.CONFLICT,
-    )
+    .with('region_unresolved', 'stale_property', () => HTTP_STATUS.CONFLICT)
     .with(
       'invalid_slug',
       'invalid_name',

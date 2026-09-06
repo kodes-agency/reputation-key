@@ -3113,41 +3113,6 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.guard_data_cell_topology_cutover_work_v1()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  topology_state text;
-  transition_value text;
-BEGIN
-  SELECT state
-  INTO topology_state
-  FROM data_cell_topology_cutovers
-  WHERE singleton = TRUE
-  FOR SHARE;
-
-  IF topology_state IS NULL THEN
-    RAISE EXCEPTION 'Data Cell topology cutover authority is unavailable'
-      USING ERRCODE = '55000';
-  END IF;
-  IF topology_state <> 'fenced' THEN
-    RETURN NEW;
-  END IF;
-
-  transition_value := to_jsonb(NEW) ->> TG_ARGV[0];
-  IF (
-    transition_value IS NOT NULL
-    AND '__not_null__' = ANY (TG_ARGV[1:])
-  ) OR transition_value = ANY (TG_ARGV[1:]) THEN
-    RAISE EXCEPTION 'Data Cell topology cutover admission is fenced'
-      USING ERRCODE = '55000';
-  END IF;
-  RETURN NEW;
-END;
-$function$
-;
---> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.guard_goal_monthly_result_v1()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3899,115 +3864,6 @@ END
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.guard_property_data_cell_assignment_v1()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  topology_state text;
-  cutover_authorized boolean;
-BEGIN
-  SELECT state
-  INTO topology_state
-  FROM data_cell_topology_cutovers
-  WHERE singleton = TRUE
-  FOR SHARE;
-  IF topology_state IS NULL THEN
-    RAISE EXCEPTION 'Data Cell topology cutover authority is unavailable'
-      USING ERRCODE = '55000';
-  END IF;
-  cutover_authorized :=
-    topology_state = 'fenced'
-    AND current_setting('repkey.data_cell_topology_cutover', true) =
-      'single-us-beta-v3';
-
-  IF TG_OP = 'INSERT' THEN
-    IF NEW.data_cell_id IS NULL
-       AND NEW.processing_region IN ('us', 'europe', 'global') THEN
-      NEW.data_cell_id := NEW.processing_region;
-    ELSIF NEW.data_cell_id IS NOT NULL
-       AND NEW.processing_region IS DISTINCT FROM NEW.data_cell_id THEN
-      RAISE EXCEPTION 'property data cell assignment conflicts with processing region'
-        USING ERRCODE = '23514';
-    END IF;
-    IF topology_state IN ('fenced', 'completed')
-       AND NEW.processing_region <> 'unresolved'
-       AND (NEW.data_cell_id IS DISTINCT FROM 'us'
-         OR NEW.processing_region IS DISTINCT FROM 'us'
-         OR NEW.routing_policy_version IS DISTINCT FROM 3) THEN
-      RAISE EXCEPTION 'Data Cell topology cutover admission is fenced'
-        USING ERRCODE = '55000';
-    END IF;
-    RETURN NEW;
-  END IF;
-
-  IF NEW.data_cell_id IS NULL
-     AND OLD.data_cell_id IS NULL
-     AND NEW.processing_region IN ('us', 'europe', 'global') THEN
-    NEW.data_cell_id := NEW.processing_region;
-  END IF;
-  IF NEW.data_cell_id IS NULL AND OLD.data_cell_id IS NULL THEN
-    RETURN NEW;
-  END IF;
-  IF NEW.data_cell_id IS NULL THEN
-    RAISE EXCEPTION 'property data cell assignment cannot be cleared'
-      USING ERRCODE = '23514';
-  END IF;
-  IF NEW.processing_region IS DISTINCT FROM NEW.data_cell_id THEN
-    RAISE EXCEPTION 'property data cell assignment conflicts with processing region'
-      USING ERRCODE = '23514';
-  END IF;
-
-  IF topology_state IN ('fenced', 'completed')
-     AND NEW.processing_region <> 'unresolved'
-     AND (NEW.data_cell_id IS DISTINCT FROM 'us'
-       OR NEW.processing_region IS DISTINCT FROM 'us'
-       OR NEW.routing_policy_version IS DISTINCT FROM 3) THEN
-    RAISE EXCEPTION 'Data Cell topology cutover admission is fenced'
-      USING ERRCODE = '55000';
-  END IF;
-
-  IF cutover_authorized
-     AND NEW.data_cell_id = 'us'
-     AND NEW.processing_region = 'us'
-     AND NEW.routing_policy_version = 3
-     AND (OLD.data_cell_id IN ('us', 'europe', 'global')
-       OR (OLD.data_cell_id IS NULL
-         AND (OLD.processing_region IN ('us', 'europe', 'global')
-           OR (OLD.processing_region = 'unresolved'
-             AND single_us_beta_supported_country_v3(OLD.country_code))))) THEN
-    RETURN NEW;
-  END IF;
-  IF topology_state = 'fenced'
-     AND (NEW.data_cell_id IS DISTINCT FROM OLD.data_cell_id
-       OR NEW.processing_region IS DISTINCT FROM OLD.processing_region
-       OR NEW.routing_policy_version IS DISTINCT FROM OLD.routing_policy_version) THEN
-    RAISE EXCEPTION 'Data Cell topology cutover admission is fenced'
-      USING ERRCODE = '55000';
-  END IF;
-  IF OLD.data_cell_id IS NULL
-     OR NEW.data_cell_id IS NOT DISTINCT FROM OLD.data_cell_id THEN
-    RETURN NEW;
-  END IF;
-  IF EXISTS (
-    SELECT 1 FROM region_moves move
-    WHERE move.property_id = OLD.id
-      AND move.organization_id = OLD.organization_id
-      AND ((move.state = 'verified'
-        AND move.from_region = OLD.data_cell_id
-        AND move.to_region = NEW.data_cell_id)
-      OR (move.state = 'failed'
-        AND move.to_region = OLD.data_cell_id
-        AND move.from_region = NEW.data_cell_id))
-  ) THEN
-    RETURN NEW;
-  END IF;
-  RAISE EXCEPTION 'property data cell assignment is immutable outside an operator move'
-    USING ERRCODE = '23514';
-END;
-$function$
-;
---> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.guard_review_lifecycle_recovery_execution_v1()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -4209,60 +4065,6 @@ BEGIN
   RAISE EXCEPTION USING
     ERRCODE = '55000',
     MESSAGE = 'Review lifecycle recovery state may only advance';
-END;
-$function$
-;
---> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.guard_single_us_credential_home_v1()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  topology_state text;
-  new_record jsonb;
-BEGIN
-  new_record := to_jsonb(NEW);
-  SELECT state
-  INTO topology_state
-  FROM data_cell_topology_cutovers
-  WHERE singleton = TRUE
-  FOR SHARE;
-  IF topology_state IS NULL THEN
-    RAISE EXCEPTION 'Data Cell topology cutover authority is unavailable'
-      USING ERRCODE = '55000';
-  END IF;
-  IF topology_state NOT IN ('fenced', 'completed') THEN
-    RETURN NEW;
-  END IF;
-  IF TG_TABLE_NAME = 'google_organization_credential_homes'
-     AND new_record ->> 'superseded_at' IS NULL
-     AND (new_record ->> 'home_cell_id' IS DISTINCT FROM 'us'
-       OR (new_record ->> 'catalogue_policy_version')::int IS DISTINCT FROM 3
-       OR (new_record ->> 'effective_from')::timestamptz > clock_timestamp()) THEN
-    RAISE EXCEPTION 'Data Cell topology cutover admission is fenced'
-      USING ERRCODE = '55000';
-  END IF;
-  IF TG_TABLE_NAME = 'google_connections'
-     AND new_record ->> 'credential_use_state' = 'active'
-  THEN
-    IF new_record ->> 'credential_home_cell_id' IS DISTINCT FROM 'us'
-       OR (new_record ->> 'credential_home_policy_version')::int IS DISTINCT FROM 3
-       OR new_record ->> 'credential_home_authority_generation' IS NULL
-       OR NOT EXISTS (
-         SELECT 1
-         FROM google_organization_credential_homes authority
-         WHERE authority.organization_id = new_record ->> 'organization_id'
-           AND authority.authority_generation =
-             (new_record ->> 'credential_home_authority_generation')::int
-           AND authority.home_cell_id = 'us'
-           AND authority.catalogue_policy_version = 3
-           AND authority.superseded_at IS NULL
-       ) THEN
-      RAISE EXCEPTION 'Data Cell topology cutover admission is fenced'
-        USING ERRCODE = '55000';
-    END IF;
-  END IF;
-  RETURN NEW;
 END;
 $function$
 ;
@@ -8304,8 +8106,6 @@ CREATE TRIGGER ai_runtime_capability_profiles_immutable BEFORE DELETE OR UPDATE 
 --> statement-breakpoint
 CREATE TRIGGER ai_runtime_capability_profiles_no_truncate BEFORE TRUNCATE ON public.ai_runtime_capability_profiles FOR EACH STATEMENT EXECUTE FUNCTION reject_ai_catalogue_mutation_v1();
 --> statement-breakpoint
-CREATE TRIGGER authorization_execution_permits_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.authorization_execution_permits FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('state', 'admitted', 'started');
---> statement-breakpoint
 CREATE TRIGGER backup_erasure_hold_releases_truncate_guard BEFORE TRUNCATE ON public.backup_erasure_hold_releases FOR EACH STATEMENT EXECUTE FUNCTION reject_backup_erasure_ledger_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER backup_erasure_hold_releases_update_delete_guard BEFORE DELETE OR UPDATE ON public.backup_erasure_hold_releases FOR EACH ROW EXECUTE FUNCTION reject_backup_erasure_ledger_mutation_v1();
@@ -8324,14 +8124,6 @@ CREATE TRIGGER context_organization_lifecycle_receipts_truncate_guard BEFORE TRU
 --> statement-breakpoint
 CREATE TRIGGER context_organization_lifecycle_receipts_update_delete_guard BEFORE DELETE OR UPDATE ON public.context_organization_lifecycle_receipts FOR EACH ROW EXECUTE FUNCTION reject_context_lifecycle_receipt_mutation_v1();
 --> statement-breakpoint
-CREATE TRIGGER credential_revoke_permits_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.credential_revoke_permits FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('state', 'dormant', 'active', 'dispatching', 'cleanup_ambiguous');
---> statement-breakpoint
-CREATE TRIGGER gbp_import_request_item_retries_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.gbp_import_request_items FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('outcome_code', 'temporarily_unavailable');
---> statement-breakpoint
-CREATE TRIGGER gbp_import_request_items_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.gbp_import_request_items FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('status', 'pending', 'processing');
---> statement-breakpoint
-CREATE TRIGGER gbp_import_requests_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.gbp_import_requests FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('status', 'queued', 'processing');
---> statement-breakpoint
 CREATE TRIGGER goal_definition_versions_immutable BEFORE DELETE OR UPDATE ON public.goal_definition_versions FOR EACH ROW EXECUTE FUNCTION reject_goal_immutable_update();
 --> statement-breakpoint
 CREATE TRIGGER goal_evaluations_immutable BEFORE DELETE OR UPDATE ON public.goal_evaluations FOR EACH ROW EXECUTE FUNCTION reject_goal_immutable_update();
@@ -8345,20 +8137,6 @@ CREATE TRIGGER goal_programs_transition_guard BEFORE UPDATE ON public.goal_progr
 CREATE TRIGGER goal_result_revisions_append_only BEFORE DELETE OR UPDATE ON public.goal_result_revisions FOR EACH ROW EXECUTE FUNCTION reject_canonical_goal_append_only_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER goal_result_revisions_insert_guard BEFORE INSERT ON public.goal_result_revisions FOR EACH ROW EXECUTE FUNCTION validate_goal_result_revision_v1();
---> statement-breakpoint
-CREATE TRIGGER google_connections_cleanup_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.google_connections FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('credential_use_state', 'cleanup_only');
---> statement-breakpoint
-CREATE TRIGGER google_connections_home_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.google_connections FOR EACH ROW EXECUTE FUNCTION guard_single_us_credential_home_v1();
---> statement-breakpoint
-CREATE TRIGGER google_credential_broker_replay_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.google_credential_broker_replay FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('state', 'issued');
---> statement-breakpoint
-CREATE TRIGGER google_credential_source_operations_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.google_credential_source_operations FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('state', 'registered', 'provider_started', 'provider_outcome_ambiguous');
---> statement-breakpoint
-CREATE TRIGGER google_organization_credential_homes_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.google_organization_credential_homes FOR EACH ROW EXECUTE FUNCTION guard_single_us_credential_home_v1();
---> statement-breakpoint
-CREATE TRIGGER google_subject_authority_guards_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.google_subject_authority_guards FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('state', 'source_active', 'cleanup_pending', 'provider_reset_required', 'ambiguous');
---> statement-breakpoint
-CREATE TRIGGER google_subject_authority_pointer_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.google_subject_authority_guards FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('active_source_operation_id', '__not_null__');
 --> statement-breakpoint
 CREATE TRIGGER guest_qualified_scans_staff_attribution_immutable BEFORE UPDATE OF attributed_staff_participant_id, attributed_staff_participation_id, attribution_responsibility_id, staff_attribution_effective_from, staff_attribution_effective_to ON public.guest_qualified_scans FOR EACH ROW EXECUTE FUNCTION guard_primary_staff_attribution_immutable_v1();
 --> statement-breakpoint
@@ -8470,10 +8248,6 @@ CREATE TRIGGER privacy_requests_transition_guard BEFORE DELETE OR UPDATE ON publ
 --> statement-breakpoint
 CREATE TRIGGER privacy_requests_truncate_guard BEFORE TRUNCATE ON public.privacy_requests FOR EACH STATEMENT EXECUTE FUNCTION reject_privacy_request_mutation_v1();
 --> statement-breakpoint
-CREATE TRIGGER properties_data_cell_assignment_guard BEFORE UPDATE OF data_cell_id, processing_region ON public.properties FOR EACH ROW EXECUTE FUNCTION guard_property_data_cell_assignment_v1();
---> statement-breakpoint
-CREATE TRIGGER properties_data_cell_assignment_insert BEFORE INSERT ON public.properties FOR EACH ROW EXECUTE FUNCTION guard_property_data_cell_assignment_v1();
---> statement-breakpoint
 CREATE TRIGGER properties_purge_ai_reply_drafts AFTER UPDATE ON public.properties FOR EACH ROW EXECUTE FUNCTION purge_ai_reply_drafts_for_property_change_v1();
 --> statement-breakpoint
 CREATE TRIGGER property_access_grant_perm_ver_iud AFTER INSERT OR DELETE OR UPDATE ON public.property_access_grant FOR EACH ROW EXECUTE FUNCTION tgr_bump_perm_app();
@@ -8485,8 +8259,6 @@ CREATE TRIGGER property_erase_authorities_truncate_guard BEFORE TRUNCATE ON publ
 CREATE TRIGGER property_erase_context_receipts_mutation_guard BEFORE DELETE OR UPDATE ON public.property_erase_context_receipts FOR EACH ROW EXECUTE FUNCTION reject_property_erase_authority_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER property_erase_context_receipts_truncate_guard BEFORE TRUNCATE ON public.property_erase_context_receipts FOR EACH STATEMENT EXECUTE FUNCTION reject_property_erase_authority_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER region_moves_topology_cutover_fence BEFORE INSERT OR UPDATE ON public.region_moves FOR EACH ROW EXECUTE FUNCTION guard_data_cell_topology_cutover_work_v1('state', 'requested', 'writes_paused', 'queues_drained', 'data_copied', 'verified', 'target_activated', 'source_erased', 'failed', 'rolling_back');
 --> statement-breakpoint
 CREATE TRIGGER replies_advance_state_revision_on_delete BEFORE DELETE ON public.replies FOR EACH ROW EXECUTE FUNCTION advance_review_reply_state_revision_on_delete_v1();
 --> statement-breakpoint

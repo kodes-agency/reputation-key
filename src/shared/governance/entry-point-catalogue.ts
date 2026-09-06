@@ -1072,17 +1072,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
           'LIF-01 containment: blocked capability and server/use-case denial preserve stale-client compatibility without a destructive effect',
       },
     ),
-    sf(
-      'requestRegionMoveFn',
-      `${PROPERTY}/region-move.ts`,
-      'policy.admin',
-      'identity.invite',
-      'property',
-      {
-        notes:
-          'BQC-4.5: operator region move request; typed denial result (target_cell_not_approved/already_in_cell/property_missing/region_unresolved) + operator audit; no move row on denial',
-      },
-    ),
   ],
 
   // ── integration ───────────────────────────────────────────────────
@@ -3896,24 +3885,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:quarantine — list/redrive/discard exhausted jobs from the BQC-3.6 failure quarantine; redrive uses createRedriveJob, discard removes without execution; both mutations are report-first and require --apply + --reason (BQC-7.5)',
-    },
-  ),
-  ops(
-    'scripts/ops/reconcile-regions.ts',
-    'scripts/ops/reconcile-regions.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:reconcile-regions — report/apply property region reconciliation (BQC-4.1, ADR 0048); conflict/ambiguous/missing never auto-converted; --apply + --reason audited (BQC-7.5)',
-    },
-  ),
-  ops(
-    'scripts/ops/cutover-single-us-data-cell.ts',
-    'scripts/ops/cutover-single-us-data-cell.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:cutover-single-us-data-cell — audited report/fence/bounded-backfill/verify transition to the single US policy-v3 Data Cell; apply is digest-bound and completion emits target-bound release evidence',
     },
   ),
   ops(

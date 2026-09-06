@@ -54,7 +54,6 @@ import { Client, type Pool } from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { authorizeDeployMigrationRuntime } from '../src/shared/db/deploy-migration-runtime'
-import { bindSingleUsDataCellCutoverTarget } from '../src/shared/db/single-us-data-cell-target-binding'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
 
 // dist-worker/migrate-deploy.js (built) and scripts/migrate-deploy.ts (tsx)
@@ -98,7 +97,9 @@ async function readJournalState(client: Client): Promise<Record<string, unknown>
 }
 
 async function main(): Promise<void> {
-  const runtime = authorizeDeployMigrationRuntime(process.env)
+  // The throw is the fail-closed deploy guard; nothing downstream reads the
+  // resolved runtime any more.
+  authorizeDeployMigrationRuntime(process.env)
 
   loadEnv({ path: [join(ROOT, '.env.local'), join(ROOT, '.env')] })
 
@@ -135,21 +136,6 @@ async function main(): Promise<void> {
       // and every environment starts empty.
       await migrate(migrationDb, { migrationsFolder: MIGRATIONS_FOLDER })
       log('drizzle track applied')
-
-      // Migration 0140 creates an unbound, open singleton. The first signed
-      // Railway migrator atomically binds it to Railway's platform-provided
-      // opaque target IDs; exact reruns (including web predeploy) are no-ops,
-      // while a copied/misdirected database is refused.
-      if (runtime.mode === 'railway') {
-        await bindSingleUsDataCellCutoverTarget(migrationDb, {
-          projectId: runtime.projectId,
-          environmentId: runtime.environmentId,
-        })
-        log('single-US Data Cell target bound', {
-          deploymentProfile: runtime.deploymentProfile,
-          service: runtime.service,
-        })
-      }
 
       // 4. Registered deploy SQL sidecar
       await client.query(readFileSync(SIDECAR_PATH, 'utf8'))

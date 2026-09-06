@@ -21,18 +21,10 @@ import { createProperty } from './application/use-cases/create-property'
 import { updateProperty } from './application/use-cases/update-property'
 import { listProperties } from './application/use-cases/list-properties'
 import { getProperty } from './application/use-cases/get-property'
-import { requestRegionMove } from './application/use-cases/request-region-move'
-import {
-  advanceRegionMove,
-  type RegionMoveQueueBinding,
-} from './application/use-cases/advance-region-move'
-import type { RegionMoveAuditWriter } from './application/ports/region-move-request-command-store.port'
 import { createAtomicPropertyCommandStore } from './infrastructure/property-command-store'
 import { createPropertyGoogleBindingStore } from './infrastructure/property-google-binding-store'
 import { createPropertyLifecycleCommandStore } from './infrastructure/property-lifecycle-command-store'
 import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consumers'
-import { createRegionMoveRepository } from './infrastructure/repositories/region-move.repository'
-import { createRegionMoveRequestCommandStore } from './infrastructure/adapters/region-move-request-command-store.adapter'
 import { createPropertyOrganizationExportContributor } from './infrastructure/adapters/property-organization-export.adapter'
 import { createPropertyOrganizationLifecycleContributor } from './infrastructure/adapters/property-organization-lifecycle.adapter'
 import { createPropertyResponsibleManagerRepository } from './infrastructure/repositories/property-responsible-manager.repository'
@@ -42,27 +34,12 @@ import {
 } from './application/use-cases/property-responsible-managers'
 import { isEligiblePropertyManager } from './application/property-manager-eligibility'
 import { propertyId } from '#/shared/domain/ids'
+import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 import {
   archiveProperty,
   disconnectPropertyGoogleBinding,
   restoreProperty,
 } from './application/use-cases/property-lifecycle'
-import {
-  ACCEPTING_DATA_CELL_IDS,
-  type DataCellId,
-} from '#/shared/domain/data-cell-catalogue'
-
-/**
- * BQC-4.5 / ADR 0057 region-move wiring. approvedCells defaults to the catalogue's
- * accepting set; widening therefore requires a reviewed catalogue state
- * transition. queues binds the cell's property-scoped queues for the
- * stepper's pause/drain/resume (BQC-0.4 primitive + BQC-3.7 depth reader).
- */
-export type RegionMoveContextDeps = Readonly<{
-  writeOperatorAudit: RegionMoveAuditWriter
-  queues: ReadonlyArray<RegionMoveQueueBinding>
-  approvedCells?: ReadonlySet<string>
-}>
 
 type PropertyContextDeps = Readonly<{
   db: Database
@@ -74,7 +51,6 @@ type PropertyContextDeps = Readonly<{
   localCell: DataCellId
   staffPublicApi: StaffPublicApi
   identityManagerFacts: IdentityManagerFactsPublicApi
-  regionMove: RegionMoveContextDeps
   /**
    * BQC-2.7 parity for the manual creation path: grant a newly created
    * property the capability allowlist its organization already holds. Without
@@ -99,10 +75,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     deps.events,
     deps.localCell,
   )
-  // BQC-4.5: the accepted-request authority co-commits the machine row and
-  // operator decision. The transition store then owns guarded authority swaps.
-  const regionMoveStore = createRegionMoveRepository(deps.db)
-  const regionMoveRequestCommandStore = createRegionMoveRequestCommandStore(deps.db)
   const bindingApi = createPropertyGoogleBindingStore(
     deps.db,
     deps.events,
@@ -152,8 +124,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
       commandStore,
       clock: deps.clock,
-      hasActiveRegionMove: async (orgId, pid) =>
-        (await regionMoveStore.findActiveMoveForProperty(orgId, pid)) !== null,
     }),
     listProperties: listProperties({
       propertyRepo: deps.repo,
@@ -162,20 +132,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     getProperty: getProperty({
       propertyRepo: deps.repo,
       staffPublicApi: deps.staffPublicApi,
-    }),
-    requestRegionMove: requestRegionMove({
-      propertyRepo: deps.repo,
-      requestCommandStore: regionMoveRequestCommandStore,
-      approvedCells: deps.regionMove.approvedCells ?? new Set(ACCEPTING_DATA_CELL_IDS),
-      writeOperatorAudit: deps.regionMove.writeOperatorAudit,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    advanceRegionMove: advanceRegionMove({
-      moveStore: regionMoveStore,
-      queues: deps.regionMove.queues,
-      clock: deps.clock,
-      logger: deps.logger,
     }),
     archiveProperty: archiveProperty({
       propertyRepo: deps.repo,

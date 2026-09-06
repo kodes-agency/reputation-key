@@ -7,8 +7,6 @@
 //     persisted policy state (workers await it before starting; side-effect
 //     paths use it for fresh reads, BQC-2.5).
 //   - internal.policyAdmin — BQC-2.7 least-privilege policy administration ops.
-//   - internal.writeOperatorAudit — BQC-4.5 content-free operator audit sink,
-//     injected into the property region-move workflow.
 //   - internal.organizationLifecycleRuntime — named lifecycle/export control,
 //     content-free diagnostics, and contributor-gated maintenance services.
 
@@ -299,21 +297,6 @@ export function createInvitationPropertyAccessProvisioner(
     }
   }
 }
-
-/**
- * Content-free operator audit entry (BQC-4.5 region move, mirrors the
- * BQC-2.7 policy_decision_audit writes). Structural mirror of the property
- * context's RegionMoveAuditWriter input — property consumes this via
- * injection, typed by its own port.
- */
-type OperatorAuditEntry = Readonly<{
-  actorUserId: string
-  organizationId: string
-  propertyId: string
-  action: string
-  decision: 'allow' | 'deny'
-  reason: string
-}>
 
 type ContributorReadiness = Readonly<{
   contributorsConfigured: boolean
@@ -680,24 +663,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     explainCapabilityRefusal,
   })
 
-  // BQC-4.5: content-free operator audit sink for the property region-move
-  // workflow — exposed for injection so the property context never imports
-  // identity infrastructure.
-  const writeOperatorAudit = (entry: OperatorAuditEntry) =>
-    writePolicyDecision(deps.db, {
-      actorType: 'operator',
-      actorId: entry.actorUserId,
-      organizationId: entry.organizationId,
-      propertyId: entry.propertyId,
-      action: entry.action,
-      capability: null,
-      executionKind: 'operator',
-      decision: entry.decision,
-      reason: entry.reason.slice(0, 200),
-      policyVersion: EXECUTION_POLICY_VERSION,
-      correlationId: null,
-    })
-
   const hasActivePropertyGrant = (
     tx: Database,
     input: Readonly<{
@@ -906,8 +871,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     }),
     /** Authority decisions and grant facts other contexts must ask Identity for. */
     authority: Object.freeze({
-      // BQC-4.5: operator audit sink for the property region-move workflow.
-      writeOperatorAudit,
       // Identity owns the grant table; callers supply their authorization
       // transaction so the grant read participates in the same commit check.
       hasActivePropertyGrant,

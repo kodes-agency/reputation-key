@@ -7,8 +7,9 @@ date: 2026-08-27
 
 ## Context
 
-ADR 0054 established the durable Data Cell vocabulary and fail-closed routing
-model, but assumed that the beta would operate three independent Railway Data
+ADR 0054 (now merged into this ADR, see "Retained from ADR 0054" below)
+established the durable Data Cell vocabulary and fail-closed routing model, but
+assumed that the beta would operate three independent Railway Data
 Cells. The product requirement is geographic availability for customers during
 beta, not three simultaneous data-residency deployments. Operating three cells
 would multiply databases, queues, object stores, credentials, recovery drills,
@@ -70,7 +71,8 @@ family that must drain. The same backstops pin resolved Property and current
 credential-home writes to `us`/policy 3 after completion, so an old replica
 cannot revive a dormant assignment.
 
-The audited `ops:cutover-single-us-data-cell` command owns the transition. Its
+The audited `ops:cutover-single-us-data-cell` command owned the transition
+(deleted 2026-09-06 with the completed cutover; see "Retained from ADR 0054"). Its
 default mode is a content-free report with a canonical SHA-256. An apply must
 name that exact reviewed digest, ticket, reason, operator, typed confirmation,
 and a batch size no greater than 500. The first apply exclusively activates the
@@ -90,13 +92,59 @@ for ordinary code to bypass immutable assignment or credential authority rules.
 
 ## Supersession
 
-This ADR supersedes ADR 0054 only where 0054 requires three beta deployments,
-country partitioning across those deployments, or all-cell beta evidence. ADR
-0054 remains authority for stable Data Cell identity, immutable Property
-assignment, fail-closed routing, cell-local resources, credential boundaries,
-and operator-controlled future moves. ADR 0048 remains historical: unlike its
+This ADR absorbs ADR 0054 (deleted 2026-09-06, WP3.2a of the lean
+transformation). 0054's three-deployment beta topology, country partitioning
+across deployments and all-cell beta evidence are superseded by the single US
+cell above. The decisions 0054 retained authority for are carried here verbatim
+so nothing is lost with the file. ADR 0048 remains historical: unlike its
 containment policy, this decision admits every supported country into the one
 beta cell.
+
+## Retained from ADR 0054 — Data Cell catalogue and routing
+
+Context as recorded 2026-08-26: a physical Railway region, a country, and a
+logical residency/routing class are different concepts and must not be encoded
+in one mutable Property field.
+
+1. RepKey has three stable logical Data Cell identifiers: `us`, `europe`, and
+   `global`. Physical placement may change through a signed catalogue revision
+   without changing a Property's logical Data Cell identity.
+2. A signed `DataCellCatalogue` is the allocation and routing authority. Each
+   entry includes its stable ID, residency class, physical placement, policy
+   version, allowed countries/workloads, provider profile, domains, resource
+   references, and lifecycle state: `provisioning | accepting | draining |
+denied`.
+3. A Property can be allocated only to an `accepting` cell. Missing, ambiguous,
+   unsupported, or denied catalogue results fail closed for operator review;
+   they never fall back to another cell.
+4. Property creation/import persists immutable `dataCellId` and the allocation
+   policy version. Country and timezone remain editable business facts and do
+   not move existing data.
+5. Every Property-scoped command, fact, job, provider operation, object key,
+   and protected repository operation carries or freshly resolves the cell and
+   denies a mismatch before data access or external effects.
+6. Every Data Cell has co-located web/worker execution and independent
+   PostgreSQL, Cache Redis, Queue Redis, object storage, backups, and required
+   provider-control services. A stateless replica connected to a remote shared
+   database is not a Data Cell.
+7. Content-bearing records and credentials do not silently cross cells. An
+   Organization has one explicit credential-home cell; refresh credentials are
+   not copied to Property databases.
+8. A minimal routing directory may contain only opaque identifiers, cell ID,
+   and catalogue/policy version. Routing may select a cell but may not inspect
+   or relay tenant content, and no service may open another cell's database.
+
+Withdrawn with the code on 2026-09-06 (WP3.2a): 0054's decision 9, the
+operator-managed exceptional move (snapshot, manifest, write fence, delta
+catch-up, provider switch, routing flip, source erasure). With one beta cell
+there is nothing to move between; the `region_moves` machine, the one-time
+`data_cell_topology_cutovers` transition and their fences were deleted, and
+`docs/BETA.md` §1 records one deployment serving every supported country.
+
+Rejected alternatives recorded by 0054, still standing: one global database
+with multi-region web replicas (no residency or failure isolation); country as
+the routing key on every request (business corrections could silently move
+data); `global` as a fallback (hides an unavailable or ambiguous target).
 
 ## Consequences
 

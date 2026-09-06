@@ -32,19 +32,10 @@ Property management — creation, updates, lifecycle containment, and cross-cont
 - Canonical GBP location suffixes must be unique within an organization.
 - A Google review destination is accepted only from the provider discovery/import path, is restricted to approved HTTPS Google hosts, and is pinned to the Property binding generation that produced it.
 - Disconnect preserves the last destination only as `awaiting_refresh`; credential scrub clears it. Neither state is a public rendering authority.
-- `dataCellId` is assigned from the signed Data Cell catalogue and cannot be
-  cleared or changed outside the audited operator move workflow.
-- A denied region-move request changes no Property state and records only its
-  content-free operator decision. An accepted request co-commits the
-  `region_moves` machine row and matching allow decision; mismatched tenant,
-  Property, or actor evidence is refused before either write.
-- PostgreSQL permits at most one non-terminal region move per Property. Every
-  accepted move begins at state revision 1; every later transition validates
-  the domain edge and compares the expected state and revision before
-  incrementing the revision. Concurrent or stale steppers cannot reopen a
-  terminal move or overwrite a newer transition. Target activation and source
-  restoration co-commit the Property authority swap with that CAS; a losing
-  stepper cannot change the authoritative Data Cell.
+- `dataCellId` is assigned from the Data Cell catalogue at creation. One
+  deployment serves every supported country (`docs/BETA.md` §1); there is no
+  move workflow, and editing a Property's country or timezone changes business
+  facts only.
 - Responsible Managers are explicit and may be multiple. Property creation never infers one from the creator.
 - AccountAdmins are eligible organization-wide. A PropertyManager needs active membership, an active PropertyAccessGrant, and an active linked StaffParticipation for the Property.
 - Losing membership, access, or participation ends only the affected manager's active interval. If none remain, the Property records `responsibilityNeededSince`; no replacement is guessed and offboarding is not blocked.
@@ -74,22 +65,18 @@ property/
   application/
     ports/             property.repository.ts, property-responsible-manager.repository.ts,
                        property-lifecycle-command-store.port.ts,
-                       property-lifecycle-readiness.port.ts,
-                       region-move-store.port.ts,
-                       region-move-request-command-store.port.ts
+                       property-lifecycle-readiness.port.ts
     dto/               create-property.dto.ts, update-property.dto.ts,
                        property-lifecycle.dto.ts
     public-api.ts      exports read-only property queries and binding lifecycle contracts
     use-cases/         create-property.ts, update-property.ts, soft-delete-property.ts,
                        get-property.ts, list-properties.ts,
                        property-lifecycle.ts,
-                       property-responsible-managers.ts, request-region-move.ts,
-                       advance-region-move.ts
+                       property-responsible-managers.ts
   infrastructure/
     property-lifecycle-command-store.ts (atomic state + durable fact)
-    repositories/      property.repository.ts, region-move.repository.ts (Drizzle)
-    adapters/          region-move-request-command-store.adapter.ts (atomic move + audit),
-                       property-organization-export.adapter.ts
+    repositories/      property.repository.ts (Drizzle)
+    adapters/          property-organization-export.adapter.ts
     mappers/           property.mapper.ts
   server/              properties.ts, property-read.ts, property-lifecycle.ts
   build.ts             composition root
@@ -105,11 +92,6 @@ property/
 - **`archiveProperty`** — AccountAdmin-only recoverable lifecycle transition. Preserves identity/history, opens one fixed 30-day recovery window, fences stale work through `sourceEpoch`, and atomically records `property.archived`.
 - **`restoreProperty`** — AccountAdmin-only explicit recovery for an archived Property before its deadline. Requires an accepting assigned Data Cell and an eligible Responsible Manager and returns `ready` or `reconnect_required` for the Google binding.
 - **`disconnectPropertyGoogleBinding`** — AccountAdmin-only, archived-Property binding disconnect. It does not revoke or delete the Organization Google connection.
-- **`requestRegionMove`** — Operator-only typed request. Known but non-accepting
-  cells deny without a machine row; an accepting target starts the durable
-  move machine through the atomic request command store.
-- **`advanceRegionMove`** — Advances the explicit pause, drain, copy, verify,
-  activation, source-erasure, completion, failure, and rollback states.
 
 ## Public API
 
@@ -123,8 +105,6 @@ Exported from `application/public-api.ts`:
 - **`properties.ts` / `property-read.ts`** — Create, update, list, and get server functions plus a typed, fail-closed stale-client boundary for legacy deletion requests.
 - **`property-lifecycle.ts`** — Validated Archive, Restore, and archived-Property Google disconnect boundaries. Each resolves current tenant authority and uses a distinct permission before the application command.
 - **`property-responsible-managers.ts`** — list eligible/assigned managers and replace the explicit selection with revision-based compare-and-swap.
-- **`region-move.ts`** — policy-admin-gated request boundary; activation still
-  depends on the signed catalogue and completed Data Cell readiness evidence.
 
 ## Permissions
 
@@ -151,8 +131,7 @@ classification `tenant_visible`, deterministic for a fixed
 `property_responsible_managers`. An Organization with no Property rows answers
 `no_data`.
 
-Not exported: `property_operation_receipts` (content-free control plane),
-`region_moves` (restricted operational history), the Google
+Not exported: `property_operation_receipts` (content-free control plane), the Google
 account/location/review-destination identifiers (provider-controlled
 identifiers — only the content-free binding and destination _state_ ships),
 and Property policy/capability/access-grant rows, which Identity already
