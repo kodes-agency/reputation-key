@@ -10,9 +10,9 @@ Settled decisions (from the user, 2026-09-05):
 
 - **The app is stopped and the database is disposable.** No data preservation, no dumps, no journal-reset SQL: the schema is regenerated from `pgTable` declarations into a fresh baseline whenever it changes, and every environment starts from an empty database.
 - **Railway is out of scope.** Only repository code/structure changes. Railway-side defects in the audit (backups, public proxies, alert env vars, sandbox services) are not planned; their repo-side residue is deleted where it is code.
-- **Commits go directly to `main`.** No PRs. The local gate below runs before every commit; CI on `main` is a post-hoc signal, fixed forward before the next WP starts.
+- ~~**Commits go directly to `main`.** No PRs.~~ **Superseded 2026-09-06 (see Post-Phase-2 revision item 1).** This held through Phases 0–2 and was recorded as an accepted risk; it was actually a misconfiguration — `main` was protected the whole time and `enforce_admins` was `false`. From Phase 3 on: one branch and one pull request per WP, CI green, `enforce_admins` on, and two adversarial reviewers on every PR. The local gate below still runs before every commit; it is now the fast loop rather than the only gate.
 - **Storybook stays with one runner** (`@storybook/test-runner`, the `pnpm test-storybook` a11y gate); `addon-vitest`, `addon-mcp`, the vitest browser project and the build-only CI job go in Phase 3 (user-overridable, see Assumptions).
-- **Work happens on branch `lean`** in `~/kodes/projects/rep-key` — a linked worktree whose local `main` is checked out in `~/conductor/repos/reputation-key` and 528 commits behind. One commit per WP; `git push origin lean:main` fast-forwards the remote. A tag per phase boundary is the only rollback mechanism, since there is no review.
+- **Work happens on branch `lean`** in `~/kodes/projects/rep-key` — a linked worktree whose local `main` is checked out in `~/conductor/repos/reputation-key`. This applied through Phase 2, when one commit per WP was pushed with `git push origin lean:main` and a tag per phase boundary was the only rollback mechanism. **From Phase 3 on that is replaced by a branch and PR per WP**; the phase tags remain useful markers but are no longer the rollback story, because every change now has a reviewed merge commit behind it.
 - **The 266 local branches are abandoned** except an approved cherry-pick list. Scan at `a9d7ffe1`: 208 carry commits off `main`, only 14 diverged less than 100 commits back, and by patch-id only 4 hold unmerged content — three of them the Google approval-ceremony work WP2.2 deletes. Salvage: `c46e86cad` (performance panel fails closed in silence — product bug in `contexts/integration`, which survives the program) and `a54cb4aa4` (withhold unverified Google locations from the import list); optionally `e7ba9de41` (make `permit-start-deadline-backfill.ts --batch` real). Nothing older is rebasable onto the post-Phase-1 tree.
 - **The pinned node is mandatory** (`.nvmrc` 22.23.2). On a drifted runtime the fence in `scripts/check-test-quality.mjs` retires ~146 governed AI-language tests and the suite still exits 0. Until WP1.2 deletes the fence, every gate runs under `fnm use`.
 - **WP1.2 stays the full purge** (decided after the timing correction above): justified by maintenance cost and by unblocking the WP1.4–1.7 deletions, not by wall time.
@@ -444,7 +444,7 @@ Per-job durations on the last green run (34041648240), offsets from run start:
 
 So moving jobs to a nightly workflow saves **nothing** — they are already free. It would buy a second workflow file, a second set of failure notifications and a delayed-discovery window, in exchange for zero seconds. That is the opposite of this program's goal.
 
-The only lever on CI wall time is `e2e` itself, and `e2e` is the gate this program can least afford to weaken: with direct-to-`main` commits and no PR review it is the sole proof that a real provider call still reaches Google, and in this session alone it caught two regressions that unit and integration both passed (WP2.2's first two attempts). Deferring it to nightly would mean discovering those on `main`, up to 24 hours later, with no reviewer as a second net.
+The only lever on CI wall time is `e2e` itself, and `e2e` is the gate this program can least afford to weaken: it is the sole proof that a real provider call still reaches Google, and in this session alone it caught two regressions that unit and integration both passed (WP2.2's first two attempts). Deferring it to nightly would mean discovering those on `main`, up to 24 hours later. When this was written the argument leaned on there being no PR review as a second net; review now exists, and the conclusion is unchanged — a reviewer reads a diff, and neither reviewer nor any unit test can observe that a live Google call still succeeds. **Resolved in revision item 3 without weakening anything: the gate was made 32% cheaper rather than deferred or removed.**
 
 **WP2.4 is therefore: simplify `ci.yml` in place.** Its real cost is complexity — 983 lines describing a 7-image, 6-sidecar world that no longer exists — not wall time. Remove the steps whose subjects Phase 2 deleted, keep every correctness gate on the push path, and add no second workflow.
 
@@ -562,17 +562,17 @@ A third finding is recorded but not fixed, because it is local-only: on this mac
 
 Entry `54779d0a` → `7f61ab8f`. **328 files changed, +3,181 / −24,457.** Every work package landed on `main` with CI green including `e2e`.
 
-| anchor                 | Phase 2 entry | now                              |
-| ---------------------- | ------------- | -------------------------------- |
-| sidecar deployables    | 6             | **0**                            |
-| `services/` TypeScript | 18,950 lines  | **0** (one shell script remains) |
-| container images       | 7             | 5 (3 promoted, 2 CI-only)        |
-| Dockerfiles            | 7             | 4                                |
-| tsup configs           | 8             | **1**                            |
-| tsconfig projects      | 4             | 2                                |
-| `deploy-ci-images.ts`  | 1,093 lines   | 761                              |
-| tracked files          | 4,226         | 4,130                            |
-| CI wall                | 9m05s         | 9m05s (`e2e`-bound; see WP2.4)   |
+| anchor                 | Phase 2 entry | now                                                                                  |
+| ---------------------- | ------------- | ------------------------------------------------------------------------------------ |
+| sidecar deployables    | 6             | **0**                                                                                |
+| `services/` TypeScript | 18,950 lines  | **0** (one shell script remains)                                                     |
+| container images       | 7             | 5 (3 promoted, 2 CI-only)                                                            |
+| Dockerfiles            | 7             | 4                                                                                    |
+| tsup configs           | 8             | **1**                                                                                |
+| tsconfig projects      | 4             | 2                                                                                    |
+| `deploy-ci-images.ts`  | 1,093 lines   | 761                                                                                  |
+| tracked files          | 4,226         | 4,130                                                                                |
+| CI wall                | 9m05s         | 9m05s at close, **6m11s** after the post-Phase-2 `e2e` shard split (revision item 3) |
 
 Commit trail, each CI-green before the next started: `b8e0530b` (WP2.1) · `603be7de` (parity test) · `fb23aba8`+`08281f22` (WP2.2 step 1) · `8a92f310` (third typecheck project) · `372e5f02` (WP2.3) · `e4a6f3d6` (scan diagnosability) · `e3fc4096`+`1fac96d7` (CVE-2026-86145) · `f451eb19` (WP2.2 step 2 vector) · `b83b95cd` (dead contract fields) · `eb4ada82` (WP2.2 step 2 gate) · `7ce46aa7` (WP2.2 step 3) · `853ac364` (WP2.2 step 4) · `7f61ab8f` (WP2.5 + WP2.4).
 
@@ -600,10 +600,23 @@ Done, and demonstrated rather than assumed:
 
 - `enforce_admins` is now `true`. A direct push to `main` is rejected: `GH006 … 6 of 6 required status checks are expected`.
 - `.github/workflows/review.yml` runs two reviewers on every PR with deliberately different prompts — **control-vs-ceremony** (for each removed check: what gated it before, what gates it now, is the replacement live per-request or a stored snapshot, and did a deleted test lose its subject or its coverage) and **security** (credential exposure, authorization bypass, tenant isolation, spend, injection, fail-open).
-- It **does not** cast a bot approval. GitHub counts App reviews toward `required_approving_review_count`; using that would satisfy the rule with theatre. It posts findings and exits non-zero, and the verdict is read back from what it actually posted rather than from the action's exit code, because the action succeeds whenever it manages to comment.
-- It blocks only on `CONTROL REMOVAL` or `UNEVIDENCED`. Notes are non-blocking, on the same reasoning as Fallow's `gate: new-only`: a reviewer that flags everything is a rubber stamp with extra steps.
+- It **does not** cast a bot approval. GitHub counts App reviews toward `required_approving_review_count`; using that would satisfy the rule with theatre. It posts findings and exits non-zero.
+- It blocks only on `CONTROL_REMOVAL` or `UNEVIDENCED`. Notes are non-blocking, on the same reasoning as Fallow's `gate: new-only`: a reviewer that flags everything is a rubber stamp with extra steps.
+- Both jobs fail when their verdict file is absent, because a skipped action exits SUCCESS and emits nothing. That is not defensive coding: the `security` job **reported green through four runs in which no review ran at all**, and the requirement was found by disbelieving its own green.
 
-**Outstanding, and not mine to do:** add `ANTHROPIC_API_KEY` to repository secrets (or configure Workload Identity Federation, which needs Anthropic org admin and leaves no static key), then add `review` to the required status checks. Until step two it reports but cannot block. It fails loudly on a missing key rather than skipping, because a review gate that silently no-ops is the class of thing this program deletes.
+**Three handoff designs, two of them wrong, recorded so nobody retries them:**
+
+| design                                                                           | why it failed                                                                                                                                                                                                   |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| scrape `REVIEW-VERDICT:` off the last line of a posted comment                   | the action posts a pull-request **review**, not an issue comment, so the scraper found nothing and the gate failed on where it looked rather than what was found. A gate that parses prose fails on formatting. |
+| `--json-schema` + the action's `structured_output`                               | the action reported the output missing while the real failure was upstream of the model — `num_turns: 1`, `total_cost_usd: 0`, empty `modelUsage`, 1.9 s                                                        |
+| a file the model writes (`verdict.json` / `security.json`) with the `Write` tool | shipped                                                                                                                                                                                                         |
+
+The second failure cost two cycles to guessing (folded YAML, then the flag) before a dump step printed `execution_file`. It then named the cause on the first run: `401 OAuth access token is invalid`. **Instrument before the second guess, not after the third** — the same lesson as the container scan that could not say what it found.
+
+**`review.yml` cannot review its own changes.** The action refuses to run when the workflow file differs from the copy on the default branch — a real control, since otherwise a PR could rewrite its own reviewer to print secrets. Consequences: the file must be merged before it can run at all, and any future PR that edits it skips both reviewers and needs a human.
+
+**Outstanding, and not mine to do:** `CLAUDE_CODE_OAUTH_TOKEN` is set but **rejected** — the API returns `401 OAuth access token is invalid`, so the reviewer has never produced a verdict. Replace it (re-run `/install-github-app` or `claude setup-token`) or set `ANTHROPIC_API_KEY` instead; the workflow accepts either, and Workload Identity Federation remains the best option for anyone with Anthropic org admin, since it leaves no static key. Then add `control-vs-ceremony` and `security` to the required status checks — not done yet, because a required check that cannot pass would block every merge.
 
 Three times during Phase 2 a subagent caught something reported as finished. That is the signal being institutionalised here, rather than treated as luck.
 
@@ -611,9 +624,26 @@ Three times during Phase 2 a subagent caught something reported as finished. Tha
 
 The `libpcre2-8-0` pin closed the actual High and is labelled a stopgap. The class fix is moving off bookworm, and the cost is not the `FROM` line: it is that `node 22.23.2 / icu 78.2 / unicode 17.0` may move, and that triple is a **contract**. Moving it means re-deriving the AI provider deployment profile, regenerating the persisted profile digests through `db:baseline`, and re-running the language corpus that ICU and Unicode versions feed. A day of careful work.
 
-### 3. Make `e2e` cheaper rather than deferring it
+### 3. Make `e2e` cheaper rather than deferring it — DONE, and the premise was wrong
 
-WP2.4 established that `e2e` is 9m05s of a 9m05s run. The answer is not nightly: profile which specs dominate, shard the Compose stack, and cut fixture setup that outweighs its assertions. That yields a fast gate _and_ keeps the only proof a real provider call reaches Google.
+Landed on `perf/shard-e2e` (PR 451). **CI wall 9m05s → 6m11s (−32%); the `e2e` job 9m26s → 6m05s.** All four shards green in CI on the first run.
+
+**The audit's premise did not survive measurement.** It expected fixture setup to outweigh assertions. From the uploaded Playwright JSON, `critical` is **278 s of actual test execution inside a 283 s wall** — there is no setup fat to cut, and the only lever was concurrency.
+
+**More workers was the wrong lever, and the repository already said so.** Two comments, both load-bearing:
+
+- `playwright.config.ts` pins the `critical` project to `workers: 1` because its journeys toggle a shared kill switch and restore it, so a second browser against the same stack observes the bounded window.
+- `scripts/local-stack/stack.ts` records that most critical specs are **not re-runnable against a stack they have already mutated**.
+
+Sharding is safe exactly where raising `workers` is not, because each shard boots its own Compose stack and seeds from empty. The roadmap bullet's own phrasing — parallelise the stack across shards — was right; the shortcut was not.
+
+**Shards were not file-atomic by default.** With the inherited `fullyParallel: true`, `--shard` distributes per **test**: at `N=4` Playwright put `auth-and-shell.spec.ts` in shards 1 _and_ 2 and `guest-portal.spec.ts` in 2 _and_ 3, running the back half of a file without its front half. `N=3` happened to align to file boundaries — arithmetic luck that one added test would have broken silently, surfacing as a CI flake rather than an error. `fullyParallel: false` on that project makes a group one file; with `workers: 1` it changes nothing about execution, only where `--shard` may cut.
+
+Placement is measured, not guessed. Critical seconds per shard: **1 = 66.6, 2 = 84.9, 3 = 14.4, 4 = 111.8**; `full` (34 s) and the compatibility gate (49 s) both ride shard 3 for 97.4 s, staying under shard 4 so neither becomes the long pole.
+
+**This lever is now spent, which the roadmap did not anticipate.** After the split, `docker image group (worker-tools)` (285 s) and `test-integration` (284 s) sit within 80 s of `e2e`, so further `e2e` work buys **at most 80 s of wall** until those two shrink. And what remains in the long pole is not tests: stack boot 151 s + Playwright browser install 52 s = **56% of shard 4's 365 s**. Any future attempt belongs there, or in the other two jobs — not in the specs.
+
+Predicted ~5m, measured 6m11s. The gap was browser install at 52 s against an assumed ~27 s.
 
 ### 4. `releaseSha` on the permit — decide on evidence, not caution
 
@@ -623,7 +653,15 @@ Kept during step 4 on the reasoning that "no current reader is a weaker argument
 
 The containment argument for it was wrong and was correctly dropped. But the async design is better product behaviour for a ten-second provider call independent of security: a queued draft survives a page reload and a flaky provider. It belongs to the product owner as a UX decision, with a design put in front of them — not smuggled in as a security prerequisite.
 
-**Sequencing.** Review first, because everything after it should land under review. Then `e2e` speed, because item 2 needs many full CI cycles to verify and a nine-minute gate makes that painful. Then the base migration. `releaseSha` is read-only and runs in parallel. Reply drafting waits on a product decision.
+**Sequencing, revised 2026-09-06 after items 1 and 3 landed.** Item 3 is done, and item 1's machinery is done but dead until its credential is replaced — so "everything after review lands under review" is not currently satisfiable. The front is therefore: item 4 (read-only, parallel-safe) and the dependency backlog below (mechanical) run now; item 2 next, since it is the one needing many full CI cycles and those are now 32% cheaper, which was the point of doing item 3 first; item 5 waits on a product decision. Phase 3 needs its execution spec written before any of it starts.
+
+### 6. Work found during items 1 and 3 that this plan never recorded
+
+- **The dependency backlog was blocked by a broken gate, not only by the version pins WP0.1 removed.** `.fallowrc.json` carried an `ignoreExports` entry that had lost its `file` key while keeping `exports`, orphaned by a Phase 1/2 deletion. Fallow refused the whole config with `missing field 'file'`, so the required `audit` check was red on `main` for **eight consecutive commits** (`b83b95cd` → `43692bd0`) and every pull request inherited it. Repaired on evidence: two entries re-attached to the file that still exports the symbol, five dropped because no surviving export exists, 63 → 58. `audit` is green again.
+  **Consequence, unowned:** 12 Dependabot pull requests are open, the oldest #174 (TypeScript 6.0.3) since 2026-07-15. #449 fails on `audit` alone and should clear on a rebase; #446 also has real `check` and `test-unit (4/4)` failures. All are stale-based and `strict: true` requires a rebase regardless.
+- **A real cross-platform bug, found and not yet filed.** The compatibility gate fails 2/21 locally on `compat-webkit` and `compat-mobile-ios` — React error #418, a hydration text mismatch on the authenticated manager shell. It fails **identically with the sharding change reverted**, so it is pre-existing, and Linux CI cannot see it because macOS and Linux WebKit differ. Needs its own investigation; not an e2e-performance item.
+- **Alerting has nowhere to send.** The worker-death alert fires correctly but its notification credentials are unset on the hosting side, so nobody is told. Out of repo scope, in scope for the beta being operable.
+- **My own worst mistake this session, recorded because the program's rule is that unverified claims are the enemy.** `git checkout stash@{0} -- .` was run believing `stash@{0}` was a stash created minutes earlier; it had already been popped and dropped, so `stash@{0}` was an unrelated stash from another branch and it overwrote the worktree with thousands of files from an old tree. Nothing was committed or pushed, `main` was untouched, the stash list survived, and both edits were re-applied from the record. A reference that names a position rather than a thing is not a name.
 
 ## Assumptions & contingencies
 
@@ -633,7 +671,7 @@ The containment argument for it was wrong and was correctly dropped. But the asy
 - **`drizzle-kit generate --custom`:** if the installed drizzle-kit rejects `--custom`, create `drizzle/0001_db_constructs.sql` by hand and append `{ idx: 1, version: '7', when: <ms>, tag: '0001_db_constructs', breakpoints: true }` to `drizzle/meta/_journal.json` in `scripts/db-baseline.ts`.
 - **Worker smoke in CI (WP0.3):** if the docker smoke harness cannot override the container command, drop the `worker` matrix entry; the web image is the worker image.
 - **`in_memory` retention:** if a later model snapshot accepts `prompt_cache_retention: 'in_memory'`, WP3.3 sets it and keeps the "at most one hour" notice text instead of re-consenting.
-- **Branch protection:** if pushes to `main` succeed without WP0.5, skip it.
+- ~~**Branch protection:** if pushes to `main` succeed without WP0.5, skip it.~~ **Struck 2026-09-06 — this reasoning was the bug.** Pushes did succeed, and the conclusion drawn was that protection was absent. It was present and correctly configured; `enforce_admins` was `false`. The contingency inferred a cause from an outcome without asking why, which is the same shape as a test that passes vacuously. Any future contingency of the form "if X appears to work, skip the control" must state what it would check to distinguish "absent" from "not applied to me".
 
 **Resolved 2026-09-06 — the container scan gate is green again (`1fac96d7`, run 34033591216, all jobs).** It had been red since a vulnerability-database rollover, and the diagnosis was blocked because the grype step wrote SARIF to a file nothing uploaded and nothing read, so a failure said only "discovered vulnerabilities at or above the severity threshold". Making the gate print its table (`e4a6f3d6`) named the finding on the first run: `libpcre2-8-0` was the **only High and it had a fix** — `10.42-1+deb12u1`. Everything else was Medium, Negligible, or `won't fix`.
 
