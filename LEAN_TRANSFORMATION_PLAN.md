@@ -410,7 +410,13 @@ The keyring cull resolves exactly: 13 production `createVersionedHmacKeyring(` k
 
 ### WP2.5 then WP2.4 — build surface, then CI
 
-Both trail the deletions above because they clean up what those orphan. WP2.5: remaining sidecar Dockerfiles and tsup configs (collapse to one `defineConfig([...])`), `check:container-images`, `verify-*-image.mjs`, `smoke-provider-redis-image.sh`, `check:google-runtime-bundle`, `tsconfig` 4 → 2 and `check:typescript-project-coverage`, `deploy-ci-images.ts` to ~400 lines. WP2.4: `ci.yml` to the minimal path plus a nightly workflow, per the bullet. Doing 2.5 first means 2.4 rewrites `ci.yml` once, against a build surface that has already stopped moving.
+Both trail the deletions above because they clean up what those orphan. WP2.5: remaining sidecar Dockerfiles and tsup configs (collapse to one `defineConfig([...])`), `check:container-images`, `verify-*-image.mjs`, `smoke-provider-redis-image.sh`, `check:google-runtime-bundle`, `deploy-ci-images.ts` to ~400 lines. WP2.4: `ci.yml` to the minimal path plus a nightly workflow, per the bullet. Doing 2.5 first means 2.4 rewrites `ci.yml` once, against a build surface that has already stopped moving.
+
+**The tsconfig item landed early, 2026-09-06, because it needed nothing from the sidecars.** `tsconfig.railway.json` is deleted: its `.railway/**/*.ts` include died with WP1.5, leaving `services/**` and `src/**` — which `tsconfig.json` already owns. `pnpm typecheck` drops from three passes to two, 55 s to 33 s.
+
+I checked the one thing that would have made it load-bearing rather than assuming the audit was right. Its `types: ['node', 'vitest/globals']` looked like a guard that server-side TS compiles without DOM types, which `tsconfig.json` cannot express. It is not: `types` controls automatic `@types` inclusion, not `lib`, so `lib.dom.d.ts` still arrives through the inherited `lib`. Proved by adding `export const __domProbe: HTMLDivElement | null = null` to `src/shared/config/release-identity.ts` — **both** projects reported zero errors, then reverted. The third pass genuinely checked nothing the first did.
+
+**Deviation: `check:typescript-project-coverage` stays.** The bullet deletes it once there are two projects, on the reasoning that coverage is then obvious. Obvious is not enforced. It proves every one of 3,701 TypeScript modules is owned by an invoked project, and an unowned module is one that is never typechecked at all — the failure is silent and arrives as a runtime error. It cost 148 lines and under a second. Deleting a cheap proof because the thing it proves currently looks self-evident is how `e2e/**` went unchecked before it was added.
 
 ### Settled decisions the spec above executes (original roadmap bullets)
 

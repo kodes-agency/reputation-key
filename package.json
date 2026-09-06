@@ -20,7 +20,7 @@
     "build:ai-egress-gateway": "tsup --config tsup.ai-egress-gateway.config.ts",
     "preview": "vite preview",
     "clean": "rm -rf .output dist dist-worker dist-local-tools dist-provider-services storybook-static coverage test-results",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json --noEmit && tsc -p tsconfig.railway.json --noEmit && pnpm check:typescript-project-coverage",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json --noEmit && pnpm check:typescript-project-coverage",
     "local:doctor": "node scripts/local-doctor.mjs",
     "lint": "eslint . && node scripts/check-architecture-boundary-controls.mjs && node scripts/check-filenames.mjs && node scripts/check-component-boundaries.mjs && pnpm check:zod-conformance && pnpm check:product-state-consistency",
     "lint:ci": "pnpm lint && node scripts/check-test-quality.mjs && node scripts/check-google-provider-identifiers.mjs && pnpm check:runtime-environment-contract",

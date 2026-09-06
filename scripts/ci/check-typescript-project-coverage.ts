@@ -6,7 +6,6 @@ import ts from 'typescript'
 export const INVOKED_TYPESCRIPT_PROJECTS = [
   'tsconfig.json',
   'tsconfig.scripts.json',
-  'tsconfig.railway.json',
 ] as const
 
 const NON_SOURCE_DIRECTORIES = new Set([
