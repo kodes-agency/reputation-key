@@ -4488,15 +4488,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       'auth:migrate — applies auth-table changes through the exact repository-pinned Better Auth runtime; never network-fetches a separate CLI',
   }),
   ops(
-    'scripts/google-import-final-schema-probe.ts',
-    'scripts/google-import-final-schema-probe.ts',
-    'tenant_cross',
-    {
-      notes:
-        'read-only release gate proving the final Google import contract schema after the compatibility migration drill',
-    },
-  ),
-  ops(
     'scripts/ops/google-content-approval.ts',
     'scripts/ops/google-content-approval.ts',
     'tenant_cross',

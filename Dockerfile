@@ -97,7 +97,6 @@ RUN NODE_ENV=production \
     OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
     pnpm build && pnpm build:worker \
  && find .output dist-worker -type f -name '*.map' -delete \
- && node scripts/check-google-import-artifacts.mjs final .output dist-worker \
  && node scripts/check-production-artifacts.mjs .output dist-worker
 
 # ── Production-only dependencies (runtime: worker externals + migrate trio) ─

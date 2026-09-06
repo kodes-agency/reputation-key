@@ -10,9 +10,6 @@ export default defineConfig({
     // image runs it with plain `node dist-worker/migrate-deploy.js` — no tsx
     // or TypeScript toolchain in the runtime container.
     'migrate-deploy': 'scripts/migrate-deploy.ts',
-    // Immutable-release proof: exercises only final schema reads on expand
-    // and contract schemas from the exact web/worker image bits.
-    'google-import-final-schema-probe': 'scripts/google-import-final-schema-probe.ts',
     // Error monitoring must initialize before the worker imports queue/runtime
     // modules. Docker and start:worker load this through Node's supported ESM
     // --import preload path. The web counterpart has its own config so

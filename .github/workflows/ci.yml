@@ -396,7 +396,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - group: web-compatibility
+          - group: web
             images: >-
               [{"name":"web","dockerfile":"Dockerfile","tag":"repkey-web:ci","publish":true},{"name":"google-provider-redis","dockerfile":"Dockerfile.google-provider-redis","tag":"repkey-google-provider-redis:ci","publish":true}]
           - group: worker-tools
