@@ -157,28 +157,6 @@ beforeAll(async () => {
       NOW,
     ],
   )
-
-  // Retained pre-beta rows deliberately disagree with the canonical result.
-  // The beta attention read must ignore them instead of creating dual truth.
-  for (const legacyGoalId of [randomUUID(), randomUUID()]) {
-    await pool.query(
-      `INSERT INTO goals
-         (id, organization_id, property_id, name, created_by, goal_type,
-          aggregation_function, metric_key, target_value, status,
-          period_start, period_end)
-       VALUES ($1, $2, $3, 'Retained legacy Goal', 'manager-1', 'one_shot',
-               'sum', 'portal.scan', 100, 'active',
-               '2026-08-01T00:00:00Z', '2026-09-01T00:00:00Z')`,
-      [legacyGoalId, ORGANIZATION, PROPERTY],
-    )
-    await pool.query(
-      `INSERT INTO goal_progress
-         (goal_id, organization_id, current_value, last_computed_at,
-          computed_source)
-       VALUES ($1, $2, 1, $3, 'event')`,
-      [legacyGoalId, ORGANIZATION, NOW],
-    )
-  }
 })
 
 afterAll(async () => {

@@ -764,14 +764,6 @@ const guestReviewLinkClickedSchema = z.object({
 
 // ── Goal event schemas ──────────────────────────────────────────────
 
-const goalCompletedSchema = z.object({
-  goalId: z.string(),
-  organizationId: z.string(),
-  propertyId: z.string(),
-  completedValue: z.number(),
-  targetValue: z.number(),
-})
-
 const goalMonthlyResultBaseSchema = z
   .object({
     // Tenant scope also lives in the durable envelope. These two fields are
@@ -1587,11 +1579,6 @@ export function registerAllEventSchemas(): void {
   })
 
   // Goal events
-  registerEventSchema({
-    type: 'goal.completed',
-    version: EVENT_VERSION,
-    schema: goalCompletedSchema,
-  })
   registerEventSchema({
     type: 'goal.monthly_result.closed',
     version: EVENT_VERSION,

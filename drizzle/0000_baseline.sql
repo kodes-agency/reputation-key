@@ -1589,91 +1589,6 @@ CREATE TABLE "permission_version" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "goal_definition_versions" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"definition_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"version" integer NOT NULL,
-	"metric_definition_id" uuid NOT NULL,
-	"metric_definition_version_id" uuid NOT NULL,
-	"metric_key" varchar(100) NOT NULL,
-	"metric_value_kind" varchar(20) NOT NULL,
-	"metric_minimum_sample" integer NOT NULL,
-	"metric_allowed_scopes" jsonb NOT NULL,
-	"metric_permitted_consumers" jsonb NOT NULL,
-	"metric_employment_decision_eligible" boolean DEFAULT false NOT NULL,
-	"measure_kind" varchar(20) NOT NULL,
-	"target_value" numeric(30, 10) NOT NULL,
-	"source_policy" varchar(80) NOT NULL,
-	"property_timezone" varchar(64) NOT NULL,
-	"recurrence_rule" jsonb NOT NULL,
-	"effective_from" timestamp with time zone NOT NULL,
-	"effective_to" timestamp with time zone,
-	"change_reason" text NOT NULL,
-	"created_by" varchar(255) NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_definition_versions_definition_version_key" UNIQUE("definition_id","version"),
-	CONSTRAINT "goal_definition_versions_org_property_id_key" UNIQUE("organization_id","property_id","id"),
-	CONSTRAINT "goal_definition_versions_org_property_definition_id_key" UNIQUE("organization_id","property_id","definition_id","id"),
-	CONSTRAINT "goal_definition_versions_kind_check" CHECK ("goal_definition_versions"."measure_kind" IN ('progress', 'level', 'ratio')),
-	CONSTRAINT "goal_definition_versions_target_check" CHECK ("goal_definition_versions"."target_value" > 0),
-	CONSTRAINT "goal_definition_versions_metric_sample_check" CHECK ("goal_definition_versions"."metric_minimum_sample" >= 1),
-	CONSTRAINT "goal_definition_versions_employment_check" CHECK ("goal_definition_versions"."metric_employment_decision_eligible" = false),
-	CONSTRAINT "goal_definition_versions_effective_check" CHECK ("goal_definition_versions"."effective_to" IS NULL OR "goal_definition_versions"."effective_to" > "goal_definition_versions"."effective_from")
-);
---> statement-breakpoint
-CREATE TABLE "goal_definitions" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"scope_kind" varchar(30) NOT NULL,
-	"portal_group_id" uuid,
-	"name" varchar(200) NOT NULL,
-	"description" text,
-	"status" varchar(20) DEFAULT 'active' NOT NULL,
-	"status_reason" text,
-	"current_version" integer DEFAULT 1 NOT NULL,
-	"created_by" varchar(255) NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_definitions_org_property_id_key" UNIQUE("organization_id","property_id","id"),
-	CONSTRAINT "goal_definitions_scope_check" CHECK (("goal_definitions"."scope_kind" = 'property' AND "goal_definitions"."portal_group_id" IS NULL) OR ("goal_definitions"."scope_kind" = 'portal_group' AND "goal_definitions"."portal_group_id" IS NOT NULL)),
-	CONSTRAINT "goal_definitions_status_check" CHECK ("goal_definitions"."status" IN ('active', 'paused', 'cancelled')),
-	CONSTRAINT "goal_definitions_version_check" CHECK ("goal_definitions"."current_version" >= 1),
-	CONSTRAINT "goal_definitions_name_check" CHECK (length(btrim("goal_definitions"."name")) > 0)
-);
---> statement-breakpoint
-CREATE TABLE "goal_evaluations" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"period_id" uuid NOT NULL,
-	"definition_id" uuid NOT NULL,
-	"definition_version_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"metric_reading_id" uuid,
-	"source_event_id" varchar(255),
-	"idempotency_key" varchar(255) NOT NULL,
-	"state" varchar(30) NOT NULL,
-	"reason" text,
-	"value" numeric(30, 10),
-	"numerator" numeric(30, 10),
-	"denominator" numeric(30, 10),
-	"sample_count" integer,
-	"achieved" boolean DEFAULT false NOT NULL,
-	"evaluation_watermark" timestamp with time zone NOT NULL,
-	"supersedes_evaluation_id" uuid,
-	"correction_reading_id" uuid,
-	"created_by" varchar(255) NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_evaluations_idempotency_key" UNIQUE("organization_id","property_id","idempotency_key"),
-	CONSTRAINT "goal_evaluations_org_property_period_id_key" UNIQUE("organization_id","property_id","period_id","id"),
-	CONSTRAINT "goal_evaluations_state_check" CHECK ("goal_evaluations"."state" IN ('eligible', 'insufficient_data', 'unavailable', 'quarantined')),
-	CONSTRAINT "goal_evaluations_ratio_check" CHECK (("goal_evaluations"."numerator" IS NULL AND "goal_evaluations"."denominator" IS NULL) OR ("goal_evaluations"."numerator" IS NOT NULL AND "goal_evaluations"."denominator" IS NOT NULL AND "goal_evaluations"."denominator" > 0)),
-	CONSTRAINT "goal_evaluations_sample_check" CHECK ("goal_evaluations"."sample_count" IS NULL OR "goal_evaluations"."sample_count" >= 0),
-	CONSTRAINT "goal_evaluations_value_state_check" CHECK (("goal_evaluations"."state" = 'eligible' AND "goal_evaluations"."value" IS NOT NULL) OR ("goal_evaluations"."state" <> 'eligible' AND "goal_evaluations"."value" IS NULL AND "goal_evaluations"."achieved" = false))
-);
---> statement-breakpoint
 CREATE TABLE "goal_monthly_results" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"assignment_id" uuid NOT NULL,
@@ -1710,28 +1625,6 @@ CREATE TABLE "goal_monthly_results" (
         OR "goal_monthly_results"."evaluation_state" NOT IN ('eligible', 'insufficient_data')
         OR "goal_monthly_results"."source_complete_through" = "goal_monthly_results"."period_end"
       ))
-);
---> statement-breakpoint
-CREATE TABLE "goal_periods" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"definition_id" uuid NOT NULL,
-	"definition_version_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"period_start" timestamp with time zone NOT NULL,
-	"period_end" timestamp with time zone NOT NULL,
-	"property_timezone" varchar(64) NOT NULL,
-	"status" varchar(24) DEFAULT 'open' NOT NULL,
-	"status_reason" text,
-	"evaluation_watermark" timestamp with time zone,
-	"closed_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_periods_identity_key" UNIQUE("definition_id","definition_version_id","period_start","period_end"),
-	CONSTRAINT "goal_periods_org_property_id_key" UNIQUE("organization_id","property_id","id"),
-	CONSTRAINT "goal_periods_org_property_definition_version_id_key" UNIQUE("organization_id","property_id","definition_id","definition_version_id","id"),
-	CONSTRAINT "goal_periods_bounds_check" CHECK ("goal_periods"."period_end" > "goal_periods"."period_start"),
-	CONSTRAINT "goal_periods_status_check" CHECK ("goal_periods"."status" IN ('scheduled', 'open', 'closed', 'cancelled'))
 );
 --> statement-breakpoint
 CREATE TABLE "goal_program_versions" (
@@ -1786,27 +1679,6 @@ CREATE TABLE "goal_programs" (
 	CONSTRAINT "goal_programs_status_check" CHECK ("goal_programs"."status" IN ('scheduled', 'active', 'paused', 'ended'))
 );
 --> statement-breakpoint
-CREATE TABLE "goal_progress" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"goal_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"current_value" real DEFAULT 0 NOT NULL,
-	"current_sum" real,
-	"current_count" integer,
-	"last_computed_at" timestamp with time zone NOT NULL,
-	"computed_source" varchar(20) NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "goal_refresh_receipts" (
-	"source_event_id" varchar(255) NOT NULL,
-	"period_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"evaluation_id" uuid NOT NULL,
-	"processed_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_refresh_receipts_source_event_id_period_id_pk" PRIMARY KEY("source_event_id","period_id")
-);
---> statement-breakpoint
 CREATE TABLE "goal_result_revisions" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"monthly_result_id" uuid NOT NULL,
@@ -1857,42 +1729,6 @@ CREATE TABLE "goal_subject_assignments" (
       )),
 	CONSTRAINT "goal_subject_assignments_metric_check" CHECK ("goal_subject_assignments"."metric_key" IN ('qualified_scans', 'portal_rating_count', 'portal_rating_average')),
 	CONSTRAINT "goal_subject_assignments_effective_check" CHECK ("goal_subject_assignments"."effective_to" IS NULL OR "goal_subject_assignments"."effective_to" >= "goal_subject_assignments"."effective_from")
-);
---> statement-breakpoint
-CREATE TABLE "goal_timezone_event_receipts" (
-	"source_event_id" varchar(255) NOT NULL,
-	"definition_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"property_version" integer NOT NULL,
-	"new_definition_version_id" uuid NOT NULL,
-	"new_period_id" uuid NOT NULL,
-	"processed_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_timezone_event_receipts_source_event_id_definition_id_pk" PRIMARY KEY("source_event_id","definition_id")
-);
---> statement-breakpoint
-CREATE TABLE "goals" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"portal_id" uuid,
-	"portal_group_id" uuid,
-	"name" varchar(200) NOT NULL,
-	"description" text,
-	"created_by" varchar(255) NOT NULL,
-	"goal_type" varchar(20) NOT NULL,
-	"aggregation_function" varchar(20) NOT NULL,
-	"metric_key" varchar(100) NOT NULL,
-	"target_value" real NOT NULL,
-	"status" varchar(20) DEFAULT 'active' NOT NULL,
-	"period_start" timestamp with time zone,
-	"period_end" timestamp with time zone,
-	"recurrence_rule" jsonb,
-	"rolling_window_days" integer,
-	"parent_goal_id" uuid,
-	"completed_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "google_connections" (
@@ -5691,39 +5527,17 @@ CREATE INDEX "beta_feedback_triage_attachment_expiry_idx" ON "beta_feedback_tria
 --> statement-breakpoint
 CREATE INDEX "beta_feedback_triage_transition_reference_idx" ON "beta_feedback_triage_transitions" USING btree ("feedback_reference","occurred_at" desc);
 --> statement-breakpoint
-CREATE INDEX "goal_definition_versions_effective_idx" ON "goal_definition_versions" USING btree ("organization_id","property_id","definition_id","effective_from");
---> statement-breakpoint
-CREATE INDEX "goal_definitions_scope_status_idx" ON "goal_definitions" USING btree ("organization_id","property_id","status","scope_kind");
---> statement-breakpoint
-CREATE INDEX "goal_evaluations_history_idx" ON "goal_evaluations" USING btree ("organization_id","property_id","period_id","created_at");
---> statement-breakpoint
 CREATE INDEX "goal_monthly_results_due_idx" ON "goal_monthly_results" USING btree ("status","period_end","organization_id","property_id");
---> statement-breakpoint
-CREATE INDEX "goal_periods_due_idx" ON "goal_periods" USING btree ("status","period_end","organization_id","property_id") WHERE "goal_periods"."status" IN ('scheduled', 'open');
 --> statement-breakpoint
 CREATE INDEX "goal_program_versions_effective_idx" ON "goal_program_versions" USING btree ("organization_id","property_id","program_id","effective_from");
 --> statement-breakpoint
 CREATE INDEX "goal_programs_property_status_idx" ON "goal_programs" USING btree ("organization_id","property_id","status");
---> statement-breakpoint
-CREATE INDEX "goal_progress_org_idx" ON "goal_progress" USING btree ("organization_id");
 --> statement-breakpoint
 CREATE INDEX "goal_result_revisions_history_idx" ON "goal_result_revisions" USING btree ("organization_id","property_id","monthly_result_id","revision");
 --> statement-breakpoint
 CREATE INDEX "goal_subject_assignments_program_idx" ON "goal_subject_assignments" USING btree ("organization_id","property_id","program_id","effective_from");
 --> statement-breakpoint
 CREATE INDEX "goal_subject_assignments_subject_idx" ON "goal_subject_assignments" USING btree ("organization_id","property_id","subject_kind","property_subject_id","portal_group_id","portal_id");
---> statement-breakpoint
-CREATE INDEX "goals_org_idx" ON "goals" USING btree ("organization_id");
---> statement-breakpoint
-CREATE INDEX "goals_org_property_idx" ON "goals" USING btree ("organization_id","property_id");
---> statement-breakpoint
-CREATE INDEX "goals_org_status_idx" ON "goals" USING btree ("organization_id","status");
---> statement-breakpoint
-CREATE INDEX "goals_parent_idx" ON "goals" USING btree ("parent_goal_id");
---> statement-breakpoint
-CREATE INDEX "goals_portal_group_idx" ON "goals" USING btree ("portal_group_id");
---> statement-breakpoint
-CREATE INDEX "goals_org_portal_idx" ON "goals" USING btree ("organization_id","portal_id");
 --> statement-breakpoint
 CREATE INDEX "google_connections_status_idx" ON "google_connections" USING btree ("status") WHERE "google_connections"."status" NOT IN ('active', 'disconnected');
 --> statement-breakpoint
@@ -6116,8 +5930,6 @@ CREATE UNIQUE INDEX "beta_feedback_triage_provider_reference_unique" ON "beta_fe
 CREATE UNIQUE INDEX "beta_feedback_triage_transition_revision_unique" ON "beta_feedback_triage_transitions" USING btree ("feedback_reference","result_revision");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "organization_role_policy_org_role_unique" ON "organization_role_policy" USING btree ("organization_id","role");
---> statement-breakpoint
-CREATE UNIQUE INDEX "goal_progress_goal_uniq" ON "goal_progress" USING btree ("goal_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "google_connections_org_id_key" ON "google_connections" USING btree ("organization_id","id");
 --> statement-breakpoint
@@ -6555,39 +6367,13 @@ ALTER TABLE "beta_feedback_triage_transitions" ADD CONSTRAINT "beta_feedback_tri
 --> statement-breakpoint
 ALTER TABLE "beta_feedback_triage_transitions" ADD CONSTRAINT "beta_feedback_triage_transition_duplicate_reference_fk" FOREIGN KEY ("duplicate_of_reference") REFERENCES "public"."beta_feedback_triage"("reference") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "goal_definition_versions" ADD CONSTRAINT "goal_definition_versions_definition_fk" FOREIGN KEY ("organization_id","property_id","definition_id") REFERENCES "public"."goal_definitions"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_definition_versions" ADD CONSTRAINT "goal_definition_versions_metric_version_fk" FOREIGN KEY ("metric_definition_id","metric_definition_version_id") REFERENCES "public"."metric_definition_versions"("definition_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_definitions" ADD CONSTRAINT "goal_definitions_org_property_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_definitions" ADD CONSTRAINT "goal_definitions_portal_group_fk" FOREIGN KEY ("organization_id","property_id","portal_group_id") REFERENCES "public"."portal_groups"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_evaluations" ADD CONSTRAINT "goal_evaluations_metric_reading_id_metric_readings_id_fk" FOREIGN KEY ("metric_reading_id") REFERENCES "public"."metric_readings"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_evaluations" ADD CONSTRAINT "goal_evaluations_supersedes_evaluation_id_goal_evaluations_id_fk" FOREIGN KEY ("supersedes_evaluation_id") REFERENCES "public"."goal_evaluations"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_evaluations" ADD CONSTRAINT "goal_evaluations_correction_reading_id_metric_readings_id_fk" FOREIGN KEY ("correction_reading_id") REFERENCES "public"."metric_readings"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_evaluations" ADD CONSTRAINT "goal_evaluations_period_fk" FOREIGN KEY ("organization_id","property_id","definition_id","definition_version_id","period_id") REFERENCES "public"."goal_periods"("organization_id","property_id","definition_id","definition_version_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "goal_monthly_results" ADD CONSTRAINT "goal_monthly_results_assignment_fk" FOREIGN KEY ("organization_id","property_id","program_id","program_version_id","assignment_id") REFERENCES "public"."goal_subject_assignments"("organization_id","property_id","program_id","program_version_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_periods" ADD CONSTRAINT "goal_periods_definition_fk" FOREIGN KEY ("organization_id","property_id","definition_id") REFERENCES "public"."goal_definitions"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_periods" ADD CONSTRAINT "goal_periods_version_fk" FOREIGN KEY ("organization_id","property_id","definition_id","definition_version_id") REFERENCES "public"."goal_definition_versions"("organization_id","property_id","definition_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "goal_program_versions" ADD CONSTRAINT "goal_program_versions_program_fk" FOREIGN KEY ("organization_id","property_id","program_id") REFERENCES "public"."goal_programs"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "goal_program_versions" ADD CONSTRAINT "goal_program_versions_metric_version_fk" FOREIGN KEY ("metric_definition_id","metric_definition_version_id") REFERENCES "public"."metric_definition_versions"("definition_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "goal_programs" ADD CONSTRAINT "goal_programs_property_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_progress" ADD CONSTRAINT "goal_progress_goal_id_goals_id_fk" FOREIGN KEY ("goal_id") REFERENCES "public"."goals"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_refresh_receipts" ADD CONSTRAINT "goal_refresh_receipts_period_fk" FOREIGN KEY ("organization_id","property_id","period_id") REFERENCES "public"."goal_periods"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_refresh_receipts" ADD CONSTRAINT "goal_refresh_receipts_evaluation_fk" FOREIGN KEY ("organization_id","property_id","period_id","evaluation_id") REFERENCES "public"."goal_evaluations"("organization_id","property_id","period_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "goal_result_revisions" ADD CONSTRAINT "goal_result_revisions_supersedes_revision_id_goal_result_revisions_id_fk" FOREIGN KEY ("supersedes_revision_id") REFERENCES "public"."goal_result_revisions"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
@@ -6600,16 +6386,6 @@ ALTER TABLE "goal_subject_assignments" ADD CONSTRAINT "goal_subject_assignments_
 ALTER TABLE "goal_subject_assignments" ADD CONSTRAINT "goal_subject_assignments_portal_group_fk" FOREIGN KEY ("organization_id","property_id","portal_group_id") REFERENCES "public"."portal_groups"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "goal_subject_assignments" ADD CONSTRAINT "goal_subject_assignments_portal_fk" FOREIGN KEY ("organization_id","property_id","portal_id") REFERENCES "public"."portals"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_timezone_event_receipts" ADD CONSTRAINT "goal_timezone_receipts_definition_fk" FOREIGN KEY ("organization_id","property_id","definition_id") REFERENCES "public"."goal_definitions"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goals" ADD CONSTRAINT "goals_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goals" ADD CONSTRAINT "goals_portal_id_portals_id_fk" FOREIGN KEY ("portal_id") REFERENCES "public"."portals"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goals" ADD CONSTRAINT "goals_portal_group_id_portal_groups_id_fk" FOREIGN KEY ("portal_group_id") REFERENCES "public"."portal_groups"("id") ON DELETE set null ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goals" ADD CONSTRAINT "goals_parent_goal_id_goals_id_fk" FOREIGN KEY ("parent_goal_id") REFERENCES "public"."goals"("id") ON DELETE set null ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "google_import_discovery_records" ADD CONSTRAINT "google_import_discovery_records_connection_tenant_fk" FOREIGN KEY ("organization_id","connection_id") REFERENCES "public"."google_connections"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint

@@ -5432,16 +5432,6 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.reject_goal_immutable_update()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-  RAISE EXCEPTION '% is append-only', TG_TABLE_NAME USING ERRCODE = '55000';
-END;
-$function$
-;
---> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.reject_identity_lifecycle_evidence_mutation_v1()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -8094,10 +8084,6 @@ CREATE TRIGGER beta_feedback_triage_transition_update_guard BEFORE DELETE OR UPD
 CREATE TRIGGER context_organization_lifecycle_receipts_truncate_guard BEFORE TRUNCATE ON public.context_organization_lifecycle_receipts FOR EACH STATEMENT EXECUTE FUNCTION reject_context_lifecycle_receipt_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER context_organization_lifecycle_receipts_update_delete_guard BEFORE DELETE OR UPDATE ON public.context_organization_lifecycle_receipts FOR EACH ROW EXECUTE FUNCTION reject_context_lifecycle_receipt_mutation_v1();
---> statement-breakpoint
-CREATE TRIGGER goal_definition_versions_immutable BEFORE DELETE OR UPDATE ON public.goal_definition_versions FOR EACH ROW EXECUTE FUNCTION reject_goal_immutable_update();
---> statement-breakpoint
-CREATE TRIGGER goal_evaluations_immutable BEFORE DELETE OR UPDATE ON public.goal_evaluations FOR EACH ROW EXECUTE FUNCTION reject_goal_immutable_update();
 --> statement-breakpoint
 CREATE TRIGGER goal_monthly_results_guard BEFORE INSERT OR DELETE OR UPDATE ON public.goal_monthly_results FOR EACH ROW EXECUTE FUNCTION guard_goal_monthly_result_v1();
 --> statement-breakpoint

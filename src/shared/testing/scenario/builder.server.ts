@@ -33,7 +33,6 @@ import {
   metricDefinitionVersions,
   metricReadings,
 } from '#/shared/db/schema/metric.schema'
-import { goals } from '#/shared/db/schema/goal.schema'
 import { user, member, organization } from '#/shared/db/schema/auth'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import type { DomainEvent } from '#/shared/events/events'
@@ -47,12 +46,6 @@ export type ScenarioReviewSpec = Readonly<{
   reviewerName?: string
   daysAgo: number
   reply?: boolean
-}>
-
-export type ScenarioGoalSpec = Readonly<{
-  name: string
-  metricKey: string
-  targetValue: number
 }>
 
 export type ScenarioGuestSpec = Readonly<{
@@ -69,7 +62,6 @@ export type ScenarioPropertySpec = Readonly<{
   scansPerDay?: number
   scanHistoryDays?: number
   guest?: ScenarioGuestSpec
-  goals?: ReadonlyArray<ScenarioGoalSpec>
 }>
 
 export type ScenarioSpec = Readonly<{
@@ -84,7 +76,6 @@ export type ScenarioResult = Readonly<{
   portalsCreated: number
   guestInteractions: number
   repliesCreated: number
-  goalsCreated: number
 }>
 
 // ── Shared context for all helpers ──────────────────────────────────
@@ -433,41 +424,6 @@ async function createGuestData(
   return { interactions: created, events: created }
 }
 
-async function createGoals(
-  ctx: Ctx,
-  propId: ReturnType<typeof propertyId>,
-  pId: ReturnType<typeof portalId>,
-  goalSpecs: ReadonlyArray<ScenarioGoalSpec>,
-): Promise<number> {
-  let created = 0
-  for (const spec of goalSpecs) {
-    try {
-      await ctx.db.insert(goals).values({
-        id: crypto.randomUUID(),
-        organizationId: unbrand(ctx.orgId),
-        propertyId: unbrand(propId),
-        portalId: unbrand(pId),
-        name: spec.name,
-        createdBy: unbrand(ctx.simUserId),
-        goalType: 'open',
-        aggregationFunction: 'sum',
-        metricKey: spec.metricKey,
-        targetValue: spec.targetValue,
-        status: 'active',
-        periodStart: new Date(ctx.now.getTime() - 15 * MS_PER_DAY),
-        periodEnd: new Date(ctx.now.getTime() + 15 * MS_PER_DAY),
-      })
-      created++
-    } catch (err) {
-      ctx.container.logger.warn(
-        { err: err instanceof Error ? err.message : String(err) },
-        'Sim goal create failed',
-      )
-    }
-  }
-  return created
-}
-
 async function createMetricHistory(
   ctx: Ctx,
   propId: ReturnType<typeof propertyId>,
@@ -537,8 +493,7 @@ export async function buildScenario(
     propertiesCreated = 0
   let portalsCreated = 0,
     guestInteractions = 0,
-    repliesCreated = 0,
-    goalsCreated = 0
+    repliesCreated = 0
 
   for (const propSpec of spec.properties) {
     const { propId, portalId: pId } = await createPropertyAndPortal(ctx, propSpec)
@@ -555,8 +510,6 @@ export async function buildScenario(
       guestInteractions += g.interactions
       factsRecorded += g.events
     }
-
-    goalsCreated += await createGoals(ctx, propId, pId, propSpec.goals ?? [])
 
     if (propSpec.scansPerDay && propSpec.scanHistoryDays) {
       await createMetricHistory(
@@ -576,6 +529,5 @@ export async function buildScenario(
     portalsCreated,
     guestInteractions,
     repliesCreated,
-    goalsCreated,
   }
 }

@@ -1567,7 +1567,7 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
     {
       notes:
-        'Portal soft-delete, live-token revocation, and their identifier-only facts commit atomically; retained legacy Goal rows are migration evidence and have no beta consumer',
+        'Portal soft-delete, live-token revocation, and their identifier-only facts commit atomically',
     },
   ),
   ev(
@@ -1735,7 +1735,7 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      notes: 'retained legacy Goal rows are migration evidence and have no beta consumer',
+      notes: 'No Goal consumer is needed for this Portal Group lifecycle fact',
     },
   ),
   ev('portal_group.portal_added', PORTAL_EVENTS, {
@@ -2151,24 +2151,6 @@ const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       notes:
         'append-only closed-result correction fact; Activity retains only lifecycle codes, while Notification resolves the exact current revision fence and notifies only when outcome or availability changed',
-    },
-  ),
-  ev(
-    'goal.completed',
-    GOAL_EVENTS,
-    {
-      stateOwner: 'goal',
-      capability: 'goal.use',
-      action: 'system:goal.progress',
-      schemaRegistered: true,
-      recordedInOutbox: false,
-      consumers: [],
-      disposition: 'quarantined',
-    },
-    {
-      notes:
-        'compatibility-only dark producer; it is not durable and has no runtime Notification consumer',
-      ownerSlice: 'GOA-01',
     },
   ),
 ]

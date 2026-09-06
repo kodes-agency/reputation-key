@@ -47,12 +47,6 @@ import {
   portalResponsibilities,
   portalGroupMemberships,
 } from '../src/shared/db/schema/people-access.schema'
-import {
-  goalDefinitions,
-  goalDefinitionVersions,
-  goalPeriods,
-  goalEvaluations,
-} from '../src/shared/db/schema/goal.schema'
 import { metricReadings } from '../src/shared/db/schema/metric.schema'
 import {
   notifications,
@@ -116,7 +110,6 @@ const GOOGLE_REVIEW_DESTINATION = {
 
 const LOCKED_ORG_ID = 'e2e-locked-org-b'
 const FIXTURE_AT = new Date('2026-08-01T12:00:00.000Z')
-const GOAL_FIXTURE_AT = new Date('2026-08-08T12:00:00.000Z')
 const FAR_FUTURE = new Date('2030-01-01T00:00:00.000Z')
 
 const IDS = {
@@ -144,13 +137,8 @@ const IDS = {
   candidateAParticipant: '11111111-1111-4111-8111-111111111152',
   candidateBParticipant: '11111111-1111-4111-8111-111111111153',
   portalResponsibility: '11111111-1111-4111-8111-111111111116',
-  goal: '11111111-1111-4111-8111-111111111118',
-  goalDefinitionVersion: '11111111-1111-4111-8111-111111111142',
-  goalPeriod: '11111111-1111-4111-8111-111111111143',
-  goalEvaluation: '11111111-1111-4111-8111-111111111144',
   notificationPreference: '11111111-1111-4111-8111-111111111125',
   notificationPreferenceInApp: '11111111-1111-4111-8111-111111111126',
-  goalReading: '11111111-1111-4111-8111-111111111145',
   p1Notification: '11111111-1111-4111-8111-111111111130',
   p2Notification: '22222222-2222-4222-8222-222222222131',
   p3Notification: '33333333-3333-4333-8333-333333333132',
@@ -1172,144 +1160,12 @@ async function ensurePeopleFixtures(input: {
     .onConflictDoNothing()
 }
 
-async function ensureGoalFixtures(input: {
+async function ensureNotificationPreferences(input: {
   organizationId: string
   propertyId: string
   managerUserId: string
 }): Promise<void> {
   const db = getDb()
-  await db
-    .insert(metricReadings)
-    .values({
-      id: IDS.goalReading,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      groupId: IDS.p1Group,
-      metricKey: 'portal.content_review.completed',
-      value: 8,
-      definitionVersionId: '11111111-1111-4111-8111-111111111101',
-      sourceEventId: 'e2e-goal-content-reviewed-1',
-      sourcePolicy: 'first_party_workflow',
-      exactValue: 8,
-      sampleCount: 8,
-      attributionQuality: 'exact',
-      occurredAt: GOAL_FIXTURE_AT,
-      eventAt: GOAL_FIXTURE_AT,
-      propertyLocalDate: '2026-08-08',
-      dataQuality: 'accepted',
-      retentionClass: 'standard',
-    })
-    .onConflictDoUpdate({
-      target: metricReadings.id,
-      set: {
-        exactValue: 8,
-        value: 8,
-        sampleCount: 8,
-        eventAt: GOAL_FIXTURE_AT,
-      },
-    })
-  await db
-    .insert(goalDefinitions)
-    .values({
-      id: IDS.goal,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      scopeKind: 'portal_group',
-      portalGroupId: IDS.p1Group,
-      name: 'Complete 20 portal content reviews',
-      description: 'Stable governed group Goal for local beta acceptance.',
-      status: 'active',
-      statusReason: null,
-      currentVersion: 1,
-      createdBy: input.managerUserId,
-    })
-    .onConflictDoUpdate({
-      target: goalDefinitions.id,
-      set: {
-        status: 'active',
-        statusReason: null,
-        currentVersion: 1,
-        updatedAt: new Date(),
-      },
-    })
-  await db
-    .insert(goalDefinitionVersions)
-    .values({
-      id: IDS.goalDefinitionVersion,
-      definitionId: IDS.goal,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      version: 1,
-      metricDefinitionId: '11111111-1111-4111-8111-111111110101',
-      metricDefinitionVersionId: '11111111-1111-4111-8111-111111111101',
-      metricKey: 'portal.content_review.completed',
-      metricValueKind: 'counter',
-      metricMinimumSample: 1,
-      metricAllowedScopes: ['property', 'portal_group'],
-      metricPermittedConsumers: ['dashboard', 'goal', 'notification'],
-      metricEmploymentDecisionEligible: false,
-      measureKind: 'progress',
-      targetValue: 20,
-      sourcePolicy: 'first_party_workflow',
-      propertyTimezone: 'America/New_York',
-      recurrenceRule: { frequency: 'monthly', interval: 1 },
-      effectiveFrom: new Date('2026-08-01T04:00:00.000Z'),
-      effectiveTo: null,
-      changeReason: 'seeded',
-      createdBy: input.managerUserId,
-    })
-    .onConflictDoNothing()
-  await db
-    .insert(goalPeriods)
-    .values({
-      id: IDS.goalPeriod,
-      definitionId: IDS.goal,
-      definitionVersionId: IDS.goalDefinitionVersion,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      periodStart: new Date('2026-08-01T04:00:00.000Z'),
-      periodEnd: new Date('2026-09-01T04:00:00.000Z'),
-      propertyTimezone: 'America/New_York',
-      status: 'open',
-      statusReason: null,
-      evaluationWatermark: GOAL_FIXTURE_AT,
-      closedAt: null,
-    })
-    .onConflictDoUpdate({
-      target: goalPeriods.id,
-      set: {
-        status: 'open',
-        statusReason: null,
-        evaluationWatermark: GOAL_FIXTURE_AT,
-        closedAt: null,
-        updatedAt: new Date(),
-      },
-    })
-  await db
-    .insert(goalEvaluations)
-    .values({
-      id: IDS.goalEvaluation,
-      periodId: IDS.goalPeriod,
-      definitionId: IDS.goal,
-      definitionVersionId: IDS.goalDefinitionVersion,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      metricReadingId: IDS.goalReading,
-      sourceEventId: 'e2e-goal-content-reviewed-1',
-      idempotencyKey: 'e2e-goal-evaluation-v1',
-      state: 'eligible',
-      reason: 'governed_reading',
-      value: 8,
-      numerator: null,
-      denominator: null,
-      sampleCount: 8,
-      achieved: false,
-      evaluationWatermark: GOAL_FIXTURE_AT,
-      supersedesEvaluationId: null,
-      correctionReadingId: null,
-      createdBy: 'system:e2e-seed',
-    })
-    .onConflictDoNothing()
   await db
     .insert(notificationPreferences)
     .values([
@@ -1704,7 +1560,7 @@ async function main(): Promise<void> {
     candidateAUserId,
     candidateBUserId,
   })
-  await ensureGoalFixtures({
+  await ensureNotificationPreferences({
     organizationId: orgAId,
     propertyId: p1Id,
     managerUserId,
@@ -1773,7 +1629,6 @@ async function main(): Promise<void> {
     portalLinkId: IDS.p1Link,
     managerParticipationId: IDS.managerParticipation,
     staffParticipationId: IDS.staffParticipation,
-    goalId: IDS.goal,
     emailQueueFixtureIds: [IDS.p1EmailQueue, IDS.p2EmailQueue, IDS.p3EmailQueue],
     reviewCount: 100,
   })

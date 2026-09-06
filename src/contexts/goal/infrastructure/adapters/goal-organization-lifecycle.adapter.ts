@@ -7,12 +7,10 @@
 // receipt row all come from the shared store — this file only supplies the
 // three reviewed phase bodies.
 //
-// Goal is the one context of this trio with a real effect of its own. Its
-// executable authority inventory (`application/goal-authority-inventory.ts`)
-// lists `goal-program.maintain-schedule` as an ACTIVE schedule: a recurring,
-// tenant-cross pass that activates scheduled programs, appends monthly
-// results and reconciles/closes due results. Those are tenant mutations that
-// must not keep running through the recoverable window.
+// Goal owns an active tenant-cross maintenance schedule that activates
+// scheduled programs and appends, reconciles, or closes monthly results.
+// Organization closure must stop those mutations through the recoverable
+// window.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -27,9 +25,8 @@ import type { OrganizationLifecycleContributor } from '#/contexts/identity/appli
 const CONTEXT = 'goal' as const
 
 /**
- * Static, reviewed purge plan in FK-safe order. Rows are DELETED; no table is
- * ever dropped and the retained pre-beta `goals`/`goal_progress` mirror is
- * emptied for this tenant, never removed.
+ * Static, reviewed purge plan in FK-safe order. Every surviving Goal table is
+ * tenant-scoped and deleted only by the irreversible lifecycle phase.
  */
 export const GOAL_PURGE_TABLES = Object.freeze([
   'goal_result_revisions',
@@ -37,18 +34,10 @@ export const GOAL_PURGE_TABLES = Object.freeze([
   'goal_subject_assignments',
   'goal_program_versions',
   'goal_programs',
-  'goal_refresh_receipts',
-  'goal_evaluations',
-  'goal_timezone_event_receipts',
-  'goal_periods',
-  'goal_definition_versions',
-  'goal_definitions',
-  'goal_progress',
-  'goals',
 ] as const)
 
 /**
- * Append-only guards that block a tenant purge (migrations 0024 and 0087).
+ * Append-only guards that must be disabled transactionally for tenant purge.
  *
  * They exist so product code can never rewrite Goal history. A purge is not
  * product code: it is the reviewed irreversible boundary, and the row must
@@ -59,11 +48,6 @@ export const GOAL_PURGE_TABLES = Object.freeze([
  * system triggers implementing foreign keys and silently orphan rows.
  */
 const APPEND_ONLY_GUARDS = Object.freeze([
-  Object.freeze({
-    table: 'goal_definition_versions',
-    trigger: 'goal_definition_versions_immutable',
-  }),
-  Object.freeze({ table: 'goal_evaluations', trigger: 'goal_evaluations_immutable' }),
   Object.freeze({
     table: 'goal_program_versions',
     trigger: 'goal_program_versions_append_only',
@@ -97,28 +81,11 @@ function count(value: unknown): number {
   return Number((value as string | number | null | undefined) ?? 0)
 }
 
-/** Total tenant-scoped Goal rows across both the canonical and retained families. */
+/** Total tenant-scoped rows across the canonical Goal Program family. */
 async function countTenantRows(tx: Tx, organization: string): Promise<number> {
   const result = await tx.execute(sql`
     SELECT
-      (SELECT count(*) FROM goals WHERE organization_id = ${organization})
-      + (SELECT count(*) FROM goal_progress WHERE organization_id = ${organization})
-      + (SELECT count(*) FROM goal_definitions WHERE organization_id = ${organization})
-      + (
-        SELECT count(*) FROM goal_definition_versions
-        WHERE organization_id = ${organization}
-      )
-      + (SELECT count(*) FROM goal_periods WHERE organization_id = ${organization})
-      + (SELECT count(*) FROM goal_evaluations WHERE organization_id = ${organization})
-      + (
-        SELECT count(*) FROM goal_timezone_event_receipts
-        WHERE organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM goal_refresh_receipts
-        WHERE organization_id = ${organization}
-      )
-      + (SELECT count(*) FROM goal_programs WHERE organization_id = ${organization})
+      (SELECT count(*) FROM goal_programs WHERE organization_id = ${organization})
       + (
         SELECT count(*) FROM goal_program_versions
         WHERE organization_id = ${organization}
@@ -241,26 +208,19 @@ const verifyPurgeReadiness = async (
  * fails. Repeatedly removing the rows nothing else supersedes drains it
  * deterministically. The identifiers come only from this file's static plan.
  */
-async function purgeSupersessionChain(
-  tx: Tx,
-  table: 'goal_result_revisions' | 'goal_evaluations',
-  supersedesColumn: 'supersedes_revision_id' | 'supersedes_evaluation_id',
-  organization: string,
-): Promise<void> {
-  const relation = sql.identifier(table)
-  const column = sql.identifier(supersedesColumn)
+async function purgeResultRevisionChain(tx: Tx, organization: string): Promise<void> {
   for (let pass = 0; pass < MAX_SUPERSESSION_PASSES; pass += 1) {
     const result = await tx.execute(sql`
-      DELETE FROM ${relation} AS target
+      DELETE FROM goal_result_revisions AS target
       WHERE target.organization_id = ${organization}
         AND NOT EXISTS (
-          SELECT 1 FROM ${relation} AS successor
-          WHERE successor.${column} = target.id
+          SELECT 1 FROM goal_result_revisions AS successor
+          WHERE successor.supersedes_revision_id = target.id
         )
     `)
     if ((result.rowCount ?? 0) === 0) return
   }
-  throw new Error(`goal purge could not drain the ${table} supersession chain`)
+  throw new Error('goal purge could not drain the result revision supersession chain')
 }
 
 /**
@@ -268,14 +228,11 @@ async function purgeSupersessionChain(
  *
  * Every statement is bound to one organization id and the order follows
  * GOAL_PURGE_TABLES, which is the FK topology: every table is removed before
- * the one it references. Nothing is dropped and no compatibility mirror is
- * removed — the retained pre-beta `goals`/`goal_progress` family is emptied
- * for this tenant only.
+ * the one it references.
  *
  * `metric_definition_versions`, `properties`, `portals` and `portal_groups`
- * are referenced by Goal rows but belong to other contexts; releasing those
- * references is exactly what this phase does, and those contexts purge their
- * own rows.
+ * belong to other contexts. This phase releases Goal's references; those
+ * contexts remain responsible for their own rows.
  */
 const purge = async (
   tx: Tx,
@@ -297,12 +254,7 @@ const purge = async (
   }
   try {
     // Canonical Goal Program family, children first.
-    await purgeSupersessionChain(
-      tx,
-      'goal_result_revisions',
-      'supersedes_revision_id',
-      organization,
-    )
+    await purgeResultRevisionChain(tx, organization)
     await tx.execute(
       sql`DELETE FROM goal_monthly_results WHERE organization_id = ${organization}`,
     )
@@ -315,37 +267,6 @@ const purge = async (
     await tx.execute(
       sql`DELETE FROM goal_programs WHERE organization_id = ${organization}`,
     )
-
-    // Retained governed-goal family. Refresh receipts reference both periods
-    // and evaluations, so they go before either.
-    await tx.execute(
-      sql`DELETE FROM goal_refresh_receipts WHERE organization_id = ${organization}`,
-    )
-    await purgeSupersessionChain(
-      tx,
-      'goal_evaluations',
-      'supersedes_evaluation_id',
-      organization,
-    )
-    await tx.execute(
-      sql`DELETE FROM goal_timezone_event_receipts WHERE organization_id = ${organization}`,
-    )
-    await tx.execute(
-      sql`DELETE FROM goal_periods WHERE organization_id = ${organization}`,
-    )
-    await tx.execute(
-      sql`DELETE FROM goal_definition_versions WHERE organization_id = ${organization}`,
-    )
-    await tx.execute(
-      sql`DELETE FROM goal_definitions WHERE organization_id = ${organization}`,
-    )
-
-    // Retained pre-beta family. `goal_progress` cascades from `goals`, but the
-    // explicit tenant-bound delete keeps the plan checkable row by row.
-    await tx.execute(
-      sql`DELETE FROM goal_progress WHERE organization_id = ${organization}`,
-    )
-    await tx.execute(sql`DELETE FROM goals WHERE organization_id = ${organization}`)
   } finally {
     for (const guard of APPEND_ONLY_GUARDS) {
       await tx.execute(

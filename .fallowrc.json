@@ -116,16 +116,6 @@
       ]
     },
     {
-      "file": "src/contexts/goal/application/dto/goal.dto.ts",
-      "exports": [
-        "cancelGoalSchema",
-        "createGoalSchema",
-        "getGoalSchema",
-        "listGoalsSchema",
-        "updateGoalSchema"
-      ]
-    },
-    {
       "file": "src/contexts/identity/domain/partialOffboarding.ts",
       "exports": ["PARTIAL_OFFBOARDING_FINDINGS"]
     },
@@ -148,10 +138,6 @@
         "goalMonthlyResultReconciled",
         "goalMonthlyResultRevised"
       ]
-    },
-    {
-      "file": "src/contexts/goal/domain/errors.ts",
-      "exports": ["isGoalError"]
     },
     {
       "file": "src/contexts/guest/application/public-api.ts",
@@ -310,10 +296,6 @@
     {
       "file": "src/contexts/property/server/properties.ts",
       "exports": ["createProperty", "updateProperty"]
-    },
-    {
-      "file": "src/contexts/goal/application/use-cases/update-goal.ts",
-      "exports": ["updateGoal"]
     },
     {
       "file": "src/contexts/portal/server/portal-groups.ts",

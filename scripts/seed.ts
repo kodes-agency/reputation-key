@@ -24,15 +24,6 @@ const MS_PER_DAY = 86_400_000
 // Job names for time-travel triggering
 import { JOB_NAME as PURGE_JOB } from '../src/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import { JOB_NAME as REFRESH_JOB } from '../src/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
-// NOTE: `reconcile-goal-progress` and `spawn-recurring-instances` used to be
-// enqueued here too. They were removed because the Goal context is dark: the
-// governed Goal runtime registers neither handler, and neither job name exists
-// in JOB_FAMILY_ROWS — `assertJobReadiness` clause (b) would fail worker boot
-// if either were registered. Enqueuing them printed a "✓ Reconcile goal
-// progress" for work that provably never ran. Removing them deletes a FALSE
-// SIGNAL, not functionality: Goal still has scheduled work that no handler
-// serves. Whoever wires the Goal runtime must restore both enqueues here AND
-// add the two catalogue rows.
 import {
   addOrganizationCapability,
   listOrganizationCapabilities,
@@ -85,9 +76,9 @@ async function resolveOrgId(container: Container): Promise<string> {
  * Grant an organization the beta capability set.
  *
  * Without this a seeded database looks complete but every non-core feature is
- * dark: promotable Portals and Goals deny with
- * `org_not_allowlisted` / `property_not_allowlisted`, so a developer can see
- * seeded portals in the database yet cannot create one through the product.
+ * dark: promoted beta features deny with `org_not_allowlisted` /
+ * `property_not_allowlisted`, so a developer can see seeded records in the
+ * database yet cannot create them through the product.
  *
  * Runs BEFORE the scenario so properties created through the real use case are
  * provisioned from this allowlist on the way in. Idempotent: already-held
@@ -171,9 +162,6 @@ function defaultScenario(orgId: string): ScenarioSpec {
         scansPerDay: 12,
         scanHistoryDays: 30,
         guest: { scans: 10, ratings: 5, feedback: 3, overDays: 30 },
-        goals: [
-          { name: '100 Scans This Month', metricKey: 'portal.scan', targetValue: 100 },
-        ],
       },
       {
         name: 'Sim Boutique Inn',
@@ -187,9 +175,6 @@ function defaultScenario(orgId: string): ScenarioSpec {
         scansPerDay: 6,
         scanHistoryDays: 30,
         guest: { scans: 5, ratings: 3, feedback: 2, overDays: 30 },
-        goals: [
-          { name: '50 Scans This Month', metricKey: 'portal.scan', targetValue: 50 },
-        ],
       },
     ],
   }
@@ -229,7 +214,6 @@ function assertBuiltCounts(
     portalsCreated: spec.properties.length,
     reviewsCreated: sum((p) => p.reviews?.length ?? 0),
     repliesCreated: sum((p) => (p.reviews ?? []).filter((r) => r.reply).length),
-    goalsCreated: sum((p) => p.goals?.length ?? 0),
     guestInteractions: sum(
       (p) => (p.guest?.scans ?? 0) + (p.guest?.ratings ?? 0) + (p.guest?.feedback ?? 0),
     ),
@@ -275,7 +259,6 @@ async function main(): Promise<void> {
   console.log(`  Portals:    ${result.portalsCreated}`)
   console.log(`  Reviews:    ${result.reviewsCreated}`)
   console.log(`  Replies:    ${result.repliesCreated}`)
-  console.log(`  Goals:      ${result.goalsCreated}`)
   console.log(`  Guest:      ${result.guestInteractions}`)
   console.log(`  Facts:      ${result.factsRecorded} recorded, ${delivered} delivered`)
   assertBuiltCounts('Round 1', spec, result)

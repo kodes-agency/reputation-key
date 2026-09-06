@@ -6,7 +6,7 @@ export type GoalActor = Readonly<{
 }> &
   PermissionAuthorityContext
 
-/** Shared authorization port for canonical and retained Goal commands. */
+/** Authorization port for Goal Program commands. */
 export type GoalExecutionPolicy = Readonly<{
   authorize(
     input: Readonly<{

@@ -249,12 +249,10 @@ async function purgeCorrections(tx: Tx, organization: string): Promise<number> {
  * compatibility mirror is removed, and the platform catalogue in
  * METRIC_RETAINED_TABLES is deliberately untouched.
  *
- * `metric_readings` is referenced with ON DELETE RESTRICT by Goal's
- * `goal_evaluations`. Both contributors run concurrently in their own
- * transactions, so a first pass may find the readings still pinned; this phase
- * then fails closed, its receipt is rolled back with it, Goal's already
- * committed receipt replays, and the next pass converges. That is the intended
- * retry behaviour, not a missed dependency.
+ * Goal Program versions reference metric definitions, while their monthly
+ * results consume readings only through Metric's public read contract. The
+ * surviving Goal tables therefore do not pin `metric_readings` during tenant
+ * purge.
  */
 const purge = async (
   tx: Tx,

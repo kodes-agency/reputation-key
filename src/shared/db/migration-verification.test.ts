@@ -89,7 +89,6 @@ const EXPECTED_TABLES = [
   'review_sync_state',
   'review_sync_runs',
   'inbound_webhook_receipts',
-  'goals',
   'recent_activity_entries',
   'notifications',
   'notification_email_queue',

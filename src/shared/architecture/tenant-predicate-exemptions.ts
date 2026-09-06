@@ -96,20 +96,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/goal/infrastructure/repositories/goal.repository.ts',
-    symbol: 'findAllActiveGlobal',
-    reason:
-      'This explicitly global scheduler read enumerates active goals across tenants and returns each record with its owning organization identity.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/goal/infrastructure/repositories/goal.repository.ts',
-    symbol: 'findAllActiveRecurring',
-    reason:
-      'This explicitly global scheduler read enumerates active recurring root goals across tenants and preserves tenant identity on every result.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/guest/infrastructure/repositories/contact-request.repository.ts',
     symbol: 'purgeExpiredContactRequests',
     reason:

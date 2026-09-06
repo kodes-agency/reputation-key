@@ -1674,10 +1674,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         notes: 'canonical Property-scoped Goal Program aggregate list',
       },
     ),
-    sf('listStaffGoals', `${GOAL}/staff-goals.ts`, 'goal.read', 'goal.use', 'property', {
-      notes:
-        'retained compatibility declaration fails closed with HTTP 410 before container or historical-row access; no Staff Home consumer is routed',
-    }),
   ],
 
   // ── staff ─────────────────────────────────────────────────────────
@@ -3761,15 +3757,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'ops:reconcile-recent-activity-vocabulary — Organization-scoped content-free report and one-pair exact-fingerprint compatibility repair; apply is ticketed, operation-idempotent, typed-confirmed, transactionally receipted, and never infers unmappable vocabulary',
     },
   ),
-  ops(
-    'scripts/ops/report-legacy-goals.ts',
-    'scripts/ops/report-legacy-goals.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-legacy-goals — read-only, explicit-time GOA-01/CNV-01 inventory of the two retained pre-beta Goal tables, exact row counts, all-schema foreign-key dependencies, fixed data-fate classifications, and a content-free fingerprint; no record identifiers or apply path',
-    },
-  ),
   ops('scripts/ops/property-erase.ts', 'scripts/ops/property-erase.ts', 'property', {
     notes:
       'ops:property-erase — LIF-01-T19 support-mediated permanent Property Erase. Report-only by default; the destructive path additionally requires --apply, the typed confirmation, an operator id, a ticket, and an INDEPENDENT support authorization reference. It declares no capability on purpose: property.erase stays in BLOCKED_CAPABILITIES, so this operator command is the only entry point and no tenant-facing authorization path exists',
@@ -4321,18 +4308,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'DIRECT-DB (psql): marks all existing users email-verified' },
   ),
   ops(
-    'scripts/migrations/add-org-id-to-goal-progress.sql',
-    'scripts/migrations/add-org-id-to-goal-progress.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): goal_progress org column + backfill' },
-  ),
-  ops(
-    'scripts/migrations/fix-goal-progress-org-id-notnull.sql',
-    'scripts/migrations/fix-goal-progress-org-id-notnull.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): NOT NULL constraint after backfill' },
-  ),
-  ops(
     'scripts/migrations/denormalize-inbox-reviewer-name.sql',
     'scripts/migrations/denormalize-inbox-reviewer-name.sql',
     'tenant_cross',
@@ -4345,15 +4320,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'scripts/migrations/fix-portal-schema-sync.sql',
     'tenant_cross',
     { notes: 'DIRECT-DB (psql): portal sort_key + group-members table' },
-  ),
-  ops(
-    'scripts/migrations/add-goals-parent-period-uniq.sql',
-    'scripts/migrations/add-goals-parent-period-uniq.sql',
-    'tenant_cross',
-    {
-      notes:
-        'DIRECT-DB (psql): unique partial index preventing duplicate recurring goals',
-    },
   ),
   ops(
     'scripts/migrations/add-reply-unique-index.sql',

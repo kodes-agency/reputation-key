@@ -86,7 +86,6 @@
     "ops:manage-dormant-billing-data": "tsx scripts/ops/manage-dormant-billing-data.ts",
     "ops:repair-partial-offboarding": "tsx scripts/ops/repair-partial-offboarding.ts",
     "ops:triage-beta-feedback": "tsx scripts/ops/triage-beta-feedback.ts",
-    "ops:report-legacy-goals": "tsx scripts/ops/report-legacy-goals.ts",
     "ops:report-legacy-custom-roles": "tsx scripts/ops/report-legacy-custom-roles.ts",
     "ops:report-legacy-multi-org": "tsx scripts/ops/report-legacy-multi-org.ts",
     "ops:report-legacy-guest-compatibility": "tsx scripts/ops/report-legacy-guest-compatibility.ts",

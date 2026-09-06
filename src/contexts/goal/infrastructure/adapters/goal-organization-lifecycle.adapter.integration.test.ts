@@ -25,8 +25,6 @@ const RATING_COUNT_GOAL_VERSION = '11111111-1111-4111-8111-111111111302'
 
 /** The append-only guards the fixtures have to step around, exactly as purge does. */
 const APPEND_ONLY_GUARDS = [
-  ['goal_definition_versions', 'goal_definition_versions_immutable'],
-  ['goal_evaluations', 'goal_evaluations_immutable'],
   ['goal_program_versions', 'goal_program_versions_append_only'],
   ['goal_result_revisions', 'goal_result_revisions_append_only'],
   ['goal_monthly_results', 'goal_monthly_results_guard'],
@@ -49,7 +47,6 @@ type Fixture = Readonly<{
   closureLineageId: string
   propertyId: string
   programId: string
-  definitionId: string
 }>
 
 async function seedOrganization(prefix: string): Promise<string> {
@@ -63,7 +60,7 @@ async function seedOrganization(prefix: string): Promise<string> {
   return organizationId
 }
 
-/** Seeds one row in every Goal-owned table, canonical and retained. */
+/** Seeds one row in every surviving Goal-owned table. */
 async function seedTenantRows(
   prefix: string,
   programStatus: 'active' | 'paused' = 'active',
@@ -74,18 +71,12 @@ async function seedTenantRows(
     closureLineageId: randomUUID(),
     propertyId: randomUUID(),
     programId: randomUUID(),
-    definitionId: randomUUID(),
   }
   const programVersionId = randomUUID()
   const assignmentId = randomUUID()
   const monthlyResultId = randomUUID()
   const firstRevisionId = randomUUID()
   const secondRevisionId = randomUUID()
-  const definitionVersionId = randomUUID()
-  const periodId = randomUUID()
-  const firstEvaluationId = randomUUID()
-  const secondEvaluationId = randomUUID()
-  const goalId = randomUUID()
 
   await lease.pool.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
@@ -177,121 +168,6 @@ async function seedTenantRows(
       CLOSED_AT,
       firstRevisionId,
     ],
-  )
-
-  // ── Retained governed-goal family ────────────────────────────────────
-  await lease.pool.query(
-    `INSERT INTO goal_definitions
-       (id, organization_id, property_id, scope_kind, name, status, current_version,
-        created_by, created_at, updated_at)
-     VALUES ($1::uuid, $2, $3::uuid, 'property', 'Lifecycle Definition', 'active', 1,
-             'user:test', $4, $4)`,
-    [fixture.definitionId, organizationId, fixture.propertyId, VERSION_FROM],
-  )
-  await lease.pool.query(
-    `INSERT INTO goal_definition_versions
-       (id, definition_id, organization_id, property_id, version, metric_definition_id,
-        metric_definition_version_id, metric_key, metric_value_kind,
-        metric_minimum_sample, metric_allowed_scopes, metric_permitted_consumers,
-        measure_kind, target_value, source_policy, property_timezone, recurrence_rule,
-        effective_from, change_reason, created_by, created_at)
-     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, 1,
-             (SELECT definition_id FROM metric_definition_versions WHERE id = $5::uuid),
-             $5::uuid, 'portal_rating_count', 'counter', 1, '[]'::jsonb, '[]'::jsonb,
-             'progress', 10, 'first_party_guest_gateway_metric', 'UTC',
-             '{"frequency":"monthly"}'::jsonb, $6, 'fixture', 'user:test', $6)`,
-    [
-      definitionVersionId,
-      fixture.definitionId,
-      organizationId,
-      fixture.propertyId,
-      RATING_COUNT_GOAL_VERSION,
-      VERSION_FROM,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO goal_periods
-       (id, definition_id, definition_version_id, organization_id, property_id,
-        period_start, period_end, property_timezone, status, created_at, updated_at)
-     VALUES ($1::uuid, $2::uuid, $3::uuid, $4, $5::uuid, $6, $7, 'UTC', 'open', $6, $6)`,
-    [
-      periodId,
-      fixture.definitionId,
-      definitionVersionId,
-      organizationId,
-      fixture.propertyId,
-      PERIOD_START,
-      PERIOD_END,
-    ],
-  )
-  for (const [evaluationId, supersedes] of [
-    [firstEvaluationId, null],
-    [secondEvaluationId, firstEvaluationId],
-  ] as const) {
-    await lease.pool.query(
-      `INSERT INTO goal_evaluations
-         (id, period_id, definition_id, definition_version_id, organization_id,
-          property_id, idempotency_key, state, achieved, evaluation_watermark,
-          supersedes_evaluation_id, created_by, created_at)
-       VALUES ($1::uuid, $2::uuid, $3::uuid, $4::uuid, $5, $6::uuid, $7, 'unavailable',
-               false, $8, $9::uuid, 'user:test', $8)`,
-      [
-        evaluationId,
-        periodId,
-        fixture.definitionId,
-        definitionVersionId,
-        organizationId,
-        fixture.propertyId,
-        `goal-eval-${evaluationId}`,
-        CLOSED_AT,
-        supersedes,
-      ],
-    )
-  }
-  await lease.pool.query(
-    `INSERT INTO goal_refresh_receipts
-       (source_event_id, period_id, organization_id, property_id, evaluation_id,
-        processed_at)
-     VALUES ($1, $2::uuid, $3, $4::uuid, $5::uuid, $6)`,
-    [
-      `goal-refresh-${randomUUID()}`,
-      periodId,
-      organizationId,
-      fixture.propertyId,
-      firstEvaluationId,
-      CLOSED_AT,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO goal_timezone_event_receipts
-       (source_event_id, definition_id, organization_id, property_id, property_version,
-        new_definition_version_id, new_period_id, processed_at)
-     VALUES ($1, $2::uuid, $3, $4::uuid, 1, $5::uuid, $6::uuid, $7)`,
-    [
-      `goal-timezone-${randomUUID()}`,
-      fixture.definitionId,
-      organizationId,
-      fixture.propertyId,
-      definitionVersionId,
-      periodId,
-      CLOSED_AT,
-    ],
-  )
-
-  // ── Retained pre-beta family ─────────────────────────────────────────
-  await lease.pool.query(
-    `INSERT INTO goals
-       (id, organization_id, property_id, name, created_by, goal_type,
-        aggregation_function, metric_key, target_value, status, created_at, updated_at)
-     VALUES ($1::uuid, $2, $3::uuid, 'Legacy Goal', 'user:test', 'open', 'sum',
-             'portal.rating_count', 10, 'active', $4, $4)`,
-    [goalId, organizationId, fixture.propertyId, VERSION_FROM],
-  )
-  await lease.pool.query(
-    `INSERT INTO goal_progress
-       (id, goal_id, organization_id, current_value, last_computed_at, computed_source)
-     VALUES (gen_random_uuid(), $1::uuid, $2, 3, $3, 'reconciliation')`,
-    [goalId, organizationId, CLOSED_AT],
   )
 
   return fixture
@@ -575,7 +451,6 @@ describe.sequential('goal Organization lifecycle contributor', () => {
       closureLineageId: randomUUID(),
       propertyId: randomUUID(),
       programId: randomUUID(),
-      definitionId: randomUUID(),
     }
     await requestClosure(fixture)
     const contributor = createGoalOrganizationLifecycleAdapter(db)

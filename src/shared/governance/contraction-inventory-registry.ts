@@ -77,14 +77,6 @@ const command = <const Definition extends ContractionInventoryCommand>(
 
 export const CONTRACTION_INVENTORY_COMMANDS = Object.freeze([
   command({
-    packageScript: 'ops:report-legacy-goals',
-    scriptPath: 'scripts/ops/report-legacy-goals.ts',
-    kind: 'table_inventory',
-    authority: 'GOA-01/CNV-01',
-    summary: 'Retained pre-beta Goal rows superseded by the governed Goal program model.',
-    tables: ['goals', 'goal_progress'],
-  }),
-  command({
     packageScript: 'ops:report-compatibility-read-surfaces',
     scriptPath: 'scripts/ops/report-compatibility-read-surfaces.ts',
     kind: 'table_inventory',

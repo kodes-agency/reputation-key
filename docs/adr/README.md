@@ -39,7 +39,7 @@ never issued; numbers are not reused.
 | [0039](0039-people-access-and-attribution.md)                             | People/access/attribution separation   | Partially superseded by 0052                                        |
 | [0040](0040-portal-and-group-history.md)                                  | Portal/Group event-time history        | Active                                                              |
 | [0041](0041-governed-metric-registry.md)                                  | Governed Metric registry               | Active                                                              |
-| [0042](0042-goal-measure-kinds.md)                                        | Goal measure kinds                     | Active                                                              |
+| [0042](0042-goal-measure-kinds.md)                                        | Goal measure kinds                     | Superseded by WP3.3-A                                               |
 | [0044](0044-public-portal-and-guest-response.md)                          | Public Portal/Guest policy             | Active with the approved Portal/Guest contract                      |
 | [0045](0045-activity-audit-and-domain-events.md)                          | Activity/audit/event separation        | Partially superseded by 0056                                        |
 | [0046](0046-notification-policy.md)                                       | Notification categories/channels       | Active                                                              |
