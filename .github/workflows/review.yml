@@ -1,0 +1,228 @@
+name: Review
+
+# A second pair of eyes, enforced rather than hoped for.
+#
+# WHY THIS EXISTS. Phase 2 of the lean transformation removed ~24,000 lines
+# straight to `main` with nothing reviewing it. That was recorded all along as an
+# accepted risk — "one developer, app is stopped" — but the recording was wrong
+# about the cause: branch protection existed the whole time with the right
+# required checks, and `enforce_admins` was simply false, so every push walked
+# past it. The risk was a misconfiguration nobody checked, not a decision.
+#
+# WHAT IT MUST CATCH, and why a generic code review will not. The failure mode of
+# a deletion program is not a bug; it is deleting a control while it looks like
+# deleting ceremony. Phase 2 deleted, correctly, a signed approval bundle, two
+# cache-generation comparisons and an approval-binding FK — and kept, correctly,
+# a live kill switch, a permit state machine and a spend cap. Those decisions look
+# identical in a diff. Telling them apart requires reading the tree to find out
+# what still enforces the rule, which is why this uses Claude Code rather than a
+# diff-only reviewer: it can grep.
+#
+# PRECISION OVER RECALL ON THE BLOCKING PATH. `Control removal` fails the job.
+# Everything else is a non-blocking comment. A reviewer that flags everything
+# trains you to click past it, which is how you get a rubber stamp with extra
+# steps. Same principle as the Fallow audit's `gate: new-only`.
+#
+# NOT A BOT APPROVAL. GitHub will count a GitHub App review toward
+# `required_approving_review_count`. This deliberately does not do that: it
+# posts findings and exits non-zero. A red required check is honest; a bot
+# approving a bot's work is theatre that satisfies the rule and protects nothing.
+#
+# ACTIVATION IS TWO STEPS, and step 2 is deliberately manual:
+#   1. Add `ANTHROPIC_API_KEY` to repository secrets. Better, if you have
+#      Anthropic org admin: register GitHub Actions as an OIDC issuer and use
+#      Workload Identity Federation, so there is no static key to leak.
+#   2. Add `review` to the branch's required status checks.
+# Until step 2, this workflow reports but cannot block — which is why it fails
+# loudly on a missing key rather than skipping. A review gate that silently
+# no-ops is precisely the class of thing this program exists to delete.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Fail fast and explicitly when the key is absent, instead of letting the
+  # review jobs skip and leave a green-looking PR that nothing examined.
+  credentials:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require review credentials
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "${ANTHROPIC_API_KEY}" ]; then
+            echo "::error::ANTHROPIC_API_KEY is not set. The review gate cannot run."
+            echo "::error::Add it under Settings > Secrets and variables > Actions,"
+            echo "::error::or configure Workload Identity Federation for keyless auth."
+            exit 1
+          fi
+
+  control-vs-ceremony:
+    needs: [credentials]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history so the reviewer can diff against the base and read what
+          # a deleted line used to do, not merely that it is gone.
+          fetch-depth: 0
+
+      - name: Adversarial control-vs-ceremony review
+        uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            You are an adversarial reviewer on a codebase mid-way through a
+            deliberate deletion program. Roughly 24,000 lines have already been
+            removed on purpose. Your job is NOT to object to deletion.
+
+            Your job is to find the ONE deletion that removed a CONTROL while
+            looking like it removed CEREMONY.
+
+            The distinction this codebase uses:
+            - CEREMONY: machinery whose only job is to prove a document, a
+              catalogue, a counter or a snapshot is consistent with itself.
+              Deleting it is the point of this program.
+            - CONTROL: anything that changes what the software will actually
+              refuse to do. A live authorization check, a spend cap, a kill
+              switch, a state machine, a tenant predicate, a deadline, an input
+              bound, a fail-closed branch.
+
+            For EVERY removed or weakened check in this diff, answer all four:
+              1. What did this gate before?
+              2. What gates it now? Name the file and the line.
+              3. Is that replacement evaluated LIVE per request, or is it a
+                 stored snapshot compared later? A snapshot is not equivalent to
+                 a live read.
+              4. If it was a test: did it lose its SUBJECT (the behaviour no
+                 longer exists — deletion is correct), or did it lose COVERAGE
+                 (the behaviour still exists and is now unasserted — this is a
+                 finding)?
+
+            Read the tree to answer 2 and 3. Do not answer from the diff alone;
+            a diff cannot show you what still enforces a rule. Use grep.
+
+            Specific traps this codebase has already sprung, so look for them:
+            - An edit reported as applied that silently did not apply. Verify
+              claims in the commit message against the actual file contents.
+            - A test that passes vacuously because its input was mangled before
+              assertion (for example a comment stripper eating the file). If a
+              test searches text, check that the text survived.
+            - A required field dropped from a type while a SQL function, a
+              regprocedure cast, a GRANT, or a placeholder list still names it.
+            - A deny code removed from a union while a downstream mapper still
+              classifies it.
+            - A guard whose parameter is now unused, which usually means the
+              guard stopped guarding before it stopped existing.
+
+            OUTPUT FORMAT. Post one PR review comment. Classify every finding as
+            exactly one of:
+              CONTROL REMOVAL  — a control is gone or weakened with no live
+                                 replacement. Include the evidence.
+              UNEVIDENCED      — the change claims something the tree does not
+                                 support.
+              NOTE             — everything else. Style, naming, taste.
+
+            Then, on the LAST line of your comment, output exactly one of:
+              REVIEW-VERDICT: BLOCK
+              REVIEW-VERDICT: PASS
+            BLOCK only if you found at least one CONTROL REMOVAL or UNEVIDENCED
+            finding. NOTE findings alone must produce PASS. Do not hedge: an
+            uncertain BLOCK is more useful than a confident PASS, but a reflexive
+            BLOCK on every PR makes this gate worthless, so justify it.
+          claude_args: >-
+            --allowed-tools
+            Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
+
+      - name: Enforce the verdict
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # The reviewer's verdict is the gate. Read it back from what it
+          # actually posted rather than trusting the step's exit code: the
+          # action succeeds when it manages to comment, which is not the same
+          # as the review passing.
+          body=$(gh api "repos/${REPO}/issues/${PR}/comments" \
+            --jq 'map(select(.body | test("REVIEW-VERDICT:"))) | last | .body // ""')
+          if [ -z "${body}" ]; then
+            echo "::error::The reviewer posted no verdict. Treating as a failure:"
+            echo "::error::a review gate that produces no verdict has not reviewed anything."
+            exit 1
+          fi
+          verdict=$(printf '%s\n' "${body}" | grep -oE 'REVIEW-VERDICT: (BLOCK|PASS)' | tail -1)
+          echo "${verdict}"
+          if [ "${verdict}" = "REVIEW-VERDICT: BLOCK" ]; then
+            echo "::error::Review found a control removal or an unevidenced claim. See the PR comment."
+            exit 1
+          fi
+
+  security:
+    needs: [credentials]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Kept separate from the reviewer above on purpose: that one asks "did a
+      # control disappear", this one asks "is there a vulnerability class here".
+      # Merging them would dilute both prompts, and this program has already
+      # shown that a gate which reports everything gets ignored.
+      #
+      # This uses the same pinned action with a different prompt rather than
+      # `anthropics/claude-code-security-review`, which publishes no tags or
+      # releases. `check:action-pins` requires a SHA plus a `# v…` comment, and
+      # there is no version to name — so the honest options were to widen the
+      # pinning policy for one action or to not depend on an unversioned one.
+      # Widening a security policy to satisfy a convenience is the trade this
+      # program exists to stop making.
+      - name: Security review
+        uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request for security vulnerabilities only. Ignore
+            style, naming and architecture — another reviewer covers those.
+
+            This codebase handles merchant OAuth credentials for Google Business
+            Profile and calls a paid AI provider, so weight these classes:
+              - credential exposure: a token, client secret or encryption key
+                reaching a log, an error body, a URL, an event payload, a
+                persisted column or the browser
+              - authorization bypass: a path reaching a provider or a tenant's
+                data without re-proving organization, property and capability
+              - tenant isolation: a query missing its organization predicate
+              - spend: an AI provider call that can be made without passing the
+                per-route cost ceiling
+              - injection: SQL built by concatenation, a shell argument from
+                request data, a regex from user input
+              - fail-open: a catch that swallows a refusal, a default that
+                permits, an optional dependency whose absence skips a check
+
+            Report only findings you can evidence with a file and line. For each,
+            state the input that reaches it and what an attacker gains. Do not
+            report theoretical issues with no reachable path — a false positive
+            here costs more than it saves, because it teaches the next reader to
+            skim.
+
+            Post one PR review comment. If you find nothing, say so in one line.
+          claude_args: >-
+            --allowed-tools
+            Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
