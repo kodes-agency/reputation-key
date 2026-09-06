@@ -50,6 +50,7 @@ const ON_REVIEW_UPDATED = 'inbox.on-review-updated'
 const ON_REVIEW_SOURCE_TRANSITIONED = 'inbox.on-review-source-transitioned'
 const ON_REPLY_PUBLISHED = 'inbox.on-reply-published'
 const ON_REPLY_OBSERVED = 'inbox.on-reply-observed'
+const ON_REPLY_SUBMITTED = 'inbox.on-reply-submitted'
 
 type ReviewIdPayload = Readonly<{
   reviewId: string
@@ -338,6 +339,39 @@ export async function handleInboxReplyPublished(
   return { status: 'applied' }
 }
 
+/**
+ * Stamp the firstReplySubmittedAt milestone on the associated inbox item.
+ * Milestone only — this consumer never touches `inbox_items.status`; exact
+ * current observed Google truth (review.reply.observed) owns close/reopen.
+ * Durable replacement for the former in-process bus handler; idempotent by
+ * construction because a set milestone is never overwritten.
+ */
+export async function handleInboxReplySubmitted(
+  deps: InboxConsumerDeps,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const payload = asReviewIdPayload(event.payload)
+  const orgId = organizationId(payload.organizationId)
+  const item = await deps.inboxRepo.findBySource(
+    'review',
+    unbrand(reviewId(payload.reviewId)),
+    orgId,
+  )
+  if (!item || item.firstReplySubmittedAt) {
+    await deps.commandStore.recordReceipt(event.eventId, ON_REPLY_SUBMITTED, 'applied')
+    return { status: 'applied' }
+  }
+  const submittedAt = event.occurredAt ? new Date(event.occurredAt) : deps.clock()
+  await deps.inboxRepo.stampReplyMilestones(
+    item.id,
+    item.organizationId,
+    { firstReplySubmittedAt: submittedAt },
+    submittedAt,
+  )
+  await deps.commandStore.recordReceipt(event.eventId, ON_REPLY_SUBMITTED, 'applied')
+  return { status: 'applied' }
+}
+
 /** Apply the Review-owned current provider observation to the one current
  * Handling Cycle. Review holds its exact-head fence while the Inbox command
  * store atomically commits the state, fact, and receipt. */
@@ -503,5 +537,12 @@ export function registerInboxConsumers(
     handler: (event) => handleInboxReplyObserved(deps, event),
   })
 
-  deps.logger.info('Inbox consumers registered with outbox dispatcher (6 consumers)')
+  registerConsumer({
+    eventType: 'review.reply.submitted',
+    consumerName: 'inbox.on-reply-submitted',
+    module: 'inbox.outbox-consumers',
+    handler: (event) => handleInboxReplySubmitted(deps, event),
+  })
+
+  deps.logger.info('Inbox consumers registered with outbox dispatcher (7 consumers)')
 }

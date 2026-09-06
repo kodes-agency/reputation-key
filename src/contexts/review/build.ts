@@ -95,7 +95,6 @@ import { createEligibleReads, type EligibleReads } from './application/eligible-
 import { reviewId, replyId } from '#/shared/domain/ids'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
-import { registerReviewHandlers } from './infrastructure/event-handlers'
 import { registerReplyPublicationConsumers } from './infrastructure/outbox-consumers'
 import { createPublishReplyScopeResolver } from './infrastructure/jobs/publish-reply-scope-resolver'
 import { JOB_NAME as PUBLISH_REPLY_JOB_NAME } from './infrastructure/jobs/publish-reply.job'
@@ -478,17 +477,14 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     staffPublicApi: input.staffPublicApi,
   }
 
-  registerReviewHandlers({
-    events: input.events,
-    logger: input.logger,
-    // BQC-3.8: disconnect cancels in-flight publications before/with the
-    // source-content purge (the guarded store tolerates the race).
-    cancelPublicationsForConnection: cancelPublicationsForConnection({
-      reviewRepo,
-      replyRepo,
-      commandStore: replyCommandStore,
-      clock: input.clock,
-    }),
+  // BQC-3.8: disconnect cancels in-flight publications before/with the
+  // source-content purge (the guarded store tolerates the race). Delivered by
+  // the durable review.on-google-account-disconnected consumer.
+  const cancelPublications = cancelPublicationsForConnection({
+    reviewRepo,
+    replyRepo,
+    commandStore: replyCommandStore,
+    clock: input.clock,
   })
 
   // BQR-2.3: atomic review upsert + outbox insert for sync path
@@ -571,6 +567,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       queue: replyQueue,
       receipts: input.outboxRepo,
       logger: input.logger,
+      cancelPublicationsForConnection: cancelPublications,
     })
   // BQC-5.5: governed aggregate serving reads — eligibility in SQL,
   // clock-injected. Wired into the dashboard build by composition. ONE

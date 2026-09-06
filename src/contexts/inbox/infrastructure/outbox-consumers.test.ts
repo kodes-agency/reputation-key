@@ -11,6 +11,7 @@ import {
   handleInboxReviewUpdated,
   handleInboxReplyObserved,
   handleInboxReplyPublished,
+  handleInboxReplySubmitted,
   type InboxConsumerDeps,
 } from './outbox-consumers'
 import {
@@ -1098,6 +1099,54 @@ describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () =>
         consumerName: 'inbox.on-review-updated',
         status: 'obsolete',
       },
+    ])
+  })
+})
+
+describe('handleInboxReplySubmitted (first-reply milestone)', () => {
+  const submitted = (occurredAt: string = '2026-06-15T13:00:00.000Z') => ({
+    ...makeEvent('review.reply.submitted', {
+      reviewId: 'rev-1',
+      organizationId: 'org-1',
+      propertyId: 'prop-1',
+    }),
+    occurredAt,
+  })
+
+  it('stamps firstReplySubmittedAt from the envelope time without touching status', async () => {
+    const { deps, repo, events, receipts } = makeDeps({})
+
+    const result = await handleInboxReplySubmitted(deps, submitted())
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(repo.items[0]!.firstReplySubmittedAt).toEqual(new Date('2026-06-15T13:00:00.000Z'))
+    expect(repo.items[0]!.status).toBe('open')
+    expect(events.capturedEvents).toHaveLength(0)
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-submitted', status: 'applied' },
+    ])
+  })
+
+  it('never overwrites an existing milestone on redelivery or a later reply', async () => {
+    const first = new Date('2026-06-15T13:00:00.000Z')
+    const { deps, repo, receipts } = makeDeps({ item: makeItem({ firstReplySubmittedAt: first }) })
+
+    await handleInboxReplySubmitted(deps, submitted('2026-06-16T09:00:00.000Z'))
+
+    expect(repo.items[0]!.firstReplySubmittedAt).toEqual(first)
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-submitted', status: 'applied' },
+    ])
+  })
+
+  it('records an applied receipt when no inbox item exists for the review', async () => {
+    const { deps, receipts } = makeDeps({ item: null })
+
+    await expect(handleInboxReplySubmitted(deps, submitted())).resolves.toEqual({
+      status: 'applied',
+    })
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-submitted', status: 'applied' },
     ])
   })
 })
