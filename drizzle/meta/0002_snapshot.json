@@ -1,6 +1,6 @@
 {
-  "id": "c73e6d99-6480-4214-8091-be1f99982061",
-  "prevId": "7d63cd9c-3fa8-4bc8-9d8e-2bec2fdcf39a",
+  "id": "ab94aaf7-a9ad-463e-bb49-d7194b10ac6c",
+  "prevId": "51487258-074c-4554-9ae7-f47c9b341a25",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -28833,7 +28833,7 @@
         },
         "merchant_ai_consent_evidence_contract_valid": {
           "name": "merchant_ai_consent_evidence_contract_valid",
-          "value": "(\n          (\"merchant_ai_consent_evidence\".\"notice_version\" = 'merchant-ai-notice-2026-08-15.v1'\n            AND \"merchant_ai_consent_evidence\".\"notice_digest\" = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')\n          OR (\"merchant_ai_consent_evidence\".\"notice_version\" = 'merchant-ai-notice-2026-08-19.v1'\n            AND \"merchant_ai_consent_evidence\".\"notice_digest\" = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')\n        )\n        AND \"merchant_ai_consent_evidence\".\"source_policy_id\" = 'google-business-profile-source-policy-v1'\n        AND \"merchant_ai_consent_evidence\".\"routing_policy_version\" = 1\n        AND \"merchant_ai_consent_evidence\".\"redaction_profile_family\" = 'gbp-review-global-v1'"
+          "value": "(\n          (\"merchant_ai_consent_evidence\".\"notice_version\" = 'merchant-ai-notice-2026-08-15.v1'\n            AND \"merchant_ai_consent_evidence\".\"notice_digest\" = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')\n          OR (\"merchant_ai_consent_evidence\".\"notice_version\" = 'merchant-ai-notice-2026-08-19.v1'\n            AND \"merchant_ai_consent_evidence\".\"notice_digest\" = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')\n          OR (\"merchant_ai_consent_evidence\".\"notice_version\" = 'merchant-ai-notice-2026-09-06.v1'\n            AND \"merchant_ai_consent_evidence\".\"notice_digest\" = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')\n        )\n        AND \"merchant_ai_consent_evidence\".\"source_policy_id\" = 'google-business-profile-source-policy-v1'\n        AND \"merchant_ai_consent_evidence\".\"routing_policy_version\" = 1\n        AND \"merchant_ai_consent_evidence\".\"redaction_profile_family\" = 'gbp-review-global-v1'"
         },
         "merchant_ai_consent_evidence_capabilities_valid": {
           "name": "merchant_ai_consent_evidence_capabilities_valid",
@@ -29100,7 +29100,7 @@
         },
         "merchant_ai_enablement_contract_valid": {
           "name": "merchant_ai_enablement_contract_valid",
-          "value": "(\n          (\"merchant_ai_enablement\".\"notice_version\" = 'merchant-ai-notice-2026-08-15.v1'\n            AND \"merchant_ai_enablement\".\"notice_digest\" = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')\n          OR (\"merchant_ai_enablement\".\"notice_version\" = 'merchant-ai-notice-2026-08-19.v1'\n            AND \"merchant_ai_enablement\".\"notice_digest\" = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')\n        )\n        AND \"merchant_ai_enablement\".\"source_policy_id\" = 'google-business-profile-source-policy-v1'\n        AND \"merchant_ai_enablement\".\"routing_policy_version\" = 1\n        AND \"merchant_ai_enablement\".\"redaction_profile_family\" = 'gbp-review-global-v1'"
+          "value": "(\n          (\"merchant_ai_enablement\".\"notice_version\" = 'merchant-ai-notice-2026-08-15.v1'\n            AND \"merchant_ai_enablement\".\"notice_digest\" = '4ae20219b3ba1ae575ccd567ec88f20201c0c47289606c614ac0bead2c3edc6b')\n          OR (\"merchant_ai_enablement\".\"notice_version\" = 'merchant-ai-notice-2026-08-19.v1'\n            AND \"merchant_ai_enablement\".\"notice_digest\" = 'f0d809baa42995be174a536561a56f4c6656e9b1a60feb5773466f2d1eb2bf31')\n          OR (\"merchant_ai_enablement\".\"notice_version\" = 'merchant-ai-notice-2026-09-06.v1'\n            AND \"merchant_ai_enablement\".\"notice_digest\" = '7bb8d9bddbec630d90f546ba4d0f308076840e25786389a19e1c651dd21434a8')\n        )\n        AND \"merchant_ai_enablement\".\"source_policy_id\" = 'google-business-profile-source-policy-v1'\n        AND \"merchant_ai_enablement\".\"routing_policy_version\" = 1\n        AND \"merchant_ai_enablement\".\"redaction_profile_family\" = 'gbp-review-global-v1'"
         },
         "merchant_ai_enablement_capabilities_valid": {
           "name": "merchant_ai_enablement_capabilities_valid",

@@ -1,7 +1,11 @@
 // TestDbSetup (BQC-6.1) — create + migrate the isolated scratch database so a
 // clean clone goes green without manual DB prep. Idempotent: when the deploy
-// migration state is already present it verifies and exits fast (the
-// integration project's vitest globalSetup runs this on every invocation).
+// migration state is already present AND its recorded migration hashes match
+// the current drizzle/ files it verifies and exits fast (the integration
+// project's vitest globalSetup runs this on every invocation). A regenerated
+// baseline keeps the same journal tags with different content, so a count
+// check alone would run every integration test against stale constructs and
+// seed rows; on a hash mismatch the scratch database is dropped and rebuilt.
 //
 // Apply sequence mirrors the ci.yml "Run migrations" trio (deploy order, see
 // src/shared/db/CONTEXT.md):
@@ -16,6 +20,7 @@
 // this never creates or migrates a shared/remote database the lease guard
 // would refuse.
 
+import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { userInfo } from 'node:os'
@@ -46,6 +51,8 @@ export type TestDbSetupResult = Readonly<{
 type DbState = Readonly<{
   tableCount: number
   journalCount: number
+  /** sha256 of each applied migration file, in journal order (drizzle's own hash). */
+  journalHashes: readonly string[]
   hasAuthTables: boolean
   hasSidecar: boolean
   hasGooglePropertyBindingIndex: boolean
@@ -218,9 +225,27 @@ async function bootstrapRoleAndDatabase(parsed: URL, dbName: string): Promise<vo
   })
 }
 
-function expectedJournalCount(): number {
-  const journal = JSON.parse(readFileSync(JOURNAL_URL, 'utf8')) as { entries: unknown[] }
-  return journal.entries.length
+function expectedJournalHashes(): readonly string[] {
+  const journal = JSON.parse(readFileSync(JOURNAL_URL, 'utf8')) as {
+    entries: readonly { tag: string }[]
+  }
+  // Same input drizzle-orm's migrator hashes: the whole migration file.
+  return journal.entries.map((entry) =>
+    createHash('sha256')
+      .update(readFileSync(new URL(`../../../drizzle/${entry.tag}.sql`, import.meta.url)))
+      .digest('hex'),
+  )
+}
+
+async function dropDatabase(url: string): Promise<void> {
+  const dbName = decodeURIComponent(new URL(url).pathname.slice(1))
+  await withPool(maintenanceUrl(url), async (pool) => {
+    await pool.query(
+      'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()',
+      [dbName],
+    )
+    await pool.query(`DROP DATABASE IF EXISTS ${quoteIdent(dbName)}`)
+  })
 }
 
 async function readState(url: string): Promise<DbState> {
@@ -238,8 +263,10 @@ async function readState(url: string): Promise<DbState> {
         (SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '${SIDECAR_MARKER_FUNCTION}')) AS has_sidecar
     `)
     const journal = await pool
-      .query('SELECT count(*)::int AS n FROM "drizzle"."__drizzle_migrations"')
-      .catch(() => ({ rows: [{ n: 0 }] }))
+      .query<{ hash: string }>(
+        'SELECT hash FROM "drizzle"."__drizzle_migrations" ORDER BY created_at, id',
+      )
+      .catch(() => ({ rows: [] as { hash: string }[] }))
     const row = state.rows[0] as {
       table_count: number
       has_auth: boolean
@@ -248,7 +275,8 @@ async function readState(url: string): Promise<DbState> {
     }
     return {
       tableCount: row.table_count,
-      journalCount: (journal.rows[0] as { n: number }).n,
+      journalCount: journal.rows.length,
+      journalHashes: journal.rows.map((r) => r.hash),
       hasAuthTables: row.has_auth,
       hasSidecar: row.has_sidecar,
       hasGooglePropertyBindingIndex: row.has_google_property_binding_index,
@@ -309,13 +337,17 @@ export async function ensureTestDatabase(
   const url = urlOverride ?? process.env.TEST_DATABASE_URL ?? DEFAULT_TEST_DATABASE_URL
   validateTestDatabaseTarget(url)
 
-  const created = await ensureDatabaseExists(url)
+  let created = await ensureDatabaseExists(url)
   return withProvisioningSession(url, async () => {
     // Re-read only after acquiring the lock. A concurrent setup may have
     // completed while this caller was waiting; its journal is authoritative.
     const before = await readState(url)
+    const expected = expectedJournalHashes()
+    const journalMatches =
+      before.journalHashes.length === expected.length &&
+      before.journalHashes.every((hash, index) => hash === expected[index])
     const upToDate =
-      before.journalCount === expectedJournalCount() &&
+      journalMatches &&
       before.hasAuthTables &&
       before.hasGooglePropertyBindingIndex &&
       before.hasSidecar
@@ -332,6 +364,18 @@ export async function ensureTestDatabase(
         tableCount: before.tableCount,
         journalCount: before.journalCount,
       }
+    }
+
+    if (before.journalCount > 0 && !journalMatches) {
+      // The journal is populated but its content differs from drizzle/ — a
+      // regenerated baseline. Drizzle's migrator cannot re-apply a tag it has
+      // already recorded, and the tables it would create already exist, so the
+      // only correct move is a rebuild from empty.
+      process.stdout.write(
+        `[test-db-setup] migration hashes differ from drizzle/ — rebuilding ${redact(url)}\n`,
+      )
+      await dropDatabase(url)
+      created = await ensureDatabaseExists(url)
     }
 
     await applyMigrations(url)
