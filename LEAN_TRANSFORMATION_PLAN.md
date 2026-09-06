@@ -510,3 +510,16 @@ A third finding is recorded but not fixed, because it is local-only: on this mac
 - **Worker smoke in CI (WP0.3):** if the docker smoke harness cannot override the container command, drop the `worker` matrix entry; the web image is the worker image.
 - **`in_memory` retention:** if a later model snapshot accepts `prompt_cache_retention: 'in_memory'`, WP3.3 sets it and keeps the "at most one hour" notice text instead of re-consenting.
 - **Branch protection:** if pushes to `main` succeed without WP0.5, skip it.
+
+**Known external break, 2026-09-06 — the container scan gate is red and it is not this program's doing.** Run 34018571325 on `8a92f310`: `e2e`, all four unit shards, `test-integration`, `artifacts`, `static`, `storybook`, `storybook-test`, `secrets` and `check` all green; the three `docker image group` jobs and the `docker` aggregate failed, every one of them on the **grype vulnerability scan** step, not on the build. The images build.
+
+The cause is a database rollover, not a code change: that run's grype log reads `updated vulnerability DB from=2026-09-05T06:27:00Z to=2026-09-06T06:27:35Z`, and the same scan on the same image passed hours earlier. Grype also warns `683 packages from EOL distro "debian 12"` — the `node:22-slim` base is Debian bookworm, now end-of-life, so new findings against it will keep arriving and will increasingly have no upstream fix.
+
+`.grype.yaml`'s own policy gives two responses, and choosing between them needs the finding's identity, which I could not obtain: the local scan exceeded two thirty-minute windows on this network (the ~200 MB DB download), and grype's SARIF is not uploaded to GitHub code scanning, so the API returns only CodeQL alerts. Writing an exception entry without knowing what it exempts would put a fabricated justification into a security file, which is worse than a red gate.
+
+The two real options, for whoever picks this up with the finding in hand:
+
+1. **Bump the base digest** — the policy's documented first move, and a newer `node:22-slim` exists (`sha256:83f487e0…` against the pinned `sha256:f32b8106…`). Be aware this is a triplicated-truth cascade, not a one-line edit: the digest is pinned in six Dockerfiles **and** baked into `src/shared/ai-openai-provider-profile.ts:196`, `src/shared/db/db-seed.sql`, the `db-constructs.sql` equality assertion, all three `drizzle/meta/*_snapshot.json`, and two test fixtures — and it feeds `profileDigest`, which feeds the operation-profile digests. WP1.5 hit exactly this chain from the other end. It also risks the runtime version guard (`node:'22.23.2', icu:'78.2', unicode:'17.0'`), which fails the build if the new build moved any of them, so run `docker build .` locally first.
+2. **Add a justified `.grype.yaml` entry** with owner, reason and `expiresAt`, if the finding has no available fix. This is only honest with the CVE in hand.
+
+Phase 3's WP3.3 makes option 1 far cheaper by collapsing the AI ceremony that spreads the digest across six files, so if the finding is unfixable today, taking option 2 now and option 1 after WP3.3 is the cheaper order.
