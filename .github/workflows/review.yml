@@ -36,6 +36,22 @@ name: Review
 # `id-token: write` already granted below), which exchanges the workflow's
 # GitHub OIDC token for a short-lived credential and leaves no static secret.
 #
+# THIS FILE CANNOT REVIEW ITS OWN CHANGES. claude-code-action refuses to run
+# when the workflow file differs from the copy on the default branch:
+#
+#   Skipping action due to workflow validation: the workflow file must exist
+#   and have identical content to the version on the repository's default branch
+#
+# That is a real control, not a bug — otherwise a pull request could rewrite its
+# own reviewer to print secrets. The consequences are worth knowing:
+#   - Until this file is merged to `main`, both reviewers skip on every run.
+#   - Any future PR that edits this file will skip them again, and must be
+#     reviewed by a human.
+#   - A skipped action exits SUCCESS and emits no output. Both jobs therefore
+#     fail when `structured_output` is absent. That is not defensive
+#     programming; this job actually reported green through four runs in which
+#     nothing was reviewed, which is how the requirement was found.
+#
 # REMAINING ACTIVATION STEP: add `review` to the branch's required status checks.
 
 on:
@@ -220,6 +236,7 @@ jobs:
       # convenience, or not depend on an unversioned action. This program exists
       # to stop making the first trade.
       - name: Security review
+        id: review
         uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -249,7 +266,45 @@ jobs:
             positive here costs more than it saves, because it teaches the next
             reader to skim.
 
-            Post one pull-request review comment. If you find nothing, say so
-            in one line.
+            Return the structured object the schema requires. `ran` is a
+            self-check: set it true to prove you executed. Report only findings
+            you can evidence.
           claude_args: |
             --allowed-tools Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
+            --json-schema '{"type":"object","required":["ran","findings"],"properties":{"ran":{"type":"boolean"},"findings":{"type":"array","items":{"type":"object","required":["severity","summary","evidence","attacker_gains"],"properties":{"severity":{"type":"string","enum":["HIGH","MEDIUM","LOW"]},"summary":{"type":"string"},"evidence":{"type":"string"},"attacker_gains":{"type":"string"}}}}}}'
+
+      # Without this the job is a FALSE GREEN, and it already was one. When
+      # `review.yml` differs from the copy on the default branch the action
+      # skips itself by design (see the header), exits success, and produces no
+      # output — so this job reported green through four runs in which no
+      # security review happened at all. A gate that cannot tell "found nothing"
+      # from "did not run" is not a gate.
+      - name: Enforce the security findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RESULT: ${{ steps.review.outputs.structured_output }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RESULT:-}" ]; then
+            echo "::error::The security reviewer produced no structured output."
+            echo "::error::Either it was skipped by workflow validation (does"
+            echo "::error::this PR change .github/workflows/review.yml?) or it"
+            echo "::error::failed. Not treating silence as a clean bill."
+            exit 1
+          fi
+          printf '%s' "${RESULT}" > security.json
+          {
+            echo "## Security review"
+            echo
+            jq -r 'if (.findings | length) == 0 then "No findings." else (.findings[] | "- **\(.severity)** — \(.summary)\n  - evidence: \(.evidence)\n  - attacker gains: \(.attacker_gains)") end' security.json
+          } > security-comment.md
+          gh pr comment "${PR}" --repo "${REPO}" --body-file security-comment.md
+
+          # HIGH and MEDIUM block. LOW is reported and does not.
+          blocking=$(jq '[.findings[] | select(.severity == "HIGH" or .severity == "MEDIUM")] | length' security.json)
+          if [ "${blocking}" -gt 0 ]; then
+            echo "::error::Security review found ${blocking} HIGH/MEDIUM finding(s)."
+            exit 1
+          fi
