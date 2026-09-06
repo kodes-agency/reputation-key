@@ -4,7 +4,7 @@ ARG SOURCE_REVISION=unknown
 # seed/load CLIs so they run from inside the target's private DB/Redis network.
 # It exposes no HTTP surface; Railway SSH is the sole execution channel. Source,
 # TypeScript runners, package managers, and devDependencies stay in build stages.
-FROM node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS base
+FROM node:26-slim@sha256:c0753125a3789977aefe869cbebccf70e3cfd7ea84ca48547458f02e4f1d7146 AS base
 # CVE-2026-86145: the one High in this base with a fix. Pinned exact so the build
 # fails loudly if the archive stops carrying it. Kept identical to the block in
 # `Dockerfile` on purpose — these images declare their own `FROM` rather than
