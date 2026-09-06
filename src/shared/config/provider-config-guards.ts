@@ -1,8 +1,8 @@
-// Production fail-closed guards for the Google review provider path.
+// Production fail-closed guards for Google provider configuration.
 //
-// Both guards exist because the same configuration mistake used to produce a
-// process that BOOTS and then fails, silently or expensively, on every unit of
-// real work:
+// Both guards exist because the same configuration mistake can otherwise
+// produce a process that boots and then fails, silently or expensively, on
+// every unit of real work:
 //
 //   1. REVIEW_PROVIDER_SUBJECT_HMAC_KEYS is `optional()` in the env schema but
 //      MANDATORY at runtime for a worker: `acquireDeriver()` is the first thing
@@ -11,18 +11,16 @@
 //      sync, three retries deep, into quarantine. In production with jobs
 //      enabled the process must refuse to start instead, naming the variable.
 //
-//   2. The Google review adapter falls back to a DIRECT `fetch` whenever the
-//      egress executor is absent, which happens merely by leaving the six
-//      GOOGLE_EGRESS_* / mTLS values unset. That path bypasses admission,
-//      quota control, credential binding and mTLS. In production it must
-//      refuse without an environment escape hatch, and the refusal must name
-//      the missing configuration.
+//   2. Credential-bearing OAuth adapters retain deterministic direct
+//      transports outside production. In production those sockets must refuse
+//      without an environment escape hatch whenever the governed credential
+//      executor is unavailable.
 //
-// Scope: NODE_ENV === 'production' only. Development, test and CI keep exactly
-// the current behaviour (the canonical test env leaves these unset on purpose),
-// so these guards gate on the environment, never on presence.
+// Scope: NODE_ENV === 'production' only. Development, test and CI keep their
+// deterministic local behaviour, so these guards gate on the environment,
+// never on presence.
 
-/** Env fields the direct-egress guard reports as missing, in report order. */
+/** Env fields the credential-egress guard reports as missing, in report order. */
 export const GOOGLE_EGRESS_CONFIG_FIELDS = [
   'GOOGLE_EGRESS_GATEWAY_ORIGIN',
   'GOOGLE_EGRESS_GATEWAY_SERVER_NAME',
@@ -129,8 +127,8 @@ export function assertReviewProviderSubjectKeysConfigured(
 
 /**
  * The GOOGLE_EGRESS_* fields that are unset. All six are an all-or-none
- * protected transport configuration, so any missing field means the adapter
- * has no governed egress path and would fall back to a direct `fetch`.
+ * protected transport configuration, so any missing field means there is no
+ * governed Google egress path.
  */
 export function missingGoogleEgressConfig(
   env: DirectProviderEgressEnv,
@@ -159,27 +157,6 @@ export function missingGoogleEgressConfig(
     ]
   }
   return GOOGLE_EGRESS_CONFIG_FIELDS.filter((field) => !env[field])
-}
-
-/**
- * Refuse an ungoverned direct provider call in production. Provider calls
- * carry OAuth access credentials, so an environment switch cannot waive the
- * gateway/admission boundary.
- */
-export function assertDirectProviderEgressAllowed(
-  env: DirectProviderEgressEnv,
-  operation: string,
-): void {
-  if (env.NODE_ENV !== 'production') return
-  const missing = missingGoogleEgressConfig(env)
-  throw providerConfigError(
-    `[CONFIG] Refused ungoverned direct Google provider call (${operation}) — ` +
-      'the egress gateway is not configured, so this request would bypass ' +
-      'admission, quota control, credential binding and mTLS. Missing: ' +
-      `${missing.length === 0 ? 'none (executor unavailable for another reason)' : missing.join(', ')}. ` +
-      'Configure the approved gateway transport.',
-    missing,
-  )
 }
 
 /**

@@ -43,7 +43,6 @@ import { sendInvitationEmail } from '#/shared/auth/emails'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import {
   assertDirectCredentialEgressAllowed,
-  assertDirectProviderEgressAllowed,
   assertReviewProviderSubjectKeysConfigured,
 } from '#/shared/config/provider-config-guards'
 import { feedbackId, organizationId, propertyId, userId } from '#/shared/domain/ids'
@@ -496,12 +495,6 @@ function buildContainer(
     googleRefreshCoordination,
     localDataCellId: dataCellExecutionFence.localCell,
     admitPropertyExecution: dataCellExecutionFence.decideProperty,
-    // Fail closed on ungoverned provider egress in production. The review
-    // adapter's direct-`fetch` fallback is reachable merely by leaving the
-    // GOOGLE_EGRESS_* values unset, and it bypasses admission, quota control,
-    // credential binding and mTLS. Outside production this is a no-op.
-    assertDirectProviderEgressAllowed: (operation) =>
-      assertDirectProviderEgressAllowed(env, operation),
     assertDirectCredentialEgressAllowed: (operation) =>
       assertDirectCredentialEgressAllowed(env, operation),
   })

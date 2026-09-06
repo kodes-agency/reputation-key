@@ -7,7 +7,6 @@ import {
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
   GOOGLE_REVIEW_PRIMARY_SEGMENTS,
 } from '../../../../../test-fixtures/generated/google-provider-identifiers-v1'
-import { assertDirectProviderEgressAllowed } from '#/shared/config/provider-config-guards'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import { createGoogleReviewApiAdapter } from './google-review-api.adapter'
 
@@ -109,10 +108,7 @@ function createAdapter(
   return {
     api: createGoogleReviewApiAdapter({
       connectionRepo: { findById } as never,
-      encryption: {} as never,
-      refreshToken: vi.fn() as never,
       logger: { warn } as never,
-      baseUrl: 'https://direct-provider.invalid',
       cursorStore: input.cursors ?? cursorStore(),
       executor: { execute: input.execute },
       authorizeReviewSyncProviderCall: authorizeProviderCall,
@@ -796,10 +792,7 @@ describe('GoogleReviewApiAdapter', () => {
     const execute = vi.fn()
     const api = createGoogleReviewApiAdapter({
       connectionRepo: { findById: vi.fn() } as never,
-      encryption: {} as never,
-      refreshToken: vi.fn() as never,
       logger: { warn: vi.fn() } as never,
-      baseUrl: 'https://direct-provider.invalid',
       cursorStore: cursorStore(),
       executor: { execute },
     })
@@ -818,85 +811,5 @@ describe('GoogleReviewApiAdapter', () => {
       api.replyToReview({ ...publicationInput(), text: 'different reply' }),
     ).rejects.toMatchObject({ code: 'authorization_changed', recoverable: false })
     expect(execute).not.toHaveBeenCalled()
-  })
-})
-
-/**
- * The adapter falls back to a DIRECT `fetch` whenever the egress executor is
- * absent, which is what leaving the six GOOGLE_EGRESS_* values unset produces.
- * That path bypasses admission, quota control, credential binding and mTLS, so
- * production must refuse it — while development keeps working exactly as it
- * does today, since that is how the local stack talks to Google at all.
- */
-describe('GoogleReviewApiAdapter direct-egress guard', () => {
-  const ungovernedAdapter = (
-    env: Parameters<typeof assertDirectProviderEgressAllowed>[0],
-  ) =>
-    createGoogleReviewApiAdapter({
-      connectionRepo: { findById: vi.fn().mockResolvedValue(connection) } as never,
-      // No executor: the direct fallback resolves credentials through the
-      // refresh path, exactly as an unconfigured deployment would.
-      encryption: { decrypt: vi.fn(() => 'access-token') } as never,
-      refreshToken: vi
-        .fn()
-        .mockResolvedValue({ ...connection, encryptedAccessToken: 'enc' }) as never,
-      logger: { warn: vi.fn() } as never,
-      baseUrl: 'https://direct-provider.invalid',
-      cursorStore: cursorStore(),
-      nowMs: () => Date.parse('2026-08-12T12:00:00.000Z'),
-      assertDirectEgressAllowed: (operation) =>
-        assertDirectProviderEgressAllowed(env, operation),
-    })
-
-  it('refuses the ungoverned call in production and never reaches the network', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch')
-    const api = ungovernedAdapter({ NODE_ENV: 'production' })
-
-    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
-      _tag: 'ProviderConfigError',
-      code: 'config_invalid',
-    })
-    expect(fetchSpy).not.toHaveBeenCalled()
-    fetchSpy.mockRestore()
-  })
-
-  it('names the missing egress configuration in the refusal', async () => {
-    const api = ungovernedAdapter({ NODE_ENV: 'production' })
-
-    await expect(api.replyToReview(publicationInput())).rejects.toThrow(
-      /GOOGLE_EGRESS_GATEWAY_ORIGIN/u,
-    )
-  })
-
-  it('allows the direct call in development, unchanged', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(null, { status: 200 }))
-    // Local deterministic adapters retain direct transport; production has no
-    // equivalent override because every Review request carries an OAuth token.
-    // fallow-ignore-next-line code-duplication
-    const api = ungovernedAdapter({ NODE_ENV: 'development' })
-
-    await expect(api.replyToReview(publicationInput())).resolves.toEqual({
-      providerCorrelationId: null,
-    })
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
-    fetchSpy.mockRestore()
-  })
-
-  it('refuses the direct call in production even when the legacy opt-out is set', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(null, { status: 200 }))
-    const api = ungovernedAdapter({
-      NODE_ENV: 'production',
-      GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS: true,
-    })
-
-    await expect(api.replyToReview(publicationInput())).rejects.toMatchObject({
-      code: 'config_invalid',
-    })
-    expect(fetchSpy).not.toHaveBeenCalled()
-    fetchSpy.mockRestore()
   })
 })

@@ -166,12 +166,11 @@ describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path
     expect(violations).toEqual([])
   })
 
-  it('calls fetch from exactly three Integration modules (WP2.1 shrinks this)', () => {
+  it('calls fetch from exactly two Integration modules after review fallback removal', () => {
     // A ratchet, not an ideal. Every Google call should go through the egress
-    // gateway's executor; three adapters still reach the network directly, and
-    // WP2.1 removes the direct-fetch fallback so this list shrinks rather than
-    // grows. Pinning the exact set is what makes a NEW direct caller fail here
-    // instead of quietly becoming the fourth.
+    // gateway's executor; only the remaining credential adapters still reach
+    // the network directly. Pinning the exact set makes a new direct caller
+    // fail here instead of quietly growing the list.
     const callers = walkSource(join(SRC, 'contexts/integration'))
       .filter((file) => /\bfetch\s*\(/u.test(stripComments(readFileSync(file, 'utf-8'))))
       .map(rel)
@@ -179,7 +178,6 @@ describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path
     expect(callers).toEqual([
       'src/contexts/integration/infrastructure/adapters/gbp-provider-fetch.ts',
       'src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts',
-      'src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts',
     ])
   })
 })

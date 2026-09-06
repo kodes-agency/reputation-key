@@ -8,8 +8,6 @@ import type {
 } from '#/contexts/review/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
-import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
-import type { RefreshGoogleToken } from '../../application/use-cases/refresh-google-token'
 import type { OrganizationId, GoogleConnectionId, PropertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
@@ -123,12 +121,9 @@ type GbpReviewItem = z.infer<typeof gbpReviewItemSchema>
 
 type GoogleReviewApiAdapterDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
-  encryption: TokenEncryptionPort
-  refreshToken: RefreshGoogleToken
   logger: LoggerPort
-  baseUrl: string
   cursorStore: GoogleReviewCursorStore
-  executor?: GoogleAuthorizedProviderExecutor
+  executor: GoogleAuthorizedProviderExecutor
   authorizeReviewSyncProviderCall?: (
     input: Readonly<{
       organizationId: OrganizationId
@@ -160,21 +155,12 @@ type GoogleReviewApiAdapterDeps = Readonly<{
       authorization: GoogleReplyPublicationProviderCallAuthorization
     }>
   >
-  /**
-   * Production fail-closed check for the DIRECT `fetch` fallback below. The
-   * fallback is reachable merely by leaving the six GOOGLE_EGRESS_* values
-   * unset, and it bypasses admission, quota control, credential binding and
-   * mTLS. The composition root wires
-   * the production no-direct-egress guard here; absent (simulations, tests,
-   * bare adapter construction) retains the deterministic local path only.
-   */
-  assertDirectEgressAllowed?: (operation: string) => void
   nowMs?: () => number
 }>
 
 type ProviderContext = Readonly<{
   accessToken: string
-  authorization: GoogleProviderCallAuthorization | null
+  authorization: GoogleProviderCallAuthorization
   cursorAuthorization: GoogleReviewCursorAuthorization
 }>
 
@@ -472,22 +458,18 @@ function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
   }
 }
 
-function authorizationDigest(
-  authorization: GoogleProviderCallAuthorization | null,
-): string {
-  const canonical = authorization
-    ? JSON.stringify({
-        capability: authorization.capability,
-        organizationId: authorization.organizationId,
-        propertyId: authorization.propertyId,
-        connectionId: authorization.connectionId,
-        initiatorUserId: authorization.initiatorUserId,
-        expectedCredentialGeneration: authorization.expectedCredentialGeneration,
-        authorizationVector: canonicalProviderAuthorizationVector(
-          authorization.authorizationVector,
-        ),
-      })
-    : '{}'
+function authorizationDigest(authorization: GoogleProviderCallAuthorization): string {
+  const canonical = JSON.stringify({
+    capability: authorization.capability,
+    organizationId: authorization.organizationId,
+    propertyId: authorization.propertyId,
+    connectionId: authorization.connectionId,
+    initiatorUserId: authorization.initiatorUserId,
+    expectedCredentialGeneration: authorization.expectedCredentialGeneration,
+    authorizationVector: canonicalProviderAuthorizationVector(
+      authorization.authorizationVector,
+    ),
+  })
   return createHash('sha256').update(canonical, 'utf8').digest('hex')
 }
 
@@ -512,46 +494,6 @@ function parseJsonBytes(bytes: Uint8Array): unknown {
     return JSON.parse(decoded)
   } catch {
     throw reviewApiError('malformed_response', false)
-  }
-}
-
-async function readBoundedResponseBody(response: Response): Promise<Uint8Array> {
-  const declaredLength = response.headers.get('content-length')
-  if (
-    declaredLength !== null &&
-    (!/^(?:0|[1-9][0-9]*)$/u.test(declaredLength) ||
-      Number(declaredLength) > MAX_RESPONSE_BYTES)
-  ) {
-    await response.body?.cancel()
-    throw reviewApiError('malformed_response', false)
-  }
-  if (!response.body) return new Uint8Array()
-  const reader = response.body.getReader()
-  const chunks: Uint8Array[] = []
-  let byteLength = 0
-  try {
-    while (true) {
-      const chunk = await reader.read()
-      if (chunk.done) break
-      byteLength += chunk.value.byteLength
-      if (byteLength > MAX_RESPONSE_BYTES) {
-        await reader.cancel()
-        throw reviewApiError('malformed_response', false)
-      }
-      chunks.push(chunk.value)
-    }
-    const bytes = new Uint8Array(byteLength)
-    let offset = 0
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset)
-      offset += chunk.byteLength
-    }
-    return bytes
-  } catch (error) {
-    if (isGoogleReviewApiError(error)) throw error
-    throw reviewApiError('provider_unavailable', true)
-  } finally {
-    reader.releaseLock()
   }
 }
 
@@ -591,42 +533,30 @@ export const createGoogleReviewApiAdapter = (
       sourceEpoch: number
     }>,
   ): Promise<ProviderContext> => {
-    let accessToken: string
-    let authorization: GoogleProviderCallAuthorization | null
-    let connection
-    if (deps.executor) {
-      if (!deps.authorizeReviewSyncProviderCall) {
-        throw reviewApiError('provider_unavailable', true)
-      }
-      const authorized = await deps.authorizeReviewSyncProviderCall({
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        connectionId: input.connectionId,
-        sourceEpoch: input.sourceEpoch,
-      })
-      accessToken = authorized.accessToken
-      authorization = authorized.authorization
-      connection = await deps.connectionRepo.findById(
-        input.organizationId,
-        input.connectionId,
-      )
-    } else {
-      connection = await deps.refreshToken(input.organizationId, input.connectionId)
-      accessToken = deps.encryption.decrypt(connection.encryptedAccessToken)
-      authorization = null
+    if (!deps.authorizeReviewSyncProviderCall) {
+      throw reviewApiError('provider_unavailable', true)
     }
+    const { accessToken, authorization } = await deps.authorizeReviewSyncProviderCall({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      connectionId: input.connectionId,
+      sourceEpoch: input.sourceEpoch,
+    })
+    const connection = await deps.connectionRepo.findById(
+      input.organizationId,
+      input.connectionId,
+    )
     if (
       !connection ||
       connection.status !== 'active' ||
       connection.credentialUseState !== 'active' ||
-      (authorization !== null &&
-        (authorization.capability !== 'property.connect_gbp' ||
-          authorization.initiatorUserId !== null ||
-          authorization.organizationId !== input.organizationId ||
-          authorization.propertyId !== input.propertyId ||
-          authorization.connectionId !== input.connectionId ||
-          authorization.authorizationVector.propertySourceEpoch !== input.sourceEpoch ||
-          authorization.expectedCredentialGeneration !== connection.credentialGeneration))
+      authorization.capability !== 'property.connect_gbp' ||
+      authorization.initiatorUserId !== null ||
+      authorization.organizationId !== input.organizationId ||
+      authorization.propertyId !== input.propertyId ||
+      authorization.connectionId !== input.connectionId ||
+      authorization.authorizationVector.propertySourceEpoch !== input.sourceEpoch ||
+      authorization.expectedCredentialGeneration !== connection.credentialGeneration
     ) {
       throw reviewApiError('authorization_changed', false)
     }
@@ -661,51 +591,20 @@ export const createGoogleReviewApiAdapter = (
     operation: string,
     descriptor: GoogleProviderRouteDescriptor,
     context: ProviderContext,
-    directUrl: string,
   ): Promise<unknown> => {
-    if (deps.executor && context.authorization) {
-      try {
-        return await trace(`googleReviewApi.${operation}`, () =>
-          executeGoogleProviderJson({
-            operation,
-            descriptor,
-            authorization: context.authorization!,
-            executor: deps.executor!,
-            nowMs,
-          }),
-        )
-      } catch (error) {
-        throw executorErrorToReviewApiError(error)
-      }
-    }
-    deps.assertDirectEgressAllowed?.(operation)
-    const timeout = withTimeout(30_000)
-    let response: Response
     try {
-      response = await trace(`googleReviewApi.${operation}`, () =>
-        fetch(directUrl, {
-          headers: { Authorization: `Bearer ${context.accessToken}` },
-          signal: timeout.signal,
+      return await trace(`googleReviewApi.${operation}`, () =>
+        executeGoogleProviderJson({
+          operation,
+          descriptor,
+          authorization: context.authorization,
+          executor: deps.executor,
+          nowMs,
         }),
       )
-    } catch {
-      throw reviewApiError('provider_unavailable', true)
-    } finally {
-      timeout.clear()
+    } catch (error) {
+      throw executorErrorToReviewApiError(error)
     }
-    if (!response.ok) {
-      await response.body?.cancel()
-      throw reviewApiError(
-        response.status === 429 ? 'provider_rate_limited' : 'provider_unavailable',
-        response.status === 429 || response.status >= 500,
-      )
-    }
-    const contentType = response.headers.get('content-type')
-    if (!contentType || !JSON_CONTENT_TYPE.test(contentType)) {
-      await response.body?.cancel()
-      throw reviewApiError('malformed_response', false)
-    }
-    return parseJsonBytes(await readBoundedResponseBody(response))
   }
 
   const listReviewsPage: GoogleReviewApiPort['listReviewsPage'] = async (input) => {
@@ -783,8 +682,6 @@ export const createGoogleReviewApiAdapter = (
       }
       pageToken = redeemed.value.pageToken
     }
-    const params = new URLSearchParams({ pageSize: String(PAGE_SIZE) })
-    if (pageToken) params.set('pageToken', pageToken)
     const raw = await requestJson(
       'reviews.list',
       {
@@ -794,7 +691,6 @@ export const createGoogleReviewApiAdapter = (
         ...(pageToken ? { pageToken } : {}),
       },
       context,
-      `${deps.baseUrl}/${input.locationName}/reviews?${params.toString()}`,
     )
     await assertAuthorizationCurrent(input, context.cursorAuthorization)
     const parsed = gbpReviewsPageSchema.safeParse(raw)
@@ -873,16 +769,11 @@ export const createGoogleReviewApiAdapter = (
 
   // Accepted residual: a provider-boundary reader that must not trust anything
   // it is handed. The code paths are an exact-key check, six identifier/range
-  // validations, transport selection, and per-status provider error mapping —
-  // each one a distinct way Google or a caller can be wrong, and every one has
-  // to stay ahead of the parse. Already over both thresholds on main; this
-  // branch added a single line, the `assertDirectEgressAllowed?.('reviews.get')`
-  // fail-closed guard for the direct-fetch fallback. Collapsing the validation
-  // ladder into a helper would hide exactly which input was rejected, which is
-  // the one thing this function exists to report.
-  // Revisit if the validation ladder is ever shared with listReviewsPage and
-  // reviews.reply — three copies would justify a validated-input type that all
-  // three parse into once, and would drop all three functions at the same time.
+  // validations, and per-status provider error mapping — each one a distinct
+  // way Google or a caller can be wrong, and every one has to stay ahead of
+  // the parse. Revisit if the validation ladder is ever shared with
+  // listReviewsPage and reviews.reply — three copies would justify a
+  // validated-input type that all three parse into once.
   // fallow-ignore-next-line complexity
   const getReview: GoogleReviewApiPort['getReview'] = async (input) => {
     if (
@@ -906,83 +797,49 @@ export const createGoogleReviewApiAdapter = (
     assertReviewName(input.reviewName, input.locationName)
     const context = await resolveProviderContext(input)
     let raw: unknown
-    if (deps.executor && context.authorization) {
-      const timeout = withTimeout(30_000)
-      try {
-        const result = await deps.executor.execute(
-          {
-            routeKey: 'reviews.get',
-            accessToken: context.accessToken,
-            reviewName: input.reviewName,
-          },
-          {
-            authorization: context.authorization,
-            deadlineMs: nowMs() + 30_000,
-            signal: timeout.signal,
-          },
-        )
-        if (!result.ok) {
-          throw reviewApiError('provider_unavailable', true)
-        }
-        if (result.status === 404) {
-          result.body.fill(0)
-          await assertAuthorizationCurrent(input, context.cursorAuthorization)
-          return { status: 'not_found' }
-        }
-        if (
-          result.status !== 200 ||
-          !result.headers.contentType ||
-          !JSON_CONTENT_TYPE.test(result.headers.contentType)
-        ) {
-          result.body.fill(0)
-          throw reviewApiError(
-            result.status === 429 ? 'provider_rate_limited' : 'provider_unavailable',
-            result.status === 429 || result.status >= 500,
-          )
-        }
-        try {
-          raw = parseJsonBytes(result.body)
-        } finally {
-          result.body.fill(0)
-        }
-      } catch (error) {
-        if (isGoogleReviewApiError(error)) throw error
-        throw reviewApiError('provider_unavailable', true)
-      } finally {
-        timeout.clear()
-      }
-    } else {
-      deps.assertDirectEgressAllowed?.('reviews.get')
-      const timeout = withTimeout(30_000)
-      let response: Response
-      try {
-        response = await fetch(`${deps.baseUrl}/${input.reviewName}`, {
-          headers: { Authorization: `Bearer ${context.accessToken}` },
+    const timeout = withTimeout(30_000)
+    try {
+      const result = await deps.executor.execute(
+        {
+          routeKey: 'reviews.get',
+          accessToken: context.accessToken,
+          reviewName: input.reviewName,
+        },
+        {
+          authorization: context.authorization,
+          deadlineMs: nowMs() + 30_000,
           signal: timeout.signal,
-        })
-      } catch {
+        },
+      )
+      if (!result.ok) {
         throw reviewApiError('provider_unavailable', true)
-      } finally {
-        timeout.clear()
       }
-      if (response.status === 404) {
-        await response.body?.cancel()
+      if (result.status === 404) {
+        result.body.fill(0)
         await assertAuthorizationCurrent(input, context.cursorAuthorization)
         return { status: 'not_found' }
       }
-      if (!response.ok) {
-        await response.body?.cancel()
+      if (
+        result.status !== 200 ||
+        !result.headers.contentType ||
+        !JSON_CONTENT_TYPE.test(result.headers.contentType)
+      ) {
+        result.body.fill(0)
         throw reviewApiError(
-          response.status === 429 ? 'provider_rate_limited' : 'provider_unavailable',
-          response.status === 429 || response.status >= 500,
+          result.status === 429 ? 'provider_rate_limited' : 'provider_unavailable',
+          result.status === 429 || result.status >= 500,
         )
       }
-      const contentType = response.headers.get('content-type')
-      if (!contentType || !JSON_CONTENT_TYPE.test(contentType)) {
-        await response.body?.cancel()
-        throw reviewApiError('malformed_response', false)
+      try {
+        raw = parseJsonBytes(result.body)
+      } finally {
+        result.body.fill(0)
       }
-      raw = parseJsonBytes(await readBoundedResponseBody(response))
+    } catch (error) {
+      if (isGoogleReviewApiError(error)) throw error
+      throw reviewApiError('provider_unavailable', true)
+    } finally {
+      timeout.clear()
     }
     await assertAuthorizationCurrent(input, context.cursorAuthorization)
     const parsed = gbpReviewItemSchema.safeParse(raw)
@@ -1036,9 +893,8 @@ export const createGoogleReviewApiAdapter = (
     }
   }
 
-  const replyViaGatedExecutor = async (
+  const replyViaExecutor = async (
     input: GoogleReplyPublicationInput,
-    executor: NonNullable<typeof deps.executor>,
   ): Promise<GoogleReplyPublicationOutcome> => {
     if (!deps.authorizeReplyPublicationProviderCall) {
       throw reviewApiError('provider_unavailable', false)
@@ -1072,7 +928,7 @@ export const createGoogleReviewApiAdapter = (
           comment: input.text,
         },
         authorization: authorized.authorization,
-        executor,
+        executor: deps.executor,
         nowMs,
       })
       const providerCorrelationId = result.headers.providerCorrelationId ?? null
@@ -1083,55 +939,9 @@ export const createGoogleReviewApiAdapter = (
     }
   }
 
-  const replyViaDirectEgress = async (
-    input: GoogleReplyPublicationInput,
-  ): Promise<GoogleReplyPublicationOutcome> => {
-    deps.assertDirectEgressAllowed?.('reviews.reply')
-    const connection = await deps.refreshToken(input.organizationId, input.connectionId)
-    if (connection.status !== 'active' || connection.credentialUseState !== 'active') {
-      throw reviewApiError('authorization_changed', false)
-    }
-    const accessToken = deps.encryption.decrypt(connection.encryptedAccessToken)
-    const timeout = withTimeout(30_000)
-    let response: Response
-    try {
-      response = await fetch(`${deps.baseUrl}/${input.reviewName}/reply`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ comment: input.text }),
-        signal: timeout.signal,
-      })
-    } finally {
-      timeout.clear()
-    }
-    if (!response.ok) {
-      await response.body?.cancel()
-      // 401/403 are decisions: surface them as such so the publication
-      // workflow marks the reply failed instead of retrying a refusal.
-      if (response.status === 401 || response.status === 403) {
-        throw reviewApiError('authorization_changed', false)
-      }
-      throw reviewApiError(
-        response.status === 429 ? 'provider_rate_limited' : 'provider_unavailable',
-        response.status === 429 || response.status >= 500,
-      )
-    }
-    const providerCorrelationId =
-      response.headers.get('x-guploader-uploadid') ??
-      response.headers.get('x-request-id') ??
-      null
-    await response.body?.cancel()
-    return { providerCorrelationId }
-  }
-
   const replyToReview: GoogleReviewApiPort['replyToReview'] = async (input) => {
     assertValidReplyPublicationInput(input)
-    return deps.executor
-      ? replyViaGatedExecutor(input, deps.executor)
-      : replyViaDirectEgress(input)
+    return replyViaExecutor(input)
   }
 
   return Object.freeze({

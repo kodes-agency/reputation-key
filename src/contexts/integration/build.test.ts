@@ -298,6 +298,14 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     )
   })
 
+  it('refuses Google review calls when the governed executor is unavailable', async () => {
+    const ctx = buildIntegrationContext(buildDeps({}))
+
+    await expect(
+      ctx.reviewSync.googleReviewApi.listReviewsPage({} as never),
+    ).rejects.toThrow('Governed Google review API is unavailable')
+  })
+
   it('threads the production credential-egress refusal into the real OAuth adapter', async () => {
     const refusal = new Error('credential gateway required')
     const assertDirectCredentialEgressAllowed = vi.fn(() => {

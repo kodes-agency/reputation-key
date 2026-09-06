@@ -3,8 +3,8 @@
 // Per ADR-0001: the composition root calls this and passes useCases to the container.
 //
 // Cross-context contributions exposed to the composition root (BQC-5.2):
-//   - internal.googleReviewApi — the Google review API adapter, typed by
-//     review's GoogleReviewApiPort (integration owns connection/token/refresh).
+//   - internal.googleReviewApi — the governed Google review API port, typed by
+//     review's GoogleReviewApiPort.
 //   - internal.gbpNotificationHandler — curried webhook binder; the root
 //     supplies the review-owned queue at container assembly.
 
@@ -276,11 +276,6 @@ type IntegrationContextDeps = Readonly<{
   refreshPolicyStoreRequired?: () => Promise<RequiredPolicyRefreshResult>
   /** Redis-backed, renewable and generation-fenced refresh coordination. */
   googleRefreshCoordination?: GoogleRefreshCoordination
-  /** Production fail-closed check for the review adapter's DIRECT `fetch`
-   * fallback (bypasses admission, quota control, credential binding, mTLS).
-   * Wired by the composition root, which owns env; absent = today's
-   * behaviour, which is what simulations and tests rely on. */
-  assertDirectProviderEgressAllowed?: (operation: string) => void
   /** Production has no escape hatch for credential-bearing OAuth sockets. */
   assertDirectCredentialEgressAllowed?: (operation: string) => void
   localDataCellId: DataCellId
@@ -1366,86 +1361,92 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         return authorized
       }
     : undefined
-  const googleReviewProviderExecutor =
-    deps.googleAuthorizedProviderExecutor &&
-    (googleReviewSyncAuthorizer || googleReplyPublicationAuthorizer)
-      ? createSingle401RefreshExecutor({
-          executor: deps.googleAuthorizedProviderExecutor,
-          refreshAccessToken: ({ authorization }) =>
-            activeConnectionTokenProvider.forceRefreshAccessToken(
-              authorization.organizationId,
-              authorization.connectionId,
-              authorization.expectedCredentialGeneration,
-              authorization.propertyId ? [authorization.propertyId] : [],
-            ),
-          getAccessToken: ({ authorization }) =>
-            activeConnectionTokenProvider.getAccessToken(
-              authorization.organizationId,
-              authorization.connectionId,
-              authorization.propertyId ? [authorization.propertyId] : [],
-            ),
-          reauthorize: async ({ authorization }) => {
-            if (authorization.initiatorUserId !== null) {
-              throw new Error('Google review provider reauthorization is unavailable')
-            }
-            const refreshed =
-              authorization.capability === 'property.connect_gbp' &&
-              googleReviewSyncAuthorizer
-                ? await googleReviewSyncAuthorizer({
+  const googleReviewProviderExecutor = deps.googleAuthorizedProviderExecutor
+    ? createSingle401RefreshExecutor({
+        executor: deps.googleAuthorizedProviderExecutor,
+        refreshAccessToken: ({ authorization }) =>
+          activeConnectionTokenProvider.forceRefreshAccessToken(
+            authorization.organizationId,
+            authorization.connectionId,
+            authorization.expectedCredentialGeneration,
+            authorization.propertyId ? [authorization.propertyId] : [],
+          ),
+        getAccessToken: ({ authorization }) =>
+          activeConnectionTokenProvider.getAccessToken(
+            authorization.organizationId,
+            authorization.connectionId,
+            authorization.propertyId ? [authorization.propertyId] : [],
+          ),
+        reauthorize: async ({ authorization }) => {
+          if (authorization.initiatorUserId !== null) {
+            throw new Error('Google review provider reauthorization is unavailable')
+          }
+          const refreshed =
+            authorization.capability === 'property.connect_gbp' &&
+            googleReviewSyncAuthorizer
+              ? await googleReviewSyncAuthorizer({
+                  organizationId: authorization.organizationId,
+                  propertyId: authorization.propertyId,
+                  connectionId: authorization.connectionId,
+                  sourceEpoch: Number(
+                    authorization.authorizationVector.propertySourceEpoch,
+                  ),
+                })
+              : authorization.capability === 'property.publish_reply' &&
+                  googleReplyPublicationAuthorizer
+                ? await googleReplyPublicationAuthorizer({
                     organizationId: authorization.organizationId,
                     propertyId: authorization.propertyId,
                     connectionId: authorization.connectionId,
-                    sourceEpoch: Number(
-                      authorization.authorizationVector.propertySourceEpoch,
-                    ),
+                    sourceEpoch: authorization.publication.sourceEpoch,
+                    reviewId: authorization.publication.reviewId,
+                    materialReviewRevision:
+                      authorization.publication.materialReviewRevision,
+                    replyId: authorization.publication.replyId,
+                    publicationCycle: authorization.publication.publicationCycle,
+                    attemptNumber: authorization.publication.attemptNumber,
                   })
-                : authorization.capability === 'property.publish_reply' &&
-                    googleReplyPublicationAuthorizer
-                  ? await googleReplyPublicationAuthorizer({
-                      organizationId: authorization.organizationId,
-                      propertyId: authorization.propertyId,
-                      connectionId: authorization.connectionId,
-                      sourceEpoch: authorization.publication.sourceEpoch,
-                      reviewId: authorization.publication.reviewId,
-                      materialReviewRevision:
-                        authorization.publication.materialReviewRevision,
-                      replyId: authorization.publication.replyId,
-                      publicationCycle: authorization.publication.publicationCycle,
-                      attemptNumber: authorization.publication.attemptNumber,
-                    })
-                  : null
-            if (
-              !refreshed ||
-              !refreshed.ok ||
-              !sameAuthorizationVectorExceptCredentialGeneration(
-                refreshed.authorization.authorizationVector,
-                authorization.authorizationVector,
-              )
-            ) {
-              throw new Error('Google review provider reauthorization changed')
-            }
-            return refreshed.authorization
-          },
-        })
-      : undefined
+                : null
+          if (
+            !refreshed ||
+            !refreshed.ok ||
+            !sameAuthorizationVectorExceptCredentialGeneration(
+              refreshed.authorization.authorizationVector,
+              authorization.authorizationVector,
+            )
+          ) {
+            throw new Error('Google review provider reauthorization changed')
+          }
+          return refreshed.authorization
+        },
+      })
+    : undefined
 
-  // Integration owns the Google review API adapter (connection repo + token
-  // encryption + refresh); the review context consumes it via its port.
-  const googleReviewApi: GoogleReviewApiPort = createGoogleReviewApiAdapter({
-    connectionRepo,
-    encryption: encryptionPort,
-    refreshToken: refreshGoogleTokenUseCase,
-    logger: deps.logger,
-    baseUrl: deps.providerEndpoints.reviewsApiBaseUrl,
-    executor: googleReviewProviderExecutor,
-    authorizeReviewSyncProviderCall: authorizeGoogleReviewSyncProviderCall,
-    authorizeReplyPublicationProviderCall: authorizeGoogleReplyPublicationProviderCall,
-    nowMs: () => deps.clock().getTime(),
-    cursorStore: googleReviewCursorStore,
-    ...(deps.assertDirectProviderEgressAllowed === undefined
-      ? {}
-      : { assertDirectEgressAllowed: deps.assertDirectProviderEgressAllowed }),
-  })
+  const googleReviewApi: GoogleReviewApiPort = googleReviewProviderExecutor
+    ? createGoogleReviewApiAdapter({
+        connectionRepo,
+        logger: deps.logger,
+        executor: googleReviewProviderExecutor,
+        authorizeReviewSyncProviderCall: authorizeGoogleReviewSyncProviderCall,
+        authorizeReplyPublicationProviderCall:
+          authorizeGoogleReplyPublicationProviderCall,
+        nowMs: () => deps.clock().getTime(),
+        cursorStore: googleReviewCursorStore,
+      })
+    : Object.freeze({
+        listReviewsPage: async () => {
+          throw new Error('Governed Google review API is unavailable')
+        },
+        getReview: async () => {
+          throw new Error('Governed Google review API is unavailable')
+        },
+        discardReviewCursors: async () => {
+          throw new Error('Governed Google review API is unavailable')
+        },
+        replyToReview: async () => {
+          throw new Error('Governed Google review API is unavailable')
+        },
+      })
 
   const googleReviewPushTargetResolver: TargetedGoogleReviewReferenceResolver =
     deps.propertyBindingApi

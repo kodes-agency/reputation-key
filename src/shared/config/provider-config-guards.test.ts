@@ -9,7 +9,6 @@ import {
   GOOGLE_EGRESS_CONFIG_FIELDS,
   GOOGLE_EGRESS_LEGACY_PATH_FIELDS,
   type ProviderConfigError,
-  assertDirectProviderEgressAllowed,
   assertDirectCredentialEgressAllowed,
   assertReviewProviderSubjectKeysConfigured,
   isProviderConfigError,
@@ -118,56 +117,6 @@ describe('missingGoogleEgressConfig', () => {
       ),
     }
     expect(missingGoogleEgressConfig(legacy)).toEqual([])
-  })
-})
-
-describe('assertDirectProviderEgressAllowed', () => {
-  it('refuses an ungoverned production call and names the missing configuration', () => {
-    const error = refusalFrom(() =>
-      assertDirectProviderEgressAllowed({ NODE_ENV: 'production' }, 'reviews.list'),
-    )
-
-    expect(error.code).toBe('config_invalid')
-    expect(error.missing).toEqual(GOOGLE_EGRESS_CONFIG_FIELDS)
-    expect(error.message).toContain('reviews.list')
-    expect(error.message).toContain('GOOGLE_EGRESS_GATEWAY_ORIGIN')
-    expect(error.message).toContain('approved gateway transport')
-  })
-
-  it('refuses the direct path even when the legacy operator opt-out is set', () => {
-    const error = refusalFrom(() =>
-      assertDirectProviderEgressAllowed(
-        { NODE_ENV: 'production', GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS: true },
-        'reviews.list',
-      ),
-    )
-    expect(error.code).toBe('config_invalid')
-  })
-
-  it('still refuses in production when the gateway is fully configured — reaching the direct path at all is the bug', () => {
-    // All six set means the executor SHOULD have handled this call. Falling
-    // through here means something else made it unavailable, and running the
-    // ungoverned request anyway is exactly the silent degradation we refuse.
-    const error = refusalFrom(() =>
-      assertDirectProviderEgressAllowed(
-        { NODE_ENV: 'production', ...CONFIGURED_EGRESS },
-        'reviews.reply',
-      ),
-    )
-
-    expect(error.missing).toEqual([])
-    expect(error.message).toContain('executor unavailable')
-  })
-
-  it('stays quiet in development and test with nothing configured', () => {
-    for (const NODE_ENV of ['development', 'test', undefined]) {
-      expect(() =>
-        assertDirectProviderEgressAllowed(
-          { ...(NODE_ENV && { NODE_ENV }) },
-          'reviews.list',
-        ),
-      ).not.toThrow()
-    }
   })
 })
 
