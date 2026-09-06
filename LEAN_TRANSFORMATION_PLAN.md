@@ -353,6 +353,14 @@ So the order is contraction first, gate second:
 
 Each step is independently green and revertable, and the one behavioural change is isolated in step 2 between two mechanical ones.
 
+**Step 1 detail, measured 2026-09-06 — the ceremony is re-validated in SQL, and that is where most of it lives.** `start_google_execution_permit_v1` (`db-constructs.sql:6818`, 80 lines) does not merely transition a state. On every permit start it re-derives the whole approval decision inside the database: `policy_version` scope/version/emergency-kill match, `capability_execution_control.denied`, the approval row's `status`/`route_catalog_version`/`execution_policy_version`/`google_project_attestation_sha256`/`approved_at`/`expires_at`, the `railway_closed_beta_cohort` containment, a "no newer binding_version exists" check, organization suspension, `organization_capability` membership, and per-capability principal rules reaching into `member.role` and the authorization vector's `principalKind`/`role`.
+
+Function sizes: `start_…_v1` 80, `_v2` 83, `_v3` 83, `complete_…_v1` 122, `fail_…_v1` 137 — **505 lines of PL/pgSQL** implementing the same ceremony the TypeScript implements above it.
+
+The contracted replacement is one function, roughly 40 lines: the permit is in state `admitted`, its `start_deadline_at` has not passed, its `route_key`/`route_catalog_version`/`quota_policy_id` still match the catalogue, and the `google_connections` row for the org is `active`. Everything else in that list is either a fact the beta does not vary (one organization, one cohort, one policy generation) or a check the application already performs before it asks for a permit.
+
+This is why step 1 is worth doing on its own and doing first: it is the largest single deletion in WP2.2, it is behaviour-preserving for the surviving checks, and `e2e` exercises it on every push. Rewrite the three `start_…` variants into one, contract `complete_…` and `fail_…` to the columns that remain, drop `approval_binding_id`, `policy_version`, `emergency_kill_version`, `start_vector_mode` and `commit_vector_mode` from `authorization_execution_permits`, and regenerate the baseline. Keep `capability` until step 3, when the four-capability union goes — dropping it in step 1 would couple the two steps through `nextPermitGeneration`'s scope key and the start-deadline sweep.
+
 Verification: local gate; `pnpm test:integration` green; **`e2e` CI job green** (it is the only thing that proves a Google call still reaches the provider); `git grep -n "google-content\|approvalGap\|assertDirectProviderEgressAllowed" -- src services scripts` → none outside `docs/archive`.
 
 ### WP2.3 — AI pair into the worker only
