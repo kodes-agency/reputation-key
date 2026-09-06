@@ -68,6 +68,23 @@ ENV PNPM_HOME=/pnpm \
     PATH=/pnpm:$PATH \
     HUSKY=0
 RUN corepack enable
+# The one OS package this base ships with a KNOWN FIX, pinned to the exact
+# patched version.
+#
+# Every other finding in the scan is Medium/Negligible or marked `won't fix` by
+# Debian; `libpcre2-8-0` is the only High, and 10.42-1+deb12u1 fixes
+# CVE-2026-86145. The image is otherwise deliberately apt-free, so this is the
+# only `apt-get` in the tree and it is written to stay reproducible: the version
+# is exact, so the build FAILS if the archive stops carrying it rather than
+# silently drifting to whatever is newest. Every other stage derives `FROM base`,
+# so patching here covers all of them.
+#
+# This is a stopgap. The real problem is that Debian 12 bookworm is EOL, which is
+# why grype reports 683 packages from an unsupported distro and why `won't fix`
+# is the most common verdict in that scan. Moving off it is the actual fix.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpcre2-8-0=10.42-1+deb12u1 \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
 
