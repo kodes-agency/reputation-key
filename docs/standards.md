@@ -17,13 +17,6 @@ never product authority merely because it predates this document.
 | **Maintainability** | Consistent interfaces, event/use-case/repository shapes, file names, factory forms, and documentation structure.                      | Required for new or materially modified code; existing variance migrates context-by-context and does not justify unrelated churn. |
 | **Guidance**        | Readability and presentation preferences that do not change behavior or architectural boundaries.                                     | Review or formatter guidance; never a release claim by itself.                                                                    |
 
-Each section below identifies its tier. When a temporary exception to an
-Invariant or Maintainability rule is unavoidable, it must be narrow and recorded
-in `ACCEPTED_EXCEPTIONS` in `src/shared/governance/context-standards-matrix.ts`
-with its rule, exact scope and owner, so the exception is enforced by the same
-test that enforces the rule. Guidance does not use
-exceptions.
-
 ---
 
 ## 1. Event Standards (Invariant for meaning/envelope; Maintainability for shape)
@@ -229,52 +222,6 @@ boundaries these capability groups are projected onto.
 
 ---
 
-## 4. CONTEXT.md Standards (Maintainability; posture statements are Invariants)
-
-### 4.1 Required sections (in order)
-
-Every `src/contexts/<name>/CONTEXT.md` SHALL contain:
-
-| #   | Section             | Content                                       |
-| --- | ------------------- | --------------------------------------------- |
-| 1   | **Bounded context** | One sentence: what this context does          |
-| 2   | **Invariants**      | Rules that must always hold                   |
-| 3   | **Events produced** | Table: `_tag` → payload fields → when emitted |
-| 4   | **Public API**      | Exported types, functions, port interfaces    |
-
-Four sections, not eleven. These are the facts a reader cannot recover quickly
-from the code; the previous eleven-section mandate was met by 7 of 13 contexts,
-and nothing enforces §4.1 mechanically. Everything else is optional — write it
-when the context genuinely has it.
-
-### 4.2 Optional sections
-
-Add only when the context genuinely has them:
-
-- **Glossary** — terms defined here, markdown table
-- **Relationships** — entity relationships (within context + cross-context)
-- **Events consumed** — table: `_tag` → source context → handler action
-- **Architecture layers** — directory tree (standard format from `contexts/CONTEXT.md`)
-- **Use cases** — table: name → input → output → permission
-- **Server functions** — table: name → method → permission → route
-- **Permissions** — role × permission matrix
-- **Background jobs** — BullMQ jobs specific to this context
-- **Ports** — lookup ports, queue ports defined by this context
-- **Testing** — deviation notes, coverage gaps
-- **Resolved decisions** — grill-with-docs outcomes captured inline
-
-### 4.3 Removed sections
-
-These do NOT belong in CONTEXT.md (move to appropriate location):
-
-- **Language / Example dialogue** → belongs in prompt engineering docs, not the codebase
-- **Flagged ambiguities** → resolve or log as GitHub Issues
-- **Intentional deviations** → belongs in ADRs
-- **Dependencies (inbound/outbound)** → "Events consumed" + "Ports" already cover this
-- **Facade ports / Lookup ports** → merge into "Ports" optional section
-
----
-
 ## 5. Repository Standards (Invariant for tenant scope; Maintainability for shape)
 
 ### 5.1 Port naming
@@ -315,32 +262,12 @@ an existing path from an Invariant. When materially refactoring a context:
 1. Standardize `_tag` values and type names (Section 1)
 2. Add event envelope fields and constructor assertions (Sections 1.4–1.5)
 3. Standardize field names (Section 1.9)
-4. Standardize CONTEXT.md sections (Section 4)
-5. Standardize build function return shape (Section 3)
-6. Standardize use case type exports (Section 2)
-7. Update all subscribers and emitters
+4. Standardize build function return shape (Section 3)
+5. Standardize use case type exports (Section 2)
+6. Update all subscribers and emitters
 
 New contexts MUST follow all Invariant and Maintainability standards from
-inception. A migration that cannot do so must carry a narrow, expiring exception;
-never broaden the exception to an entire context when an exact file or symbol can
-be named.
-
-### 7.1 Executable conformance and accepted exceptions
-
-`src/shared/governance/context-standards-matrix.ts` is the current 17-context ×
-9-rule disposition authority. A cell is `evidenced` only when an exhaustive
-current-tree checker proves the stated rule. A known variance is never marked
-conformant: it is `accepted_exception` and must resolve to exactly one entry in
-`ACCEPTED_EXCEPTIONS` in `src/shared/governance/context-standards-matrix.ts`,
-keyed by context and dimension.
-
-The application-error/repository checker pins the exact legacy issue inventory by
-path or symbol and digest. Adding a variance, silently removing evidence, or
-leaving an exception without a matrix cell fails the focused gate. `unresolved`
-remains a fail-visible classification for a newly discovered rule gap; it is not
-accepted release evidence.
-
----
+inception.
 
 ## 8. File Naming and Factory Standards
 
@@ -370,38 +297,6 @@ Test files should mirror the source file name with `.test.ts` / `.test.tsx` appe
 | `constructors.ts`       | `constructors.test.ts`       |
 | `get-dashboard-data.ts` | `get-dashboard-data.test.ts` |
 | `review.repository.ts`  | `review.repository.test.ts`  |
-
-### 8.3 Factory declaration style (Maintainability)
-
-New or materially modified infrastructure factories (repos, adapters, mappers,
-job handlers) use arrow-const for local consistency. This is a Maintainability
-convention, not an architectural invariant and not a reason to rewrite an
-otherwise untouched module:
-
-```ts
-// CORRECT — arrow const
-export const createReviewRepository = (db: Database): ReviewRepository => ({
-  findById: async (id) => { ... },
-})
-
-// CORRECT — arrow const with intermediate statements
-export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
-  const auth = getAuth()
-  return { ... }
-}
-
-// LEGACY VARIANCE — migrate when this factory is materially modified
-export function createReviewRepository(db: Database): ReviewRepository {
-  return { ... }
-}
-```
-
-**Exception:** Domain constructors (for example `createInitialHandlingCycle`) MAY use `export function` — they create domain entities, not infrastructure wiring.
-
-The exact grandfathered infrastructure inventory is enforced by
-`src/shared/governance/infrastructure-factory-style-authority.ts`. The
-allowlist may shrink when a legacy declaration is migrated; new entries are
-not permitted.
 
 ## 9. Code Quality Tooling (Invariant gates plus Maintainability migration)
 
@@ -433,8 +328,7 @@ Co-located context files in the source tree:
 - Archive: `docs/archive/` — superseded plans and closed programmes (historical only)
 - ADRs: `docs/adr/`
 - ADR navigation and supersession authority: `docs/adr/README.md`
-- Beta capability fate authority: `docs/architecture/beta-capability-fate-authority.md`
-- Standards exception register: `ACCEPTED_EXCEPTIONS` in `src/shared/governance/context-standards-matrix.ts`
+- Beta capability fate authority: `src/shared/governance/capability-fate.ts`
 - Auth migrations: `docs/auth-migrations.md`
 
 ---

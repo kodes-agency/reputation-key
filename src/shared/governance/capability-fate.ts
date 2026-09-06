@@ -1,4 +1,41 @@
-import type { Capability } from '#/shared/auth/beta-capabilities'
+export const CAPABILITIES = [
+  'identity.invite',
+  'identity.custom_roles',
+  'identity.register',
+  'organization.create',
+  'property.create',
+  'property.erase',
+  'property.connect_gbp',
+  'property.import_gbp_v2',
+  'property.read_gbp_performance',
+  'property.publish_reply',
+  'notification.send_email',
+  'notification.in_app',
+  'portal.read',
+  'portal.write',
+  'portal.upload',
+  'portal.public_read',
+  'portal.guest_response',
+  'portal.guest_text',
+  'portal.guest_contact',
+  'portal.guest_media',
+  'goal.use',
+  'ai.analyze',
+  'ai.generate_reply',
+  'ai.detect_trends',
+  'gbp.reply.auto_publish',
+  'gbp.ai.cross_property_summary',
+  'gbp.review_solicitation_gamification',
+  'review.use',
+  'inbox.use',
+  'dashboard.use',
+  'staff.use',
+  'integration.use',
+  'activity.use',
+  'metric.internal',
+] as const
+
+export type Capability = (typeof CAPABILITIES)[number]
 
 /**
  * Product fate is deliberately more precise than the runtime's three-way

@@ -12,7 +12,6 @@
 //   action        — a Permission for user actions; a SystemAction for
 //                   system/session/public/operator work
 //   owner         — defining context or platform area
-//   mutation      — total read/write classification; mutations record their
 //                   state owner and one FND-03 disposition
 //   registration  — registration owner and strongest proven reachability
 //   capability    — the beta capability gate (ADR 0032); 'none' when ungated
@@ -32,7 +31,6 @@
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import { isCoreCapability, isBlockedCapability } from '#/shared/auth/beta-capabilities'
 import type { Permission } from '#/shared/domain/permissions'
-import { classifyOperatorCommandMutation } from './operator-command-mutation-classifier'
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -75,23 +73,6 @@ export type EntryPointOwner =
   | 'shared'
   | 'web'
   | 'worker'
-
-export type MutationDisposition =
-  | 'atomic_state_and_fact'
-  | 'local_only_with_reason'
-  | 'non_atomic_defect'
-  | 'temporarily_accepted_debt'
-
-export type EntryPointMutation =
-  | Readonly<{ kind: 'read_only' }>
-  | Readonly<{
-      kind: 'mutation'
-      stateOwner: EntryPointOwner
-      disposition: MutationDisposition
-      reason: string
-      debtOwner?: string
-      expiresAt?: string
-    }>
 
 export type EntryPointRegistration = Readonly<{
   /** File that owns declaration/composition/registry registration. */
@@ -202,7 +183,6 @@ export type EntryPointRow = Readonly<{
   /** Context or platform area that owns this executable boundary. */
   owner: EntryPointOwner
   /** Total read/write classification; every write path has an owner/disposition. */
-  mutation: EntryPointMutation
   registration: EntryPointRegistration
   /** Canonical action for the ExecutionPolicy decision request. */
   action: EntryPointAction
@@ -241,261 +221,40 @@ export function postureForCapability(cap: Capability | 'none'): BetaPosture {
   return 'non_core'
 }
 
-const CONTEXT_OWNER_RE = /^src\/contexts\/([^/]+)\//u
-const READ_ONLY_SERVER_FN_RE = /^(?:explain|get|list|resolve)/u
-const MUTATING_QUERY_NAMES = new Set([
-  'getGoogleAuthUrl',
-  'listImportAccounts',
-  'listImportCandidates',
-  'getPropertyGooglePerformance',
-  'getRegionDiagnosticFn',
-  'getSetupChecklistFn',
-])
-const READ_ONLY_NO_EFFECT_ENTRIES = new Set([
-  'server_function:deleteProperty',
-  // These POST declarations are retained only so stale beta links fail
-  // predictably. `organization.create` is a hard-blocked capability, and both
-  // handlers reach that fail-closed gate before any provider or database call.
-  'server_function:registerUserAndOrg',
-  'server_function:createOrganizationFn',
-  'route_api:/api/public/p/$token/click/$linkId',
-])
-const ATOMIC_IDENTITY_MUTATIONS = new Set([
-  'inviteMember',
-  'registerMember',
-  'updateMemberRole',
-  'removeMember',
-  'acceptInvitation',
-  'cancelInvitation',
-  'enableMerchantAiFn',
-  'changeMerchantAiCapabilitiesFn',
-  'revokeMerchantAiFn',
-  'setOrgCapabilityFn',
-  'setPropertyCapabilityFn',
-  'setOrgSuspensionFn',
-  'setPropertySuspensionFn',
-  'grantPropertyAccessFn',
-  'revokePropertyAccessFn',
-])
-const LOCAL_ONLY_IDENTITY_MUTATIONS = new Set([
-  'submitBetaFeedbackHandler',
-  'submitBetaFeedbackFn',
-  'resendInvitation',
-  'signInUser',
-  'setActiveOrganization',
-  'createCustomRole',
-  'updateCustomRole',
-  'deleteCustomRole',
-  'changePasswordFn',
-  'updateProfileFn',
-  'updateUserImageFn',
-  'updateOrganization',
-  'requestOrgLogoUpload',
-  'finalizeOrgLogoUpload',
-  'requestAvatarUpload',
-  'finalizeAvatarUpload',
-  'getRegionDiagnosticFn',
-])
-const ATOMIC_PROPERTY_MUTATIONS = new Set([
-  'createProperty',
-  'updateProperty',
-  'updatePropertyResponsibleManagers',
-  'requestRegionMoveFn',
-])
-const ATOMIC_INTEGRATION_MUTATIONS = new Set([
-  'disconnectGoogle',
-  'updateConnectionVisibility',
-  'startPropertyImportV2',
-  'retryPropertyImportItem',
-  'cancelPropertyImportV2',
-  'recoverPropertyImportV2',
-])
-const LOCAL_ONLY_INTEGRATION_MUTATIONS = new Set([
-  'getGoogleAuthUrl',
-  'listImportAccounts',
-  'listImportCandidates',
-  'renewImportAuthorizationLease',
-  'getPropertyGooglePerformance',
-  'renewPropertyGooglePerformanceLease',
-])
-const ATOMIC_GOAL_MUTATIONS = new Set([
-  'createGoalProgram',
-  'reviseGoalProgram',
-  'changeGoalProgramAssignments',
-  'changeGoalProgramStatus',
-])
-const LOCAL_ONLY_STAFF_MUTATIONS = new Set([
-  'createStaffParticipation',
-  'archiveStaffParticipation',
-  'updatePortalResponsibilities',
-])
-const LOCAL_ONLY_SHARED_MUTATIONS = new Set(['ensureActiveOrg'])
-const LOCAL_ONLY_AI_MUTATIONS = new Set(['generateReplySuggestionFn'])
-const LOCAL_ONLY_DASHBOARD_MUTATIONS = new Set(['getSetupChecklistFn'])
-const ATOMIC_ROUTE_MUTATIONS = new Set(['/api/auth/google/callback'])
-const LOCAL_ONLY_ROUTE_MUTATIONS = new Set([
-  '/api/auth/$',
-  '/api/notifications/unsubscribe',
-  '/api/webhooks/gbp/notifications',
-  '/api/webhooks/resend/events',
-])
-const ATOMIC_PORTAL_MUTATIONS = new Set([
-  'createPortal',
-  'updatePortal',
-  'rollbackPortalPublication',
-  'completeContentReview',
-  'deletePortal',
-  'finalizeUpload',
-  'createPortalGroup',
-  'updatePortalGroup',
-  'addPortalToGroup',
-  'removePortalFromGroup',
-  'createLink',
-  'reorderLinks',
-  'createLinkCategory',
-  'reorderCategories',
-  'issuePortalToken',
-  'rotatePortalToken',
-  'revokePortalTokens',
-  'updatePortalResponsibleManagers',
-  'savePropertyPortalBrandProfile',
-  'savePropertyPortalBrandContent',
-  'savePortalLocalizedOverride',
-  'requestPortalApprovedDestination',
-  'approvePortalApprovedDestination',
-  'disablePortalApprovedDestination',
-])
-const LOCAL_ONLY_PORTAL_MUTATIONS = new Set([
-  'requestUploadUrl',
-  'updateLink',
-  'deleteLink',
-  'updateLinkCategory',
-  'deleteLinkCategory',
-])
-const ATOMIC_GUEST_MUTATIONS = new Set([
-  'submitGuestResponseFn',
-  'correctGuestResponseFn',
-  'submitPrivateFeedbackFn',
-  'withdrawPrivateFeedbackFn',
-  'selectGoogleReviewFn',
-  'selectSecondaryLinkFn',
-  'withdrawGuestResponseFn',
-  'moderateGuestResponseFn',
-  'recordScanFn',
-])
-const ATOMIC_REVIEW_MUTATIONS = new Set([
-  'submitReplyFn',
-  'approveReplyFn',
-  'editPublishedReplyFn',
-  'rejectReplyFn',
-  'retryPublishFn',
-])
-const LOCAL_ONLY_REVIEW_MUTATIONS = new Set(['draftReplyFn', 'deleteReplyFn'])
-const ATOMIC_INBOX_MUTATIONS = new Set([
-  'assignInboxItemFn',
-  'bulkAssignInboxItemsFn',
-  'addInboxNoteFn',
-  'markFeedbackHandledFn',
-  'correctFeedbackHandlingOutcomeFn',
-  'setResponseTargetPolicyFn',
-  'updateInboxStatusFn',
-  'bulkUpdateInboxStatusFn',
-  'escalateInboxItemFn',
-])
-const LOCAL_ONLY_INBOX_MUTATIONS = new Set(['stampLastInboxViewFn'])
-const LOCAL_ONLY_NOTIFICATION_MUTATIONS = new Set([
-  'markNotificationReadFn',
-  'markNotificationUnreadFn',
-  'markAllNotificationsReadFn',
-  'dismissAllNotificationsFn',
-  'dismissNotificationFn',
-  'updateNotificationPreferenceFn',
-  'muteNotificationCategoryFn',
-  'updateNotificationUserSettingsFn',
-])
-/**
- * Exact delayed-entry classifications. These are deliberately enumerated
- * rather than inferred from a filename or kind: adding a new job/consumer must
- * make an explicit state/fact decision before the governance gate accepts it.
- */
-const ATOMIC_JOB_MUTATIONS = new Set([
-  'portal-approved-destination-revalidation',
-  'process-image',
-  'portal-upload-source-cleanup',
-  'import-gbp-property-item-v2',
-  'sync-property-reviews',
-  'generate-property-ai-trend',
-  'schedule-property-ai-trends',
-  'publish-reply',
-  'reconcile-ambiguous-publications',
-  'goal-program.maintain',
-  'ai-review-analysis-backfill-advance',
-  'ai-review-analysis-enrollment-sweep',
-  'recover-invited-registrations',
-  'advance-organization-lifecycle',
-  'release-response-target-reminders',
-])
-const LOCAL_ONLY_JOB_MUTATIONS = new Set([
-  'health-check',
-  'refresh-expiring-reviews',
-  'reconcile-missing-notifications',
-  'discover-new-reviews',
-  'expire-review-provider-source',
-  'sweep-review-provider-tombstones',
-  'retention-sweep',
-  'quarantine-ttl-sweep',
-  'ai-operation-execution-reaper',
-  'ai-authorization-derivative-erasure',
-  'permit-start-deadline-sweep',
-  'google-import-claim-reaper',
-  'project-recent-activity',
-  'insert-activity-log',
-  'insert-notification',
-  'urgent-email',
-  'digest-notification',
-  'generate-organization-export',
-  'purge-expired-organization-exports',
-])
-const ATOMIC_CONSUMER_MUTATIONS = new Set([
-  'activity.outbox-consumers',
-  'inbox.outbox-consumers',
-  'inbox.guest-feedback',
-  'ai.outbox-consumers',
-  'metric.event-handlers',
-  'metric.public-reputation',
-  'metric.current-google-reputation',
-  'metric.portal-workflow',
-  'metric.guest-analytics',
-  'goal.metric-correction-reconciliation',
-  'review.event-handlers',
-  'inbox.event-handlers',
-  'portal.health-outbox-consumers',
-])
-const LOCAL_ONLY_CONSUMER_MUTATIONS = new Set([
-  'review.outbox-consumers',
-  'portal.outbox-consumers',
-  'notification.outbox-consumers',
-  'notification.workflow-outbox-consumers',
-  'notification.bulk-assignment-outbox-consumers',
-  'notification.escalation-resolution-outbox-consumers',
-  'notification.handling-cycle-outbox-consumers',
-  'notification.response-target-outbox-consumers',
-  'notification.goal-outbox-consumers',
-  'notification.on-google-reauthorization-required',
-  'notification.portal-outbox-consumers',
-  'notification.portal-health-outbox-consumers',
-  'notification.property-outbox-consumers',
-  'notification.identity-account-outbox-consumers',
-  'integration.property-import-dispatch',
-  'integration.google-review-push-dispatch',
-  'property.import-retention-release',
-  'activity.event-handlers',
-  'metric.correction-reconciliation',
-  'notification.event-handlers',
-  'notification.portal-event-handlers',
-  'notification.property-event-handlers',
-])
-const MUTATION_DEBT_EXPIRY = '2026-10-31'
+function entryRegistrationIssues(
+  id: string,
+  registration: EntryPointRegistration | undefined,
+): readonly string[] {
+  if (!registration?.ownerFile || !registration.reachability) {
+    return [`${id}: registration ownership is missing`]
+  }
+  if (
+    !['direct_declaration', 'source_composed', 'boot_registry', 'declared_only'].includes(
+      registration.reachability,
+    )
+  ) {
+    return [`${id}: registration reachability is invalid`]
+  }
+  return []
+}
+
+export function validateEntryPointGovernance(
+  rows: readonly unknown[],
+): readonly string[] {
+  const issues: string[] = []
+  for (const candidate of rows) {
+    const entry = candidate as Partial<EntryPointRow>
+    const id = typeof entry.id === 'string' ? entry.id : '<unknown-entry>'
+    issues.push(
+      ...entryOwnerIssues(id, entry),
+      ...entryRegistrationIssues(id, entry.registration),
+    )
+  }
+  return issues
+}
+
+// ── Row factories (records of functions — no classes) ───────────────
+
 const ENTRY_POINT_OWNERS = new Set<EntryPointOwner>([
   'activity',
   'ai',
@@ -516,12 +275,8 @@ const ENTRY_POINT_OWNERS = new Set<EntryPointOwner>([
   'web',
   'worker',
 ])
-const MUTATION_DISPOSITIONS = new Set<MutationDisposition>([
-  'atomic_state_and_fact',
-  'local_only_with_reason',
-  'non_atomic_defect',
-  'temporarily_accepted_debt',
-])
+
+const CONTEXT_OWNER_RE = /^src\/contexts\/([a-z-]+)\//
 
 function ownerForFile(file: string): EntryPointOwner {
   const context = CONTEXT_OWNER_RE.exec(file)?.[1]
@@ -532,329 +287,13 @@ function ownerForFile(file: string): EntryPointOwner {
   return 'shared'
 }
 
-function isReadOnlyEntry(kind: EntryPointKind, name: string): boolean {
-  return (
-    READ_ONLY_NO_EFFECT_ENTRIES.has(`${kind}:${name}`) ||
-    kind === 'route_ui' ||
-    (kind === 'route_api' && name.startsWith('/api/health')) ||
-    (kind === 'server_function' &&
-      READ_ONLY_SERVER_FN_RE.test(name) &&
-      !MUTATING_QUERY_NAMES.has(name))
-  )
-}
-
-/**
- * Dispositions decided by the entry kind: operator commands, read-only
- * surfaces, schedules, jobs, and consumers. `null` means no kind-scoped rule
- * matched and the name-scoped tables decide.
- */
-function kindScopedMutation(
-  kind: EntryPointKind,
-  name: string,
-  owner: EntryPointOwner,
-): EntryPointMutation | null {
-  if (kind === 'operator_command') {
-    const classification = classifyOperatorCommandMutation(name)
-    if (classification) return classification
+function entryOwnerIssues(id: string, entry: Partial<EntryPointRow>): readonly string[] {
+  if (!entry.owner) return [`${id}: owner is missing`]
+  if (!ENTRY_POINT_OWNERS.has(entry.owner)) return [`${id}: owner is invalid`]
+  if (entry.file && entry.owner !== ownerForFile(entry.file)) {
+    return [`${id}: owner does not match definition path`]
   }
-  if (isReadOnlyEntry(kind, name)) {
-    return { kind: 'read_only' }
-  }
-  if (kind === 'schedule') {
-    return {
-      kind: 'mutation',
-      stateOwner: 'worker',
-      disposition: 'local_only_with_reason',
-      reason:
-        'Owns BullMQ repeatable-schedule metadata; domain mutation occurs only in the separately catalogued job.',
-    }
-  }
-  if (kind === 'job' && ATOMIC_JOB_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: owner,
-      disposition: 'atomic_state_and_fact',
-      reason:
-        'The job delegates authoritative writes to its fenced command store, which co-commits each state transition and every required durable fact; provider or queue effects are separately claimed and reconciled.',
-    }
-  }
-  if (kind === 'job' && LOCAL_ONLY_JOB_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: owner,
-      disposition: 'local_only_with_reason',
-      reason:
-        'This job owns bounded operational, projection, delivery, retention, or queue state only; its source fact remains authoritative and no additional cross-context domain fact is required for the local effect.',
-    }
-  }
-  if (kind === 'consumer' && ATOMIC_CONSUMER_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: owner,
-      disposition: 'atomic_state_and_fact',
-      reason:
-        'Authoritative consumer paths delegate to the owning command store, which co-commits context state and every required durable fact; identifier-only dispatch branches own only idempotent queue/receipt state.',
-    }
-  }
-  if (kind === 'consumer' && LOCAL_ONLY_CONSUMER_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: owner,
-      disposition: 'local_only_with_reason',
-      reason:
-        'The source durable fact remains authoritative; this handler owns only an idempotent projection, queue admission, delivery, compatibility no-op, or consumer receipt and requires no new cross-context domain fact.',
-    }
-  }
-  return null
-}
-
-/**
- * Dispositions for context command and server-function entry points, matched by
- * entry name. `null` means no rule in this table matched.
- */
-function contextCommandMutation(name: string): EntryPointMutation | null {
-  if (ATOMIC_IDENTITY_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'identity',
-      disposition: 'atomic_state_and_fact',
-      reason:
-        'The Identity command store locks and changes the authoritative Better Auth/Identity or policy rows and co-commits every required versioned lifecycle fact or content-free decision audit; post-commit email, cache refresh, or reconciliation is independently retryable.',
-    }
-  }
-  if (LOCAL_ONLY_IDENTITY_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'identity',
-      disposition: 'local_only_with_reason',
-      reason:
-        'This boundary changes only Identity-owned session/profile/configuration, scoped upload, custom-role, audit, rate-limit, or explicit email/Sentry state; no cross-context durable domain fact is part of its contract.',
-    }
-  }
-  if (ATOMIC_PROPERTY_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'property',
-      disposition: 'atomic_state_and_fact',
-      reason:
-        name === 'requestRegionMoveFn'
-          ? 'The accepted region-move request authority co-commits the Property move machine row and its required content-free operator decision; denied requests change no Property state and remain audit-only.'
-          : 'The Property command or responsibility store commits the revision-fenced state, audit metadata, and every required Property/responsibility fact in one PostgreSQL transaction.',
-    }
-  }
-  if (ATOMIC_INTEGRATION_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'integration',
-      disposition: 'atomic_state_and_fact',
-      reason:
-        'The Integration command/lifecycle store fences current tenant, connection, authorization generation, and revision then co-commits state and every required identifier-only outbox fact.',
-    }
-  }
-  if (LOCAL_ONLY_INTEGRATION_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'integration',
-      disposition: 'local_only_with_reason',
-      reason:
-        'This boundary issues or renews a short-lived OAuth/import/performance authorization or cache lease; it is Integration-local admission state and requires no cross-context domain fact.',
-    }
-  }
-  if (ATOMIC_GOAL_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'goal',
-      disposition: 'atomic_state_and_fact',
-      reason:
-        'The Goal Program repository commits the aggregate/version/assignment/result change, audit row, and its versioned outbox fact under one revision-fenced PostgreSQL transaction.',
-    }
-  }
-  if (LOCAL_ONLY_STAFF_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'staff',
-      disposition: 'local_only_with_reason',
-      reason:
-        'Staff Participant, Participation, and Portal Responsibility intervals are Staff-owned attribution state consumed by event-time lookup; no cross-context durable fact is required, and eligibility repair is idempotent.',
-    }
-  }
-  if (LOCAL_ONLY_SHARED_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'shared',
-      disposition: 'local_only_with_reason',
-      reason:
-        "This compatibility boundary only repairs the authenticated session's active-Organization pointer from durable membership authority; it creates no domain transition.",
-    }
-  }
-  if (LOCAL_ONLY_AI_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'ai',
-      disposition: 'local_only_with_reason',
-      reason:
-        'The request owns bounded AI admission/operation/outcome state and returns a draft to the caller; it cannot publish or mutate Review workflow and requires no downstream domain fact.',
-    }
-  }
-  if (LOCAL_ONLY_DASHBOARD_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'dashboard',
-      disposition: 'local_only_with_reason',
-      reason:
-        'Reads canonical, tenant-scoped setup facts and only inserts missing content-free first-completion milestones; source state remains authoritative in its owning context.',
-    }
-  }
-  return null
-}
-
-function localRouteStateOwner(name: string): EntryPointOwner {
-  if (
-    name === '/api/notifications/unsubscribe' ||
-    name === '/api/webhooks/resend/events'
-  ) {
-    return 'notification'
-  }
-  if (name === '/api/webhooks/gbp/notifications') return 'integration'
-  return 'identity'
-}
-
-/**
- * Dispositions for HTTP routes and the request-facing collaboration surfaces
- * (portal, guest, review, inbox, notification), matched by entry name. `null`
- * means no rule in this table matched.
- */
-function requestSurfaceMutation(name: string): EntryPointMutation | null {
-  if (ATOMIC_ROUTE_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'integration',
-      disposition: 'atomic_state_and_fact',
-      reason:
-        'The OAuth route consumes one opaque ceremony then delegates connection authority to the Integration command store, which co-commits connection state and its lifecycle fact.',
-    }
-  }
-  if (LOCAL_ONLY_ROUTE_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: localRouteStateOwner(name),
-      disposition: 'local_only_with_reason',
-      reason:
-        'This authenticated/provider boundary owns only context-local session, preference, delivery-state, replay, or deterministic queue-admission effects; the source authority remains external or already durable and no new cross-context fact is required.',
-    }
-  }
-  if (name === 'softDeletePortalGroup' || ATOMIC_PORTAL_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'portal',
-      disposition: 'atomic_state_and_fact',
-      reason:
-        'The owning Portal transaction commits its revision-fenced state or command receipt, required side effects, and every required versioned outbox fact together.',
-    }
-  }
-  if (LOCAL_ONLY_PORTAL_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'portal',
-      disposition: 'local_only_with_reason',
-      reason:
-        name === 'requestUploadUrl'
-          ? 'Creates one scoped, expiring upload issuance; no domain fact is required until verified finalization atomically stages processing.'
-          : 'The Portal contract declares no durable fact for this link/category edit; it is a context-local state write.',
-    }
-  }
-  if (ATOMIC_GUEST_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'guest',
-      disposition: 'atomic_state_and_fact',
-      reason:
-        'The Guest command or observation store atomically fences and persists the response/action receipt with every required content-minimal fact.',
-    }
-  }
-  if (name === 'startNewGuestResponseFn') {
-    return {
-      kind: 'mutation',
-      stateOwner: 'guest',
-      disposition: 'local_only_with_reason',
-      reason:
-        'Issues a fresh signed response-integrity session without changing the prior Guest Response or requiring a durable domain fact.',
-    }
-  }
-  if (ATOMIC_REVIEW_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'review',
-      disposition: 'atomic_state_and_fact',
-      reason:
-        'The Review command store commits the revision-fenced Reply transition and every required versioned lifecycle/publication fact in one PostgreSQL transaction.',
-    }
-  }
-  if (LOCAL_ONLY_REVIEW_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'review',
-      disposition: 'local_only_with_reason',
-      reason:
-        name === 'draftReplyFn'
-          ? 'Draft text is private Review-owned working state; durable workflow facts begin only when the manager submits it.'
-          : 'Deleting an unpublished draft/rejected Reply is Review-local state and has no downstream lifecycle fact contract.',
-    }
-  }
-  if (ATOMIC_INBOX_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'inbox',
-      disposition: 'atomic_state_and_fact',
-      reason:
-        'The Inbox command store locks and revalidates the exact tenant/source/cycle head, commits the optimistic state transition/history, and records every required content-free fact atomically.',
-    }
-  }
-  if (LOCAL_ONLY_INBOX_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'inbox',
-      disposition: 'local_only_with_reason',
-      reason:
-        "Advances the current user's private Inbox visit watermark; it is not a shared workflow transition and requires no domain fact.",
-    }
-  }
-  if (LOCAL_ONLY_NOTIFICATION_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'notification',
-      disposition: 'local_only_with_reason',
-      reason:
-        "Mutates only the current recipient's Notification read/dismiss/preference projection; it is not an authoritative cross-context domain transition.",
-    }
-  }
-  return null
-}
-
-/**
- * Classify one entry point's mutation semantics. The three tables are consulted
- * in order — kind-scoped rules first, then the name-scoped context and request
- * surface tables — and the first match wins; anything unmatched is recorded as
- * temporarily accepted debt rather than silently claimed as safe.
- */
-function mutationForEntry(
-  kind: EntryPointKind,
-  name: string,
-  owner: EntryPointOwner,
-): EntryPointMutation {
-  return (
-    kindScopedMutation(kind, name, owner) ??
-    contextCommandMutation(name) ??
-    requestSurfaceMutation(name) ?? {
-      kind: 'mutation',
-      stateOwner: owner,
-      disposition: 'temporarily_accepted_debt',
-      reason:
-        'This bounded catalogue slice has not yet proven atomic-state-and-fact or local-only semantics.',
-      debtOwner: 'FND-03',
-      expiresAt: MUTATION_DEBT_EXPIRY,
-    }
-  )
+  return []
 }
 
 function registrationForEntry(
@@ -876,78 +315,6 @@ function registrationForEntry(
   }
   return { ownerFile: file, reachability: 'direct_declaration' }
 }
-
-function entryOwnerIssues(id: string, entry: Partial<EntryPointRow>): readonly string[] {
-  if (!entry.owner) return [`${id}: owner is missing`]
-  if (!ENTRY_POINT_OWNERS.has(entry.owner)) return [`${id}: owner is invalid`]
-  if (entry.file && entry.owner !== ownerForFile(entry.file)) {
-    return [`${id}: owner does not match definition path`]
-  }
-  return []
-}
-
-function entryRegistrationIssues(
-  id: string,
-  registration: EntryPointRegistration | undefined,
-): readonly string[] {
-  if (!registration?.ownerFile || !registration.reachability) {
-    return [`${id}: registration ownership is missing`]
-  }
-  if (
-    !['direct_declaration', 'source_composed', 'boot_registry', 'declared_only'].includes(
-      registration.reachability,
-    )
-  ) {
-    return [`${id}: registration reachability is invalid`]
-  }
-  return []
-}
-
-function entryMutationIssues(
-  id: string,
-  mutation: EntryPointMutation | undefined,
-): readonly string[] {
-  if (!mutation || typeof mutation !== 'object') {
-    return [`${id}: mutation classification is missing`]
-  }
-  if (mutation.kind === 'read_only') return []
-  if (mutation.kind !== 'mutation') return [`${id}: mutation kind is invalid`]
-
-  const issues: string[] = []
-  if (!MUTATION_DISPOSITIONS.has(mutation.disposition)) {
-    issues.push(`${id}: mutation disposition is invalid`)
-  }
-  if (!mutation.stateOwner) issues.push(`${id}: mutation state owner is missing`)
-  else if (!ENTRY_POINT_OWNERS.has(mutation.stateOwner)) {
-    issues.push(`${id}: mutation state owner is invalid`)
-  }
-  if (!mutation.reason) issues.push(`${id}: mutation reason is missing`)
-  if (mutation.disposition === 'temporarily_accepted_debt') {
-    if (!mutation.debtOwner) issues.push(`${id}: debt owner is missing`)
-    if (!/^\d{4}-\d{2}-\d{2}$/u.test(mutation.expiresAt ?? '')) {
-      issues.push(`${id}: debt expiry is invalid`)
-    }
-  }
-  return issues
-}
-
-export function validateEntryPointGovernance(
-  rows: readonly unknown[],
-): readonly string[] {
-  const issues: string[] = []
-  for (const candidate of rows) {
-    const entry = candidate as Partial<EntryPointRow>
-    const id = typeof entry.id === 'string' ? entry.id : '<unknown-entry>'
-    issues.push(
-      ...entryOwnerIssues(id, entry),
-      ...entryRegistrationIssues(id, entry.registration),
-      ...entryMutationIssues(id, entry.mutation),
-    )
-  }
-  return issues
-}
-
-// ── Row factories (records of functions — no classes) ───────────────
 
 type RowOpts = Partial<
   Omit<EntryPointRow, 'id' | 'kind' | 'name' | 'file' | 'betaPosture'>
@@ -972,7 +339,6 @@ function row(
     name,
     file,
     owner,
-    mutation: opts.mutation ?? mutationForEntry(kind, name, owner),
     registration: opts.registration ?? registrationForEntry(kind, file),
     action: base.action,
     capability: base.capability,
@@ -1177,13 +543,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Commits the closure request, the Organization-wide suspension and the lifecycle authority row in one transaction after locking the membership and binding rows',
-        },
       },
     ),
     sf(
@@ -1196,13 +555,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Commits the closure request, the Organization-wide suspension and the lifecycle authority row in one transaction after locking the membership and binding rows',
-        },
       },
     ),
     sf(
@@ -1215,13 +567,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Commits the cancellation and DELIBERATELY LEAVES the Organization-wide suspension in place, setting the reactivation fence so nothing resumes silently. Only reactivateOrganization lifts the suspension, which is why requestClosure refuses when reactivation is not composed',
-        },
       },
     ),
     sf(
@@ -1234,13 +579,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Commits the cancellation and DELIBERATELY LEAVES the Organization-wide suspension in place, setting the reactivation fence so nothing resumes silently. Only reactivateOrganization lifts the suspension, which is why requestClosure refuses when reactivation is not composed',
-        },
       },
     ),
     sf(
@@ -1253,13 +591,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Clears the reactivation fence only after every declared health, Google authorization and Portal reactivation check passes, in one transaction with its evidence',
-        },
       },
     ),
     sf(
@@ -1272,13 +603,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Clears the reactivation fence only after every declared health, Google authorization and Portal reactivation check passes, in one transaction with its evidence',
-        },
       },
     ),
     sf(
@@ -1291,13 +615,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Idempotently binds the caller-supplied request id to one export request row',
-        },
       },
     ),
     sf(
@@ -1310,13 +627,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Idempotently binds the caller-supplied request id to one export request row',
-        },
       },
     ),
     sf(
@@ -1329,13 +639,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Co-commits the digest-only, bounded retrieval authority with its access audit',
-        },
       },
     ),
     sf(
@@ -1348,13 +651,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Co-commits the digest-only, bounded retrieval authority with its access audit',
-        },
       },
     ),
     sf(
@@ -1367,13 +663,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Atomically consumes an unexpired single-use token and co-commits the access audit',
-        },
       },
     ),
     sf(
@@ -1386,13 +675,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Atomically consumes an unexpired single-use token and co-commits the access audit',
-        },
       },
     ),
     sf(
@@ -1427,13 +709,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       {
         notes:
           'LIF-01-T21 transfer-first leave. Gated by identity.leave_org; a sole AccountAdmin cannot leave, and outstanding responsibilities must transfer before the membership is removed',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Removes the membership, transfers or refuses on outstanding responsibilities, and revokes sessions in one transaction with its durable fact',
-        },
       },
     ),
     sf(
@@ -1446,13 +721,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'LIF-01-T21 transfer-first leave. Gated by identity.leave_org; a sole AccountAdmin cannot leave, and outstanding responsibilities must transfer before the membership is removed',
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'identity',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'Removes the membership, transfers or refuses on outstanding responsibilities, and revokes sessions in one transaction with its durable fact',
-        },
       },
     ),
     sf(
@@ -1886,15 +1154,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property.archive',
       'property.create',
       'property',
-      {
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'property',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.archived outbox fact in one PostgreSQL transaction; no deletion occurs.',
-        },
-      },
+      {},
     ),
     sf(
       'archiveProperty',
@@ -1904,13 +1164,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property',
       {
         canonicalOnly: true,
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'property',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.archived outbox fact in one PostgreSQL transaction; no deletion occurs.',
-        },
       },
     ),
     sf(
@@ -1919,15 +1172,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property.restore',
       'property.create',
       'property',
-      {
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'property',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.restored outbox fact in one PostgreSQL transaction; readiness prerequisites are checked before transition.',
-        },
-      },
+      {},
     ),
     sf(
       'restoreProperty',
@@ -1937,13 +1182,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property',
       {
         canonicalOnly: true,
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'property',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.restored outbox fact in one PostgreSQL transaction; readiness prerequisites are checked before transition.',
-        },
       },
     ),
     sf(
@@ -1952,15 +1190,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property.disconnect',
       'property.create',
       'property',
-      {
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'property',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'The Property Google binding store locks/fences the exact Property binding, atomically commits disconnected binding state, source-epoch and destination-readiness changes with its required identifier-only property.google_binding.changed fact; the Organization Google connection and Property row/history remain intact.',
-        },
-      },
+      {},
     ),
     sf(
       'disconnectPropertyGoogleBinding',
@@ -1970,13 +1200,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property',
       {
         canonicalOnly: true,
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'property',
-          disposition: 'atomic_state_and_fact',
-          reason:
-            'The Property Google binding store locks/fences the exact Property binding, atomically commits disconnected binding state, source-epoch and destination-readiness changes with its required identifier-only property.google_binding.changed fact; the Organization Google connection and Property row/history remain intact.',
-        },
       },
     ),
     sf(
@@ -2649,13 +1872,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'identity.invite',
       'organization',
       {
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'activity',
-          disposition: 'local_only_with_reason',
-          reason:
-            'The restricted read atomically appends its content-free access outcome to Activity-owned Operational Action History before returning a tenant-forced bounded page; it creates no cross-context domain transition.',
-        },
         notes:
           'Current AccountAdmin authority is revalidated inside the Activity application seam; the context build remains default-deny until Identity composition injects that authority.',
       },
@@ -2667,13 +1883,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'identity.invite',
       'organization',
       {
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'activity',
-          disposition: 'local_only_with_reason',
-          reason:
-            'The restricted export atomically appends its content-free access outcome and returns only an identifier/code canonical page with a reproducibility fingerprint; it creates no cross-context domain transition.',
-        },
         notes:
           'Current AccountAdmin authority is revalidated inside the Activity application seam; the context build remains default-deny until Identity composition injects that authority.',
       },
@@ -3915,7 +3124,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'tenant_cross',
     {
-      mutation: { kind: 'read_only' },
       notes:
         'SAFE-03/REV-01 content-free checkpointed report/shadow authority; no Review/source/Reply/Inbox mutation and no destructive apply authority',
     },

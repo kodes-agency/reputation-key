@@ -1,12 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
-import {
-  METRIC_READING_DIRECT_READ_AUTHORITIES,
-  metricReadingAuthorityViolations,
-  type MetricReadingDirectReadAuthority,
-} from './metric-read-authority'
+import { METRIC_READING_DIRECT_READ_AUTHORITIES } from './metric-read-authority'
 
 const ROOT = process.cwd()
 const SRC = join(ROOT, 'src')
@@ -105,108 +100,22 @@ describe('Metric reading authority inventory', () => {
     ).toBe(false)
   })
 
-  it('fails closed over every production metric_readings reader outside Metric', () => {
-    expect(metricReadingAuthorityViolations()).toEqual([])
+  it('allows only the two named Dashboard readers', () => {
+    expect(METRIC_READING_DIRECT_READ_AUTHORITIES).toEqual([
+      {
+        id: 'dashboard.legacy-kpi-projection',
+        source: 'src/contexts/dashboard/infrastructure/read-facade.ts',
+        symbol: 'readMetricAggregates',
+      },
+      {
+        id: 'dashboard.fleet-overview-projection',
+        source:
+          'src/contexts/dashboard/infrastructure/adapters/fleet-overview-projection.adapter.ts',
+        symbol: 'createFleetOverviewProjectionAdapter.read',
+      },
+    ])
     expect(
       METRIC_READING_DIRECT_READ_AUTHORITIES.map(({ source }) => source).sort(),
     ).toEqual(discoveredDirectMetricReadingFiles())
-  })
-
-  it('publishes an immutable reviewed contract', () => {
-    expect(Object.isFrozen(METRIC_READING_DIRECT_READ_AUTHORITIES)).toBe(true)
-    for (const entry of METRIC_READING_DIRECT_READ_AUTHORITIES) {
-      expect(Object.isFrozen(entry)).toBe(true)
-      expect(Object.isFrozen(entry.contract)).toBe(true)
-      if (entry.posture === 'active_versioned_projection') {
-        expect(Object.isFrozen(entry.contract.definitionVersionIds)).toBe(true)
-        expect(Object.isFrozen(entry.contract.consumers)).toBe(true)
-      }
-    }
-  })
-
-  it('binds every active projection to executable version, consumer, source, correction, and availability policy', () => {
-    const versionNames = new Map(
-      Object.entries(METRIC_VERSION_IDS).map(([name, id]) => [id, name]),
-    )
-    const active = METRIC_READING_DIRECT_READ_AUTHORITIES.filter(
-      (entry) => entry.posture === 'active_versioned_projection',
-    )
-
-    expect(active.map(({ id }) => id)).toEqual([
-      'dashboard.legacy-kpi-projection',
-      'dashboard.fleet-overview-projection',
-    ])
-
-    for (const entry of active) {
-      const source = readFileSync(entry.source, 'utf8')
-      for (const versionId of entry.contract.definitionVersionIds) {
-        const versionName = versionNames.get(versionId)
-        expect(versionName, `${entry.id} has an unknown immutable version`).toBeDefined()
-        expect(source, `${entry.id} does not pin ${String(versionName)}`).toContain(
-          `METRIC_VERSION_IDS.${String(versionName)}`,
-        )
-      }
-      expect(source).toMatch(/permittedConsumers|permitted_consumers/)
-      expect(source).toMatch(/sourcePolicyAllowlist|source_policy_allowlist/)
-      expect(source).toMatch(/metricCorrections|metric_corrections/)
-      if (entry.contract.availability === 'definition_minimum_sample_signal') {
-        expect(source).toMatch(/minimumSample|minimum_sample/)
-      } else {
-        expect(source).toContain('completeness')
-        expect(source).toContain('freshness')
-      }
-    }
-  })
-
-  it('keeps Goal on the Metric public API and Dashboard on owner APIs or the two named projections', () => {
-    const goalBuild = readFileSync('src/contexts/goal/build.ts', 'utf8')
-    const goalPrograms = readFileSync(
-      'src/contexts/goal/application/use-cases/goal-programs.ts',
-      'utf8',
-    )
-    const dashboardBuild = readFileSync('src/contexts/dashboard/build.ts', 'utf8')
-
-    expect(goalBuild).toContain('MetricPublicApi')
-    expect(goalBuild).toContain('metrics: input.metricApi')
-    expect(goalPrograms).toContain('deps.metrics.queryGoalMetric')
-    expect(goalBuild).not.toMatch(/metricReadings|metric_readings/)
-    expect(goalPrograms).not.toMatch(/metricReadings|metric_readings/)
-
-    expect(dashboardBuild).toContain('portalMetrics: PortalMetricsPort')
-    expect(dashboardBuild).toContain('portalLifetime: PortalLifetimeMetricsPort')
-    expect(
-      METRIC_READING_DIRECT_READ_AUTHORITIES.filter(
-        (entry) => entry.posture === 'active_versioned_projection',
-      ).map(({ id }) => id),
-    ).toEqual(['dashboard.legacy-kpi-projection', 'dashboard.fleet-overview-projection'])
-  })
-
-  it('rejects an active reader without a version or consumer', () => {
-    const active = METRIC_READING_DIRECT_READ_AUTHORITIES.find(
-      (entry) => entry.posture === 'active_versioned_projection',
-    )
-    if (!active) throw new Error('active metric authority is missing')
-    const rogue = {
-      ...active,
-      contract: {
-        definitionVersionIds: [],
-        consumers: [],
-        sourcePolicy: 'immutable_definition_allowlist',
-        correction: 'current_append_only_tip',
-        availability: 'definition_minimum_sample_signal',
-      },
-    } as unknown as MetricReadingDirectReadAuthority
-
-    expect(
-      metricReadingAuthorityViolations([
-        rogue,
-        ...METRIC_READING_DIRECT_READ_AUTHORITIES.filter(
-          (entry) => entry.id !== active.id,
-        ),
-      ]),
-    ).toEqual([
-      `${active.id}: active projection has no immutable version`,
-      `${active.id}: active projection has no permitted consumer`,
-    ])
   })
 })

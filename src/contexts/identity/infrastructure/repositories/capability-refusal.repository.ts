@@ -1,10 +1,9 @@
 // Read-only readers for the capability refusal explainer (issues #403/#408).
 //
 // Separate from `google-content-authority.repository.ts` on purpose. Those are
-// the enforcement-path reads and writes; these are diagnostic reads only, and
-// the filename standard for this layer (`context-standards-matrix`) wants a
-// mirrored `*.repository.ts` / `*.repository.test.ts` pair rather than another
-// variance pinned into the retained inventory.
+// the enforcement-path reads and writes; these are diagnostic reads only. The
+// mirrored `*.repository.ts` / `*.repository.test.ts` pair keeps that boundary
+// explicit.
 //
 // Every query here is a SELECT. `loadApprovalForRuntime` deliberately reuses the
 // enforcement path's own `latestApprovalRow` + `approvalRecordFromRow`, so the
@@ -29,11 +28,7 @@ import {
   runtimeBindingFromApprovalRow,
 } from './google-content-authority.repository'
 
-/**
- * Read-only readers for the capability refusal explainer (issue #408). Declared
- * as an arrow const because `infrastructure-factory-style-authority` allows no
- * grandfathered `export function` infrastructure factories.
- */
+/** Read-only readers for the capability refusal explainer (issue #408). */
 export const createCapabilityRefusalReaders = (
   db: Database,
 ): Pick<

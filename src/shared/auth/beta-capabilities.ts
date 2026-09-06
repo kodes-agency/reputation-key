@@ -22,6 +22,14 @@
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { isRestoreIsolated } from '#/shared/config/restore-mode'
+import {
+  CAPABILITIES,
+  listCapabilitiesByFate,
+  type Capability,
+} from '#/shared/governance/capability-fate'
+
+export { CAPABILITIES }
+export type { Capability }
 
 /**
  * Capability-policy version. Bump when capability vocabulary or posture changes.
@@ -29,134 +37,14 @@ import { isRestoreIsolated } from '#/shared/config/restore-mode'
  */
 export const CAPABILITY_POLICY_VERSION = 'beta-local-10'
 
-// ── Capability definitions ──────────────────────────────────────────
+// ── Runtime capability posture ──────────────────────────────────────
 
-export const CAPABILITIES = [
-  'identity.invite',
-  'identity.custom_roles',
-  'identity.register',
-  'organization.create',
-  'property.create',
-  'property.erase',
-  'property.connect_gbp',
-  'property.import_gbp_v2',
-  'property.read_gbp_performance',
-  'property.publish_reply',
-  'notification.send_email',
-  'notification.in_app',
-  'portal.read',
-  'portal.write',
-  'portal.upload',
-  'portal.public_read',
-  'portal.guest_response',
-  'portal.guest_text',
-  'portal.guest_contact',
-  'portal.guest_media',
-  'goal.use',
-  'ai.analyze',
-  'ai.generate_reply',
-  'ai.detect_trends',
-  'gbp.reply.auto_publish',
-  'gbp.ai.cross_property_summary',
-  'gbp.review_solicitation_gamification',
-  // BQR-4.1: explicit surface capabilities for master-plan enabled contexts
-  'review.use',
-  'inbox.use',
-  'dashboard.use',
-  'staff.use',
-  'integration.use',
-  'activity.use',
-  'metric.internal',
-] as const
+const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set(listCapabilitiesByFate('core'))
 
-export type Capability = (typeof CAPABILITIES)[number]
-
-/**
- * Core capabilities are ON by default for all authenticated users in beta.
- * These represent the minimum viable product surface (master plan §4).
- *
- * BQR-0 (2026-07): `portal.read` was removed from core. Portal and Guest are
- * dark for internal beta. BQR-4.1 adds explicit core surface caps for review,
- * inbox, dashboard, staff, integration, activity, and in-app notification.
- */
-const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
-  'identity.invite',
-  'property.create',
-  'property.connect_gbp',
-  'property.publish_reply',
-  'review.use',
-  'inbox.use',
-  'dashboard.use',
-  'staff.use',
-  'integration.use',
-  'activity.use',
-  'notification.in_app',
-  'metric.internal',
-])
-
-/**
- * Capabilities that are always off and can never be allowlisted.
- *
- * Google policy permanently prohibits automated reply publishing,
- * cross-property AI summaries, and review-solicitation gamification.
- *
- * `portal.upload` is a safety containment whose authority is the **`SAFE-01`
- * package completion record**, not the `SEC-01` finding. Corrected 2026-09-02
- * (issue #406): this comment previously named `SEC-01` and listed that
- * finding's removal criteria — issuance-bound finalization, storage
- * revalidation, non-aliasing derivative keys, stale-worker fail-closed, and
- * the cross-tenant/replay/expiry/oversize adversarial suite. Every one of
- * those is now SATISFIED (`SEC-01` is closed: see
- * `docs/release-evidence/review/finding-revalidation-fragments/data-runtime-safeguards-2026-08-26.json`),
- * so a reader following the old criteria would have concluded the gate was
- * met and unblocked this capability.
- *
- * `SEC-01` was one finding owned by `SAFE-01`, which also covers `SEC-02` and
- * `SEC-13..17`. `SAFE-01` itself is still open, and everything outstanding is
- * DEPLOYED evidence that cannot be produced locally: the object-store
- * adversarial drill, Railway proxy/header proof, deployed cache/header proof,
- * the two-replica observation-loss drill, and security approval
- * (`docs/release-evidence/review/comprehensive-progress-report-2026-08-28.md`).
- * The independent review is explicit that no remaining local code defect
- * requires activating this capability
- * (`docs/release-evidence/review/safe-01-independent-security-review-2026-08-28.md`).
- *
- * Remove it from this set only after the signed `SAFE-01` completion record.
- * Tenant policy alone cannot enable it — see
- * `CAPABILITY_FATE['portal.upload']` in `#/shared/governance/capability-fate`,
- * which is the authority this comment must agree with.
- *
- * `portal.guest_media` is deliberately blocked for the first beta cohort.
- * Its historical records and internal lifecycle remain available for audit;
- * public issuance/confirmation entry points were removed until a separately
- * approved moderation, abuse, access, consent, and retention gate exists.
- *
- * `portal.guest_contact` has a dark backend foundation but no activation
- * authority. It remains blocked until the guest notice, retention wording,
- * manager handling, and channel readiness have named approval evidence.
- *
- * Other Portal, guest, and product-email capabilities are non-core
- * controlled-beta features: they remain off by default and require persisted
- * organization/property policy.
- *
- */
-const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
-  // Runtime role definitions and assignment are excluded from beta. The
-  // definitions remain only for reconciliation/migration of historical rows;
-  // neither tenant policy nor the E2E override may reopen their write surface.
-  'identity.custom_roles',
-  'identity.register',
-  'organization.create',
-  // LIF-01: ordinary lifecycle changes must become recoverable Archive /
-  // Disconnect. Permanent erasure needs a separate support-mediated workflow;
-  // the legacy destructive product path cannot be promoted in the meantime.
-  'property.erase',
-  'portal.upload',
-  'portal.guest_contact',
-  'portal.guest_media',
-  'gbp.reply.auto_publish',
-  'gbp.ai.cross_property_summary',
-  'gbp.review_solicitation_gamification',
+const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set([
+  ...listCapabilitiesByFate('beta_disabled'),
+  ...listCapabilitiesByFate('safety_blocked'),
+  ...listCapabilitiesByFate('permanently_denied'),
 ])
 
 // ── Decision types ──────────────────────────────────────────────────

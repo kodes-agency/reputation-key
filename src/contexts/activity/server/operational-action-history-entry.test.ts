@@ -44,11 +44,6 @@ describe('Operational Action History server reachability', () => {
         resourceScope: 'organization',
         principals: ['user'],
         registration: { reachability: 'direct_declaration' },
-        mutation: {
-          kind: 'mutation',
-          stateOwner: 'activity',
-          disposition: 'local_only_with_reason',
-        },
       })
     }
   })

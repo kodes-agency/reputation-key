@@ -1,9 +1,6 @@
-// SourceContentPolicy — code-level contract for Google review content
-// retention and permitted operations (PRE17B / ADR 0031).
+// SourceContentPolicy — Google review-content lifecycle timing and policy version.
 //
-// Encodes Google's written response (2026-07-14) as a versioned, testable
-// policy object. Use cases check this policy — not scattered constants —
-// before analyzing, aggregating, caching, or publishing review content.
+// Operational obligations are enforced at their owning boundaries.
 
 export type SourceContentPolicy = Readonly<{
   /** Content source identifier. */
@@ -21,23 +18,8 @@ export type SourceContentPolicy = Readonly<{
   /** Permitted: per-property themes, trends, summaries (one property). */
   readonly mayAggregatePerProperty: boolean
 
-  /** Denied: combining data across multiple properties. Always false. */
-  readonly mayCombineAcrossProperties: boolean
-
   /** Permitted: retaining derived metadata beyond raw TTL (separate retention). */
   readonly mayRetainDerivedMetadata: boolean
-
-  /** Merchant opt-in required before any AI operation. */
-  readonly requiresMerchantOptIn: boolean
-
-  /** PII redaction required before sending to external provider. */
-  readonly requiresPiiRedaction: boolean
-
-  /** Approved no-training/minimum-retention provider required. */
-  readonly requiresApprovedProvider: boolean
-
-  /** Reply publication must be a distinct manual manager action. */
-  readonly requiresHumanReplyPublish: boolean
 
   /** Policy version — increment when rules change. Stored with derived data. */
   readonly policyVersion: number
@@ -58,12 +40,7 @@ export function createGoogleSourceContentPolicy(): SourceContentPolicy {
     rawRefreshDueBeforeMs: 25 * DAYS_MS,
     mayAnalyzePerReview: true,
     mayAggregatePerProperty: true,
-    mayCombineAcrossProperties: false,
     mayRetainDerivedMetadata: true,
-    requiresMerchantOptIn: true,
-    requiresPiiRedaction: true,
-    requiresApprovedProvider: true,
-    requiresHumanReplyPublish: true,
     policyVersion: 1,
   }
 }
