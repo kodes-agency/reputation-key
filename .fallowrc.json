@@ -86,9 +86,6 @@
       "exports": ["DEFAULT_BATCH_SIZE", "DEFAULT_MAX_BATCHES"]
     },
     {
-      "exports": ["createStaffAssignmentSystem"]
-    },
-    {
       "file": "src/shared/ai-property-trend-contract.ts",
       "exports": ["encodeCanonicalAiPropertyTrendSource"]
     },
@@ -133,18 +130,12 @@
       "exports": ["PARTIAL_OFFBOARDING_FINDINGS"]
     },
     {
-      "exports": ["GATE_F_APPROVAL_FAILURE_CODES"]
-    },
-    {
       "file": "src/contexts/activity/server/activity.ts",
       "exports": [
         "exportOperationalActionHistoryFn",
         "listOperationalActionHistoryFn",
         "listRecentActivityFn"
       ]
-    },
-    {
-      "exports": ["BADGE_PURGE_ORDER_NOTE"]
     },
     {
       "file": "src/contexts/dashboard/server/dashboard.ts",
@@ -222,12 +213,6 @@
       ]
     },
     {
-      "exports": ["LEGACY_RECOGNITION_TABLES", "buildLegacyRecognitionInventoryReport"]
-    },
-    {
-      "exports": ["LEADERBOARD_PURGE_ORDER_NOTE"]
-    },
-    {
       "file": "src/contexts/notification/application/public-api.ts",
       "exports": ["NOTIFICATION_CATEGORIES", "notificationScopeForType"]
     },
@@ -291,6 +276,7 @@
       "exports": ["createDbUserLookupAdapter"]
     },
     {
+      "file": "src/contexts/integration/application/use-cases/handle-gbp-notification.ts",
       "exports": ["handleGbpNotification"]
     },
     {
@@ -326,6 +312,7 @@
       "exports": ["createProperty", "updateProperty"]
     },
     {
+      "file": "src/contexts/goal/application/use-cases/update-goal.ts",
       "exports": ["updateGoal"]
     },
     {
