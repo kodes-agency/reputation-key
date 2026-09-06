@@ -1,43 +1,18 @@
-// Read-only readers for the capability refusal explainer (issues #403/#408).
-//
-// Separate from `google-content-authority.repository.ts` on purpose. Those are
-// the enforcement-path reads and writes; these are diagnostic reads only. The
-// mirrored `*.repository.ts` / `*.repository.test.ts` pair keeps that boundary
-// explicit.
-//
-// Every query here is a SELECT. `loadApprovalForRuntime` deliberately reuses the
-// enforcement path's own `latestApprovalRow` + `approvalRecordFromRow`, so the
-// explainer resolves the same row the real decision resolves. By contrast
-// `loadApprovalsForIdentity` maps raw runtime columns instead of going through
-// `approvalRecordFromRow`, because that helper returns null on contract-version
-// drift — and a drifted row is exactly the case the explainer must still be able
-// to name.
+// Read-only persisted readers for the capability refusal explainer (issue #408).
+// Every query here is a SELECT; diagnostics never mutate the record they inspect.
 
-import { asc, desc, eq, sql } from 'drizzle-orm'
+import { asc, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   authorizationExecutionPermits,
-  capabilityComplianceApprovals,
   capabilityExecutionControl,
 } from '#/shared/db/schema/google-content-control.schema'
 import type { CapabilityRefusalDeps } from '#/shared/governance/capability-refusal'
-import {
-  approvalIdentityWhere,
-  approvalRecordFromRow,
-  latestApprovalRow,
-  runtimeBindingFromApprovalRow,
-} from './google-content-authority.repository'
 
 /** Read-only readers for the capability refusal explainer (issue #408). */
 export const createCapabilityRefusalReaders = (
   db: Database,
-): Pick<
-  CapabilityRefusalDeps,
-  | 'loadExecutionControl'
-  | 'loadApprovalForRuntime'
-  | 'loadApprovalsForIdentity'
-  | 'loadPermitOutcomes'
-> =>
+): Pick<CapabilityRefusalDeps, 'loadExecutionControl' | 'loadPermitOutcomes'> =>
   Object.freeze({
     loadExecutionControl: async (capability) => {
       const rows = await db
@@ -56,21 +31,6 @@ export const createCapabilityRefusalReaders = (
         deniedAt: row.deniedAt?.toISOString() ?? null,
         emergencyKillVersion: String(row.emergencyKillVersion),
       }
-    },
-    loadApprovalForRuntime: async (binding) => {
-      const row = await latestApprovalRow(db, binding)
-      return row ? approvalRecordFromRow(row) : null
-    },
-    loadApprovalsForIdentity: async (binding) => {
-      const rows = await db
-        .select()
-        .from(capabilityComplianceApprovals)
-        .where(approvalIdentityWhere(binding))
-        .orderBy(desc(capabilityComplianceApprovals.bindingVersion))
-      return rows.map((row) => ({
-        bindingVersion: row.bindingVersion,
-        binding: runtimeBindingFromApprovalRow(row),
-      }))
     },
     loadPermitOutcomes: async (capability) => {
       const rows = await db

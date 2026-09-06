@@ -42,7 +42,6 @@ const authorization = {
   connectionLifecycleVersion: 4,
   connectionAccessVersion: 3,
   credentialGeneration: 2,
-  approvalBindingId: '00000000-0000-4000-8000-000000000006',
   authorizationVector: {
     executionPolicyVersion: 'beta-local-2',
     role: 'Admin',

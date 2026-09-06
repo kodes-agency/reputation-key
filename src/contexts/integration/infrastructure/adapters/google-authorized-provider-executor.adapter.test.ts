@@ -10,7 +10,6 @@ const authorization: GoogleProviderCallAuthorization = Object.freeze({
   propertyId: null,
   connectionId: googleConnectionId('11111111-1111-4111-8111-111111111111'),
   initiatorUserId: 'user-1',
-  approvalBindingId: '22222222-2222-4222-8222-222222222222',
   expectedCredentialGeneration: 3,
   authorizationVector: Object.freeze({ connectionLifecycleVersion: 3 }),
 })

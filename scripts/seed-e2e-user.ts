@@ -78,14 +78,9 @@ import {
 import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
 import { assertLocalToolExecutionIdentity } from '../src/shared/config/local-tool-execution'
 import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '../src/shared/domain/data-cell-catalogue'
-
-import {
-  createGoogleContentRoleSignatureVerifier,
-  parseGoogleContentApprovalBundle,
-  parseGoogleContentRolePublicKeys,
-} from '../src/shared/auth/google-content-approval'
-import { createGoogleContentAuthorizationAuthority } from '../src/shared/auth/google-content-authority'
+import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/auth/google-content-contract'
 import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
+
 import { randomUUID } from 'node:crypto'
 import { Redis } from 'ioredis'
 
@@ -1542,67 +1537,24 @@ async function ensureDueEmailFixture(input: {
     })
 }
 
-async function ensureLocalGoogleContentApprovals(): Promise<void> {
-  const bundlesRaw = process.env.GOOGLE_CONTENT_LOCAL_APPROVAL_BUNDLES_JSON
-  const publicKeysRaw = process.env.GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON
-  if (!bundlesRaw && !publicKeysRaw) return
-  if (!bundlesRaw || !publicKeysRaw) {
-    throw new Error('local Google Content approval configuration is incomplete')
-  }
-
-  let bundleValues: unknown
-  let publicKeyValues: unknown
-  try {
-    bundleValues = JSON.parse(bundlesRaw)
-    publicKeyValues = JSON.parse(publicKeysRaw)
-  } catch {
-    throw new Error('local Google Content approval JSON is invalid')
-  }
-  if (!Array.isArray(bundleValues)) {
-    throw new Error('local Google Content approval bundles are invalid')
-  }
-  const parsedKeys = parseGoogleContentRolePublicKeys(publicKeyValues)
-  if (!parsedKeys.ok) {
-    throw new Error('local Google Content approval public keys are invalid')
-  }
-
+async function ensureLocalGoogleContentCapabilitiesAllowed(): Promise<void> {
   const store = createGoogleContentAuthorityRepository(getDb())
-  const authority = createGoogleContentAuthorizationAuthority({
-    store,
-    clock: () => new Date(),
-    newPermitId: randomUUID,
-    verifyRoleApproval: createGoogleContentRoleSignatureVerifier(parsedKeys.publicKeys),
-    isRegisteredOperator: (operatorId) => operatorId === 'local-stack-seed',
-    // This local seed only installs approvals and changes the persisted control.
-    // It must never become an alternate execution authorizer.
-    authorize: async () => ({ allowed: false, code: 'authorization_denied' }),
-  })
-  for (const value of bundleValues) {
-    const parsed = parseGoogleContentApprovalBundle(value)
-    if (!parsed.ok) throw new Error('local Google Content approval bundle is invalid')
-    const installed = await authority.installApproval(parsed.bundle)
-    if (!installed.ok) {
-      throw new Error(`local Google Content approval refused: ${installed.code}`)
-    }
-    const {
-      approvedAt: _approvedAt,
-      expiresAt: _expiresAt,
-      status: _status,
-      ...runtimeBinding
-    } = parsed.bundle.candidate.binding
-    const allowed = await authority.allowCapability(
-      runtimeBinding,
-      'local-stack-seed',
-      'local acceptance approval',
+  const control = await store.transaction((tx) => store.loadControl(tx))
+  const changedAt = new Date()
+  for (const capability of GOOGLE_CONTENT_CAPABILITIES) {
+    if (!control.killedCapabilities.includes(capability)) continue
+    await store.transaction((tx) =>
+      store.allowCapability(tx, capability, {
+        operatorId: 'local-stack-seed',
+        reason: 'local acceptance',
+        changedAt,
+      }),
     )
-    if (!allowed.ok) {
-      throw new Error(`local Google Content capability refused: ${allowed.code}`)
-    }
   }
 }
 
 async function main(): Promise<void> {
-  await ensureLocalGoogleContentApprovals()
+  await ensureLocalGoogleContentCapabilitiesAllowed()
   const managerUserId = await ensureCredentialUser({
     email: managerEmail,
     password: managerPassword,

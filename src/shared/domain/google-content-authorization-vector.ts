@@ -84,7 +84,6 @@ function withoutExcludedKeys(vector: AuthorizationVector): AuthorizationVector {
  * | capability denied / emergency kill       | `control.denied`, read live on every `decide()`         |
  * | consent recorded/revoked                 | `hasActiveConsent`, a live read on every `decide()`    |
  * | property access grant added/removed      | `hasActivePropertyGrant` + `role`/`permissionDigest`   |
- * | approval binding replaced                | `approvalBindingId`, compared separately               |
  * | org cohort changed                       | not an authorization input anywhere                    |
  * | routine Google token refresh             | see `credentialGeneration` below                       |
  *

@@ -62,7 +62,6 @@ function intent(now = NOW): GoogleImportV2Intent {
           connectionLifecycleVersion: 1,
           connectionAccessVersion: 1,
           credentialGeneration: 1,
-          approvalBindingId: 'approval-1',
           authorizationVector: {
             executionPolicyVersion: 'beta-local-2',
             role: 'Admin',

@@ -41,7 +41,6 @@ export const durableImportAuthorizationSchema = z.object({
   connectionLifecycleVersion: z.number().int().safe().positive(),
   connectionAccessVersion: z.number().int().safe().positive(),
   credentialGeneration: z.number().int().safe().positive(),
-  approvalBindingId: z.uuid(),
   authorizationVector,
 })
 
@@ -110,7 +109,6 @@ export const sameDurableAuthorization = (
   stored.connectionLifecycleVersion === expected.connectionLifecycleVersion &&
   stored.connectionAccessVersion === expected.connectionAccessVersion &&
   stored.credentialGeneration === expected.credentialGeneration &&
-  stored.approvalBindingId === expected.approvalBindingId &&
   canonicalProviderAuthorizationVector(stored.authorizationVector) ===
     canonicalProviderAuthorizationVector(expected.authorizationVector)
 

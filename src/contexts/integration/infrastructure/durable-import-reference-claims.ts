@@ -96,7 +96,6 @@ export const createDurableImportReferenceClaims = (
               connectionLifecycleVersion: row!.connectionLifecycleVersion,
               connectionAccessVersion: row!.connectionAccessVersion,
               credentialGeneration: row!.credentialGeneration,
-              approvalBindingId: row!.approvalBindingId,
               authorizationVector: row!.authorizationVector,
             },
             candidate: payload.data,

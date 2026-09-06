@@ -300,7 +300,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     schemaFile: 'google-content-control.schema.ts',
     exportNames: [
       'authorizationExecutionPermits',
-      'capabilityComplianceApprovals',
       'capabilityExecutionControl',
       'credentialRevokePermits',
       'googleCredentialSourceOperations',

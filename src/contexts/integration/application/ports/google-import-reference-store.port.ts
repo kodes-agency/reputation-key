@@ -14,7 +14,6 @@ export type ImportDiscoveryAuthorization = Readonly<{
   connectionLifecycleVersion: number
   connectionAccessVersion: number
   credentialGeneration: number
-  approvalBindingId: string
   authorizationVector: Readonly<Record<string, ImportAuthorizationVectorValue>>
 }>
 

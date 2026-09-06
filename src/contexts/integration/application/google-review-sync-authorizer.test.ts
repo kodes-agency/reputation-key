@@ -16,7 +16,6 @@ import {
 const ORG_ID = organizationId('org-1')
 const PROPERTY_ID = propertyId('11111111-1111-4111-8111-111111111111')
 const CONNECTION_ID = googleConnectionId('22222222-2222-4222-8222-222222222222')
-const APPROVAL_ID = '33333333-3333-4333-8333-333333333333'
 
 function binding(overrides: Record<string, unknown> = {}) {
   return {
@@ -97,7 +96,6 @@ function setup(
     accessToken: string
     content: Readonly<{
       ok: true
-      approvalBindingId: string
       policyVersion: number
       emergencyKillVersion: number
       authorizationVector: Readonly<Record<string, string | number | boolean | null>>
@@ -105,7 +103,6 @@ function setup(
     contents: ReadonlyArray<
       Readonly<{
         ok: true
-        approvalBindingId: string
         policyVersion: number
         emergencyKillVersion: number
         authorizationVector: Readonly<Record<string, string | number | boolean | null>>
@@ -122,7 +119,6 @@ function setup(
     overrides.content ??
     ({
       ok: true as const,
-      approvalBindingId: APPROVAL_ID,
       policyVersion: 11,
       emergencyKillVersion: 2,
       authorizationVector: contentVector(),
@@ -165,7 +161,6 @@ describe('Google review-sync system authorization', () => {
         propertyId: PROPERTY_ID,
         connectionId: CONNECTION_ID,
         initiatorUserId: null,
-        approvalBindingId: APPROVAL_ID,
         expectedCredentialGeneration: 5,
         authorizationVector: contentVector(),
       },
@@ -181,7 +176,6 @@ describe('Google review-sync system authorization', () => {
   it('freezes a distinct system principal for notification management', async () => {
     const notificationContent = {
       ok: true as const,
-      approvalBindingId: APPROVAL_ID,
       policyVersion: 11,
       emergencyKillVersion: 2,
       authorizationVector: contentVector({
@@ -258,14 +252,12 @@ describe('Google review-sync system authorization', () => {
       contents: [
         {
           ok: true,
-          approvalBindingId: APPROVAL_ID,
           policyVersion: 11,
           emergencyKillVersion: 2,
           authorizationVector: contentVector(),
         },
         {
           ok: true,
-          approvalBindingId: APPROVAL_ID,
           policyVersion: 11,
           emergencyKillVersion: 2,
           authorizationVector: contentVector({ credentialGeneration: 6 }),
@@ -290,7 +282,6 @@ describe('Google review-sync system authorization', () => {
     const { authorize, getAccessToken } = setup({
       content: {
         ok: true,
-        approvalBindingId: APPROVAL_ID,
         policyVersion: 11,
         emergencyKillVersion: 2,
         authorizationVector: contentVector({

@@ -99,10 +99,9 @@ function propertyOutcome(error: unknown): ImportOutcomeCode | null {
  * ("Import stopped because this feature is unavailable.") is that fact, and
  * was until now an outcome code with no producer at all.
  *
- * `authorization_changed` is the narrow claim it names: something the item
- * froze when it was enqueued — connection generations, the destination's
- * source epoch or profile version, the approval binding, the authorization
- * vector — no longer matches.
+ * `authorization_changed` is the narrow claim it names: the connection
+ * generations, destination source/profile generations, or authorization vector
+ * frozen when the item was enqueued no longer matches.
  *
  * Collapsing them cost real debugging time: a cancelled item reported
  * `authorization_changed` whether the gate had denied it or its expectations

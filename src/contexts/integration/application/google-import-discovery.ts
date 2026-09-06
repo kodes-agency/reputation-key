@@ -142,7 +142,6 @@ function sameAuthorization(
     actual.connectionId === expected.connectionId &&
     actual.connectionLifecycleVersion === expected.connectionLifecycleVersion &&
     actual.connectionAccessVersion === expected.connectionAccessVersion &&
-    actual.approvalBindingId === expected.approvalBindingId &&
     actual.credentialGeneration === expected.credentialGeneration &&
     actualVector === expectedVector
   )
@@ -288,7 +287,6 @@ export function createGoogleImportDiscovery(
       connectionId: googleConnectionId(authorization.connectionId),
       initiatorUserId: authorization.userId,
       expectedCredentialGeneration: authorization.credentialGeneration,
-      approvalBindingId: authorization.approvalBindingId,
       authorizationVector: authorization.authorizationVector,
     })
 

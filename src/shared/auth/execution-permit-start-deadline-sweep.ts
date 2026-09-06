@@ -5,12 +5,9 @@
 // caller actually starts the permit. The only other exit from `admitted` is the
 // emergency-kill drain (`fenceActivePermits`). A permit whose caller crashed,
 // timed out, or abandoned the request between admit and start therefore stays
-// `admitted` forever, which:
-//
-//   - pins `approval_binding_id` (ON DELETE RESTRICT), permanently blocking
-//     approval-row rotation for that capability, and
-//   - keeps `authorization_execution_permits_active_idx` reporting active work,
-//     so the "is anything stuck?" query over-reports for good.
+// `admitted` forever, keeping
+// `authorization_execution_permits_active_idx` reporting active work so the
+// "is anything stuck?" query over-reports for good.
 //
 // This sweeper is the missing cadence. It is deliberately narrow: it selects a
 // bounded batch of candidate ids, then locks and re-reads each row and routes it

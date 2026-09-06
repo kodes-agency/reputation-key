@@ -24,7 +24,6 @@ const authorization: GoogleReviewCursorAuthorization = {
   connectionLifecycleVersion: 7,
   connectionAccessVersion: 11,
   credentialGeneration: 13,
-  approvalBindingId: 'approval-binding',
   authorizationVectorSha256: 'ab'.repeat(32),
 }
 

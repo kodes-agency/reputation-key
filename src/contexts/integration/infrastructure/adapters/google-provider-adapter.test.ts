@@ -37,7 +37,6 @@ const AUTHORIZATION: GoogleProviderCallAuthorization = Object.freeze({
   propertyId: PROPERTY_ID,
   connectionId: CONNECTION_ID,
   initiatorUserId: ACTOR.userId,
-  approvalBindingId: '33333333-3333-4333-8333-333333333333',
   expectedCredentialGeneration: 6,
   authorizationVector: Object.freeze({ credentialGeneration: 6 }),
 })
@@ -56,7 +55,6 @@ const SNAPSHOT: GooglePerformanceAuthorizationSnapshot = Object.freeze({
   connectionLifecycleVersion: 4,
   connectionAccessVersion: 5,
   credentialGeneration: 6,
-  approvalBindingId: '33333333-3333-4333-8333-333333333333',
   authorizationVector: Object.freeze({ credentialGeneration: 6 }),
   authorizationVectorSha256: 'a'.repeat(64),
   authorizationFenceSha256: 'f'.repeat(64),

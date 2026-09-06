@@ -23,7 +23,6 @@ const authorization: GoogleReviewSyncProviderCallAuthorization = Object.freeze({
   propertyId: PROPERTY,
   connectionId: CONN,
   initiatorUserId: null,
-  approvalBindingId: 'approval-binding-v1',
   expectedCredentialGeneration: 7,
   authorizationVector: Object.freeze({
     principalKind: 'system',
@@ -34,7 +33,6 @@ const authorization: GoogleReviewSyncProviderCallAuthorization = Object.freeze({
 const authorization2: GoogleReviewSyncProviderCallAuthorization = Object.freeze({
   ...authorization,
   propertyId: PROPERTY_2,
-  approvalBindingId: 'approval-binding-v2',
   authorizationVector: Object.freeze({
     ...authorization.authorizationVector,
     propertySourceEpoch: 4,

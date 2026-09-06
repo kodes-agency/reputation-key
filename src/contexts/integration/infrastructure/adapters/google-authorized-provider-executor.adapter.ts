@@ -24,33 +24,11 @@ import type { GoogleDisconnectRevokeDispatchHooks } from '../../application/goog
  * executor seam forwards. Infrastructure owns this narrowing because the
  * application layer may not import `shared/auth`; being total means a new
  * authority code fails the build here instead of silently arriving at the UI as
- * a retryable `upstream_error`. Every approval-validation code collapses to
- * `approval_invalid` — the specific reason is operator-facing, not user-facing.
+ * a retryable `upstream_error`.
  */
 const AUTHORITY_ADMISSION_CODES: Readonly<
   Record<GoogleContentAuthorityDenyCode, GoogleProviderAuthorityAdmissionCode>
 > = {
-  binding_not_approved: 'approval_invalid',
-  binding_expired: 'approval_invalid',
-  invalid_phase_profile: 'approval_invalid',
-  invalid_approval_window: 'approval_invalid',
-  invalid_railway_cohort: 'approval_invalid',
-  railway_cohort_digest_mismatch: 'approval_invalid',
-  railway_residual_binding_mismatch: 'approval_invalid',
-  railway_residual_risk_denied: 'approval_invalid',
-  railway_approval_owner_mismatch: 'approval_invalid',
-  index_digest_mismatch: 'approval_invalid',
-  manifest_digest_mismatch: 'approval_invalid',
-  deployment_artifact_mismatch: 'approval_invalid',
-  missing_role_approval: 'approval_invalid',
-  duplicate_role_approval: 'approval_invalid',
-  role_digest_mismatch: 'approval_invalid',
-  role_manifest_mismatch: 'approval_invalid',
-  role_binding_mismatch: 'approval_invalid',
-  role_window_mismatch: 'approval_invalid',
-  content_treatment_denied: 'approval_invalid',
-  invalid_role_signature: 'approval_invalid',
-  approval_unavailable: 'approval_unavailable',
   runtime_binding_mismatch: 'runtime_binding_mismatch',
   capability_killed: 'capability_killed',
   operator_not_registered: 'authorization_denied',
@@ -77,9 +55,8 @@ export type GoogleProviderPermitAdmission = Readonly<{
 
 /**
  * The app-side content authority denies with a closed, content-free code set.
- * Collapsing it to a bare string erased the difference between a real
- * authorization/approval change and a transient outage, so the UI offered a
- * pointless retry; the executor forwards the exact code instead.
+ * Collapsing it to a bare string erases the difference between an authorization
+ * change and a transient outage, so the executor forwards the exact code.
  */
 export type GoogleProviderPermitAdmitter = (
   input: GoogleProviderPermitAdmission,

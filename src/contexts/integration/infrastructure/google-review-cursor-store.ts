@@ -36,7 +36,6 @@ export type GoogleReviewCursorAuthorization = Readonly<{
   connectionLifecycleVersion: number
   connectionAccessVersion: number
   credentialGeneration: number
-  approvalBindingId: string | null
   authorizationVectorSha256: string
 }>
 
@@ -85,7 +84,6 @@ const authorizationSchema = z
     connectionLifecycleVersion: z.number().int().safe().nonnegative(),
     connectionAccessVersion: z.number().int().safe().nonnegative(),
     credentialGeneration: z.number().int().safe().nonnegative(),
-    approvalBindingId: z.string().min(1).max(255).nullable(),
     authorizationVectorSha256: z.string().regex(/^[a-f0-9]{64}$/u),
   })
   .strict()
@@ -114,7 +112,7 @@ const childSchema = z
 
 const cursorRecordSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     audience: z.literal('review_sync_cursor'),
     keyVersion: z.string().regex(KEY_VERSION),
     handleNonce: z.string().regex(HANDLE_DIGEST),
@@ -132,7 +130,7 @@ type CursorRecord = z.infer<typeof cursorRecordSchema>
 
 const pageLinkSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     audience: z.literal('review_sync_cursor_page_link'),
     scope: scopeSchema,
     authorization: authorizationSchema,
@@ -504,7 +502,7 @@ export const createGoogleReviewCursorStore = (
           input.nextPageToken,
         )
         const record: CursorRecord = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           audience: 'review_sync_cursor',
           keyVersion: handle.keyVersion,
           handleNonce,
@@ -517,7 +515,7 @@ export const createGoogleReviewCursorStore = (
           child: null,
         }
         const link: PageLink = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           audience: 'review_sync_cursor_page_link',
           scope: input.scope,
           authorization: input.authorization,

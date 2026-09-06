@@ -20,7 +20,6 @@ const actor: AuthContext = {
   role: 'AccountAdmin',
 }
 const connectionId = googleConnectionId('11111111-1111-4111-8111-111111111111')
-const approvalBindingId = '22222222-2222-4222-8222-222222222222'
 
 const authorization = (
   overrides: Partial<ImportDiscoveryAuthorization> = {},
@@ -31,7 +30,6 @@ const authorization = (
   connectionLifecycleVersion: 3,
   connectionAccessVersion: 4,
   credentialGeneration: 5,
-  approvalBindingId,
   authorizationVector: { policyVersion: 7, membershipGeneration: 11 },
   ...overrides,
 })
@@ -42,7 +40,6 @@ const providerAuthorization = () => ({
   connectionId,
   initiatorUserId: actor.userId,
   expectedCredentialGeneration: 5,
-  approvalBindingId,
   authorizationVector: authorization().authorizationVector,
 })
 

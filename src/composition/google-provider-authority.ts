@@ -24,7 +24,8 @@ import type { Redis } from 'ioredis'
 import type { Clock } from '#/shared/domain/clock'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Env } from '#/shared/config/env'
-import { hkdfSync, randomBytes, randomUUID } from 'node:crypto'
+import { createHash, hkdfSync, randomBytes, randomUUID } from 'node:crypto'
+import { GOOGLE_CONTENT_CAPABILITIES } from '#/shared/auth/google-content-contract'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
@@ -39,18 +40,6 @@ import {
   type ProviderRedisReadiness,
 } from '#/shared/provider-ephemeral/runtime-verification'
 import { createGoogleContentAuthorizationAuthority } from '#/shared/auth/google-content-authority'
-import {
-  createGoogleContentRoleSignatureVerifier,
-  parseGoogleContentRolePublicKeys,
-  type GoogleContentApprovalSignatureVerifier,
-} from '#/shared/auth/google-content-approval'
-import {
-  parseGoogleContentRuntimeBindings,
-  type GoogleContentRuntimeBindings,
-} from '#/shared/auth/google-content-runtime-bindings'
-import type { GoogleContentCapability } from '#/shared/auth/google-content-contract'
-import type { CapabilityRefusalDeps } from '#/shared/governance/capability-refusal'
-import { googleApprovalGapDisposition } from '#/shared/release/google-approval-gap'
 import { createInProcessGoogleEgressRuntime } from './google-egress-runtime'
 import { createGoogleContentAuthorityRepository } from '#/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 import { createGoogleContentAuthorizationCheck } from '#/contexts/integration/infrastructure/google-content-authorization-check'
@@ -99,68 +88,17 @@ export type GoogleProviderAuthorityMode = 'required' | 'refusing'
 
 export const OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE =
   '[COMPOSITION] Google provider calls require a provider-enabled application path with provider-ephemeral Redis and Google keyrings; the substrate-free operator container refuses them'
-export type GoogleContentAuthorityRuntime = Readonly<{
-  runtimeBindings: GoogleContentRuntimeBindings | undefined
-  verifyRoleApproval: GoogleContentApprovalSignatureVerifier
-}>
-
-const denyUnconfiguredRoleApproval: GoogleContentApprovalSignatureVerifier = () => false
-
-/**
- * Parse Google Content runtime-owned configuration once, then hand the same
- * binding object and signature verifier to every authority that explains or
- * enforces it.
- */
-export function createGoogleContentAuthorityRuntime(
-  env: Env,
-): GoogleContentAuthorityRuntime {
-  const runtimeBindings = env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON
-    ? parseGoogleContentRuntimeBindings(env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON)
-    : undefined
-  if (!runtimeBindings) {
-    return Object.freeze({
-      runtimeBindings,
-      verifyRoleApproval: denyUnconfiguredRoleApproval,
-    })
-  }
-
-  const rawPublicKeys = env.GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON
-  if (!rawPublicKeys) {
-    throw new Error('Google Content approval role public keys are unavailable')
-  }
-  let publicKeysInput: unknown
-  try {
-    publicKeysInput = JSON.parse(rawPublicKeys)
-  } catch {
-    throw new Error('Google Content approval role public keys are invalid')
-  }
-  const publicKeys = parseGoogleContentRolePublicKeys(publicKeysInput)
-  if (!publicKeys.ok) {
-    throw new Error('Google Content approval role public keys are invalid')
-  }
-
-  return Object.freeze({
-    runtimeBindings,
-    verifyRoleApproval: createGoogleContentRoleSignatureVerifier(publicKeys.publicKeys),
-  })
-}
-
-/**
- * The narrow slice the capability refusal explainer needs (issue #408). Takes
- * `env` rather than a shared runtime handle so the composition root does not
- * have to thread one through: `createGoogleContentAuthorityRuntime` is a pure
- * parse, and keeping the fail-closed verifier in exactly one place matters more
- * than parsing the same env twice at boot.
- */
-export function googleContentCapabilityRefusal(
-  env: Env,
-): Pick<CapabilityRefusalDeps, 'googleContentRuntimeBindings' | 'verifyRoleApproval'> {
-  const runtime = createGoogleContentAuthorityRuntime(env)
-  return Object.freeze({
-    googleContentRuntimeBindings: () => runtime.runtimeBindings,
-    verifyRoleApproval: runtime.verifyRoleApproval,
-  })
-}
+// WP2.2 step 3: `GoogleContentAuthorityRuntime` used to live here — a parse of
+// `GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON` into a capability-keyed map of
+// installed approvals, plus the Ed25519 verifier for their role signatures, and
+// a `googleContentCapabilityRefusal` slice so the refusal explainer could say
+// which approval was missing.
+//
+// All of it is gone with the approval bundle. A runtime binding is now just a
+// capability, so the map carried no information: every enablement decision that
+// anyone actually exercises is made per-request against live tables, by
+// `organization_capability`/`property_capability` grants and the
+// `killedCapabilities` kill switch.
 
 export type GoogleProviderAuthorityInput = Readonly<{
   db: Database
@@ -189,7 +127,6 @@ export type GoogleProviderAuthorityInput = Readonly<{
    * Pre-parsed Google Content bindings and the verifier shared with diagnostic
    * composition. Direct builders may omit this and parse exactly once here.
    */
-  googleContentRuntime?: GoogleContentAuthorityRuntime
   options?: Readonly<{
     providerEphemeralStore?: ProviderEphemeralStore
     providers?: ProviderOverrides
@@ -372,27 +309,22 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         })
       : undefined
 
-  const googleContentRuntime =
-    input.googleContentRuntime ?? createGoogleContentAuthorityRuntime(env)
-  const googleContentRuntimeBindings = googleContentRuntime.runtimeBindings
-  let googleContentAuthority:
-    ReturnType<typeof createGoogleContentAuthorizationAuthority<Database>> | undefined
-  let googleContentAuthorityStore:
-    ReturnType<typeof createGoogleContentAuthorityRepository> | undefined
-  if (googleContentRuntimeBindings) {
-    googleContentAuthorityStore = createGoogleContentAuthorityRepository(db)
-    googleContentAuthority = createGoogleContentAuthorizationAuthority({
-      store: googleContentAuthorityStore,
+  // WP2.2 step 3: the authority used to exist only when an installed approval
+  // bundle had been parsed out of the environment, which is why every consumer
+  // below was written defensively against it being undefined. Nothing gates it
+  // now — it is a permit issuer over the live kill switch and the live policy
+  // resolver, both always available — so it is constructed unconditionally.
+  const googleContentAuthorityStore = createGoogleContentAuthorityRepository(db)
+  const googleContentAuthority = createGoogleContentAuthorizationAuthority({
+    store: googleContentAuthorityStore,
+    clock,
+    newPermitId: randomUUID,
+    isRegisteredOperator: () => false,
+    authorize: createGoogleContentAuthorizationCheck({
       clock,
-      newPermitId: randomUUID,
-      verifyRoleApproval: googleContentRuntime.verifyRoleApproval,
-      isRegisteredOperator: () => false,
-      authorize: createGoogleContentAuthorizationCheck({
-        clock,
-        hasActivePropertyGrant: input.identity.hasActivePropertyGrant,
-      }),
-    })
-  }
+      hasActivePropertyGrant: input.identity.hasActivePropertyGrant,
+    }),
+  })
   const ensureProviderEphemeralReady = providerEphemeralReadiness
     ? async () => {
         const readiness = await providerEphemeralReadiness
@@ -409,14 +341,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
           randomNonce: () => randomBytes(32).toString('base64url'),
           ensureRuntimeReady: ensureProviderEphemeralReady,
           revalidate: async (record) => {
-            const runtimeBinding = googleContentRuntimeBindings?.[record.capability]
-            if (!runtimeBinding || !googleContentAuthority) {
-              return {
-                allowed: false,
-                approvalBindingId: null,
-                authorizationFenceSha256: null,
-              }
-            }
+            const runtimeBinding = { capability: record.capability } as const
             try {
               const result = await googleContentAuthority.preauthorize({
                 runtimeBinding,
@@ -452,7 +377,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
               }
               return {
                 allowed: true,
-                approvalBindingId: result.approvalBindingId,
                 authorizationFenceSha256: providerAuthorizationFenceSha256({
                   connectionLifecycleVersion: lifecycleVersion as number,
                   connectionAccessVersion: accessVersion as number,
@@ -516,23 +440,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
     code: 'authorization_denied' | 'runtime_unavailable'
   }>
 
-  const refuseAbsentBinding = (
-    surface: GoogleContentSurface,
-    capability: GoogleContentCapability,
-  ): GoogleContentRefusal => {
-    logger.warn(
-      {
-        stage: 'google-content-preauthorize',
-        surface,
-        capability,
-        code: 'runtime_binding_absent',
-        authorityConfigured: Boolean(googleContentAuthority),
-      },
-      'Google Content authorization unavailable',
-    )
-    return unavailableGoogleContentAuthorization
-  }
-
   const refuseDenied = (
     surface: GoogleContentSurface,
     code: string,
@@ -548,10 +455,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   const authorizeGoogleImportContent: GoogleImportContentAuthorizer =
     options?.providers?.authorizeGoogleImportContent ??
     (async (input) => {
-      const binding = googleContentRuntimeBindings?.['property.import_gbp_v2']
-      if (!binding || !googleContentAuthority) {
-        return refuseAbsentBinding('import', 'property.import_gbp_v2')
-      }
+      const binding = { capability: 'property.import_gbp_v2' } as const
       const result = await googleContentAuthority
         .preauthorize({
           runtimeBinding: binding,
@@ -573,10 +477,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   const authorizeGooglePerformanceContent: PerformanceContentAuthorizer =
     options?.providers?.authorizeGooglePerformanceContent ??
     (async (input) => {
-      const binding = googleContentRuntimeBindings?.['property.read_gbp_performance']
-      if (!binding || !googleContentAuthority) {
-        return refuseAbsentBinding('performance', 'property.read_gbp_performance')
-      }
+      const binding = { capability: 'property.read_gbp_performance' } as const
       const result = await googleContentAuthority.preauthorize({
         runtimeBinding: binding,
         scope: {
@@ -592,10 +493,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   const authorizeGoogleReviewSyncContent: GoogleReviewSyncContentAuthorizer =
     options?.providers?.authorizeGoogleReviewSyncContent ??
     (async (input) => {
-      const binding = googleContentRuntimeBindings?.['property.connect_gbp']
-      if (!binding || !googleContentAuthority) {
-        return refuseAbsentBinding('review-sync', 'property.connect_gbp')
-      }
+      const binding = { capability: 'property.connect_gbp' } as const
       const result = await googleContentAuthority.preauthorize({
         runtimeBinding: binding,
         scope: {
@@ -611,10 +509,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   const authorizeGoogleReplyPublicationContent: GoogleReplyPublicationContentAuthorizer =
     options?.providers?.authorizeGoogleReplyPublicationContent ??
     (async (input) => {
-      const binding = googleContentRuntimeBindings?.['property.publish_reply']
-      if (!binding || !googleContentAuthority) {
-        return refuseAbsentBinding('reply-publication', 'property.publish_reply')
-      }
+      const binding = { capability: 'property.publish_reply' } as const
       const result = await googleContentAuthority.preauthorize({
         runtimeBinding: binding,
         scope: {
@@ -654,19 +549,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       // maps anything but `account_already_connected` to `connection_failed`,
       // and the user-facing surface must not leak authorization internals.
       // The operator signal belongs in the log, not in the response.
-      const binding = googleContentRuntimeBindings?.['property.import_gbp_v2']
-      if (!binding || !googleContentAuthority) {
-        logger.warn(
-          {
-            stage: 'google-oauth-preauthorize',
-            code: 'runtime_unavailable',
-            operation: input.operation,
-            missing: !binding ? 'runtime_binding' : 'content_authority',
-          },
-          'Google OAuth authorization unavailable',
-        )
-        throw new Error('Google OAuth provider authorization is unavailable')
-      }
+      const binding = { capability: 'property.import_gbp_v2' } as const
       const result = await googleContentAuthority.preauthorize({
         runtimeBinding: binding,
         scope: {
@@ -705,7 +588,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         propertyId: null,
         connectionId: googleConnectionId(input.connectionId),
         initiatorUserId: input.initiatorUserId,
-        approvalBindingId: result.approvalBindingId,
         expectedCredentialGeneration: credentialGeneration,
         authorizationVector: result.authorizationVector,
         ...(input.disconnectRevoke
@@ -747,32 +629,40 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   const releaseRevision = env.RELEASE_SHA ?? env.IMAGE_SOURCE_REVISION
   let googleAuthorizedProviderExecutor =
     options?.providers?.googleAuthorizedProviderExecutor
-  const approvalGap = googleApprovalGapDisposition({
-    gatewayConfigured: configuredGatewayValues.length > 0,
-    approvalUsable: Boolean(googleContentAuthority && googleContentRuntimeBindings),
-  })
-  if (approvalGap === 'refuse') {
-    throw new Error('Google egress gateway requires Google Content runtime approval')
-  }
-  // State every boot which side of the fork it took.
+  // WP2.2 step 3: this fork used to have three outcomes because an approval
+  // bundle could be absent or expired while the gateway was configured. There
+  // is no bundle now, so `approvalUsable` is permanently true and
+  // `googleApprovalGapDisposition` reduces to "is the gateway configured".
   //
-  // Silence used to mean either "Google is fine" or "Google is off and every
-  // import will 503", with nothing to tell them apart until a user tried one.
-  // Logging only the failure would leave the same ambiguity whenever logging
-  // itself is misconfigured, so both outcomes are stated and the healthy line
-  // names the capabilities that were actually admitted.
-  if (approvalGap === 'wire') {
+  // That is the whole point of the deletion: the 29-day approval window was the
+  // mechanism that turned Google off, and the `disable` posture existed to keep
+  // the rest of the product up when it lapsed. With the window gone, a
+  // configured gateway is a working gateway.
+  // The permit's project identity. It used to be `googleProjectAttestationSha256`
+  // off the signed approval binding — a digest an operator pinned by hand at
+  // approval time. What it has to do is identify the Google project this permit
+  // was issued against, so that a permit cannot be spent under a different one,
+  // and the OAuth client id IS that project's identity. Digested rather than
+  // stored raw because the value lands in an authorization vector that is
+  // persisted and logged, and SQL asserts the vector's `projectFingerprint` is
+  // 64 hex characters.
+  // Lazy on purpose. Computing it eagerly broke `constructs without touching the
+  // database` — the operator container builds this graph from an environment
+  // that has no `GOOGLE_CLIENT_ID`, and a digest of `undefined` throws at
+  // construction rather than at the call that needs it. Memoized because the
+  // value is per-process constant and this sits on the admission path.
+  let projectFingerprint: string | undefined
+  const googleProjectFingerprint = (): string => {
+    projectFingerprint ??= createHash('sha256')
+      .update(env.GOOGLE_CLIENT_ID, 'utf8')
+      .digest('hex')
+    return projectFingerprint
+  }
+  const gatewayConfigured = configuredGatewayValues.length > 0
+  if (gatewayConfigured) {
     logger.info(
-      { capabilities: Object.keys(googleContentRuntimeBindings ?? {}).sort() },
-      'Google provider executor wired — Google Content approval is usable',
-    )
-  } else if (configuredGatewayValues.length > 0) {
-    logger.warn(
-      {
-        hasRuntimeBindings: Boolean(googleContentRuntimeBindings),
-        hasContentAuthority: Boolean(googleContentAuthority),
-      },
-      'Google provider DISABLED — no usable Google Content approval. Import and performance reads will fail with 503 until content authority and matching runtime bindings are installed',
+      { capabilities: [...GOOGLE_CONTENT_CAPABILITIES].sort() },
+      'Google provider executor wired',
     )
   } else {
     logger.info(
@@ -780,15 +670,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       'Google provider not configured — no egress gateway in this environment',
     )
   }
-  if (!googleAuthorizedProviderExecutor && approvalGap === 'wire') {
-    // `wire` is only returned when both of these resolved, so this cannot fire.
-    // It is kept because the compiler cannot see through the disposition, and a
-    // redundant guard is better than the non-null assertion it replaces: if the
-    // disposition and this branch ever disagree, the failure is named here
-    // rather than surfacing as a null dereference deep inside an admit call.
-    if (!googleContentAuthority || !googleContentRuntimeBindings) {
-      throw new Error('Google egress gateway requires Google Content runtime approval')
-    }
+  if (!googleAuthorizedProviderExecutor && gatewayConfigured) {
     // Fail closed, and say which prerequisite is missing. Quota and in-flight
     // coordination are shared with the other process, so a runtime without the
     // coordination Redis would silently drop the only limit Google actually
@@ -839,7 +721,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       }),
       routeTarget,
       admit: async ({ authorization, admission }) => {
-        const binding = googleContentRuntimeBindings[authorization.capability]
+        const binding = { capability: authorization.capability } as const
         if (!binding) return { ok: false, code: 'runtime_unavailable' }
         const result = await googleContentAuthority!.admit({
           runtimeBinding: binding,
@@ -852,7 +734,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
               ? { publication: authorization.publication }
               : {}),
           },
-          expectedApprovalBindingId: authorization.approvalBindingId,
           expectedAuthorizationVector: authorization.authorizationVector,
           operationKey: `provider.${admission.routeKey}`,
           routeKey: admission.routeKey,
@@ -861,7 +742,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
           providerRequestBinding: {
             requestBindingSha256: admission.requestBindingSha256,
             credentialBinding: admission.credentialBinding,
-            projectFingerprint: binding.googleProjectAttestationSha256,
+            projectFingerprint: googleProjectFingerprint(),
             requestBodySha256: admission.requestBodySha256,
             requestBodyBytes: admission.requestBodyBytes,
           },

@@ -26,7 +26,6 @@ const snapshot: GooglePerformanceAuthorizationSnapshot = Object.freeze({
   connectionLifecycleVersion: 4,
   connectionAccessVersion: 5,
   credentialGeneration: 6,
-  approvalBindingId: '33333333-3333-4333-8333-333333333333',
   authorizationVector: Object.freeze({ policyVersion: 'beta-local-2' }),
   authorizationVectorSha256: 'a'.repeat(64),
   authorizationFenceSha256: 'f'.repeat(64),
@@ -67,7 +66,6 @@ describe('renew Google Performance authorization lease', () => {
       leaseRef: lease.leaseRef,
       principalHmacKeyVersion: snapshot.principalHmacKeyVersion,
       principalHmac: snapshot.principalHmac,
-      approvalBindingId: snapshot.approvalBindingId,
       authorizationFenceSha256: snapshot.authorizationFenceSha256,
       nowMs: new Date('2026-08-12T10:00:50.000Z').getTime(),
     })

@@ -19,7 +19,6 @@ const ORG_ID = 'org-1'
 const USER_ID = 'user-1'
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
 const CONNECTION_ID = '00000000-0000-4000-8000-000000000002'
-const APPROVAL_ID = '00000000-0000-4000-8000-000000000003'
 
 /** The full authorization vector a Google content preauthorization returns. */
 function authorizationVector(
@@ -54,11 +53,9 @@ function setup(
       _record: ProviderAuthorizationLeaseRecord,
     ): Promise<{
       allowed: boolean
-      approvalBindingId: string | null
       authorizationFenceSha256: string | null
     }> => ({
       allowed: true,
-      approvalBindingId: APPROVAL_ID,
       authorizationFenceSha256: FENCE,
     }),
   ),
@@ -78,7 +75,6 @@ function setup(
       initiatorUserId: USER_ID,
       propertyId: PROPERTY_ID,
       connectionId: CONNECTION_ID,
-      approvalBindingId: APPROVAL_ID,
       principalHmacKeyVersion: 'v1',
       principalHmac: PRINCIPAL,
       authorizationFenceSha256: FENCE,
@@ -90,7 +86,6 @@ function setup(
       leaseRef,
       principalHmacKeyVersion: 'v1',
       principalHmac: PRINCIPAL,
-      approvalBindingId: APPROVAL_ID,
       authorizationFenceSha256: FENCE,
       nowMs: NOW + 10_000,
       ...overrides,
@@ -137,7 +132,6 @@ describe('provider authorization leases', () => {
   it('publishes no lease when fresh compound authorization denies issuance', async () => {
     const revalidate = vi.fn(async () => ({
       allowed: false,
-      approvalBindingId: null,
       authorizationFenceSha256: null,
     }))
     const { issue, store } = setup(revalidate)
@@ -201,7 +195,6 @@ describe('provider authorization leases', () => {
         initiatorUserId: USER_ID,
         propertyId: null,
         connectionId: CONNECTION_ID,
-        approvalBindingId: APPROVAL_ID,
         principalHmacKeyVersion: 'v1',
         principalHmac: PRINCIPAL,
         authorizationFenceSha256: FENCE,
@@ -216,20 +209,6 @@ describe('provider authorization leases', () => {
       code: 'malformed',
     })
   })
-  it('removes a lease when its exact approval binding changes', async () => {
-    const { issue, renew } = setup()
-    const issued = await issue()
-    if (!issued.ok) throw new Error('expected lease')
-    await expect(
-      renew(issued.lease.leaseRef, {
-        approvalBindingId: '00000000-0000-4000-8000-000000000004',
-      }),
-    ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
-    await expect(renew(issued.lease.leaseRef)).resolves.toEqual({
-      ok: false,
-      code: 'not_found',
-    })
-  })
 
   it('renews across a routine credential-generation bump', async () => {
     // A Google token refresh bumps credential_generation only. Fencing the
@@ -237,7 +216,6 @@ describe('provider authorization leases', () => {
     let current = authorizationVector()
     const revalidate = vi.fn(async () => ({
       allowed: true,
-      approvalBindingId: APPROVAL_ID,
       authorizationFenceSha256: providerAuthorizationFenceSha256({
         connectionLifecycleVersion: current.connectionLifecycleVersion as number,
         connectionAccessVersion: current.connectionAccessVersion as number,

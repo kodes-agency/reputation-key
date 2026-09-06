@@ -37,7 +37,6 @@ import {
 const ORGANIZATION_ID = 'org-durable-persistence'
 const USER_ID = 'user-durable-persistence'
 const CONNECTION_ID = '83000000-0000-4000-8000-000000000001'
-const APPROVAL_BINDING_ID = '83000000-0000-4000-8000-000000000002'
 const REFERENCE_KEY = 'a'.repeat(43)
 const ISSUED_AT = new Date('2026-08-28T10:00:00.000Z')
 const EXPIRES_AT = new Date('2026-08-28T10:15:00.000Z')
@@ -59,7 +58,6 @@ const AUTHORIZATION: ImportDiscoveryAuthorization = Object.freeze({
   connectionLifecycleVersion: 3,
   connectionAccessVersion: 5,
   credentialGeneration: 7,
-  approvalBindingId: APPROVAL_BINDING_ID,
   authorizationVector: Object.freeze({ policyVersion: 11, permissionVersion: 13 }),
 })
 
@@ -168,7 +166,6 @@ const storedRow = (
   connectionLifecycleVersion: 3,
   connectionAccessVersion: 5,
   credentialGeneration: 7,
-  approvalBindingId: APPROVAL_BINDING_ID,
   authorizationVector: { policyVersion: 11, permissionVersion: 13 },
   payload: { cursor: 'opaque-cursor' },
   affectedPropertyId: null,
@@ -333,7 +330,6 @@ describe('durable import checkpoint writes', () => {
         connectionLifecycleVersion: 3,
         connectionAccessVersion: 5,
         credentialGeneration: 7,
-        approvalBindingId: APPROVAL_BINDING_ID,
         authorizationVector: AUTHORIZATION.authorizationVector,
         payload: { cursor: 'opaque-cursor' },
         affectedPropertyId: '83000000-0000-4000-8000-000000000003',

@@ -26,7 +26,6 @@ export type GooglePerformanceAuthorizationSnapshot = Readonly<{
   connectionLifecycleVersion: number
   connectionAccessVersion: number
   credentialGeneration: number
-  approvalBindingId: string
   authorizationVector: Readonly<Record<string, string | number | boolean | null>>
   authorizationVectorSha256: string
   /**
@@ -168,7 +167,6 @@ function sameSnapshot(
     current.profileVersion === expected.profileVersion &&
     current.connectionLifecycleVersion === expected.connectionLifecycleVersion &&
     current.connectionAccessVersion === expected.connectionAccessVersion &&
-    current.approvalBindingId === expected.approvalBindingId &&
     current.authorizationFenceSha256 === expected.authorizationFenceSha256 &&
     sameAuthorizationVectorExceptCredentialGeneration(
       current.authorizationVector,

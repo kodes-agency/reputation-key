@@ -33,7 +33,6 @@ export function createRenewGooglePerformanceLease(
         leaseRef: input.leaseRef,
         principalHmacKeyVersion: authorization.snapshot.principalHmacKeyVersion,
         principalHmac: authorization.snapshot.principalHmac,
-        approvalBindingId: authorization.snapshot.approvalBindingId,
         authorizationFenceSha256: authorization.snapshot.authorizationFenceSha256,
         nowMs: deps.clock().getTime(),
       })

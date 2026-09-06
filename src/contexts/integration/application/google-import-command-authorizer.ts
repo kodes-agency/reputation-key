@@ -129,12 +129,6 @@ function propertyDrift(
 export type GoogleImportContentAuthorizationResult =
   | Readonly<{
       ok: true
-      approvalBindingId: string
-      // WP2.2: `policyVersion` and `emergencyKillVersion` used to live here.
-      // Their only consumers were the authorization vector, which no longer
-      // carries them, and a `safeGeneration` range check that validated values
-      // nothing then read. `approvalBindingId` stays until the ceremony's
-      // replacement issuer lands.
       authorizationVector: Readonly<Record<string, string | number | boolean | null>>
     }>
   | Readonly<{
@@ -459,16 +453,12 @@ export function createGoogleImportCommandAuthorizer(
   const frozenVectorDriftDenial = (
     input: AuthorizerInput,
     authorization: Readonly<{
-      approvalBindingId: string
       authorizationVector: Readonly<Record<string, string | number | boolean | null>>
     }>,
     connection: GoogleConnection,
   ): Denied | null => {
     if (!input.expected) return null
-    const approvalBindingDrift =
-      input.expected.approvalBindingId !== authorization.approvalBindingId
     if (
-      !approvalBindingDrift &&
       sameFrozenGoogleContentAuthorizationVector(
         input.expected.authorizationVector,
         authorization.authorizationVector,
@@ -478,7 +468,6 @@ export function createGoogleImportCommandAuthorizer(
     }
     return denyChanged({
       site: 'frozen_vector',
-      approvalBindingDrift,
       credentialGeneration: {
         frozen: input.expected.credentialGeneration,
         observed: connection.credentialGeneration,
@@ -547,7 +536,6 @@ export function createGoogleImportCommandAuthorizer(
       connectionLifecycleVersion: connection.lifecycleVersion,
       connectionAccessVersion: connection.accessVersion,
       credentialGeneration: connection.credentialGeneration,
-      approvalBindingId: contentAuthorization.approvalBindingId,
       authorizationVector: contentAuthorization.authorizationVector,
     } as const
 

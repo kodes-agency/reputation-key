@@ -17,7 +17,6 @@ const ORG_ID = organizationId('org-1')
 const USER_ID = userId('user-1')
 const PROPERTY_ID = propertyId('11111111-1111-4111-8111-111111111111')
 const CONNECTION_ID = googleConnectionId('22222222-2222-4222-8222-222222222222')
-const APPROVAL_ID = '33333333-3333-4333-8333-333333333333'
 const actor: AuthContext = Object.freeze({
   organizationId: ORG_ID,
   userId: USER_ID,
@@ -124,7 +123,6 @@ function setup(
       ? { ok: false as const, code: 'authorization_denied' as const }
       : {
           ok: true as const,
-          approvalBindingId: APPROVAL_ID,
           policyVersion: 12,
           emergencyKillVersion: 3,
           authorizationVector: overrides.contentVector ?? {
@@ -176,9 +174,9 @@ function setup(
 describe('createGooglePerformanceAuthorizer', () => {
   it('records the authority code when content authorization is denied', async () => {
     // The caller only ever sees `policy_disabled`, and the route renders that
-    // as a 200 with an empty panel. On 2026-09-01 a stale approval row denied
-    // this capability on every property page view with no server-side signal
-    // whatsoever. The deciding code has to be recorded here or it is lost.
+    // as a 200 with an empty panel. On 2026-09-01 stale authorization state
+    // denied this capability on every property page view with no server-side
+    // signal whatsoever. The deciding code has to be recorded here or it is lost.
     const { authorize, warnings } = setup({ contentAllowed: false })
 
     const result = await authorize({
@@ -240,7 +238,6 @@ describe('createGooglePerformanceAuthorizer', () => {
         connectionLifecycleVersion: 4,
         connectionAccessVersion: 5,
         credentialGeneration: 6,
-        approvalBindingId: APPROVAL_ID,
         principalHmacKeyVersion: 'v1',
       },
     })
@@ -591,7 +588,7 @@ describe('createGooglePerformanceAuthorizer', () => {
     expect(getAccessToken).not.toHaveBeenCalled()
   })
 
-  it('fails closed when fresh Google Content approval is unavailable', async () => {
+  it('fails closed when fresh Google Content authorization is unavailable', async () => {
     const { authorize, getAccessToken } = setup({ contentAllowed: false })
 
     await expect(

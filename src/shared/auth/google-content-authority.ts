@@ -6,33 +6,27 @@ import {
   startExecutionPermit,
   type AuthorizationExecutionPermit,
 } from './authorization-execution-permit'
-import {
-  validateGoogleContentApprovalBundle,
-  validateGoogleContentApprovalCandidate,
-  type GoogleContentApprovalBundle,
-  type GoogleContentApprovalCandidate,
-  type GoogleContentApprovalSignatureVerifier,
-  type GoogleContentApprovalValidationCode,
-} from './google-content-approval'
-import type {
-  GoogleContentApprovalBinding,
-  GoogleContentCapability,
-} from './google-content-contract'
+import type { GoogleContentCapability } from './google-content-contract'
 
-export type GoogleContentRuntimeBinding = Omit<
-  GoogleContentApprovalBinding,
-  'approvedAt' | 'expiresAt' | 'status'
->
+/**
+ * What the runtime needs to name a Google capability.
+ *
+ * This used to be `Omit<GoogleContentApprovalBinding, 'approvedAt' | 'expiresAt'
+ * | 'status'>` — a ~30-field byte-pinning structure carrying evidence manifest
+ * digests, ADR hashes, deployment attestations and OAuth client-id hashes.
+ * Measured before deleting it: production read exactly three of those fields,
+ * and every reader of the other two (`targetPhase`, `environmentProfile`) was
+ * inside the approval machinery this step removes. One field was ever
+ * load-bearing at runtime.
+ */
+export type GoogleContentRuntimeBinding = Readonly<{
+  capability: GoogleContentCapability
+}>
 
 export type GoogleContentControlState = Readonly<{
   policyVersion: number
   emergencyKillVersion: number
   killedCapabilities: ReadonlyArray<GoogleContentCapability>
-}>
-
-export type GoogleContentApprovalRecord = Readonly<{
-  id: string
-  candidate: GoogleContentApprovalCandidate
 }>
 
 export type GoogleContentAuthorizationVector = Readonly<
@@ -69,15 +63,6 @@ export type GoogleContentAuthorizationScope = Readonly<{
 export type GoogleContentAuthorityStore<Tx> = Readonly<{
   transaction<T>(run: (tx: Tx) => Promise<T>): Promise<T>
   loadControl(tx: Tx): Promise<GoogleContentControlState>
-  appendApproval(
-    tx: Tx,
-    candidate: GoogleContentApprovalCandidate,
-  ): Promise<GoogleContentApprovalRecord>
-  loadApprovalForRuntime(
-    tx: Tx,
-    runtime: GoogleContentRuntimeBinding,
-  ): Promise<GoogleContentApprovalRecord | null>
-  loadApprovalById(tx: Tx, id: string): Promise<GoogleContentApprovalRecord | null>
   insertPermit(tx: Tx, record: GoogleContentPermitRecord): Promise<void>
   lockPermit(
     tx: Tx,
@@ -140,7 +125,6 @@ export type GoogleContentAuthorizationCheck<Tx> = (
 export type GoogleContentAdmissionInput = Readonly<{
   runtimeBinding: GoogleContentRuntimeBinding
   scope: GoogleContentAuthorizationScope
-  expectedApprovalBindingId: string
   expectedAuthorizationVector: GoogleContentAuthorizationVector
   operationKey: string
   routeKey: string
@@ -156,18 +140,10 @@ export type GoogleContentPreauthorizationInput = Readonly<{
 }>
 
 export type GoogleContentPreauthorizationResult =
-  | Readonly<{
-      ok: true
-      approvalBindingId: string
-      policyVersion: number
-      emergencyKillVersion: number
-      authorizationVector: GoogleContentAuthorizationVector
-    }>
+  | Readonly<{ ok: true; authorizationVector: GoogleContentAuthorizationVector }>
   | Readonly<{ ok: false; code: GoogleContentAuthorityDenyCode }>
 
 export type GoogleContentAuthorityDenyCode =
-  | GoogleContentApprovalValidationCode
-  | 'approval_unavailable'
   | 'runtime_binding_mismatch'
   | 'capability_killed'
   | 'operator_not_registered'
@@ -185,12 +161,6 @@ export type GoogleContentPermitResult =
   | Readonly<{ ok: false; code: GoogleContentAuthorityDenyCode }>
 
 export type GoogleContentAuthorizationAuthority = Readonly<{
-  installApproval(
-    bundle: GoogleContentApprovalBundle,
-  ): Promise<
-    | Readonly<{ ok: true; approvalBindingId: string }>
-    | Readonly<{ ok: false; code: GoogleContentApprovalValidationCode }>
-  >
   preauthorize(
     input: GoogleContentPreauthorizationInput,
   ): Promise<GoogleContentPreauthorizationResult>
@@ -218,83 +188,6 @@ export type GoogleContentAuthorizationAuthority = Readonly<{
     | Readonly<{ ok: false; code: 'operator_not_registered' | 'reason_required' }>
   >
 }>
-
-export type GoogleContentApprovalInstaller = Readonly<{
-  installApproval(
-    bundle: GoogleContentApprovalBundle,
-  ): Promise<
-    | Readonly<{ ok: true; approvalBindingId: string }>
-    | Readonly<{ ok: false; code: GoogleContentApprovalValidationCode }>
-  >
-}>
-
-function createGoogleContentApprovalInstaller<Tx>(
-  deps: Readonly<{
-    store: Pick<GoogleContentAuthorityStore<Tx>, 'transaction' | 'appendApproval'>
-    clock: Clock
-    verifyRoleApproval: GoogleContentApprovalSignatureVerifier
-  }>,
-): GoogleContentApprovalInstaller {
-  return {
-    installApproval: (bundle) =>
-      deps.store.transaction(async (tx) => {
-        const validation = validateGoogleContentApprovalBundle(
-          bundle,
-          deps.clock(),
-          deps.verifyRoleApproval,
-        )
-        if (!validation.ok) return validation
-        const record = await deps.store.appendApproval(tx, bundle.candidate)
-        return { ok: true as const, approvalBindingId: record.id }
-      }),
-  }
-}
-
-function sameRuntimeBinding(
-  actual: GoogleContentApprovalBinding,
-  expected: GoogleContentRuntimeBinding,
-): boolean {
-  return (
-    actual.capability === expected.capability &&
-    actual.targetPhase === expected.targetPhase &&
-    actual.environmentProfile === expected.environmentProfile &&
-    actual.releaseSha === expected.releaseSha &&
-    actual.evidenceManifestSha256 === expected.evidenceManifestSha256 &&
-    actual.evidenceIndexSha256 === expected.evidenceIndexSha256 &&
-    actual.deploymentAttestationSha256 === expected.deploymentAttestationSha256 &&
-    actual.adr0050Sha256 === expected.adr0050Sha256 &&
-    actual.googleContentPolicyVersion === expected.googleContentPolicyVersion &&
-    actual.googleOAuthContractVersion === expected.googleOAuthContractVersion &&
-    actual.googleProjectAttestationSha256 === expected.googleProjectAttestationSha256 &&
-    actual.googleOAuthClientIdSha256 === expected.googleOAuthClientIdSha256 &&
-    actual.googleRedirectUriSha256 === expected.googleRedirectUriSha256 &&
-    actual.providerOriginProfileSha256 === expected.providerOriginProfileSha256 &&
-    actual.runtimeIsolationProfileVersion === expected.runtimeIsolationProfileVersion &&
-    actual.runtimeIsolationProfileSha256 === expected.runtimeIsolationProfileSha256 &&
-    actual.railwayClosedBetaCohortSha256 === expected.railwayClosedBetaCohortSha256 &&
-    actual.railwayClosedBetaResidualRiskSha256 ===
-      expected.railwayClosedBetaResidualRiskSha256 &&
-    actual.railwayClosedBetaCohort?.length === expected.railwayClosedBetaCohort?.length &&
-    (actual.railwayClosedBetaCohort === null ||
-      actual.railwayClosedBetaCohort.every(
-        (organizationId, index) =>
-          organizationId === expected.railwayClosedBetaCohort?.[index],
-      )) &&
-    actual.performanceCatalogVersion === expected.performanceCatalogVersion &&
-    actual.routeCatalogueVersion === expected.routeCatalogueVersion &&
-    actual.capabilityPolicyVersion === expected.capabilityPolicyVersion &&
-    actual.executionPolicyVersion === expected.executionPolicyVersion &&
-    actual.migrationHead === expected.migrationHead &&
-    actual.imageDigests.web === expected.imageDigests.web &&
-    actual.imageDigests.worker === expected.imageDigests.worker &&
-    actual.imageDigests.googleExecutionAdmission ===
-      expected.imageDigests.googleExecutionAdmission &&
-    actual.imageDigests.googleEgressGateway ===
-      expected.imageDigests.googleEgressGateway &&
-    actual.imageDigests.providerEphemeralRedis ===
-      expected.imageDigests.providerEphemeralRedis
-  )
-}
 
 function sameAuthorizationVector(
   left: GoogleContentAuthorizationVector,
@@ -378,43 +271,15 @@ function publicationScopeFromAuthorizationVector(
   }
 }
 
-function validationCode(
-  approval: GoogleContentApprovalRecord,
-  runtimeBinding: GoogleContentRuntimeBinding,
-  now: Date,
-  verifyRoleApproval: GoogleContentApprovalSignatureVerifier,
-): GoogleContentAuthorityDenyCode | null {
-  const validation = validateGoogleContentApprovalCandidate(
-    approval.candidate,
-    now,
-    verifyRoleApproval,
-  )
-  if (!validation.ok) return validation.code
-  return sameRuntimeBinding(validation.binding, runtimeBinding)
-    ? null
-    : 'runtime_binding_mismatch'
-}
-function bindingAuthorizesOrganization(
-  binding: GoogleContentApprovalBinding,
-  organizationId: string,
-): boolean {
-  return (
-    binding.targetPhase !== 'railway_closed_beta' ||
-    binding.railwayClosedBetaCohort?.includes(organizationId) === true
-  )
-}
-
 export function createGoogleContentAuthorizationAuthority<Tx>(
   deps: Readonly<{
     store: GoogleContentAuthorityStore<Tx>
     clock: Clock
     newPermitId: () => string
-    verifyRoleApproval: GoogleContentApprovalSignatureVerifier
     isRegisteredOperator: (operatorId: string) => boolean
     authorize: GoogleContentAuthorizationCheck<Tx>
   }>,
 ): GoogleContentAuthorizationAuthority {
-  const approvalInstaller = createGoogleContentApprovalInstaller(deps)
   const fenceAndPersist = async (
     tx: Tx,
     permit: AuthorizationExecutionPermit,
@@ -480,35 +345,23 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
     return null
   }
 
-  const authorizeRuntime = async (
-    tx: Tx,
-    input: GoogleContentPreauthorizationInput,
-    now: Date,
-  ) => {
+  const authorizeRuntime = async (tx: Tx, input: GoogleContentPreauthorizationInput) => {
     const control = await deps.store.loadControl(tx)
     if (control.killedCapabilities.includes(input.runtimeBinding.capability)) {
       return { ok: false as const, code: 'capability_killed' as const }
     }
 
-    const approval = await deps.store.loadApprovalForRuntime(tx, input.runtimeBinding)
-    if (!approval) {
-      return { ok: false as const, code: 'approval_unavailable' as const }
-    }
-    const approvalCode = validationCode(
-      approval,
-      input.runtimeBinding,
-      now,
-      deps.verifyRoleApproval,
-    )
-    if (approvalCode) return { ok: false as const, code: approvalCode }
-    if (
-      !bindingAuthorizesOrganization(
-        approval.candidate.binding,
-        input.scope.organizationId,
-      )
-    ) {
-      return { ok: false as const, code: 'authorization_denied' as const }
-    }
+    // WP2.2 step 3: the approval bundle used to gate here — load the signed
+    // approval for this runtime binding, re-validate its 29-day window and role
+    // signature, then check that its binding authorized this organization.
+    //
+    // It never decided anything `deps.authorize` below does not. That resolver
+    // re-queries organization and property policy, capability grants, consent,
+    // property access, role and permission version on every call, against live
+    // tables. The bundle was a second, slower, byte-pinned copy of the same
+    // judgement — and its 29-day expiry was itself the most common way the
+    // capability went dark, which is the outage
+    // `shared/release/google-approval-gap.ts` exists to survive.
 
     const decision = await deps.authorize(tx, {
       capability: input.runtimeBinding.capability,
@@ -523,21 +376,16 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
     ) {
       return { ok: false as const, code: 'authorization_denied' as const }
     }
-    return { ok: true as const, control, approval, decision }
+    return { ok: true as const, control, decision }
   }
 
   return {
-    installApproval: approvalInstaller.installApproval,
-
     preauthorize: async (input) => {
       return deps.store.transaction(async (tx) => {
-        const authorized = await authorizeRuntime(tx, input, deps.clock())
+        const authorized = await authorizeRuntime(tx, input)
         if (!authorized.ok) return authorized
         return {
           ok: true as const,
-          approvalBindingId: authorized.approval.id,
-          policyVersion: authorized.control.policyVersion,
-          emergencyKillVersion: authorized.control.emergencyKillVersion,
           authorizationVector: authorized.decision.vector,
         }
       })
@@ -546,15 +394,11 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
     admit: async (input) => {
       return deps.store.transaction(async (tx) => {
         const admittedAt = deps.clock()
-        const authorized = await authorizeRuntime(
-          tx,
-          {
-            runtimeBinding: input.runtimeBinding,
-            scope: input.scope,
-            operationKey: input.operationKey,
-          },
-          admittedAt,
-        )
+        const authorized = await authorizeRuntime(tx, {
+          runtimeBinding: input.runtimeBinding,
+          scope: input.scope,
+          operationKey: input.operationKey,
+        })
         if (!authorized.ok) return authorized
         if (
           !sameAuthorizationVector(
@@ -654,17 +498,9 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
       }
       return deps.store.transaction(async (tx) => {
         const changedAt = deps.clock()
-        const approval = await deps.store.loadApprovalForRuntime(tx, runtimeBinding)
-        if (!approval) {
-          return { ok: false as const, code: 'approval_unavailable' as const }
-        }
-        const approvalCode = validationCode(
-          approval,
-          runtimeBinding,
-          changedAt,
-          deps.verifyRoleApproval,
-        )
-        if (approvalCode) return { ok: false as const, code: approvalCode }
+        // WP2.2 step 3: re-allowing a killed capability used to require a valid
+        // approval bundle as well. The operator-registration check above is what
+        // authorizes this action; the bundle added nothing an operator could act on.
         const emergencyKillVersion = await deps.store.allowCapability(
           tx,
           runtimeBinding.capability,

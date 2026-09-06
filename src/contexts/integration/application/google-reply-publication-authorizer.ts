@@ -47,12 +47,6 @@ export type GoogleReplyPublicationIdentity = Readonly<{
 export type GoogleReplyPublicationContentAuthorizationResult =
   | Readonly<{
       ok: true
-      approvalBindingId: string
-      // WP2.2: `policyVersion` and `emergencyKillVersion` used to live here.
-      // Their only consumers were the authorization vector, which no longer
-      // carries them, and a `safeGeneration` range check that validated values
-      // nothing then read. `approvalBindingId` stays until the ceremony's
-      // replacement issuer lands.
       authorizationVector: Readonly<Record<string, string | number | boolean | null>>
     }>
   | Readonly<{
@@ -334,7 +328,6 @@ export function createGoogleReplyPublicationAuthorizer(
         propertyId: input.propertyId,
         connectionId: input.connectionId,
         initiatorUserId: null,
-        approvalBindingId: content.approvalBindingId,
         expectedCredentialGeneration: connection.credentialGeneration,
         authorizationVector: content.authorizationVector,
         publication: {

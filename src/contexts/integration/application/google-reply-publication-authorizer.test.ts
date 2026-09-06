@@ -18,7 +18,6 @@ const PROPERTY_ID = propertyId('11111111-1111-4111-8111-111111111111')
 const CONNECTION_ID = googleConnectionId('22222222-2222-4222-8222-222222222222')
 const REVIEW_ID = '33333333-3333-4333-8333-333333333333'
 const REPLY_ID = '44444444-4444-4444-8444-444444444444'
-const APPROVAL_ID = '55555555-5555-4555-8555-555555555555'
 
 const request = {
   organizationId: ORG_ID,
@@ -116,7 +115,6 @@ function contentVector(overrides: Record<string, string | number | boolean | nul
 function content(vector = contentVector()) {
   return {
     ok: true as const,
-    approvalBindingId: APPROVAL_ID,
     policyVersion: 11,
     emergencyKillVersion: 2,
     authorizationVector: vector,

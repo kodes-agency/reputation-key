@@ -482,7 +482,6 @@ function authorizationDigest(
         propertyId: authorization.propertyId,
         connectionId: authorization.connectionId,
         initiatorUserId: authorization.initiatorUserId,
-        approvalBindingId: authorization.approvalBindingId,
         expectedCredentialGeneration: authorization.expectedCredentialGeneration,
         authorizationVector: canonicalProviderAuthorizationVector(
           authorization.authorizationVector,
@@ -500,7 +499,6 @@ function sameCursorAuthorization(
     left.connectionLifecycleVersion === right.connectionLifecycleVersion &&
     left.connectionAccessVersion === right.connectionAccessVersion &&
     left.credentialGeneration === right.credentialGeneration &&
-    left.approvalBindingId === right.approvalBindingId &&
     left.authorizationVectorSha256 === right.authorizationVectorSha256
   )
 }
@@ -639,7 +637,6 @@ export const createGoogleReviewApiAdapter = (
         connectionLifecycleVersion: connection.lifecycleVersion,
         connectionAccessVersion: connection.accessVersion,
         credentialGeneration: connection.credentialGeneration,
-        approvalBindingId: authorization?.approvalBindingId ?? null,
         authorizationVectorSha256: authorizationDigest(authorization),
       },
     }

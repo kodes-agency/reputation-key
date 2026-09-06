@@ -236,7 +236,6 @@ export const gbpImportRequestItems = pgTable(
     expectedConnectionLifecycleVersion: integer('expected_connection_lifecycle_version'),
     expectedConnectionAccessVersion: integer('expected_connection_access_version'),
     expectedCredentialGeneration: integer('expected_credential_generation'),
-    approvalBindingId: varchar('approval_binding_id', { length: 255 }),
     expectedExecutionPolicyVersion: varchar('expected_execution_policy_version', {
       length: 32,
     }),
@@ -354,16 +353,14 @@ export const gbpImportRequestItems = pgTable(
       'gbp_import_request_items_authorization_snapshot_valid',
       sql`(
         (
-          ${t.approvalBindingId} IS NULL
-          AND ${t.expectedExecutionPolicyVersion} IS NULL
+          ${t.expectedExecutionPolicyVersion} IS NULL
           AND ${t.expectedActorRole} IS NULL
           AND ${t.expectedPermissionDigest} IS NULL
           AND ${t.expectedPrincipalKind} IS NULL
           AND ${t.expectedPermissionVersion} IS NULL
         )
         OR (
-          char_length(${t.approvalBindingId}) BETWEEN 1 AND 255
-          AND char_length(${t.expectedExecutionPolicyVersion}) BETWEEN 1 AND 32
+          char_length(${t.expectedExecutionPolicyVersion}) BETWEEN 1 AND 32
           AND char_length(${t.expectedActorRole}) BETWEEN 1 AND 50
           AND ${t.expectedPermissionDigest} ~ '^[a-f0-9]{64}$'
           AND char_length(${t.expectedPrincipalKind}) BETWEEN 1 AND 32

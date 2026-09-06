@@ -41,7 +41,6 @@ const REQUEST_ID = '00000000-0000-4000-8000-000000000005'
 const JOB_ID = '00000000-0000-4000-8000-000000000006'
 const ITEM_ID = '00000000-0000-4000-8000-000000000010'
 const RETRY_REQUEST_ID = '00000000-0000-4000-8000-000000000011'
-const APPROVAL_ID = '00000000-0000-4000-8000-000000000007'
 const REF_A = `v1.${'A'.repeat(43)}`
 const REF_B = `v1.${'B'.repeat(43)}`
 const REF_C = `v1.${'C'.repeat(43)}`
@@ -60,7 +59,6 @@ const authorization: ImportDiscoveryAuthorization = {
   connectionLifecycleVersion: 2,
   connectionAccessVersion: 3,
   credentialGeneration: 4,
-  approvalBindingId: APPROVAL_ID,
   authorizationVector: {
     executionPolicyVersion: 'beta-local-2',
     role: 'owner',

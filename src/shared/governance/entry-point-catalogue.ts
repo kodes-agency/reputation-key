@@ -3922,7 +3922,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:report-capability-refusal — read-only live refusal explanation across capability fate, tenant policy, Google execution control/approval, and empirical permit outcomes; no apply path, and it never invokes or duplicates the mutating Postgres start authority',
+        'ops:report-capability-refusal — read-only live refusal explanation across capability fate, tenant policy, Google execution control, and empirical permit outcomes; no apply path, and it never invokes or duplicates the mutating Postgres start authority',
     },
   ),
   ops(
@@ -4451,15 +4451,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'auth:migrate — applies auth-table changes through the exact repository-pinned Better Auth runtime; never network-fetches a separate CLI',
   }),
-  ops(
-    'scripts/ops/google-content-approval.ts',
-    'scripts/ops/google-content-approval.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:google-content-approval — signature-verifies private content-treatment bundles; direct apply is fail-closed until the atomic exact-target cell-us activation controller exists',
-    },
-  ),
   ops(
     'scripts/ops/deploy-ci-images.ts',
     'scripts/ops/deploy-ci-images.ts',

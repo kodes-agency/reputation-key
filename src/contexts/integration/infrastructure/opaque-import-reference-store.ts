@@ -103,11 +103,10 @@ const authorizationSchema = z.object({
   connectionLifecycleVersion: z.number().int().safe().nonnegative(),
   connectionAccessVersion: z.number().int().safe().nonnegative(),
   credentialGeneration: z.number().int().safe().nonnegative(),
-  approvalBindingId: z.uuid(),
   authorizationVector: authorizationVectorSchema,
 })
 const recordBaseSchema = authorizationSchema.extend({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   issuedAtMs: z.number().int().safe().nonnegative(),
   expiresAtMs: z.number().int().safe().positive(),
 })
@@ -301,7 +300,6 @@ function sameAuthorization(
     actual.connectionId === expected.connectionId &&
     actual.connectionLifecycleVersion === expected.connectionLifecycleVersion &&
     actual.connectionAccessVersion === expected.connectionAccessVersion &&
-    actual.approvalBindingId === expected.approvalBindingId &&
     actual.credentialGeneration === expected.credentialGeneration &&
     canonicalProviderAuthorizationVector(actual.authorizationVector) ===
       canonicalProviderAuthorizationVector(expected.authorizationVector)
@@ -374,7 +372,6 @@ export const createOpaqueImportReferenceStore = (
       userId: authorization.userId,
       connectionId: authorization.connectionId,
     }),
-    approvalBindingId: authorization.approvalBindingId,
     authorizationFenceSha256: providerAuthorizationFenceSha256(authorization),
   })
 
@@ -910,7 +907,7 @@ export const createOpaqueImportReferenceStore = (
         createRecords: (atMs, expiresAtMs, lease) => {
           const accountRecords = input.accounts.map((account, index) =>
             encodeRecord(`account:${index}`, 'account_selection', {
-              schemaVersion: 1,
+              schemaVersion: 2,
               audience: 'account_selection',
               ...input.authorization,
               issuedAtMs: atMs,
@@ -922,7 +919,7 @@ export const createOpaqueImportReferenceStore = (
           if (accountRecords.some((record) => record === null)) return null
           const cursor = input.nextPageToken
             ? encodeRecord('cursor', 'accounts_cursor', {
-                schemaVersion: 1,
+                schemaVersion: 2,
                 audience: 'accounts_cursor',
                 ...input.authorization,
                 issuedAtMs: atMs,
@@ -1007,7 +1004,7 @@ export const createOpaqueImportReferenceStore = (
       const budget = cursorBudget(input.cursorRedemptionBudget)
       const candidatesAreBounded = input.candidates.every((candidate) => {
         const parsed = candidateRecordSchema.safeParse({
-          schemaVersion: 1,
+          schemaVersion: 2,
           audience: 'import_candidate',
           ...input.authorization,
           issuedAtMs: 0,
@@ -1065,7 +1062,7 @@ export const createOpaqueImportReferenceStore = (
               candidate.eligibility.kind === 'create' ||
               candidate.eligibility.kind === 'relink'
             const parsedCandidate = candidateRecordSchema.safeParse({
-              schemaVersion: 1,
+              schemaVersion: 2,
               audience: 'import_candidate',
               ...input.authorization,
               issuedAtMs: atMs,
@@ -1105,7 +1102,7 @@ export const createOpaqueImportReferenceStore = (
           }
           const cursor = input.nextPageToken
             ? encodeRecord('cursor', 'locations_cursor', {
-                schemaVersion: 1,
+                schemaVersion: 2,
                 audience: 'locations_cursor',
                 ...input.authorization,
                 issuedAtMs: atMs,
@@ -1267,7 +1264,6 @@ export const createOpaqueImportReferenceStore = (
               connectionLifecycleVersion: entry.record.connectionLifecycleVersion,
               connectionAccessVersion: entry.record.connectionAccessVersion,
               credentialGeneration: entry.record.credentialGeneration,
-              approvalBindingId: entry.record.approvalBindingId,
               authorizationVector: entry.record.authorizationVector,
             },
             candidate: entry.record,

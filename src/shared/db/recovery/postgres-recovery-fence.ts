@@ -387,7 +387,6 @@ export async function applyRecoveryFence(
           expected_connection_lifecycle_version = NULL,
           expected_connection_access_version = NULL,
           expected_credential_generation = NULL,
-          approval_binding_id = NULL,
           expected_execution_policy_version = NULL,
               expected_actor_role = NULL,
           expected_permission_digest = NULL,

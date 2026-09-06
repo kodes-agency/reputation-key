@@ -109,7 +109,6 @@ function sameSnapshot(
     current.connectionLifecycleVersion === expected.connectionLifecycleVersion &&
     current.connectionAccessVersion === expected.connectionAccessVersion &&
     current.credentialGeneration === expected.credentialGeneration &&
-    current.approvalBindingId === expected.approvalBindingId &&
     current.authorizationVectorSha256 === expected.authorizationVectorSha256 &&
     current.principalHmacKeyVersion === expected.principalHmacKeyVersion &&
     current.principalHmac === expected.principalHmac
@@ -146,8 +145,8 @@ export function createGooglePerformanceAuthorizer(
     // Every branch below fails closed to an `unavailable(...)` snapshot, which
     // the route renders as a 200 with an empty performance panel. That is the
     // right user-facing behaviour and the wrong operator behaviour: on
-    // 2026-09-01 a stale approval row denied this capability on every property
-    // page view and produced no server-side signal at all, so the panel was
+    // 2026-09-01 stale authorization state denied this capability on every
+    // property page view and produced no server-side signal, so the panel was
     // simply blank with nothing to grep for. The response shape is unchanged;
     // only the silence is.
     const failClosed = (
@@ -357,7 +356,6 @@ export function createGooglePerformanceAuthorizer(
       connectionLifecycleVersion: connection.lifecycleVersion,
       connectionAccessVersion: connection.accessVersion,
       credentialGeneration: connection.credentialGeneration,
-      approvalBindingId: content.approvalBindingId,
       authorizationVector,
       authorizationVectorSha256: providerAuthorizationVectorSha256({
         connectionLifecycleVersion: connection.lifecycleVersion,

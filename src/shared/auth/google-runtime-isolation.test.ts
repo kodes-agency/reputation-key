@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { canonicalGoogleContentSha256 } from './google-content-approval'
+import { createHash } from 'node:crypto'
+import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+
 import {
   GoogleRuntimeIsolationError,
   parseGoogleRuntimeIsolationProfile,
   validateGoogleRuntimeIsolationReadiness,
 } from './google-runtime-isolation'
+
+const canonicalSha256 = (value: unknown): string =>
+  createHash('sha256').update(canonicalizeRfc8785(value), 'utf8').digest('hex')
 
 const imageDigests = {
   web: 'a'.repeat(64),
@@ -113,7 +118,7 @@ const probes = (role: (typeof protectedReplicas)[number]['role']) => ({
 const attestation = (profileValue = profile()) => ({
   schemaVersion: 'google-content-egress-attestation-1',
   source: 'infrastructure-control-plane-live-probe',
-  profileSha256: canonicalGoogleContentSha256(profileValue),
+  profileSha256: canonicalSha256(profileValue),
   controlPlanePolicyGeneration: 'generation-7',
   observedAt: '2026-08-10T10:00:00.000Z',
   expiresAt: '2026-08-10T10:05:00.000Z',

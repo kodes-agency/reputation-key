@@ -12,10 +12,7 @@ import { createEventBus } from '#/shared/events/event-bus'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 import { createGoogleDisconnectRevokeRepository } from '#/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository'
-import {
-  compileGoogleProviderRequest,
-  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
-} from './route-catalogue'
+import { compileGoogleProviderRequest } from './route-catalogue'
 import { createPostgresGoogleAdmissionPermitAuthority } from './postgres-permit-authority'
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
@@ -27,7 +24,6 @@ const ORGANIZATION_ID = 'org-google-admission-authority-test'
 const USER_ID = 'user-google-admission-authority-test'
 const MEMBER_ID = 'member-google-admission-authority-test'
 const CONNECTION_ID = '8e000000-0000-4000-8000-000000000001'
-const APPROVAL_ID = randomUUID()
 const PERMIT_ID = '8d000000-0000-4000-8000-000000000001'
 const CLEANUP_PERMIT_ID = '8d000000-0000-4000-8000-000000000002'
 const SOURCE_WORK_PERMIT_ID = '8d000000-0000-4000-8000-000000000003'
@@ -118,116 +114,6 @@ let originalControl:
   | undefined
 
 registerAllEventSchemas()
-
-async function seedApproval(): Promise<void> {
-  const client = await pool.connect()
-  try {
-    await client.query('BEGIN')
-    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
-      'property.import_gbp_v2:local_sandbox:sandbox',
-    ])
-    await client.query(
-      `INSERT INTO capability_compliance_approvals (
-        id, binding_version, capability, target_phase, environment_profile,
-        release_sha, evidence_manifest_sha256, evidence_index_sha256,
-        deployment_attestation_sha256, adr_0050_sha256,
-        google_content_policy_version, google_oauth_contract_version,
-        google_project_attestation_sha256, google_oauth_client_id_sha256,
-        google_redirect_uri_sha256, provider_origin_profile_sha256,
-        runtime_isolation_profile_version, runtime_isolation_profile_sha256,
-        performance_catalog_version, route_catalog_version,
-        capability_policy_version,
-        execution_policy_version, migration_head, evidence_index, image_digests,
-        role_approvals, approved_at, expires_at, status
-      ) VALUES (
-        $1, (
-          SELECT COALESCE(MAX(binding_version), 0) + 1
-          FROM capability_compliance_approvals
-          WHERE capability = 'property.import_gbp_v2'
-            AND target_phase = 'local_sandbox'
-            AND environment_profile = 'sandbox'
-        ), 'property.import_gbp_v2', 'local_sandbox', 'sandbox',
-        $4, 'manifest', 'index', 'deployment', 'adr',
-        'google-content-live-1', 'google-oauth-oidc-1', $5, 'client',
-        'redirect', 'origins', 'google-content-egress-1', 'runtime',
-        '2026-08-05', $6, 'beta-local-2', 'beta-local-2',
-        '0032_property-operation-receipts-expand', '{}'::jsonb, '{}'::jsonb,
-        '{}'::jsonb, $2, $3, 'approved'
-      ) ON CONFLICT (id) DO NOTHING`,
-      [
-        APPROVAL_ID,
-        NOW,
-        new Date(NOW.getTime() + 24 * 60 * 60_000),
-        RELEASE_SHA,
-        PROJECT_FINGERPRINT,
-        GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
-      ],
-    )
-    await client.query('COMMIT')
-  } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
-  } finally {
-    client.release()
-  }
-}
-
-async function seedApprovalFor(
-  capability:
-    'property.connect_gbp' | 'property.read_gbp_performance' | 'property.publish_reply',
-  approvalId: string,
-): Promise<void> {
-  const client = await pool.connect()
-  try {
-    await client.query('BEGIN')
-    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
-      `${capability}:local_sandbox:sandbox`,
-    ])
-    await client.query(
-      `INSERT INTO capability_compliance_approvals (
-        id, binding_version, capability, target_phase, environment_profile,
-        release_sha, evidence_manifest_sha256, evidence_index_sha256,
-        deployment_attestation_sha256, adr_0050_sha256,
-        google_content_policy_version, google_oauth_contract_version,
-        google_project_attestation_sha256, google_oauth_client_id_sha256,
-        google_redirect_uri_sha256, provider_origin_profile_sha256,
-        runtime_isolation_profile_version, runtime_isolation_profile_sha256,
-        performance_catalog_version, route_catalog_version,
-        capability_policy_version, execution_policy_version, migration_head,
-        evidence_index, image_digests, role_approvals, approved_at, expires_at, status
-      ) VALUES (
-        $1, (
-          SELECT COALESCE(MAX(binding_version), 0) + 1
-          FROM capability_compliance_approvals
-          WHERE capability = $2::google_content_capability
-            AND target_phase = 'local_sandbox'
-            AND environment_profile = 'sandbox'
-        ), $2::google_content_capability, 'local_sandbox', 'sandbox',
-        $3, 'manifest', 'index', 'deployment', 'adr',
-        'google-content-live-1', 'google-oauth-oidc-1', $4, 'client',
-        'redirect', 'origins', 'google-content-egress-1', 'runtime',
-        '2026-08-05', $7, 'beta-local-2', 'beta-local-2',
-        '0124_google_organization_ownership', '{}'::jsonb, '{}'::jsonb,
-        '{}'::jsonb, $5, $6, 'approved'
-      )`,
-      [
-        approvalId,
-        capability,
-        RELEASE_SHA,
-        PROJECT_FINGERPRINT,
-        NOW,
-        new Date(NOW.getTime() + 24 * 60 * 60_000),
-        GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
-      ],
-    )
-    await client.query('COMMIT')
-  } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
-  } finally {
-    client.release()
-  }
-}
 
 async function seedPermit(): Promise<void> {
   const permission = await pool.query<{ version: string }>(
@@ -434,7 +320,6 @@ beforeAll(async () => {
       WHERE capability = 'property.import_gbp_v2'`,
   )
   originalControl = control.rows[0]
-  await seedApproval()
 })
 
 beforeEach(async () => {
@@ -743,14 +628,12 @@ describe('Postgres Google admission permit authority', () => {
   it('starts system review sync without connector-user authority', async () => {
     const property = randomUUID()
     const permitId = randomUUID()
-    const approvalId = randomUUID()
     const original = await pool.query<NonNullable<typeof originalControl>>(
       `SELECT denied, emergency_kill_version, denied_at, drained_at, cleanup_drained_at
          FROM capability_execution_control
         WHERE capability = 'property.connect_gbp'`,
     )
     try {
-      await seedApprovalFor('property.connect_gbp', approvalId)
       await pool.query(
         `INSERT INTO properties (
           id, organization_id, name, slug, timezone, google_connection_id,
@@ -870,7 +753,6 @@ describe('Postgres Google admission permit authority', () => {
     const replyId = randomUUID()
     const managerUser = `publication-manager-${randomUUID()}`
     const managerMember = `publication-member-${randomUUID()}`
-    const approvalId = randomUUID()
     const authorizationDigest = googleReplyTextDigest('Thank you for your review.')
     const permitIds: string[] = []
     const original = await pool.query<NonNullable<typeof originalControl>>(
@@ -955,7 +837,6 @@ describe('Postgres Google admission permit authority', () => {
     }
 
     try {
-      await seedApprovalFor('property.publish_reply', approvalId)
       await pool.query(
         `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
          VALUES ($1, 'Reply publication manager', $2, true, now(), now())`,
@@ -1166,7 +1047,6 @@ describe('Postgres Google admission permit authority', () => {
     const property = randomUUID()
     const managerUser = `manager-${randomUUID()}`
     const managerMember = `member-${randomUUID()}`
-    const approvalId = randomUUID()
     const allowedPermitId = randomUUID()
     const deniedPermitId = randomUUID()
     const original = await pool.query<NonNullable<typeof originalControl>>(
@@ -1231,7 +1111,6 @@ describe('Postgres Google admission permit authority', () => {
     }
 
     try {
-      await seedApprovalFor('property.read_gbp_performance', approvalId)
       await pool.query(
         `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
          VALUES ($1, 'Performance Manager', $2, true, now(), now())`,
@@ -1453,7 +1332,6 @@ describe('Postgres Google admission permit authority', () => {
       propertyId: null,
       connectionId: googleConnectionId(CONNECTION_ID),
       initiatorUserId: USER_ID,
-      approvalBindingId: APPROVAL_ID,
       expectedCredentialGeneration: 1,
       authorizationVector: Object.freeze({
         executionPolicyVersion: 'beta-local-2',

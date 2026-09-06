@@ -47,10 +47,7 @@ import {
   createRegionDiagnostic,
   type PropertyRegionRecord,
 } from '#/shared/auth/policy-diagnostic'
-import {
-  createCapabilityRefusalExplainer,
-  type CapabilityRefusalDeps,
-} from '#/shared/governance/capability-refusal'
+import { createCapabilityRefusalExplainer } from '#/shared/governance/capability-refusal'
 import { createCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
 import {
   isCoreCapability,
@@ -233,10 +230,6 @@ type IdentityContextDeps = Readonly<{
     admitPropertyExecution: (propertyId: string) => Promise<DataCellExecutionDecision>
     /** The accepting cell's catalogue provider reference — never a URL. */
     providerRef: string | null
-    capabilityRefusal: Pick<
-      CapabilityRefusalDeps,
-      'googleContentRuntimeBindings' | 'verifyRoleApproval'
-    >
   }>
   cancelGoogleImportsForUser?: (organizationId: string, userId: string) => Promise<void>
   prepareGoogleConnectorDeparture?: (
@@ -657,11 +650,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     hasActiveGrant: (input) => hasActiveGrant(deps.db, input),
   })
   const policyAdminCommandStore = createPostgresPolicyAdminCommandStore(deps.db)
-  const explainCapabilityRefusal = createCapabilityRefusalExplainer({
-    ...createCapabilityRefusalReaders(deps.db),
-    ...deps.policy.capabilityRefusal,
-    clock: deps.clock,
-  })
+  const explainCapabilityRefusal = createCapabilityRefusalExplainer(
+    createCapabilityRefusalReaders(deps.db),
+  )
   const policyAdmin = Object.freeze({
     ...createPolicyAdminOps({
       clock: deps.clock,

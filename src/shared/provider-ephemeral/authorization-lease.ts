@@ -17,14 +17,13 @@ const MAX_CONTENT_LIFETIME_MS = Object.freeze({
 
 const leaseRecordSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     audience: z.enum(['import', 'performance']),
     capability: z.enum(GOOGLE_CONTENT_CAPABILITIES),
     organizationId: z.string().min(1).max(255),
     initiatorUserId: z.string().min(1).max(255),
     propertyId: z.uuid().nullable(),
     connectionId: z.uuid(),
-    approvalBindingId: z.uuid(),
     principalHmacKeyVersion: z.string().regex(/^[a-z][a-z0-9_-]{0,31}$/),
     principalHmac: z.string().regex(DIGEST),
     authorizationFenceSha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -60,7 +59,6 @@ export type ProviderAuthorizationLeaseService = Readonly<{
       initiatorUserId: string
       propertyId: string | null
       connectionId: string
-      approvalBindingId: string
       principalHmacKeyVersion: string
       principalHmac: string
       authorizationFenceSha256: string
@@ -73,7 +71,6 @@ export type ProviderAuthorizationLeaseService = Readonly<{
       leaseRef: string
       principalHmacKeyVersion: string
       principalHmac: string
-      approvalBindingId: string
       authorizationFenceSha256: string
       nowMs: number
     }>,
@@ -134,7 +131,6 @@ export function createProviderAuthorizationLeaseService(
     revalidate: (record: ProviderAuthorizationLeaseRecord) => Promise<
       Readonly<{
         allowed: boolean
-        approvalBindingId: string | null
         authorizationFenceSha256: string | null
       }>
     >
@@ -169,14 +165,13 @@ export function createProviderAuthorizationLeaseService(
         input.absoluteDeadlineMs,
       )
       const parsed = leaseRecordSchema.safeParse({
-        schemaVersion: 1,
+        schemaVersion: 2,
         audience: input.audience,
         capability: input.capability,
         organizationId: input.organizationId,
         initiatorUserId: input.initiatorUserId,
         propertyId: input.propertyId,
         connectionId: input.connectionId,
-        approvalBindingId: input.approvalBindingId,
         principalHmacKeyVersion: input.principalHmacKeyVersion,
         principalHmac: input.principalHmac,
         authorizationFenceSha256: input.authorizationFenceSha256,
@@ -196,7 +191,6 @@ export function createProviderAuthorizationLeaseService(
         return { ok: false, code: 'authorization_denied' }
       }
       if (
-        authorization.approvalBindingId !== parsed.data.approvalBindingId ||
         authorization.authorizationFenceSha256 !== parsed.data.authorizationFenceSha256
       ) {
         return { ok: false, code: 'authorization_changed' }
@@ -255,18 +249,13 @@ export function createProviderAuthorizationLeaseService(
         return { ok: false, code: 'principal_mismatch' }
       }
       if (
-        !leaseRecordSchema.shape.approvalBindingId.safeParse(input.approvalBindingId)
-          .success ||
         !leaseRecordSchema.shape.authorizationFenceSha256.safeParse(
           input.authorizationFenceSha256,
         ).success
       ) {
         return { ok: false, code: 'malformed' }
       }
-      if (
-        record.approvalBindingId !== input.approvalBindingId ||
-        record.authorizationFenceSha256 !== input.authorizationFenceSha256
-      ) {
+      if (record.authorizationFenceSha256 !== input.authorizationFenceSha256) {
         await deps.store.remove('authorization-lease', parsedHandle.storeKey)
         return { ok: false, code: 'authorization_changed' }
       }
@@ -280,10 +269,7 @@ export function createProviderAuthorizationLeaseService(
         await deps.store.remove('authorization-lease', parsedHandle.storeKey)
         return { ok: false, code: 'authorization_denied' }
       }
-      if (
-        authorization.approvalBindingId !== record.approvalBindingId ||
-        authorization.authorizationFenceSha256 !== record.authorizationFenceSha256
-      ) {
+      if (authorization.authorizationFenceSha256 !== record.authorizationFenceSha256) {
         await deps.store.remove('authorization-lease', parsedHandle.storeKey)
         return { ok: false, code: 'authorization_changed' }
       }

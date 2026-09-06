@@ -18,10 +18,6 @@ import {
 import { createdAtColumn, updatedAtColumn } from '../columns'
 import { googleConnections } from './google-connection.schema'
 
-import type {
-  GoogleContentApprovalRoleDocument,
-  GoogleContentEvidenceIndex,
-} from '../../auth/google-content-contract'
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
 const generation = (name: string) => bigint(name, { mode: 'number' })
 
@@ -30,25 +26,6 @@ export const googleContentCapabilityEnum = pgEnum('google_content_capability', [
   'property.read_gbp_performance',
   'property.connect_gbp',
   'property.publish_reply',
-])
-export const googleContentApprovalTargetPhaseEnum = pgEnum(
-  'google_content_approval_target_phase',
-  [
-    'local_sandbox',
-    'railway_closed_beta',
-    'production_expand_canary',
-    'production_final',
-  ],
-)
-export const googleContentEnvironmentProfileEnum = pgEnum(
-  'google_content_environment_profile',
-  ['sandbox', 'railway-closed-beta-1', 'production'],
-)
-export const googleContentApprovalStatusEnum = pgEnum('google_content_approval_status', [
-  'approved',
-  'suspended',
-  'expired',
-  'revoked',
 ])
 export const authorizationExecutionPermitStateEnum = pgEnum(
   'authorization_execution_permit_state',
@@ -109,147 +86,6 @@ export const googleDisconnectRevokeAttemptStateEnum = pgEnum(
     'confirmed_not_sent',
     'confirmed_revoked',
     'cleanup_ambiguous',
-  ],
-)
-
-export const capabilityComplianceApprovals = pgTable(
-  'capability_compliance_approvals',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    bindingVersion: integer('binding_version').notNull().default(1),
-    capability: googleContentCapabilityEnum('capability').notNull(),
-    targetPhase: googleContentApprovalTargetPhaseEnum('target_phase').notNull(),
-    environmentProfile:
-      googleContentEnvironmentProfileEnum('environment_profile').notNull(),
-    releaseSha: varchar('release_sha', { length: 128 }).notNull(),
-    evidenceManifestSha256: varchar('evidence_manifest_sha256', {
-      length: 128,
-    }).notNull(),
-    evidenceIndexSha256: varchar('evidence_index_sha256', { length: 128 }).notNull(),
-    deploymentAttestationSha256: varchar('deployment_attestation_sha256', {
-      length: 128,
-    }).notNull(),
-    adr0050Sha256: varchar('adr_0050_sha256', { length: 128 }).notNull(),
-    googleContentPolicyVersion: varchar('google_content_policy_version', {
-      length: 100,
-    }).notNull(),
-    googleOauthContractVersion: varchar('google_oauth_contract_version', {
-      length: 100,
-    }).notNull(),
-    googleProjectAttestationSha256: varchar('google_project_attestation_sha256', {
-      length: 128,
-    }).notNull(),
-    googleOauthClientIdSha256: varchar('google_oauth_client_id_sha256', {
-      length: 128,
-    }).notNull(),
-    googleRedirectUriSha256: varchar('google_redirect_uri_sha256', {
-      length: 128,
-    }).notNull(),
-    providerOriginProfileSha256: varchar('provider_origin_profile_sha256', {
-      length: 128,
-    }).notNull(),
-    runtimeIsolationProfileVersion: varchar('runtime_isolation_profile_version', {
-      length: 100,
-    }),
-    runtimeIsolationProfileSha256: varchar('runtime_isolation_profile_sha256', {
-      length: 128,
-    }),
-    railwayClosedBetaCohort: jsonb('railway_closed_beta_cohort').$type<
-      readonly string[]
-    >(),
-    railwayClosedBetaCohortSha256: varchar('railway_closed_beta_cohort_sha256', {
-      length: 128,
-    }),
-    railwayClosedBetaResidualRiskSha256: varchar(
-      'railway_closed_beta_residual_risk_sha256',
-      { length: 128 },
-    ),
-    performanceCatalogVersion: varchar('performance_catalog_version', {
-      length: 32,
-    }).notNull(),
-    // Approval-bound provider route catalogue (route URL, wire dailyMetrics set,
-    // dailyRange encoding, page size, response cap). Approval parsing pins it to
-    // the compiled GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION, so a catalogue bump
-    // makes the persisted row unparseable and the capability denies with
-    // approval_unavailable until an operator installs a re-approved bundle.
-    routeCatalogueVersion: varchar('route_catalog_version', {
-      length: 64,
-    }).notNull(),
-    capabilityPolicyVersion: varchar('capability_policy_version', {
-      length: 32,
-    }).notNull(),
-    executionPolicyVersion: varchar('execution_policy_version', {
-      length: 32,
-    }).notNull(),
-    migrationHead: varchar('migration_head', { length: 255 }).notNull(),
-    evidenceIndex: jsonb('evidence_index')
-      .$type<GoogleContentEvidenceIndex & Readonly<{ sha256: string }>>()
-      .notNull(),
-    imageDigests: jsonb('image_digests')
-      .$type<
-        Readonly<{
-          web: string
-          worker: string
-          googleExecutionAdmission: string
-          googleEgressGateway: string
-          providerEphemeralRedis: string
-        }>
-      >()
-      .notNull(),
-    roleApprovals: jsonb('role_approvals')
-      .$type<
-        ReadonlyArray<
-          Readonly<{
-            sha256: string
-            document: GoogleContentApprovalRoleDocument
-          }>
-        >
-      >()
-      .notNull(),
-    approvedAt: timestamptz('approved_at').notNull(),
-    expiresAt: timestamptz('expires_at').notNull(),
-    status: googleContentApprovalStatusEnum('status').notNull(),
-    createdAt: createdAtColumn(),
-    updatedAt: updatedAtColumn(),
-  },
-  (table) => [
-    uniqueIndex('capability_compliance_approvals_version_key').on(
-      table.capability,
-      table.targetPhase,
-      table.environmentProfile,
-      table.bindingVersion,
-    ),
-    index('capability_compliance_approvals_active_idx').on(
-      table.capability,
-      table.status,
-      table.expiresAt,
-    ),
-    check(
-      'capability_compliance_approvals_window_check',
-      sql`${table.expiresAt} > ${table.approvedAt}`,
-    ),
-    check(
-      'capability_compliance_approvals_phase_profile_check',
-      sql`(
-        (${table.targetPhase} = 'railway_closed_beta'
-          AND ${table.environmentProfile} = 'railway-closed-beta-1'
-          AND ${table.runtimeIsolationProfileVersion} IS NULL
-          AND ${table.runtimeIsolationProfileSha256} IS NULL
-          AND ${table.railwayClosedBetaCohort} IS NOT NULL
-          AND ${table.railwayClosedBetaCohortSha256} IS NOT NULL
-          AND ${table.railwayClosedBetaResidualRiskSha256} IS NOT NULL)
-        OR
-        (${table.targetPhase} <> 'railway_closed_beta'
-          AND ((${table.targetPhase} = 'local_sandbox' AND ${table.environmentProfile} = 'sandbox')
-            OR (${table.targetPhase} IN ('production_expand_canary', 'production_final')
-              AND ${table.environmentProfile} = 'production'))
-          AND ${table.runtimeIsolationProfileVersion} = 'google-content-egress-1'
-          AND ${table.runtimeIsolationProfileSha256} IS NOT NULL
-          AND ${table.railwayClosedBetaCohort} IS NULL
-          AND ${table.railwayClosedBetaCohortSha256} IS NULL
-          AND ${table.railwayClosedBetaResidualRiskSha256} IS NULL)
-      )`,
-    ),
   ],
 )
 

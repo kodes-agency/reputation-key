@@ -68,6 +68,21 @@ function buildInput(
 }
 
 describe('buildGoogleProviderAuthority', () => {
+  // WP2.2 step 3: ten tests lived here asserting the "no Google Content runtime
+  // binding" refusal path — four capability closures failing closed, four
+  // logging which capability was unbound, and two for the OAuth call refusing
+  // when the authority was unavailable.
+  //
+  // That path no longer exists and cannot be reconstructed. A runtime binding
+  // was an installed approval parsed out of the environment, so it could be
+  // absent; it is now just a capability, and the authority is constructed
+  // unconditionally. Refusing on a missing binding was never a product rule —
+  // it was the failure mode of the approval bundle expiring.
+  //
+  // What replaced it is covered elsewhere and per request: `policyAuthorizes`
+  // re-queries organization and property capability grants on every decision,
+  // and `capability_killed` is the live operational refusal.
+
   it('constructs without touching the database', () => {
     expect(() => buildGoogleProviderAuthority(buildInput())).not.toThrow()
   })
@@ -190,130 +205,6 @@ describe('buildGoogleProviderAuthority', () => {
         buildInput({ env: envWith({ NODE_ENV: 'production' }) }),
       ),
     ).toThrow('Opaque OAuth state requires provider-ephemeral Redis')
-  })
-
-  it.each([
-    ['import', 'authorizeGoogleImportContent'],
-    ['performance', 'authorizeGooglePerformanceContent'],
-    ['review sync', 'authorizeGoogleReviewSyncContent'],
-    ['reply publication', 'authorizeGoogleReplyPublicationContent'],
-  ] as const)(
-    'fails closed for %s when no Google Content runtime binding exists',
-    async (_label, key) => {
-      const authority = buildGoogleProviderAuthority(buildInput())
-      const authorize = authority[key] as (input: unknown) => Promise<unknown>
-
-      await expect(
-        authorize({
-          actor: { organizationId: 'org-1', userId: 'user-1' },
-          organizationId: 'org-1',
-          propertyId: 'prop-1',
-          connectionId: 'conn-1',
-          phase: 'start',
-          operationKey: 'test',
-        }),
-      ).resolves.toEqual({ ok: false, code: 'runtime_unavailable' })
-    },
-  )
-
-  it('refuses an OAuth provider call outright when the authority is unavailable', async () => {
-    const authority = buildGoogleProviderAuthority(buildInput())
-
-    await expect(
-      authority.authorizeGoogleOAuthProviderCall({
-        organizationId: 'org-1',
-        connectionId: 'conn-1',
-        initiatorUserId: 'user-1',
-        operation: 'oauth.token.refresh',
-      } as Parameters<typeof authority.authorizeGoogleOAuthProviderCall>[0]),
-    ).rejects.toThrow('Google OAuth provider authorization is unavailable')
-  })
-
-  it.each([
-    ['import', 'authorizeGoogleImportContent', 'property.import_gbp_v2'],
-    ['performance', 'authorizeGooglePerformanceContent', 'property.read_gbp_performance'],
-    ['review-sync', 'authorizeGoogleReviewSyncContent', 'property.connect_gbp'],
-    [
-      'reply-publication',
-      'authorizeGoogleReplyPublicationContent',
-      'property.publish_reply',
-    ],
-  ] as const)(
-    'records which capability was unbound when %s refuses',
-    async (surface, key, capability) => {
-      // An absent binding short-circuits before any database access, so a
-      // capability with no binding key refuses every call for the lifetime of
-      // the process. `property.connect_gbp` and `property.publish_reply` are in
-      // exactly that state in the closed beta, and before this the refusal left
-      // no trace anywhere — review sync and reply publication simply never
-      // worked, silently.
-      const warnings: Record<string, unknown>[] = []
-      const authority = buildGoogleProviderAuthority(
-        buildInput({
-          logger: {
-            warn: (fields: unknown) => warnings.push(fields as Record<string, unknown>),
-            info: () => {},
-          } as unknown as GoogleProviderAuthorityInput['logger'],
-        }),
-      )
-      const authorize = authority[key] as (input: unknown) => Promise<unknown>
-
-      await authorize({
-        actor: { organizationId: 'org-1', userId: 'user-1' },
-        organizationId: 'org-1',
-        propertyId: 'prop-1',
-        connectionId: 'conn-1',
-        phase: 'start',
-        operationKey: 'test',
-      })
-
-      const refusal = warnings.find((w) => w.surface === surface)
-      expect(refusal).toBeDefined()
-      expect(refusal?.code).toBe('runtime_binding_absent')
-      expect(refusal?.capability).toBe(capability)
-      expect(refusal?.stage).toBe('google-content-preauthorize')
-    },
-  )
-
-  it('names the deciding code in the log when it refuses an OAuth provider call', async () => {
-    // Regression guard for the 2026-09-01 outage. A stale route catalogue left
-    // every approval unresolvable; the import path logged `approval_unavailable`
-    // and was diagnosed from that line alone, while this path threw a bare Error
-    // and surfaced only as `connection_failed` in the OAuth callback — which
-    // reads as a transient network fault for a condition no retry can clear.
-    // The refusal must carry an operator-visible reason.
-    const warnings: { fields: Record<string, unknown>; message: string }[] = []
-    const authority = buildGoogleProviderAuthority(
-      buildInput({
-        logger: {
-          warn: (fields: unknown, message: unknown) =>
-            warnings.push({
-              fields: fields as Record<string, unknown>,
-              message: String(message),
-            }),
-          info: () => {},
-        } as unknown as GoogleProviderAuthorityInput['logger'],
-      }),
-    )
-
-    await expect(
-      authority.authorizeGoogleOAuthProviderCall({
-        organizationId: 'org-1',
-        connectionId: 'conn-1',
-        initiatorUserId: 'user-1',
-        operation: 'oauth.token.refresh',
-      } as Parameters<typeof authority.authorizeGoogleOAuthProviderCall>[0]),
-    ).rejects.toThrow('Google OAuth provider authorization is unavailable')
-
-    const refusal = warnings.find(
-      (entry) => entry.fields.stage === 'google-oauth-preauthorize',
-    )
-    expect(refusal).toBeDefined()
-    expect(refusal?.fields.code).toBe('runtime_unavailable')
-    // Which of the two preconditions was absent, so the operator does not have
-    // to guess between a missing binding and a missing authority.
-    expect(refusal?.fields.missing).toBe('runtime_binding')
-    expect(refusal?.fields.operation).toBe('oauth.token.refresh')
   })
 
   it('builds no egress executor without gateway transport configuration', () => {

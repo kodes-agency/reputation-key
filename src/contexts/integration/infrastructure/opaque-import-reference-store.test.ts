@@ -13,7 +13,6 @@ const NOW_MS = Date.parse('2026-08-12T10:00:00.000Z')
 const CONTENT_DEADLINE_MS = NOW_MS + 15 * 60_000
 const KEY_V1 = `v1:${'11'.repeat(32)}`
 const KEY_V2 = `v2:${'22'.repeat(32)}`
-const APPROVAL_BINDING_ID = '00000000-0000-4000-8000-000000000001'
 const CONNECTION_ID = '00000000-0000-4000-8000-000000000002'
 
 const authorization = (
@@ -25,7 +24,6 @@ const authorization = (
   connectionLifecycleVersion: 3,
   connectionAccessVersion: 4,
   credentialGeneration: 5,
-  approvalBindingId: APPROVAL_BINDING_ID,
   authorizationVector: Object.freeze({
     policyVersion: 7,
     permissionVersion: 11,
@@ -57,7 +55,6 @@ function setup(
     randomNonce: () => Buffer.alloc(32, (leaseNonce += 1)).toString('base64url'),
     revalidate: async (record) => ({
       allowed: true,
-      approvalBindingId: record.approvalBindingId,
       authorizationFenceSha256: record.authorizationFenceSha256,
     }),
   })
@@ -205,7 +202,7 @@ describe('opaque Google import reference store', () => {
       'opaque-reference',
       futureKey,
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         audience: 'accounts_cursor',
         ...authorization(),
         issuedAtMs: now + 61_000,

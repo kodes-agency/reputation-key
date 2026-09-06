@@ -174,9 +174,8 @@ export type ExecutionPermitStartDeadlineSweepResult =
  * The non-lazy exit from `admitted`. `startExecutionPermit` only observes an
  * elapsed start deadline when a caller actually starts the permit; a permit
  * that is admitted and then never started has no other exit besides the
- * emergency-kill drain, so those rows keep `approval_binding_id` pinned
- * (ON DELETE RESTRICT blocks approval rotation) and keep
- * `authorization_execution_permits_active_idx` over-reporting active work.
+ * emergency-kill drain, so
+ * `authorization_execution_permits_active_idx` over-reports active work.
  *
  * The background sweeper routes every candidate through this helper so the
  * fence reason and the deadline comparison stay in the domain model instead of

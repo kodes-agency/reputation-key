@@ -38,7 +38,6 @@ export const googleImportDiscoveryRecords = pgTable(
     connectionLifecycleVersion: integer('connection_lifecycle_version').notNull(),
     connectionAccessVersion: integer('connection_access_version').notNull(),
     credentialGeneration: integer('credential_generation').notNull(),
-    approvalBindingId: uuid('approval_binding_id').notNull(),
     authorizationVector: jsonb('authorization_vector')
       .$type<GoogleImportDiscoveryAuthorizationVector>()
       .notNull(),

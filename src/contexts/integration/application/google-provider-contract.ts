@@ -28,7 +28,6 @@ type GoogleProviderCallAuthorizationBase = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId | null
   connectionId: GoogleConnectionId
-  approvalBindingId: string
   expectedCredentialGeneration: number
   authorizationVector: Readonly<Record<string, string | number | boolean | null>>
 }>

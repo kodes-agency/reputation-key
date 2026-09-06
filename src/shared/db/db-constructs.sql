@@ -5620,17 +5620,6 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.reject_capability_compliance_approval_mutation()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-BEGIN
-  RAISE EXCEPTION 'capability compliance approvals are append-only'
-    USING ERRCODE = '55000';
-END;
-$function$
-;
---> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.reject_context_lifecycle_receipt_mutation_v1()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -6832,14 +6821,6 @@ BEGIN
           permit.route_key <> 'oauth.revoke'
           AND EXISTS (
           SELECT 1
-          -- WP2.2: the approval ceremony that used to gate this — a global
-          -- `policy_version` generation, `capability_execution_control`,
-          -- and a role-signed `capability_compliance_approvals` row with its
-          -- window, cohort and superseding-binding checks — is gone. What
-          -- remains below is the part that protects the product rather than
-          -- the process: the connection this permit names must exist for the
-          -- organization, and each capability branch must still prove its own
-          -- principal, role and (for publication) reply state.
           FROM public.google_connections AS connection
           LEFT JOIN public.member AS member
             ON member."organizationId" = permit.organization_id
@@ -8338,8 +8319,6 @@ CREATE TRIGGER beta_feedback_triage_revision_guard BEFORE UPDATE ON public.beta_
 CREATE TRIGGER beta_feedback_triage_transition_truncate_guard BEFORE TRUNCATE ON public.beta_feedback_triage_transitions FOR EACH STATEMENT EXECUTE FUNCTION guard_beta_feedback_triage_transition_immutable_v1();
 --> statement-breakpoint
 CREATE TRIGGER beta_feedback_triage_transition_update_guard BEFORE DELETE OR UPDATE ON public.beta_feedback_triage_transitions FOR EACH ROW EXECUTE FUNCTION guard_beta_feedback_triage_transition_immutable_v1();
---> statement-breakpoint
-CREATE TRIGGER capability_compliance_approvals_append_only BEFORE DELETE OR UPDATE ON public.capability_compliance_approvals FOR EACH ROW EXECUTE FUNCTION reject_capability_compliance_approval_mutation();
 --> statement-breakpoint
 CREATE TRIGGER context_organization_lifecycle_receipts_truncate_guard BEFORE TRUNCATE ON public.context_organization_lifecycle_receipts FOR EACH STATEMENT EXECUTE FUNCTION reject_context_lifecycle_receipt_mutation_v1();
 --> statement-breakpoint

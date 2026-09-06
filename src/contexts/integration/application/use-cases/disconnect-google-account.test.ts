@@ -209,7 +209,6 @@ describe('disconnectGoogleAccount', () => {
       propertyId: null,
       connectionId: connection.id,
       initiatorUserId: ctx.userId,
-      approvalBindingId: 'approval-revoke',
       expectedCredentialGeneration: connection.credentialGeneration,
       authorizationVector: {
         connectionLifecycleVersion: connection.lifecycleVersion,

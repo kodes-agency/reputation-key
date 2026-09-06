@@ -23,7 +23,6 @@ const authorization = Object.freeze({
   propertyId: input.propertyId,
   connectionId: input.connectionId,
   initiatorUserId: 'user-1',
-  approvalBindingId: 'approval-1',
   expectedCredentialGeneration: 3,
   authorizationVector: Object.freeze({ policyVersion: 1, credentialGeneration: 3 }),
 })

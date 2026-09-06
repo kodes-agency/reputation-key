@@ -17,7 +17,6 @@ import { createDurableGoogleImportReferenceStore } from './durable-import-refere
 const ORGANIZATION_ID = 'org-durable-google-import-discovery'
 const USER_ID = 'user-durable-google-import-discovery'
 const CONNECTION_ID = '82000000-0000-4000-8000-000000000001'
-const APPROVAL_BINDING_ID = '82000000-0000-4000-8000-000000000002'
 const FIRST_REQUEST_ID = '82000000-0000-4000-8000-000000000003'
 const SECOND_REQUEST_ID = '82000000-0000-4000-8000-000000000004'
 const START_MS = Date.parse('2026-08-27T10:00:00.000Z')
@@ -68,7 +67,6 @@ const authorization = (
   connectionLifecycleVersion: 3,
   connectionAccessVersion: 5,
   credentialGeneration: 7,
-  approvalBindingId: APPROVAL_BINDING_ID,
   authorizationVector: Object.freeze({ policyVersion: 11, permissionVersion: 13 }),
   ...overrides,
 })

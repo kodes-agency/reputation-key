@@ -223,7 +223,6 @@ describe('connectGoogleAccount', () => {
         propertyId: null,
         connectionId: request.connectionId,
         initiatorUserId: request.initiatorUserId,
-        approvalBindingId: 'approval-exchange',
         expectedCredentialGeneration: 0,
         authorizationVector: {
           oauthCredentialOperation: 'exchange_new',

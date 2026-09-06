@@ -33,7 +33,6 @@ const authorization = (
   propertyId: null,
   connectionId: googleConnectionId('00000000-0000-4000-8000-000000000101'),
   initiatorUserId: 'user-admission',
-  approvalBindingId: 'approval-admission',
   expectedCredentialGeneration: Number(authorizationVector.credentialGeneration ?? 1),
   authorizationVector,
 })

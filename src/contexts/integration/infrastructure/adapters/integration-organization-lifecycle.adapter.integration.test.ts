@@ -72,7 +72,6 @@ type Fixture = Readonly<{
   connectionId: string
   sagaId: string
   batchId: string
-  approvalId: string
   permitId: string
 }>
 
@@ -80,7 +79,6 @@ const fixtures: Fixture[] = []
 const bareOrganizations = new Set<string>()
 let lease: TestLease
 let db: Database
-let approvalBindingVersion = 0
 
 const CREATED_AT = new Date('2026-08-01T00:00:00.000Z')
 const RECOVERABLE_UNTIL = new Date('2026-09-28T00:00:00.000Z')
@@ -131,7 +129,6 @@ async function seedFixture(): Promise<Fixture> {
     connectionId: randomUUID(),
     sagaId: randomUUID(),
     batchId: randomUUID(),
-    approvalId: randomUUID(),
     permitId: randomUUID(),
   }
   fixtures.push(fixture)
@@ -279,33 +276,6 @@ async function seedFixture(): Promise<Fixture> {
      ) VALUES ($1, $2, $3, $4, 'new', 'completed', 1, 1, 1, 'us', 1, 1, $5,
                'connected', $5, $5)`,
     [randomUUID(), fixture.organizationId, fixture.userId, randomUUID(), CREATED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO capability_compliance_approvals (
-       id, capability, target_phase, environment_profile, release_sha,
-       evidence_manifest_sha256, evidence_index_sha256,
-       deployment_attestation_sha256, adr_0050_sha256,
-       google_content_policy_version, google_oauth_contract_version,
-       google_project_attestation_sha256, google_oauth_client_id_sha256,
-       google_redirect_uri_sha256, provider_origin_profile_sha256,
-       performance_catalog_version, capability_policy_version,
-       execution_policy_version, migration_head, evidence_index, image_digests,
-       role_approvals, approved_at, expires_at, status, route_catalog_version,
-       railway_closed_beta_cohort, railway_closed_beta_cohort_sha256,
-       railway_closed_beta_residual_risk_sha256, binding_version
-     ) VALUES (
-       $1, 'property.import_gbp_v2', 'railway_closed_beta',
-       'railway-closed-beta-1', $2, $2, $2, $2, $2, 'v1', 'v1', $2, $2, $2, $2,
-       'v1', 'v1', 'v1', 'head', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $3, $4,
-       'approved', 'v1', '{}'::jsonb, $2, $2, $5
-     )`,
-    [
-      fixture.approvalId,
-      'c'.repeat(64),
-      CREATED_AT,
-      new Date(Date.now() + 86_400_000),
-      (approvalBindingVersion += 1),
-    ],
   )
   await lease.pool.query(
     `INSERT INTO authorization_execution_permits (
@@ -465,22 +435,6 @@ async function cleanupFixture(fixture: Fixture): Promise<void> {
   await lease.pool.query('DELETE FROM properties WHERE organization_id = $1', [
     fixture.organizationId,
   ])
-  await lease.pool.query('BEGIN')
-  try {
-    await lease.pool.query(
-      'ALTER TABLE capability_compliance_approvals DISABLE TRIGGER capability_compliance_approvals_append_only',
-    )
-    await lease.pool.query('DELETE FROM capability_compliance_approvals WHERE id = $1', [
-      fixture.approvalId,
-    ])
-    await lease.pool.query(
-      'ALTER TABLE capability_compliance_approvals ENABLE TRIGGER capability_compliance_approvals_append_only',
-    )
-    await lease.pool.query('COMMIT')
-  } catch (error) {
-    await lease.pool.query('ROLLBACK')
-    throw error
-  }
   await executeWithLastOwnerGuardDisabled(db, [
     sql`DELETE FROM member WHERE "organizationId" = ${fixture.organizationId}`,
   ])

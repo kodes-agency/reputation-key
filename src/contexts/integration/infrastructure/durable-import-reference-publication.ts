@@ -68,7 +68,6 @@ export const createDurableImportReferencePublisher = (
       userId: authorization.userId,
       connectionId: authorization.connectionId,
     }),
-    approvalBindingId: authorization.approvalBindingId,
     authorizationFenceSha256: providerAuthorizationFenceSha256(authorization),
   })
 

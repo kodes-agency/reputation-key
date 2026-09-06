@@ -192,13 +192,6 @@ const baseEnvSchema = z.object({
   // evidence. Protected production issuance requires exact, fresh parity.
   GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON: z.string().optional(),
   GOOGLE_CONTROL_PLANE_POLICY_GENERATION: z.string().min(1).optional(),
-  // Strict capability-keyed runtime bindings for the currently deployed
-  // Google Content approval. Required whenever a protected capability is enabled.
-  GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON: z.string().optional(),
-  GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON: z
-    .string()
-    .max(100 * 1024)
-    .optional(),
   // The Google egress runtime runs in THIS process (WP2.1). It used to be two
   // sidecars reached over mTLS, which is why an origin, a server name and a
   // private CA triplet — in two encodings, eight variables in all — used to

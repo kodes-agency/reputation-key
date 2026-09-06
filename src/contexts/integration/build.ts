@@ -847,7 +847,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         propertyId: null,
         connectionId: authorization.connectionId,
         initiatorUserId: refreshed.authorization.userId,
-        approvalBindingId: refreshed.authorization.approvalBindingId,
         expectedCredentialGeneration: refreshed.authorization.credentialGeneration,
         authorizationVector: refreshed.authorization.authorizationVector,
       }
@@ -984,7 +983,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
           throw new Error('Google Performance reauthorization is unavailable')
         }
         if (
-          refreshed.snapshot.approvalBindingId !== authorization.approvalBindingId ||
           !sameAuthorizationVectorExceptCredentialGeneration(
             refreshed.snapshot.authorizationVector,
             authorization.authorizationVector,
@@ -998,7 +996,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
           propertyId: refreshed.snapshot.propertyId,
           connectionId: refreshed.snapshot.connectionId,
           initiatorUserId: actor.userId,
-          approvalBindingId: refreshed.snapshot.approvalBindingId,
           expectedCredentialGeneration: refreshed.snapshot.credentialGeneration,
           authorizationVector: refreshed.snapshot.authorizationVector,
         }
@@ -1021,7 +1018,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
           connectionId: snapshot.connectionId,
           initiatorUserId: actor.userId,
           expectedCredentialGeneration: snapshot.credentialGeneration,
-          approvalBindingId: snapshot.approvalBindingId,
           authorizationVector: snapshot.authorizationVector,
         }),
       issueLease: ({ actor, snapshot, absoluteDeadlineMs, nowMs }) =>
@@ -1032,7 +1028,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
           initiatorUserId: actor.userId,
           propertyId: snapshot.propertyId,
           connectionId: snapshot.connectionId,
-          approvalBindingId: snapshot.approvalBindingId,
           principalHmacKeyVersion: snapshot.principalHmacKeyVersion,
           principalHmac: snapshot.principalHmac,
           authorizationFenceSha256: snapshot.authorizationFenceSha256,
@@ -1318,7 +1313,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       })
       if (
         !refreshed.ok ||
-        refreshed.authorization.approvalBindingId !== authorization.approvalBindingId ||
         !sameAuthorizationVectorExceptCredentialGeneration(
           refreshed.authorization.authorizationVector,
           authorization.authorizationVector,
@@ -1423,8 +1417,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
             if (
               !refreshed ||
               !refreshed.ok ||
-              refreshed.authorization.approvalBindingId !==
-                authorization.approvalBindingId ||
               !sameAuthorizationVectorExceptCredentialGeneration(
                 refreshed.authorization.authorizationVector,
                 authorization.authorizationVector,

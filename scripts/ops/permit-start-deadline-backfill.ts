@@ -6,10 +6,9 @@
 // when a caller actually starts a permit, and the only other exit from
 // `admitted` is the emergency-kill drain. Before the recurring
 // `permit-start-deadline-sweep` job, an abandoned admission stayed `admitted`
-// forever — pinning its `approval_binding_id` (ON DELETE RESTRICT, so approval
-// rows can never rotate) and keeping `authorization_execution_permits_active_idx`
-// reporting phantom active work. The deployed google-closed-beta database holds
-// 19 such rows (13 property.read_gbp_performance + 6 property.import_gbp_v2).
+// forever, keeping `authorization_execution_permits_active_idx` reporting
+// phantom active work. The deployed google-closed-beta database holds 19 such
+// rows (13 property.read_gbp_performance + 6 property.import_gbp_v2).
 //
 // This command is NOT a second implementation. It calls the exact same
 // `createExecutionPermitStartDeadlineSweeper` the recurring job uses, which
@@ -20,7 +19,7 @@
 //
 // The recurring job makes this command unnecessary going forward; it exists so
 // the pre-existing orphans clear without waiting for the cadence and without an
-// operator hand-writing SQL against a RESTRICT-protected FK.
+// operator hand-writing SQL.
 //
 // MUTATION (not destructive — no row is deleted; `admitted` rows move to the
 // terminal `fenced` state they should already have reached). Deliberately NOT

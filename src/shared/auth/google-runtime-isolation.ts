@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 import {
   GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION,
@@ -5,7 +6,41 @@ import {
   type GoogleContentRuntimeIsolationProfile,
   type GoogleRuntimeRole,
 } from './google-content-contract'
-import { canonicalGoogleContentSha256 } from './google-content-approval'
+
+/**
+ * Deterministic key-sorted JSON, kept local on purpose.
+ *
+ * This moved here when `google-content-approval.ts` was deleted in WP2.2 step 3,
+ * and it is a copy of that module's own local implementation rather than an
+ * import of `#/shared/canonical-json`. `shared/auth` may not reach across that
+ * boundary — the eslint dependency rule rejects it — and the honest response is
+ * to keep the twenty lines local as the deleted module did, not to widen an
+ * allowlist so one import can cross.
+ */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') {
+    return JSON.stringify(value)
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new TypeError('canonical JSON requires finite numbers')
+    }
+    return JSON.stringify(value)
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(',')}]`
+  }
+  if (typeof value !== 'object') {
+    throw new TypeError('canonical JSON value is not serializable')
+  }
+  const entries = Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(Reflect.get(value, key))}`)
+  return `{${entries.join(',')}}`
+}
+
+const canonicalSha256 = (value: unknown): string =>
+  createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex')
 
 const identity = z
   .string()
@@ -275,8 +310,7 @@ export function validateGoogleRuntimeIsolationReadiness(
   }
   if (
     input.expectedImageDigests &&
-    canonicalGoogleContentSha256(profile.imageDigests) !==
-      canonicalGoogleContentSha256(input.expectedImageDigests)
+    canonicalSha256(profile.imageDigests) !== canonicalSha256(input.expectedImageDigests)
   ) {
     deny('runtime_image_vector_mismatch')
   }
@@ -290,13 +324,10 @@ export function validateGoogleRuntimeIsolationReadiness(
   const parsedAttestation = liveProbeAttestationSchema.safeParse(attestationValue)
   if (!parsedAttestation.success) deny('attestation_malformed')
   const attestation = parsedAttestation.data
-  const profileSha256 = canonicalGoogleContentSha256(profile)
+  const profileSha256 = canonicalSha256(profile)
   const expectedOrigins = [...input.expectedGoogleOrigins].sort()
   const actualOrigins = [...profile.allowedGoogleOrigins].sort()
-  if (
-    canonicalGoogleContentSha256(actualOrigins) !==
-    canonicalGoogleContentSha256(expectedOrigins)
-  ) {
+  if (canonicalSha256(actualOrigins) !== canonicalSha256(expectedOrigins)) {
     deny('provider_origin_drift')
   }
   if (

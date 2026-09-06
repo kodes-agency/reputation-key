@@ -16,13 +16,7 @@ CREATE TYPE "public"."authorization_execution_permit_state" AS ENUM('admitted', 
 --> statement-breakpoint
 CREATE TYPE "public"."credential_revoke_permit_state" AS ENUM('dormant', 'active', 'dispatching', 'consumed_no_revoke', 'confirmed_not_sent', 'confirmed_revoked', 'cleanup_ambiguous', 'provider_reset_confirmed');
 --> statement-breakpoint
-CREATE TYPE "public"."google_content_approval_status" AS ENUM('approved', 'suspended', 'expired', 'revoked');
---> statement-breakpoint
-CREATE TYPE "public"."google_content_approval_target_phase" AS ENUM('local_sandbox', 'railway_closed_beta', 'production_expand_canary', 'production_final');
---> statement-breakpoint
 CREATE TYPE "public"."google_content_capability" AS ENUM('property.import_gbp_v2', 'property.read_gbp_performance', 'property.connect_gbp', 'property.publish_reply');
---> statement-breakpoint
-CREATE TYPE "public"."google_content_environment_profile" AS ENUM('sandbox', 'railway-closed-beta-1', 'production');
 --> statement-breakpoint
 CREATE TYPE "public"."google_credential_source_kind" AS ENUM('refresh', 'reauth', 'reconnect');
 --> statement-breakpoint
@@ -2027,7 +2021,6 @@ CREATE TABLE "google_import_discovery_records" (
 	"connection_lifecycle_version" integer NOT NULL,
 	"connection_access_version" integer NOT NULL,
 	"credential_generation" integer NOT NULL,
-	"approval_binding_id" uuid NOT NULL,
 	"authorization_vector" jsonb NOT NULL,
 	"payload" jsonb NOT NULL,
 	"affected_property_id" uuid,
@@ -2079,7 +2072,6 @@ CREATE TABLE "gbp_import_request_items" (
 	"expected_connection_lifecycle_version" integer,
 	"expected_connection_access_version" integer,
 	"expected_credential_generation" integer,
-	"approval_binding_id" varchar(255),
 	"expected_execution_policy_version" varchar(32),
 	"expected_actor_role" varchar(50),
 	"expected_permission_digest" varchar(64),
@@ -2144,16 +2136,14 @@ CREATE TABLE "gbp_import_request_items" (
       )),
 	CONSTRAINT "gbp_import_request_items_authorization_snapshot_valid" CHECK ((
         (
-          "gbp_import_request_items"."approval_binding_id" IS NULL
-          AND "gbp_import_request_items"."expected_execution_policy_version" IS NULL
+          "gbp_import_request_items"."expected_execution_policy_version" IS NULL
           AND "gbp_import_request_items"."expected_actor_role" IS NULL
           AND "gbp_import_request_items"."expected_permission_digest" IS NULL
           AND "gbp_import_request_items"."expected_principal_kind" IS NULL
           AND "gbp_import_request_items"."expected_permission_version" IS NULL
         )
         OR (
-          char_length("gbp_import_request_items"."approval_binding_id") BETWEEN 1 AND 255
-          AND char_length("gbp_import_request_items"."expected_execution_policy_version") BETWEEN 1 AND 32
+          char_length("gbp_import_request_items"."expected_execution_policy_version") BETWEEN 1 AND 32
           AND char_length("gbp_import_request_items"."expected_actor_role") BETWEEN 1 AND 50
           AND "gbp_import_request_items"."expected_permission_digest" ~ '^[a-f0-9]{64}$'
           AND char_length("gbp_import_request_items"."expected_principal_kind") BETWEEN 1 AND 32
@@ -2315,63 +2305,6 @@ CREATE TABLE "authorization_execution_permits" (
 	CONSTRAINT "authorization_execution_permits_start_window_check" CHECK ("authorization_execution_permits"."start_deadline_at" > "authorization_execution_permits"."admitted_at"),
 	CONSTRAINT "authorization_execution_permits_operation_window_check" CHECK ("authorization_execution_permits"."operation_deadline_at" IS NULL OR ("authorization_execution_permits"."started_at" IS NOT NULL AND "authorization_execution_permits"."operation_deadline_at" > "authorization_execution_permits"."started_at")),
 	CONSTRAINT "authorization_execution_permits_state_check" CHECK (("authorization_execution_permits"."state" = 'admitted' AND "authorization_execution_permits"."started_at" IS NULL AND "authorization_execution_permits"."operation_deadline_at" IS NULL AND "authorization_execution_permits"."completed_at" IS NULL) OR ("authorization_execution_permits"."state" = 'started' AND "authorization_execution_permits"."started_at" IS NOT NULL AND "authorization_execution_permits"."operation_deadline_at" IS NOT NULL AND "authorization_execution_permits"."completed_at" IS NULL) OR ("authorization_execution_permits"."state" = 'completed' AND "authorization_execution_permits"."started_at" IS NOT NULL AND "authorization_execution_permits"."operation_deadline_at" IS NOT NULL AND "authorization_execution_permits"."completed_at" IS NOT NULL) OR ("authorization_execution_permits"."state" = 'fenced' AND "authorization_execution_permits"."fenced_at" IS NOT NULL))
-);
---> statement-breakpoint
-CREATE TABLE "capability_compliance_approvals" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"binding_version" integer DEFAULT 1 NOT NULL,
-	"capability" "google_content_capability" NOT NULL,
-	"target_phase" "google_content_approval_target_phase" NOT NULL,
-	"environment_profile" "google_content_environment_profile" NOT NULL,
-	"release_sha" varchar(128) NOT NULL,
-	"evidence_manifest_sha256" varchar(128) NOT NULL,
-	"evidence_index_sha256" varchar(128) NOT NULL,
-	"deployment_attestation_sha256" varchar(128) NOT NULL,
-	"adr_0050_sha256" varchar(128) NOT NULL,
-	"google_content_policy_version" varchar(100) NOT NULL,
-	"google_oauth_contract_version" varchar(100) NOT NULL,
-	"google_project_attestation_sha256" varchar(128) NOT NULL,
-	"google_oauth_client_id_sha256" varchar(128) NOT NULL,
-	"google_redirect_uri_sha256" varchar(128) NOT NULL,
-	"provider_origin_profile_sha256" varchar(128) NOT NULL,
-	"runtime_isolation_profile_version" varchar(100),
-	"runtime_isolation_profile_sha256" varchar(128),
-	"railway_closed_beta_cohort" jsonb,
-	"railway_closed_beta_cohort_sha256" varchar(128),
-	"railway_closed_beta_residual_risk_sha256" varchar(128),
-	"performance_catalog_version" varchar(32) NOT NULL,
-	"route_catalog_version" varchar(64) NOT NULL,
-	"capability_policy_version" varchar(32) NOT NULL,
-	"execution_policy_version" varchar(32) NOT NULL,
-	"migration_head" varchar(255) NOT NULL,
-	"evidence_index" jsonb NOT NULL,
-	"image_digests" jsonb NOT NULL,
-	"role_approvals" jsonb NOT NULL,
-	"approved_at" timestamp with time zone NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"status" "google_content_approval_status" NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "capability_compliance_approvals_window_check" CHECK ("capability_compliance_approvals"."expires_at" > "capability_compliance_approvals"."approved_at"),
-	CONSTRAINT "capability_compliance_approvals_phase_profile_check" CHECK ((
-        ("capability_compliance_approvals"."target_phase" = 'railway_closed_beta'
-          AND "capability_compliance_approvals"."environment_profile" = 'railway-closed-beta-1'
-          AND "capability_compliance_approvals"."runtime_isolation_profile_version" IS NULL
-          AND "capability_compliance_approvals"."runtime_isolation_profile_sha256" IS NULL
-          AND "capability_compliance_approvals"."railway_closed_beta_cohort" IS NOT NULL
-          AND "capability_compliance_approvals"."railway_closed_beta_cohort_sha256" IS NOT NULL
-          AND "capability_compliance_approvals"."railway_closed_beta_residual_risk_sha256" IS NOT NULL)
-        OR
-        ("capability_compliance_approvals"."target_phase" <> 'railway_closed_beta'
-          AND (("capability_compliance_approvals"."target_phase" = 'local_sandbox' AND "capability_compliance_approvals"."environment_profile" = 'sandbox')
-            OR ("capability_compliance_approvals"."target_phase" IN ('production_expand_canary', 'production_final')
-              AND "capability_compliance_approvals"."environment_profile" = 'production'))
-          AND "capability_compliance_approvals"."runtime_isolation_profile_version" = 'google-content-egress-1'
-          AND "capability_compliance_approvals"."runtime_isolation_profile_sha256" IS NOT NULL
-          AND "capability_compliance_approvals"."railway_closed_beta_cohort" IS NULL
-          AND "capability_compliance_approvals"."railway_closed_beta_cohort_sha256" IS NULL
-          AND "capability_compliance_approvals"."railway_closed_beta_residual_risk_sha256" IS NULL)
-      ))
 );
 --> statement-breakpoint
 CREATE TABLE "capability_execution_control" (
@@ -5971,8 +5904,6 @@ CREATE INDEX "authorization_execution_permits_active_idx" ON "authorization_exec
 --> statement-breakpoint
 CREATE INDEX "authorization_execution_permits_scope_idx" ON "authorization_execution_permits" USING btree ("organization_id","property_id","connection_id");
 --> statement-breakpoint
-CREATE INDEX "capability_compliance_approvals_active_idx" ON "capability_compliance_approvals" USING btree ("capability","status","expires_at");
---> statement-breakpoint
 CREATE INDEX "credential_revoke_permits_active_idx" ON "credential_revoke_permits" USING btree ("guard_id","state","cleanup_deadline_at");
 --> statement-breakpoint
 CREATE INDEX "google_credential_source_operations_active_idx" ON "google_credential_source_operations" USING btree ("guard_id","state","operation_deadline_at");
@@ -6366,8 +6297,6 @@ CREATE UNIQUE INDEX "gbp_import_requests_saga_batch_unique" ON "gbp_import_reque
 CREATE UNIQUE INDEX "gbp_import_sagas_org_request_unique" ON "gbp_import_sagas" USING btree ("organization_id","request_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "gbp_import_sagas_org_id_key" ON "gbp_import_sagas" USING btree ("organization_id","id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "capability_compliance_approvals_version_key" ON "capability_compliance_approvals" USING btree ("capability","target_phase","environment_profile","binding_version");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "google_credential_source_operations_guard_sequence_key" ON "google_credential_source_operations" USING btree ("guard_id","sequence");
 --> statement-breakpoint

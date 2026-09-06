@@ -24,7 +24,6 @@ const actor: AuthContext = {
 }
 const connectionId = googleConnectionId('11111111-1111-4111-8111-111111111111')
 const destinationId = propertyId('22222222-2222-4222-8222-222222222222')
-const approvalBindingId = '33333333-3333-4333-8333-333333333333'
 
 const connection = (overrides: Partial<GoogleConnection> = {}): GoogleConnection => ({
   id: connectionId,
@@ -70,7 +69,6 @@ const contentAuthorization = (
   }> = {},
 ) => ({
   ok: true as const,
-  approvalBindingId,
   policyVersion: 11,
   emergencyKillVersion: 4,
   authorizationVector: {
@@ -183,7 +181,6 @@ describe('authorizeGoogleImportCommand', () => {
         connectionLifecycleVersion: 3,
         connectionAccessVersion: 4,
         credentialGeneration: 5,
-        approvalBindingId,
         authorizationVector: {
           executionPolicyVersion: 'beta-local-2',
           role: 'AccountAdmin',
@@ -326,7 +323,6 @@ describe('authorizeGoogleImportCommand', () => {
       connectionLifecycleVersion: 3,
       connectionAccessVersion: 4,
       credentialGeneration: 5,
-      approvalBindingId,
       authorizationVector: {
         executionPolicyVersion: 'beta-local-2',
         role: 'AccountAdmin',
@@ -349,7 +345,7 @@ describe('authorizeGoogleImportCommand', () => {
     expect(getAccessToken).not.toHaveBeenCalled()
   })
 
-  it('fails closed before token access when content approval is unavailable', async () => {
+  it('fails closed before token access when content authorization is unavailable', async () => {
     const denied = setup({
       authorizeGoogleContent: async () => ({
         ok: false,
@@ -485,7 +481,6 @@ describe('authorizeGoogleImportCommand', () => {
       connectionLifecycleVersion: 3,
       connectionAccessVersion: 4,
       credentialGeneration: 5,
-      approvalBindingId,
       authorizationVector: {
         executionPolicyVersion: 'beta-local-2',
         principalKind: 'user',
@@ -534,7 +529,7 @@ describe('authorizeGoogleImportCommand', () => {
         requireAccessToken: false,
       })
 
-      expect(result).toMatchObject({ ok: true, authorization: { approvalBindingId } })
+      expect(result).toMatchObject({ ok: true })
       // The relink item still had to re-prove its own authorization from
       // scratch: org import, org connect, and the property-scoped decision.
       expect(decide).toHaveBeenCalledTimes(3)
@@ -629,7 +624,6 @@ describe('authorizeGoogleImportCommand', () => {
       connectionLifecycleVersion: 3,
       connectionAccessVersion: 4,
       credentialGeneration: 5,
-      approvalBindingId,
       authorizationVector: {
         executionPolicyVersion: 'beta-local-2',
         principalKind: 'user',

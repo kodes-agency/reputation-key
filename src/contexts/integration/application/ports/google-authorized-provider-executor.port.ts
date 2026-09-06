@@ -27,7 +27,6 @@ export type GoogleProviderGatewayAdmissionCode =
  * it surfaces is a type error rather than a silent `upstream_error`.
  */
 export type GoogleProviderAuthorityAdmissionCode =
-  | 'approval_unavailable'
   | 'runtime_binding_mismatch'
   | 'capability_killed'
   | 'authorization_denied'
@@ -37,13 +36,11 @@ export type GoogleProviderAuthorityAdmissionCode =
   | 'permit_state_changed'
   | 'start_deadline_elapsed'
   | 'state_not_admitted'
-  | 'approval_invalid'
 
 /**
  * Every content-free admission denial reason, from either admission side: the
- * gateway's own permit checks above, or the app-side content authority, whose
- * closed deny codes distinguish a real authorization/approval change from a
- * transient outage. Codes only — never a provider identifier or payload.
+ * gateway's own permit checks above or the app-side content authority. Codes
+ * only — never a provider identifier or payload.
  */
 export type GoogleProviderAdmissionCode =
   | GoogleProviderGatewayAdmissionCode

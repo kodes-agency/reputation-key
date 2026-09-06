@@ -21,7 +21,6 @@ const authorization = Object.freeze({
   propertyId: PROPERTY_ID,
   connectionId: CONNECTION_ID,
   initiatorUserId: null,
-  approvalBindingId: 'approval-1',
   expectedCredentialGeneration: 3,
   authorizationVector: Object.freeze({ generation: 3, propertySourceEpoch: 17 }),
 }) satisfies GoogleProviderCallAuthorization
@@ -31,7 +30,6 @@ const publicationAuthorization = Object.freeze({
   propertyId: PROPERTY_ID,
   connectionId: CONNECTION_ID,
   initiatorUserId: null,
-  approvalBindingId: 'publication-approval-1',
   expectedCredentialGeneration: 3,
   authorizationVector: Object.freeze({
     generation: 3,

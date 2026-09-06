@@ -1,192 +1,20 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  GOOGLE_CONTENT_APPROVAL_ROLES,
-  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
-  type GoogleContentApprovalBinding,
-  type GoogleContentApprovalRoleDocument,
-  type GoogleContentCapability,
-} from './google-content-contract'
 import type { AuthorizationExecutionPermit } from './authorization-execution-permit'
 import {
   createGoogleContentAuthorizationAuthority,
-  type GoogleContentApprovalRecord,
   type GoogleContentControlState,
   type GoogleContentAuthorityStore,
   type GoogleContentRuntimeBinding,
 } from './google-content-authority'
-import {
-  canonicalGoogleContentSha256,
-  type GoogleContentApprovalCandidate,
-} from './google-content-approval'
 
 const now = new Date('2026-08-10T10:00:00.000Z')
 
-const bindingBase = (
-  capability: GoogleContentCapability = 'property.import_gbp_v2',
-): Omit<GoogleContentApprovalBinding, 'evidenceIndexSha256'> => ({
-  capability,
-  targetPhase: 'local_sandbox',
-  environmentProfile: 'sandbox',
-  releaseSha: 'release-sha',
-  evidenceManifestSha256: canonicalGoogleContentSha256('manifest'),
-  deploymentAttestationSha256: canonicalGoogleContentSha256('deployment'),
-  adr0050Sha256: canonicalGoogleContentSha256('adr-0050'),
-  googleContentPolicyVersion: 'google-content-live-1',
-  googleOAuthContractVersion: 'google-oauth-oidc-1',
-  googleProjectAttestationSha256: canonicalGoogleContentSha256('project-attestation'),
-  googleOAuthClientIdSha256: canonicalGoogleContentSha256('oauth-client-id'),
-  googleRedirectUriSha256: canonicalGoogleContentSha256('redirect-uri'),
-  providerOriginProfileSha256: canonicalGoogleContentSha256('provider-origin-profile'),
-  runtimeIsolationProfileVersion: 'google-content-egress-1',
-  runtimeIsolationProfileSha256: canonicalGoogleContentSha256(
-    'runtime-isolation-profile',
-  ),
-  railwayClosedBetaCohort: null,
-  railwayClosedBetaCohortSha256: null,
-  railwayClosedBetaResidualRiskSha256: null,
-  performanceCatalogVersion: '2026-08-05',
-  routeCatalogueVersion: GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
-  capabilityPolicyVersion: 'beta-local-2',
-  executionPolicyVersion: 'beta-local-2',
-  migrationHead: '0029_google-content-control',
-  imageDigests: {
-    web: `sha256:${canonicalGoogleContentSha256('web-image')}`,
-    worker: `sha256:${canonicalGoogleContentSha256('worker-image')}`,
-    googleExecutionAdmission: `sha256:${canonicalGoogleContentSha256('admission-image')}`,
-    googleEgressGateway: `sha256:${canonicalGoogleContentSha256('gateway-image')}`,
-    providerEphemeralRedis: `sha256:${canonicalGoogleContentSha256('redis-image')}`,
-  },
-  approvedAt: '2026-08-10T10:00:00.000Z',
-  expiresAt: '2026-08-12T10:00:00.000Z',
-  status: 'approved',
-})
-
-const runtimeBinding = (): GoogleContentRuntimeBinding => {
-  const {
-    approvedAt: _approvedAt,
-    expiresAt: _expiresAt,
-    status: _status,
-    ...runtime
-  } = binding()
-  return runtime
-}
-
-const roleDocument = (
-  role: (typeof GOOGLE_CONTENT_APPROVAL_ROLES)[number],
-  capability: GoogleContentCapability = 'property.import_gbp_v2',
-): GoogleContentApprovalRoleDocument => ({
-  role,
-  capability,
-  manifestSha256: bindingBase(capability).evidenceManifestSha256,
-  releaseSha: 'release-sha',
-  targetPhase: 'local_sandbox',
-  environmentProfile: 'sandbox',
-  transientPerformanceReportingDecision: 'approved',
-  confirmedImportProfileTreatmentDecision: 'approved',
-  unmanagedUserAgentMemoryResidualDecision: 'approved',
-  railwayClosedBetaResidualDecision: null,
-  railwayClosedBetaCohortSha256: null,
-  railwayClosedBetaResidualRiskSha256: null,
-  approverIdentity: `${role}-approver`,
-  approvedAt: '2026-08-10T10:00:00.000Z',
-  expiresAt: '2026-08-12T10:00:00.000Z',
-  signature: `${role}-signature`,
-})
-
-const candidate = (
-  capability: GoogleContentCapability = 'property.import_gbp_v2',
-): GoogleContentApprovalCandidate => {
-  const roleDocuments = GOOGLE_CONTENT_APPROVAL_ROLES.map((role) => {
-    const document = roleDocument(role, capability)
-    return { sha256: canonicalGoogleContentSha256(document), document }
-  })
-  const indexDocument = {
-    manifestSha256: bindingBase(capability).evidenceManifestSha256,
-    artifactSha256: {
-      deployment: bindingBase(capability).deploymentAttestationSha256,
-    },
-    roleDocumentSha256: {
-      'engineering/runtime': roleDocuments[0]!.sha256,
-      'product/property': roleDocuments[1]!.sha256,
-      'security/privacy': roleDocuments[2]!.sha256,
-      'google-project/integration': roleDocuments[3]!.sha256,
-      'operations/on-call': roleDocuments[4]!.sha256,
-    },
-  }
-  const index = {
-    ...indexDocument,
-    sha256: canonicalGoogleContentSha256(indexDocument),
-  }
-  return {
-    binding: { ...bindingBase(capability), evidenceIndexSha256: index.sha256 },
-    index,
-    roleDocuments,
-  }
-}
-
-const approvalBundle = (
-  capability: GoogleContentCapability = 'property.import_gbp_v2',
-) => ({ manifest: 'manifest', candidate: candidate(capability) })
-
-const binding = (): GoogleContentApprovalBinding => candidate().binding
-const railwayCandidate = (): GoogleContentApprovalCandidate => {
-  const cohort = ['org-1']
-  const cohortSha256 = canonicalGoogleContentSha256(cohort)
-  const residualRiskSha256 = canonicalGoogleContentSha256('railway-residual-risk')
-  const approverIdentity = 'Railway Owner <owner@example.test>'
-  const railwayRoleDocuments = GOOGLE_CONTENT_APPROVAL_ROLES.map((role) => {
-    const document: GoogleContentApprovalRoleDocument = {
-      ...roleDocument(role),
-      targetPhase: 'railway_closed_beta',
-      environmentProfile: 'railway-closed-beta-1',
-      railwayClosedBetaResidualDecision: 'approved',
-      railwayClosedBetaCohortSha256: cohortSha256,
-      railwayClosedBetaResidualRiskSha256: residualRiskSha256,
-      approverIdentity,
-      expiresAt: '2026-09-09T10:00:00.000Z',
-    }
-    return { sha256: canonicalGoogleContentSha256(document), document }
-  })
-  const indexDocument = {
-    manifestSha256: bindingBase().evidenceManifestSha256,
-    artifactSha256: { deployment: bindingBase().deploymentAttestationSha256 },
-    roleDocumentSha256: Object.fromEntries(
-      railwayRoleDocuments.map((entry) => [entry.document.role, entry.sha256]),
-    ) as GoogleContentApprovalCandidate['index']['roleDocumentSha256'],
-  }
-  const index = {
-    ...indexDocument,
-    sha256: canonicalGoogleContentSha256(indexDocument),
-  }
-  return {
-    binding: {
-      ...bindingBase(),
-      targetPhase: 'railway_closed_beta',
-      environmentProfile: 'railway-closed-beta-1',
-      runtimeIsolationProfileVersion: null,
-      runtimeIsolationProfileSha256: null,
-      railwayClosedBetaCohort: cohort,
-      railwayClosedBetaCohortSha256: cohortSha256,
-      railwayClosedBetaResidualRiskSha256: residualRiskSha256,
-      evidenceIndexSha256: index.sha256,
-      expiresAt: '2026-09-09T10:00:00.000Z',
-    },
-    index,
-    roleDocuments: railwayRoleDocuments,
-  }
-}
-
-const runtimeBindingFromCandidate = (
-  input: GoogleContentApprovalCandidate,
-): GoogleContentRuntimeBinding => {
-  const {
-    approvedAt: _approvedAt,
-    expiresAt: _expiresAt,
-    status: _status,
-    ...runtime
-  } = input.binding
-  return runtime
-}
+// WP2.2 step 3: two helpers used to live here, both deriving a runtime binding
+// from a signed approval candidate by omitting `approvedAt`/`expiresAt`/`status`.
+// A runtime binding is now just a capability, so there is nothing to derive.
+const runtimeBinding = (
+  capability: GoogleContentRuntimeBinding['capability'] = 'property.import_gbp_v2',
+): GoogleContentRuntimeBinding => ({ capability })
 
 type Tx = Readonly<Record<string, never>>
 
@@ -196,7 +24,6 @@ function createStore() {
     emergencyKillVersion: 4,
     killedCapabilities: [],
   }
-  const approvals = new Map<string, GoogleContentApprovalRecord>()
   const permits = new Map<
     string,
     Readonly<{
@@ -209,16 +36,6 @@ function createStore() {
   const store: GoogleContentAuthorityStore<Tx> = {
     transaction: (run) => run({}),
     loadControl: async () => control,
-    appendApproval: async (_tx, input) => {
-      const record = { id: `approval-${approvals.size + 1}`, candidate: input }
-      approvals.set(record.id, record)
-      return record
-    },
-    loadApprovalForRuntime: async (_tx, runtime) =>
-      [...approvals.values()].find(
-        (record) => record.candidate.binding.capability === runtime.capability,
-      ) ?? null,
-    loadApprovalById: async (_tx, id) => approvals.get(id) ?? null,
     insertPermit: async (_tx, record) => {
       permits.set(record.permit.id, record)
     },
@@ -293,7 +110,6 @@ function createStore() {
   return {
     store,
     permits,
-    approvals,
     setControl(next: typeof control) {
       control = next
     },
@@ -332,52 +148,22 @@ const admissionInput = (
 describe('Google Content authorization authority', () => {
   // WP2.2 removed the authority policy-refresh deny path because the deleted
   // counter comparisons were its only consumer.
-  it('persists only an exact valid five-role approval chain', async () => {
+  // WP2.2 step 3: a test asserting that only an exact valid five-role approval
+  // chain persists lived here. Approval bundles, their role signatures and
+  // their storage are all deleted, so it has no subject.
+
+  it('preauthorizes against the current control and authorization vector', async () => {
     const memory = createStore()
     const authority = createGoogleContentAuthorizationAuthority({
       store: memory.store,
       clock: () => now,
       newPermitId: () => 'permit-1',
-      verifyRoleApproval: (document) =>
-        document.signature === `${document.role}-signature`,
-      isRegisteredOperator: () => true,
-      authorize: async () => ({ allowed: true, vector: { grantGeneration: 3 } }),
-    })
-
-    await expect(authority.installApproval(approvalBundle())).resolves.toEqual({
-      ok: true,
-      approvalBindingId: 'approval-1',
-    })
-    await expect(
-      authority.installApproval({
-        ...approvalBundle(),
-        candidate: {
-          ...candidate(),
-          roleDocuments: candidate().roleDocuments.map((entry, index) =>
-            index === 0
-              ? { ...entry, document: { ...entry.document, signature: 'invalid' } }
-              : entry,
-          ),
-        },
-      }),
-    ).resolves.toEqual({ ok: false, code: 'role_digest_mismatch' })
-    expect(memory.approvals).toHaveLength(1)
-  })
-
-  it('preauthorizes against the current approval, control, and authorization vector', async () => {
-    const memory = createStore()
-    const authority = createGoogleContentAuthorizationAuthority({
-      store: memory.store,
-      clock: () => now,
-      newPermitId: () => 'permit-1',
-      verifyRoleApproval: () => true,
       isRegisteredOperator: () => true,
       authorize: async () => ({
         allowed: true,
         vector: { grantGeneration: 3, connectionGeneration: 8 },
       }),
     })
-    await authority.installApproval(approvalBundle())
 
     await expect(
       authority.preauthorize({
@@ -387,9 +173,6 @@ describe('Google Content authorization authority', () => {
       }),
     ).resolves.toEqual({
       ok: true,
-      approvalBindingId: 'approval-1',
-      policyVersion: 12,
-      emergencyKillVersion: 4,
       authorizationVector: { grantGeneration: 3, connectionGeneration: 8 },
     })
   })
@@ -400,11 +183,9 @@ describe('Google Content authorization authority', () => {
       store: memory.store,
       clock: () => now,
       newPermitId: () => 'permit-1',
-      verifyRoleApproval: () => true,
       isRegisteredOperator: () => true,
       authorize: async () => ({ allowed: true, vector: { grantGeneration: 4 } }),
     })
-    await authority.installApproval(approvalBundle())
 
     await expect(authority.admit(admissionInput())).resolves.toEqual({
       ok: false,
@@ -428,11 +209,9 @@ describe('Google Content authorization authority', () => {
       store: memory.store,
       clock: () => now,
       newPermitId: () => 'permit-1',
-      verifyRoleApproval: () => true,
       isRegisteredOperator: () => true,
       authorize,
     })
-    await authority.installApproval(approvalBundle())
 
     await expect(authority.admit(admissionInput())).resolves.toEqual({
       ok: false,
@@ -442,42 +221,12 @@ describe('Google Content authorization authority', () => {
     expect(memory.permits).toHaveLength(0)
   })
 
-  it('admits Railway closed-beta work only for its signed organization cohort', async () => {
-    const memory = createStore()
-    const authorize = vi.fn(async () => ({
-      allowed: true as const,
-      vector: { grantGeneration: 3 },
-    }))
-    const authority = createGoogleContentAuthorizationAuthority({
-      store: memory.store,
-      clock: () => now,
-      newPermitId: () => 'permit-1',
-      verifyRoleApproval: () => true,
-      isRegisteredOperator: () => true,
-      authorize,
-    })
-    const railway = railwayCandidate()
-    await authority.installApproval({ manifest: 'manifest', candidate: railway })
+  // WP2.2 step 3: the signed-cohort admission test lived here. Cohort
+  // containment came from the approval binding's organization list; it is now
+  // enforced per request by `policyAuthorizes` re-querying
+  // `organization_capability`, which the surviving tests cover.
 
-    await expect(
-      authority.admit({
-        ...admissionInput(),
-        runtimeBinding: runtimeBindingFromCandidate(railway),
-        scope: { ...admissionInput().scope, organizationId: 'org-outside-cohort' },
-      }),
-    ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
-    expect(authorize).not.toHaveBeenCalled()
-    expect(memory.permits).toHaveLength(0)
-
-    await expect(
-      authority.admit({
-        ...admissionInput(),
-        runtimeBinding: runtimeBindingFromCandidate(railway),
-      }),
-    ).resolves.toMatchObject({ ok: true })
-  })
-
-  it('allows a killed capability only for a named operator with an exact approval', async () => {
+  it('allows a killed capability only for a named operator', async () => {
     const memory = createStore()
     memory.setControl({
       policyVersion: 12,
@@ -488,7 +237,6 @@ describe('Google Content authorization authority', () => {
       store: memory.store,
       clock: () => now,
       newPermitId: () => 'permit-1',
-      verifyRoleApproval: () => true,
       isRegisteredOperator: (operatorId) => operatorId === 'operator-1',
       authorize: async () => ({ allowed: true, vector: { grantGeneration: 3 } }),
     })
@@ -496,11 +244,10 @@ describe('Google Content authorization authority', () => {
     await expect(
       authority.allowCapability(runtimeBinding(), 'unknown', 'approved rollout'),
     ).resolves.toEqual({ ok: false, code: 'operator_not_registered' })
-    await expect(
-      authority.allowCapability(runtimeBinding(), 'operator-1', 'approved rollout'),
-    ).resolves.toEqual({ ok: false, code: 'approval_unavailable' })
-
-    await authority.installApproval(approvalBundle())
+    // A third case used to sit between these two: the same registered operator
+    // being refused `approval_unavailable` until a valid bundle was installed.
+    // Operator registration is now the only thing that authorizes re-allowing a
+    // killed capability, which is what an operator can actually act on.
     await expect(
       authority.allowCapability(runtimeBinding(), 'operator-1', 'approved rollout'),
     ).resolves.toEqual({ ok: true, emergencyKillVersion: 6 })
@@ -516,14 +263,12 @@ describe('Google Content authorization authority', () => {
       store: memory.store,
       clock: () => now,
       newPermitId: () => 'permit-1',
-      verifyRoleApproval: () => true,
       isRegisteredOperator: () => true,
       authorize: async () => ({
         allowed: true,
         vector: { grantGeneration: 3, connectionGeneration: 8 },
       }),
     })
-    await authority.installApproval(approvalBundle())
 
     const admitted = await authority.admit(
       admissionInput({ grantGeneration: 3, connectionGeneration: 8 }),
@@ -575,19 +320,13 @@ describe('Google Content authorization authority', () => {
         ? ({ allowed: false, code: 'authorization_denied' } as const)
         : ({ allowed: true, vector: publicationVector } as const),
     )
-    const publicationCandidate = candidate('property.publish_reply')
-    const publicationRuntime = runtimeBindingFromCandidate(publicationCandidate)
+    const publicationRuntime = { capability: 'property.publish_reply' } as const
     const authority = createGoogleContentAuthorizationAuthority({
       store: memory.store,
       clock: () => now,
       newPermitId: () => 'permit-publication-1',
-      verifyRoleApproval: () => true,
       isRegisteredOperator: () => true,
       authorize,
-    })
-    await authority.installApproval({
-      manifest: 'manifest',
-      candidate: publicationCandidate,
     })
 
     const admitted = await authority.admit({
@@ -624,11 +363,9 @@ describe('Google Content authorization authority', () => {
       store: memory.store,
       clock: () => now,
       newPermitId: () => 'permit-1',
-      verifyRoleApproval: () => true,
       isRegisteredOperator: () => true,
       authorize: async () => ({ allowed: true, vector: { grantGeneration } }),
     })
-    await authority.installApproval(approvalBundle())
     const admitted = await authority.admit(admissionInput())
     if (!admitted.ok) throw new Error('expected admission')
     grantGeneration = 4
@@ -645,11 +382,9 @@ describe('Google Content authorization authority', () => {
       store: memory.store,
       clock: () => currentTime,
       newPermitId: () => 'permit-1',
-      verifyRoleApproval: () => true,
       isRegisteredOperator: () => true,
       authorize: async () => ({ allowed: true, vector: { grantGeneration: 3 } }),
     })
-    await authority.installApproval(approvalBundle())
     const admitted = await authority.admit(admissionInput())
     if (!admitted.ok) throw new Error('expected admission')
     const started = await authority.start(
@@ -673,11 +408,9 @@ describe('Google Content authorization authority', () => {
       store: memory.store,
       clock: () => now,
       newPermitId: () => 'permit-1',
-      verifyRoleApproval: () => true,
       isRegisteredOperator: () => true,
       authorize: async () => ({ allowed: true, vector: { grantGeneration: 3 } }),
     })
-    await authority.installApproval(approvalBundle())
     await authority.admit(admissionInput())
 
     await expect(

@@ -1,6 +1,6 @@
 // Read-only capability refusal diagnostic (issues #403/#408). The report reads
-// live capability, Google approval, execution-control, and empirical permit
-// state; it never predicts or invokes the mutating Postgres start authority.
+// live capability, execution-control, and empirical permit state; it never
+// predicts or invokes the mutating Postgres start authority.
 //
 // WHERE THIS CAN RUN, and why that is not an oversight.
 //
@@ -20,13 +20,6 @@
 
 import { pathToFileURL } from 'node:url'
 import { CAPABILITIES } from '../../src/shared/auth/beta-capabilities'
-import {
-  createGoogleContentRoleSignatureVerifier,
-  parseGoogleContentRolePublicKeys,
-  type GoogleContentApprovalSignatureVerifier,
-} from '../../src/shared/auth/google-content-approval'
-import { parseGoogleContentRuntimeBindings } from '../../src/shared/auth/google-content-runtime-bindings'
-import { getEnv } from '../../src/shared/config/env'
 import { createCapabilityRefusalReaders } from '../../src/contexts/identity/infrastructure/repositories/capability-refusal.repository'
 import { getDb } from '../../src/shared/db'
 import {
@@ -87,33 +80,6 @@ function extractReportArgv(argv: ReadonlyArray<string>): ReportArgvResult {
   }
 
   return { ok: true, value: { capability, harnessArgv } }
-}
-
-function loadRoleApprovalVerifier(
-  raw: string | undefined,
-): GoogleContentApprovalSignatureVerifier {
-  if (!raw) throw new Error('Google Content approval role public keys are unavailable')
-
-  let input: unknown
-  try {
-    input = JSON.parse(raw)
-  } catch {
-    throw new Error('Google Content approval role public keys are invalid')
-  }
-  const parsed = parseGoogleContentRolePublicKeys(input)
-  if (!parsed.ok) throw new Error('Google Content approval role public keys are invalid')
-  return createGoogleContentRoleSignatureVerifier(parsed.publicKeys)
-}
-
-/** Load signing configuration only if the explainer reaches approval validation. */
-function createConfiguredRoleApprovalVerifier(
-  raw: string | undefined,
-): GoogleContentApprovalSignatureVerifier {
-  let verifier: GoogleContentApprovalSignatureVerifier | undefined
-  return (document) => {
-    verifier ??= loadRoleApprovalVerifier(raw)
-    return verifier(document)
-  }
 }
 
 function renderFact(fact: ObservedFact): string {
@@ -199,18 +165,9 @@ async function main(): Promise<void> {
     },
     async (context, _args, io) => {
       actionRunning = true
-      const env = getEnv()
-      const runtimeBindings = env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON
-        ? parseGoogleContentRuntimeBindings(env.GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON)
-        : undefined
-      const explain = createCapabilityRefusalExplainer({
-        ...createCapabilityRefusalReaders(getDb()),
-        googleContentRuntimeBindings: () => runtimeBindings,
-        verifyRoleApproval: createConfiguredRoleApprovalVerifier(
-          env.GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON,
-        ),
-        clock: () => new Date(),
-      })
+      const explain = createCapabilityRefusalExplainer(
+        createCapabilityRefusalReaders(getDb()),
+      )
       const capabilities: ReadonlyArray<string> = parsed.value.capability
         ? [parsed.value.capability]
         : CAPABILITIES

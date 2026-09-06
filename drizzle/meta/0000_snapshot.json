@@ -1,5 +1,5 @@
 {
-  "id": "f0902ae8-164f-4f62-be87-b0afb0aff330",
+  "id": "4fb2491a-02e3-4bad-9544-9625271ac922",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -12494,12 +12494,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "approval_binding_id": {
-          "name": "approval_binding_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
         "authorization_vector": {
           "name": "authorization_vector",
           "type": "jsonb",
@@ -12899,12 +12893,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "approval_binding_id": {
-          "name": "approval_binding_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
         "expected_execution_policy_version": {
           "name": "expected_execution_policy_version",
           "type": "varchar(32)",
@@ -13231,7 +13219,7 @@
         },
         "gbp_import_request_items_authorization_snapshot_valid": {
           "name": "gbp_import_request_items_authorization_snapshot_valid",
-          "value": "(\n        (\n          \"gbp_import_request_items\".\"approval_binding_id\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_execution_policy_version\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_actor_role\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_permission_digest\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_principal_kind\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_permission_version\" IS NULL\n        )\n        OR (\n          char_length(\"gbp_import_request_items\".\"approval_binding_id\") BETWEEN 1 AND 255\n          AND char_length(\"gbp_import_request_items\".\"expected_execution_policy_version\") BETWEEN 1 AND 32\n          AND char_length(\"gbp_import_request_items\".\"expected_actor_role\") BETWEEN 1 AND 50\n          AND \"gbp_import_request_items\".\"expected_permission_digest\" ~ '^[a-f0-9]{64}$'\n          AND char_length(\"gbp_import_request_items\".\"expected_principal_kind\") BETWEEN 1 AND 32\n          AND \"gbp_import_request_items\".\"expected_permission_version\" >= 0\n        )\n      )"
+          "value": "(\n        (\n          \"gbp_import_request_items\".\"expected_execution_policy_version\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_actor_role\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_permission_digest\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_principal_kind\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_permission_version\" IS NULL\n        )\n        OR (\n          char_length(\"gbp_import_request_items\".\"expected_execution_policy_version\") BETWEEN 1 AND 32\n          AND char_length(\"gbp_import_request_items\".\"expected_actor_role\") BETWEEN 1 AND 50\n          AND \"gbp_import_request_items\".\"expected_permission_digest\" ~ '^[a-f0-9]{64}$'\n          AND char_length(\"gbp_import_request_items\".\"expected_principal_kind\") BETWEEN 1 AND 32\n          AND \"gbp_import_request_items\".\"expected_permission_version\" >= 0\n        )\n      )"
         },
         "gbp_import_request_items_attempt_fence_valid": {
           "name": "gbp_import_request_items_attempt_fence_valid",
@@ -13983,301 +13971,6 @@
         "authorization_execution_permits_state_check": {
           "name": "authorization_execution_permits_state_check",
           "value": "(\"authorization_execution_permits\".\"state\" = 'admitted' AND \"authorization_execution_permits\".\"started_at\" IS NULL AND \"authorization_execution_permits\".\"operation_deadline_at\" IS NULL AND \"authorization_execution_permits\".\"completed_at\" IS NULL) OR (\"authorization_execution_permits\".\"state\" = 'started' AND \"authorization_execution_permits\".\"started_at\" IS NOT NULL AND \"authorization_execution_permits\".\"operation_deadline_at\" IS NOT NULL AND \"authorization_execution_permits\".\"completed_at\" IS NULL) OR (\"authorization_execution_permits\".\"state\" = 'completed' AND \"authorization_execution_permits\".\"started_at\" IS NOT NULL AND \"authorization_execution_permits\".\"operation_deadline_at\" IS NOT NULL AND \"authorization_execution_permits\".\"completed_at\" IS NOT NULL) OR (\"authorization_execution_permits\".\"state\" = 'fenced' AND \"authorization_execution_permits\".\"fenced_at\" IS NOT NULL)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.capability_compliance_approvals": {
-      "name": "capability_compliance_approvals",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "binding_version": {
-          "name": "binding_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "capability": {
-          "name": "capability",
-          "type": "google_content_capability",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_phase": {
-          "name": "target_phase",
-          "type": "google_content_approval_target_phase",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "environment_profile": {
-          "name": "environment_profile",
-          "type": "google_content_environment_profile",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "release_sha": {
-          "name": "release_sha",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence_manifest_sha256": {
-          "name": "evidence_manifest_sha256",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence_index_sha256": {
-          "name": "evidence_index_sha256",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "deployment_attestation_sha256": {
-          "name": "deployment_attestation_sha256",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "adr_0050_sha256": {
-          "name": "adr_0050_sha256",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "google_content_policy_version": {
-          "name": "google_content_policy_version",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "google_oauth_contract_version": {
-          "name": "google_oauth_contract_version",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "google_project_attestation_sha256": {
-          "name": "google_project_attestation_sha256",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "google_oauth_client_id_sha256": {
-          "name": "google_oauth_client_id_sha256",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "google_redirect_uri_sha256": {
-          "name": "google_redirect_uri_sha256",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider_origin_profile_sha256": {
-          "name": "provider_origin_profile_sha256",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "runtime_isolation_profile_version": {
-          "name": "runtime_isolation_profile_version",
-          "type": "varchar(100)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "runtime_isolation_profile_sha256": {
-          "name": "runtime_isolation_profile_sha256",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "railway_closed_beta_cohort": {
-          "name": "railway_closed_beta_cohort",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "railway_closed_beta_cohort_sha256": {
-          "name": "railway_closed_beta_cohort_sha256",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "railway_closed_beta_residual_risk_sha256": {
-          "name": "railway_closed_beta_residual_risk_sha256",
-          "type": "varchar(128)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "performance_catalog_version": {
-          "name": "performance_catalog_version",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "route_catalog_version": {
-          "name": "route_catalog_version",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "capability_policy_version": {
-          "name": "capability_policy_version",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "execution_policy_version": {
-          "name": "execution_policy_version",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "migration_head": {
-          "name": "migration_head",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence_index": {
-          "name": "evidence_index",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "image_digests": {
-          "name": "image_digests",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role_approvals": {
-          "name": "role_approvals",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "approved_at": {
-          "name": "approved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "google_content_approval_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "capability_compliance_approvals_version_key": {
-          "name": "capability_compliance_approvals_version_key",
-          "columns": [
-            {
-              "expression": "capability",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "target_phase",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "environment_profile",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "binding_version",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "capability_compliance_approvals_active_idx": {
-          "name": "capability_compliance_approvals_active_idx",
-          "columns": [
-            {
-              "expression": "capability",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "capability_compliance_approvals_window_check": {
-          "name": "capability_compliance_approvals_window_check",
-          "value": "\"capability_compliance_approvals\".\"expires_at\" > \"capability_compliance_approvals\".\"approved_at\""
-        },
-        "capability_compliance_approvals_phase_profile_check": {
-          "name": "capability_compliance_approvals_phase_profile_check",
-          "value": "(\n        (\"capability_compliance_approvals\".\"target_phase\" = 'railway_closed_beta'\n          AND \"capability_compliance_approvals\".\"environment_profile\" = 'railway-closed-beta-1'\n          AND \"capability_compliance_approvals\".\"runtime_isolation_profile_version\" IS NULL\n          AND \"capability_compliance_approvals\".\"runtime_isolation_profile_sha256\" IS NULL\n          AND \"capability_compliance_approvals\".\"railway_closed_beta_cohort\" IS NOT NULL\n          AND \"capability_compliance_approvals\".\"railway_closed_beta_cohort_sha256\" IS NOT NULL\n          AND \"capability_compliance_approvals\".\"railway_closed_beta_residual_risk_sha256\" IS NOT NULL)\n        OR\n        (\"capability_compliance_approvals\".\"target_phase\" <> 'railway_closed_beta'\n          AND ((\"capability_compliance_approvals\".\"target_phase\" = 'local_sandbox' AND \"capability_compliance_approvals\".\"environment_profile\" = 'sandbox')\n            OR (\"capability_compliance_approvals\".\"target_phase\" IN ('production_expand_canary', 'production_final')\n              AND \"capability_compliance_approvals\".\"environment_profile\" = 'production'))\n          AND \"capability_compliance_approvals\".\"runtime_isolation_profile_version\" = 'google-content-egress-1'\n          AND \"capability_compliance_approvals\".\"runtime_isolation_profile_sha256\" IS NOT NULL\n          AND \"capability_compliance_approvals\".\"railway_closed_beta_cohort\" IS NULL\n          AND \"capability_compliance_approvals\".\"railway_closed_beta_cohort_sha256\" IS NULL\n          AND \"capability_compliance_approvals\".\"railway_closed_beta_residual_risk_sha256\" IS NULL)\n      )"
         }
       },
       "isRLSEnabled": false
@@ -39697,26 +39390,6 @@
         "provider_reset_confirmed"
       ]
     },
-    "public.google_content_approval_status": {
-      "name": "google_content_approval_status",
-      "schema": "public",
-      "values": [
-        "approved",
-        "suspended",
-        "expired",
-        "revoked"
-      ]
-    },
-    "public.google_content_approval_target_phase": {
-      "name": "google_content_approval_target_phase",
-      "schema": "public",
-      "values": [
-        "local_sandbox",
-        "railway_closed_beta",
-        "production_expand_canary",
-        "production_final"
-      ]
-    },
     "public.google_content_capability": {
       "name": "google_content_capability",
       "schema": "public",
@@ -39725,15 +39398,6 @@
         "property.read_gbp_performance",
         "property.connect_gbp",
         "property.publish_reply"
-      ]
-    },
-    "public.google_content_environment_profile": {
-      "name": "google_content_environment_profile",
-      "schema": "public",
-      "values": [
-        "sandbox",
-        "railway-closed-beta-1",
-        "production"
       ]
     },
     "public.google_credential_source_kind": {

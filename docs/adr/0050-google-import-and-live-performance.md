@@ -40,7 +40,12 @@ Google's OAuth web-server guidance requires exact registered redirect URIs, reco
 - **Property** owns the tenant Property profile, canonical Google binding, source/profile generations, confirmed timezone, create/relink mutation, deletion fencing, and operation receipts.
 - **Dashboard** owns manager-facing live Performance composition and presentation DTOs. It receives an authorized live report through a narrow port.
 - **Metric** remains unchanged. Google Performance values, derivatives, definitions, source policies, queues, and projections are prohibited in this release.
-- **Shared auth** owns capability vocabulary, persisted policy and emergency-kill generations, approval bindings, authorization decisions, execution permits, credential-source serialization, and credential cleanup authority.
+- **Shared auth** owns capability vocabulary, persisted policy and emergency-kill
+  generations, authorization decisions, execution permits, credential-source
+  serialization, and credential cleanup authority. WP2.2 removed the
+  approval-binding ownership recorded below because the signed bundle duplicated
+  live policy and commonly darkened the capability when it expired. Every
+  request now runs the live resolver and checks `control.killedCapabilities`.
 - **Composition** owns cross-context adapters. Contexts consume public/application contracts rather than another context's repositories.
 
 The frozen source contracts are:

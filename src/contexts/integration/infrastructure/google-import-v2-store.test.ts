@@ -38,7 +38,6 @@ const INTENT: GoogleImportV2Intent = {
         connectionLifecycleVersion: 1,
         connectionAccessVersion: 1,
         credentialGeneration: 1,
-        approvalBindingId: 'approval-1',
         authorizationVector: {
           executionPolicyVersion: 'beta-local-2',
           role: 'Admin',
@@ -129,7 +128,6 @@ describe('Google import v2 store', () => {
       expect.objectContaining({
         id: INTENT.items[0]!.id,
         destinationPropertyId: INTENT.items[0]!.destinationPropertyId,
-        approvalBindingId: 'approval-1',
         expectedExecutionPolicyVersion: 'beta-local-2',
         expectedActorRole: 'Admin',
         expectedPermissionDigest: 'a'.repeat(64),

@@ -27,7 +27,6 @@ const authorization = {
   propertyId: null,
   connectionId: googleConnectionId('00000000-0000-4000-8000-000000000101'),
   initiatorUserId: 'user-oauth-gateway',
-  approvalBindingId: 'approval-oauth-gateway',
   expectedCredentialGeneration: 1,
   authorizationVector: { credentialGeneration: 1 },
 }

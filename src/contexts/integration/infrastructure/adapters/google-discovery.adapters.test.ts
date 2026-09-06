@@ -19,7 +19,6 @@ const authorization = Object.freeze({
   propertyId: null,
   connectionId: googleConnectionId('22222222-2222-4222-8222-222222222222'),
   initiatorUserId: 'user-1',
-  approvalBindingId: '33333333-3333-4333-8333-333333333333',
   expectedCredentialGeneration: 3,
   authorizationVector: Object.freeze({ policyVersion: 1 }),
 })

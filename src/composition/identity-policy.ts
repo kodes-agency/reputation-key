@@ -3,8 +3,7 @@
 // Identity owns the policy store, the admin operations and the operator audit
 // sink; the composition root only supplies env plus the shared routing
 // primitives — the property region loader, the router decision, the Data Cell
-// admission fence, the cell's provider reference, and the narrow Google Content
-// slice the capability refusal explainer needs (issue #408).
+// admission fence, and the cell's provider reference.
 //
 // This lives outside `src/composition.ts` because the root has a hard line
 // budget (`composition-container-boundary.test.ts`) whose whole purpose is to
@@ -14,7 +13,6 @@
 
 import { createPropertyRegionLoader } from '#/contexts/property/infrastructure/property-region-loader'
 import { providerRefForCell } from '#/shared/routing/processing-router'
-import { googleContentCapabilityRefusal } from './google-provider-authority'
 import type { buildIdentityContext } from '#/contexts/identity/build'
 import type { Database } from '#/shared/db'
 import type { Env } from '#/shared/config/env'
@@ -42,6 +40,5 @@ export function buildIdentityPolicyDeps(
     cell: input.env.PROCESSING_CELL,
     admitPropertyExecution: input.admitPropertyExecution,
     providerRef: providerRefForCell(input.env.PROCESSING_CELL) ?? null,
-    capabilityRefusal: googleContentCapabilityRefusal(input.env),
   }
 }

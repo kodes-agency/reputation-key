@@ -117,7 +117,6 @@ describe('refreshGoogleToken', () => {
       propertyId: null,
       connectionId: connection.id,
       initiatorUserId: currentGrantOwner,
-      approvalBindingId: 'approval-refresh',
       expectedCredentialGeneration: connection.credentialGeneration,
       authorizationVector: {
         credentialGeneration: connection.credentialGeneration,

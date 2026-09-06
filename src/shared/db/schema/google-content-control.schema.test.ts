@@ -2,12 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import {
   authorizationExecutionPermits,
-  capabilityComplianceApprovals,
   capabilityExecutionControl,
   credentialRevokePermits,
-  googleContentApprovalTargetPhaseEnum,
   googleContentCapabilityEnum,
-  googleContentEnvironmentProfileEnum,
   googleCredentialSourceOperations,
   googleSubjectAuthorityGuards,
 } from './google-content-control.schema'
@@ -40,45 +37,6 @@ describe('Google Content control schema', () => {
       expect.arrayContaining([
         'google_connections_credential_home_pair_check',
         'google_connections_credential_home_value_check',
-      ]),
-    )
-  })
-
-  it('stores the exact approval and five-image binding identity', () => {
-    expect(columnNames(capabilityComplianceApprovals)).toEqual(
-      expect.arrayContaining([
-        'capability',
-        'target_phase',
-        'environment_profile',
-        'evidence_manifest_sha256',
-        'evidence_index_sha256',
-        'evidence_index',
-        'deployment_attestation_sha256',
-        'adr_0050_sha256',
-        'runtime_isolation_profile_sha256',
-        'role_approvals',
-        'image_digests',
-        'approved_at',
-        'expires_at',
-        'status',
-      ]),
-    )
-    expect(googleContentApprovalTargetPhaseEnum.enumValues).toEqual([
-      'local_sandbox',
-      'railway_closed_beta',
-      'production_expand_canary',
-      'production_final',
-    ])
-    expect(googleContentEnvironmentProfileEnum.enumValues).toEqual([
-      'sandbox',
-      'railway-closed-beta-1',
-      'production',
-    ])
-    expect(columnNames(capabilityComplianceApprovals)).toEqual(
-      expect.arrayContaining([
-        'railway_closed_beta_cohort',
-        'railway_closed_beta_cohort_sha256',
-        'railway_closed_beta_residual_risk_sha256',
       ]),
     )
   })
@@ -150,7 +108,6 @@ describe('Google Content control schema', () => {
 
     const allColumns = [
       authorizationExecutionPermits,
-      capabilityComplianceApprovals,
       capabilityExecutionControl,
       credentialRevokePermits,
       googleCredentialSourceOperations,
