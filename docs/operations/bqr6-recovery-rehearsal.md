@@ -25,7 +25,7 @@ Prove that a beta release candidate can be restored without exceeding RPO/RTO, a
 - [ ] Release candidate SHA known
 - [x] Isolated restore boot + inspection surface (`RESTORE_MODE=isolated`, target attestation, `ops:restore-preflight`, report-first `ops:restore-verify`; local refusal proof)
 - [x] Restore-only executor validates an exact signed Review lifecycle request, uses a durable one-shot receipt, and remains absent from ordinary serving/recurring composition (local disposable-PostgreSQL proof)
-- [ ] All four retained sidecars expose external post-boot readiness on a distinct non-mTLS health port and retain dependency-loss alert evidence
+- [ ] External web availability and worker job-runtime readiness retain dependency-loss alert evidence
 - [ ] Independent approver signs the actual sibling report/request and the full Railway apply/cutover/rollback rehearsal produces external evidence
 
 ## Rehearsal steps
@@ -76,7 +76,7 @@ Write into `docs/release-evidence/beta/<release-id>/scale-and-recovery.md`:
 - Exact source/sibling Postgres and fresh cache/queue/provider Redis service identities
 - Measured RPO / RTO
 - Cutover and rollback configuration read-backs and elapsed times
-- Backup/PITR/logical-export, sidecar-readiness, release/config-drift, and alert-injection receipts
+- Backup/PITR/logical-export, web/worker-readiness, release/config-drift, and alert-injection receipts
 - Metrics before/after
 - Any manual steps or exceptions
 

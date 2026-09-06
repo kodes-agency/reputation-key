@@ -25,11 +25,9 @@ describe('production error-monitoring wiring', () => {
   })
 
   it('preloads monitoring before both production application entries', () => {
-    const workerTsup = read('tsup.config.ts')
-    const webTsup = read('tsup.web-observability.config.ts')
-    expect(webTsup).toContain("'web-observability-preload'")
-    expect(workerTsup).toContain("'worker-observability-preload'")
-    expect(workerTsup).not.toContain("'web-observability-preload'")
+    const tsup = read('tsup.config.ts')
+    expect(tsup).toContain("'web-observability-preload'")
+    expect(tsup).toContain("'worker-observability-preload'")
 
     expect(read('Dockerfile')).toContain(
       'CMD ["node", "--import", "./.output/server/web-observability-preload.mjs", ".output/server/index.mjs"]',
@@ -50,7 +48,7 @@ describe('production error-monitoring wiring', () => {
     const manifest = JSON.parse(read('package.json')) as {
       scripts?: Record<string, string>
     }
-    expect(manifest.scripts?.build).toContain('tsup.web-observability.config.ts')
+    expect(manifest.scripts?.build).toBe('vite build && tsup')
     expect(manifest.scripts?.start).toContain('web-observability-preload.mjs')
     expect(manifest.scripts?.['start:worker']).toContain(
       'worker-observability-preload.js',

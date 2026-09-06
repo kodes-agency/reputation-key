@@ -62,9 +62,9 @@ an unapproved export destination.
 
 The exact external monitoring inventory is registered in
 `src/shared/observability/regional-platform-signals.ts`: backup age, WAL/PITR
-health, restore range, logical-export success, web/sidecar availability, error
+health, restore range, logical-export success, external web availability, error
 rate, and release/config drift for `cell-us` only. Application-owned queue,
-outbox, reply, and Google-sync signals remain in
+outbox, reply, Google-sync, and worker-readiness signals remain in
 `src/shared/observability/alert-definitions.ts`. A registered row is a required
 configuration/evidence contract; it is not deployed alert evidence.
 
@@ -382,7 +382,7 @@ lifecycle_revision, context)`, so a retried purge phase cannot inflate the
 counts the fence later replays.
 
 **The fence.** `applyRestoreResurrectionFence` (see
-`src/shared/ops/backup-erasure-ledger.ts`) reads the ledger for the cell and
+`src/shared/db/lifecycle/backup-erasure-ledger.ts`) reads the ledger for the cell and
 classifies every entry against the restore point:
 
 - `already_erased` — the erasure took effect at or before the restore point, so

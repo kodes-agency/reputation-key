@@ -302,8 +302,10 @@ jobs:
       - name: Bundle budget
         run: pnpm check:bundles
 
-      - name: Worker build
-        run: pnpm build:worker
+      # WP2.5 folded the worker build into `pnpm build`: three tsup configs
+      # became one `defineConfig([...])`, so the single build emits the web
+      # preload, the worker and the local tools together. There is no separate
+      # `build:worker` script to invoke any more.
 
       - name: Production artifact boundary
         run: >-

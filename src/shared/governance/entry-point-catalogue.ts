@@ -4210,15 +4210,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/verify-google-runtime-bundle.mjs',
-    'scripts/verify-google-runtime-bundle.mjs',
-    'none',
-    {
-      notes:
-        'build-time inventory gate proving each Google sidecar is a self-contained single-entry production bundle with no local/operator surfaces',
-    },
-  ),
-  ops(
     'scripts/check-google-provider-identifiers.mjs',
     'scripts/check-google-provider-identifiers.mjs',
     'none',
@@ -4303,10 +4294,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     notes:
       'check:changed-code — CI gate (BQC-6.9): every added src production file must carry a colocated test (or a registered exemption)',
   }),
-  ops('scripts/check-coverage.mjs', 'scripts/check-coverage.mjs', 'none', {
-    notes:
-      'check:coverage — CI gate (BQC-6.9), MAIN ONLY: runs the unit suite with v8 coverage; enforces 100% on pure domain rules + the two-sided baseline ratchet',
-  }),
   ops('scripts/local-doctor.mjs', 'scripts/local-doctor.mjs', 'none', {
     notes:
       'local:doctor — read-only local preflight (pinned runtime, docker daemon, stack host ports, stale containers); starts and stops nothing',
@@ -4386,7 +4373,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     {
       notes:
-        'check:runtime-environment-contract — digests the files that decide what a DEPLOYED service must supply at boot and fails when they move, so a contract change cannot pass a repository-only CI and crash-loop production (739ccbc9 sidecar port split); writes the snapshot only under --update',
+        'check:runtime-environment-contract — digests the files that decide what a deployed service must supply at boot and fails when they move, so a contract change cannot pass repository-only CI and crash-loop production (the 739ccbc9 service-port split exposed this class); writes the snapshot only under --update',
     },
   ),
   ops(
@@ -4437,7 +4424,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   ops('scripts/test-db-setup.ts', 'scripts/test-db-setup.ts', 'tenant_cross', {
     notes:
-      'BQC-6.1 — create + migrate the isolated local scratch test DB (auth:migrate → db:migrate → sidecar); localhost-guarded, idempotent',
+      'BQC-6.1 — create + migrate the isolated local scratch test DB (auth:migrate → db:migrate → registered deploy SQL); localhost-guarded, idempotent',
   }),
   ops('scripts/migrate-drizzle.ts', 'scripts/migrate-drizzle.ts', 'tenant_cross', {
     notes:
@@ -4445,7 +4432,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   }),
   ops('scripts/migrate-deploy.ts', 'scripts/migrate-deploy.ts', 'tenant_cross', {
     notes:
-      'BQC-7.1 — predeploy migration runner (db:migrate-deploy / Railway preDeployCommand): advisory-locked idempotent trio (better-auth getMigrations → drizzle-orm migrator → registered sidecar); forward recovery — fix forward, rerun converges',
+      'BQC-7.1 — predeploy migration runner (db:migrate-deploy / Railway preDeployCommand): advisory-locked idempotent sequence (Better Auth, Drizzle journal, registered deploy SQL, provider key inventory); forward recovery — fix forward, rerun converges',
   }),
   ops('scripts/better-auth-schema.ts', 'scripts/better-auth-schema.ts', 'tenant_cross', {
     notes:
@@ -4458,7 +4445,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       externalEffect: true,
       notes:
-        'ops:deploy-ci-images — closed-beta-only report/apply controller for the seven exact digest-pinned production images emitted by the successful main push CI run; refuses incomplete or cross-revision maps and non-ancestor revisions, requires an explicit --live apply opt-in, and waits for Railway deployment and replica health. It cannot consume, weaken, or replace the signed cell-us promotion ceremony',
+        'ops:deploy-ci-images — report/apply controller for the three digest-pinned production images proved by a successful main push CI run; refuses cross-revision maps, non-ancestor revisions, and artifacts from any other workflow run, then moves each fixed Railway service only after the previous service is healthy',
     },
   ),
   ops(
@@ -4550,11 +4537,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     { notes: 'audit:auth-schema — read-only better-auth column casing check' },
   ),
-  // ── release evidence ──────────────────────────────────────────────
-  // ── bqc ───────────────────────────────────────────────────────────
-  ops('scripts/bqc/run-baseline.ts', 'scripts/bqc/run-baseline.ts', 'tenant_cross', {
-    notes: 'bqc:run-baseline — full gate run incl. migrations/seed/e2e; writes evidence',
-  }),
   // ── migrations (DIRECT-DB) ────────────────────────────────────────
   ops(
     'scripts/migrations/null-inbox-source-copies.ts',
@@ -4630,56 +4612,12 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       'Generates revision-bound loopback configuration and orchestrates the isolated Docker acceptance stack',
   }),
   ops(
-    'scripts/local-stack/google-import-release-drill.ts',
-    'scripts/local-stack/google-import-release-drill.ts',
-    'tenant_cross',
-    {
-      notes:
-        'Runs the immutable local Google import expand/backfill/contract lifecycle drill against disposable stack databases',
-    },
-  ),
-  ops(
     'scripts/local-stack/fault-operation.ts',
     'scripts/local-stack/fault-operation.ts',
     'tenant_cross',
     {
       notes:
         'Executes one bounded Compose dependency fault/restore probe selected by the beta stack acceptance controller',
-    },
-  ),
-  ops('scripts/beta/smoke.ts', 'scripts/beta/smoke.ts', 'tenant_cross', {
-    notes:
-      'Exclusive beta-local acceptance controller; runs exact digest-bound gates and writes an immutable smoke manifest',
-  }),
-  ops('scripts/beta/command-runner.ts', 'scripts/beta/command-runner.ts', 'none', {
-    notes:
-      'Shared finite child-command adapter used by injectable beta gate controllers; it has no standalone CLI',
-  }),
-  ops(
-    'scripts/beta/create-pre-cutover-dump.ts',
-    'scripts/beta/create-pre-cutover-dump.ts',
-    'none',
-    {
-      notes:
-        'Creates the deterministic beta-local-1 SQL fixture at migration head 0021 with later migrations provably pending',
-    },
-  ),
-  ops(
-    'scripts/beta/run-product-journeys.ts',
-    'scripts/beta/run-product-journeys.ts',
-    'tenant_cross',
-    {
-      notes:
-        'Owns beta stack up/Playwright promoted-journey/down lifecycle and writes checksummed journey evidence only on success',
-    },
-  ),
-  ops(
-    'scripts/beta/verify-gate-evidence.ts',
-    'scripts/beta/verify-gate-evidence.ts',
-    'none',
-    {
-      notes:
-        'Read-only checksum and semantic verifier for scale, fault, migration, and release-bundle gate evidence',
     },
   ),
   // ── perf ──────────────────────────────────────────────────────────

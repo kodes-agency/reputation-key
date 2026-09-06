@@ -41,7 +41,7 @@ export const REG04_INCIDENT_RUNBOOKS: readonly Reg04IncidentRunbook[] = Object.f
     ...roles,
     id: 'cross_tenant_suspicion',
     severity: 'P0',
-    runbook: 'runbooks.md §20',
+    runbook: 'runbooks.md §19',
     evidence: ['stop_time', 'affected_release_and_cell', 'scope_decision', 'signoff'],
   },
   {
@@ -83,14 +83,14 @@ export const REG04_INCIDENT_RUNBOOKS: readonly Reg04IncidentRunbook[] = Object.f
     ...roles,
     id: 'lost_bucket_object',
     severity: 'P1',
-    runbook: 'runbooks.md §21',
+    runbook: 'runbooks.md §20',
     evidence: ['object_class', 'reference_count', 'recovery_or_fallback_outcome'],
   },
   {
     ...roles,
     id: 'privacy_request',
     severity: 'P0',
-    runbook: 'runbooks.md §22',
+    runbook: 'runbooks.md §21',
     evidence: ['verified_request', 'scope_inventory', 'purge_receipts', 'backup_ledger'],
   },
 ])

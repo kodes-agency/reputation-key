@@ -48,7 +48,6 @@ The commands:
 - `ops:reconcile-regions [--org <id>]` / `ops:reconcile-grants [--org <id> ...]` — report-first reconciliations (conflicts/anomalies never auto-converted). §12
 - `ops:reconcile-people-team [--org <id>]` — reconcile retired Staff assignments into canonical participation, Portal responsibility, and Portal Group intervals while leaving Team relations opaque and untouched in quarantine. `--apply` requires `--evidence <new-json-path>`, verifies post-apply parity, and writes a version-2 artifact only when every supported mapping is exact. Version-1 artifacts are refused and must be regenerated. A release artifact must come from a global (no `--org`) run. §12
 - `ops:cutover-single-us-data-cell` — report/fence/backfill/verify the one-time Data Cell policy-v3 transition. Apply handles at most one reviewed batch, remains fenced across invocations, and emits release evidence only after locked live verification. See `docs/archive/2026-09-lean/operations/railway-data-cells.md` for topology background; never replace the cutover with a deploy-time bulk rewrite.
-- `pnpm exec tsx scripts/ops/report-people-authority.ts --operator <id> --as-of <ISO-8601> [--org <id>]` — produce the read-only, deterministic People authority report across membership, access, participation, attribution, manager responsibility, and retained Team/legacy rows. See `people-authority-reconciliation.md`; every non-`exact` row requires separate review.
 - `ops:report-portal-beta-readiness --operator <id> --as-of <ISO-8601> [--org <id> ...]` — produce the read-only, deterministic POR-01 legacy Portal inventory. It reports identifier-only ownership/provenance, group, address/artifact, brand/locale, and raw-link gaps and has no apply mode. See `portal-beta-readiness-reconciliation.md`; ambiguous Portals remain Disabled/Archived and raw links quarantined until separately reviewed.
 - `ops:report-guest-response-readiness --operator <id> --observed-at <ISO-8601> [--org <id> ...]` — produce the read-only, deterministic GST-01 Guest Response reconciliation. It classifies legacy Rating/Feedback/session relationships, audits canonical snapshot/lifecycle/Inbox/retention evidence, and retains separate 1–5 distributions plus source/correction/retraction identities. See `guest-response-reconciliation.md`; it has no apply or inferred-provenance path.
 - `ops:triage-beta-feedback --operator <id>` — list the global content-free native-feedback support queue. Applying one exact local-reference transition additionally requires all 14 reviewed positional values, `--ticket`, `--reason`, and `--apply`; it is revision/transition-ID guarded, appends immutable evidence, and never reads report text/downloads attachments or creates an engineering issue. §16
@@ -68,40 +67,6 @@ The commands:
 - `ops:restore-verify` — restore-drill report and sealed apply surface (requires `RESTORE_MODE=isolated` plus an attested loopback/Railway PITR sibling target). Dry-run emits the bounded inventories and exact aggregate-only Review approval artifacts. Apply remains unavailable unless an independently reviewed, current, trusted Ed25519 bundle binds the exact target/run/generation/policy/report; a one-shot durable receipt rejects retargeting and reuse. See `review-lifecycle-recovery-approval.md`. Local code/tests are not a Railway drill or serving proof. §8
 - Current on Google has no operator mutation command. Review publishes its content-minimal aggregate only after a double-scan-verified provider run and bounded reconciliation; Metric stores it outside bounded-period readings and hides it after a source-epoch rebind. Follow `current-google-reputation-snapshot.md`. There is no standalone rebuild command or production activation proof yet.
 - Organization lifecycle has an Identity-owned request/status/recoverable-cancel application seam, quarantined bounded worker families, and a read-only `ops:report-organization-lifecycle` diagnostic. It still has no manager route, mutating independently authorized operator command, reviewed contributor set, cleanup/export/purge apply, or reactivation command. Follow `organization-lifecycle.md`. Never clear the Organization suspension merely because a lifecycle request was canceled.
-- `ops:google-import-lifecycle inspect` — read the bounded global expiry/release backlog.
-- `ops:identity-invitation-facts <inspect|switch-v2|scrub|verify|complete|rollback-v1>` — rolling v1→v2 invitation-fact privacy cutover, bounded PostgreSQL/Redis/quarantine scrub, and zero-copy verification. Follow `identity-invitation-fact-cutover.md`; mutating phases require paused `default` and `domain-events` queues.
-- `ops:google-import-lifecycle inspect-request <importJobId> --org <id>` — identifier-only tenant request inspection.
-- `ops:google-import-lifecycle cancel-request <importJobId> --org <id>` — dry-run by default; `--apply --reason <text> --yes ops:google-import-lifecycle` fences, receipt-reconciles, terminalizes, and scrubs one request.
-- Google import compatibility mutations (`switch-connected-events`,
-  `switch-oauth-state`, `mark-v1-events-drained`, `quiesce-legacy`,
-  `drain-legacy-queues`, `close-legacy`, `archive-legacy`) run only from the
-  rollout-only `Dockerfile.google-import-compatibility` image. Production web
-  and worker images contain no compatibility entry point.
-
-### Google import artifact cutover and rollback
-
-CI builds three independently content-addressed images: final web, final
-worker, and rollout-only Google import compatibility. Before expand rollout,
-push all three and record the exact `repo@sha256:...` values from the
-`Google import image digests` CI summary in the change record. Tags and local
-image IDs are not rollback identities.
-
-The compatibility image is a non-serving, non-root operator binary. Run it as
-an authenticated one-shot job by exact digest; its only entry point is
-`google-import-lifecycle.js`. Never attach a route/domain, worker replica, or
-autoscaling policy to it. Final images are labelled
-`com.repkey.google-import-contract=final`; the compatibility image is labelled
-`com.repkey.google-import-contract=compatibility` and
-`com.repkey.rollout-scope=google-import-only`.
-
-Rollback is permitted only before the contract migration removes old
-columns/tables. Stop the rollout, retain the expanded schema, and redeploy the
-recorded compatibility digest; never rebuild the tag or reverse DDL. After the
-contract migration, compatibility rollback is forbidden: fix forward, because
-the removed persistence contract cannot be reconstructed safely. The CI
-artifact gate (`pnpm check:google-import-artifacts`) proves final bundles omit
-legacy Google identity/state/job/schema adapters while the compatibility
-bundle retains the frozen rollout surface.
 
 ### Canonical synthetic Google resource
 
@@ -149,8 +114,8 @@ inert, STD-P1-07). **Proof:** CI boots the built production artifact and
 asserts every header on 200, 404, and 413 responses
 (`pnpm check:security-headers` → `scripts/check-security-headers.mjs`, check
 job after "Web build"; the script generates per-run random secrets, so the
-placeholder-secret guard below does not refuse the probe boot). The wiring is
-additionally pinned by `src/shared/architecture/security-headers-wiring.test.ts`.
+placeholder-secret guard below does not refuse the probe boot). Unit semantics
+are additionally covered by `src/shared/security/security-headers.test.ts`.
 The production image entry point in `Dockerfile` therefore serves the verified
 header set on every response.
 
@@ -351,7 +316,7 @@ surface dark); network-level restriction of the ops surface is platform-owned
 **Prerequisites:** Name both operating roles and record the exact cell, release manifest, migration head, failed phase, source database service, last known good digest/config, and backup/PITR observations. Do not start a restore until the exact sibling target and independent Review lifecycle approval path are available.
 **Diagnostics:** Check `pg_stat_activity` for connection count. Check the Railway console (Postgres service metrics) for compute/storage. Check migration logs.
 **Containment:** Reduce worker concurrency. Pause non-critical jobs. If the predeploy migration failed: the deploy is already blocked (Railway `preDeployCommand` exited non-zero) — the previous containers keep serving; do NOT hand-roll partial schema state.
-**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: the trio (`scripts/migrate-deploy.ts`, advisory-locked, idempotent) leaves no half-applied state beyond its idempotent steps — fix the failing migration/sidecar SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → follow [backup-and-lifecycle.md](backup-and-lifecycle.md) §1 exactly: contain one Data Cell → Railway PITR to its generated sibling service → exact-target preflight through a Railway tunnel → migration parity → dry-run inventory → destructive retention/recovery fence → isolated signed-image read verification → fresh Redis and controlled connection cutover with the verified recovery run/generation pinned. Railway leaves the live source serving; volume restore is not this procedure. Restore-only variables are verifier-service/process scoped; the cutover run/generation remains on every sibling consumer as its permanent boot attestation. Restore is the only database rollback path, reserved for data loss.
+**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: `scripts/migrate-deploy.ts` is advisory-locked and idempotent, so fix the failing migration or registered deploy SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → follow [backup-and-lifecycle.md](backup-and-lifecycle.md) §1 exactly: contain one Data Cell → Railway PITR to its generated sibling service → exact-target preflight through a Railway tunnel → migration parity → dry-run inventory → destructive retention/recovery fence → isolated signed-image read verification → fresh Redis and controlled connection cutover only after independent approval of that exact target/report/generation.
 **Verification:** Connection count under budget. Migration journal consistent. Restore has one replayable `recovery_runs` generation, zero overdue retention/Google-import backlog, zero unfenced restored authority, no claimable fenced outbox rows, critical reads/tenant isolation green, fresh empty queues, and no duplicate external effect before cutover.
 **Escalation:** P0 — page Bozhidar Denev for migration/restore. Railway support if platform issue.
 **Evidence:** Retain migration/backup heads, failure class, forward-fix or restore decision, signed recovery report/bundle identifiers, source/sibling and fresh-Redis identities, cutover/rollback read-backs, RPO/RTO, and alert receipts. Local tests are not this evidence.
@@ -398,7 +363,7 @@ surface dark); network-level restriction of the ops surface is platform-owned
 **Trigger:** US region infrastructure unavailable (Railway Postgres, Redis, or Google API).
 **Impact:** P1 — service degraded or unavailable for US properties.
 **Prerequisites:** Name both operating roles; record the exact `cell-us` project/environment, affected services/dependencies, release/config heads, first failed external probe, and provider incident identifiers.
-**Diagnostics:** Compare the external `cell-us` availability and sidecar-readiness probes with PostgreSQL, Cache Redis, Queue Redis, provider-status, release-SHA, and configuration-drift signals. Confirm that every denied `europe` or `global` routing attempt remains a refusal rather than a fallback.
+**Diagnostics:** Compare external web availability and worker job-runtime readiness with PostgreSQL, Cache Redis, Queue Redis, provider-status, release-SHA, and configuration-drift signals. Confirm that every denied `europe` or `global` routing attempt remains a refusal rather than a fallback.
 **Containment:** Do NOT fail over to another region (policy: no silent cross-region data movement). Set readiness to 503. Show honest "service unavailable" state.
 **Recovery:** Wait for provider recovery. Outbox accumulates events (no data loss). Resume normally when infrastructure recovers.
 **Verification:** All dependencies healthy. Backlog drained. Freshness indicators return to normal.
@@ -506,29 +471,24 @@ The alert remains quiet when email is globally dark and the database contains on
 
 ## 16. Error Monitoring Not Delivering
 
-> **Current repository status (2026-08-28):** web and worker have executable
-> preload/capture/flush wiring. All four retained sidecars now initialize the
-> same scrubbed SDK before dynamically loading their protected runtimes,
-> capture startup/process/dependency failures, flush during their sole bounded
-> shutdown path, and remove competing SDK fatal handlers. Final route
-> exclusions and the consent/create/preview/remove/cancel flow are implemented
-> for the Bug-only masked-layout wireframe; ordinary screenshots and every
-> `Replay*` integration remain absent. Source-map upload, Sentry-project and
-> provider-retention inspection, external journey monitoring, alert routing,
-> and the supported-device drill remain OBS-01/release evidence. Local bundle,
-> browser-story, migration, and scrubber tests are implementation evidence, not
-> live Sentry-project delivery, expiry, or alert-routing evidence.
+> **Current repository status:** web and worker initialize the same scrubbed SDK
+> through executable preloads, capture startup/process failures, and flush on
+> their bounded shutdown paths. Google and AI provider controls now execute
+> in-process, so they have no separate service monitoring surface. Source-map
+> upload, Sentry-project retention inspection, external journey monitoring,
+> alert routing, and the supported-device drill remain release evidence. Local
+> bundle and scrubber tests are implementation evidence, not live
+> Sentry-project delivery or alert-routing evidence.
 
 **Trigger/Symptoms:** A Data Cell refuses startup with `SENTRY_DSN is required`
 or `US ingestion host`; logs contain `Error monitoring initialization
 failed`, `capture failed`, or `flush timed out`; or the Sentry project receives
-no web/worker/sidecar events for the deployed release.
+no web or worker events for the deployed release.
 
 **Impact:** Application work continues when the SDK or ingestion transport
 fails, but automatic error diagnosis and incident alerting are degraded. A
-missing or out-of-region DSN is different: the affected Railway web, worker, or
-sidecar process refuses startup because monitoring is mandatory for beta Data
-Cells.
+missing or out-of-region DSN is different: the affected Railway web or worker
+process refuses startup because monitoring is mandatory for beta Data Cells.
 
 **Prerequisites:** Named incident owner; access to the cell's Railway shared
 variables and the US-region Sentry project; candidate release SHA. Never paste
@@ -537,19 +497,17 @@ or chat transcript.
 
 **Diagnostics:**
 
-1. Confirm `web`, `worker`, and all four retained sidecars use the same
-   cell-scoped `SENTRY_DSN` and `SENTRY_TRACES_SAMPLE_RATE`, and that the DSN
-   host ends in `.ingest.us.sentry.io` (owner decision 2026-09-04; the guard
-   pins the region so a DSN from another region fails closed). There is intentionally no
-   `SENTRY_ENABLED` switch.
+1. Confirm `web` and `worker` use the same cell-scoped `SENTRY_DSN` and
+   `SENTRY_TRACES_SAMPLE_RATE`, and that the DSN host ends in
+   `.ingest.us.sentry.io`. The regional guard rejects another ingestion region;
+   there is intentionally no `SENTRY_ENABLED` switch.
 2. Search content-safe boot logs by `releaseSha`, `processingCell`, and
    `service` for `Error monitoring initialized`. An SDK failure is logged as an
    error but does not expose the DSN or exception message.
-3. Confirm the image command preloads
+3. Confirm the image commands preload
    `web-observability-preload.mjs`/`worker-observability-preload.js` before the
-   application entry. Each sidecar's bundled entry must call
-   `runSidecarStartup` before its dynamic protected-runtime import. A command or
-   bundle override that bypasses either boundary is configuration drift.
+   application entries. A command or bundle override that bypasses either
+   boundary is configuration drift.
 4. In Sentry, filter by `release`, `environment`, `service`, and
    `processing_cell`. Events intentionally omit request bodies, headers,
    cookies, user/extra data, exception messages, breadcrumb content, local
@@ -562,17 +520,17 @@ content found in an event as a tenant-data incident and follow §9 immediately.
 
 **Recovery:** Correct the shared Sentry DSN or transport/project state and
 redeploy the exact candidate through the normal promotion path. Do not add a
-second worker or sidecar process-level uncaught-error handler: RepKey owns their
-drain/exit and the matching Sentry defaults are deliberately removed to avoid
-races and duplicates. Web retains the SDK's fatal handlers because it has no
-equivalent application-owned fatal process boundary.
+second worker process-level uncaught-error handler: RepKey owns its drain/exit
+and removes the matching Sentry defaults to avoid races and duplicates. Web
+retains the SDK's fatal handlers because it has no equivalent
+application-owned fatal process boundary.
 
 **Verification:** Send one controlled synthetic exception from each process in
 each affected cell through the staging/RC drill. Verify one event per failure,
 the correct release/environment/service/cell tags, readable stack frames, and
 absence of the seeded secret, review, feedback, contact, cookie, and token
-markers. Terminate web, worker, and each retained sidecar once and confirm
-bounded flush completes inside the Railway drain window. Exact health and
+markers. Terminate web and worker once and confirm bounded flush completes
+inside the Railway drain window. Exact health and
 private-metrics polling transactions must be absent; ordinary product
 transactions remain present only after strict scrubbing.
 
@@ -823,66 +781,7 @@ capability activation whose release gate requires that evidence.
 
 ---
 
-## 19. Post-Boot Sidecar Dependency Loss
-
-> **Current repository status (2026-08-28):** the content-free dynamic health
-> controller/server and bounded process-lifecycle owner are implemented and
-> unit-tested and adopted by all four executable sidecar boundaries. The
-> single-`cell-us` Railway graph and temporary legacy configs target their
-> ordinary health port while retaining the separate protected mTLS port. A
-> live external dependency-loss/alert/replacement injection is still required;
-> repository checks alone are not exercised beta evidence.
-
-**Trigger/Symptoms:** An external probe receives `503` from a retained
-sidecar's plain platform `/health/ready` endpoint after the deployment had
-become ready; Railway repeatedly replaces the service; or a sidecar emits one
-of the content-free `sidecar_fatal_process_error`,
-`sidecar_shutdown_failed`, or `sidecar_shutdown_timed_out` events.
-
-**Impact:** P1. Google or AI work behind the affected trust boundary is
-unavailable or delayed. A readiness failure never authorizes direct provider
-access, a relaxed certificate policy, or routing into `europe`/`global`.
-
-**Prerequisites:** Identify the exact `cell-us` service and signed release.
-Use the platform health port only. The provider/admission listener remains a
-separate mTLS port, and no incident probe may weaken or bypass its peer
-identity checks.
-
-**Diagnostics:** Compare `/health/live` and `/health/ready` from the external
-monitor. Live `200` plus ready `503` means the process is alive but its dynamic
-database, provider Redis, admission, or provider-control check is failing.
-Use the service's content-free structured events and dependency dashboards to
-identify the class; do not log connection strings, credentials, request
-payloads, provider responses, or exception messages. Confirm the failure is
-post-boot by retaining the earlier ready observation.
-
-**Containment:** Stop only the affected Google or AI capability family and
-preserve durable pending facts. If the failure could allow an unauthorized
-effect, use the global stop in §11. Do not switch origins, reuse another
-service's credentials, expose the protected port, or create a dormant-cell
-fallback.
-
-**Recovery:** Repair the failed dependency or promote the prior verified image
-digest. Readiness is recomputed on every probe, so it must recover from the
-real dependency; restarting solely to clear state is not proof. During drain,
-readiness becomes `503` before protected ingress closes, one shutdown owner
-drains resources within its budget, and a failed or timed-out drain exits
-non-zero for platform replacement.
-
-**Verification:** Prove `/health/live` remains dependency-free; `/health/ready`
-returns `200` only with the dependency healthy; an injected post-boot loss
-changes it to `503`; and recovery restores `200`. An unauthenticated request to
-every protected mTLS route must still fail. Retain the external alert receipt,
-replacement outcome, exact service/release/cell, and content-free process event
-sequence.
-
-**Escalation/Evidence:** Incident commander and communications/support owner
-are the named roles at the top of this document. A retained sidecar without
-external post-boot readiness and alert injection is a beta release blocker.
-
----
-
-## 20. Cross-Tenant Isolation Suspicion
+## 19. Cross-Tenant Isolation Suspicion
 
 **Trigger/Symptoms:** A response, log, export, query result, background job, or
 provider action may contain or act on data belonging to a different
@@ -928,7 +827,7 @@ engineer may self-close a suspected tenant breach solely from a code fix.
 
 ---
 
-## 21. Lost Bucket Object
+## 20. Lost Bucket Object
 
 **Trigger/Symptoms:** A referenced Portal asset is missing, unreadable,
 unexpectedly overwritten, or returned with the wrong integrity metadata; the
@@ -936,7 +835,7 @@ bucket or object lifecycle reports an unexpected deletion.
 
 **Impact:** P1 when a published guest experience is impaired; P0 if the
 symptom suggests cross-tenant access or broad destructive loss, in which case
-also invoke §20/§11.
+also invoke §19/§11.
 
 **Prerequisites:** Record only the object class, cell, release, safe key digest,
 reference count, expected integrity digest/version, and first observed time.
@@ -973,7 +872,7 @@ that an object was recovered until integrity verification passes.
 
 ---
 
-## 22. Privacy Request Incident
+## 21. Privacy Request Incident
 
 **Trigger/Symptoms:** A verified access, correction, withdrawal, erasure, or
 offboarding request is overdue, mis-scoped, partially applied, restored from a
@@ -1074,13 +973,12 @@ disposition below.
 REG-04 expands that aggregate registration into the exact external `cell-us`
 authority in `src/shared/observability/regional-platform-signals.ts`: latest
 backup success age, WAL/PITR health, restore range, logical-export success,
-external web availability, readiness for each of the four retained sidecars,
-Sentry error rate, and release/config drift. Every row names its owner,
-severity, runbook, and retained evidence. The catalogue deliberately contains
-no `europe` or `global` monitor because those cells are dormant and must not be
-provisioned for beta. A green catalogue test proves coverage only; the external
-configuration and alert-injection receipts remain required before customer
-data.
+external web availability, Sentry error rate, and release/config drift.
+Application-owned queue, outbox, reply, and Google-sync signals cover worker
+readiness. The catalogue deliberately contains no `europe` or `global` monitor
+because those cells are dormant and must not be provisioned for beta. A green
+catalogue test proves coverage only; external configuration and alert-injection
+receipts remain required before customer data.
 
 **`security.scan` signal note (BQC-7.7):** the supply-chain/secret gates now
 exist — as CI hard gates, not app-level alert injection. The signal path is:

@@ -37,19 +37,6 @@ afterEach(() => {
 })
 
 describe('production artifact boundary', () => {
-  it('keeps local-only executables outside the production worker bundle', () => {
-    // @proof PRODUCTION_ARTIFACT_BOUNDARY#1
-    const productionConfig = projectFile('tsup.config.ts')
-    const localToolsConfig = projectFile('tsup.local-tools.config.ts')
-
-    expect(productionConfig).not.toMatch(/seed-e2e-user|provision-google-admission-role/u)
-    expect(localToolsConfig).toContain("'seed-e2e-user': 'scripts/seed-e2e-user.ts'")
-    expect(localToolsConfig).toMatch(
-      /'provision-google-admission-role':\s*'scripts\/ops\/provision-google-admission-role\.ts'/u,
-    )
-    expect(localToolsConfig).toContain("outDir: 'dist-local-tools'")
-  })
-
   it('runs local one-shot services from the isolated local-tools image', () => {
     const compose = projectFile('compose.local.yml')
     const seed = serviceBlock(compose, 'seed')

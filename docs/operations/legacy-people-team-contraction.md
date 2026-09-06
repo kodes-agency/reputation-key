@@ -50,11 +50,8 @@ key, including composite and `NOT VALID` constraints. It does not select or
 print row identifiers, Organization, Property, user, membership, Team-name, or
 free-text values.
 
-This report complements `ops:report-people-authority`: the people-authority
-report proves record-level replacement parity and classifies exact, mappable,
-conflict, orphan, and unsafe legacy rows. The contraction report proves the
-bounded table set, exact row counts, and every inbound/outbound foreign key.
-Neither report authorizes deletion.
+The contraction report proves the bounded table set, exact row counts, and
+every inbound/outbound foreign key. It does not authorize deletion.
 
 The report deliberately does not claim a complete non-FK dependency graph.
 Before contraction, separately inventory triggers, functions, indexes, check /

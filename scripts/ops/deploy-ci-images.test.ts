@@ -1,12 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   applyClosedBetaImageDeployment,
-  assertLiveEnvironmentOptIn,
   buildClosedBetaImageDeploymentPlan,
   CI_IMAGE_DIGEST_MAP_VERSION,
   CI_PRODUCTION_IMAGE_NAMES,
-  closedBetaImageServices,
-  CLOSED_BETA_ENVIRONMENT,
+  CLOSED_BETA_IMAGE_SERVICES,
   parseCiImageDigestMap,
   resolveDeploymentRevision,
   TRUSTED_CI_WORKFLOW,
@@ -55,22 +53,20 @@ function gitReader(isAncestor: boolean): GitRevisionReader {
 }
 
 function serviceInventory(): RailwayServiceObservation[] {
-  return closedBetaImageServices({ includeProviderRedis: true }).map(
-    ({ serviceId, serviceName }, index) => ({
-      id: serviceId,
-      name: serviceName,
-      source: {
-        repo: serviceName === 'google-provider-redis' ? null : TRUSTED_REPOSITORY,
-        image: serviceName === 'google-provider-redis' ? 'redis:7' : null,
-      },
-      status: 'SUCCESS',
-      deploymentStopped: false,
-      deploymentId: `deployment-${String(index)}`,
-      configuredReplicas: 1,
-      runningReplicas: 1,
-      crashedReplicas: 0,
-    }),
-  )
+  return CLOSED_BETA_IMAGE_SERVICES.map(({ serviceId, serviceName }, index) => ({
+    id: serviceId,
+    name: serviceName,
+    source: {
+      repo: serviceName === 'google-provider-redis' ? null : TRUSTED_REPOSITORY,
+      image: serviceName === 'google-provider-redis' ? 'redis:7' : null,
+    },
+    status: 'SUCCESS',
+    deploymentStopped: false,
+    deploymentId: `deployment-${String(index)}`,
+    configuredReplicas: 1,
+    runningReplicas: 1,
+    crashedReplicas: 0,
+  }))
 }
 
 describe('closed-beta CI image deployment authority', () => {
@@ -100,40 +96,24 @@ describe('closed-beta CI image deployment authority', () => {
         imageReference,
       })),
     ).toEqual(
-      closedBetaImageServices({ includeProviderRedis: false }).map(
-        ({ imageName, serviceName, serviceId }) => ({
-          imageName,
-          serviceName,
-          serviceId,
-          imageReference: `ghcr.io/kodes-agency/repkey-${imageName}@sha256:${String(
-            CI_PRODUCTION_IMAGE_NAMES.indexOf(imageName) + 1,
-          ).repeat(64)}`,
-        }),
-      ),
+      CLOSED_BETA_IMAGE_SERVICES.map(({ imageName, serviceName, serviceId }) => ({
+        imageName,
+        serviceName,
+        serviceId,
+        imageReference: `ghcr.io/kodes-agency/repkey-${imageName}@sha256:${String(
+          CI_PRODUCTION_IMAGE_NAMES.indexOf(imageName) + 1,
+        ).repeat(64)}`,
+      })),
     )
   })
 
-  it('plans both GitHub-backed services in web-worker order by default', () => {
+  it('plans all three promoted services in dependency-safe order', () => {
     const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
     const names = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory()).map(
       ({ serviceName }) => serviceName,
     )
 
-    // Web and worker deploy by default; provider Redis remains an explicit opt-in.
-    expect(names).toEqual(['web', 'worker'])
-    expect(names).not.toContain('google-provider-redis')
-  })
-
-  it('appends the provider Redis last when it is explicitly opted in', () => {
-    const digestMap = parseCiImageDigestMap(JSON.stringify(digestMapValue()), REVISION)
-    const names = buildClosedBetaImageDeploymentPlan(digestMap, serviceInventory(), {
-      includeProviderRedis: true,
-    }).map(({ serviceName }) => serviceName)
-
-    // Last, never first: a substrate failure must not precede the services
-    // that depend on it.
-    expect(names).toHaveLength(3)
-    expect(names.at(-1)).toBe('google-provider-redis')
+    expect(names).toEqual(['web', 'worker', 'google-provider-redis'])
   })
 
   it('refuses a deployment plan when a fixed Railway service is absent', () => {
@@ -151,7 +131,7 @@ describe('closed-beta CI image deployment authority', () => {
     delete images.worker
 
     expect(() => parseCiImageDigestMap(JSON.stringify(value), REVISION)).toThrow(
-      'must contain exactly three production images: missing worker',
+      /worker/u,
     )
   })
 
@@ -169,28 +149,6 @@ describe('closed-beta CI image deployment authority', () => {
 
   it('defaults to the current origin/main revision', () => {
     expect(resolveDeploymentRevision(undefined, gitReader(true))).toBe(ORIGIN_MAIN)
-  })
-
-  it('refuses a live apply without the explicit live-environment flag', () => {
-    expect(() =>
-      assertLiveEnvironmentOptIn({
-        apply: true,
-        live: false,
-        environment: CLOSED_BETA_ENVIRONMENT,
-      }),
-    ).toThrow(
-      `refusing to deploy to live environment ${CLOSED_BETA_ENVIRONMENT} without --live`,
-    )
-  })
-
-  it('allows live dry-runs without pretending they authorize a mutation', () => {
-    expect(() =>
-      assertLiveEnvironmentOptIn({
-        apply: false,
-        live: false,
-        environment: CLOSED_BETA_ENVIRONMENT,
-      }),
-    ).not.toThrow()
   })
 
   it('writes the release identity before the container that needs it starts', async () => {

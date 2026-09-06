@@ -12,9 +12,8 @@ Kept for provenance only:
 | `review-run/`, `audit/`, `audits/`                                    | one-off review and audit runs                                            |
 | `product-readiness-program-2026-07/beta-quality-remediation-2026-07/` | the closed BQC/BQR remediation programme, including its STATUS manifests |
 
-`pnpm bqc:run-baseline` still writes its evidence under the archived
-`beta-quality-remediation-2026-07/completion-program-2026-07/` directory, which
-is why that tree is archived rather than deleted.
+The closed BQC/BQR tree remains as historical provenance; its retired
+generators no longer write into the archive.
 
 Current documentation lives in `docs/adr/`, `docs/operations/`,
 `docs/standards.md`, and the per-context `src/contexts/*/CONTEXT.md` files.

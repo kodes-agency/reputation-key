@@ -419,7 +419,6 @@ export async function upCell(
   if (!options.skipBuild || !effects.artifactsExist()) {
     effects.log('building web + worker artifacts (NODE_ENV=production)…')
     await effects.runCommand('pnpm', ['build'], { NODE_ENV: 'production' })
-    await effects.runCommand('pnpm', ['build:worker'], { NODE_ENV: 'production' })
   }
 
   const env = buildCellEnv({

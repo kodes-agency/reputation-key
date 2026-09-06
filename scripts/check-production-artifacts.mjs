@@ -38,8 +38,7 @@ const FORBIDDEN_SOURCES = Object.freeze([
   },
   {
     label: 'local-stack controller source',
-    pattern:
-      /scripts[\\/]local-stack[\\/](?:stack|fault-operation|google-import-release-drill)\.ts/u,
+    pattern: /scripts[\\/]local-stack[\\/](?:stack|fault-operation)\.ts/u,
   },
   {
     label: 'Google provider fixture generator source',

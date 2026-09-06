@@ -62,7 +62,7 @@ const EXPECTED_HEADERS = {
 
 if (!existsSync(SERVER_ENTRY) || !existsSync(PRELOAD_ENTRY)) {
   console.error(
-    `[security-headers] serving artifact or monitoring preload not found — run \`pnpm build && pnpm build:worker\` first.`,
+    `[security-headers] serving artifact or monitoring preload not found — run \`pnpm build\` first.`,
   )
   process.exit(1)
 }

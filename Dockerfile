@@ -93,7 +93,7 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-# ── Build web bundle (.output) + worker/migrate bundles (dist-worker) ───────
+# ── Build web, worker/migrate, and isolated local-tool bundles ───────────────
 FROM deps AS build
 ARG SOURCE_REVISION
 ARG SENTRY_AUTH_TOKEN
@@ -112,7 +112,7 @@ RUN NODE_ENV=production \
     GOOGLE_CLIENT_SECRET=build-placeholder-client-secret \
     ENCRYPTION_KEY=aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd \
     OAUTH_STATE_SECRET=aabbccddaabbccddaabbccddaabbccdd \
-    pnpm build && pnpm build:worker \
+    pnpm build \
  && find .output dist-worker -type f -name '*.map' -delete \
  && node scripts/check-production-artifacts.mjs .output dist-worker
 
@@ -125,12 +125,8 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts
 
 # ── Local-stack-only one-shot tools ──────────────────────────────────────────
-# This target is selected explicitly by compose.local.yml. It is not an
-# ancestor of the default final `web` target, so its bundle and fixture
-# credentials cannot enter a production or Railway serving image.
-FROM deps AS local-tools-build
-COPY . .
-RUN NODE_ENV=production pnpm build:local-tools
+# This target is selected explicitly by compose.local.yml. The shared build
+# emits its isolated bundle, but the default `web` target never copies it.
 
 FROM base AS local-tools
 ARG SOURCE_REVISION
@@ -138,7 +134,7 @@ ENV NODE_ENV=production
 LABEL org.opencontainers.image.revision=$SOURCE_REVISION \
       com.repkey.artifact-scope=local-tools-only
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
-COPY --from=local-tools-build /app/dist-local-tools ./dist-local-tools
+COPY --from=build /app/dist-local-tools ./dist-local-tools
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY package.runtime.json ./package.json
 USER node

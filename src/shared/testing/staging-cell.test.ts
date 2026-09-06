@@ -408,7 +408,7 @@ describe('upCell', () => {
       dbName: 'repkey_bqc8_cell',
       releaseSha: 'deadbeef'.repeat(8),
     })
-    expect(rig.commands).toEqual(['pnpm build', 'pnpm build:worker'])
+    expect(rig.commands).toEqual(['pnpm build'])
   })
 
   it('reuses a healthy running cell (idempotent up)', async () => {

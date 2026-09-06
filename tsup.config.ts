@@ -3,46 +3,85 @@
 
 import { defineConfig } from 'tsup'
 
-export default defineConfig({
-  entry: {
-    index: 'src/worker/index.ts',
-    // BQC-7.1: the predeploy migration runner, bundled so the production
-    // image runs it with plain `node dist-worker/migrate-deploy.js` — no tsx
-    // or TypeScript toolchain in the runtime container.
-    'migrate-deploy': 'scripts/migrate-deploy.ts',
-    // Error monitoring must initialize before the worker imports queue/runtime
-    // modules. Docker and start:worker load this through Node's supported ESM
-    // --import preload path. The web counterpart has its own config so
-    // `pnpm build` alone remains a complete web artifact.
-    'worker-observability-preload':
-      'src/shared/observability/worker-observability-preload.ts',
+export default defineConfig([
+  {
+    entry: {
+      index: 'src/worker/index.ts',
+      // Bundled so production can migrate with plain Node, without tsx or the
+      // TypeScript toolchain in the runtime image.
+      'migrate-deploy': 'scripts/migrate-deploy.ts',
+      'worker-observability-preload':
+        'src/shared/observability/worker-observability-preload.ts',
+    },
+    outDir: 'dist-worker',
+    format: ['esm'],
+    target: 'node22',
+    splitting: false,
+    sourcemap: true,
+    clean: true,
+    esbuildOptions(options) {
+      options.alias = { '#': './src' }
+    },
+    // Bare package names also match their subpath imports.
+    noExternal: [/^#/],
+    external: [
+      '@sentry/node',
+      'pg',
+      'ioredis',
+      'bullmq',
+      'pino',
+      'better-auth',
+      'drizzle-orm',
+    ],
+    env: {
+      NODE_ENV: process.env.NODE_ENV ?? 'production',
+    },
   },
-  outDir: 'dist-worker',
-  format: ['esm'],
-  target: 'node22',
-  splitting: false,
-  sourcemap: true,
-  clean: true,
-  // Allows importing from shared code that uses `#/` path alias. tsup 8
-  // exposes esbuild's alias map through this supported configuration hook.
-  esbuildOptions(options) {
-    options.alias = { '#': './src' }
+  {
+    // Local-stack-only executables stay in a separate output directory that
+    // production images never copy.
+    entry: {
+      'control-proxy': 'scripts/local-stack/control-proxy.ts',
+      'seed-e2e-user': 'scripts/seed-e2e-user.ts',
+      'provision-google-admission-role': 'scripts/ops/provision-google-admission-role.ts',
+      'tcp-relay': 'scripts/local-stack/tcp-relay.ts',
+    },
+    outDir: 'dist-local-tools',
+    format: ['esm'],
+    target: 'node22',
+    splitting: false,
+    sourcemap: true,
+    clean: true,
+    esbuildOptions(options) {
+      options.alias = { '#': './src' }
+    },
+    noExternal: [/^#/],
+    external: ['pg', 'ioredis', 'bullmq', 'pino', 'better-auth', 'drizzle-orm'],
+    env: {
+      NODE_ENV: process.env.NODE_ENV ?? 'production',
+    },
   },
-  // Don't bundle node_modules — the worker runs on Node.js
-  // (bare names also match their subpath imports, e.g. 'better-auth' covers
-  // 'better-auth/db/migration' and 'drizzle-orm' covers
-  // 'drizzle-orm/node-postgres/migrator' — verified in the built bundle).
-  noExternal: [/^#/],
-  external: [
-    '@sentry/node',
-    'pg',
-    'ioredis',
-    'bullmq',
-    'pino',
-    'better-auth',
-    'drizzle-orm',
-  ],
-  env: {
-    NODE_ENV: process.env.NODE_ENV ?? 'production',
+  {
+    // Nitro does not emit an independent Node preload. clean:false preserves
+    // the Vite output produced before tsup runs.
+    entry: {
+      'web-observability-preload':
+        'src/shared/observability/web-observability-preload.ts',
+    },
+    outDir: '.output/server',
+    format: ['esm'],
+    target: 'node22',
+    splitting: false,
+    sourcemap: true,
+    clean: false,
+    outExtension: () => ({ js: '.mjs' }),
+    esbuildOptions(options) {
+      options.alias = { '#': './src' }
+    },
+    noExternal: [/^#/],
+    external: ['@sentry/node', 'pino'],
+    env: {
+      NODE_ENV: process.env.NODE_ENV ?? 'production',
+    },
   },
-})
+])

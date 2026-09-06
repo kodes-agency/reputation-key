@@ -53,7 +53,7 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 ## Architecture
 
 - **Web app**: TanStack Start (React + SSR) — `pnpm dev` / `pnpm build` / `pnpm start`
-- **Worker**: Plain Node.js script — `pnpm build:worker` / `pnpm start:worker`
+- **Worker**: Plain Node.js script — built by `pnpm build`, run with `pnpm start:worker`
 - **Database**: PostgreSQL via Drizzle ORM
 - **Auth**: Better Auth with DB-backed sessions
 - **Redis**: Optional in basic development; physically separate Cache Redis and Queue Redis are required in production
@@ -63,8 +63,7 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 | Command                        | Description                                                                                                                                                           |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm dev`                     | Start dev server on :3000                                                                                                                                             |
-| `pnpm build`                   | Build web app                                                                                                                                                         |
-| `pnpm build:worker`            | Build worker                                                                                                                                                          |
+| `pnpm build`                   | Build web, worker, migration, and isolated local-tool bundles                                                                                                         |
 | `pnpm start`                   | Run built web server                                                                                                                                                  |
 | `pnpm start:worker`            | Run built worker                                                                                                                                                      |
 | `pnpm test`                    | Run unit tests                                                                                                                                                        |

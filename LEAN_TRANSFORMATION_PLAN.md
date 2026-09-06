@@ -424,6 +424,30 @@ Five things the spec did not anticipate, each recorded because a successor would
 
 **Step 2 (deliberately separate): delete the settlement receipt.** It is still signed and verified today. It stops being load-bearing the moment no reply crosses a wire, but removing it touches both service bodies and their orchestration tests, and WP2.2 established that a step leaving the tree unable to make a real provider call is worse than two independently green ones. With it go `AI_ADMISSION_ED25519_PRIVATE_KEY_B64`, its KID and generation, and `AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON`.
 
+**WP2.4 re-scoped 2026-09-06 against measurement. The nightly split is dropped; the reason is arithmetic.**
+
+Per-job durations on the last green run (34041648240), offsets from run start:
+
+| job                                 | window          |                              |
+| ----------------------------------- | --------------- | ---------------------------- |
+| `e2e`                               | +0s → +545s     | **the entire critical path** |
+| `docker image group (worker-tools)` | +0s → +356s     | inside e2e                   |
+| `test-integration`                  | +0s → +290s     | inside e2e                   |
+| `docker image group (web)`          | +0s → +241s     | inside e2e                   |
+| `static`                            | +0s → +196s     | inside e2e                   |
+| `storybook-test`                    | +0s → +112s     | inside e2e                   |
+| `test-unit` ×4                      | +0s → ≤104s     | inside e2e                   |
+| `artifacts`, `storybook`, `secrets` | +0s → ≤88s      | inside e2e                   |
+| `check`, `docker`                   | tiny aggregates | inside e2e                   |
+
+**Run wall: 9m05s, and `e2e` is 9m05s of it.** Every other job starts at +0s and finishes with minutes to spare. There is no serialization to remove and no queueing to unpick.
+
+So moving jobs to a nightly workflow saves **nothing** — they are already free. It would buy a second workflow file, a second set of failure notifications and a delayed-discovery window, in exchange for zero seconds. That is the opposite of this program's goal.
+
+The only lever on CI wall time is `e2e` itself, and `e2e` is the gate this program can least afford to weaken: with direct-to-`main` commits and no PR review it is the sole proof that a real provider call still reaches Google, and in this session alone it caught two regressions that unit and integration both passed (WP2.2's first two attempts). Deferring it to nightly would mean discovering those on `main`, up to 24 hours later, with no reviewer as a second net.
+
+**WP2.4 is therefore: simplify `ci.yml` in place.** Its real cost is complexity — 983 lines describing a 7-image, 6-sidecar world that no longer exists — not wall time. Remove the steps whose subjects Phase 2 deleted, keep every correctness gate on the push path, and add no second workflow.
+
 ### WP2.5 then WP2.4 — build surface, then CI
 
 Both trail the deletions above because they clean up what those orphan. WP2.5: remaining sidecar Dockerfiles and tsup configs (collapse to one `defineConfig([...])`), `check:container-images`, `verify-*-image.mjs`, `smoke-provider-redis-image.sh`, `check:google-runtime-bundle`, `deploy-ci-images.ts` to ~400 lines. WP2.4: `ci.yml` to the minimal path plus a nightly workflow, per the bullet. Doing 2.5 first means 2.4 rewrites `ci.yml` once, against a build surface that has already stopped moving.

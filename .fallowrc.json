@@ -23,12 +23,6 @@
     "scripts/test-db-setup.ts",
     "vite.config.ts",
     "drizzle.config.ts",
-    "services/google-egress-gateway/control-proxy.ts",
-    "services/google-egress-gateway/entry.ts",
-    "services/google-egress-gateway/index.ts",
-    "services/google-egress-gateway/tcp-relay.ts",
-    "services/google-execution-admission/entry.ts",
-    "services/google-execution-admission/index.ts",
     "src/shared/testing/process-fixtures/web-process.fixture.ts",
     "src/shared/testing/process-fixtures/worker-process.fixture.ts",
     "src/shared/testing/process-fixtures/simulation-process.fixture.ts"

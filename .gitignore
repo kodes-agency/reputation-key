@@ -4,12 +4,6 @@ dist
 dist-ssr
 dist-worker
 dist-local-tools
-dist-google-execution-admission
-dist-google-egress-gateway
-dist-google-egress-gateway-local
-dist-google-import-compatibility
-dist-ai-*
-dist-provider-services
 storybook-static
 /test-results/
 /playwright-report/
