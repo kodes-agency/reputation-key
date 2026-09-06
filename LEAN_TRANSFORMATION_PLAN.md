@@ -586,6 +586,45 @@ Commit trail, each CI-green before the next started: `b8e0530b` (WP2.1) · `603b
 4. **Measure before restructuring.** WP2.4's nightly split was dropped because `e2e` is 9m05s of a 9m05s run and every other job finishes inside it — the split would have cost a second workflow and bought zero seconds.
 5. **The honest floor for a proof boundary is where the proofs end.** Both the deploy controller (761 not 400 lines) and `ci.yml` stopped short of their targets, because what remained was artifact evidence rather than ceremony. The audit objected to machinery proving _documents_ consistent, not machinery proving _artifacts_ sound — a distinction worth keeping in Phases 3-4.
 
+## Post-Phase-2 revision — review reinstated, and four items re-scoped
+
+Settled with the user 2026-09-06 after Phase 2 closed.
+
+### 1. Review is reinstated, and the recorded reason for its absence was wrong
+
+Branch protection existed on `main` for the whole program, with the right required checks (`check`, `docker`, `e2e`, `secrets`, `audit`, CodeQL), `strict: true`, linear history and no force pushes. **`enforce_admins` was `false`**, so every push walked past all of it.
+
+This plan recorded "no second pair of eyes" as an accepted risk justified by "one developer, app is stopped", and repeated that justification in the risk section. It was not a decision — it was a misconfiguration nobody checked. WP0.5's contingency note ("if pushes to `main` succeed without WP0.5, skip it") reasoned correctly from a true observation to the wrong conclusion, because it never asked _why_ the pushes succeeded. Exactly the failure mode as the vacuously-passing test.
+
+Done, and demonstrated rather than assumed:
+
+- `enforce_admins` is now `true`. A direct push to `main` is rejected: `GH006 … 6 of 6 required status checks are expected`.
+- `.github/workflows/review.yml` runs two reviewers on every PR with deliberately different prompts — **control-vs-ceremony** (for each removed check: what gated it before, what gates it now, is the replacement live per-request or a stored snapshot, and did a deleted test lose its subject or its coverage) and **security** (credential exposure, authorization bypass, tenant isolation, spend, injection, fail-open).
+- It **does not** cast a bot approval. GitHub counts App reviews toward `required_approving_review_count`; using that would satisfy the rule with theatre. It posts findings and exits non-zero, and the verdict is read back from what it actually posted rather than from the action's exit code, because the action succeeds whenever it manages to comment.
+- It blocks only on `CONTROL REMOVAL` or `UNEVIDENCED`. Notes are non-blocking, on the same reasoning as Fallow's `gate: new-only`: a reviewer that flags everything is a rubber stamp with extra steps.
+
+**Outstanding, and not mine to do:** add `ANTHROPIC_API_KEY` to repository secrets (or configure Workload Identity Federation, which needs Anthropic org admin and leaves no static key), then add `review` to the required status checks. Until step two it reports but cannot block. It fails loudly on a missing key rather than skipping, because a review gate that silently no-ops is the class of thing this program deletes.
+
+Three times during Phase 2 a subagent caught something reported as finished. That is the signal being institutionalised here, rather than treated as luck.
+
+### 2. Off EOL Debian 12 properly — the runtime contract is the work, not the base
+
+The `libpcre2-8-0` pin closed the actual High and is labelled a stopgap. The class fix is moving off bookworm, and the cost is not the `FROM` line: it is that `node 22.23.2 / icu 78.2 / unicode 17.0` may move, and that triple is a **contract**. Moving it means re-deriving the AI provider deployment profile, regenerating the persisted profile digests through `db:baseline`, and re-running the language corpus that ICU and Unicode versions feed. A day of careful work.
+
+### 3. Make `e2e` cheaper rather than deferring it
+
+WP2.4 established that `e2e` is 9m05s of a 9m05s run. The answer is not nightly: profile which specs dominate, shard the Compose stack, and cut fixture setup that outweighs its assertions. That yields a fast gate _and_ keeps the only proof a real provider call reaches Google.
+
+### 4. `releaseSha` on the permit — decide on evidence, not caution
+
+Kept during step 4 on the reasoning that "no current reader is a weaker argument for an audit column than for a gate". That is caution, not evidence. Enumerate the forensic consumers — incident tooling, operator queries, release evidence — then delete or keep on what is found.
+
+### 5. Reply drafting as a job — a product decision, taken as one
+
+The containment argument for it was wrong and was correctly dropped. But the async design is better product behaviour for a ten-second provider call independent of security: a queued draft survives a page reload and a flaky provider. It belongs to the product owner as a UX decision, with a design put in front of them — not smuggled in as a security prerequisite.
+
+**Sequencing.** Review first, because everything after it should land under review. Then `e2e` speed, because item 2 needs many full CI cycles to verify and a nine-minute gate makes that painful. Then the base migration. `releaseSha` is read-only and runs in parallel. Reply drafting waits on a product decision.
+
 ## Assumptions & contingencies
 
 - **Storybook:** default is "keep, one runner" (WP3.6). If you prefer to drop Storybook entirely, WP3.6 instead deletes `.storybook/`, all `*.stories.tsx`, both CI jobs and the ten `@storybook*`/`@vitest/browser*` packages, and `pnpm test-storybook` leaves the local gate.

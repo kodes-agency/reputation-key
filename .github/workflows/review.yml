@@ -13,29 +13,46 @@ name: Review
 # a deletion program is not a bug; it is deleting a control while it looks like
 # deleting ceremony. Phase 2 deleted, correctly, a signed approval bundle, two
 # cache-generation comparisons and an approval-binding FK — and kept, correctly,
-# a live kill switch, a permit state machine and a spend cap. Those decisions look
-# identical in a diff. Telling them apart requires reading the tree to find out
+# a live kill switch, a permit state machine and a spend cap. Those decisions
+# look identical in a diff. Telling them apart means reading the tree to find
 # what still enforces the rule, which is why this uses Claude Code rather than a
 # diff-only reviewer: it can grep.
 #
-# PRECISION OVER RECALL ON THE BLOCKING PATH. `Control removal` fails the job.
-# Everything else is a non-blocking comment. A reviewer that flags everything
-# trains you to click past it, which is how you get a rubber stamp with extra
-# steps. Same principle as the Fallow audit's `gate: new-only`.
+# PRECISION OVER RECALL ON THE BLOCKING PATH. A CONTROL_REMOVAL or UNEVIDENCED
+# finding fails the job. NOTE findings do not. A reviewer that flags everything
+# trains you to click past it, which is a rubber stamp with extra steps — the
+# same reasoning as the Fallow audit's `gate: new-only`.
 #
-# NOT A BOT APPROVAL. GitHub will count a GitHub App review toward
+# NOT A BOT APPROVAL. GitHub counts a GitHub App review toward
 # `required_approving_review_count`. This deliberately does not do that: it
-# posts findings and exits non-zero. A red required check is honest; a bot
-# approving a bot's work is theatre that satisfies the rule and protects nothing.
+# reports findings and exits non-zero. A red required check is honest; a bot
+# approving a bot's work satisfies the rule and protects nothing.
 #
-# ACTIVATION IS TWO STEPS, and step 2 is deliberately manual:
-#   1. Add `ANTHROPIC_API_KEY` to repository secrets. Better, if you have
-#      Anthropic org admin: register GitHub Actions as an OIDC issuer and use
-#      Workload Identity Federation, so there is no static key to leak.
-#   2. Add `review` to the branch's required status checks.
-# Until step 2, this workflow reports but cannot block — which is why it fails
-# loudly on a missing key rather than skipping. A review gate that silently
-# no-ops is precisely the class of thing this program exists to delete.
+# CREDENTIALS. Either works, and the jobs accept whichever is present:
+#   - `CLAUDE_CODE_OAUTH_TOKEN` — what `/install-github-app` provisions. In use.
+#   - `ANTHROPIC_API_KEY` — a static API key.
+# Best option if you have Anthropic org admin: Workload Identity Federation
+# (`anthropic_federation_rule_id` + `anthropic_organization_id`, with the
+# `id-token: write` already granted below), which exchanges the workflow's
+# GitHub OIDC token for a short-lived credential and leaves no static secret.
+#
+# THIS FILE CANNOT REVIEW ITS OWN CHANGES. claude-code-action refuses to run
+# when the workflow file differs from the copy on the default branch:
+#
+#   Skipping action due to workflow validation: the workflow file must exist
+#   and have identical content to the version on the repository's default branch
+#
+# That is a real control, not a bug — otherwise a pull request could rewrite its
+# own reviewer to print secrets. The consequences are worth knowing:
+#   - Until this file is merged to `main`, both reviewers skip on every run.
+#   - Any future PR that edits this file will skip them again, and must be
+#     reviewed by a human.
+#   - A skipped action exits SUCCESS and emits no output. Both jobs therefore
+#     fail when `structured_output` is absent. That is not defensive
+#     programming; this job actually reported green through four runs in which
+#     nothing was reviewed, which is how the requirement was found.
+#
+# REMAINING ACTIVATION STEP: add `review` to the branch's required status checks.
 
 on:
   pull_request:
@@ -49,19 +66,21 @@ permissions:
   contents: read
 
 jobs:
-  # Fail fast and explicitly when the key is absent, instead of letting the
+  # Fail explicitly when no credential is present, rather than letting the
   # review jobs skip and leave a green-looking PR that nothing examined.
   credentials:
     runs-on: ubuntu-latest
     steps:
       - name: Require review credentials
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -z "${ANTHROPIC_API_KEY}" ]; then
-            echo "::error::ANTHROPIC_API_KEY is not set. The review gate cannot run."
-            echo "::error::Add it under Settings > Secrets and variables > Actions,"
-            echo "::error::or configure Workload Identity Federation for keyless auth."
+          if [ -z "${OAUTH}" ] && [ -z "${API_KEY}" ]; then
+            echo "::error::No review credential is set. The review gate cannot run."
+            echo "::error::Add CLAUDE_CODE_OAUTH_TOKEN (what /install-github-app"
+            echo "::error::provisions) or ANTHROPIC_API_KEY under Settings >"
+            echo "::error::Secrets and variables > Actions."
             exit 1
           fi
 
@@ -71,6 +90,10 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      # The action exchanges the workflow's GitHub OIDC token for its App token;
+      # without this it fails with "Failed to get OIDC token" before it ever
+      # reaches the model. Also what Workload Identity Federation needs.
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -79,8 +102,10 @@ jobs:
           fetch-depth: 0
 
       - name: Adversarial control-vs-ceremony review
+        id: review
         uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
         with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
             You are an adversarial reviewer on a codebase mid-way through a
@@ -103,70 +128,88 @@ jobs:
               1. What did this gate before?
               2. What gates it now? Name the file and the line.
               3. Is that replacement evaluated LIVE per request, or is it a
-                 stored snapshot compared later? A snapshot is not equivalent to
-                 a live read.
+                 stored snapshot compared later? A snapshot is not equivalent
+                 to a live read.
               4. If it was a test: did it lose its SUBJECT (the behaviour no
-                 longer exists — deletion is correct), or did it lose COVERAGE
-                 (the behaviour still exists and is now unasserted — this is a
-                 finding)?
+                 longer exists, so deletion is correct), or did it lose
+                 COVERAGE (the behaviour still exists and is now unasserted,
+                 which is a finding)?
 
             Read the tree to answer 2 and 3. Do not answer from the diff alone;
             a diff cannot show you what still enforces a rule. Use grep.
 
-            Specific traps this codebase has already sprung, so look for them:
+            Traps this codebase has already sprung, so look for them:
             - An edit reported as applied that silently did not apply. Verify
-              claims in the commit message against the actual file contents.
+              claims in the commit message against actual file contents.
             - A test that passes vacuously because its input was mangled before
-              assertion (for example a comment stripper eating the file). If a
-              test searches text, check that the text survived.
+              assertion. If a test searches text, check the text survived.
             - A required field dropped from a type while a SQL function, a
-              regprocedure cast, a GRANT, or a placeholder list still names it.
+              regprocedure cast, a GRANT or a placeholder list still names it.
             - A deny code removed from a union while a downstream mapper still
               classifies it.
             - A guard whose parameter is now unused, which usually means the
               guard stopped guarding before it stopped existing.
+            - A workflow or config whose subject was deleted, leaving a required
+              check that cannot parse its own input.
 
-            OUTPUT FORMAT. Post one PR review comment. Classify every finding as
-            exactly one of:
-              CONTROL REMOVAL  — a control is gone or weakened with no live
-                                 replacement. Include the evidence.
-              UNEVIDENCED      — the change claims something the tree does not
-                                 support.
-              NOTE             — everything else. Style, naming, taste.
+            Return the structured object the schema requires. Set `verdict` to
+            BLOCK if and only if there is at least one CONTROL_REMOVAL or
+            UNEVIDENCED finding; NOTE findings alone must produce PASS. Every
+            finding needs `evidence` naming a file and line — a finding you
+            cannot point at is a NOTE at most.
 
-            Then, on the LAST line of your comment, output exactly one of:
-              REVIEW-VERDICT: BLOCK
-              REVIEW-VERDICT: PASS
-            BLOCK only if you found at least one CONTROL REMOVAL or UNEVIDENCED
-            finding. NOTE findings alone must produce PASS. Do not hedge: an
-            uncertain BLOCK is more useful than a confident PASS, but a reflexive
-            BLOCK on every PR makes this gate worthless, so justify it.
-          claude_args: >-
-            --allowed-tools
-            Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
+            Do not hedge. An uncertain BLOCK is more useful than a confident
+            PASS, but a reflexive BLOCK on every pull request makes this gate
+            worthless, so justify each one.
+          # Literal block, not folded: the documented form. A folded scalar
+          # collapses these onto one line and the schema's quoting does not
+          # survive, which is why `structured_output` came back empty.
+          claude_args: |
+            --allowed-tools Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
+            --json-schema '{"type":"object","required":["verdict","findings"],"properties":{"verdict":{"type":"string","enum":["BLOCK","PASS"]},"findings":{"type":"array","items":{"type":"object","required":["classification","summary","evidence"],"properties":{"classification":{"type":"string","enum":["CONTROL_REMOVAL","UNEVIDENCED","NOTE"]},"summary":{"type":"string"},"evidence":{"type":"string"}}}}}}'
 
       - name: Enforce the verdict
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+          RESULT: ${{ steps.review.outputs.structured_output }}
         run: |
           set -euo pipefail
-          # The reviewer's verdict is the gate. Read it back from what it
-          # actually posted rather than trusting the step's exit code: the
-          # action succeeds when it manages to comment, which is not the same
-          # as the review passing.
-          body=$(gh api "repos/${REPO}/issues/${PR}/comments" \
-            --jq 'map(select(.body | test("REVIEW-VERDICT:"))) | last | .body // ""')
-          if [ -z "${body}" ]; then
-            echo "::error::The reviewer posted no verdict. Treating as a failure:"
-            echo "::error::a review gate that produces no verdict has not reviewed anything."
+          # The verdict is a TYPED value from `structured_output`, validated
+          # against the schema above.
+          #
+          # The first version scraped a trailing line out of a PR comment and
+          # failed on its own first run, because the action posts a pull-request
+          # REVIEW rather than an issue comment. A gate that parses prose is a
+          # gate that fails on formatting.
+          if [ -z "${RESULT:-}" ]; then
+            echo "::error::The reviewer produced no structured output."
+            echo "::error::Treating as a failure: a review gate with no verdict"
+            echo "::error::has not reviewed anything."
             exit 1
           fi
-          verdict=$(printf '%s\n' "${body}" | grep -oE 'REVIEW-VERDICT: (BLOCK|PASS)' | tail -1)
-          echo "${verdict}"
-          if [ "${verdict}" = "REVIEW-VERDICT: BLOCK" ]; then
-            echo "::error::Review found a control removal or an unevidenced claim. See the PR comment."
+          printf '%s' "${RESULT}" > verdict.json
+          verdict=$(jq -r '.verdict' verdict.json)
+          echo "verdict: ${verdict}"
+
+          # Post the findings so the reasoning lands where a reader sees it,
+          # not only in a job log.
+          {
+            echo "## Control-vs-ceremony review"
+            echo
+            echo "**Verdict: ${verdict}**"
+            echo
+            jq -r 'if (.findings | length) == 0 then "No findings." else (.findings[] | "- **\(.classification)** — \(.summary)\n  - evidence: \(.evidence)") end' verdict.json
+          } > review-comment.md
+          gh pr comment "${PR}" --repo "${REPO}" --body-file review-comment.md
+
+          # Belt and braces: block on the verdict OR on any blocking finding, so
+          # a model that mislabels its verdict while correctly classifying a
+          # finding still stops the merge.
+          blocking=$(jq '[.findings[] | select(.classification == "CONTROL_REMOVAL" or .classification == "UNEVIDENCED")] | length' verdict.json)
+          if [ "${verdict}" = "BLOCK" ] || [ "${blocking}" -gt 0 ]; then
+            echo "::error::Review found ${blocking} blocking finding(s). See the PR comment."
             exit 1
           fi
 
@@ -176,6 +219,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -183,19 +227,19 @@ jobs:
 
       # Kept separate from the reviewer above on purpose: that one asks "did a
       # control disappear", this one asks "is there a vulnerability class here".
-      # Merging them would dilute both prompts, and this program has already
-      # shown that a gate which reports everything gets ignored.
+      # Merging them dilutes both prompts.
       #
-      # This uses the same pinned action with a different prompt rather than
-      # `anthropics/claude-code-security-review`, which publishes no tags or
-      # releases. `check:action-pins` requires a SHA plus a `# v…` comment, and
-      # there is no version to name — so the honest options were to widen the
-      # pinning policy for one action or to not depend on an unversioned one.
-      # Widening a security policy to satisfy a convenience is the trade this
-      # program exists to stop making.
+      # Uses the same pinned action rather than
+      # `anthropics/claude-code-security-review`, which publishes no tags.
+      # `check:action-pins` requires a SHA plus a `# v…` comment and there is no
+      # version to name — so the options were to widen a security policy for one
+      # convenience, or not depend on an unversioned action. This program exists
+      # to stop making the first trade.
       - name: Security review
+        id: review
         uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
         with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
             Review this pull request for security vulnerabilities only. Ignore
@@ -216,13 +260,51 @@ jobs:
               - fail-open: a catch that swallows a refusal, a default that
                 permits, an optional dependency whose absence skips a check
 
-            Report only findings you can evidence with a file and line. For each,
-            state the input that reaches it and what an attacker gains. Do not
-            report theoretical issues with no reachable path — a false positive
-            here costs more than it saves, because it teaches the next reader to
-            skim.
+            Report only findings you can evidence with a file and line. For
+            each, state the input that reaches it and what an attacker gains.
+            Do not report theoretical issues with no reachable path — a false
+            positive here costs more than it saves, because it teaches the next
+            reader to skim.
 
-            Post one PR review comment. If you find nothing, say so in one line.
-          claude_args: >-
-            --allowed-tools
-            Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
+            Return the structured object the schema requires. `ran` is a
+            self-check: set it true to prove you executed. Report only findings
+            you can evidence.
+          claude_args: |
+            --allowed-tools Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
+            --json-schema '{"type":"object","required":["ran","findings"],"properties":{"ran":{"type":"boolean"},"findings":{"type":"array","items":{"type":"object","required":["severity","summary","evidence","attacker_gains"],"properties":{"severity":{"type":"string","enum":["HIGH","MEDIUM","LOW"]},"summary":{"type":"string"},"evidence":{"type":"string"},"attacker_gains":{"type":"string"}}}}}}'
+
+      # Without this the job is a FALSE GREEN, and it already was one. When
+      # `review.yml` differs from the copy on the default branch the action
+      # skips itself by design (see the header), exits success, and produces no
+      # output — so this job reported green through four runs in which no
+      # security review happened at all. A gate that cannot tell "found nothing"
+      # from "did not run" is not a gate.
+      - name: Enforce the security findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          RESULT: ${{ steps.review.outputs.structured_output }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RESULT:-}" ]; then
+            echo "::error::The security reviewer produced no structured output."
+            echo "::error::Either it was skipped by workflow validation (does"
+            echo "::error::this PR change .github/workflows/review.yml?) or it"
+            echo "::error::failed. Not treating silence as a clean bill."
+            exit 1
+          fi
+          printf '%s' "${RESULT}" > security.json
+          {
+            echo "## Security review"
+            echo
+            jq -r 'if (.findings | length) == 0 then "No findings." else (.findings[] | "- **\(.severity)** — \(.summary)\n  - evidence: \(.evidence)\n  - attacker gains: \(.attacker_gains)") end' security.json
+          } > security-comment.md
+          gh pr comment "${PR}" --repo "${REPO}" --body-file security-comment.md
+
+          # HIGH and MEDIUM block. LOW is reported and does not.
+          blocking=$(jq '[.findings[] | select(.severity == "HIGH" or .severity == "MEDIUM")] | length' security.json)
+          if [ "${blocking}" -gt 0 ]; then
+            echo "::error::Security review found ${blocking} HIGH/MEDIUM finding(s)."
+            exit 1
+          fi
