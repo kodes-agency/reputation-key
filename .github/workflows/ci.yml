@@ -884,8 +884,14 @@ jobs:
 
   storybook-test:
     runs-on: ubuntu-latest
-    # Component-test coverage: boots Storybook, then runs the test-runner
-    # (render + a11y checks across all stories) — hard gate for BQR-5.4 a11y.
+    # Component-test coverage: renders every story in headless Chromium and
+    # runs its play function plus axe — the hard gate for BQR-5.4 a11y.
+    #
+    # This used to run @storybook/test-runner against a live Storybook dev
+    # server. That runner is a Storybook 8/9 tool: under Storybook 10 its jest
+    # runtime cannot load the config at all (`throwHooksUnsupported`), so all
+    # 93 suites failed at setup and 0 tests ran. The vitest project is the
+    # supported path and needs no dev server.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -910,28 +916,8 @@ jobs:
           ${{ steps.pw-cache.outputs.cache-hit == 'true'
           && 'pnpm exec playwright install-deps chromium'
           || 'pnpm exec playwright install --with-deps chromium' }}
-      - name: Start Storybook
-        run: |
-          pnpm storybook --ci --quiet &
-          # Robust wait without external 'wait-on' dep (avoids npx resolution flakiness/exit 127 on runners).
-          for i in $(seq 1 60); do
-            if curl -sf http://localhost:6006/iframe.html >/dev/null; then
-              echo "Storybook ready after ${i}s"
-              break
-            fi
-            sleep 2
-          done
-          curl -sf http://localhost:6006/iframe.html >/dev/null || (echo "Storybook failed to become ready" && exit 1)
-      # One Storybook dev server serves every jest worker, and the dev server
-      # compiles a story's module graph on FIRST visit. Unbounded workers race
-      # that compiler: measured on this job 2026-09-04, the default budget
-      # timed out one play function (15s) and raising it to 45s moved the
-      # failure into `setupPage` instead (6/95 suites, `page.goto: Timeout
-      # 30000ms` - a runner constant), with 529/529 tests still passing. Bound
-      # the concurrency so the compiler is not the bottleneck, and give each
-      # test 2x the default for the residual shared-runner variance.
       - name: Run storybook tests
-        run: pnpm test-storybook --maxWorkers 2 --testTimeout 30000
+        run: pnpm test:storybook
 
   e2e:
     runs-on: ubuntu-latest
@@ -1050,158 +1036,3 @@ jobs:
       - name: Tear down local Compose application stack
         if: always()
         run: pnpm e2e:stack:down
-
-  # The old beta job's 811-second sequential smoke owned the entire critical
-  # path. Main run 33891370093 measured clean/fault, scale/source, and
-  # upgrade/product work as three independent, balanced lanes. Each lane owns
-  # hermetic Compose cycles and stages checksum-protected fragments; no lane
-  # consumes another job's mutable runtime.
-  beta-acceptance-groups:
-    if: >-
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.pull_request.labels.*.name, 'beta-acceptance')
-    name: beta acceptance (${{ matrix.group }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        group: [clean-faults, scale-source, upgrade-product]
-    services:
-      postgres:
-        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
-        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20 # 16.14
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        # BQC-7.7: digest-pinned (multi-arch index) — tag comment for humans.
-        image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b # 7.4.10
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      CI: '1'
-      E2E_BASE_URL: http://127.0.0.1:3000
-      E2E_LOCKED_BASE_URL: http://127.0.0.1:3001
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      # Only product journeys launch a browser. The other two lanes no longer
-      # pay the Chromium install tax.
-      - name: Resolve Playwright version
-        if: matrix.group == 'upgrade-product'
-        id: pw
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: matrix.group == 'upgrade-product'
-        id: pw-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium
-      - name: Install Playwright browser
-        if: matrix.group == 'upgrade-product'
-        run: >-
-          ${{ steps.pw-cache.outputs.cache-hit == 'true'
-          && 'pnpm exec playwright install-deps chromium'
-          || 'pnpm exec playwright install --with-deps chromium' }}
-      - name: Run beta smoke scenario group
-        run: pnpm beta:smoke -- --release-sha=${{ github.sha }} --group=${{ matrix.group }}
-      - name: Stage beta smoke fragment
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: beta-smoke-fragment-${{ matrix.group }}-${{ github.sha }}
-          path: test-results/beta-smoke-fragments/${{ github.sha }}/
-          if-no-files-found: error
-          retention-days: 1
-      - name: Collect beta Compose diagnostics
-        if: always()
-        run: pnpm exec tsx scripts/local-stack/stack.ts logs --mode=beta
-      - name: Upload beta group diagnostics
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: beta-local-smoke-diagnostics-${{ matrix.group }}-${{ github.sha }}
-          path: |
-            test-results/beta-smoke-work/**
-            test-results/local-stack/**
-            test-results/playwright/**
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: Tear down beta Compose stack
-        if: always()
-        run: pnpm local:beta:down
-
-  # Preserve the required `beta-acceptance` context as a small, fail-closed
-  # aggregate. It validates all three markers against the authoritative plan,
-  # reconstructs the exact legacy evidence contract, runs cross-lane gates,
-  # and emits the single immutable manifest.
-  beta-acceptance:
-    needs: [beta-acceptance-groups]
-    if: >-
-      always() && (
-        github.event_name == 'push' ||
-        github.event_name == 'workflow_dispatch' ||
-        contains(github.event.pull_request.labels.*.name, 'beta-acceptance')
-      )
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Require every beta scenario group to succeed
-        if: needs.beta-acceptance-groups.result != 'success'
-        run: exit 1
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - name: Download beta smoke fragments
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          pattern: beta-smoke-fragment-*-${{ github.sha }}
-          path: test-results/beta-smoke-fragments/${{ github.sha }}
-          merge-multiple: true
-      - name: Finalize authoritative local beta smoke
-        run: pnpm beta:smoke -- --release-sha=${{ github.sha }} --finalize
-      - name: Resolve beta manifest digest
-        id: beta_manifest
-        shell: bash
-        run: |
-          shopt -s nullglob
-          checksums=(test-results/beta-smoke/"$GITHUB_SHA"/*/manifest.sha256)
-          test "${#checksums[@]}" -eq 1
-          manifest_dir="$(dirname "${checksums[0]}")"
-          echo "digest=$(basename "$manifest_dir")" >> "$GITHUB_OUTPUT"
-      - name: Upload beta smoke evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: beta-local-smoke-${{ steps.beta_manifest.outputs.digest || github.sha }}
-          path: |
-            test-results/beta-smoke/**
-            test-results/beta-smoke-work/**
-            test-results/local-stack/**
-            test-results/beta-smoke-fragments/**
-          if-no-files-found: ignore
-          overwrite: false
-          retention-days: 30

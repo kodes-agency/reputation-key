@@ -144,7 +144,7 @@ Contract for the composition root (`src/composition.ts`):
 - It must **not** import individual use cases, event handlers, or business rules — those are constructed inside the owning build module.
 - A build module may import its **own** context's infrastructure, but never a foreign context's — foreign pieces arrive as injected deps typed via the target's `application/public-api.ts` (or a narrow structural port owned by the consuming context).
 - Worker/job/consumer/schedule registration is owned by BQC-3 (`bootstrap.ts` + `worker/`); the composition root supplies the one runtime registry to context-owned registration contributions and never introduces another worker/job registry. Bootstrap invokes those named contributions instead of reaching through to context repositories.
-- Build **order is load-bearing** (TDZ): staff → identity → property → portal/guest → integration → review → inbox → metric → goal → dashboard → activity → notification. Team, Badge, and Leaderboard are not composed. Notification may retain narrowly scoped, neutral historical Badge compatibility without constructing Badge. Late-binding closures (e.g. staff's `portalLookup`) are the sanctioned escape hatch, not reordering.
+- Build **order is load-bearing** (TDZ): staff → identity → property → portal/guest → integration → review → inbox → metric → goal → dashboard → activity → notification. Team, Badge, and Leaderboard are not composed. Notification may retain narrowly scoped, neutral historical Badge compatibility without constructing Badge. Where a later context must be reachable from an earlier one, a late-binding closure that resolves at call time is the sanctioned escape hatch, not reordering.
 
 ## Use case shape
 

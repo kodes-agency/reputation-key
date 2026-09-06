@@ -3,22 +3,27 @@
 // ── Component-test runner decision (BQC-6.3) ─────────────────────────────
 // Two story runners exist with green parity (74 files / 379 tests each):
 //
-// 1. @storybook/test-runner (`pnpm test-storybook`, against the dev server)
-//    — THE ONE AUTHORITATIVE GATE. Runs in CI (`storybook-test` job) with
-//    --failOnConsole (console.error during a story fails it; narrow benign
-//    allowlist lives in ./test-runner.ts) and enforces the a11y `test:'error'`
-//    config from ./preview.tsx (axe violations fail the story via the
-//    runner's own setup-page script, independent of addon behavior).
+// ONE runner: the Vitest browser project (`pnpm test:storybook`), which the
+// `storybook-test` CI job runs. It renders every story in headless Chromium,
+// runs its play function, and enforces the a11y `test: 'error'` config from
+// ./preview.tsx — an axe violation fails the story.
 //
-// 2. Vitest browser project (`pnpm test:storybook`, VITEST_STORYBOOK=true)
-//    — a dev/MCP tool, NOT a gate. Kept because @storybook/addon-mcp
-//    (registered below) and the in-editor story-test experience drive it,
-//    but it feeds no release evidence: its a11y hard throw can never fire
-//    (addon-a11y gates it on VITEST_STORYBOOK === "false", which this repo's
-//    script must set to "true" for the project to exist — the measured
-//    compatibility issue behind keeping the legacy runner), onConsoleLog is
-//    reporter-side filtering only, and onUnhandledError misses
-//    boundary-caught React errors.
+// @storybook/test-runner used to be the gate. It is a Storybook 8/9 tool: under
+// Storybook 10 its jest runtime cannot even load the config
+// (`throwHooksUnsupported`), so every suite failed at setup and no test ran. It
+// is deleted.
+//
+// Enforcement depends on a flag split that is easy to undo by accident.
+// addon-a11y only throws when it reads `import.meta.env.VITEST_STORYBOOK ===
+// "false"`, and addon-vitest forwards `process.env.VITEST_STORYBOOK` into that.
+// The project's existence is therefore gated on REPKEY_STORYBOOK_TESTS instead,
+// and the project is named explicitly in vitest.config.ts because the plugin
+// only force-names it when VITEST_STORYBOOK is set. Setting VITEST_STORYBOOK
+// would silently turn a11y back into report-only.
+//
+// Known gap: the old runner also failed a story on any console.error, using an
+// allowlist in the deleted ./test-runner.ts. The Vitest path filters console
+// output reporter-side only, so console errors no longer fail a story.
 // ─────────────────────────────────────────────────────────────────────────
 import type { StorybookConfig } from '@storybook/react-vite'
 import { fileURLToPath } from 'node:url'

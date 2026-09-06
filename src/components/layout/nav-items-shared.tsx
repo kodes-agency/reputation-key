@@ -1,8 +1,8 @@
-// Sidebar nav row markup shared by StaffNavItems and ManagerNavItems.
+// Sidebar nav row markup used by ManagerNavItems.
 //
-// Both navs render the same two row shapes over their own descriptor list: a
-// live row that links to the destination, and an inert row that keeps the icon
-// and label but cannot be clicked.
+// The manager nav renders two row shapes over its descriptor list: a live row
+// that links to the destination, and an inert row that keeps the icon and label
+// but cannot be clicked.
 //
 // A row goes inert when the destination route's own capability gate
 // (`gateControlledRoute` in its `beforeLoad`) would bounce the user to

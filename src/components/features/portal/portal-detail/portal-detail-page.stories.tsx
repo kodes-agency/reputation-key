@@ -124,20 +124,6 @@ const tokenStatus: PortalTokenStatus = {
   graceExpiresAt: null,
 }
 
-const requestUploadUrl = async (_input: {
-  data: { portalId: string; contentType: string; fileSize: number }
-}) => ({
-  uploadUrl: 'https://upload.example.com/presigned',
-  uploadId: 'upload-id',
-  requiredHeaders: { 'If-None-Match': '*' },
-})
-const finalizeUpload = async (_input: {
-  data: { portalId: string; uploadId: string }
-}) => ({
-  heroImageUrl: 'https://cdn.example.com/hero.png',
-  processing: false,
-})
-
 // Empty analytics payload — exercises the "no data" rendering path of the
 // analytics tab (valid PortalAnalyticsData with zero KPIs / empty arrays).
 const analyticsComputedAt = new Date('2026-08-25T12:00:00.000Z')
@@ -226,8 +212,6 @@ const baseArgs = {
   issueTokenMutation,
   rotateTokenMutation,
   revokeTokenMutation,
-  requestUploadUrl,
-  finalizeUpload,
   getPortalAnalytics,
   activeTab: 'settings' as const,
   onTabChange: fn(),

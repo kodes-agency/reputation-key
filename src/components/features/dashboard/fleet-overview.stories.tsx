@@ -228,14 +228,12 @@ export const Error: Story = {
   },
 }
 
-// Denied — the fleet dashboard is a manager surface (dashboard.fleet_read);
-// Staff have dashboard.read but not fleet_read. The route guard
-// (src/routes/_authenticated/dashboard.tsx:30-35) throws a redirect to /home,
-// so the denied UX is: the fleet view never mounts and the user lands on
-// Home. There is no denied UI component to story — this story drives the REAL
+// Denied — the fleet dashboard is a manager surface (dashboard.fleet_read).
+// The route guard sends a denied role to /unavailable, so the fleet view never
+// mounts. There is no denied UI component to story — this story drives the REAL
 // permission decision (can() from shared/domain/permissions, the same call the
 // route makes) in a two-route memory router and asserts the redirect. The
-// 2-line beforeLoad mirrors the route's (the route file itself is not
+// beforeLoad mirrors the route's permission guard (the route file itself is not
 // importable in Storybook — its server-fn imports are stubbed out of the
 // preview, see .storybook/main.ts viteFinal).
 function FleetGateHarness({ role }: { role: Role }) {
@@ -247,18 +245,19 @@ function FleetGateHarness({ role }: { role: Role }) {
       getParentRoute: () => rootRoute,
       path: '/dashboard',
       beforeLoad: ({ context }) => {
-        // Mirrors src/routes/_authenticated/dashboard.tsx:30-35.
-        if (!can(context.role, 'dashboard.fleet_read')) throw redirect({ to: '/home' })
+        if (!can(context.role, 'dashboard.fleet_read')) {
+          throw redirect({ to: '/unavailable', search: { feature: 'Dashboard' } })
+        }
       },
       component: () => <FleetOverview data={populatedData} />,
     })
-    const homeRoute = createRoute({
+    const unavailableRoute = createRoute({
       getParentRoute: () => rootRoute,
-      path: '/home',
-      component: () => <p>Staff home (redirect target)</p>,
+      path: '/unavailable',
+      component: () => <p>Dashboard unavailable (redirect target)</p>,
     })
     return createRouter({
-      routeTree: rootRoute.addChildren([dashboardRoute, homeRoute]),
+      routeTree: rootRoute.addChildren([dashboardRoute, unavailableRoute]),
       context: { role },
       history: createMemoryHistory({ initialEntries: ['/dashboard'] }),
     })
@@ -270,9 +269,10 @@ export const DeniedStaffRedirect: Story = {
   render: () => <FleetGateHarness role="Staff" />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // Staff is redirected away from the fleet dashboard to Home...
-    await expect(await canvas.findByText(/staff home \(redirect target\)/i)).toBeVisible()
-    // ...and the fleet UI never mounts.
+    await expect(
+      await canvas.findByText(/dashboard unavailable \(redirect target\)/i),
+    ).toBeVisible()
+    // The fleet UI never mounts.
     expect(canvas.queryByText('Properties')).toBeNull()
   },
 }

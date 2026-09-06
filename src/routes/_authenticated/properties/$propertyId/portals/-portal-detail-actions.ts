@@ -1,13 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useServerFn } from '@tanstack/react-start'
 import { toast } from 'sonner'
 import {
   completeContentReview,
   approvePortalApprovedDestination,
   disablePortalApprovedDestination,
-  finalizeUpload,
   issuePortalToken,
-  requestUploadUrl,
   requestPortalApprovedDestination,
   revokePortalTokens,
   rotatePortalToken,
@@ -149,8 +146,6 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     ],
   })
   const experience = usePortalExperienceActions(propertyId, portalId)
-  const requestUploadUrlFn = useServerFn(requestUploadUrl)
-  const finalizeUploadFn = useServerFn(finalizeUpload)
 
   return {
     update,
@@ -160,7 +155,5 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     completeReview,
     updateResponsibleManagers,
     experience,
-    requestUploadUrlFn,
-    finalizeUploadFn,
   }
 }

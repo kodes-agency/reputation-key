@@ -1,9 +1,7 @@
-import { useForm, useStore } from '@tanstack/react-form'
+import { useForm } from '@tanstack/react-form'
 import { z } from 'zod/v4'
 import { useEffect } from 'react'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
-import { HeroImageSection } from './hero-image-section'
 import { BasicInfoSection } from './basic-info-section'
 import { PortalFeedbackThresholdField } from './portal-feedback-threshold-field'
 import type { Action } from '#/components/hooks/use-action'
@@ -16,7 +14,6 @@ import type {
   UpdatePortalVariables,
 } from '../shared/types'
 
-// This form may display a derivative URL but can submit only explicit removal.
 const editFormSchema = updatePortalInputSchema
   .pick({
     name: true,
@@ -27,9 +24,6 @@ const editFormSchema = updatePortalInputSchema
   .required()
   .extend({
     description: z.string().max(500),
-    // Display state can contain the current server-published derivative even
-    // though updatePortal accepts only `null` removal.
-    heroImageUrl: z.url().nullable(),
   })
 type FormValues = z.infer<typeof editFormSchema>
 type Props = Readonly<{
@@ -38,17 +32,6 @@ type Props = Readonly<{
   theme: PortalThemeDraft
   disabled?: boolean
   formRef?: React.RefObject<FormLike | null>
-  requestUploadUrl: (input: {
-    data: { portalId: string; contentType: string; fileSize: number }
-  }) => Promise<{
-    uploadUrl: string
-    uploadId: string
-    requiredHeaders: Readonly<Record<string, string>>
-  }>
-  finalizeUpload: (input: { data: { portalId: string; uploadId: string } }) => Promise<{
-    heroImageUrl: string | null
-    processing: boolean
-  }>
 }>
 export function EditPortalForm({
   portal,
@@ -56,8 +39,6 @@ export function EditPortalForm({
   theme,
   disabled = false,
   formRef,
-  requestUploadUrl,
-  finalizeUpload,
 }: Props) {
   const { can } = usePermissions()
   const isDisabled = disabled || !can('portal.update')
@@ -67,7 +48,6 @@ export function EditPortalForm({
       name: portal.name,
       slug: portal.slug,
       description: portal.description ?? '',
-      heroImageUrl: portal.heroImageUrl,
       privateFeedbackThreshold: portal.privateFeedbackThreshold,
     } satisfies FormValues,
     validators: {
@@ -79,11 +59,6 @@ export function EditPortalForm({
         name: value.name,
         slug: value.slug,
         description: value.description || null,
-        // A non-null image URL is server-owned derivative state. The form may
-        // request removal, but it may never submit a replacement URL.
-        ...(portal.heroImageUrl !== null && value.heroImageUrl === null
-          ? { heroImageUrl: null }
-          : {}),
         theme,
         privateFeedbackThreshold: value.privateFeedbackThreshold,
       }
@@ -104,8 +79,6 @@ export function EditPortalForm({
     }
   }, [form, formRef])
 
-  const heroImageUrl = useStore(form.store, (state) => state.values.heroImageUrl)
-
   return (
     <form
       onSubmit={(e) => {
@@ -116,22 +89,6 @@ export function EditPortalForm({
       className="flex flex-col gap-6"
     >
       <FormErrorBanner error={mutation.error} />
-
-      <HeroImageSection
-        heroImageUrl={heroImageUrl}
-        onImageUrlChange={(url) => form.setFieldValue('heroImageUrl', url)}
-        onUpload={async (file, onProgress) => {
-          const { uploadUrl, uploadId, requiredHeaders } = await requestUploadUrl({
-            data: { portalId: portal.id, contentType: file.type, fileSize: file.size },
-          })
-          await putFilePresigned(uploadUrl, file, onProgress, requiredHeaders)
-          const { heroImageUrl: url } = await finalizeUpload({
-            data: { portalId: portal.id, uploadId },
-          })
-          return url
-        }}
-        disabled={isDisabled}
-      />
 
       <BasicInfoSection form={form} persistedSlug={portal.slug} disabled={isDisabled} />
 

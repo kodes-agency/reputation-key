@@ -58,7 +58,7 @@ describe('beta feedback contract', () => {
         expected: 'The action should finish.',
         actual: 'The action remains pending.',
         impact: 'small_issue',
-        routePath: '/home',
+        routePath: '/dashboard',
         viewport: 'regular',
         attachment,
       }),
@@ -70,7 +70,7 @@ describe('beta feedback contract', () => {
         title: 'A useful improvement',
         desiredOutcome: 'Make this workflow clearer for managers.',
         importance: 'helpful',
-        routePath: '/home',
+        routePath: '/dashboard',
         viewport: 'regular',
         attachment,
       }),
@@ -82,7 +82,7 @@ describe('beta feedback contract', () => {
         expected: 'The action should finish.',
         actual: 'The action remains pending.',
         impact: 'small_issue',
-        routePath: '/home',
+        routePath: '/dashboard',
         viewport: 'regular',
         replayId: 'private-replay',
       }),
@@ -98,7 +98,6 @@ describe('beta feedback contract', () => {
   })
 
   it.each([
-    ['/home', true],
     ['/dashboard', true],
     ['/inbox', false],
     ['/properties/import-google', false],
@@ -115,7 +114,6 @@ describe('beta feedback contract', () => {
   )
 
   it.each([
-    ['/home', 'home'],
     ['/dashboard', 'dashboard'],
     ['/inbox', 'inbox'],
     ['/properties', 'properties.list'],

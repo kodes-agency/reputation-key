@@ -14,11 +14,9 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as UnavailableRouteImport } from './routes/unavailable'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
-import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -28,7 +26,6 @@ import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSettingsAiRouteImport } from './routes/_authenticated/settings/ai'
-import { Route as AuthenticatedSettingsClosureRouteImport } from './routes/_authenticated/settings/closure'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings/integrations'
 import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings/members'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
@@ -85,11 +82,6 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -103,11 +95,6 @@ const UnavailableRoute = UnavailableRouteImport.update({
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
-  id: '/home',
-  path: '/home',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedNotificationsRoute =
@@ -159,12 +146,6 @@ const AuthenticatedSettingsAiRoute = AuthenticatedSettingsAiRouteImport.update({
   path: '/ai',
   getParentRoute: () => AuthenticatedSettingsRoute,
 } as any)
-const AuthenticatedSettingsClosureRoute =
-  AuthenticatedSettingsClosureRouteImport.update({
-    id: '/closure',
-    path: '/closure',
-    getParentRoute: () => AuthenticatedSettingsRoute,
-  } as any)
 const AuthenticatedSettingsIntegrationsRoute =
   AuthenticatedSettingsIntegrationsRouteImport.update({
     id: '/integrations',
@@ -349,18 +330,15 @@ export interface FileRoutesByFullPath {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/home': typeof AuthenticatedHomeRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/p/$token': typeof PTokenRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/settings/ai': typeof AuthenticatedSettingsAiRoute
-  '/settings/closure': typeof AuthenticatedSettingsClosureRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
@@ -401,16 +379,13 @@ export interface FileRoutesByTo {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/home': typeof AuthenticatedHomeRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/p/$token': typeof PTokenRoute
   '/settings/ai': typeof AuthenticatedSettingsAiRoute
-  '/settings/closure': typeof AuthenticatedSettingsClosureRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
@@ -452,18 +427,15 @@ export interface FileRoutesById {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
-  '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
   '/p/$token': typeof PTokenRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/_authenticated/settings/ai': typeof AuthenticatedSettingsAiRoute
-  '/_authenticated/settings/closure': typeof AuthenticatedSettingsClosureRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
@@ -506,18 +478,15 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
-    | '/register'
     | '/reset-password'
     | '/unavailable'
     | '/dashboard'
-    | '/home'
     | '/notifications'
     | '/progress'
     | '/settings'
     | '/p/$token'
     | '/properties/$propertyId'
     | '/settings/ai'
-    | '/settings/closure'
     | '/settings/integrations'
     | '/settings/members'
     | '/settings/notifications'
@@ -558,16 +527,13 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
-    | '/register'
     | '/reset-password'
     | '/unavailable'
     | '/dashboard'
-    | '/home'
     | '/notifications'
     | '/progress'
     | '/p/$token'
     | '/settings/ai'
-    | '/settings/closure'
     | '/settings/integrations'
     | '/settings/members'
     | '/settings/notifications'
@@ -608,18 +574,15 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
-    | '/register'
     | '/reset-password'
     | '/unavailable'
     | '/_authenticated/dashboard'
-    | '/_authenticated/home'
     | '/_authenticated/notifications'
     | '/_authenticated/progress'
     | '/_authenticated/settings'
     | '/p/$token'
     | '/_authenticated/properties/$propertyId'
     | '/_authenticated/settings/ai'
-    | '/_authenticated/settings/closure'
     | '/_authenticated/settings/integrations'
     | '/_authenticated/settings/members'
     | '/_authenticated/settings/notifications'
@@ -662,7 +625,6 @@ export interface RootRouteChildren {
   AcceptInvitationRoute: typeof AcceptInvitationRoute
   JoinRoute: typeof JoinRoute
   LoginRoute: typeof LoginRoute
-  RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   UnavailableRoute: typeof UnavailableRoute
   PTokenRoute: typeof PTokenRoute
@@ -716,13 +678,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
@@ -742,13 +697,6 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/home': {
-      id: '/_authenticated/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/notifications': {
@@ -812,13 +760,6 @@ declare module '@tanstack/react-router' {
       path: '/ai'
       fullPath: '/settings/ai'
       preLoaderRoute: typeof AuthenticatedSettingsAiRouteImport
-      parentRoute: typeof AuthenticatedSettingsRoute
-    }
-    '/_authenticated/settings/closure': {
-      id: '/_authenticated/settings/closure'
-      path: '/closure'
-      fullPath: '/settings/closure'
-      preLoaderRoute: typeof AuthenticatedSettingsClosureRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/settings/integrations': {
@@ -1043,7 +984,6 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsAiRoute: typeof AuthenticatedSettingsAiRoute
-  AuthenticatedSettingsClosureRoute: typeof AuthenticatedSettingsClosureRoute
   AuthenticatedSettingsIntegrationsRoute: typeof AuthenticatedSettingsIntegrationsRoute
   AuthenticatedSettingsMembersRoute: typeof AuthenticatedSettingsMembersRoute
   AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
@@ -1056,7 +996,6 @@ interface AuthenticatedSettingsRouteChildren {
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
   AuthenticatedSettingsAiRoute: AuthenticatedSettingsAiRoute,
-  AuthenticatedSettingsClosureRoute: AuthenticatedSettingsClosureRoute,
   AuthenticatedSettingsIntegrationsRoute:
     AuthenticatedSettingsIntegrationsRoute,
   AuthenticatedSettingsMembersRoute: AuthenticatedSettingsMembersRoute,
@@ -1134,7 +1073,6 @@ const AuthenticatedPropertiesPropertyIdRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedProgressRoute: typeof AuthenticatedProgressRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
@@ -1147,7 +1085,6 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedProgressRoute: AuthenticatedProgressRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
@@ -1171,7 +1108,6 @@ const rootRouteChildren: RootRouteChildren = {
   AcceptInvitationRoute: AcceptInvitationRoute,
   JoinRoute: JoinRoute,
   LoginRoute: LoginRoute,
-  RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   UnavailableRoute: UnavailableRoute,
   PTokenRoute: PTokenRoute,

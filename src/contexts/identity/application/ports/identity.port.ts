@@ -139,8 +139,6 @@ export type IdentityPort = Readonly<{
    * path (missing role definition → no permissions). App-owned write path.
    */
   deleteCustomRole: (ctx: AuthContext, role: string) => Promise<void>
-  /** Delete a user by ID. Used as compensating transaction when org setup fails. */
-  deleteUser: (userId: string) => Promise<void>
 }>
 
 /** Storage port for avatar uploads — local abstraction to avoid cross-context imports. */

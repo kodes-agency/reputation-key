@@ -23,7 +23,6 @@ function setup(clock: () => Date = () => NOW) {
     createdAt: NOW,
   })
   const signUp = vi.fn().mockResolvedValue('user-preallocated-manager')
-  const deleteUser = vi.fn().mockResolvedValue(undefined)
   const runOnAccepted = vi.fn().mockResolvedValue(undefined)
   const logger = { error: vi.fn() }
   const acceptInvitation = vi.fn(commandStore.acceptInvitation)
@@ -69,7 +68,6 @@ function setup(clock: () => Date = () => NOW) {
     commandStore,
     events,
     signUp,
-    deleteUser,
     runOnAccepted,
     logger,
     acceptInvitation,
@@ -127,7 +125,6 @@ describe('registerInvitedUser', () => {
       propertyIds: ['property-1'],
       displayName: 'New Manager',
     })
-    expect(fixture.deleteUser).not.toHaveBeenCalled()
   })
 
   it('preflights the email before creating an account', async () => {
@@ -139,7 +136,6 @@ describe('registerInvitedUser', () => {
       (error: unknown) => isIdentityError(error) && error.code === 'forbidden',
     )
     expect(fixture.signUp).not.toHaveBeenCalled()
-    expect(fixture.deleteUser).not.toHaveBeenCalled()
   })
 
   it('finishes acceptance when provider failure occurs after its fenced commit', async () => {
@@ -171,7 +167,7 @@ describe('registerInvitedUser', () => {
     )
   })
 
-  it('fails closed without deleting an unknown account when the ID fence is violated', async () => {
+  it('fails closed when the provider violates the fenced user ID', async () => {
     const fixture = setup()
     fixture.signUp.mockResolvedValueOnce('unexpected-provider-user')
 
@@ -179,7 +175,6 @@ describe('registerInvitedUser', () => {
       (error: unknown) => isIdentityError(error) && error.code === 'registration_failed',
     )
     expect(fixture.acceptInvitation).not.toHaveBeenCalled()
-    expect(fixture.deleteUser).not.toHaveBeenCalled()
     expect(fixture.logger.error).toHaveBeenCalledWith(
       {
         expectedUserId: 'user-preallocated-manager',
@@ -206,7 +201,6 @@ describe('registerInvitedUser', () => {
       now: NOW,
       nextRecoveryAt: new Date('2026-08-25T12:05:00.000Z'),
     })
-    expect(fixture.deleteUser).not.toHaveBeenCalled()
     expect(fixture.events.capturedEvents).toHaveLength(0)
   })
 
@@ -221,11 +215,10 @@ describe('registerInvitedUser', () => {
     await expect(fixture.useCase(fixture.input)).rejects.toSatisfy(
       (error: unknown) => isIdentityError(error) && error.code === 'invitation_not_found',
     )
-    expect(fixture.deleteUser).not.toHaveBeenCalled()
     expect(fixture.commandStore.invitationById(INVITATION_ID)?.status).toBe('pending')
   })
 
-  it('records a recovery failure without deleting an ambiguous provider account', async () => {
+  it('records a recovery failure for an ambiguous provider account', async () => {
     const fixture = setup()
     fixture.acceptInvitation.mockRejectedValueOnce({
       _tag: 'IdentityError',
@@ -244,7 +237,6 @@ describe('registerInvitedUser', () => {
       }),
       '[identity] invited registration reconciliation failed',
     )
-    expect(fixture.deleteUser).not.toHaveBeenCalled()
   })
 
   it('does not undo accepted authority when a derivative hook fails', async () => {
@@ -255,7 +247,6 @@ describe('registerInvitedUser', () => {
       organizationId: 'org-manager',
     })
     expect(fixture.commandStore.invitationById(INVITATION_ID)?.status).toBe('accepted')
-    expect(fixture.deleteUser).not.toHaveBeenCalled()
     expect(fixture.logger.error).toHaveBeenCalledWith(
       { err: expect.any(Error) },
       '[identity] invited registration post-accept hook failed',

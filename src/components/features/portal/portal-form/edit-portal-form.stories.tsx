@@ -1,4 +1,4 @@
-// Edit portal form — TanStack Form + Zod, mutation/uploaders as props.
+// Edit portal form — TanStack Form + Zod, mutation as a prop.
 // Uses usePermissions() (AccountAdmin → fields enabled; Staff → disabled), so
 // it needs the AuthedRouterDecorator. The form has NO submit button in
 // isolation — submission is driven by the parent's "Save Changes" button via
@@ -61,20 +61,6 @@ const portal: PortalData = {
   publicationState: 'published',
 }
 
-const requestUploadUrl = async (_input: {
-  data: { portalId: string; contentType: string; fileSize: number }
-}) => ({
-  uploadUrl: 'https://upload.example.com/presigned',
-  uploadId: 'upload-id',
-  requiredHeaders: { 'If-None-Match': '*' },
-})
-const finalizeUpload = async (_input: {
-  data: { portalId: string; uploadId: string }
-}) => ({
-  heroImageUrl: 'https://cdn.example.com/hero.png',
-  processing: false,
-})
-
 const idleMutation = Object.assign(
   async (_input: UpdatePortalVariables) => ({ success: true }),
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
@@ -88,8 +74,6 @@ export const Default: Story = {
     portal,
     mutation: idleMutation,
     theme: portal.theme,
-    requestUploadUrl,
-    finalizeUpload,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

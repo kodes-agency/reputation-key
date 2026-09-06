@@ -13,7 +13,6 @@ import {
   CardTitle,
   CardDescription,
 } from '#/components/ui/card'
-import { Shield } from 'lucide-react'
 import { changePasswordSchema } from '#/contexts/identity/application/dto/change-password.dto'
 import type { ChangePasswordInput } from '#/contexts/identity/application/dto/change-password.dto'
 import type { Action } from '#/components/hooks/use-action'
@@ -105,19 +104,6 @@ export function SecuritySettingsForm({ changePassword }: Props) {
           </div>
         </Card>
       </form>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Shield className="size-4 text-muted-foreground" />
-            <CardTitle>Two-factor authentication</CardTitle>
-          </div>
-          <CardDescription>
-            Add an extra layer of security to your account with TOTP-based two-factor
-            authentication. Coming soon.
-          </CardDescription>
-        </CardHeader>
-      </Card>
     </div>
   )
 }

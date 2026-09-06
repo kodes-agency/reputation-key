@@ -121,15 +121,15 @@ const renderOrganizationAccessRemoved = (): RenderedNotification => ({
 })
 
 /**
- * LIF-01 program bullet 5. Deliberately states the consequence and the fact
- * that action is still possible, without naming a deadline the template cannot
- * verify — the Closure Center shows the authoritative date in the
- * Organization's timezone.
+ * LIF-01 program bullet 5. Deliberately states the consequence without naming
+ * a deadline the template cannot verify. No shipped page exposes pending-purge
+ * actions, so the copy directs the AccountAdmin to support; the generic
+ * Organization notification link still opens their profile and says so.
  */
 const renderOrganizationPurgePending = (): RenderedNotification => ({
   title: 'Final notice: this organization is scheduled for permanent deletion',
-  body: 'The recovery window has ended. Data will be permanently erased and cannot be restored. Open the Closure Center to download your export or contact support while the deletion is still pending.',
-  actionLabel: 'Open Closure Center',
+  body: 'The recovery window has ended. Data will be permanently erased and cannot be restored. No self-service action is available. Contact support immediately while deletion is still pending.',
+  actionLabel: 'Open profile',
   summary: 'organization purge pending',
 })
 

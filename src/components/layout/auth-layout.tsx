@@ -1,4 +1,4 @@
-// Shared auth UI components — eliminates duplication across login/register/reset pages.
+// Shared auth UI components — eliminates duplication across login/join/reset pages.
 // AuthCard and AuthFooterLink are identity-specific layout components.
 // For error display, use FormErrorBanner from components/forms/ directly.
 
@@ -34,13 +34,7 @@ export function AuthCard({ title, description, children }: AuthCardProps) {
 type AuthFooterLinkProps = Readonly<{
   message: string
   linkText: string
-  to:
-    | '/login'
-    | '/register'
-    | '/join'
-    | '/reset-password'
-    | '/dashboard'
-    | '/accept-invitation'
+  to: '/login' | '/join' | '/reset-password' | '/dashboard' | '/accept-invitation'
 }>
 
 export function AuthFooterLink({ message, linkText, to }: AuthFooterLinkProps) {

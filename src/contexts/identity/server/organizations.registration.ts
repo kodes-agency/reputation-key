@@ -13,41 +13,12 @@ import { throwAuthError } from '#/shared/auth/auth-errors'
 import { getContainer } from '#/composition'
 import { invitationId } from '#/shared/domain/ids'
 import { isIdentityError } from '../domain/errors'
-import {
-  assertGlobalCapability,
-  BetaCapabilityError,
-} from '#/shared/auth/beta-capabilities'
 import { throwIdentityError } from './organizations.errors.server'
 import {
-  registerUserInputSchema,
   registerMemberInputSchema,
   setActiveOrgInputSchema,
   signInInputSchema,
 } from '../application/dto/invitation.dto'
-
-// ── Registration gate (B0.6 capability check) ───────────────────────
-// BQC-5.3: the /register route's beforeLoad must not import beta-capabilities
-// directly — its lazy policy store reads process configuration, which does not exist in
-// the browser module graph (client-side navigation to /register crashed on
-// `process`). The gate runs server-side and returns a typed signal that the
-// route maps to a redirect.
-export const getRegistrationGate = createServerFn({ method: 'GET' }).handler(
-  tracedHandler(
-    async () => {
-      try {
-        assertGlobalCapability('identity.register')
-        return { allowed: true as const }
-      } catch (e) {
-        if (e instanceof BetaCapabilityError) {
-          return { allowed: false as const }
-        }
-        throw catchUntagged(e)
-      }
-    },
-    'GET',
-    'identity.getRegistrationGate',
-  ),
-)
 
 // ── Register user only (no organization) ────────────────────────────
 // Used by invited members joining an existing org via /join.
@@ -82,38 +53,6 @@ export const registerMember = createServerFn({ method: 'POST' })
       },
       'POST',
       'identity.registerMember',
-    ),
-  )
-
-// ── Register user + create organization ────────────────────────────
-export const registerUserAndOrg = createServerFn({ method: 'POST' })
-  .validator(registerUserInputSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        // Self-service org creation is a permanently blocked beta capability.
-        // The dormant implementation stays behind this server-side boundary.
-        assertGlobalCapability('organization.create')
-        const reqHeaders = await headersFromContext()
-        const ip = clientIpFromHeaders(reqHeaders)
-        const { rateLimiter: rl } = getContainer()
-        const rlResult = await rl.check(`auth:register:${ip}`)
-        if (!rlResult.allowed) {
-          throwContextError(
-            'AuthError',
-            { code: 'rate_limited', message: 'Too many registration attempts' },
-            429,
-          )
-        }
-        try {
-          await getContainer().identityPublicApi.requests.registerUserAndOrg(data)
-        } catch (e) {
-          if (isIdentityError(e)) throwIdentityError(e)
-          throw catchUntagged(e)
-        }
-      },
-      'POST',
-      'identity.registerUserAndOrg',
     ),
   )
 

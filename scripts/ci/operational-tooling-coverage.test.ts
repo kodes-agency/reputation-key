@@ -35,9 +35,6 @@ const fallowConfig = JSON.parse(read('.fallowrc.json')) as {
 }
 
 const DYNAMIC_SCRIPT_ENTRIES = [
-  'scripts/beta/run-product-journeys.ts',
-  'scripts/beta/verify-gate-evidence.ts',
-  'scripts/google-import-final-schema-probe.ts',
   'scripts/local-stack/provision-ai-admission-role.ts',
   'scripts/verify-ai-runtime-image.mjs',
 ] as const

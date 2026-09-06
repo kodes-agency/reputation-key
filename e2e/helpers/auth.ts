@@ -83,12 +83,10 @@ export async function signIn(
     )
   }
 
-  // BQC-6.5: staff land on a clean authenticated surface — every
-  // manager-gated route redirects them to /home, which is manager-shaped
-  // today (its portals query requires staff_assignment.read, a permission
-  // the built-in Staff role lacks — see slice report).
+  // Wait for the clean authenticated landing (or the explicit unavailable
+  // state when this helper is used with a non-interactive beta role).
   await page.goto(landingPath ?? '/dashboard')
-  await page.waitForURL(/\/(dashboard|properties|home|inbox|settings)/, {
+  await page.waitForURL(/\/(dashboard|properties|inbox|settings|unavailable)/, {
     timeout: 20_000,
   })
   // Route redirects can resolve before their server-function loaders finish.

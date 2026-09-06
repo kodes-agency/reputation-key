@@ -9,9 +9,9 @@
 // category, so a notice queued here survives the fence that silenced
 // everything else.
 //
-// The notice is emitted at `purge_pending` and nowhere else. Earlier states are
-// recoverable and already visible in the Closure Center; `purging` is past the
-// irreversible boundary, where a "last chance" message would be a lie.
+// The notice is emitted at `purge_pending` and nowhere else. Earlier states
+// remain recoverable through governed lifecycle authority; `purging` is past
+// the irreversible boundary, where a "last chance" message would be a lie.
 //
 // Recipients are the CURRENT AccountAdmins. Deliberately not the requester:
 // the person who asked for the closure may have left, and the people who can

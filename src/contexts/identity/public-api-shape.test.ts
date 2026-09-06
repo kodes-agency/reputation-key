@@ -27,7 +27,6 @@ const EXPECTED_REQUEST_KEYS = [
   'listInvitations',
   'merchantAiAuthorization',
   'registerInvitedUser',
-  'registerUserAndOrg',
   'removeMember',
   'resendInvitation',
   'updateCustomRole',

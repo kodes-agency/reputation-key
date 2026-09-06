@@ -40,7 +40,7 @@ Authentication, session management, organization membership, and invitation work
 - Invitation acceptance atomically claims the user's Organization binding; a conflicting binding cannot create membership.
 - Invitation Property access is provisioned by a context-owned capability injected into the concrete `IdentityPort` adapter. The capability is scoped to that adapter/container, is idempotent per active grant, and failure-isolates sibling Properties. Shared Better Auth holds no mutable invitation/member lifecycle callback; its raw accept/remove/role/delete hooks deny before mutation, while the app-owned Identity commands carry the complete lifecycle dependencies.
 - Registration requires the exact pending, unexpired, email-bound manager invitation. Before Better Auth runs, the app commits a content-free fence containing preallocated user/account/session IDs. Recovery may resume exact provider authority, compensate only those fenced records, or stop in `manual_review`; it never deletes by email or inferred ownership.
-- Public registration, self-service Organization creation, Team, custom roles, and Staff User login are blocked beta capabilities.
+- Public registration and self-service Organization creation have no route or server function; invitation-bound registration is the sole beta account-creation path. Team, custom roles, and Staff User login are blocked beta capabilities.
 - Current actor-to-Property authority is decided from one transactionally consistent Identity snapshot for the command's complete unique `(principal, Property)` set: it reads the Organization permission generation optimistically, locks every current membership in stable user order, resolves every permission/scope required by the command, locks every required Property grant in stable `(user, Property)` order, then locks and rechecks the generation exactly once before a protected cross-context command commits. A changed generation denies the command. The decision returns only canonical beta manager roles (`AccountAdmin` or `PropertyManager`); retained Staff/custom-role identities fail closed. Membership, role, or grant revocation therefore linearizes before or after the command without taking the generation lock between concrete authority rows; a stale session role or earlier authorization fact cannot preserve present authority.
 - Cannot change role of a member with equal or higher role.
 - Cannot assign a role higher than your own.
@@ -55,7 +55,7 @@ Authentication, session management, organization membership, and invitation work
 - Recoverable cancellation from Closure Requested or Closing never clears the Organization suspension or restores provider/Portal/AI/schedule capability. Support may also return Purge Pending to `active` before `irreversibleAt`, but only with exact revision/lineage, independent authorization evidence, and typed confirmation. Every recovery leaves `reactivationRequired=true`.
 - `purge_pending → purging` is the explicit irreversible boundary. It requires exact revision/lineage, independent support authorization, typed confirmation, and content-free evidence. `purging` has no recovery edge; Closed is terminal.
 - Organization Export requires a current transactionally rechecked AccountAdmin and exactly one contributor for every owning context. Complete contributions require human CSV and lossless JSON; empty/omitted contexts remain explicit. The deterministic manifest/checksums, encrypted private storage, append-only digest-only retrieval issuance history, seven-day object deadline, and deletion evidence are locally implemented. Expired retrieval rotation cannot reuse any operation or digest previously issued for the request.
-- The production composition exposes one named lifecycle/export runtime and boot-registers three no-mutation safety handlers. Identity supplies its reviewed tenant-visible export contributor internally, so readiness reports the other 16 export owners as missing without allowing an external override. All 17 lifecycle contributors, the other 16 export contributors, durable post-upload generation recovery, active worker schedules, manager Closure Center, mutating operator commands, storage environment, and deliberate reactivation remain unbound. Export readiness exposes the recovery blocker and cannot construct the service while it is absent. The Identity lifecycle receipt wrapper transactionally locks and verifies the exact live lifecycle state/lineage/revision/deadline before phase work, then co-commits an append-only content-free receipt, but has no destructive phase work attached. Local control-plane code and quarantined handlers are not deployment or purge evidence, and no context data is purged merely because a lifecycle state changes.
+- The production composition exposes one named lifecycle/export runtime and boot-registers three no-mutation safety handlers. Identity supplies its reviewed tenant-visible export contributor internally, so readiness reports the other 16 export owners as missing without allowing an external override. All 17 lifecycle contributors, the other 16 export contributors, durable post-upload generation recovery, active worker schedules, mutating operator commands, storage environment, and deliberate reactivation remain unbound. Export readiness exposes the recovery blocker and cannot construct the service while it is absent. The Identity lifecycle receipt wrapper transactionally locks and verifies the exact live lifecycle state/lineage/revision/deadline before phase work, then co-commits an append-only content-free receipt, but has no destructive phase work attached. Local control-plane code and quarantined handlers are not deployment or purge evidence, and no context data is purged merely because a lifecycle state changes.
 - Removing a member transactionally revokes all of that user's Better Auth sessions, releases the matching singular Organization Binding, deletes membership, and records the durable removal fact. Cross-context manager/provider authorities are fenced before this commit; the final AccountAdmin cannot be removed.
 - Native Beta Feedback prepares its local UUID receipt before provider delivery. A delivered/failed settlement advances the exact revision; a provider-success/database-finalize fault remains content-free `prepared` work correlated by the local reference.
 - Suggestions are text-only. A Bug may carry only the validated `masked-layout-v1` geometry contract after explicit per-submission capture on an allowlisted route; no ordinary screenshot or Replay integration exists.
@@ -106,7 +106,7 @@ identity/
     dto/               invitation.dto.ts, update-org-settings.dto.ts, change-password.dto.ts
     use-cases/         register-invited-user.ts, recover-invited-registrations.ts,
                        register-user.ts,
-                       register-user-and-org.ts, invite-member.ts,
+                       invite-member.ts,
                        list-invitations.ts, resend-invitation.ts, update-member-role.ts,
                        remove-member.ts, update-organization.ts,
                        organization-lifecycle.ts, advance-organization-lifecycle.ts,
@@ -151,7 +151,6 @@ interface and does not expose the grant repository.
 | `registerInvitedUser`                          | `invitationId`, `name`, `email`, `password`                           | `{ org }`         | exact invitation; public but not self-service                                                             |
 | `recoverInvitedRegistrations`                  | due content-free recovery fences                                      | counts only       | worker-only; exact preallocated identities                                                                |
 | `registerUser`                                 | `name`, `email`, `password`                                           | `User`            | dormant; no beta server entry point                                                                       |
-| `registerUserAndOrg`                           | `name`, `email`, `password`, `organizationName`, `orgSlug`            | `{ user, org }`   | blocked by `organization.create`                                                                          |
 | `inviteMember`                                 | `email`, beta manager `role`, `organizationId`                        | `void`            | `invitation.create`; AccountAdmin only                                                                    |
 | `acceptInvitation`                             | `invitationId`, `organizationId`                                      | `{ user, org }`   | authenticated; exact binding enforced                                                                     |
 | `cancelInvitation`                             | `invitationId`, `organizationId`                                      | `void`            | `invitation.cancel`                                                                                       |
@@ -209,7 +208,6 @@ interface and does not expose the grant repository.
 | `updateMemberRole`      | POST   | `member.update`          | Change member role                                                                           |
 | `removeMember`          | POST   | `member.delete`          | Remove member from org                                                                       |
 | `registerMember`        | POST   | exact invitation         | Invitation-bound manager signup                                                              |
-| `registerUserAndOrg`    | POST   | blocked capability       | Dormant user + org signup                                                                    |
 | `signInUser`            | POST   | public                   | Sign in existing user                                                                        |
 | `updateOrganization`    | POST   | `organization.update`    | Update org name/slug/logo                                                                    |
 | `requestOrgLogoUpload`  | POST   | `identity.logo_upload`   | Get S3 upload URL for org logo                                                               |
@@ -222,28 +220,6 @@ interface and does not expose the grant repository.
 | `listUserInvitations`   | GET    | authenticated            | List user's pending invitations                                                              |
 | `listUserOrganizations` | GET    | authenticated            | List user's organizations                                                                    |
 | `submitBetaFeedbackFn`  | POST   | `feedback.respond`       | Native Bug/Suggestion intake; content-free local receipt before restricted provider delivery |
-
-### Closure Center (LIF-01-T17/T18)
-
-| Name                                 | Method | Authority                         | Description                                                        |
-| ------------------------------------ | ------ | --------------------------------- | ------------------------------------------------------------------ |
-| `getClosureCenterFn`                 | GET    | current AccountAdmin (under lock) | Lifecycle status, deadline, export view, reactivation checklist    |
-| `requestOrganizationClosureFn`       | POST   | current AccountAdmin (under lock) | Typed-confirmation closure request                                 |
-| `cancelOrganizationClosureFn`        | POST   | current AccountAdmin (under lock) | Cancel inside the recovery window; resumes nothing                 |
-| `reactivateOrganizationFn`           | POST   | current AccountAdmin (under lock) | Explicit reactivation; refuses until every check and action passes |
-| `requestOrganizationExportFn`        | POST   | current AccountAdmin (under lock) | Request an Organization Export                                     |
-| `issueOrganizationExportRetrievalFn` | POST   | current AccountAdmin (under lock) | Single-use, 24-hour retrieval token                                |
-| `downloadOrganizationExportFn`       | POST   | current AccountAdmin (under lock) | Consume the token and return the archive                           |
-
-These seven are the ONLY server functions that deliberately skip
-`requireExecutionAllowed`. A closure suspends the Organization, which denies
-every capability; routing them through the capability gate would make the
-closure uncancellable and the export unretrievable exactly when the tenant
-needs both. Their authority is the locked "current AccountAdmin with an active
-Organization binding" check inside each command-store transaction, plus an
-explicit AccountAdmin role gate that denies Staff User principals. No
-fresh-password, MFA or step-up factor is introduced on this path
-(program bullet 8); `BLOCKED_CAPABILITIES` is untouched.
 
 ### Leaving an Organization (LIF-01-T21)
 

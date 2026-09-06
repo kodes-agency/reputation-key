@@ -22,7 +22,6 @@ import {
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
-import { StaffSidebar } from '#/components/layout/staff-sidebar'
 import { SettingsSidebar } from '#/components/layout/settings-sidebar'
 import { AppTopBar } from '#/components/layout/app-top-bar'
 import { hasRole } from '#/shared/domain/roles'
@@ -108,8 +107,10 @@ export const Route = createFileRoute('/_authenticated')({
         throw redirect({ to: '/unavailable', search: { feature: 'Workspace' } })
       }
       if (org.organization) {
+        if (!org.role)
+          throw redirect({ to: '/unavailable', search: { feature: 'Workspace' } })
         resolvedOrganization = {
-          role: org.role ? (org.role as Role) : 'Staff',
+          role: org.role as Role,
           authz: org.authz,
           activeOrganization: {
             id: org.organization.id,
@@ -119,11 +120,11 @@ export const Route = createFileRoute('/_authenticated')({
           },
         }
       } else {
-        // A signed-in account without an active Organization must not fall
-        // through to the Staff shell. That shell immediately asks for
-        // tenant-scoped Properties and turns the expected invitation/no-access
-        // state into a failed loader. Keep it outside the tenant shell and
-        // point the person at the existing invitation recovery journey.
+        // A signed-in account without an active Organization must not enter
+        // the tenant shell. Its loader immediately asks for tenant-scoped
+        // Properties and would turn the expected invitation/no-access state
+        // into a failed loader. Keep it outside the tenant shell and point the
+        // person at the existing invitation recovery journey.
         throw redirect({
           to: '/unavailable',
           search: { reason: 'workspace_access' },
@@ -194,9 +195,7 @@ function AuthenticatedLayout() {
         <SettingsSidebar />
       ) : hasRole(ctx.role, 'PropertyManager') ? (
         <ManagerSidebar properties={properties} getLastVisitCount={getLastVisitCountFn} />
-      ) : (
-        <StaffSidebar properties={properties} />
-      )}
+      ) : null}
       {/*
         BQC-6.8: the layout wrapper is a plain div, NOT SidebarInset — the
         vendored SidebarInset renders <main>, which nested the content <main>

@@ -12,7 +12,7 @@ export const Route = createFileRoute('/_authenticated/progress')({
   validateSearch: progressSearch,
   beforeLoad: ({ context, search }) => {
     if (!search.propertyId || !can((context as AuthRouteContext).role, 'goal.read')) {
-      throw redirect({ to: '/home' })
+      throw redirect({ to: '/dashboard' })
     }
 
     throw redirect({

@@ -6,14 +6,12 @@ import type { Database } from '#/shared/db'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { AccessiblePropertyLookupPort } from './application/ports/accessible-property-lookup.port'
 import { trace } from '#/shared/observability/trace'
-import type { StaffPortalLookupPort } from './application/ports/portal-lookup.port'
 import {
   portalId,
   type OrganizationId,
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
-import { listStaffPortals } from './application/use-cases/list-staff-portals'
 import { createStaffParticipationRepository } from './infrastructure/repositories/staff-participation.repository'
 import {
   archiveStaffParticipation,
@@ -29,7 +27,6 @@ import { createPrimaryStaffAttributionResolver } from './infrastructure/primary-
 
 type StaffContextDeps = Readonly<{
   db: Database
-  portalLookup: StaffPortalLookupPort
   clock: () => Date
   idGen: () => string
   /**
@@ -112,10 +109,6 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
   }
 
   const useCases = {
-    listStaffPortals: listStaffPortals({
-      responsibilityLookup,
-      portalLookup: deps.portalLookup,
-    }),
     createStaffParticipation: createStaffParticipation({
       repo: participationRepo,
       accessibleProperties: deps.accessiblePropertyLookup,

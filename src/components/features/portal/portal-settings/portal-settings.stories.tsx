@@ -41,20 +41,6 @@ const portal: PortalData = {
   publicationState: 'published',
 }
 
-const requestUploadUrl = async (_input: {
-  data: { portalId: string; contentType: string; fileSize: number }
-}) => ({
-  uploadUrl: 'https://upload.example.com/presigned',
-  uploadId: 'upload-id',
-  requiredHeaders: { 'If-None-Match': '*' },
-})
-const finalizeUpload = async (_input: {
-  data: { portalId: string; uploadId: string }
-}) => ({
-  heroImageUrl: 'https://cdn.example.com/hero.png',
-  processing: false,
-})
-
 const idleMutation = Object.assign(
   async (_input: UpdatePortalVariables) => ({ success: true }),
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
@@ -88,8 +74,6 @@ const baseArgs = {
   completeReviewMutation: idleReviewMutation,
   theme: portal.theme,
   onThemeChange: fn(),
-  requestUploadUrl,
-  finalizeUpload,
 }
 
 export const Published: Story = {

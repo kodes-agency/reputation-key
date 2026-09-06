@@ -91,7 +91,7 @@ dashboard/
                        eligibility predicate, statement timeout, cache policy (none)
     adapters/          metric-stats.adapter.ts, attention-signals.adapter.ts, staff-portal-resolver.adapter.ts
     repositories/      dashboard.repository.ts (composition only), setup-checklist.repository.ts (bounded canonical-fact read + insert-only milestone)
-  server/              dashboard.ts, portal-analytics.ts, staff-dashboard.ts, fleet-overview.ts, setup-checklist.ts, resolve-property-period.ts
+  server/              dashboard.ts, portal-analytics.ts, fleet-overview.ts, setup-checklist.ts, resolve-property-period.ts
   build.ts             composition root
 ```
 

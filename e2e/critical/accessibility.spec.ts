@@ -168,17 +168,6 @@ test.describe('Critical a11y: axe page scans', () => {
     })
     await assertNoAxeViolations(page, 'settings members (/settings/members)')
   })
-
-  test('promoted P1 home (/home?propertyId=) is axe-clean', async ({ page }) => {
-    await signIn(page)
-    await page.goto(`/home?propertyId=${seed.p1PropertyId}`)
-    await expect(page).toHaveURL(/\/home/)
-    // Wait for real page content (the h1), not just the shell.
-    await expect(page.getByRole('heading', { name: /^home$/i }).first()).toBeVisible({
-      timeout: 15_000,
-    })
-    await assertNoAxeViolations(page, 'staff home (/home)')
-  })
 })
 
 test.describe('Critical a11y: keyboard', () => {

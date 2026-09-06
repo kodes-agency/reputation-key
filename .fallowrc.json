@@ -11,18 +11,14 @@
     "scripts/check-schema-drift.ts",
     "scripts/cleanup-all.ts",
     "scripts/ai-language-attestation.ts",
-    "scripts/beta/run-product-journeys.ts",
-    "scripts/beta/verify-gate-evidence.ts",
     "scripts/generate-ai-language-script-table.ts",
     "scripts/generate-ai-reply-language-profile.ts",
     "scripts/generate-ai-review-language-profile.ts",
     "scripts/generate-ai-review-language-regions.ts",
     "scripts/generate-ai-unicode-case-folding.ts",
     "scripts/generate-ai-zh-orthography-table.ts",
-    "scripts/google-import-final-schema-probe.ts",
     "scripts/local-stack/provision-ai-admission-role.ts",
     "scripts/migrations/null-inbox-source-copies.ts",
-    "scripts/ops/report-people-authority.ts",
     "scripts/ops/report-portal-access-artifacts.ts",
     "scripts/seed-demo-reviews.ts",
     "scripts/test-db-setup.ts",
@@ -30,7 +26,6 @@
     "scripts/verify-ai-runtime-image.mjs",
     "vite.config.ts",
     "drizzle.config.ts",
-    ".railway/railway.ts",
     "services/ai-egress-gateway/canary-entry.ts",
     "services/ai-egress-gateway/index.ts",
     "services/ai-egress-gateway/local-provider-entry.ts",
@@ -110,7 +105,6 @@
       "exports": ["DEFAULT_BATCH_SIZE", "DEFAULT_MAX_BATCHES"]
     },
     {
-      "file": "src/contexts/staff/application/use-cases/create-staff-assignment.ts",
       "exports": ["createStaffAssignmentSystem"]
     },
     {
@@ -158,7 +152,6 @@
       "exports": ["PARTIAL_OFFBOARDING_FINDINGS"]
     },
     {
-      "file": "src/shared/release/gate-f-approval-envelope.ts",
       "exports": ["GATE_F_APPROVAL_FAILURE_CODES"]
     },
     {
@@ -174,7 +167,6 @@
       ]
     },
     {
-      "file": "src/contexts/badge/infrastructure/adapters/badge-organization-lifecycle.adapter.ts",
       "exports": ["BADGE_PURGE_ORDER_NOTE"]
     },
     {
@@ -189,7 +181,10 @@
         "goalMonthlyResultRevised"
       ]
     },
-    { "file": "src/contexts/goal/domain/errors.ts", "exports": ["isGoalError"] },
+    {
+      "file": "src/contexts/goal/domain/errors.ts",
+      "exports": ["isGoalError"]
+    },
     {
       "file": "src/contexts/guest/application/public-api.ts",
       "exports": [
@@ -233,7 +228,10 @@
       "file": "src/contexts/inbox/domain/handling-history.ts",
       "exports": ["INBOX_HISTORY_KINDS"]
     },
-    { "file": "src/contexts/inbox/server/inbox.ts", "exports": ["assignInboxItemFn"] },
+    {
+      "file": "src/contexts/inbox/server/inbox.ts",
+      "exports": ["assignInboxItemFn"]
+    },
     {
       "file": "src/contexts/integration/application/public-api.ts",
       "exports": [
@@ -247,11 +245,9 @@
       ]
     },
     {
-      "file": "src/contexts/leaderboard/application/public-api.ts",
       "exports": ["LEGACY_RECOGNITION_TABLES", "buildLegacyRecognitionInventoryReport"]
     },
     {
-      "file": "src/contexts/leaderboard/infrastructure/adapters/leaderboard-organization-lifecycle.adapter.ts",
       "exports": ["LEADERBOARD_PURGE_ORDER_NOTE"]
     },
     {
@@ -318,7 +314,6 @@
       "exports": ["createDbUserLookupAdapter"]
     },
     {
-      "file": "src/contexts/integration/infrastructure/handlers/gbp-notification-handler.ts",
       "exports": ["handleGbpNotification"]
     },
     {
@@ -354,7 +349,6 @@
       "exports": ["createProperty", "updateProperty"]
     },
     {
-      "file": "src/contexts/goal/server/goals.ts",
       "exports": ["updateGoal"]
     },
     {
@@ -457,7 +451,9 @@
       "files": [
         "src/contexts/portal/infrastructure/repositories/link-resolver.repository.ts"
       ],
-      "rules": { "unused-files": "off" }
+      "rules": {
+        "unused-files": "off"
+      }
     },
     {
       "files": [
@@ -482,13 +478,7 @@
       }
     },
     {
-      "files": [
-        "src/contexts/badge/application/public-api.ts",
-        "src/contexts/badge/build.ts",
-        "src/contexts/leaderboard/build.ts",
-        "src/contexts/team/application/public-api.ts",
-        "src/contexts/team/build.ts"
-      ],
+      "files": [],
       "rules": {
         "unused-files": "off",
         "unused-exports": "off"

@@ -167,10 +167,8 @@ export type PortalPublicApi = Readonly<{
   /**
    * ARC-03-T9: every Portal belonging to a Property, by id.
    *
-   * Staff owns the StaffPortalLookupPort contract and needs this for ownership
-   * validation. Publishing it here is what lets the composition root satisfy
-   * that port from Portal's public API instead of reaching into
-   * the Portal repository.
+   * Published so consumers resolve Portals through this public API instead of
+   * reaching into the Portal repository.
    */
   listPortalIdsByProperty: (
     orgId: OrganizationId,

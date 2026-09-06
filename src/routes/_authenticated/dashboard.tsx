@@ -64,9 +64,11 @@ export const Route = createFileRoute('/_authenticated/dashboard')({
   validateSearch: z.object({ timeRange: timeRangePreset.default('30d') }),
   beforeLoad: ({ context }) => {
     // Fleet dashboard is a manager surface (dashboard.fleet_read).
-    // Staff have dashboard.read for their own staff dashboard, not the fleet view.
+    // Lower-privilege roles have no dashboard surface in the beta.
     const { role } = context as AuthRouteContext
-    if (!can(role, 'dashboard.fleet_read')) throw redirect({ to: '/home' })
+    if (!can(role, 'dashboard.fleet_read')) {
+      throw redirect({ to: '/unavailable', search: { feature: 'Dashboard' } })
+    }
   },
   loaderDeps: ({ search }) => ({ timeRange: search.timeRange }),
   loader: async ({ context, deps: { timeRange } }) => {

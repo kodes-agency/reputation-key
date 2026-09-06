@@ -40,7 +40,7 @@ const meta: Meta<typeof NotificationRow> = {
 export default meta
 type Story = StoryObj<typeof NotificationRow>
 
-const [escalated, pendingApproval, newFeedback, noMetadata, badge] = notificationFixtures
+const [escalated, pendingApproval, newFeedback, noMetadata] = notificationFixtures
 
 const muteableReview = makeNotification({
   id: '20000000-0000-4000-8000-000000000002',
@@ -79,31 +79,6 @@ export const Coalesced: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByText('Updated 3 times')).toBeInTheDocument()
-  },
-}
-
-export const HistoricalBadgeRow: Story = {
-  args: { notification: badge },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const ownerDocument = canvasElement.ownerDocument
-    expect(canvas.queryByText('Unread.')).not.toBeInTheDocument()
-    expect(canvas.getByText(/Response Champ/)).toBeInTheDocument()
-    expect(canvas.getByText(/remains in your notification history/i)).toBeVisible()
-    expect(canvasElement.textContent).not.toMatch(/recognition/i)
-    expect(badge.propertyId).not.toBeNull()
-    expect(canvas.getByRole('link', { name: /view property/i })).toHaveAttribute(
-      'href',
-      expect.stringContaining(badge.propertyId!),
-    )
-
-    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
-    const menu = within(ownerDocument.body)
-    const markAsUnread = await menu.findByRole('menuitem', { name: 'Mark as unread' })
-    await waitFor(() => expect(markAsUnread).toBeVisible())
-    expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
-    await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as unread' }))
-    await waitFor(() => expect(ownerDocument.querySelector('[role="menu"]')).toBeNull())
   },
 }
 

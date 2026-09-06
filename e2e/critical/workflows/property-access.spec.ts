@@ -3,11 +3,10 @@
 // grant row's source 'operator' is the operator-allowlist provenance.
 //
 // Verified at the governed read boundary — the server fns the UI is fed by
-// (listProperties is grant-filtered; getProperty denies 403 without an
-// active grant). The staff role's UI surfaces are manager-gated today
-// (/properties/* redirect to /home, which is manager-shaped), so the
-// staff-side assertions target the access model directly rather than a
-// rendered property surface; the admin control drives the real list UI.
+// (listProperties is grant-filtered; getProperty denies 403 without an active
+// grant). Staff login is not a beta surface, so the staff-side assertions
+// target the access model directly rather than a rendered property surface;
+// the admin control drives the real list UI.
 //
 // Transitions verified:
 //   staff session works (settings surface renders, zero errors)

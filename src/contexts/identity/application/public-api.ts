@@ -13,7 +13,6 @@ import type { ResendInvitation } from './use-cases/resend-invitation'
 import type { AcceptInvitation } from './use-cases/accept-invitation'
 import type { CancelInvitation } from './use-cases/cancel-invitation'
 import type { RegisterInvitedUser } from './use-cases/register-invited-user'
-import type { RegisterUserAndOrg } from './use-cases/register-user-and-org'
 import type { UpdateOrganization } from './use-cases/update-organization'
 import type { CreateCustomRole } from './use-cases/create-custom-role'
 import type { UpdateCustomRole } from './use-cases/update-custom-role'
@@ -79,7 +78,6 @@ export type IdentityRequestApi = Readonly<{
   acceptInvitation: AcceptInvitation
   cancelInvitation: CancelInvitation
   registerInvitedUser: RegisterInvitedUser
-  registerUserAndOrg: RegisterUserAndOrg
   updateOrganization: UpdateOrganization
   createCustomRole: CreateCustomRole
   updateCustomRole: UpdateCustomRole

@@ -116,7 +116,6 @@ export type BetaFeedbackInput = z.infer<typeof betaFeedbackInputSchema>
 export type BetaFeedbackType = BetaFeedbackInput['type']
 
 export type BetaFeedbackRouteKey =
-  | 'home'
   | 'dashboard'
   | 'inbox'
   | 'notifications'
@@ -147,7 +146,6 @@ export type BetaFeedbackRouteKey =
 export type BetaFeedbackViewport = BetaFeedbackInput['viewport']
 
 const EXACT_ROUTES: Readonly<Record<string, BetaFeedbackRouteKey>> = {
-  '/home': 'home',
   '/dashboard': 'dashboard',
   '/inbox': 'inbox',
   '/notifications': 'notifications',
@@ -205,7 +203,6 @@ export function classifyBetaFeedbackViewport(width: number): BetaFeedbackViewpor
 }
 
 const ATTACHMENT_ALLOWED_ROUTES: ReadonlySet<BetaFeedbackRouteKey> = new Set([
-  'home',
   'dashboard',
   'progress',
   'properties.list',

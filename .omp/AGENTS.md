@@ -27,14 +27,22 @@ When working on UI components (`src/components/**`):
   headless Chromium via `@storybook/addon-vitest` (the `storybook` vitest
   project in `vitest.config.ts`) — the fast dev/agent loop (render + play fns).
   For focused runs pass `{ stories: [{ storyId }] }`.
-- **Two CLI test paths with distinct roles** (both are kept deliberately):
-  `pnpm test-storybook` (Playwright `@storybook/test-runner`) is the
-  **a11y-enforcing gate** — it FAILS the suite on axe violations and is what CI
-  runs in the `storybook-test` job. `pnpm test:storybook` (`VITEST_STORYBOOK=true
-vitest run --project='storybook:**'`) is the vitest equivalent of
-  `run-story-tests` — fast render/interaction checks that REPORT a11y but do not
-  fail on it. When you change UI, run `pnpm test-storybook` to catch real a11y
-  regressions; use `run-story-tests` / `pnpm test:storybook` for quick loops.
+- **One CLI test path.** `pnpm test:storybook`
+  (`REPKEY_STORYBOOK_TESTS=true vitest run --project=storybook`) is the
+  a11y-enforcing gate: it renders every story in headless Chromium, runs its
+  play function, and FAILS on an axe violation. CI runs it in the
+  `storybook-test` job. `run-story-tests` is the same project via MCP — use it
+  for focused loops, and `pnpm test:storybook` before you consider UI work done.
+  `pnpm test-storybook` and `@storybook/test-runner` are gone: that runner is a
+  Storybook 8/9 tool whose jest runtime cannot load a Storybook 10 config, so
+  every suite failed at setup and no test ran.
+- **Do not set `VITEST_STORYBOOK`.** `addon-a11y` only throws when it reads
+  `VITEST_STORYBOOK === "false"`, so setting it silently downgrades a11y to
+  report-only. Project inclusion is keyed on `REPKEY_STORYBOOK_TESTS` and the
+  project is named explicitly in `vitest.config.ts` for exactly this reason.
+- Known gap: console errors no longer fail a story. The deleted runner did that
+  via an allowlist in `.storybook/test-runner.ts`; the Vitest path filters
+  console output reporter-side only.
 - For new or updated stories, fetch current conventions with
   `get-storybook-story-instructions` before writing.
 - Story files are CSF, co-located as `*.stories.tsx` next to the component

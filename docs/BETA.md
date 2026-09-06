@@ -8,7 +8,7 @@ Authority for the closed beta. If this page and a document disagree, this page w
 - A user holds exactly one active Organization Membership. A conflicting invitation raises `organization_binding_conflict` and pauses for support rather than creating a second membership (`src/shared/auth/tenant-resolver.ts`).
 - One deployment serves everywhere: Railway `us-west2`, object bucket `sjc`, every supported country routed to it. There is no per-region deployment and no customer-visible region choice.
 - No contractual uptime SLA, no service credits, no 24/7 support. Support terms — hours, service levels, warranties, disclaimers — are **not agreed yet**; the participation agreement carrying them is a candidate draft marked do-not-accept (`docs/legal/internal-beta-agreement.md:201`). Do not quote support hours as a commitment until it is accepted.
-- No MFA. The security settings page ships a "Two-factor authentication … Coming soon" card that does nothing and no TOTP exists anywhere in `src/`; that card is deleted, not implemented.
+- No MFA, and the product no longer says otherwise. The security settings page used to ship a "Two-factor authentication … Coming soon" card that did nothing while no TOTP existed anywhere in `src/`; WP1.7 deleted the card rather than implementing the feature.
 
 ## 2. External obligations
 

@@ -11,7 +11,6 @@ routes/
   __root.tsx                          root layout (providers, global styles)
   _authenticated.tsx                  auth guard + app shell (sidebar, top bar)
   _authenticated/
-    home.tsx                          dashboard / landing after login
     dashboard.tsx
     inbox/
       index.tsx                       unified inbox (reviews + feedback)
@@ -32,10 +31,8 @@ routes/
           index.tsx, new.tsx, $goalId.tsx
         portals/
           index.tsx, new.tsx, $portalId.tsx
-    leaderboard.tsx
     progress.tsx
   login.tsx                           unauthenticated
-  register.tsx                        registration
   reset-password.tsx                  password reset
   join.tsx                            member invitation acceptance
   accept-invitation.tsx               invitation flow
@@ -57,13 +54,13 @@ This is the app shell. It:
 
    A signed-in account without an active Organization redirects to the
    `workspace_access` unavailable state before the authenticated loader runs.
-   Never default this state into the Staff shell: tenant-scoped loaders must
-   not run until the account has accepted an invitation and has an active
-   Organization binding.
+   An Organization binding without a resolved role redirects to the `Workspace`
+   unavailable state. Never synthesize a fallback role: tenant-scoped loaders
+   must not run until both bindings are present.
 
 2. **`loader`** — loads organizations and properties in parallel (`Promise.allSettled`). Sets `staleTime: 5 * 60 * 1000` (5 min — structural data rarely changes).
 
-3. **Component** — renders `SidebarProvider` with role-based sidebar: `ManagerSidebar` for PropertyManager+, `StaffSidebar` for Staff, `SettingsSidebar` for `/settings` routes.
+3. **Component** — renders `SidebarProvider` with `SettingsSidebar` for `/settings` routes, `ManagerSidebar` for PropertyManager+ non-inbox routes, and no sidebar for inbox or lower-privilege roles.
 
 ## Data loading pattern
 

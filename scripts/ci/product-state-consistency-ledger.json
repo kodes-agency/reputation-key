@@ -47,11 +47,10 @@
         "invitations",
         "userInvitations",
         "organizationInvitations",
-        "closureCenter",
         "outstandingResponsibilities"
       ],
       "owner": "Identity query lifecycle",
-      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The Closure Center view and the departing member's outstanding-responsibility worklist are separate leaves under the same root: both describe the caller's current standing rather than the directory, so each is read at staleTime 0 and invalidated by the closure and leave mutations alone."
+      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix. The departing member's outstanding-responsibility worklist is a separate leaf under the same root: it describes the caller's current standing rather than the directory, is read at staleTime 0, and is invalidated by leave mutations alone."
     },
     {
       "id": "propertyKeys",
@@ -406,12 +405,6 @@
       "classification": "synchronized_prop_copy",
       "owner": "Inbox scoped selection",
       "policy": "The selection stores its originating filter scope; a changed scope renders an empty selection and the setter rebases future ids onto the current scope."
-    },
-    {
-      "id": "src/components/features/closure/reactivation-checklist.tsx:useState(confirmed)",
-      "classification": "local_runtime",
-      "owner": "Organization closure reactivation",
-      "policy": "The set of reactivation actions the operator has ticked in this dialog. It is seeded empty, never from a server read, and is deliberately discarded on unmount: a prior session's ticks are not evidence that the action was taken. The server-owned half of the same screen is `checks`, which arrives as a prop from the Closure Center query and is never copied into this state."
     },
     {
       "id": "src/components/features/people/leave-organization-dialog.tsx:useState(assignments)",

@@ -134,7 +134,7 @@ describe('OBS-01 synthetic privacy exfiltration canary', () => {
         expected: 'The action should finish.',
         actual: 'The action remains pending.',
         impact: 'small_issue',
-        routePath: '/home',
+        routePath: '/dashboard',
         viewport: 'regular',
         screenshot: `data:image/png;base64,${SECRET}`,
         replay: { reviewText: REVIEW, contact: CONTACT },
@@ -154,7 +154,7 @@ describe('OBS-01 synthetic privacy exfiltration canary', () => {
       expected: 'The action should finish.',
       actual: 'The action remains pending.',
       impact: 'small_issue',
-      routePath: '/home',
+      routePath: '/dashboard',
       viewport: 'regular',
       attachment,
     })

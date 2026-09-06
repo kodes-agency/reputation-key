@@ -10,11 +10,6 @@ import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 // is sufficient because these PublicApi tests exercise only injected lookups.
 const mockDb = {} as unknown as Database
 
-const mockPortalLookup = {
-  listPortalIdsByProperty: async () => [],
-  getPortalInfo: async () => null,
-}
-
 const idGen = () => '31000000-0000-4000-8000-000000000001'
 
 describe('StaffPublicApi', () => {
@@ -23,7 +18,6 @@ describe('StaffPublicApi', () => {
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
-      portalLookup: mockPortalLookup,
       clock,
       idGen,
       accessiblePropertyLookup: async () => [],
@@ -43,7 +37,6 @@ describe('StaffPublicApi', () => {
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
-      portalLookup: mockPortalLookup,
       clock,
       idGen,
       accessiblePropertyLookup: async () => [propertyId('prop-1'), propertyId('prop-2')],
@@ -64,7 +57,6 @@ describe('StaffPublicApi', () => {
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
-      portalLookup: mockPortalLookup,
       clock,
       idGen,
       accessiblePropertyLookup: async () => [],
@@ -84,7 +76,6 @@ describe('StaffPublicApi', () => {
 
     const { publicApi } = buildStaffContext({
       db: mockDb,
-      portalLookup: mockPortalLookup,
       clock,
       idGen,
       accessiblePropertyLookup: async () => {

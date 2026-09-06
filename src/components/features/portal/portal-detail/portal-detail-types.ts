@@ -2,7 +2,7 @@
 //
 // `PortalDetailResources` is the route-owned bag the tab panel forwards
 // untouched. It lives here rather than in either component so the shell and the
-// panel share one declaration instead of re-stating thirteen identical props.
+// panel share one declaration instead of restating the resource props.
 
 import type { Action } from '#/components/hooks/use-action'
 import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
@@ -64,16 +64,6 @@ export type PortalDetailResources = Readonly<{
   revokeTokenMutation: Action<{ data: { portalId: string; reason: string } }, unknown>
   /** C2: whether a public link is live. The raw URL is never part of this. */
   tokenStatus: PortalTokenStatus
-  requestUploadUrl: (input: {
-    data: { portalId: string; contentType: string; fileSize: number }
-  }) => Promise<{
-    uploadUrl: string
-    uploadId: string
-    requiredHeaders: Readonly<Record<string, string>>
-  }>
-  finalizeUpload: (input: {
-    data: { portalId: string; uploadId: string }
-  }) => Promise<{ heroImageUrl: string | null; processing: boolean }>
   getPortalAnalytics: typeof getPortalAnalyticsFn
   responsibleManagers?: PortalResponsibleManagerState
   responsibleManagerMembers?: readonly ResponsibleManagerMember[]

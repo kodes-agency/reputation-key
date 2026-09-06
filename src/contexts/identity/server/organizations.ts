@@ -19,9 +19,7 @@ export {
 } from './organizations.invitations'
 
 export {
-  getRegistrationGate,
   registerMember,
-  registerUserAndOrg,
   signInUser,
   setActiveOrganization,
   listUserInvitations,

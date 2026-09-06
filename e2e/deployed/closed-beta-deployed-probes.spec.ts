@@ -2,7 +2,7 @@
 //
 // These are not business journeys. They make GET-only observations against the
 // production cell-us origin: liveness, readiness, private metrics staying dark,
-// the unauthenticated landing page rendering, the sign-in page rendering without
+// the root redirecting to sign-in, the sign-in page rendering without
 // a session, and denial of an unknown guest Portal token. There is no sign-in
 // action, form submission, seed, fixture, or database handle.
 //
@@ -95,10 +95,11 @@ test('deployed-private-metrics-stay-dark without an operator token', async ({
   expect(response.status()).toBe(404)
 })
 
-test('deployed-landing-renders the unauthenticated shell', async ({ page }) => {
+test('deployed-root-redirects-to-sign-in', async ({ page }) => {
   const response = await page.goto(deployedUrl(target, '/'))
-  expect(response?.status()).toBeLessThan(400)
-  await expect(page.locator('body')).toBeVisible()
+  expect(response?.status()).toBe(200)
+  await expect(page).toHaveURL(deployedUrl(target, '/login'))
+  await expect(page.getByRole('button', { name: /sign in/iu }).first()).toBeVisible()
 })
 
 test('deployed-sign-in-renders without leaking a session', async ({ page }) => {

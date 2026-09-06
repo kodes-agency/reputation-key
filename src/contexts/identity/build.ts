@@ -18,7 +18,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { IdentityPort } from './application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
-import { invitationId, organizationId } from '#/shared/domain/ids'
+import { invitationId } from '#/shared/domain/ids'
 import { inviteMember } from './application/use-cases/invite-member'
 import { createCustomRole } from './application/use-cases/create-custom-role'
 import { updateCustomRole } from './application/use-cases/update-custom-role'
@@ -32,7 +32,6 @@ import { listInvitations } from './application/use-cases/list-invitations'
 import { resendInvitation } from './application/use-cases/resend-invitation'
 import { acceptInvitation } from './application/use-cases/accept-invitation'
 import { cancelInvitation } from './application/use-cases/cancel-invitation'
-import { registerUserAndOrg } from './application/use-cases/register-user-and-org'
 import { registerUser } from './application/use-cases/register-user'
 import { registerInvitedUser } from './application/use-cases/register-invited-user'
 import { recoverInvitedRegistrations } from './application/use-cases/recover-invited-registrations'
@@ -188,8 +187,6 @@ type IdentityContextDeps = Readonly<{
   events: EventBus
   clock: Clock
   idGen: () => string
-  /** Sign up a new user. Returns user ID. */
-  signUp: (name: string, email: string, password: string) => Promise<string>
   /**
    * ARC-03-T13: the authenticated session, injected as a port. The four
    * operations the root used to perform inline against the better-auth process
@@ -208,8 +205,6 @@ type IdentityContextDeps = Readonly<{
   baseUrl: string
   /** Invitation lifetime in ms (INVITATION_EXPIRY_SECONDS in shared/auth/auth). */
   invitationExpiresInMs: number
-  /** Delete a user (compensating transaction for registration rollback). */
-  deleteUser: (userId: string) => Promise<void>
   /** Logger supplied by the process composition boundary. */
   logger: LoggerPort
   /**
@@ -548,17 +543,6 @@ function buildOrganizationLifecycleComposition(
 }
 
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
-  // ARC-03-T13: Identity derives its session-shaped callbacks from the injected
-  // port. Setting the active organization is non-fatal by contract — during
-  // registration the session cookie does not exist yet, and the user picks it
-  // up on first login — so the failure is observed, not propagated.
-  const setActiveOrganization = async (orgId: string): Promise<void> => {
-    try {
-      await deps.authSession.setActiveOrganization(orgId)
-    } catch (error) {
-      deps.logger.warn({ err: error }, 'Failed to set active organization during setup')
-    }
-  }
   const resolveOrganizationName = async (_ctx: AuthContext): Promise<string> =>
     (await deps.authSession.currentOrganizationName()) ?? 'Unknown Organization'
 
@@ -832,15 +816,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       commandStore,
       clock: deps.clock,
     }),
-    registerUserAndOrg: registerUserAndOrg({
-      signUp: deps.signUp,
-      setActiveOrg: setActiveOrganization,
-      clock: deps.clock,
-      idGen: () => organizationId(deps.idGen()),
-      commandStore,
-      deleteUser: deps.deleteUser,
-      logger: deps.logger,
-    }),
     registerUser: registerUser({ identity: deps.identityPort }),
     registerInvitedUser: registerInvitedUser({
       commandStore,
@@ -885,7 +860,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     acceptInvitation: useCases.acceptInvitation,
     cancelInvitation: useCases.cancelInvitation,
     registerInvitedUser: useCases.registerInvitedUser,
-    registerUserAndOrg: useCases.registerUserAndOrg,
     updateOrganization: useCases.updateOrganization,
     createCustomRole: useCases.createCustomRole,
     updateCustomRole: useCases.updateCustomRole,

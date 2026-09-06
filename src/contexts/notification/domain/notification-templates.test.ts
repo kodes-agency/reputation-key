@@ -268,6 +268,15 @@ describe('notificationLink', () => {
     })
   })
 
+  it('renders pending-purge copy without implying self-service', () => {
+    expect(renderNotification('account.organization_purge_pending', {})).toEqual({
+      title: 'Final notice: this organization is scheduled for permanent deletion',
+      body: 'The recovery window has ended. Data will be permanently erased and cannot be restored. No self-service action is available. Contact support immediately while deletion is still pending.',
+      actionLabel: 'Open profile',
+      summary: 'organization purge pending',
+    })
+  })
+
   it('deep-links an inbox item through typed search params', () => {
     expect(notificationLink('inbox_item', UUID, 'prop-1')).toEqual({
       path: '/inbox',

@@ -115,10 +115,6 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       hookCalls.push(ctx)
     },
 
-    async deleteUser(_userId: string): Promise<void> {
-      // Test fake — no-op
-    },
-
     async createCustomRole(
       ctx: AuthContext,
       input: Readonly<{

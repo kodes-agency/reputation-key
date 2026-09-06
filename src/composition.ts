@@ -96,7 +96,6 @@ import {
   createDeferredMemberAuthorityLifecycle,
   createMemberAuthorityLifecycle,
 } from './composition/member-authority-lifecycle'
-import type { StaffPortalLookupPort } from '#/contexts/staff/application/ports/portal-lookup.port'
 import {
   claimDeployable,
   projectContainer,
@@ -268,17 +267,6 @@ function buildContainer(
     // BQC-2.3: property scope resolves from the identity-owned grant
     // repository (ADR 0039).
     accessiblePropertyLookup: createGrantAccessLookup(db, clock),
-    // Staff is built before portal (portal depends on staff.publicApi).
-    // Late-binding closure: methods resolve portal at call time (runtime),
-    // long after createContainer returns — TDZ-safe. ARC-03-T9: both methods
-    // now come from Portal's PUBLIC API, so the Staff/Portal seam is the
-    // Staff-owned StaffPortalLookupPort end to end.
-    portalLookup: {
-      listPortalIdsByProperty: (orgId, pid) =>
-        portal.publicApi.portal.listPortalIdsByProperty(orgId, pid),
-      getPortalInfo: (orgId, portalId) =>
-        portal.publicApi.portal.getPortalInfo(orgId, portalId),
-    } satisfies StaffPortalLookupPort,
     clock,
     idGen: randomUUID,
     reconcileResponsibleManagerEligibility:
@@ -291,12 +279,10 @@ function buildContainer(
     events: eventBus,
     clock,
     idGen: randomUUID,
-    signUp: identityPort.signUp,
     authSession,
     sendEmail: options?.email ?? sendInvitationEmail,
     baseUrl: env.BETTER_AUTH_URL,
     invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
-    deleteUser: identityPort.deleteUser,
     logger,
     policy: buildIdentityPolicyDeps({
       env,

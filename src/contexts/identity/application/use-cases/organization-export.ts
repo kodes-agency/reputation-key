@@ -81,7 +81,7 @@ export const createOrganizationExportService = (
   }
 
   /**
-   * LIF-01-T17: the Closure Center's read of its own export.
+   * LIF-01: the AccountAdmin-gated read of the current export.
    *
    * Read-only, and still AccountAdmin-gated: an export's very existence, its
    * `asOf` instant and its checksums are facts about the tenant.

@@ -8,7 +8,7 @@
 components/
   ui/              shadcn primitives (alert-dialog, button, card, dialog, input, select, etc.)
   forms/           shared form building blocks (submit-button, form-text-field, form-textarea, form-error-banner)
-  layout/          app shell pieces (header, footer, manager-sidebar, staff-sidebar, settings-sidebar, app-top-bar, auth-layout, theme-toggle)
+  layout/          app shell pieces (header, footer, manager-sidebar, settings-sidebar, app-top-bar, auth-layout, theme-toggle)
   hooks/           shared React hooks used across features
   features/
     guest/         public-portal/
@@ -28,7 +28,7 @@ components/
 1. **Kebab-case filenames** — all `.tsx` and `.ts` files. Co-located unit tests (`*.test.ts`) and stories (`*.stories.tsx`) are allowed. Enforced by `scripts/check-filenames.mjs` on `pnpm lint`.
 2. **Named exports only** — no default exports.
 3. **Barrel re-exports** — each feature has `index.ts` exporting only page-level components. Sub-components stay internal. ESLint `no-restricted-imports` blocks deep imports into feature internals.
-4. **Max 150 lines per file** — if a component exceeds this, extract sub-components into the same concept folder. **Exempt:** `ui/` (vendored shadcn code).
+4. **Max 300 lines per file** (blank lines and comments not counted, enforced by `max-lines` in `eslint.config.js`) — if a component exceeds this it is genuinely doing too much; extract sub-components into the same concept folder. Do not split a page to satisfy the number: a sub-component with one caller and no independent meaning is fragmentation, not structure. **Exempt:** `ui/` (vendored shadcn code).
 5. **Props typing** — `type Props = Readonly<{ ... }>` for all components. **Exempt:** `ui/` (shadcn components use library defaults).
 6. **One concept per folder** — each sub-folder is a single user-facing concept (list, detail, form, widget).
 7. **Feature `shared/`** — components used across multiple concept folders within that feature. Not for cross-feature sharing (those go in `forms/` or `ui/`).

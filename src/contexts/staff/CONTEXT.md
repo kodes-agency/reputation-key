@@ -84,7 +84,6 @@ rather than treating performance attribution as notification responsibility.
 | `listStaffParticipations`      | List participants and current Portal Responsibility selections.                 | `staff.read` plus Property scope   |
 | `archiveStaffParticipation`    | Archive participation and close active Portal Responsibilities transactionally. | `staff.manage` plus Property scope |
 | `updatePortalResponsibilities` | Replace a responsibility set without rewriting unchanged intervals.             | `staff.manage` plus Property scope |
-| `listStaffPortals`             | Resolve a Staff user's published Portals from current Portal Responsibility.    | `staff.read`                       |
 
 The People route uses only these participation and responsibility seams, the
 Identity member directory, and Portal options.

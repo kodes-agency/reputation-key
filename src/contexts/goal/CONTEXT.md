@@ -312,8 +312,8 @@ have been removed rather than retained as story-only production components.
 | `goal.cancel` | ✓            | ✓               | —     |
 
 `/progress` is a retained compatibility redirect, not a Staff Goal surface. It
-returns Staff to `/home` and sends an already-authorized manager with a selected
-Property to the canonical Property Goal Program page.
+returns denied requests or requests without a selected Property to `/dashboard`
+and sends an authorized manager to the canonical Property Goal Program page.
 
 ## Background jobs
 

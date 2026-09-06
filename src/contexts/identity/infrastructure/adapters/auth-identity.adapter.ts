@@ -11,7 +11,7 @@
 
 import type { Database } from '#/shared/db'
 import { and, eq } from 'drizzle-orm'
-import { organizationRole, user as userTable } from '#/shared/db/schema/auth'
+import { organizationRole } from '#/shared/db/schema/auth'
 import { organizationRolePolicy } from '#/shared/db/schema/dac.schema'
 import { buildPermissionStatement } from '#/shared/auth/permission-catalogue'
 import type { Clock } from '#/shared/domain/clock'
@@ -298,10 +298,6 @@ export const createBetterAuthIdentityAdapter = (
       } catch (e) {
         deps.logger.warn({ err: e }, 'Failed to provision invited property access')
       }
-    },
-
-    async deleteUser(userId: string): Promise<void> {
-      await db.delete(userTable).where(eq(userTable.id, userId))
     },
 
     async createCustomRole(

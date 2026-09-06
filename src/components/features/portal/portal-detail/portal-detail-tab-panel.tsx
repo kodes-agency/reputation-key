@@ -62,8 +62,6 @@ type SettingsPanelProps = Pick<
   | 'loadMorePublicationHistory'
   | 'updateMutation'
   | 'completeReviewMutation'
-  | 'requestUploadUrl'
-  | 'finalizeUpload'
   | 'responsibleManagers'
   | 'responsibleManagerMembers'
   | 'updateResponsibleManagersMutation'
@@ -81,8 +79,6 @@ function SettingsPanel({
   loadMorePublicationHistory,
   updateMutation,
   completeReviewMutation,
-  requestUploadUrl,
-  finalizeUpload,
   theme,
   onThemeChange,
   formRef,
@@ -104,8 +100,6 @@ function SettingsPanel({
       completeReviewMutation={completeReviewMutation}
       theme={theme}
       onThemeChange={onThemeChange}
-      requestUploadUrl={requestUploadUrl}
-      finalizeUpload={finalizeUpload}
       formRef={formRef}
       responsibleManagers={responsibleManagers}
       responsibleManagerMembers={responsibleManagerMembers}

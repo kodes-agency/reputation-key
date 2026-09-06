@@ -120,7 +120,7 @@ review/
     worker-runtime.ts   sole Review-owned worker-handler registration contribution
     jobs/              sync-property-reviews.job.ts, refresh-expiring-reviews.job.ts,
                        purge-expired-reviews.job.ts, publish-reply.job.ts
-  server/              reply.ts, reply-draft.ts, reply-read.ts, staff-recent-activity.ts
+  server/              reply.ts, reply-draft.ts, reply-read.ts
   build.ts             composition root
 ```
 

@@ -1,4 +1,4 @@
-// Portal settings — publication, identity, image, theme, and content review.
+// Portal settings — publication, identity, theme, and content review.
 // Mutation state is owned by the route and reflected through the query-backed portal prop.
 // The publication decisions live in portal-settings-rules.ts, so this file is a
 // flat list of the blocks on screen plus the one permission fact they share.
@@ -47,17 +47,6 @@ type Props = Readonly<{
   completeReviewMutation: Action<CompleteReviewVariables, CompleteReviewResult>
   theme: PortalThemeDraft
   onThemeChange: (theme: PortalThemeDraft) => void
-  requestUploadUrl: (input: {
-    data: { portalId: string; contentType: string; fileSize: number }
-  }) => Promise<{
-    uploadUrl: string
-    uploadId: string
-    requiredHeaders: Readonly<Record<string, string>>
-  }>
-  finalizeUpload: (input: { data: { portalId: string; uploadId: string } }) => Promise<{
-    heroImageUrl: string | null
-    processing: boolean
-  }>
   formRef: React.RefObject<FormLike | null>
   responsibleManagers?: PortalResponsibleManagerState
   responsibleManagerMembers?: readonly ResponsibleManagerMember[]
@@ -85,8 +74,6 @@ export function PortalSettings({
   completeReviewMutation,
   theme,
   onThemeChange,
-  requestUploadUrl,
-  finalizeUpload,
   formRef,
   responsibleManagers,
   responsibleManagerMembers,
@@ -159,8 +146,6 @@ export function PortalSettings({
         disabled={isArchived}
         theme={theme}
         formRef={formRef}
-        requestUploadUrl={requestUploadUrl}
-        finalizeUpload={finalizeUpload}
       />
 
       <div className="space-y-2">

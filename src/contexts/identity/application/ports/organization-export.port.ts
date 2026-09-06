@@ -58,7 +58,7 @@ export type OrganizationExportRepository = Readonly<{
     objectExpiresAt: Date
   }): Promise<OrganizationExportStatus>
   /**
-   * LIF-01-T17: the one export the Closure Center may show.
+   * LIF-01: the current export status for an Organization.
    *
    * `organization_exports_one_open_per_org_idx` already guarantees at most one
    * OPEN request per Organization, so "current" is unambiguous; when none is

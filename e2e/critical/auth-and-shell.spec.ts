@@ -2,7 +2,7 @@
 // Auth bootstrap + authenticated shell for beta-enabled manager surfaces.
 //
 // Scope notes:
-// - Self-service registration is permanently blocked in beta. The positive
+// - Self-service registration has no route in beta. The positive
 //   invitation→registration→sign-in journey lives in e2e/auth.spec.ts.
 // - Property People covers Staff Participants; quarantined Team has no beta UI.
 // - Property/inbox/members use seed-state deep-links (no UI property create).
@@ -30,11 +30,11 @@ test.describe('Critical: authentication', () => {
     await expect(page).toHaveURL(/\/(dashboard|properties|home|inbox)/)
   })
 
-  test('public registration stays closed and /join requires an invitation', async ({
+  test('public registration is not found and /join requires an invitation', async ({
     page,
   }) => {
-    await page.goto('/register')
-    await expect(page).toHaveURL(/\/login/)
+    const response = await page.goto('/register')
+    expect(response?.status()).toBe(404)
 
     await page.goto('/join')
     await expect(page.getByText(/invitation required/i)).toBeVisible()

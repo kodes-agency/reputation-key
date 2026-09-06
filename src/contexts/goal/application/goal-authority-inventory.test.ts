@@ -157,7 +157,7 @@ describe('Goal beta authority inventory', () => {
 
     const progressRoute = readFileSync('src/routes/_authenticated/progress.tsx', 'utf8')
     expect(progressRoute).not.toMatch(/listGoalPrograms|StaffGoalList|goalKeys/u)
-    expect(progressRoute).toContain("to: '/home'")
+    expect(progressRoute).toContain("to: '/dashboard'")
 
     expect(
       [

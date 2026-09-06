@@ -187,8 +187,6 @@ function PortalDetailRoute() {
         issueTokenMutation={actions.issueToken}
         rotateTokenMutation={actions.rotateToken}
         revokeTokenMutation={actions.revokeToken}
-        requestUploadUrl={actions.requestUploadUrlFn}
-        finalizeUpload={actions.finalizeUploadFn}
         getPortalAnalytics={getPortalAnalyticsFn}
         completeReviewMutation={actions.completeReview}
         responsibleManagers={data.responsibleManagers}

@@ -70,6 +70,26 @@ describe('authenticated route', () => {
     })
   })
 
+  it('routes an active workspace without a resolved role to its unavailable page', async () => {
+    getSession.mockResolvedValue(SESSION)
+    getActiveOrganization.mockResolvedValue({
+      ...ACTIVE_ORGANIZATION,
+      role: null,
+    })
+
+    const beforeLoad = Route.options.beforeLoad
+    if (!beforeLoad) throw new Error('Authenticated route must define beforeLoad')
+
+    await expect(
+      beforeLoad({ location: { href: '/dashboard', pathname: '/dashboard' } } as never),
+    ).rejects.toMatchObject({
+      options: {
+        to: '/unavailable',
+        search: { feature: 'Workspace' },
+      },
+    })
+  })
+
   it('routes a signed-in account without an active workspace to the access state', async () => {
     getSession.mockResolvedValue(SESSION)
     getActiveOrganization.mockResolvedValue({

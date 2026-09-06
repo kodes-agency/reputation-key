@@ -11,27 +11,38 @@ import { testEnvironment } from './src/shared/testing/test-environment'
 // a bare shell, with documented passthroughs (TEST_DATABASE_URL, REDIS_URL,
 // Google credentials, ENCRYPTION_KEY) for explicit shell/CI overrides.
 
-// The storybook browser project is only included when VITEST_STORYBOOK=true,
-// which the @storybook/addon-vitest manager sets at module load (it runs inside
-// the storybook dev server process). This keeps bare `vitest run` — and
-// `pnpm test`, which scopes via --project=unit — from initializing the Playwright
-// browser provider. The same env var is what makes the storybookTest plugin
-// force-name the project `storybook:<configDir>` (the exact name the manager
-// filters by), so existence and naming stay consistent. The `test:storybook`
-// CLI script sets VITEST_STORYBOOK=true explicitly to opt in.
+// The storybook browser project is included when REPKEY_STORYBOOK_TESTS=true.
+// That keeps bare `vitest run` — and `pnpm test`, which scopes via
+// --project=unit — from initializing the Playwright browser provider.
+//
+// It is deliberately NOT keyed on VITEST_STORYBOOK. `@storybook/addon-vitest`
+// forwards that variable into `import.meta.env`, and `@storybook/addon-a11y`
+// only THROWS on an axe violation when it reads `"false"` there — its
+// `getIsVitestStandaloneRun()` check. Gating project existence on
+// VITEST_STORYBOOK=true therefore made a11y report-only, which is why this
+// repo used to keep the legacy `@storybook/test-runner` as the a11y gate. That
+// runner does not work with Storybook 10 (its jest runtime cannot load the
+// Storybook 10 config), so the two flags are now separate: inclusion here,
+// enforcement left to VITEST_STORYBOOK's absence.
 const storybookProject: TestProjectConfiguration[] =
-  process.env.VITEST_STORYBOOK === 'true'
+  process.env.REPKEY_STORYBOOK_TESTS === 'true'
     ? [
         {
           // The storybookTest plugin transforms stories into vitest tests, runs
-          // them in headless Chromium, auto-names this project `storybook:<configDir>`
-          // (matches the filter the addon's VitestManager uses), and merges the
-          // Storybook vite config — including the viteFinal stub aliases in
-          // .storybook/main.ts (async_hooks / review-reply / observability-logger)
-          // — so no manual setup file or alias duplication is needed.
+          // them in headless Chromium, and merges the Storybook vite config —
+          // including the viteFinal stub aliases in .storybook/main.ts
+          // (async_hooks / review-reply / observability-logger) — so no manual
+          // setup file or alias duplication is needed.
+          //
+          // The name is set here rather than left to the plugin: the plugin only
+          // force-names the project `storybook:<configDir>` when
+          // VITEST_STORYBOOK is set, and that same variable disables the
+          // addon-a11y hard failure. Naming it explicitly lets the CLI filter
+          // stay stable while a11y still enforces.
           extends: true,
           plugins: [storybookTest({ configDir: resolve(__dirname, '.storybook') })],
           test: {
+            name: 'storybook',
             browser: {
               enabled: true,
               headless: true,

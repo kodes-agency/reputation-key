@@ -18,6 +18,22 @@ const dashboardLoader = () => {
   return loader
 }
 
+describe('Dashboard route access', () => {
+  it('sends a role without fleet access to the unavailable page', async () => {
+    const beforeLoad = Route.options.beforeLoad
+    if (!beforeLoad) throw new Error('Dashboard route must define beforeLoad')
+
+    await expect(
+      Promise.resolve().then(() => beforeLoad({ context: { role: 'Staff' } } as never)),
+    ).rejects.toMatchObject({
+      options: {
+        to: '/unavailable',
+        search: { feature: 'Dashboard' },
+      },
+    })
+  })
+})
+
 describe('Dashboard route loader', () => {
   it('redirects a single-property organization before rendering', async () => {
     const ensureInfiniteQueryData = vi.fn()

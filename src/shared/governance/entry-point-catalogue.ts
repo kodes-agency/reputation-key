@@ -510,174 +510,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   // ── identity ──────────────────────────────────────────────────────
   ...[
     sf(
-      'getClosureCenterHandler',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'getClosureCenterFn',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'requestOrganizationClosureHandler',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'requestOrganizationClosureFn',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'cancelOrganizationClosureHandler',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'cancelOrganizationClosureFn',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'reactivateOrganizationHandler',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'reactivateOrganizationFn',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'requestOrganizationExportHandler',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'requestOrganizationExportFn',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'issueOrganizationExportRetrievalHandler',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'issueOrganizationExportRetrievalFn',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'downloadOrganizationExportHandler',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
-      'downloadOrganizationExportFn',
-      `${IDENTITY}/organization-closure-fns.ts`,
-      'organization.update',
-      'none',
-      'organization',
-      {
-        canonicalOnly: true,
-        notes:
-          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
-      },
-    ),
-    sf(
       'listOutstandingResponsibilitiesHandler',
       `${IDENTITY}/organization-leave-fns.ts`,
       'identity.leave_org',
@@ -805,17 +637,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
     ),
     sfPublic(
-      'getRegistrationGate',
-      `${IDENTITY}/organizations.registration.ts`,
-      'system:identity.register',
-      'identity.register',
-      'none',
-      {
-        notes:
-          'public unauthenticated; read-only capability gate for /register beforeLoad (BQC-5.3)',
-      },
-    ),
-    sfPublic(
       'registerMember',
       `${IDENTITY}/organizations.registration.ts`,
       'system:identity.register',
@@ -825,17 +646,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'public; IP rate-limited; content-free pre-provider recovery fence + exact pending manager invitation acceptance; interrupted provider commits are durably resumed, safely compensated, or stopped for manual review',
-      },
-    ),
-    sfPublic(
-      'registerUserAndOrg',
-      `${IDENTITY}/organizations.registration.ts`,
-      'system:identity.register',
-      'organization.create',
-      'none',
-      {
-        notes:
-          'dormant in beta; permanently blocked organization.create capability; creates org when reactivated',
       },
     ),
     sfPublic(
@@ -1482,13 +1292,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property',
       { externalEffect: true, notes: 're-enqueues GBP publish job' },
     ),
-    sf(
-      'getStaffRecentActivity',
-      `${REVIEW}/staff-recent-activity.ts`,
-      'review.read',
-      'review.use',
-      'property',
-    ),
   ],
 
   // ── inbox ─────────────────────────────────────────────────────────
@@ -1701,13 +1504,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         alsoActions: ['dashboard.fleet_read'],
         notes: 'shared KPI snapshot for Property dashboard and attention',
       },
-    ),
-    sf(
-      'getStaffDashboardDataFn',
-      `${DASHBOARD}/staff-dashboard.ts`,
-      'dashboard.read',
-      'dashboard.use',
-      'property',
     ),
     sf(
       'getFleetOverviewFn',
@@ -1971,13 +1767,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   // ── staff ─────────────────────────────────────────────────────────
   ...[
     sf(
-      'listStaffPortals',
-      `${STAFF}/staff-portals.ts`,
-      'staff.read',
-      'staff.use',
-      'property',
-    ),
-    sf(
       'createStaffParticipation',
       `${STAFF}/staff-participations.ts`,
       'staff.manage',
@@ -2176,28 +1965,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.write',
       'property',
       { notes: 'soft-delete via use case; scoped via portalId' },
-    ),
-    sf(
-      'requestUploadUrl',
-      `${PORTAL}/portals.ts`,
-      'portal.update',
-      'portal.upload',
-      'property',
-      {
-        externalEffect: true,
-        notes: 'persists a scoped, single-purpose issuance; returns no object key',
-      },
-    ),
-    sf(
-      'finalizeUpload',
-      `${PORTAL}/portals.ts`,
-      'portal.update',
-      'portal.upload',
-      'property',
-      {
-        externalEffect: true,
-        notes: 'CAS-consumes an opaque issuance after exact S3 metadata verification',
-      },
     ),
     sf(
       'issuePortalToken',
@@ -2547,17 +2314,6 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       notes: 'redirects to /dashboard when authenticated',
     }),
     ui(
-      '/register',
-      `${ROUTES}/register.tsx`,
-      'system:identity.register',
-      'identity.register',
-      'none',
-      {
-        principals: ['public'],
-        notes: 'beforeLoad asserts identity.register capability',
-      },
-    ),
-    ui(
       '/reset-password',
       `${ROUTES}/reset-password.tsx`,
       'system:identity.password_reset',
@@ -2612,17 +2368,9 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
       { notes: 'single-property orgs redirect to property deep-dive' },
     ),
-    ui(
-      '/home',
-      `${AUTHED}/home.tsx`,
-      'system:ui.render',
-      'dashboard.use',
-      'organization',
-      { notes: 'staff surface; loader via staff server fns' },
-    ),
     ui('/progress', `${AUTHED}/progress.tsx`, 'system:ui.render', 'none', 'none', {
       notes:
-        'retained URL compatibility only; Staff returns home and authorized managers move to the canonical Property Goal Program surface',
+        'retained URL compatibility only; a denied request returns to the dashboard and authorized managers move to the canonical Property Goal Program surface',
     }),
     ui(
       '/properties/import-google',
@@ -2671,17 +2419,6 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
     ui('/settings', `${AUTHED}/settings/index.tsx`, 'system:ui.render', 'none', 'none', {
       notes: 'index redirect → /settings/profile',
     }),
-    ui(
-      '/settings/closure',
-      `${AUTHED}/settings/closure.tsx`,
-      'system:ui.render',
-      'none',
-      'organization',
-      {
-        notes:
-          'LIF-01-T17 Closure Center: authenticated read-only status plus the closure lifecycle and export retrieval commands. The loader primes the Query cache and returns void so the payload is not serialized twice',
-      },
-    ),
     ui(
       '/settings/profile',
       `${AUTHED}/settings/profile.tsx`,

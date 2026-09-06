@@ -19,7 +19,7 @@ export const Route = createFileRoute('/_authenticated/inbox/')({
     const { role } = context as AuthRouteContext
     // Inbox triage is a manager surface (inbox.manage).
     // Staff have inbox.read for counts, not the triage surface.
-    if (!can(role, 'inbox.manage')) throw redirect({ to: '/home' })
+    if (!can(role, 'inbox.manage')) throw redirect({ to: '/dashboard' })
   },
   validateSearch: (search) => inboxSearchSchema.parse(search),
   staleTime: 30_000,

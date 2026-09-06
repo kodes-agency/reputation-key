@@ -23,7 +23,7 @@ export const Default: Story = {
 export const PrivacyAndValidation: Story = {
   args: { submitFeedback: successfulSubmission },
   play: async ({ canvasElement }) => {
-    window.history.replaceState({}, '', '/home')
+    window.history.replaceState({}, '', '/dashboard')
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /send beta feedback/i }))
     const dialog = within(document.body).getByRole('dialog')
@@ -65,7 +65,7 @@ const submitBug: SubmitBetaFeedback = async (input) => {
 export const ConsentedBugPreview: Story = {
   args: { submitFeedback: submitBug },
   play: async ({ canvasElement }) => {
-    window.history.replaceState({}, '', '/home')
+    window.history.replaceState({}, '', '/dashboard')
     bugSpy.mockClear()
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /send beta feedback/i }))
@@ -119,7 +119,7 @@ export const ConsentedBugPreview: Story = {
 export const SwitchingFeedbackTypeDiscardsPreview: Story = {
   args: { submitFeedback: successfulSubmission },
   play: async ({ canvasElement }) => {
-    window.history.replaceState({}, '', '/home')
+    window.history.replaceState({}, '', '/dashboard')
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /send beta feedback/i }))
     const dialog = within(document.body).getByRole('dialog')
@@ -187,7 +187,7 @@ const submitSuggestion: SubmitBetaFeedback = async (input) => {
 export const SuggestionReceipt: Story = {
   args: { submitFeedback: submitSuggestion },
   play: async ({ canvasElement }) => {
-    window.history.replaceState({}, '', '/home')
+    window.history.replaceState({}, '', '/dashboard')
     suggestionSpy.mockClear()
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /send beta feedback/i }))

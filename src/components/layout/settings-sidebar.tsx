@@ -9,7 +9,6 @@ import {
   Bell,
   Plug,
   BrainCircuit,
-  ShieldAlert,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -91,20 +90,6 @@ export function SettingsSidebar() {
             label: 'Integrations',
             icon: Plug,
             href: '/settings/integrations',
-          },
-        ]
-      : []),
-    // LIF-01-T17. Gated on the AccountAdmin ROLE, not on a capability: a
-    // closure suspends the Organization, which denies every capability, and
-    // the Closure Center is the only surface that can then cancel it or hand
-    // the tenant their export. A capability gate would lock them out of it.
-    ...(hasRole(role, 'AccountAdmin')
-      ? [
-          {
-            key: 'closure',
-            label: 'Closure Center',
-            icon: ShieldAlert,
-            href: '/settings/closure',
           },
         ]
       : []),

@@ -11,7 +11,7 @@ export const Route = createFileRoute('/_authenticated/properties/')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     // Properties admin list is a manager surface (property.admin).
-    if (!can(role, 'property.admin')) throw redirect({ to: '/home' })
+    if (!can(role, 'property.admin')) throw redirect({ to: '/dashboard' })
   },
   component: PropertyListRoute,
 })

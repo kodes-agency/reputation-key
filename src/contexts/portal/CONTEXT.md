@@ -25,7 +25,7 @@ assignment, and governed access artifacts.
 - **Portal Responsible Manager** — An effective-dated AccountAdmin or eligible PropertyManager assigned to receive and manage that portal's workflow notifications. Multiple managers are supported; assignment does not grant access or staff-performance attribution.
 - **Responsibility Needed** — Visible recovery state when a non-archived portal has no assigned responsible manager. It is not an implicit AccountAdmin assignment.
 - **Soft Delete** — Portals and portal groups are soft-deleted (marked `deletedAt`), not hard-deleted, to preserve referential integrity.
-- **Portal Upload Issuance** — Opaque, single-use authorization for one Portal hero source object, bound to Organization, Property, Portal, MIME, exact declared size, purpose, and 15-minute expiry. Browser callers never submit or receive its object key as API data.
+- **Portal Upload Issuance (retained infrastructure)** — Opaque, scoped state for the removed Portal hero pipeline. The beta has no upload UI, issuance/finalization server function, or application use case, and `portal.upload` is safety-blocked. Its store, worker, and storage code remain only as deferred infrastructure cleanup and are unreachable from product requests.
 - **Portal Access Artifact** — A RepKey-issued, high-entropy QR/NFC identifier bound to one Portal token and channel. It is qualification evidence, not an alternate Portal identity; public resolution still requires the stable token and exact active Publication Snapshot.
 
 ## Relationships
@@ -79,7 +79,7 @@ assignment, and governed access artifacts.
 - `portals.updatedAt` is a monotonic command revision, not raw wall-clock time. Every command captures `occurredAt = clock()` for business timestamps, then separately allocates a revision strictly after the locked aggregate value. Delayed workflow, upload, and responsibility writers use the same database allocator. Durable facts carry the DB-committed revision even when the clock regresses, while snapshots, activations, memberships, tokens, content rows, and deletion intervals retain actual occurrence time. Publication and content edits acquire the Portal row before working-copy table locks.
 - Portal lifecycle facts are content-minimal. Every fact carries exact Organization/Property/Portal scope and `sourceAggregateVersion = committed updatedAt.toISOString()`; `occurredAt` is independent business time and need not equal that revision. Publication and rollback facts additionally carry the exact immutable snapshot ID/version/digest and acting user ID; archive and restore facts carry the acting user ID. They never copy Portal name, slug, description, theme, responsible-manager assignments, destination, or link content. Constructors generate each outbox event UUID. Command-specific semantic receipts or locked source identities govern replay, while optimistic `updatedAt` fencing rejects stale commands.
 - `PortalRepository` is a read-only production port. Authoritative mutations are available only through Portal command stores; direct PostgreSQL seeding/mutation lives under explicit test scaffolding and is guarded from production wiring by an architecture test.
-- Portal hero source keys are server-derived from an opaque issuance ID and the presigned PUT is first-write-only. Finalization accepts only that ID, rechecks current scope/state/expiry and exact storage MIME/size/ETag, and atomically consumes it with the durable processing fact. The worker reads with that observed ETag as an immutable-version fence. A newer consumed issuance supersedes an older worker; only the current consumed issuance may publish newly derived WebP keys. Hero URL publication, issuance finalization, and identifier-only `portal.hero_image.published` commit together; replay returns `already_finalized` without another fact. Client Portal updates may remove a hero image but may never set a non-null URL.
+- The retained hero-image worker still fences source reads and derivative publication by the scoped issuance and observed ETag. No request surface can create an issuance or emit `portal.hero_image.processing_requested`, so this path is unreachable in the disposable beta environment. If invoked directly, only the current consumed issuance may publish server-derived WebP keys, and publication plus the identifier-only `portal.hero_image.published` fact commit together. The removal-only `heroImageUrl: null` command input remains for compatibility, but the manager UI does not expose it; non-null replacement URLs are rejected.
 - The POR-01 beta-readiness reconciliation is read-only and requires an explicit
   observation cutoff. It emits only Organization/Property/Portal/source IDs,
   related IDs, controlled reason codes, counts, and a canonical fingerprint.
@@ -111,8 +111,8 @@ Every domain fact also carries its unique `eventId` and nullable
 | `portal.approved_destination.updated`        | approvedDestinationId, organizationId, propertyId, approvalState, sourceAggregateVersion, occurredAt                                           | Approved-destination state changes                      |
 | `portal.responsibility_became_needed`        | portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt                                                                       | Portal becomes unowned and needs manager responsibility |
 | `portal.responsible_managers.updated`        | portalId, organizationId, propertyId, assignmentCount, sourceAggregateVersion, occurredAt                                                      | Responsible-manager assignments change                  |
-| `portal.hero_image.processing_requested`     | uploadId, portalId, organizationId, propertyId, sourceETag, occurredAt                                                                         | Finalized upload requests fenced image processing       |
-| `portal.hero_image.published`                | uploadId, portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt                                                             | Processed hero image is published                       |
+| `portal.hero_image.processing_requested`     | uploadId, portalId, organizationId, propertyId, sourceETag, occurredAt                                                                         | Retained worker fact; no live emitter                   |
+| `portal.hero_image.published`                | uploadId, portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt                                                             | Retained worker fact; no reachable processing request   |
 | `portal.content_review.completed`            | reviewId, revision, organizationId, propertyId, portalId, portalGroupId, supersedesSourceEventId, sourceAggregateVersion, occurredAt           | A versioned content review completes                    |
 | `portal.configuration_completeness.recorded` | content-review identifiers, completedFields, requiredFields                                                                                    | Content review records configuration completeness       |
 | `portal.approved_destination_ratio.recorded` | content-review identifiers, approvedDestinations, configuredDestinations                                                                       | Content review records approved-destination coverage    |
@@ -144,9 +144,11 @@ Every domain fact also carries its unique `eventId` and nullable
 > `portal_link_category.reordered`, `portal_link_category.updated`,
 > `portal_link_category.deleted`, `portal_link.created`, `portal_link.reordered`,
 > `portal_link.updated`, `portal_link.deleted`,
-> `portal.responsible_managers.updated`, and `portal.hero_image.published`) are
-> durable identifier-only audit facts with no current subscriber. Display names, titles,
-> labels, and URLs are excluded from their outbox allowlists.
+> `portal.responsible_managers.updated`) are durable identifier-only audit facts
+> with no current subscriber. The retained `portal.hero_image.published` fact is
+> wired only to Activity's operational-history projection, but it has no
+> reachable producer. Display names, titles, labels, and URLs are excluded from
+> their outbox allowlists.
 
 ## Events consumed
 
@@ -169,8 +171,7 @@ portal/
     use-cases/         create-portal.ts, update-portal.ts, get-portal.ts, list-portals.ts,
                        soft-delete-portal.ts, create-link.ts, update-link.ts, delete-link.ts,
                        create-link-category.ts, update-link-category.ts, delete-link-category.ts,
-                       reorder-links.ts, reorder-categories.ts, request-upload-url.ts,
-                       finalize-upload.ts, list-portal-links.ts,
+                       reorder-links.ts, reorder-categories.ts, list-portal-links.ts,
                        create-portal-group.ts, update-portal-group.ts, soft-delete-portal-group.ts,
                        list-portal-groups.ts, get-portal-group.ts,
                        add-portal-to-group.ts, remove-portal-from-group.ts,
@@ -205,7 +206,7 @@ portal/
 ## Use cases
 
 - **`createPortal`** — Create a new Property-owned portal. New commands accept only the selected Property as ownership; retained Team/Staff fields are legacy-read evidence, never command authority. The use case validates the Property through `PropertyPublicApi`, then atomically commits the Portal, initial responsibility state, `portal.created`, and any responsibility-needed recovery fact.
-- **`updatePortal`** — Update portal settings (name, slug, description, hero image, theme, Private Feedback Threshold, publication state). `heroImageUrl: null` clears the hero image. A transition into Published requires a verified Property-owned Google destination and atomically creates/activates an immutable publication snapshot; disable/archive closes the active route. Ordinary edits to an already-published working copy remain prospective. The patch and identifier-only `portal.updated` fact share one optimistic, version-fenced commit.
+- **`updatePortal`** — Update portal settings (name, slug, description, theme, Private Feedback Threshold, publication state). The retained `heroImageUrl: null` input is removal-only compatibility behavior with no manager UI; callers may never set a replacement URL. A transition into Published requires a verified Property-owned Google destination and atomically creates/activates an immutable publication snapshot; disable/archive closes the active route. Ordinary edits to an already-published working copy remain prospective. The patch and identifier-only `portal.updated` fact share one optimistic, version-fenced commit.
 - **`rollbackPortalPublication`** — Deliberately route a currently Published Portal to an older digest-verified snapshot by appending a rollback activation; never mutates either snapshot or erases activation history.
 - **`getPortalPublicationHistory`** — Return the current live version, prior publish/rollback activations, and saved-content pending state after rechecking Portal read permission and Property access. A paused/archived Portal has no live version but retains earlier activity.
 - **`getPortal`** — Retrieve a single portal by ID, plus `tokenStatus` (C2): whether a public token still resolves (active, or rotating inside its grace window — same predicate as public token resolution), its version, issue time and grace end. Metadata only: the raw token and its digest are returned by issue/rotate alone.
@@ -214,7 +215,6 @@ portal/
 - **`createLink`** / **`updateLink`** / **`deleteLink`** — Manage portal links.
 - **`createLinkCategory`** / **`updateLinkCategory`** / **`deleteLinkCategory`** — Manage link categories.
 - **`reorderLinks`** / **`reorderCategories`** — Reorder items by sort key.
-- **`requestUploadUrl`** / **`finalizeUpload`** — Persist and consume a scoped hero upload issuance. The API returns/accepts `uploadId`, never an object key; the PUT cannot overwrite an existing source, and finalization records an ETag-bound processing request in the same transaction as consumption. The previous hero remains visible while a private source is decoded and re-encoded.
 - **`listPortalLinks`** — List all links for a portal (flat, with category info).
 - **`createPortalGroup`** — Create a new portal group for a property. Validates name uniqueness and portal memberships. Optionally adds initial portals (pre-validated).
 - **`updatePortalGroup`** — Update group name. Validates name uniqueness (excluding self).
@@ -253,7 +253,7 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-- **`portals.ts`** — CRUD, publication history/rollback, read, image-upload, and portal-token server functions for portals (create/update/list/get/delete portal, read/rollback publication, request/finalize upload, issue/rotate/revoke token).
+- **`portals.ts`** — CRUD, publication history/rollback, read, and portal-token server functions for portals (create/update/list/get/delete portal, read/rollback publication, issue/rotate/revoke token). There are no hero-upload server functions.
 - **`portal-links.ts`** — CRUD server functions for portal links and link categories.
 - **`portal-groups.ts`** — CRUD server functions for portal groups and portal membership management.
 - **`portal-responsible-managers.ts`** — scoped list/update endpoints for responsible-manager assignments and CAS conflict handling.
@@ -268,6 +268,13 @@ Exported from `application/public-api.ts`:
 - `portal.delete` — Soft-delete portals and portal groups.
 
 ## Background jobs
+
+The image jobs and their issuance/storage dependencies remain registered only
+because removing them is deployment-shaped infrastructure work. No UI, server
+function, or application use case can create an issuance or emit a processing
+request. Consequently `process-image` has no producer, while the scheduled
+cleanup job has no candidate rows in the disposable beta environment; neither
+can perform a hero-image effect.
 
 - **process-image** — Reloads the scoped issuance, privately reads only its source, resource-bounds decode/re-encode, writes server-derived WebP variants, and atomically publishes only if the issuance is still current.
 - **portal-upload-source-cleanup** — Runs hourly even while `portal.upload` is dark. It expires a bounded oldest-first batch, deletes only issuance-derived private sources and non-published derivative keys, and records separate durable cleanup markers. Object deletes are idempotent, so a crash between deletion and the marker safely converges on retry; finalized public variants are never selected as orphans.

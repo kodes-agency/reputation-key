@@ -51,8 +51,6 @@ import { createLink } from './application/use-cases/create-link'
 import { updateLink } from './application/use-cases/update-link'
 import { deleteLink } from './application/use-cases/delete-link'
 import { reorderLinks } from './application/use-cases/reorder-links'
-import { requestUploadUrl } from './application/use-cases/request-upload-url'
-import { finalizeUpload } from './application/use-cases/finalize-upload'
 import { listPortalLinks } from './application/use-cases/list-portal-links'
 import { createPortalGroup } from './application/use-cases/create-portal-group'
 import { updatePortalGroup } from './application/use-cases/update-portal-group'
@@ -404,21 +402,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
-      clock: deps.clock,
-    }),
-    requestUploadUrl: requestUploadUrl({
-      portalRepo,
-      uploadStore: portalUploadStore,
-      storage,
-      staffPublicApi: deps.staffPublicApi,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    finalizeUpload: finalizeUpload({
-      portalRepo,
-      uploadStore: portalUploadStore,
-      storage,
-      staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
     }),
     listPortalLinks: listPortalLinks({
