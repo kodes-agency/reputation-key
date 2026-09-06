@@ -4,12 +4,26 @@
 #
 # Zero exceptions is the target — before any entry below was written, the
 # fixable classes were FIXED: the node:22-slim base digest was bumped to the
-# newest build (2026-07-29) and the npm CLI was stripped from the runtime
+# newest build (bumped again 2026-09-06, sha256:83f487e0…) and the npm CLI was
+# stripped from the runtime
 # stages (cleared all 6 npm-bundled findings incl. a Critical tar GHSA).
 # What remains has NO available fix today. Every entry/group carries
 # owner/reason/expiresAt and is re-justified at the quarterly review and on
 # every base-image bump. grype has no native expiry — the dates are enforced
 # by the documented review cadence, not by the tool.
+#
+# 2026-09-06. The gate went red with no code change: grype's log for run
+# 34018571325 reads `updated vulnerability DB from=2026-09-05T06:27:00Z
+# to=2026-09-06T06:27:35Z`, and the same image had passed hours earlier. It also
+# warns `683 packages from EOL distro "debian 12"` — bookworm is end-of-life, so
+# new findings against this base will keep arriving and increasingly have no
+# upstream fix. This policy's own first move is to bump the base, so the digest
+# above was bumped to the newest published `node:22-slim`. No exception entry was
+# added, because the finding's identity could not be obtained (the local scan
+# exceeded two thirty-minute windows and grype's SARIF is not uploaded to code
+# scanning) and an exception whose justification is guessed is worse than a red
+# gate. If the bump does not clear it, the finding must be named before anything
+# is exempted. Longer term the base has to leave EOL bookworm.
 
 ignore:
   # ── Debian bookworm base packages, perl (11 CVEs) ─────────────────────
