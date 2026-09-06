@@ -47,10 +47,10 @@ name: Review
 #   - Until this file is merged to `main`, both reviewers skip on every run.
 #   - Any future PR that edits this file will skip them again, and must be
 #     reviewed by a human.
-#   - A skipped action exits SUCCESS and emits no output. Both jobs therefore
-#     fail when `structured_output` is absent. That is not defensive
-#     programming; this job actually reported green through four runs in which
-#     nothing was reviewed, which is how the requirement was found.
+#   - A skipped action exits SUCCESS and emits nothing. Both jobs therefore fail
+#     when their verdict file is absent. That is not defensive programming: the
+#     security job actually reported green through four runs in which nothing
+#     was reviewed, which is how the requirement was found.
 #
 # REMAINING ACTIVATION STEP: add `review` to the branch's required status checks.
 
@@ -152,44 +152,75 @@ jobs:
             - A workflow or config whose subject was deleted, leaving a required
               check that cannot parse its own input.
 
-            Return the structured object the schema requires. Set `verdict` to
-            BLOCK if and only if there is at least one CONTROL_REMOVAL or
-            UNEVIDENCED finding; NOTE findings alone must produce PASS. Every
-            finding needs `evidence` naming a file and line — a finding you
-            cannot point at is a NOTE at most.
+            OUTPUT. Write your findings to `verdict.json` in the repository
+            root, and write nothing else. Shape:
+
+              {"verdict":"BLOCK"|"PASS",
+               "findings":[{"classification":"CONTROL_REMOVAL"|"UNEVIDENCED"|"NOTE",
+                            "summary":"...","evidence":"path:line"}]}
+
+            Set `verdict` to BLOCK if and only if there is at least one
+            CONTROL_REMOVAL or UNEVIDENCED finding; NOTE findings alone must
+            produce PASS. Every finding needs `evidence` naming a file and line
+            — a finding you cannot point at is a NOTE at most.
 
             Do not hedge. An uncertain BLOCK is more useful than a confident
             PASS, but a reflexive BLOCK on every pull request makes this gate
             worthless, so justify each one.
-          # Literal block, not folded: the documented form. A folded scalar
-          # collapses these onto one line and the schema's quoting does not
-          # survive, which is why `structured_output` came back empty.
+          # A FILE, not `--json-schema`. The schema route failed with "Claude
+          # did not return structured_output", and the run behind that message
+          # had num_turns 1, total_cost_usd 0 and empty modelUsage after 1.9s —
+          # the CLI died before reaching the model, and the action reports the
+          # missing output rather than the cause. A file the model writes with a
+          # tool it demonstrably has is one less moving part, and the dump step
+          # below now surfaces the underlying error either way.
           claude_args: |
-            --allowed-tools Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
-            --json-schema '{"type":"object","required":["verdict","findings"],"properties":{"verdict":{"type":"string","enum":["BLOCK","PASS"]},"findings":{"type":"array","items":{"type":"object","required":["classification","summary","evidence"],"properties":{"classification":{"type":"string","enum":["CONTROL_REMOVAL","UNEVIDENCED","NOTE"]},"summary":{"type":"string"},"evidence":{"type":"string"}}}}}}'
+            --allowed-tools Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
+
+      # Prints why the reviewer failed instead of leaving it in a file on a
+      # discarded runner. Added because two full cycles were spent guessing at a
+      # message that described a symptom.
+      - name: Dump the reviewer execution log
+        if: always()
+        env:
+          EXEC: ${{ steps.review.outputs.execution_file }}
+        run: |
+          echo "conclusion: ${{ steps.review.outputs.conclusion }}"
+          if [ -n "${EXEC:-}" ] && [ -f "${EXEC}" ]; then
+            echo "--- execution log ---"
+            tail -c 4000 "${EXEC}"
+          else
+            echo "no execution file at '${EXEC:-<unset>}'"
+          fi
 
       - name: Enforce the verdict
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
-          RESULT: ${{ steps.review.outputs.structured_output }}
         run: |
           set -euo pipefail
-          # The verdict is a TYPED value from `structured_output`, validated
-          # against the schema above.
-          #
-          # The first version scraped a trailing line out of a PR comment and
-          # failed on its own first run, because the action posts a pull-request
-          # REVIEW rather than an issue comment. A gate that parses prose is a
-          # gate that fails on formatting.
-          if [ -z "${RESULT:-}" ]; then
-            echo "::error::The reviewer produced no structured output."
-            echo "::error::Treating as a failure: a review gate with no verdict"
-            echo "::error::has not reviewed anything."
+          # Read from the file the reviewer wrote. Two earlier designs failed
+          # here for reasons worth keeping:
+          #   1. Scraping "REVIEW-VERDICT:" off the last line of a PR comment.
+          #      The action posts a pull-request REVIEW, not an issue comment,
+          #      so the scraper found nothing. A gate that parses prose fails on
+          #      formatting.
+          #   2. `--json-schema` + `structured_output`. The action reported the
+          #      output missing while the real failure was upstream of the model
+          #      (one turn, zero cost, 1.9s).
+          # Absent or unparseable file is still a failure: a review gate with no
+          # verdict has not reviewed anything.
+          if [ ! -f verdict.json ]; then
+            echo "::error::The reviewer wrote no verdict.json."
+            echo "::error::See the execution log dumped by the previous step."
             exit 1
           fi
-          printf '%s' "${RESULT}" > verdict.json
+          if ! jq -e '.verdict and (.findings | type == "array")' verdict.json >/dev/null 2>&1; then
+            echo "::error::verdict.json is not the required shape:"
+            head -c 2000 verdict.json
+            exit 1
+          fi
           verdict=$(jq -r '.verdict' verdict.json)
           echo "verdict: ${verdict}"
 
@@ -266,12 +297,30 @@ jobs:
             positive here costs more than it saves, because it teaches the next
             reader to skim.
 
-            Return the structured object the schema requires. `ran` is a
-            self-check: set it true to prove you executed. Report only findings
-            you can evidence.
+            OUTPUT. Write your findings to `security.json` in the repository
+            root, and write nothing else. Shape:
+
+              {"findings":[{"severity":"HIGH"|"MEDIUM"|"LOW","summary":"...",
+                            "evidence":"path:line","attacker_gains":"..."}]}
+
+            Write the file even when you find nothing — an empty `findings`
+            array is the clean result, and its presence is how this gate tells
+            "found nothing" apart from "did not run".
           claude_args: |
-            --allowed-tools Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
-            --json-schema '{"type":"object","required":["ran","findings"],"properties":{"ran":{"type":"boolean"},"findings":{"type":"array","items":{"type":"object","required":["severity","summary","evidence","attacker_gains"],"properties":{"severity":{"type":"string","enum":["HIGH","MEDIUM","LOW"]},"summary":{"type":"string"},"evidence":{"type":"string"},"attacker_gains":{"type":"string"}}}}}}'
+            --allowed-tools Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)
+
+      - name: Dump the reviewer execution log
+        if: always()
+        env:
+          EXEC: ${{ steps.review.outputs.execution_file }}
+        run: |
+          echo "conclusion: ${{ steps.review.outputs.conclusion }}"
+          if [ -n "${EXEC:-}" ] && [ -f "${EXEC}" ]; then
+            echo "--- execution log ---"
+            tail -c 4000 "${EXEC}"
+          else
+            echo "no execution file at '${EXEC:-<unset>}'"
+          fi
 
       # Without this the job is a FALSE GREEN, and it already was one. When
       # `review.yml` differs from the copy on the default branch the action
@@ -284,17 +333,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
-          RESULT: ${{ steps.review.outputs.structured_output }}
         run: |
           set -euo pipefail
-          if [ -z "${RESULT:-}" ]; then
-            echo "::error::The security reviewer produced no structured output."
+          if [ ! -f security.json ]; then
+            echo "::error::The security reviewer wrote no security.json."
             echo "::error::Either it was skipped by workflow validation (does"
             echo "::error::this PR change .github/workflows/review.yml?) or it"
-            echo "::error::failed. Not treating silence as a clean bill."
+            echo "::error::failed — see the execution log above. Not treating"
+            echo "::error::silence as a clean bill."
             exit 1
           fi
-          printf '%s' "${RESULT}" > security.json
+          if ! jq -e '.findings | type == "array"' security.json >/dev/null 2>&1; then
+            echo "::error::security.json is not the required shape:"
+            head -c 2000 security.json
+            exit 1
+          fi
           {
             echo "## Security review"
             echo
