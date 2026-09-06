@@ -42,8 +42,11 @@ export type GoogleReviewSyncContentAuthorizationResult =
   | Readonly<{
       ok: true
       approvalBindingId: string
-      policyVersion: number
-      emergencyKillVersion: number
+      // WP2.2: `policyVersion` and `emergencyKillVersion` used to live here.
+      // Their only consumers were the authorization vector, which no longer
+      // carries them, and a `safeGeneration` range check that validated values
+      // nothing then read. `approvalBindingId` stays until the ceremony's
+      // replacement issuer lands.
       authorizationVector: Readonly<Record<string, string | number | boolean | null>>
     }>
   | Readonly<{
@@ -168,8 +171,6 @@ function validSystemContent(
   operationKey: GoogleConnectionSystemOperation,
 ): boolean {
   return (
-    safeGeneration(content.policyVersion) &&
-    safeGeneration(content.emergencyKillVersion) &&
     safeGeneration(binding.sourceEpoch) &&
     safeGeneration(binding.profileVersion) &&
     safeGeneration(connection.lifecycleVersion) &&
