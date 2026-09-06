@@ -138,9 +138,8 @@ async function main() {
   // reconciliation removes their repeats and any queued remnant quarantines.
   await bootstrap(container, { runtime: createBootstrapRuntimeConfig(env) })
 
-  // BQR-2.2: always register durable consumers when outbox is available so
-  // the dispatcher is never started with an empty registry. Registration
-  // alone does not process work — relay still requires the enable flag.
+  // BQR-2.2: durable consumers register before the dispatcher starts, so it
+  // never runs against an empty registry; readiness below proves the set.
   if (container.outboxRepo) {
     container.registerOutboxConsumers()
     logger.info('Outbox consumers registered with dispatcher')

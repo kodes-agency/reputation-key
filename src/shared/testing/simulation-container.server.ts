@@ -136,10 +136,12 @@ export async function createSimulationContainer(
   // 5. Connect the queue to the registry so jobs process inline
   queue.connectRegistry(simulationContainer.jobRegistry)
 
-  // 6. Inline outbox delivery: the real relay claims/marks rows, and its
-  //    "queue" hands each envelope straight to the real dispatcher.
+  // 6. Inline outbox delivery: the same consumer set the worker registers,
+  //    then the real relay claims/marks rows and its "queue" hands each
+  //    envelope straight to the real dispatcher.
   const outboxRepo = simulationContainer.outboxRepo
   if (!outboxRepo) throw new Error('Simulation container has no outbox repository')
+  simulationContainer.registerOutboxConsumers()
   const dispatch = createDispatcherHandler(outboxRepo, {
     consumers: simulationContainer.consumerRegistry,
   })

@@ -32,7 +32,6 @@ export type {
 } from '../domain/events'
 
 export {
-  CURRENT_MERCHANT_AI_CAPABILITIES,
   type CurrentMerchantAiCapability,
   type MerchantAiCapability,
   type MerchantAiSnapshot,

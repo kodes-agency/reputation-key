@@ -7,6 +7,7 @@
 // so the simulation controls the time dimension (ADR 0017).
 
 import type { SimulationContainer } from '#/composition'
+import { sql } from 'drizzle-orm'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   reviewId,
@@ -29,7 +30,10 @@ import {
 import { properties } from '#/shared/db/schema/property.schema'
 import { portals } from '#/shared/db/schema/portal.schema'
 import { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
-import { metricReadings } from '#/shared/db/schema/metric.schema'
+import {
+  metricDefinitionVersions,
+  metricReadings,
+} from '#/shared/db/schema/metric.schema'
 import { goals } from '#/shared/db/schema/goal.schema'
 import { user, member, organization } from '#/shared/db/schema/auth'
 import { insertOutboxRow } from '#/shared/outbox/commit'
@@ -170,6 +174,9 @@ async function createPropertyAndPortal(
     entityId: unbrand(propId),
     name: `${propSpec.name} Portal`,
     slug: `${propSpec.slug}-portal`,
+    // The domain default; a portal row without primaryColor fails the mapper
+    // every consumer that reads the portal goes through.
+    theme: { primaryColor: '#6366F1' },
   })
 
   return { propId, portalId: pId }
@@ -307,90 +314,35 @@ async function createReviews(
   return { created, events, replies }
 }
 
+type GuestInteraction = Readonly<{
+  kind: 'scan' | 'rating' | 'feedback'
+  count: number
+  /** Insert the row and return the fact that announces it. */
+  write: (i: number, occurredAt: Date) => Promise<DomainEvent>
+}>
+
 async function createGuestData(
   ctx: Ctx,
   pId: ReturnType<typeof portalId>,
   propId: ReturnType<typeof propertyId>,
   guestSpec: ScenarioGuestSpec,
 ): Promise<{ interactions: number; events: number }> {
-  let interactions = 0,
-    events = 0
   const overDays = guestSpec.overDays ?? 30
-
-  for (let i = 0; i < (guestSpec.scans ?? 0); i++) {
-    const daysAgo = Math.floor((i / Math.max(guestSpec.scans ?? 1, 1)) * overDays)
-    const sId = scanEventId(crypto.randomUUID())
-    try {
-      await ctx.db.insert(scanEvents).values({
-        id: unbrand(sId),
-        organizationId: unbrand(ctx.orgId),
-        portalId: unbrand(pId),
-        propertyId: unbrand(propId),
-        source: 'qr',
-        sessionId: `sim-${crypto.randomUUID()}`,
-        ipHash: 'sim',
-      })
-      await recordFact(
-        ctx,
-        guestScanRecorded({
-          scanId: sId,
-          organizationId: ctx.orgId,
-          portalId: pId,
-          propertyId: propId,
-          scanSource: 'qr',
-          occurredAt: new Date(ctx.now.getTime() - daysAgo * MS_PER_DAY),
-        }),
-      )
-      interactions++
-      events++
-    } catch (err) {
-      // Was a bare `catch { /* skip */ }`. These aggregates are covered by NO
-      // invariant checker, so a swallowed insert/emit failure was invisible in
-      // both directions. Same shape as the review/reply paths above; message
-      // only, because id-shaped log keys are banned under BQC-7.3.
-      ctx.container.logger.warn(
-        { err: err instanceof Error ? err.message : String(err) },
-        'Sim guest scan create/emit failed',
-      )
-    }
+  // Metric definitions are effective from a seeded date; a reading before it
+  // is quarantined (definition_version_not_effective), so the backdating floor
+  // is the newest effective_from rather than an arbitrary day count.
+  const [effective] = await ctx.db
+    .select({ from: sql<Date | null>`max(${metricDefinitionVersions.effectiveFrom})` })
+    .from(metricDefinitionVersions)
+  const floorAt = effective?.from ? new Date(effective.from).getTime() : 0
+  const common = {
+    organizationId: unbrand(ctx.orgId),
+    portalId: unbrand(pId),
+    propertyId: unbrand(propId),
+    source: 'qr' as const,
+    ipHash: 'sim',
   }
-
-  for (let i = 0; i < (guestSpec.ratings ?? 0); i++) {
-    const daysAgo = Math.floor((i / Math.max(guestSpec.ratings ?? 1, 1)) * overDays)
-    const rId = ratingId(crypto.randomUUID())
-    const value = [1, 2, 3, 4, 5][i % 5]
-    try {
-      await ctx.db.insert(ratings).values({
-        id: unbrand(rId),
-        organizationId: unbrand(ctx.orgId),
-        portalId: unbrand(pId),
-        propertyId: unbrand(propId),
-        sessionId: `sim-${crypto.randomUUID()}`,
-        value,
-        source: 'qr',
-        ipHash: 'sim',
-      })
-      await recordFact(
-        ctx,
-        guestRatingSubmitted({
-          ratingId: rId,
-          organizationId: ctx.orgId,
-          portalId: pId,
-          propertyId: propId,
-          value,
-          occurredAt: new Date(ctx.now.getTime() - daysAgo * MS_PER_DAY),
-        }),
-      )
-      interactions++
-      events++
-    } catch (err) {
-      ctx.container.logger.warn(
-        { err: err instanceof Error ? err.message : String(err) },
-        'Sim guest rating create/emit failed',
-      )
-    }
-  }
-
+  const session = () => `sim-${crypto.randomUUID()}`
   const comments = [
     'Great service!',
     'Clean room.',
@@ -398,43 +350,92 @@ async function createGuestData(
     'Would return.',
     'Breakfast OK.',
   ]
-  for (let i = 0; i < (guestSpec.feedback ?? 0); i++) {
-    const daysAgo = Math.floor((i / Math.max(guestSpec.feedback ?? 1, 1)) * overDays)
-    const fId = feedbackId(crypto.randomUUID())
-    try {
-      await ctx.db.insert(feedback).values({
-        id: unbrand(fId),
-        organizationId: unbrand(ctx.orgId),
-        portalId: unbrand(pId),
-        propertyId: unbrand(propId),
-        sessionId: `sim-${crypto.randomUUID()}`,
-        ratingId: null,
-        comment: comments[i % comments.length],
-        source: 'qr',
-        ipHash: 'sim',
-      })
-      await recordFact(
-        ctx,
-        guestFeedbackSubmitted({
+
+  const interactions: GuestInteraction[] = [
+    {
+      kind: 'scan',
+      count: guestSpec.scans ?? 0,
+      write: async (_i, occurredAt) => {
+        const sId = scanEventId(crypto.randomUUID())
+        await ctx.db
+          .insert(scanEvents)
+          .values({ ...common, id: unbrand(sId), sessionId: session() })
+        return guestScanRecorded({
+          scanId: sId,
+          organizationId: ctx.orgId,
+          portalId: pId,
+          propertyId: propId,
+          scanSource: 'qr',
+          occurredAt,
+        })
+      },
+    },
+    {
+      kind: 'rating',
+      count: guestSpec.ratings ?? 0,
+      write: async (i, occurredAt) => {
+        const rId = ratingId(crypto.randomUUID())
+        const value = [1, 2, 3, 4, 5][i % 5]
+        await ctx.db
+          .insert(ratings)
+          .values({ ...common, id: unbrand(rId), sessionId: session(), value })
+        return guestRatingSubmitted({
+          ratingId: rId,
+          organizationId: ctx.orgId,
+          portalId: pId,
+          propertyId: propId,
+          value,
+          occurredAt,
+        })
+      },
+    },
+    {
+      kind: 'feedback',
+      count: guestSpec.feedback ?? 0,
+      write: async (i, occurredAt) => {
+        const fId = feedbackId(crypto.randomUUID())
+        await ctx.db.insert(feedback).values({
+          ...common,
+          id: unbrand(fId),
+          sessionId: session(),
+          ratingId: null,
+          comment: comments[i % comments.length],
+        })
+        return guestFeedbackSubmitted({
           feedbackId: fId,
           organizationId: ctx.orgId,
           portalId: pId,
           propertyId: propId,
           ratingId: null,
-          occurredAt: new Date(ctx.now.getTime() - daysAgo * MS_PER_DAY),
-        }),
+          occurredAt,
+        })
+      },
+    },
+  ]
+
+  let created = 0
+  for (const interaction of interactions) {
+    for (let i = 0; i < interaction.count; i++) {
+      const daysAgo = Math.floor((i / Math.max(interaction.count, 1)) * overDays)
+      const occurredAt = new Date(
+        Math.max(ctx.now.getTime() - daysAgo * MS_PER_DAY, floorAt),
       )
-      interactions++
-      events++
-    } catch (err) {
-      ctx.container.logger.warn(
-        { err: err instanceof Error ? err.message : String(err) },
-        'Sim guest feedback create/emit failed',
-      )
+      try {
+        await recordFact(ctx, await interaction.write(i, occurredAt))
+        created++
+      } catch (err) {
+        // These aggregates are covered by NO invariant checker, so a swallowed
+        // insert failure would be invisible in both directions. Message only:
+        // id-shaped log keys are banned under BQC-7.3.
+        ctx.container.logger.warn(
+          { err: err instanceof Error ? err.message : String(err) },
+          `Sim guest ${interaction.kind} create failed`,
+        )
+      }
     }
   }
 
-  return { interactions, events }
+  return { interactions: created, events: created }
 }
 
 async function createGoals(

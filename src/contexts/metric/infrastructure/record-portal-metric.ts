@@ -151,7 +151,7 @@ export function makeDurableRecordMetricHandler<E extends PortalMetricEvent>(
   return makeDurableRecordMetricFanoutHandler([options])
 }
 
-export function makeDurableRecordMetricFanoutHandler<E extends PortalMetricEvent>(
+function makeDurableRecordMetricFanoutHandler<E extends PortalMetricEvent>(
   options: readonly PortalMetricHandlerOptions<E>[],
 ) {
   return (deps: RecordPortalMetricDeps) =>

@@ -29,43 +29,41 @@ import type {
 import type { PropertySetValues } from './repositories/property.repository'
 import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
+/** The columns a property patch may set — never identity columns. */
+const SETTABLE_PROPERTY_KEYS = [
+  'updatedAt',
+  'name',
+  'slug',
+  'timezone',
+  'defaultReplyLanguage',
+  'address',
+  'gbpLocationId',
+  'gbpAccountId',
+  'googleConnectionId',
+  'profileVersion',
+  'googleBindingState',
+  'profileSource',
+  'profileConfirmedAt',
+  'profileConfirmedBy',
+  'countryCode',
+  'countrySource',
+  'timezoneSource',
+  'timezoneResolvedAt',
+  'processingRegion',
+  'dataCellId',
+  'processingRegionSource',
+  'routingPolicyVersion',
+  'processingRegionResolvedAt',
+  'sourceEpoch',
+] as const satisfies ReadonlyArray<keyof PropertySetValues & keyof Property>
+
 /** Same field-picking as PropertyRepository.update — never sets identity columns. */
 function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySetValues {
-  const set: PropertySetValues = {}
-  if (patch.updatedAt !== undefined) set.updatedAt = patch.updatedAt
-  if (patch.name !== undefined) set.name = patch.name
-  if (patch.slug !== undefined) set.slug = patch.slug
-  if (patch.timezone !== undefined) set.timezone = patch.timezone
-  if (patch.defaultReplyLanguage !== undefined)
-    set.defaultReplyLanguage = patch.defaultReplyLanguage
-  if (patch.address !== undefined) set.address = patch.address
-  if (patch.gbpLocationId !== undefined) set.gbpLocationId = patch.gbpLocationId
-  if (patch.gbpAccountId !== undefined) set.gbpAccountId = patch.gbpAccountId
-  if (patch.googleConnectionId !== undefined)
-    set.googleConnectionId = patch.googleConnectionId
-  if (patch.profileVersion !== undefined) set.profileVersion = patch.profileVersion
-  if (patch.googleBindingState !== undefined)
-    set.googleBindingState = patch.googleBindingState
-  if (patch.profileSource !== undefined) set.profileSource = patch.profileSource
-  if (patch.profileConfirmedAt !== undefined)
-    set.profileConfirmedAt = patch.profileConfirmedAt
-  if (patch.profileConfirmedBy !== undefined)
-    set.profileConfirmedBy = patch.profileConfirmedBy
-  if (patch.countryCode !== undefined) set.countryCode = patch.countryCode
-  if (patch.countrySource !== undefined) set.countrySource = patch.countrySource
-  if (patch.timezoneSource !== undefined) set.timezoneSource = patch.timezoneSource
-  if (patch.timezoneResolvedAt !== undefined)
-    set.timezoneResolvedAt = patch.timezoneResolvedAt
-  if (patch.processingRegion !== undefined) set.processingRegion = patch.processingRegion
-  if (patch.dataCellId !== undefined) set.dataCellId = patch.dataCellId
-  if (patch.processingRegionSource !== undefined)
-    set.processingRegionSource = patch.processingRegionSource
-  if (patch.routingPolicyVersion !== undefined)
-    set.routingPolicyVersion = patch.routingPolicyVersion
-  if (patch.processingRegionResolvedAt !== undefined)
-    set.processingRegionResolvedAt = patch.processingRegionResolvedAt
-  if (patch.sourceEpoch !== undefined) set.sourceEpoch = patch.sourceEpoch
-  return set
+  const set: Record<string, unknown> = {}
+  for (const key of SETTABLE_PROPERTY_KEYS) {
+    if (patch[key] !== undefined) set[key] = patch[key]
+  }
+  return set as PropertySetValues
 }
 
 export const createAtomicPropertyCommandStore = (
