@@ -78,6 +78,11 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      # The action exchanges the workflow's GitHub OIDC token for its App
+      # token; without this it fails with "Failed to get OIDC token" before it
+      # ever reaches the model. Also the permission Workload Identity
+      # Federation needs, if the static secret is retired later.
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -184,6 +189,11 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      # The action exchanges the workflow's GitHub OIDC token for its App
+      # token; without this it fails with "Failed to get OIDC token" before it
+      # ever reaches the model. Also the permission Workload Identity
+      # Federation needs, if the static secret is retired later.
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
