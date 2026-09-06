@@ -548,6 +548,17 @@ jobs:
         with:
           grype-version: v0.116.1
 
+      # The gate prints WHAT it found, not just that it found something.
+      #
+      # This step used to emit SARIF to a file that nothing uploaded and nothing
+      # read, so a failure said only `discovered vulnerabilities at or above the
+      # severity threshold` — no package, no CVE, no fixed-in version. On
+      # 2026-09-06 that cost a day: the gate went red on a vulnerability-database
+      # rollover, and the finding could not be named from CI at all, so the
+      # documented response (bump the base, or write an exception with an owner
+      # and a reason) could not be chosen on evidence. grype takes repeated `-o`,
+      # so the table costs one line and the SARIF is retained as an artifact for
+      # the runs where the table is not enough.
       - name: Vulnerability scan grouped images (grype)
         env:
           GRYPE_CMD: ${{ steps.grype.outputs.cmd }}
@@ -558,12 +569,20 @@ jobs:
             name=$(jq -r '.name' <<<"$image")
             "$GRYPE_CMD" \
               -v \
-              -o sarif \
-              --file "grype-${name}.sarif" \
+              -o "sarif=grype-${name}.sarif" \
+              -o table \
               --fail-on high \
               -c .grype.yaml \
               "sbom:sbom-${name}.spdx.json"
           done < <(jq -c '.[]' <<<"$IMAGE_GROUP_JSON")
+
+      - name: Upload vulnerability scan reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: grype-scan-${{ matrix.group }}
+          path: grype-*.sarif
+          if-no-files-found: warn
 
       # Each group pushes its scanned bytes under a unique run/attempt staging
       # tag. The source-SHA tags are created only by the aggregate after both
