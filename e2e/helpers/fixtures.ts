@@ -817,13 +817,13 @@ export async function seedProperty(input: {
   const rows = await dbQuery<{ id: string }>(
     `INSERT INTO properties
        (organization_id, name, slug, timezone, country_code, country_source,
-        processing_region, processing_region_source, routing_policy_version,
+        processing_region, data_cell_id, processing_region_source, routing_policy_version,
         processing_region_resolved_at, lifecycle_state, source_epoch,
         google_connection_id, gbp_account_id, gbp_location_id,
         google_binding_state, profile_source, profile_confirmed_at,
         profile_confirmed_by)
      VALUES ($1, $2, $3, 'America/New_York', 'US', 'manual',
-             'us', 'country_default', 1, now(), 'active', $4,
+             'us', 'us', 'country_default', 1, now(), 'active', $4,
              $5, $6, $7, $8, $9, $10, $11)
      RETURNING id`,
     [
