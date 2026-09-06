@@ -331,6 +331,16 @@ Verification: local gate; **`e2e` green**; `docker build .` still one image; `gi
 7. **Permits stay; only the ceremony that decides whether to issue one goes.** An earlier revision of this spec had WP2.2 delete the permit table on the reasoning that a Postgres row only existed to let two processes agree. Reading the authority disproves it: `postgres-permit-authority.ts:176` starts a permit through `start_google_execution_permit_v3`, a state transition in the database, and `:89` refuses any row not in state `admitted`. That is at-most-once semantics for a provider call, and it is load-bearing in one process too — the worker retries jobs, and a retry that re-published a reply because the permit was only an in-memory object would be a product defect, not a tidier design. So the permit row, its authority and the start-deadline sweep all survive; what dies is the approval-bundle machinery that used to decide whether to write one. The replacement issuer writes the same row from the two checks in step 3.
 8. ADR 0050 loses §6/§8/§11/§12 and the mutation log; §3/§5/§7/§10 stay verbatim.
 
+**WP2.2 is one indivisible change, and bigger than the bullet implies. Measured 2026-09-06.** The permit row survives (finding 2), but it cannot survive _unchanged_: six of its columns exist only to carry ceremony, and the SQL that reads them enforces it.
+
+- `authorization_execution_permits` requires `approval_binding_id`, `authorization_vector`, `start_vector_mode`, `commit_vector_mode`, `policy_version` and `emergency_kill_version` — all `notNull` at `src/shared/db/schema/google-content-control.schema.ts:295-303`, and all meaningless once approval bundles are gone.
+- `start_google_execution_permit_v3` is a three-deep chain (`v3` → `v2` → `v1`, `db-constructs.sql:6818,7285,7517`) that validates `p_authorization_vector`, `p_policy_version` and `p_emergency_kill_version` against the row, alongside `complete_…_v1` and `fail_…_v1`.
+- The issuer is `insertPermit` at `google-content-authority.repository.ts:507-535`, inside the repository being deleted.
+
+So the honest cut is: delete the ceremony, write a thin issuer, **and** contract the permit to the columns that still mean something, rewriting the three SQL functions and regenerating the baseline with `pnpm db:baseline` (the database is disposable, so this is a regeneration, not a migration). Populating the ceremony columns with degenerate constants to avoid touching the SQL would be a shim, and the program rules forbid one.
+
+**Do not split this.** The tempting slices all leave the tree broken or dishonest: deleting the ceremony without the issuer leaves nothing writing permits; writing the issuer first means writing it twice; contracting the schema first breaks the ceremony that still reads it. The `e2e` job is the only gate that proves a Google call still reaches the provider, so the change lands whole or not at all.
+
 Verification: local gate; `pnpm test:integration` green; **`e2e` CI job green** (it is the only thing that proves a Google call still reaches the provider); `git grep -n "google-content\|approvalGap\|assertDirectProviderEgressAllowed" -- src services scripts` → none outside `docs/archive`.
 
 ### WP2.3 — AI pair into the worker only
