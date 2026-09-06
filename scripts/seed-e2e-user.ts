@@ -1572,14 +1572,6 @@ async function ensureLocalGoogleContentApprovals(): Promise<void> {
     clock: () => new Date(),
     newPermitId: randomUUID,
     verifyRoleApproval: createGoogleContentRoleSignatureVerifier(parsedKeys.publicKeys),
-    refreshPolicy: () =>
-      store.transaction(async (tx) => {
-        const control = await store.loadControl(tx)
-        return {
-          version: control.policyVersion,
-          emergencyKillVersion: control.emergencyKillVersion,
-        }
-      }),
     isRegisteredOperator: (operatorId) => operatorId === 'local-stack-seed',
     // This local seed only installs approvals and changes the persisted control.
     // It must never become an alternate execution authorizer.

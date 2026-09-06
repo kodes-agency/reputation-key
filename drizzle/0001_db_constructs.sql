@@ -2702,7 +2702,7 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.fail_google_execution_permit_v1(p_permit_id uuid, p_permit_generation bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_code text)
+CREATE OR REPLACE FUNCTION public.fail_google_execution_permit_v1(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_code text)
  RETURNS boolean
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -2720,7 +2720,6 @@ BEGIN
       correlation_id = p_code
   WHERE permit.id = p_permit_id
     AND permit.state = 'started'
-    AND permit.permit_generation = p_permit_generation
     AND permit.route_key = p_route_key
     AND permit.route_catalog_version = p_route_catalog_version
     AND permit.quota_policy_id = p_quota_policy_id;
@@ -6813,7 +6812,7 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v1(p_permit_id uuid, p_permit_generation bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
+CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v1(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
  RETURNS TABLE(outcome text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -7193,7 +7192,6 @@ BEGIN
     FROM candidate
     WHERE permit.id = candidate.id
       AND candidate.state = 'admitted'
-      AND candidate.permit_generation = p_permit_generation
       AND candidate.route_key = p_route_key
       AND candidate.route_catalog_version = p_route_catalog_version
       AND candidate.quota_policy_id = p_quota_policy_id
@@ -7234,7 +7232,7 @@ END
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v2(p_permit_id uuid, p_permit_generation bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
+CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v2(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
  RETURNS TABLE(outcome text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -7251,7 +7249,6 @@ BEGIN
     SELECT legacy.outcome
     FROM public.start_google_execution_permit_v1(
       p_permit_id,
-      p_permit_generation,
       p_route_key,
       p_route_catalog_version,
       p_quota_policy_id,
@@ -7391,7 +7388,6 @@ BEGIN
     FROM candidate
     WHERE permit.id = candidate.id
       AND candidate.state = 'admitted'
-      AND candidate.permit_generation = p_permit_generation
       AND candidate.route_key = p_route_key
       AND candidate.route_catalog_version = p_route_catalog_version
       AND candidate.quota_policy_id = p_quota_policy_id
@@ -7426,7 +7422,7 @@ END
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v3(p_permit_id uuid, p_permit_generation bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
+CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v3(p_permit_id uuid, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
  RETURNS TABLE(outcome text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -7445,7 +7441,6 @@ BEGIN
     SELECT delegated.outcome
     FROM public.start_google_execution_permit_v2(
       p_permit_id,
-      p_permit_generation,
       p_route_key,
       p_route_catalog_version,
       p_quota_policy_id,
@@ -7525,7 +7520,6 @@ BEGIN
     FROM candidate
     WHERE permit.id = candidate.id
       AND candidate.state = 'admitted'
-      AND candidate.permit_generation = p_permit_generation
       AND candidate.route_key = p_route_key
       AND candidate.route_catalog_version = p_route_catalog_version
       AND candidate.quota_policy_id = p_quota_policy_id
@@ -8161,7 +8155,6 @@ CREATE OR REPLACE FUNCTION public.google_execution_permit_revision_v1(p_permit a
 AS $function$
   SELECT encode(sha256(convert_to(jsonb_build_array(
     p_permit.id,
-    p_permit.permit_generation,
     p_permit.route_key,
     p_permit.capability,
     p_permit.scope_schema_version,
@@ -8180,7 +8173,7 @@ $function$
 ;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.load_google_execution_permit_v1(p_permit_id uuid)
- RETURNS TABLE(id uuid, capability text, route_key text, route_catalog_version text, quota_policy_id text, permit_generation bigint, authorization_vector jsonb, state text, start_deadline_at timestamp with time zone, organization_id text, property_id uuid, connection_id uuid, initiator_user_id text, authority_revision text)
+ RETURNS TABLE(id uuid, capability text, route_key text, route_catalog_version text, quota_policy_id text, authorization_vector jsonb, state text, start_deadline_at timestamp with time zone, organization_id text, property_id uuid, connection_id uuid, initiator_user_id text, authority_revision text)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public'
@@ -8191,7 +8184,6 @@ AS $function$
     permit.route_key::text,
     permit.route_catalog_version::text,
     permit.quota_policy_id::text,
-    permit.permit_generation,
     permit.authorization_vector,
     permit.state::text,
     permit.start_deadline_at,

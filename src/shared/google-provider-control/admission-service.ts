@@ -28,7 +28,6 @@ export type GoogleAdmissionPermitSnapshot = Readonly<{
   expectedAdmission: GoogleProviderAdmissionMetadata
   quotaKey: GoogleQuotaKey
   expiresAtMs: number
-  permitGeneration: number
   authorityRevision: string
 }>
 
@@ -162,8 +161,6 @@ function validPermitSnapshot(snapshot: GoogleAdmissionPermitSnapshot): boolean {
     !Number.isSafeInteger(snapshot.expiresAtMs) ||
     !validAdmissionMetadata(snapshot.expectedAdmission) ||
     snapshot.routeKey !== snapshot.expectedAdmission.routeKey ||
-    !Number.isSafeInteger(snapshot.permitGeneration) ||
-    snapshot.permitGeneration < 1 ||
     snapshot.routeCatalogueVersion !== snapshot.expectedAdmission.catalogueVersion ||
     snapshot.quotaKey.endpointClass !== snapshot.expectedAdmission.endpointClass ||
     snapshot.quotaKey.credentialFingerprint !==

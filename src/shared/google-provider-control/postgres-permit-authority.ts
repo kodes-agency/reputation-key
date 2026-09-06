@@ -22,7 +22,6 @@ type PermitRow = Readonly<{
   route_key: string
   route_catalog_version: string
   quota_policy_id: string
-  permit_generation: string | number
   authorization_vector: unknown
   state: string
   start_deadline_at: Date
@@ -43,11 +42,6 @@ type AuthorizationVector = Readonly<{
 
 export type PostgresGoogleAdmissionPermitAuthority = GoogleAdmissionPermitAuthority &
   Readonly<{ readiness(): Promise<boolean> }>
-
-function parseGeneration(value: string | number): number | null {
-  const parsed = typeof value === 'number' ? value : Number(value)
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null
-}
 
 function parseVector(raw: unknown): AuthorizationVector | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
@@ -96,8 +90,7 @@ function snapshotFromRow(
   const policy = GOOGLE_PROVIDER_ROUTE_POLICIES[routeKey]
   if (!policy || policy.quotaPolicyId !== row.quota_policy_id) return null
   const vector = parseVector(row.authorization_vector)
-  const permitGeneration = parseGeneration(row.permit_generation)
-  if (!vector || permitGeneration === null || permitGeneration < 1) return null
+  if (!vector) return null
   const quotaCredentialFingerprint = googleQuotaCredentialFingerprint(
     vector.credentialBinding,
     vector.projectFingerprint,
@@ -134,7 +127,6 @@ function snapshotFromRow(
       propertyId: row.property_id,
     }),
     expiresAtMs: row.start_deadline_at.getTime(),
-    permitGeneration,
     authorityRevision: row.authority_revision,
   })
 }
@@ -161,11 +153,10 @@ export function createPostgresGoogleAdmissionPermitAuthority(
     start: async (permit) => {
       const result = await deps.pool.query<{ outcome: string }>(
         `SELECT outcome FROM start_google_execution_permit_v3(
-          $1::uuid, $2::bigint, $3::text, $4::text, $5::text, $6::jsonb, $7::text
+          $1::uuid, $2::text, $3::text, $4::text, $5::jsonb, $6::text
         )`,
         [
           permit.permitId,
-          permit.permitGeneration,
           permit.routeKey,
           permit.routeCatalogueVersion,
           permit.expectedAdmission.quotaPolicyId,
@@ -185,11 +176,10 @@ export function createPostgresGoogleAdmissionPermitAuthority(
     failStarted: async (permit, code) => {
       await deps.pool.query(
         `SELECT fail_google_execution_permit_v1(
-          $1::uuid, $2::bigint, $3::text, $4::text, $5::text, $6::text
+          $1::uuid, $2::text, $3::text, $4::text, $5::text
         )`,
         [
           permit.permitId,
-          permit.permitGeneration,
           permit.routeKey,
           permit.routeCatalogueVersion,
           permit.expectedAdmission.quotaPolicyId,
@@ -268,8 +258,8 @@ export function createPostgresGoogleAdmissionPermitAuthority(
             WHERE other_procedure.pronamespace = 'public'::regnamespace
               AND other_procedure.oid NOT IN (
                 'public.load_google_execution_permit_v1(uuid)'::regprocedure,
-                'public.start_google_execution_permit_v3(uuid,bigint,text,text,text,jsonb,text)'::regprocedure,
-                'public.fail_google_execution_permit_v1(uuid,bigint,text,text,text,text)'::regprocedure,
+                'public.start_google_execution_permit_v3(uuid,text,text,text,jsonb,text)'::regprocedure,
+                'public.fail_google_execution_permit_v1(uuid,text,text,text,text)'::regprocedure,
                 'public.complete_google_execution_permit_v1(uuid,text,text,integer)'::regprocedure
               )
               AND has_function_privilege(
@@ -281,8 +271,8 @@ export function createPostgresGoogleAdmissionPermitAuthority(
         FROM pg_proc AS procedure
         WHERE procedure.oid IN (
           'public.load_google_execution_permit_v1(uuid)'::regprocedure,
-          'public.start_google_execution_permit_v3(uuid,bigint,text,text,text,jsonb,text)'::regprocedure,
-          'public.fail_google_execution_permit_v1(uuid,bigint,text,text,text,text)'::regprocedure,
+          'public.start_google_execution_permit_v3(uuid,text,text,text,jsonb,text)'::regprocedure,
+          'public.fail_google_execution_permit_v1(uuid,text,text,text,text)'::regprocedure,
           'public.complete_google_execution_permit_v1(uuid,text,text,integer)'::regprocedure
           )
       `)

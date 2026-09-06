@@ -194,12 +194,6 @@ function permitRecordFromRow(row: PermitRow): GoogleContentPermitRecord | null {
     routeKey: row.routeKey,
     routeCatalogVersion: row.routeCatalogVersion,
     quotaPolicyId: row.quotaPolicyId,
-    policyVersion: row.policyVersion,
-    emergencyKillVersion: row.emergencyKillVersion,
-    approvalBindingId: row.approvalBindingId,
-    permitGeneration: row.permitGeneration,
-    startVectorMode: row.startVectorMode,
-    commitVectorMode: row.commitVectorMode,
     state: row.state,
     admittedAt: row.admittedAt,
     startDeadlineAt: row.startDeadlineAt,
@@ -473,37 +467,6 @@ export const createGoogleContentAuthorityRepository = (
       return approvalRecordFromRow(row)
     },
 
-    nextPermitGeneration: async (tx, input) => {
-      const scopeKey = [
-        input.capability,
-        input.scope.organizationId,
-        input.scope.propertyId ?? '-',
-        input.scope.connectionId ?? '-',
-        input.operationKey,
-      ].join(':')
-      await tx.execute(
-        sql`SELECT pg_advisory_xact_lock(hashtextextended(${scopeKey}, 0))`,
-      )
-      const where = and(
-        eq(authorizationExecutionPermits.capability, input.capability),
-        eq(authorizationExecutionPermits.organizationId, input.scope.organizationId),
-        input.scope.propertyId === null
-          ? isNull(authorizationExecutionPermits.propertyId)
-          : eq(authorizationExecutionPermits.propertyId, input.scope.propertyId),
-        input.scope.connectionId === null
-          ? isNull(authorizationExecutionPermits.connectionId)
-          : eq(authorizationExecutionPermits.connectionId, input.scope.connectionId),
-        eq(authorizationExecutionPermits.operationKey, input.operationKey),
-      )
-      const rows = await tx
-        .select({
-          value: sql<number>`COALESCE(MAX(${authorizationExecutionPermits.permitGeneration}), 0)`,
-        })
-        .from(authorizationExecutionPermits)
-        .where(where)
-      return Number(rows[0]?.value ?? 0) + 1
-    },
-
     insertPermit: async (tx, record) => {
       const permit = record.permit
       await tx.insert(authorizationExecutionPermits).values({
@@ -517,12 +480,6 @@ export const createGoogleContentAuthorityRepository = (
         routeKey: permit.routeKey,
         routeCatalogVersion: permit.routeCatalogVersion,
         quotaPolicyId: permit.quotaPolicyId,
-        policyVersion: permit.policyVersion,
-        emergencyKillVersion: permit.emergencyKillVersion,
-        approvalBindingId: permit.approvalBindingId,
-        permitGeneration: permit.permitGeneration,
-        startVectorMode: permit.startVectorMode,
-        commitVectorMode: permit.commitVectorMode,
         authorizationVector: record.authorizationVector,
         state: permit.state,
         admittedAt: permit.admittedAt,

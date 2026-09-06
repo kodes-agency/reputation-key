@@ -326,7 +326,6 @@ function buildContainer(
     providerEndpoints,
     dataCellExecutionFence,
     identity: {
-      refreshPolicyStoreRequired: identity.policy.refreshRequired,
       hasActivePropertyGrant: identity.authority.hasActivePropertyGrant,
     },
     ...(options ? { options } : {}),

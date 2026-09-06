@@ -1,6 +1,6 @@
 {
-  "id": "eca19eb0-e5a9-4d15-ba4e-7a84145439ff",
-  "prevId": "2c1227ec-6846-4430-be6f-1e5ae7cfa86f",
+  "id": "072787e6-d717-4559-b202-42749dcd41a0",
+  "prevId": "f0902ae8-164f-4f62-be87-b0afb0aff330",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -13842,44 +13842,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "policy_version": {
-          "name": "policy_version",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "emergency_kill_version": {
-          "name": "emergency_kill_version",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "approval_binding_id": {
-          "name": "approval_binding_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "permit_generation": {
-          "name": "permit_generation",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "start_vector_mode": {
-          "name": "start_vector_mode",
-          "type": "authorization_commit_vector_mode",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "commit_vector_mode": {
-          "name": "commit_vector_mode",
-          "type": "authorization_commit_vector_mode",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
         "authorization_vector": {
           "name": "authorization_vector",
           "type": "jsonb",
@@ -14005,21 +13967,7 @@
           "concurrently": false
         }
       },
-      "foreignKeys": {
-        "authorization_execution_permits_approval_binding_id_capability_compliance_approvals_id_fk": {
-          "name": "authorization_execution_permits_approval_binding_id_capability_compliance_approvals_id_fk",
-          "tableFrom": "authorization_execution_permits",
-          "columnsFrom": [
-            "approval_binding_id"
-          ],
-          "tableTo": "capability_compliance_approvals",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "restrict"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -39723,14 +39671,6 @@
         "completed_with_issues",
         "failed",
         "cancelled"
-      ]
-    },
-    "public.authorization_commit_vector_mode": {
-      "name": "authorization_commit_vector_mode",
-      "schema": "public",
-      "values": [
-        "full",
-        "core_credential_projection"
       ]
     },
     "public.authorization_execution_permit_state": {

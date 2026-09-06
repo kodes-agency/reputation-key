@@ -4,7 +4,6 @@ import {
   createAdmittedExecutionPermit,
   fenceExecutionPermit,
   startExecutionPermit,
-  type AuthorizationCommitVectorMode,
   type AuthorizationExecutionPermit,
 } from './authorization-execution-permit'
 import {
@@ -19,7 +18,6 @@ import type {
   GoogleContentApprovalBinding,
   GoogleContentCapability,
 } from './google-content-contract'
-import type { RequiredPolicyRefreshResult } from './persisted-policy-store'
 
 export type GoogleContentRuntimeBinding = Omit<
   GoogleContentApprovalBinding,
@@ -80,14 +78,6 @@ export type GoogleContentAuthorityStore<Tx> = Readonly<{
     runtime: GoogleContentRuntimeBinding,
   ): Promise<GoogleContentApprovalRecord | null>
   loadApprovalById(tx: Tx, id: string): Promise<GoogleContentApprovalRecord | null>
-  nextPermitGeneration(
-    tx: Tx,
-    input: Readonly<{
-      capability: GoogleContentCapability
-      scope: GoogleContentAuthorizationScope
-      operationKey: string
-    }>,
-  ): Promise<number>
   insertPermit(tx: Tx, record: GoogleContentPermitRecord): Promise<void>
   lockPermit(
     tx: Tx,
@@ -144,7 +134,6 @@ export type GoogleContentAuthorizationCheck<Tx> = (
     capability: GoogleContentCapability
     scope: GoogleContentAuthorizationScope
     operationKey: string
-    vectorMode: AuthorizationCommitVectorMode
   }>,
 ) => Promise<GoogleContentAuthorizationDecision>
 
@@ -158,15 +147,12 @@ export type GoogleContentAdmissionInput = Readonly<{
   routeCatalogVersion: string
   quotaPolicyId: string
   providerRequestBinding: GoogleContentProviderRequestBinding
-  startVectorMode: AuthorizationCommitVectorMode
-  commitVectorMode: AuthorizationCommitVectorMode
 }>
 
 export type GoogleContentPreauthorizationInput = Readonly<{
   runtimeBinding: GoogleContentRuntimeBinding
   scope: GoogleContentAuthorizationScope
   operationKey: string
-  vectorMode: AuthorizationCommitVectorMode
 }>
 
 export type GoogleContentPreauthorizationResult =
@@ -184,7 +170,6 @@ export type GoogleContentAuthorityDenyCode =
   | 'approval_unavailable'
   | 'runtime_binding_mismatch'
   | 'capability_killed'
-  | 'policy_refresh_unavailable'
   | 'operator_not_registered'
   | 'reason_required'
   | 'authorization_denied'
@@ -193,10 +178,7 @@ export type GoogleContentAuthorityDenyCode =
   | 'permit_unavailable'
   | 'permit_state_changed'
   | 'start_deadline_elapsed'
-  | 'policy_version_changed'
-  | 'emergency_kill_changed'
   | 'state_not_admitted'
-  | 'approval_binding_changed'
 
 export type GoogleContentPermitResult =
   | Readonly<{ ok: true; permit: AuthorizationExecutionPermit }>
@@ -213,16 +195,11 @@ export type GoogleContentAuthorizationAuthority = Readonly<{
     input: GoogleContentPreauthorizationInput,
   ): Promise<GoogleContentPreauthorizationResult>
   admit(input: GoogleContentAdmissionInput): Promise<GoogleContentPermitResult>
-  start(
-    permitId: string,
-    organizationId: string,
-    runtimeBinding: GoogleContentRuntimeBinding,
-  ): Promise<GoogleContentPermitResult>
-  complete(
-    permitId: string,
-    organizationId: string,
-    runtimeBinding: GoogleContentRuntimeBinding,
-  ): Promise<GoogleContentPermitResult>
+  // `runtimeBinding` used to be a third argument to both. It existed only so
+  // the permit path could re-validate the approval bundle it was pinned to;
+  // with the ceremony gone there is nothing left for it to check.
+  start(permitId: string, organizationId: string): Promise<GoogleContentPermitResult>
+  complete(permitId: string, organizationId: string): Promise<GoogleContentPermitResult>
   fence(permitId: string, organizationId: string): Promise<GoogleContentPermitResult>
   allowCapability(
     runtimeBinding: GoogleContentRuntimeBinding,
@@ -433,7 +410,6 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
     clock: Clock
     newPermitId: () => string
     verifyRoleApproval: GoogleContentApprovalSignatureVerifier
-    refreshPolicy: () => Promise<RequiredPolicyRefreshResult>
     isRegisteredOperator: (operatorId: string) => boolean
     authorize: GoogleContentAuthorizationCheck<Tx>
   }>,
@@ -452,59 +428,26 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
   const revalidatePermit = async (
     tx: Tx,
     record: GoogleContentPermitRecord,
-    runtimeBinding: GoogleContentRuntimeBinding,
     now: Date,
-    refreshedControl: Exclude<RequiredPolicyRefreshResult, { unavailable: true }>,
   ): Promise<GoogleContentAuthorityDenyCode | null> => {
     const control = await deps.store.loadControl(tx)
-    if (control.policyVersion !== refreshedControl.version) {
-      await fenceAndPersist(tx, record.permit, now)
-      return 'policy_version_changed'
-    }
-    if (control.emergencyKillVersion !== refreshedControl.emergencyKillVersion) {
-      await fenceAndPersist(tx, record.permit, now)
-      return 'emergency_kill_changed'
-    }
     if (control.killedCapabilities.includes(record.permit.capability)) {
       await fenceAndPersist(tx, record.permit, now)
       return 'capability_killed'
     }
-    if (control.policyVersion !== record.permit.policyVersion) {
-      await fenceAndPersist(tx, record.permit, now)
-      return 'policy_version_changed'
-    }
-    if (control.emergencyKillVersion !== record.permit.emergencyKillVersion) {
-      await fenceAndPersist(tx, record.permit, now)
-      return 'emergency_kill_changed'
-    }
 
-    const approval = await deps.store.loadApprovalById(
-      tx,
-      record.permit.approvalBindingId,
-    )
-    if (!approval) {
-      await fenceAndPersist(tx, record.permit, now)
-      return 'approval_unavailable'
-    }
-    const approvalCode = validationCode(
-      approval,
-      runtimeBinding,
-      now,
-      deps.verifyRoleApproval,
-    )
-    if (approvalCode) {
-      await fenceAndPersist(tx, record.permit, now)
-      return approvalCode
-    }
-    if (
-      !bindingAuthorizesOrganization(
-        approval.candidate.binding,
-        record.permit.organizationId,
-      )
-    ) {
-      await fenceAndPersist(tx, record.permit, now)
-      return 'authorization_denied'
-    }
+    // WP2.2: the approval-bundle revalidation used to run here — load the
+    // approval by the permit's `approval_binding_id`, re-check its 29-day
+    // window and role signature, and re-check that its binding authorized this
+    // organization. All three are gone with the ceremony, and the column they
+    // keyed on no longer exists.
+    //
+    // The kill switch above survives and is the check that actually stops
+    // execution. Everything else a start needs is re-proved below by
+    // `deps.authorize`, which re-queries organization and property policy,
+    // capability grants, consent, property access, role and permission version
+    // on every call — freshly, rather than by comparing a counter captured
+    // earlier against one read now.
 
     const publication =
       record.permit.capability === 'property.publish_reply'
@@ -525,7 +468,6 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
         ...(publication ? { publication } : {}),
       },
       operationKey: record.permit.operationKey,
-      vectorMode: record.permit.commitVectorMode,
     })
     if (!decision.allowed) {
       await fenceAndPersist(tx, record.permit, now)
@@ -538,24 +480,12 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
     return null
   }
 
-  const refreshControl = async () => {
-    const control = await deps.refreshPolicy()
-    return 'unavailable' in control ? null : control
-  }
-
   const authorizeRuntime = async (
     tx: Tx,
     input: GoogleContentPreauthorizationInput,
-    refreshedControl: Exclude<RequiredPolicyRefreshResult, { unavailable: true }>,
     now: Date,
   ) => {
     const control = await deps.store.loadControl(tx)
-    if (control.policyVersion !== refreshedControl.version) {
-      return { ok: false as const, code: 'policy_version_changed' as const }
-    }
-    if (control.emergencyKillVersion !== refreshedControl.emergencyKillVersion) {
-      return { ok: false as const, code: 'emergency_kill_changed' as const }
-    }
     if (control.killedCapabilities.includes(input.runtimeBinding.capability)) {
       return { ok: false as const, code: 'capability_killed' as const }
     }
@@ -584,7 +514,6 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
       capability: input.runtimeBinding.capability,
       scope: input.scope,
       operationKey: input.operationKey,
-      vectorMode: input.vectorMode,
     })
     if (!decision.allowed) {
       return { ok: false as const, code: 'authorization_denied' as const }
@@ -601,17 +530,8 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
     installApproval: approvalInstaller.installApproval,
 
     preauthorize: async (input) => {
-      const refreshedControl = await refreshControl()
-      if (!refreshedControl) {
-        return { ok: false as const, code: 'policy_refresh_unavailable' as const }
-      }
       return deps.store.transaction(async (tx) => {
-        const authorized = await authorizeRuntime(
-          tx,
-          input,
-          refreshedControl,
-          deps.clock(),
-        )
+        const authorized = await authorizeRuntime(tx, input, deps.clock())
         if (!authorized.ok) return authorized
         return {
           ok: true as const,
@@ -624,10 +544,6 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
     },
 
     admit: async (input) => {
-      const refreshedControl = await refreshControl()
-      if (!refreshedControl) {
-        return { ok: false as const, code: 'policy_refresh_unavailable' as const }
-      }
       return deps.store.transaction(async (tx) => {
         const admittedAt = deps.clock()
         const authorized = await authorizeRuntime(
@@ -636,15 +552,10 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
             runtimeBinding: input.runtimeBinding,
             scope: input.scope,
             operationKey: input.operationKey,
-            vectorMode: input.startVectorMode,
           },
-          refreshedControl,
           admittedAt,
         )
         if (!authorized.ok) return authorized
-        if (authorized.approval.id !== input.expectedApprovalBindingId) {
-          return { ok: false as const, code: 'approval_binding_changed' as const }
-        }
         if (
           !sameAuthorizationVector(
             authorized.decision.vector,
@@ -657,11 +568,6 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
           return { ok: false as const, code: 'authorization_denied' as const }
         }
 
-        const permitGeneration = await deps.store.nextPermitGeneration(tx, {
-          capability: input.runtimeBinding.capability,
-          scope: input.scope,
-          operationKey: input.operationKey,
-        })
         const permit = createAdmittedExecutionPermit(
           {
             id: deps.newPermitId(),
@@ -671,12 +577,6 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
             routeKey: input.routeKey,
             routeCatalogVersion: input.routeCatalogVersion,
             quotaPolicyId: input.quotaPolicyId,
-            policyVersion: authorized.control.policyVersion,
-            emergencyKillVersion: authorized.control.emergencyKillVersion,
-            approvalBindingId: authorized.approval.id,
-            permitGeneration,
-            startVectorMode: input.startVectorMode,
-            commitVectorMode: input.commitVectorMode,
           },
           admittedAt,
         )
@@ -691,30 +591,15 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
       })
     },
 
-    start: async (permitId, organizationId, runtimeBinding) => {
-      const refreshedControl = await refreshControl()
-      if (!refreshedControl) {
-        return { ok: false as const, code: 'policy_refresh_unavailable' as const }
-      }
+    start: async (permitId, organizationId) => {
       return deps.store.transaction(async (tx) => {
         const record = await deps.store.lockPermit(tx, permitId, organizationId)
         if (!record) return { ok: false as const, code: 'permit_unavailable' as const }
         const now = deps.clock()
-        const revalidationCode = await revalidatePermit(
-          tx,
-          record,
-          runtimeBinding,
-          now,
-          refreshedControl,
-        )
+        const revalidationCode = await revalidatePermit(tx, record, now)
         if (revalidationCode) return { ok: false as const, code: revalidationCode }
 
-        const started = startExecutionPermit(record.permit, {
-          now,
-          policyVersion: record.permit.policyVersion,
-          emergencyKillVersion: record.permit.emergencyKillVersion,
-          approvalBindingId: record.permit.approvalBindingId,
-        })
+        const started = startExecutionPermit(record.permit, { now })
         await deps.store.updatePermit(tx, started.permit)
         return started.kind === 'started'
           ? { ok: true as const, permit: started.permit }
@@ -722,22 +607,12 @@ export function createGoogleContentAuthorizationAuthority<Tx>(
       })
     },
 
-    complete: async (permitId, organizationId, runtimeBinding) => {
-      const refreshedControl = await refreshControl()
-      if (!refreshedControl) {
-        return { ok: false as const, code: 'policy_refresh_unavailable' as const }
-      }
+    complete: async (permitId, organizationId) => {
       return deps.store.transaction(async (tx) => {
         const record = await deps.store.lockPermit(tx, permitId, organizationId)
         if (!record) return { ok: false as const, code: 'permit_unavailable' as const }
         const now = deps.clock()
-        const revalidationCode = await revalidatePermit(
-          tx,
-          record,
-          runtimeBinding,
-          now,
-          refreshedControl,
-        )
+        const revalidationCode = await revalidatePermit(tx, record, now)
         if (revalidationCode) return { ok: false as const, code: revalidationCode }
         const completed = completeExecutionPermit(record.permit, now)
         if (!completed) {

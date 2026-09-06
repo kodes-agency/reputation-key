@@ -158,9 +158,7 @@ describe('createGoogleAuthorizedProviderExecutor', () => {
 
   it.each([
     'authorization_changed',
-    'approval_binding_changed',
     'authorization_denied',
-    'policy_refresh_unavailable',
     'runtime_unavailable',
   ] as const)('forwards the content-free %s authority denial', async (code) => {
     // Collapsing these to a bare `admission_denied` made a real authorization

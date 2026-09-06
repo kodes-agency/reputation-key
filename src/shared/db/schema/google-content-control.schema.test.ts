@@ -104,9 +104,6 @@ describe('Google Content control schema', () => {
     expect(columnNames(authorizationExecutionPermits)).toEqual(
       expect.arrayContaining([
         'state',
-        'policy_version',
-        'emergency_kill_version',
-        'approval_binding_id',
         'route_key',
         'route_catalog_version',
         'quota_policy_id',

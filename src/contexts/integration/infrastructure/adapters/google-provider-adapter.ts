@@ -37,7 +37,6 @@ function admissionFailureKind(
     // are decisions, not outages: reporting them as retryable "temporarily
     // unavailable" hid a real permission change behind a useless retry.
     case 'authorization_changed':
-    case 'approval_binding_changed':
     case 'authorization_denied':
       return 'permission_denied'
     // Everything else — including `policy_refresh_unavailable` — is our own

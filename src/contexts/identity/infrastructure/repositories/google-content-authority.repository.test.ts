@@ -442,14 +442,6 @@ describe('Google Content authority repository', () => {
       newPermitId: randomUUID,
       verifyRoleApproval: (document) =>
         document.signature === `${document.role}-signature`,
-      refreshPolicy: () =>
-        store.transaction(async (tx) => {
-          const control = await store.loadControl(tx)
-          return {
-            version: control.policyVersion,
-            emergencyKillVersion: control.emergencyKillVersion,
-          }
-        }),
       isRegisteredOperator: () => true,
       authorize: async () => ({
         allowed: true,
@@ -486,8 +478,6 @@ describe('Google Content authority repository', () => {
         requestBodySha256: null,
         requestBodyBytes: 0,
       },
-      startVectorMode: 'full',
-      commitVectorMode: 'full',
     })
     expect(admitted).toMatchObject({ ok: true, permit: { state: 'admitted' } })
 
@@ -663,7 +653,6 @@ describe('Google Content authority repository', () => {
           initiatorUserId: user,
         },
         operationKey: 'import.list_accounts',
-        vectorMode: 'full',
       }),
     )
     expect(decision).toMatchObject({
@@ -697,7 +686,6 @@ describe('Google Content authority repository', () => {
           initiatorUserId: user,
         },
         operationKey: 'import.permission_generation',
-        vectorMode: 'full',
       }),
     )
     expect(generationDecision).toMatchObject({
@@ -715,7 +703,6 @@ describe('Google Content authority repository', () => {
           initiatorUserId: user,
         },
         operationKey: 'performance.before_provider',
-        vectorMode: 'full',
       }),
     )
     expect(performanceDecision).toMatchObject({
@@ -741,7 +728,6 @@ describe('Google Content authority repository', () => {
             initiatorUserId: manager,
           },
           operationKey: 'import.manager_denied',
-          vectorMode: 'full',
         }),
       ),
     ).resolves.toEqual({ allowed: false, code: 'authorization_denied' })
@@ -757,7 +743,6 @@ describe('Google Content authority repository', () => {
             initiatorUserId: manager,
           },
           operationKey: 'performance.manager_allowed',
-          vectorMode: 'full',
         }),
       ),
     ).resolves.toMatchObject({
@@ -776,7 +761,6 @@ describe('Google Content authority repository', () => {
             initiatorUserId: staff,
           },
           operationKey: 'performance.staff_denied',
-          vectorMode: 'full',
         }),
       ),
     ).resolves.toEqual({ allowed: false, code: 'authorization_denied' })
@@ -811,7 +795,6 @@ describe('Google Content authority repository', () => {
             initiatorUserId: null,
           },
           operationKey: 'review.sync',
-          vectorMode: 'full',
         }),
       ),
     ).resolves.toMatchObject({
@@ -840,7 +823,6 @@ describe('Google Content authority repository', () => {
               initiatorUserId: null,
             },
             operationKey,
-            vectorMode: 'full',
           }),
         ),
       ).resolves.toMatchObject({
@@ -962,7 +944,6 @@ describe('Google Content authority repository', () => {
         },
       },
       operationKey: 'reply.publish',
-      vectorMode: 'full' as const,
     })
     await expect(
       db.transaction((tx) => authorize(tx as unknown as Database, publicationInput())),
@@ -1019,7 +1000,6 @@ describe('Google Content authority repository', () => {
             initiatorUserId: user,
           },
           operationKey: 'performance.lease_renewal',
-          vectorMode: 'full',
         }),
       ),
     ).resolves.toMatchObject({
@@ -1043,114 +1023,8 @@ describe('Google Content authority repository', () => {
             initiatorUserId: user,
           },
           operationKey: 'import.list_accounts',
-          vectorMode: 'full',
         }),
       ),
     ).resolves.toEqual({ allowed: false, code: 'authorization_denied' })
-  })
-})
-
-// ── Tenant isolation ─────────────────────────────────────────────────
-// NON-NEGOTIABLE. Before this block the whole file passed with the
-// repository's single `organizationId` conjunct removed, because no test ever
-// touched the permit table with more than one tenant present.
-//
-// `nextPermitGeneration` computes MAX(permit_generation) + 1 for a scope. The
-// generation is a fencing counter, so an unscoped MAX makes one tenant's
-// counter a function of another tenant's traffic: the low-volume tenant jumps
-// generations it never issued, and the count itself discloses how much
-// authorized Google work the other tenant is doing.
-describe('Google Content authority repository — tenant isolation', () => {
-  const CAPABILITY = 'property.import_gbp_v2' as const
-  const OPERATION_KEY = 'permit-generation-tenant-scope'
-  const ORG_A = 'org-gca-tenant-a'
-  const ORG_B = 'org-gca-tenant-b'
-  const ORG_FRESH = 'org-gca-tenant-c'
-
-  const scopeFor = (organizationId: string) => ({
-    organizationId,
-    propertyId: null,
-    connectionId: null,
-    initiatorUserId: null,
-  })
-
-  it('nextPermitGeneration counts only the calling tenant permits', async () => {
-    const store = createGoogleContentAuthorityRepository(db)
-    const approval = await store.transaction((tx) =>
-      store.appendApproval(tx, candidate()),
-    )
-
-    // A REAL admitted permit in each tenant, with the OTHER tenant far ahead
-    // on purpose. Nothing here can pass vacuously: drop the conjunct and ORG_A
-    // inherits ORG_B's counter.
-    for (const [organizationId, permitGeneration] of [
-      [ORG_A, 7],
-      [ORG_B, 42],
-    ] as const) {
-      await db.execute(sql`
-        INSERT INTO authorization_execution_permits
-          (capability, organization_id, operation_key, route_key, route_catalog_version,
-           quota_policy_id, policy_version, emergency_kill_version, approval_binding_id,
-           permit_generation, start_vector_mode, commit_vector_mode,
-           authorization_vector, state, admitted_at, start_deadline_at)
-        VALUES (
-          ${CAPABILITY}::google_content_capability,
-          ${organizationId},
-          ${OPERATION_KEY},
-          'import.list_accounts',
-          'v1',
-          'quota-default',
-          1,
-          1,
-          ${approval.id}::uuid,
-          ${permitGeneration},
-          'full'::authorization_commit_vector_mode,
-          'full'::authorization_commit_vector_mode,
-          '{}'::jsonb,
-          'admitted'::authorization_execution_permit_state,
-          ${now},
-          ${new Date(now.getTime() + 60_000)}
-        )
-      `)
-    }
-    const seeded = await db.execute(sql`
-      SELECT organization_id, permit_generation
-      FROM authorization_execution_permits
-      ORDER BY organization_id
-    `)
-    expect(seeded.rows).toEqual([
-      { organization_id: ORG_A, permit_generation: '7' },
-      { organization_id: ORG_B, permit_generation: '42' },
-    ])
-
-    await expect(
-      store.transaction((tx) =>
-        store.nextPermitGeneration(tx, {
-          capability: CAPABILITY,
-          scope: scopeFor(ORG_A),
-          operationKey: OPERATION_KEY,
-        }),
-      ),
-    ).resolves.toBe(8)
-    await expect(
-      store.transaction((tx) =>
-        store.nextPermitGeneration(tx, {
-          capability: CAPABILITY,
-          scope: scopeFor(ORG_B),
-          operationKey: OPERATION_KEY,
-        }),
-      ),
-    ).resolves.toBe(43)
-    // A tenant that has never issued a permit starts at 1, not at the
-    // cross-tenant maximum.
-    await expect(
-      store.transaction((tx) =>
-        store.nextPermitGeneration(tx, {
-          capability: CAPABILITY,
-          scope: scopeFor(ORG_FRESH),
-          operationKey: OPERATION_KEY,
-        }),
-      ),
-    ).resolves.toBe(1)
   })
 })

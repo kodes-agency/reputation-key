@@ -53,7 +53,6 @@ const AUTHORITY_ADMISSION_CODES: Readonly<
   approval_unavailable: 'approval_unavailable',
   runtime_binding_mismatch: 'runtime_binding_mismatch',
   capability_killed: 'capability_killed',
-  policy_refresh_unavailable: 'policy_refresh_unavailable',
   operator_not_registered: 'authorization_denied',
   reason_required: 'authorization_denied',
   authorization_denied: 'authorization_denied',
@@ -62,10 +61,7 @@ const AUTHORITY_ADMISSION_CODES: Readonly<
   permit_unavailable: 'permit_unavailable',
   permit_state_changed: 'permit_state_changed',
   start_deadline_elapsed: 'start_deadline_elapsed',
-  policy_version_changed: 'policy_version_changed',
-  emergency_kill_changed: 'emergency_kill_changed',
   state_not_admitted: 'state_not_admitted',
-  approval_binding_changed: 'approval_binding_changed',
 }
 
 export function authorityAdmissionCode(

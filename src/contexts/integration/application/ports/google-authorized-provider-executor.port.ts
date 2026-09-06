@@ -28,18 +28,14 @@ export type GoogleProviderGatewayAdmissionCode =
  */
 export type GoogleProviderAuthorityAdmissionCode =
   | 'approval_unavailable'
-  | 'approval_binding_changed'
   | 'runtime_binding_mismatch'
   | 'capability_killed'
-  | 'policy_refresh_unavailable'
   | 'authorization_denied'
   | 'authorization_changed'
   | 'operation_deadline_elapsed'
   | 'permit_unavailable'
   | 'permit_state_changed'
   | 'start_deadline_elapsed'
-  | 'policy_version_changed'
-  | 'emergency_kill_changed'
   | 'state_not_admitted'
   | 'approval_invalid'
 

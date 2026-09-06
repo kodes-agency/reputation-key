@@ -181,9 +181,6 @@ export type GoogleProviderAuthorityInput = Readonly<{
    * Content authority actually calls.
    */
   identity: Readonly<{
-    refreshPolicyStoreRequired: Parameters<
-      typeof createGoogleContentAuthorizationAuthority<Database>
-    >[0]['refreshPolicy']
     hasActivePropertyGrant: Parameters<
       typeof createGoogleContentAuthorizationCheck
     >[0]['hasActivePropertyGrant']
@@ -389,7 +386,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       clock,
       newPermitId: randomUUID,
       verifyRoleApproval: googleContentRuntime.verifyRoleApproval,
-      refreshPolicy: input.identity.refreshPolicyStoreRequired,
       isRegisteredOperator: () => false,
       authorize: createGoogleContentAuthorizationCheck({
         clock,
@@ -431,7 +427,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
                   initiatorUserId: record.initiatorUserId,
                 },
                 operationKey: `${record.audience}.lease_renewal`,
-                vectorMode: 'full',
               })
               if (!result.ok) {
                 return {
@@ -567,7 +562,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
             initiatorUserId: input.actor.userId,
           },
           operationKey: `import.${input.phase}`,
-          vectorMode: 'full',
         })
         .catch((err: unknown) => {
           logger.warn({ err }, 'Google Content preauthorization failed')
@@ -592,7 +586,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
           initiatorUserId: input.actor.userId,
         },
         operationKey: `performance.${input.phase}`,
-        vectorMode: 'full',
       })
       return result.ok ? result : refuseDenied('performance', result.code)
     })
@@ -612,7 +605,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
           initiatorUserId: null,
         },
         operationKey: input.operationKey,
-        vectorMode: 'full',
       })
       return result.ok ? result : refuseDenied('review-sync', result.code)
     })
@@ -640,7 +632,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
           },
         },
         operationKey: input.operationKey,
-        vectorMode: 'full',
       })
       return result.ok ? result : refuseDenied('reply-publication', result.code)
     })
@@ -685,7 +676,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
           initiatorUserId: input.initiatorUserId,
         },
         operationKey: input.operation,
-        vectorMode: 'full',
       })
       const credentialGeneration = result.ok
         ? result.authorizationVector.credentialGeneration
@@ -875,8 +865,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
             requestBodySha256: admission.requestBodySha256,
             requestBodyBytes: admission.requestBodyBytes,
           },
-          startVectorMode: 'full',
-          commitVectorMode: 'full',
         })
         return result.ok
           ? { ok: true as const, permitId: result.permit.id }

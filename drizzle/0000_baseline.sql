@@ -12,8 +12,6 @@ CREATE TYPE "public"."google_import_v2_outcome" AS ENUM('imported', 'relinked', 
 --> statement-breakpoint
 CREATE TYPE "public"."google_import_v2_parent_status" AS ENUM('queued', 'processing', 'completed', 'completed_with_issues', 'failed', 'cancelled');
 --> statement-breakpoint
-CREATE TYPE "public"."authorization_commit_vector_mode" AS ENUM('full', 'core_credential_projection');
---> statement-breakpoint
 CREATE TYPE "public"."authorization_execution_permit_state" AS ENUM('admitted', 'started', 'completed', 'fenced');
 --> statement-breakpoint
 CREATE TYPE "public"."credential_revoke_permit_state" AS ENUM('dormant', 'active', 'dispatching', 'consumed_no_revoke', 'confirmed_not_sent', 'confirmed_revoked', 'cleanup_ambiguous', 'provider_reset_confirmed');
@@ -2304,12 +2302,6 @@ CREATE TABLE "authorization_execution_permits" (
 	"route_key" varchar(160) NOT NULL,
 	"route_catalog_version" varchar(64) NOT NULL,
 	"quota_policy_id" varchar(128) NOT NULL,
-	"policy_version" bigint NOT NULL,
-	"emergency_kill_version" bigint NOT NULL,
-	"approval_binding_id" uuid NOT NULL,
-	"permit_generation" bigint NOT NULL,
-	"start_vector_mode" "authorization_commit_vector_mode" NOT NULL,
-	"commit_vector_mode" "authorization_commit_vector_mode" NOT NULL,
 	"authorization_vector" jsonb NOT NULL,
 	"state" "authorization_execution_permit_state" NOT NULL,
 	"admitted_at" timestamp with time zone NOT NULL,
@@ -6868,8 +6860,6 @@ ALTER TABLE "gbp_import_request_items" ADD CONSTRAINT "gbp_import_request_items_
 ALTER TABLE "gbp_import_request_items" ADD CONSTRAINT "gbp_import_request_items_property_tenant_fk" FOREIGN KEY ("organization_id","existing_property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "gbp_import_requests" ADD CONSTRAINT "gbp_import_requests_saga_tenant_fk" FOREIGN KEY ("organization_id","saga_id") REFERENCES "public"."gbp_import_sagas"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "authorization_execution_permits" ADD CONSTRAINT "authorization_execution_permits_approval_binding_id_capability_compliance_approvals_id_fk" FOREIGN KEY ("approval_binding_id") REFERENCES "public"."capability_compliance_approvals"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "credential_revoke_permits" ADD CONSTRAINT "credential_revoke_permits_guard_id_google_subject_authority_guards_id_fk" FOREIGN KEY ("guard_id") REFERENCES "public"."google_subject_authority_guards"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint

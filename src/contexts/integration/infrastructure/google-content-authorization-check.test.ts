@@ -15,7 +15,6 @@ const baseInput = {
     initiatorUserId: 'user-oauth-authority',
   },
   operationKey: 'oauth.token.exchange',
-  vectorMode: 'full' as const,
 }
 
 function checkWithRows(rows: readonly (readonly Record<string, unknown>[])[]) {

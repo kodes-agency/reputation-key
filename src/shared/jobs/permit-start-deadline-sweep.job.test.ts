@@ -4,8 +4,8 @@
 // plus one content-free log line. What a background worker can actually get
 // wrong here is (a) the registered job name drifting from the catalogue/queue
 // key, so the repeatable job never reaches a handler, (b) the deadline
-// boundary, which either leaks permits (pinning `approval_binding_id` forever)
-// or fences permits a caller could still legally start, (c) swallowing a store
+// boundary, which either leaves admitted permits behind forever or fences work
+// a caller could still legally start, (c) swallowing a store
 // failure so the run reports success, and (d) leaking a permit/org identifier
 // into the log line.
 //
@@ -66,7 +66,6 @@ const ONE_MS_PAST_DEADLINE = new Date(DEADLINE_AT.getTime() + 1)
 
 const ORG_ID = '10000000-0000-4000-8000-000000000001'
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000002'
-const APPROVAL_BINDING_ID = '10000000-0000-4000-8000-000000000003'
 const ELAPSED_ID = 'permit-elapsed'
 const VANISHED_ID = 'permit-vanished'
 
@@ -83,12 +82,6 @@ function admitted(id: string): AuthorizationExecutionPermit {
     routeKey: 'performance.multi-daily-metrics',
     routeCatalogVersion: '2026-08-16',
     quotaPolicyId: 'google-performance-v1',
-    policyVersion: 1,
-    emergencyKillVersion: 1,
-    approvalBindingId: APPROVAL_BINDING_ID,
-    permitGeneration: 1,
-    startVectorMode: 'full',
-    commitVectorMode: 'full',
   }
   return createAdmittedExecutionPermit(input, ADMITTED_AT)
 }
@@ -199,8 +192,8 @@ describe('permit start-deadline sweep job', () => {
     })
   })
 
-  // Counts and reason codes only: no permit id, capability, organization,
-  // property, or approval binding may reach a log line.
+  // Counts and reason codes only: no permit id, capability, organization, or
+  // property may reach a log line.
   it('never writes a permit or tenant identifier into the completion line', async () => {
     const harness = createHarness([admitted(ELAPSED_ID)], ONE_MS_PAST_DEADLINE)
 
@@ -211,7 +204,6 @@ describe('permit start-deadline sweep job', () => {
       ELAPSED_ID,
       ORG_ID,
       PROPERTY_ID,
-      APPROVAL_BINDING_ID,
       'property.read_gbp_performance',
     ]) {
       expect(serialized).not.toContain(identifier)

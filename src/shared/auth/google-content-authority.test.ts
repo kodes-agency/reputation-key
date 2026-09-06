@@ -219,7 +219,6 @@ function createStore() {
         (record) => record.candidate.binding.capability === runtime.capability,
       ) ?? null,
     loadApprovalById: async (_tx, id) => approvals.get(id) ?? null,
-    nextPermitGeneration: async () => permits.size + 1,
     insertPermit: async (_tx, record) => {
       permits.set(record.permit.id, record)
     },
@@ -303,11 +302,6 @@ function createStore() {
   }
 }
 
-const freshPolicy = (memory: ReturnType<typeof createStore>) => async () => ({
-  version: memory.control().policyVersion,
-  emergencyKillVersion: memory.control().emergencyKillVersion,
-})
-
 const admissionInput = (
   expectedAuthorizationVector: Readonly<Record<string, string | number>> = {
     grantGeneration: 3,
@@ -333,11 +327,11 @@ const admissionInput = (
     requestBodySha256: null,
     requestBodyBytes: 0,
   },
-  startVectorMode: 'full' as const,
-  commitVectorMode: 'full' as const,
 })
 
 describe('Google Content authorization authority', () => {
+  // WP2.2 removed the authority policy-refresh deny path because the deleted
+  // counter comparisons were its only consumer.
   it('persists only an exact valid five-role approval chain', async () => {
     const memory = createStore()
     const authority = createGoogleContentAuthorizationAuthority({
@@ -346,7 +340,6 @@ describe('Google Content authorization authority', () => {
       newPermitId: () => 'permit-1',
       verifyRoleApproval: (document) =>
         document.signature === `${document.role}-signature`,
-      refreshPolicy: freshPolicy(memory),
       isRegisteredOperator: () => true,
       authorize: async () => ({ allowed: true, vector: { grantGeneration: 3 } }),
     })
@@ -378,7 +371,6 @@ describe('Google Content authorization authority', () => {
       clock: () => now,
       newPermitId: () => 'permit-1',
       verifyRoleApproval: () => true,
-      refreshPolicy: freshPolicy(memory),
       isRegisteredOperator: () => true,
       authorize: async () => ({
         allowed: true,
@@ -392,7 +384,6 @@ describe('Google Content authorization authority', () => {
         runtimeBinding: runtimeBinding(),
         scope: admissionInput().scope,
         operationKey: 'import.discovery',
-        vectorMode: 'full',
       }),
     ).resolves.toEqual({
       ok: true,
@@ -403,27 +394,18 @@ describe('Google Content authorization authority', () => {
     })
   })
 
-  it('rejects admission when the preauthorized binding or vector changed', async () => {
+  it('rejects admission when the preauthorized authorization vector changed', async () => {
     const memory = createStore()
-    let generation = 3
     const authority = createGoogleContentAuthorizationAuthority({
       store: memory.store,
       clock: () => now,
       newPermitId: () => 'permit-1',
       verifyRoleApproval: () => true,
-      refreshPolicy: freshPolicy(memory),
       isRegisteredOperator: () => true,
-      authorize: async () => ({ allowed: true, vector: { grantGeneration: generation } }),
+      authorize: async () => ({ allowed: true, vector: { grantGeneration: 4 } }),
     })
     await authority.installApproval(approvalBundle())
 
-    await expect(
-      authority.admit({
-        ...admissionInput(),
-        expectedApprovalBindingId: 'approval-stale',
-      }),
-    ).resolves.toEqual({ ok: false, code: 'approval_binding_changed' })
-    generation = 4
     await expect(authority.admit(admissionInput())).resolves.toEqual({
       ok: false,
       code: 'authorization_changed',
@@ -447,7 +429,6 @@ describe('Google Content authorization authority', () => {
       clock: () => now,
       newPermitId: () => 'permit-1',
       verifyRoleApproval: () => true,
-      refreshPolicy: freshPolicy(memory),
       isRegisteredOperator: () => true,
       authorize,
     })
@@ -456,31 +437,6 @@ describe('Google Content authorization authority', () => {
     await expect(authority.admit(admissionInput())).resolves.toEqual({
       ok: false,
       code: 'capability_killed',
-    })
-    expect(authorize).not.toHaveBeenCalled()
-    expect(memory.permits).toHaveLength(0)
-  })
-
-  it('fails closed when the authoritative policy refresh is unavailable', async () => {
-    const memory = createStore()
-    const authorize = vi.fn(async () => ({
-      allowed: true as const,
-      vector: { grantGeneration: 3 },
-    }))
-    const authority = createGoogleContentAuthorizationAuthority({
-      store: memory.store,
-      clock: () => now,
-      newPermitId: () => 'permit-1',
-      verifyRoleApproval: () => true,
-      refreshPolicy: async () => ({ unavailable: true }),
-      isRegisteredOperator: () => true,
-      authorize,
-    })
-    await authority.installApproval(approvalBundle())
-
-    await expect(authority.admit(admissionInput())).resolves.toEqual({
-      ok: false,
-      code: 'policy_refresh_unavailable',
     })
     expect(authorize).not.toHaveBeenCalled()
     expect(memory.permits).toHaveLength(0)
@@ -497,7 +453,6 @@ describe('Google Content authorization authority', () => {
       clock: () => now,
       newPermitId: () => 'permit-1',
       verifyRoleApproval: () => true,
-      refreshPolicy: freshPolicy(memory),
       isRegisteredOperator: () => true,
       authorize,
     })
@@ -534,7 +489,6 @@ describe('Google Content authorization authority', () => {
       clock: () => now,
       newPermitId: () => 'permit-1',
       verifyRoleApproval: () => true,
-      refreshPolicy: freshPolicy(memory),
       isRegisteredOperator: (operatorId) => operatorId === 'operator-1',
       authorize: async () => ({ allowed: true, vector: { grantGeneration: 3 } }),
     })
@@ -552,18 +506,17 @@ describe('Google Content authorization authority', () => {
     ).resolves.toEqual({ ok: true, emergencyKillVersion: 6 })
     await expect(authority.admit(admissionInput())).resolves.toMatchObject({
       ok: true,
-      permit: { emergencyKillVersion: 6 },
+      permit: { state: 'admitted' },
     })
   })
 
-  it('admits and starts only against the same approval, policy, and authorization vector', async () => {
+  it('admits and starts only against the same tenant and authorization vector', async () => {
     const memory = createStore()
     const authority = createGoogleContentAuthorizationAuthority({
       store: memory.store,
       clock: () => now,
       newPermitId: () => 'permit-1',
       verifyRoleApproval: () => true,
-      refreshPolicy: freshPolicy(memory),
       isRegisteredOperator: () => true,
       authorize: async () => ({
         allowed: true,
@@ -588,17 +541,14 @@ describe('Google Content authorization authority', () => {
     if (!admitted.ok) throw new Error('expected admission')
     expect(admitted.permit.startDeadlineAt).toEqual(new Date('2026-08-10T10:00:10.000Z'))
 
-    await expect(
-      authority.start(admitted.permit.id, 'other-org', admissionInput().runtimeBinding),
-    ).resolves.toEqual({ ok: false, code: 'permit_unavailable' })
+    await expect(authority.start(admitted.permit.id, 'other-org')).resolves.toEqual({
+      ok: false,
+      code: 'permit_unavailable',
+    })
     expect(memory.permits.get('permit-1')?.permit.state).toBe('admitted')
 
     await expect(
-      authority.start(
-        admitted.permit.id,
-        admissionInput().scope.organizationId,
-        admissionInput().runtimeBinding,
-      ),
+      authority.start(admitted.permit.id, admissionInput().scope.organizationId),
     ).resolves.toMatchObject({ ok: true, permit: { state: 'started' } })
   })
 
@@ -632,7 +582,6 @@ describe('Google Content authorization authority', () => {
       clock: () => now,
       newPermitId: () => 'permit-publication-1',
       verifyRoleApproval: () => true,
-      refreshPolicy: freshPolicy(memory),
       isRegisteredOperator: () => true,
       authorize,
     })
@@ -657,11 +606,7 @@ describe('Google Content authorization authority', () => {
     if (!admitted.ok) throw new Error('expected publication admission')
 
     await expect(
-      authority.start(
-        admitted.permit.id,
-        admitted.permit.organizationId,
-        publicationRuntime,
-      ),
+      authority.start(admitted.permit.id, admitted.permit.organizationId),
     ).resolves.toMatchObject({ ok: true, permit: { state: 'started' } })
     expect(authorize).toHaveBeenLastCalledWith(
       {},
@@ -680,7 +625,6 @@ describe('Google Content authorization authority', () => {
       clock: () => now,
       newPermitId: () => 'permit-1',
       verifyRoleApproval: () => true,
-      refreshPolicy: freshPolicy(memory),
       isRegisteredOperator: () => true,
       authorize: async () => ({ allowed: true, vector: { grantGeneration } }),
     })
@@ -690,11 +634,7 @@ describe('Google Content authorization authority', () => {
     grantGeneration = 4
 
     await expect(
-      authority.start(
-        admitted.permit.id,
-        admissionInput().scope.organizationId,
-        admissionInput().runtimeBinding,
-      ),
+      authority.start(admitted.permit.id, admissionInput().scope.organizationId),
     ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
     expect(memory.permits.get('permit-1')?.permit.state).toBe('fenced')
   })
@@ -706,7 +646,6 @@ describe('Google Content authorization authority', () => {
       clock: () => currentTime,
       newPermitId: () => 'permit-1',
       verifyRoleApproval: () => true,
-      refreshPolicy: freshPolicy(memory),
       isRegisteredOperator: () => true,
       authorize: async () => ({ allowed: true, vector: { grantGeneration: 3 } }),
     })
@@ -716,7 +655,6 @@ describe('Google Content authorization authority', () => {
     const started = await authority.start(
       admitted.permit.id,
       admissionInput().scope.organizationId,
-      admissionInput().runtimeBinding,
     )
     if (!started.ok) throw new Error('expected start')
     const operationDeadline = started.permit.operationDeadlineAt
@@ -724,11 +662,7 @@ describe('Google Content authorization authority', () => {
     currentTime = operationDeadline
 
     await expect(
-      authority.complete(
-        admitted.permit.id,
-        admissionInput().scope.organizationId,
-        admissionInput().runtimeBinding,
-      ),
+      authority.complete(admitted.permit.id, admissionInput().scope.organizationId),
     ).resolves.toEqual({ ok: false, code: 'operation_deadline_elapsed' })
     expect(memory.permits.get('permit-1')?.permit.state).toBe('fenced')
   })
@@ -740,7 +674,6 @@ describe('Google Content authorization authority', () => {
       clock: () => now,
       newPermitId: () => 'permit-1',
       verifyRoleApproval: () => true,
-      refreshPolicy: freshPolicy(memory),
       isRegisteredOperator: () => true,
       authorize: async () => ({ allowed: true, vector: { grantGeneration: 3 } }),
     })

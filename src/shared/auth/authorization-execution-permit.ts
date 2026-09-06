@@ -3,8 +3,6 @@ import type { GoogleContentCapability } from './google-content-contract'
 export type AuthorizationExecutionPermitState =
   'admitted' | 'started' | 'completed' | 'fenced'
 
-export type AuthorizationCommitVectorMode = 'full' | 'core_credential_projection'
-
 export type AuthorizationExecutionPermit = Readonly<{
   id: string
   capability: GoogleContentCapability
@@ -16,12 +14,6 @@ export type AuthorizationExecutionPermit = Readonly<{
   routeKey: string
   routeCatalogVersion: string
   quotaPolicyId: string
-  policyVersion: number
-  emergencyKillVersion: number
-  approvalBindingId: string
-  permitGeneration: number
-  startVectorMode: AuthorizationCommitVectorMode
-  commitVectorMode: AuthorizationCommitVectorMode
   state: AuthorizationExecutionPermitState
   admittedAt: Date
   startDeadlineAt: Date
@@ -73,12 +65,7 @@ export function createAdmittedExecutionPermit(
   }
 }
 
-export type ExecutionPermitFenceReason =
-  | 'state_not_admitted'
-  | 'start_deadline_elapsed'
-  | 'policy_version_changed'
-  | 'emergency_kill_changed'
-  | 'approval_binding_changed'
+export type ExecutionPermitFenceReason = 'state_not_admitted' | 'start_deadline_elapsed'
 
 export type StartExecutionPermitResult =
   | Readonly<{ kind: 'started'; permit: AuthorizationExecutionPermit }>
@@ -111,9 +98,6 @@ export function startExecutionPermit(
   permit: AuthorizationExecutionPermit,
   input: Readonly<{
     now: Date
-    policyVersion: number
-    emergencyKillVersion: number
-    approvalBindingId: string
   }>,
 ): StartExecutionPermitResult {
   if (permit.state !== 'admitted') {
@@ -122,15 +106,14 @@ export function startExecutionPermit(
   if (input.now.getTime() >= permit.startDeadlineAt.getTime()) {
     return fencedStartResult(permit, input.now, 'start_deadline_elapsed')
   }
-  if (input.policyVersion !== permit.policyVersion) {
-    return fencedStartResult(permit, input.now, 'policy_version_changed')
-  }
-  if (input.emergencyKillVersion !== permit.emergencyKillVersion) {
-    return fencedStartResult(permit, input.now, 'emergency_kill_changed')
-  }
-  if (input.approvalBindingId !== permit.approvalBindingId) {
-    return fencedStartResult(permit, input.now, 'approval_binding_changed')
-  }
+  // WP2.2: three checks used to sit here — `policy_version_changed`,
+  // `emergency_kill_changed` and `approval_binding_changed`. All three compared
+  // a counter or an approval id captured at admission against one re-read at
+  // start, which only ever detected that something ELSE had been written. What
+  // makes a start safe is unchanged and enforced above and in SQL: the permit
+  // must still be `admitted`, its start deadline must not have elapsed, and the
+  // authorization vector, connection liveness, `organization_capability`,
+  // `member.role` and `permission_version` are all re-proved on the call itself.
 
   const startedAt = new Date(input.now.getTime())
   return {

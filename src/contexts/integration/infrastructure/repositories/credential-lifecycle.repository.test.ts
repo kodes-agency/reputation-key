@@ -6,7 +6,6 @@ import { createCredentialLifecycleRepository } from './credential-lifecycle.repo
 
 const ORG_ID = 'org-credential-lifecycle-test'
 const CONNECTION_ID = '9e000000-0000-4000-8000-000000000001'
-const APPROVAL_ID = '9a000000-0000-4000-8000-000000000001'
 const PERMIT_ID = '9d000000-0000-4000-8000-000000000001'
 const SOURCE_ID = '9b000000-0000-4000-8000-000000000001'
 const REVOKE_ID = '9c000000-0000-4000-8000-000000000001'
@@ -56,45 +55,19 @@ async function seedStartedPermit(
   },
 ): Promise<void> {
   await pool.query(
-    `INSERT INTO capability_compliance_approvals (
-      id, binding_version, capability, target_phase, environment_profile,
-      release_sha, evidence_manifest_sha256, evidence_index_sha256,
-      deployment_attestation_sha256, adr_0050_sha256,
-      google_content_policy_version, google_oauth_contract_version,
-      google_project_attestation_sha256, google_oauth_client_id_sha256,
-      google_redirect_uri_sha256, provider_origin_profile_sha256,
-      runtime_isolation_profile_version, runtime_isolation_profile_sha256,
-      performance_catalog_version, route_catalog_version, capability_policy_version,
-      execution_policy_version, migration_head, evidence_index, image_digests,
-      role_approvals, approved_at, expires_at, status
-    ) VALUES (
-      $1, 701, 'property.import_gbp_v2', 'local_sandbox', 'sandbox',
-      'release', 'manifest', 'index', 'deployment', 'adr',
-      '2026-08-05', 'google-oauth-oidc-1', 'project', 'client', 'redirect',
-      'origins', 'google-content-egress-1', 'runtime', '2026-08-05', '2026-08-16',
-      'beta-local-2', 'beta-local-2', '0030_giant_hellfire_club',
-      '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $2, $3, 'approved'
-    ) ON CONFLICT (id) DO NOTHING`,
-    [APPROVAL_ID, NOW, CLEANUP_DEADLINE],
-  )
-  await pool.query(
     `INSERT INTO authorization_execution_permits (
       id, capability, organization_id, connection_id, operation_key,
-      route_key, route_catalog_version, quota_policy_id, policy_version,
-      emergency_kill_version, approval_binding_id, permit_generation,
-      start_vector_mode, commit_vector_mode, authorization_vector, state,
-      admitted_at, start_deadline_at, started_at, operation_deadline_at
+      route_key, route_catalog_version, quota_policy_id, authorization_vector,
+      state, admitted_at, start_deadline_at, started_at, operation_deadline_at
     ) VALUES (
       $1, 'property.import_gbp_v2', $2, $3, 'credential-refresh',
-      'google.oauth.token', 'google-provider-routes-1', 'oauth-refresh', 1,
-      1, $4, 1, 'full', 'core_credential_projection', $5::jsonb, 'started',
-      $6, $7, $6, $8
+      'google.oauth.token', 'google-provider-routes-1', 'oauth-refresh',
+      $4::jsonb, 'started', $5, $6, $5, $7
     )`,
     [
       permitId,
       ORG_ID,
       CONNECTION_ID,
-      APPROVAL_ID,
       JSON.stringify(vector),
       NOW,
       new Date(NOW.getTime() + 1_000),

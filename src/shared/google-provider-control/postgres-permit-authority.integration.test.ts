@@ -230,15 +230,6 @@ async function seedApprovalFor(
 }
 
 async function seedPermit(): Promise<void> {
-  const policy = await pool.query<{
-    version: string
-    emergency_kill_version: string
-  }>(
-    `SELECT version, emergency_kill_version
-       FROM policy_version WHERE scope = 'global'`,
-  )
-  const current = policy.rows[0]
-  if (!current) throw new Error('expected global policy head')
   const permission = await pool.query<{ version: string }>(
     'SELECT version FROM permission_version WHERE organization_id = $1',
     [ORGANIZATION_ID],
@@ -249,16 +240,11 @@ async function seedPermit(): Promise<void> {
     `INSERT INTO authorization_execution_permits (
       id, capability, organization_id, connection_id, initiator_user_id,
       operation_key, route_key, route_catalog_version, quota_policy_id,
-      policy_version, emergency_kill_version, approval_binding_id,
-      permit_generation, start_vector_mode, commit_vector_mode,
       authorization_vector, state, admitted_at, start_deadline_at
     ) VALUES (
-      $1, 'property.import_gbp_v2', $2, $3, $11,
+      $1, 'property.import_gbp_v2', $2, $3, $10,
       'account-discovery', $4, $5, $6,
-      (SELECT version FROM policy_version WHERE scope = 'global'),
-      (SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'),
-      $7, 1, 'full', 'full',
-      $8::jsonb, 'admitted', $9, $10
+      $7::jsonb, 'admitted', $8, $9
     )`,
     [
       PERMIT_ID,
@@ -267,7 +253,6 @@ async function seedPermit(): Promise<void> {
       compiled.routeKey,
       compiled.catalogueVersion,
       compiled.admission.quotaPolicyId,
-      APPROVAL_ID,
       JSON.stringify({
         ...vector,
         permissionVersion: Number(permissionVersion),
@@ -297,12 +282,6 @@ async function clearCredentialLifecycle(): Promise<void> {
 }
 
 async function seedDispatchingCleanupPermit(): Promise<void> {
-  const policy = await pool.query<{
-    version: string
-    emergency_kill_version: string
-  }>("SELECT version, emergency_kill_version FROM policy_version WHERE scope = 'global'")
-  const current = policy.rows[0]
-  if (!current) throw new Error('expected global policy head')
   const cleanupVector = {
     ...vector,
     requestBindingSha256: compiledCleanup.admission.requestBindingSha256,
@@ -314,15 +293,12 @@ async function seedDispatchingCleanupPermit(): Promise<void> {
     `INSERT INTO authorization_execution_permits (
       id, capability, organization_id, connection_id, initiator_user_id,
       operation_key, route_key, route_catalog_version, quota_policy_id,
-      policy_version, emergency_kill_version, approval_binding_id,
-      permit_generation, start_vector_mode, commit_vector_mode,
       authorization_vector, state, admitted_at, start_deadline_at,
       started_at, operation_deadline_at, completed_at
     ) VALUES (
       $1, 'property.import_gbp_v2', $2, $3, $4,
       'provider.oauth.token.refresh', 'oauth.token.refresh', $5, 'google-credential-refresh-v1',
-      $6, $7, $8, 1, 'full', 'full', $9::jsonb,
-      'completed', $10, $11, $10, $11, $10
+      $6::jsonb, 'completed', $7, $8, $7, $8, $7
     )`,
     [
       SOURCE_WORK_PERMIT_ID,
@@ -330,9 +306,6 @@ async function seedDispatchingCleanupPermit(): Promise<void> {
       CONNECTION_ID,
       USER_ID,
       compiledCleanup.catalogueVersion,
-      current.version,
-      current.emergency_kill_version,
-      APPROVAL_ID,
       JSON.stringify(vector),
       new Date(NOW.getTime() - 2_000),
       new Date(NOW.getTime() + 60_000),
@@ -342,14 +315,11 @@ async function seedDispatchingCleanupPermit(): Promise<void> {
     `INSERT INTO authorization_execution_permits (
       id, capability, organization_id, connection_id, initiator_user_id,
       operation_key, route_key, route_catalog_version, quota_policy_id,
-      policy_version, emergency_kill_version, approval_binding_id,
-      permit_generation, start_vector_mode, commit_vector_mode,
       authorization_vector, state, admitted_at, start_deadline_at
     ) VALUES (
       $1, 'property.import_gbp_v2', $2, $3, $4,
       'provider.oauth.revoke', $5, $6, $7,
-      $8, $9, $10, 2, 'full', 'full', $11::jsonb,
-      'admitted', $12, $13
+      $8::jsonb, 'admitted', $9, $10
     )`,
     [
       CLEANUP_PERMIT_ID,
@@ -359,9 +329,6 @@ async function seedDispatchingCleanupPermit(): Promise<void> {
       compiledCleanup.routeKey,
       compiledCleanup.catalogueVersion,
       compiledCleanup.admission.quotaPolicyId,
-      current.version,
-      current.emergency_kill_version,
-      APPROVAL_ID,
       JSON.stringify(cleanupVector),
       NOW,
       new Date(NOW.getTime() + 30_000),
@@ -623,11 +590,10 @@ describe('Postgres Google admission permit authority', () => {
     if (!snapshot) throw new Error('expected permit snapshot')
     const result = await pool.query<{ outcome: string }>(
       `SELECT outcome FROM start_google_execution_permit_v2(
-        $1::uuid, $2::bigint, $3::text, $4::text, $5::text, '{}'::jsonb, $6::text
+        $1::uuid, $2::text, $3::text, $4::text, '{}'::jsonb, $5::text
       )`,
       [
         snapshot.permitId,
-        snapshot.permitGeneration,
         snapshot.routeKey,
         snapshot.routeCatalogueVersion,
         snapshot.expectedAdmission.quotaPolicyId,
@@ -646,20 +612,13 @@ describe('Postgres Google admission permit authority', () => {
   it('starts a home-bound prospective OAuth exchange exactly once under concurrency', async () => {
     const prospectiveConnectionId = randomUUID()
     const permitId = randomUUID()
-    const policy = await pool.query<{
-      version: string
-      emergency_kill_version: string
-    }>(
-      "SELECT version, emergency_kill_version FROM policy_version WHERE scope = 'global'",
-    )
     const permission = await pool.query<{ version: string }>(
       'SELECT version FROM permission_version WHERE organization_id = $1',
       [ORGANIZATION_ID],
     )
-    const current = policy.rows[0]
     const permissionVersion = permission.rows[0]?.version
-    if (!current || permissionVersion === undefined) {
-      throw new Error('expected current policy and permission versions')
+    if (permissionVersion === undefined) {
+      throw new Error('expected current permission version')
     }
     try {
       await pool.query(
@@ -675,13 +634,11 @@ describe('Postgres Google admission permit authority', () => {
         `INSERT INTO authorization_execution_permits (
           id, capability, organization_id, connection_id, initiator_user_id,
           operation_key, route_key, route_catalog_version, quota_policy_id,
-          policy_version, emergency_kill_version, approval_binding_id,
-          permit_generation, start_vector_mode, commit_vector_mode,
           authorization_vector, state, admitted_at, start_deadline_at
         ) VALUES (
           $1, 'property.import_gbp_v2', $2, $3, $4,
-          'provider.oauth.token.exchange', $5, $6, $7, $8, $9, $10,
-          1, 'full', 'full', $11::jsonb, 'admitted', now(), now() + interval '30 seconds'
+          'provider.oauth.token.exchange', $5, $6, $7,
+          $8::jsonb, 'admitted', now(), now() + interval '30 seconds'
         )`,
         [
           permitId,
@@ -691,9 +648,6 @@ describe('Postgres Google admission permit authority', () => {
           compiledOAuthExchange.routeKey,
           compiledOAuthExchange.catalogueVersion,
           compiledOAuthExchange.admission.quotaPolicyId,
-          current.version,
-          current.emergency_kill_version,
-          APPROVAL_ID,
           JSON.stringify({
             executionPolicyVersion: 'beta-local-2',
             principalKind: 'user',
@@ -829,27 +783,16 @@ describe('Postgres Google admission permit authority', () => {
                 denied_at = NULL, drained_at = NULL, cleanup_drained_at = NULL
           WHERE capability = 'property.connect_gbp'`,
       )
-      const policy = await pool.query<{
-        version: string
-        emergency_kill_version: string
-      }>(
-        `SELECT version, emergency_kill_version
-           FROM policy_version WHERE scope = 'global'`,
-      )
-      const current = policy.rows[0]
-      if (!current) throw new Error('expected policy version')
       await pool.query(
         `INSERT INTO authorization_execution_permits (
           id, capability, organization_id, property_id, connection_id,
           initiator_user_id, operation_key, route_key, route_catalog_version,
-          quota_policy_id, policy_version, emergency_kill_version,
-          approval_binding_id, permit_generation, start_vector_mode,
-          commit_vector_mode, authorization_vector, state, admitted_at,
+          quota_policy_id, authorization_vector, state, admitted_at,
           start_deadline_at
         ) VALUES (
           $1, 'property.connect_gbp', $2, $3, $4, NULL,
-          'provider.reviews.list', $5, $6, $7, $8, $9, $10,
-          1, 'full', 'full', $11::jsonb, 'admitted', $12, $13
+          'provider.reviews.list', $5, $6, $7,
+          $8::jsonb, 'admitted', $9, $10
         )`,
         [
           permitId,
@@ -859,9 +802,6 @@ describe('Postgres Google admission permit authority', () => {
           compiledReviewList.routeKey,
           compiledReviewList.catalogueVersion,
           compiledReviewList.admission.quotaPolicyId,
-          current.version,
-          current.emergency_kill_version,
-          approvalId,
           JSON.stringify({
             executionPolicyVersion: 'beta-local-2',
             principalKind: 'system',
@@ -943,34 +883,24 @@ describe('Postgres Google admission permit authority', () => {
     ) => {
       const permitId = randomUUID()
       permitIds.push(permitId)
-      const policy = await pool.query<{
-        version: string
-        emergency_kill_version: string
-      }>(
-        `SELECT version, emergency_kill_version
-           FROM policy_version WHERE scope = 'global'`,
-      )
       const permission = await pool.query<{ version: string }>(
         `SELECT version FROM permission_version WHERE organization_id = $1`,
         [ORGANIZATION_ID],
       )
-      const current = policy.rows[0]
       const permissionVersion = permission.rows[0]?.version
-      if (!current || permissionVersion === undefined) {
-        throw new Error('expected current policy and permission versions')
+      if (permissionVersion === undefined) {
+        throw new Error('expected current permission version')
       }
       await pool.query(
         `INSERT INTO authorization_execution_permits (
           id, capability, organization_id, property_id, connection_id,
           initiator_user_id, operation_key, route_key, route_catalog_version,
-          quota_policy_id, policy_version, emergency_kill_version,
-          approval_binding_id, permit_generation, start_vector_mode,
-          commit_vector_mode, authorization_vector, state, admitted_at,
+          quota_policy_id, authorization_vector, state, admitted_at,
           start_deadline_at
         ) VALUES (
           $1, 'property.publish_reply', $2, $3, $4, NULL,
-          'provider.reviews.reply', $5, $6, $7, $8, $9, $10,
-          1, 'full', 'full', $11::jsonb, 'admitted', $12, $13
+          'provider.reviews.reply', $5, $6, $7,
+          $8::jsonb, 'admitted', $9, $10
         )`,
         [
           permitId,
@@ -980,9 +910,6 @@ describe('Postgres Google admission permit authority', () => {
           compiledReply.routeKey,
           compiledReply.catalogueVersion,
           compiledReply.admission.quotaPolicyId,
-          current.version,
-          current.emergency_kill_version,
-          approvalId,
           JSON.stringify({
             executionPolicyVersion: 'beta-local-2',
             principalKind: 'system',
@@ -1248,34 +1175,24 @@ describe('Postgres Google admission permit authority', () => {
         WHERE capability = 'property.read_gbp_performance'`,
     )
     const seedPerformancePermit = async (permitId: string) => {
-      const policy = await pool.query<{
-        version: string
-        emergency_kill_version: string
-      }>(
-        `SELECT version, emergency_kill_version
-           FROM policy_version WHERE scope = 'global'`,
-      )
       const permission = await pool.query<{ version: string }>(
         `SELECT version FROM permission_version WHERE organization_id = $1`,
         [ORGANIZATION_ID],
       )
-      const current = policy.rows[0]
       const permissionVersion = permission.rows[0]?.version
-      if (!current || permissionVersion === undefined) {
-        throw new Error('expected current policy and permission versions')
+      if (permissionVersion === undefined) {
+        throw new Error('expected current permission version')
       }
       await pool.query(
         `INSERT INTO authorization_execution_permits (
           id, capability, organization_id, property_id, connection_id,
           initiator_user_id, operation_key, route_key, route_catalog_version,
-          quota_policy_id, policy_version, emergency_kill_version,
-          approval_binding_id, permit_generation, start_vector_mode,
-          commit_vector_mode, authorization_vector, state, admitted_at,
+          quota_policy_id, authorization_vector, state, admitted_at,
           start_deadline_at
         ) VALUES (
           $1, 'property.read_gbp_performance', $2, $3, $4, $5,
-          'provider.performance.fetch', $6, $7, $8, $9, $10, $11,
-          1, 'full', 'full', $12::jsonb, 'admitted', $13, $14
+          'provider.performance.fetch', $6, $7, $8,
+          $9::jsonb, 'admitted', $10, $11
         )`,
         [
           permitId,
@@ -1286,9 +1203,6 @@ describe('Postgres Google admission permit authority', () => {
           compiledPerformance.routeKey,
           compiledPerformance.catalogueVersion,
           compiledPerformance.admission.quotaPolicyId,
-          current.version,
-          current.emergency_kill_version,
-          approvalId,
           JSON.stringify({
             executionPolicyVersion: 'beta-local-2',
             principalKind: 'user',
@@ -1413,28 +1327,6 @@ describe('Postgres Google admission permit authority', () => {
     }
   })
 
-  it('does not fence a newer generation through stale failure cleanup', async () => {
-    const adapter = authority()
-    const snapshot = await adapter.load(PERMIT_ID)
-    if (!snapshot) throw new Error('expected permit snapshot')
-    await expect(adapter.start(snapshot)).resolves.toBe('started')
-    await pool.query(
-      `UPDATE authorization_execution_permits
-          SET permit_generation = permit_generation + 1
-        WHERE id = $1`,
-      [PERMIT_ID],
-    )
-
-    await adapter.failStarted(snapshot, 'grant_unavailable')
-    const result = await pool.query(
-      `SELECT state, permit_generation
-         FROM authorization_execution_permits
-        WHERE id = $1`,
-      [PERMIT_ID],
-    )
-    expect(result.rows[0]).toMatchObject({ state: 'started', permit_generation: '2' })
-  })
-
   it('commits only the started revision and its code-only provider outcome', async () => {
     const adapter = authority()
     const snapshot = await adapter.load(PERMIT_ID)
@@ -1547,20 +1439,13 @@ describe('Postgres Google admission permit authority', () => {
     const activatedAt = new Date()
     const cleanupDeadlineAt = new Date(activatedAt.getTime() + 60_000)
     const repository = createGoogleDisconnectRevokeRepository(getDb(), createEventBus())
-    const policy = await pool.query<{
-      version: string
-      emergency_kill_version: string
-    }>(
-      "SELECT version, emergency_kill_version FROM policy_version WHERE scope = 'global'",
-    )
     const permission = await pool.query<{ version: string }>(
       'SELECT version FROM permission_version WHERE organization_id = $1',
       [ORGANIZATION_ID],
     )
-    const current = policy.rows[0]
     const permissionVersion = permission.rows[0]?.version
-    if (!current || permissionVersion === undefined) {
-      throw new Error('expected policy and permission heads')
+    if (permissionVersion === undefined) {
+      throw new Error('expected permission head')
     }
     const authorization = {
       capability: 'property.import_gbp_v2' as const,
@@ -1601,13 +1486,11 @@ describe('Postgres Google admission permit authority', () => {
       `INSERT INTO authorization_execution_permits (
         id, capability, organization_id, connection_id, initiator_user_id,
         operation_key, route_key, route_catalog_version, quota_policy_id,
-        policy_version, emergency_kill_version, approval_binding_id,
-        permit_generation, start_vector_mode, commit_vector_mode,
         authorization_vector, state, admitted_at, start_deadline_at
       ) VALUES (
         $1, 'property.import_gbp_v2', $2, $3, $4,
-        'provider.oauth.revoke', 'oauth.revoke', $5, $6, $7, $8, $9,
-        1, 'full', 'full', $10::jsonb, 'admitted', $11, $12
+        'provider.oauth.revoke', 'oauth.revoke', $5, $6,
+        $7::jsonb, 'admitted', $8, $9
       )`,
       [
         DISCONNECT_PERMIT_ID,
@@ -1616,9 +1499,6 @@ describe('Postgres Google admission permit authority', () => {
         USER_ID,
         compiledCleanup.catalogueVersion,
         compiledCleanup.admission.quotaPolicyId,
-        current.version,
-        current.emergency_kill_version,
-        APPROVAL_ID,
         JSON.stringify({
           ...authorization.authorizationVector,
           requestBindingSha256: compiledCleanup.admission.requestBindingSha256,

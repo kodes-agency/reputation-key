@@ -54,10 +54,6 @@ export const authorizationExecutionPermitStateEnum = pgEnum(
   'authorization_execution_permit_state',
   ['admitted', 'started', 'completed', 'fenced'],
 )
-export const authorizationCommitVectorModeEnum = pgEnum(
-  'authorization_commit_vector_mode',
-  ['full', 'core_credential_projection'],
-)
 export const googleCredentialSourceKindEnum = pgEnum('google_credential_source_kind', [
   'refresh',
   'reauth',
@@ -292,14 +288,15 @@ export const authorizationExecutionPermits = pgTable(
     routeKey: varchar('route_key', { length: 160 }).notNull(),
     routeCatalogVersion: varchar('route_catalog_version', { length: 64 }).notNull(),
     quotaPolicyId: varchar('quota_policy_id', { length: 128 }).notNull(),
-    policyVersion: generation('policy_version').notNull(),
-    emergencyKillVersion: generation('emergency_kill_version').notNull(),
-    approvalBindingId: uuid('approval_binding_id')
-      .notNull()
-      .references(() => capabilityComplianceApprovals.id, { onDelete: 'restrict' }),
-    permitGeneration: generation('permit_generation').notNull(),
-    startVectorMode: authorizationCommitVectorModeEnum('start_vector_mode').notNull(),
-    commitVectorMode: authorizationCommitVectorModeEnum('commit_vector_mode').notNull(),
+    // WP2.2: six ceremony columns used to sit here — `policy_version` and
+    // `emergency_kill_version` (a global cache generation and its sibling
+    // counter, compared to detect a write that happened somewhere else),
+    // `approval_binding_id` (a restrict-FK to the approval bundle),
+    // `permit_generation`, `start_vector_mode` and `commit_vector_mode`. The SQL
+    // that read them went in step 1; these are the columns it read. What
+    // actually protects a permit survives: the authorization vector below, the
+    // connection's own liveness, `organization_capability`, `member.role` and
+    // `permission_version`.
     authorizationVector: jsonb('authorization_vector')
       .$type<Readonly<Record<string, string | number | boolean | null>>>()
       .notNull(),

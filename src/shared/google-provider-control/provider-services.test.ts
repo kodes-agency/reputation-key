@@ -47,9 +47,6 @@ function permitFor(
     }),
     expiresAtMs: 20_000,
     authorityRevision: 'authority-revision-1',
-    permitGeneration: 1,
-    policyVersion: 1,
-    emergencyKillVersion: 0,
   })
 }
 

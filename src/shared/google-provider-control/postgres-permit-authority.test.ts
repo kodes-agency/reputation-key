@@ -19,10 +19,6 @@ const permitRow = {
   route_key: compiled.routeKey,
   route_catalog_version: compiled.catalogueVersion,
   quota_policy_id: compiled.admission.quotaPolicyId,
-  permit_generation: '1',
-  policy_version: '7',
-  emergency_kill_version: '3',
-  approval_binding_id: '8a000000-0000-4000-8000-000000000001',
   authorization_vector: {
     requestBindingSha256: compiled.admission.requestBindingSha256,
     credentialBinding: compiled.admission.credentialBinding,
@@ -55,7 +51,7 @@ function authorityWith(startOutcome: 'started' | 'changed' | 'expired') {
 }
 
 describe('Postgres Google admission start boundary', () => {
-  it('starts through one locked statement that rechecks live control and approval heads', async () => {
+  it('starts through one locked statement that rechecks live authorization', async () => {
     const { authority, query } = authorityWith('started')
     const snapshot = await authority.load(PERMIT_ID)
     if (!snapshot) throw new Error('expected permit snapshot')

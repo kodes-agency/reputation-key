@@ -192,11 +192,7 @@ describe('executeGoogleProviderRaw admission classification', () => {
     ).resolves.toMatchObject({ kind: 'rate_limited', retryAfterMs: 9_000 })
   })
 
-  it.each([
-    ['authorization_changed'],
-    ['approval_binding_changed'],
-    ['authorization_denied'],
-  ] as const)(
+  it.each([['authorization_changed'], ['authorization_denied']] as const)(
     'reports %s as a rejected authorization rather than a retryable outage',
     async (admissionCode) => {
       const error = await providerError(admissionDenied(admissionCode))
@@ -210,20 +206,6 @@ describe('executeGoogleProviderRaw admission classification', () => {
       })
     },
   )
-
-  it('reports policy_refresh_unavailable as a transient outage', async () => {
-    const error = await providerError(admissionDenied('policy_refresh_unavailable'))
-
-    expect(error.kind).toBe('upstream_error')
-    await expect(
-      userVisible(admissionDenied('policy_refresh_unavailable')),
-    ).resolves.toEqual({
-      status: 'error',
-      errorCode: 'temporarily_unavailable',
-      retryable: true,
-      retryAfterSeconds: 5,
-    })
-  })
 
   it('retains no provider content in a classified failure', async () => {
     const error = await providerError(admissionDenied('authorization_changed'))

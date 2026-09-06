@@ -61,9 +61,6 @@ function buildInput(
       decideImportItem: async () => ({ allowed: true }),
     } as unknown as GoogleProviderAuthorityInput['dataCellExecutionFence'],
     identity: {
-      refreshPolicyStoreRequired: async () => {
-        throw new Error('policy refresh must not run during construction')
-      },
       hasActivePropertyGrant: async () => false,
     },
     ...overrides,

@@ -29,12 +29,6 @@ const admissionInput = (id: string): AdmitAuthorizationExecutionPermitInput =>
     routeKey: 'performance.multi-daily-metrics',
     routeCatalogVersion: '2026-08-16',
     quotaPolicyId: 'google-performance-v1',
-    policyVersion: 1,
-    emergencyKillVersion: 1,
-    approvalBindingId: 'approval-1',
-    permitGeneration: 1,
-    startVectorMode: 'full',
-    commitVectorMode: 'full',
   }) satisfies AdmitAuthorizationExecutionPermitInput
 
 function admitted(id: string): AuthorizationExecutionPermit {
@@ -110,9 +104,6 @@ describe('execution-permit start-deadline sweep', () => {
   it('leaves started, completed and already-fenced permits untouched', async () => {
     const started = startExecutionPermit(admitted('started'), {
       now: new Date('2026-08-10T10:00:05.000Z'),
-      policyVersion: 1,
-      emergencyKillVersion: 1,
-      approvalBindingId: 'approval-1',
     })
     if (started.kind !== 'started') throw new Error('expected start')
     const { store, updates } = createStore([
@@ -248,9 +239,6 @@ describe('fenceElapsedStartDeadlinePermit', () => {
     const permit = admitted('equality')
     const started = startExecutionPermit(permit, {
       now: DEADLINE_AT,
-      policyVersion: 1,
-      emergencyKillVersion: 1,
-      approvalBindingId: 'approval-1',
     })
 
     expect(started).toMatchObject({ kind: 'fenced', reason: 'start_deadline_elapsed' })

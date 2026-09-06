@@ -281,19 +281,15 @@ async function seedFixture(): Promise<Fixture> {
     `INSERT INTO authorization_execution_permits (
        id, capability, organization_id, connection_id, initiator_user_id,
        operation_key, route_key, route_catalog_version, quota_policy_id,
-       policy_version, emergency_kill_version, approval_binding_id,
-       permit_generation, start_vector_mode, commit_vector_mode,
        authorization_vector, state, admitted_at, start_deadline_at, created_at
      ) VALUES ($1, 'property.import_gbp_v2', $2, $3, $4, $5, 'route', 'v1',
-               'quota', 1, 1, $6, 1, 'full', 'full', '{}'::jsonb, 'admitted',
-               $7, $8, $7)`,
+               'quota', '{}'::jsonb, 'admitted', $6, $7, $6)`,
     [
       fixture.permitId,
       fixture.organizationId,
       fixture.connectionId,
       fixture.userId,
       MARKERS.permitOperationKey,
-      fixture.approvalId,
       createdAt,
       new Date(createdAt.getTime() + 60_000),
     ],
