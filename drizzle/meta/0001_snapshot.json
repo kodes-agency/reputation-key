@@ -1,6 +1,6 @@
 {
-  "id": "0a807477-9e08-49f0-8ad5-18bdfab40310",
-  "prevId": "802542c9-6302-46c9-af16-ac85fa14868a",
+  "id": "eca19eb0-e5a9-4d15-ba4e-7a84145439ff",
+  "prevId": "2c1227ec-6846-4430-be6f-1e5ae7cfa86f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -12911,18 +12911,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "expected_google_content_policy_version": {
-          "name": "expected_google_content_policy_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "expected_emergency_kill_version": {
-          "name": "expected_emergency_kill_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "expected_actor_role": {
           "name": "expected_actor_role",
           "type": "varchar(50)",
@@ -13243,7 +13231,7 @@
         },
         "gbp_import_request_items_authorization_snapshot_valid": {
           "name": "gbp_import_request_items_authorization_snapshot_valid",
-          "value": "(\n        (\n          \"gbp_import_request_items\".\"approval_binding_id\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_execution_policy_version\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_google_content_policy_version\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_emergency_kill_version\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_actor_role\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_permission_digest\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_principal_kind\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_permission_version\" IS NULL\n        )\n        OR (\n          char_length(\"gbp_import_request_items\".\"approval_binding_id\") BETWEEN 1 AND 255\n          AND char_length(\"gbp_import_request_items\".\"expected_execution_policy_version\") BETWEEN 1 AND 32\n          AND \"gbp_import_request_items\".\"expected_google_content_policy_version\" >= 0\n          AND \"gbp_import_request_items\".\"expected_emergency_kill_version\" >= 0\n          AND char_length(\"gbp_import_request_items\".\"expected_actor_role\") BETWEEN 1 AND 50\n          AND \"gbp_import_request_items\".\"expected_permission_digest\" ~ '^[a-f0-9]{64}$'\n          AND char_length(\"gbp_import_request_items\".\"expected_principal_kind\") BETWEEN 1 AND 32\n          AND \"gbp_import_request_items\".\"expected_permission_version\" >= 0\n        )\n      )"
+          "value": "(\n        (\n          \"gbp_import_request_items\".\"approval_binding_id\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_execution_policy_version\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_actor_role\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_permission_digest\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_principal_kind\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_permission_version\" IS NULL\n        )\n        OR (\n          char_length(\"gbp_import_request_items\".\"approval_binding_id\") BETWEEN 1 AND 255\n          AND char_length(\"gbp_import_request_items\".\"expected_execution_policy_version\") BETWEEN 1 AND 32\n          AND char_length(\"gbp_import_request_items\".\"expected_actor_role\") BETWEEN 1 AND 50\n          AND \"gbp_import_request_items\".\"expected_permission_digest\" ~ '^[a-f0-9]{64}$'\n          AND char_length(\"gbp_import_request_items\".\"expected_principal_kind\") BETWEEN 1 AND 32\n          AND \"gbp_import_request_items\".\"expected_permission_version\" >= 0\n        )\n      )"
         },
         "gbp_import_request_items_attempt_fence_valid": {
           "name": "gbp_import_request_items_attempt_fence_valid",

@@ -75,8 +75,6 @@ const contentAuthorization = (
   emergencyKillVersion: 4,
   authorizationVector: {
     executionPolicyVersion: 'beta-local-2',
-    googleContentPolicyVersion: 11,
-    emergencyKillVersion: 4,
     principalKind: 'user',
     role: 'AccountAdmin',
     permissionVersion: 7,
@@ -188,8 +186,6 @@ describe('authorizeGoogleImportCommand', () => {
         approvalBindingId,
         authorizationVector: {
           executionPolicyVersion: 'beta-local-2',
-          googleContentPolicyVersion: 11,
-          emergencyKillVersion: 4,
           role: 'AccountAdmin',
           connectionLifecycleVersion: 3,
           connectionAccessVersion: 4,
@@ -333,8 +329,6 @@ describe('authorizeGoogleImportCommand', () => {
       approvalBindingId,
       authorizationVector: {
         executionPolicyVersion: 'beta-local-2',
-        googleContentPolicyVersion: 11,
-        emergencyKillVersion: 4,
         role: 'AccountAdmin',
         permissionDigest: 'irrelevant',
       },
@@ -474,8 +468,17 @@ describe('authorizeGoogleImportCommand', () => {
       },
     ]
 
-    /** The eight-key vector persisted per item at approval time. */
-    const frozenAtApproval = (generation: number) => ({
+    /**
+     * The vector persisted per item at approval time.
+     *
+     * It no longer carries `googleContentPolicyVersion` — WP2.2 step 2 removed
+     * that key from the vector entirely, so `generation` now only drives what
+     * the content authority reports. These tests keep their value: they assert
+     * the OUTCOME (a sibling's bump does not cancel an in-flight relink), which
+     * used to be protected by excluding the key from the comparison and is now
+     * true by construction. The outcome is what the product depends on.
+     */
+    const frozenAtApproval = () => ({
       organizationId: actor.organizationId,
       userId: actor.userId,
       connectionId,
@@ -485,8 +488,6 @@ describe('authorizeGoogleImportCommand', () => {
       approvalBindingId,
       authorizationVector: {
         executionPolicyVersion: 'beta-local-2',
-        googleContentPolicyVersion: generation,
-        emergencyKillVersion: 4,
         principalKind: 'user',
         role: 'AccountAdmin',
         permissionVersion: 7,
@@ -500,16 +501,14 @@ describe('authorizeGoogleImportCommand', () => {
     /** What the content authority reports once the global row has moved. */
     const atGeneration = (
       generation: number,
-      overrides: Partial<{ emergencyKillVersion: number; role: string }> = {},
+      overrides: Partial<{ role: string }> = {},
     ) => {
       const base = contentAuthorization()
       return {
         ...base,
         policyVersion: generation,
-        emergencyKillVersion: overrides.emergencyKillVersion ?? base.emergencyKillVersion,
         authorizationVector: {
           ...base.authorizationVector,
-          googleContentPolicyVersion: generation,
           ...overrides,
         },
       }
@@ -517,7 +516,7 @@ describe('authorizeGoogleImportCommand', () => {
 
     it('no longer cancels the relink item', async () => {
       let globalPolicyGeneration = 11
-      const frozen = frozenAtApproval(globalPolicyGeneration)
+      const frozen = frozenAtApproval()
 
       // The create sibling commits its provisioning INSERT + version bump.
       globalPolicyGeneration += 1
@@ -542,7 +541,7 @@ describe('authorizeGoogleImportCommand', () => {
     })
 
     it('survives a generation that moved many times, not merely by one', async () => {
-      const frozen = frozenAtApproval(11)
+      const frozen = frozenAtApproval()
       const { authorize } = setup({
         authorizeGoogleContent: async () => atGeneration(4096),
       })
@@ -559,26 +558,8 @@ describe('authorizeGoogleImportCommand', () => {
       ).resolves.toMatchObject({ ok: true })
     })
 
-    it('still cancels when the emergency kill epoch moved in the same window', async () => {
-      const frozen = frozenAtApproval(11)
-      const { authorize } = setup({
-        authorizeGoogleContent: async () => atGeneration(12, { emergencyKillVersion: 5 }),
-      })
-
-      await expect(
-        authorize({
-          actor,
-          connectionId,
-          phase: 'publish',
-          expected: frozen,
-          properties: relinkProperties,
-          requireAccessToken: false,
-        }),
-      ).resolves.toEqual({ ok: false, code: 'authorization_changed' })
-    })
-
     it('still cancels when the actor lost authority in the same window', async () => {
-      const frozen = frozenAtApproval(11)
+      const frozen = frozenAtApproval()
       const { authorize } = setup({
         authorizeGoogleContent: async () => atGeneration(12, { role: 'Staff' }),
       })
@@ -616,7 +597,7 @@ describe('authorizeGoogleImportCommand', () => {
           actor,
           connectionId,
           phase: 'publish',
-          expected: frozenAtApproval(11),
+          expected: frozenAtApproval(),
           properties: relinkProperties,
           requireAccessToken: false,
         }),
@@ -651,8 +632,6 @@ describe('authorizeGoogleImportCommand', () => {
       approvalBindingId,
       authorizationVector: {
         executionPolicyVersion: 'beta-local-2',
-        googleContentPolicyVersion: 11,
-        emergencyKillVersion: 4,
         principalKind: 'user',
         role: 'AccountAdmin',
         permissionVersion: 7,

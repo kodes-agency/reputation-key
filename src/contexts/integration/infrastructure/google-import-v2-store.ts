@@ -161,8 +161,6 @@ function authorizationColumns(item: GoogleImportV2Intent['items'][number]) {
   return {
     approvalBindingId: item.authorization.approvalBindingId,
     expectedExecutionPolicyVersion: frozenText(vector, 'executionPolicyVersion'),
-    expectedGoogleContentPolicyVersion: frozenCount(vector, 'googleContentPolicyVersion'),
-    expectedEmergencyKillVersion: frozenCount(vector, 'emergencyKillVersion'),
     expectedActorRole: frozenText(vector, 'role'),
     expectedPermissionDigest: frozenText(vector, 'permissionDigest'),
     expectedPrincipalKind: frozenText(vector, 'principalKind'),
@@ -179,8 +177,6 @@ function authorizationFromRow(row: {
   expectedCredentialGeneration: number | null
   approvalBindingId: string | null
   expectedExecutionPolicyVersion: string | null
-  expectedGoogleContentPolicyVersion: number | null
-  expectedEmergencyKillVersion: number | null
   expectedActorRole: string | null
   expectedPermissionDigest: string | null
   expectedPrincipalKind: string | null
@@ -193,8 +189,6 @@ function authorizationFromRow(row: {
     row.expectedCredentialGeneration === null ||
     row.approvalBindingId === null ||
     row.expectedExecutionPolicyVersion === null ||
-    row.expectedGoogleContentPolicyVersion === null ||
-    row.expectedEmergencyKillVersion === null ||
     row.expectedActorRole === null ||
     row.expectedPermissionDigest === null ||
     row.expectedPrincipalKind === null ||
@@ -212,8 +206,6 @@ function authorizationFromRow(row: {
     approvalBindingId: row.approvalBindingId,
     authorizationVector: {
       executionPolicyVersion: row.expectedExecutionPolicyVersion,
-      googleContentPolicyVersion: row.expectedGoogleContentPolicyVersion,
-      emergencyKillVersion: row.expectedEmergencyKillVersion,
       role: row.expectedActorRole,
       permissionDigest: row.expectedPermissionDigest,
       principalKind: row.expectedPrincipalKind,
@@ -315,8 +307,6 @@ function terminalItemPatch(
     googleReviewUri: routing,
     approvalBindingId: routing,
     expectedExecutionPolicyVersion: routing,
-    expectedGoogleContentPolicyVersion: routing,
-    expectedEmergencyKillVersion: routing,
     expectedActorRole: routing,
     expectedPermissionDigest: routing,
     expectedSourceEpoch: routing,
@@ -799,10 +789,6 @@ export const createGoogleImportV2Store = (
             approvalBindingId: gbpImportRequestItems.approvalBindingId,
             expectedExecutionPolicyVersion:
               gbpImportRequestItems.expectedExecutionPolicyVersion,
-            expectedGoogleContentPolicyVersion:
-              gbpImportRequestItems.expectedGoogleContentPolicyVersion,
-            expectedEmergencyKillVersion:
-              gbpImportRequestItems.expectedEmergencyKillVersion,
             expectedActorRole: gbpImportRequestItems.expectedActorRole,
             expectedPermissionDigest: gbpImportRequestItems.expectedPermissionDigest,
             expectedPrincipalKind: gbpImportRequestItems.expectedPrincipalKind,
@@ -994,10 +980,6 @@ export const createGoogleImportV2Store = (
             approvalBindingId: gbpImportRequestItems.approvalBindingId,
             expectedExecutionPolicyVersion:
               gbpImportRequestItems.expectedExecutionPolicyVersion,
-            expectedGoogleContentPolicyVersion:
-              gbpImportRequestItems.expectedGoogleContentPolicyVersion,
-            expectedEmergencyKillVersion:
-              gbpImportRequestItems.expectedEmergencyKillVersion,
             expectedActorRole: gbpImportRequestItems.expectedActorRole,
             expectedPermissionDigest: gbpImportRequestItems.expectedPermissionDigest,
             expectedPrincipalKind: gbpImportRequestItems.expectedPrincipalKind,
@@ -1271,8 +1253,6 @@ export const createGoogleImportV2Store = (
             googleReviewUri: null,
             approvalBindingId: null,
             expectedExecutionPolicyVersion: null,
-            expectedGoogleContentPolicyVersion: null,
-            expectedEmergencyKillVersion: null,
             expectedActorRole: null,
             expectedPermissionDigest: null,
             expectedSourceEpoch: null,
@@ -1508,10 +1488,6 @@ export const createGoogleImportV2Store = (
           approvalBindingId: gbpImportRequestItems.approvalBindingId,
           expectedExecutionPolicyVersion:
             gbpImportRequestItems.expectedExecutionPolicyVersion,
-          expectedGoogleContentPolicyVersion:
-            gbpImportRequestItems.expectedGoogleContentPolicyVersion,
-          expectedEmergencyKillVersion:
-            gbpImportRequestItems.expectedEmergencyKillVersion,
           expectedActorRole: gbpImportRequestItems.expectedActorRole,
           expectedPermissionDigest: gbpImportRequestItems.expectedPermissionDigest,
           expectedPrincipalKind: gbpImportRequestItems.expectedPrincipalKind,
@@ -1843,8 +1819,6 @@ export const createGoogleImportV2Store = (
           expectedCredentialGeneration: null,
           approvalBindingId: null,
           expectedExecutionPolicyVersion: null,
-          expectedGoogleContentPolicyVersion: null,
-          expectedEmergencyKillVersion: null,
           expectedActorRole: null,
           expectedPermissionDigest: null,
           expectedSourceEpoch: null,

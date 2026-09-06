@@ -92,8 +92,6 @@ const compiledReply = compileGoogleProviderRequest(
 )
 const vector = Object.freeze({
   executionPolicyVersion: 'beta-local-2',
-  googleContentPolicyVersion: 0,
-  emergencyKillVersion: 0,
   principalKind: 'user',
   role: 'AccountAdmin',
   permissionVersion: 0,
@@ -272,8 +270,6 @@ async function seedPermit(): Promise<void> {
       APPROVAL_ID,
       JSON.stringify({
         ...vector,
-        googleContentPolicyVersion: Number(current.version),
-        emergencyKillVersion: Number(current.emergency_kill_version),
         permissionVersion: Number(permissionVersion),
       }),
       NOW,
@@ -309,8 +305,6 @@ async function seedDispatchingCleanupPermit(): Promise<void> {
   if (!current) throw new Error('expected global policy head')
   const cleanupVector = {
     ...vector,
-    googleContentPolicyVersion: Number(current.version),
-    emergencyKillVersion: Number(current.emergency_kill_version),
     requestBindingSha256: compiledCleanup.admission.requestBindingSha256,
     credentialBinding: compiledCleanup.admission.credentialBinding,
     requestBodySha256: compiledCleanup.admission.requestBodySha256,
@@ -702,8 +696,6 @@ describe('Postgres Google admission permit authority', () => {
           APPROVAL_ID,
           JSON.stringify({
             executionPolicyVersion: 'beta-local-2',
-            googleContentPolicyVersion: Number(current.version),
-            emergencyKillVersion: Number(current.emergency_kill_version),
             principalKind: 'user',
             role: 'AccountAdmin',
             permissionVersion: Number(permissionVersion),
@@ -872,8 +864,6 @@ describe('Postgres Google admission permit authority', () => {
           approvalId,
           JSON.stringify({
             executionPolicyVersion: 'beta-local-2',
-            googleContentPolicyVersion: Number(current.version),
-            emergencyKillVersion: Number(current.emergency_kill_version),
             principalKind: 'system',
             systemPrincipal: 'review-sync-worker-v1',
             role: 'System',
@@ -995,8 +985,6 @@ describe('Postgres Google admission permit authority', () => {
           approvalId,
           JSON.stringify({
             executionPolicyVersion: 'beta-local-2',
-            googleContentPolicyVersion: Number(current.version),
-            emergencyKillVersion: Number(current.emergency_kill_version),
             principalKind: 'system',
             systemPrincipal: 'reply-publication-worker-v1',
             role: 'System',
@@ -1303,8 +1291,6 @@ describe('Postgres Google admission permit authority', () => {
           approvalId,
           JSON.stringify({
             executionPolicyVersion: 'beta-local-2',
-            googleContentPolicyVersion: Number(current.version),
-            emergencyKillVersion: Number(current.emergency_kill_version),
             principalKind: 'user',
             role: 'PropertyManager',
             permissionVersion: Number(permissionVersion),
@@ -1586,8 +1572,6 @@ describe('Postgres Google admission permit authority', () => {
       expectedCredentialGeneration: 1,
       authorizationVector: Object.freeze({
         executionPolicyVersion: 'beta-local-2',
-        googleContentPolicyVersion: Number(current.version),
-        emergencyKillVersion: Number(current.emergency_kill_version),
         principalKind: 'user',
         role: 'AccountAdmin',
         permissionVersion: Number(permissionVersion),

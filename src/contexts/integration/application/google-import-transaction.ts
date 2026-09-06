@@ -335,10 +335,6 @@ export function createGoogleImportTransaction(
             currentAuthorization.connectionId !== item.connectionId ||
             typeof vector.executionPolicyVersion !== 'string' ||
             !/^[a-z0-9][a-z0-9._-]{0,31}$/.test(vector.executionPolicyVersion) ||
-            typeof vector.googleContentPolicyVersion !== 'number' ||
-            !Number.isSafeInteger(vector.googleContentPolicyVersion) ||
-            typeof vector.emergencyKillVersion !== 'number' ||
-            !Number.isSafeInteger(vector.emergencyKillVersion) ||
             typeof vector.role !== 'string' ||
             vector.role.length < 1 ||
             typeof vector.permissionDigest !== 'string' ||

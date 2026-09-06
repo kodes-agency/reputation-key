@@ -63,8 +63,6 @@ const authorization: ImportDiscoveryAuthorization = {
   approvalBindingId: APPROVAL_ID,
   authorizationVector: {
     executionPolicyVersion: 'beta-local-2',
-    googleContentPolicyVersion: 6,
-    emergencyKillVersion: 7,
     role: 'owner',
     permissionDigest: 'a'.repeat(64),
   },

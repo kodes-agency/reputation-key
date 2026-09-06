@@ -27,8 +27,6 @@ function authorizationVector(
 ): Readonly<Record<string, ProviderAuthorizationVectorValue>> {
   return {
     executionPolicyVersion: 11,
-    googleContentPolicyVersion: 5,
-    emergencyKillVersion: 1,
     connectionLifecycleVersion: 4,
     connectionAccessVersion: 2,
     credentialGeneration: 7,
@@ -264,7 +262,6 @@ describe('provider authorization leases', () => {
     ['connection lifecycle version', { connectionLifecycleVersion: 5 }],
     ['connection access version', { connectionAccessVersion: 3 }],
     ['execution policy version', { executionPolicyVersion: 12 }],
-    ['emergency kill version', { emergencyKillVersion: 2 }],
   ])(
     'removes the lease when the %s changes',
     async (

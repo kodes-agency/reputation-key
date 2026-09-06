@@ -240,8 +240,6 @@ export const gbpImportRequestItems = pgTable(
     expectedExecutionPolicyVersion: varchar('expected_execution_policy_version', {
       length: 32,
     }),
-    expectedGoogleContentPolicyVersion: integer('expected_google_content_policy_version'),
-    expectedEmergencyKillVersion: integer('expected_emergency_kill_version'),
     expectedActorRole: varchar('expected_actor_role', { length: 50 }),
     expectedPermissionDigest: varchar('expected_permission_digest', { length: 64 }),
     // The remaining two dimensions of the principal stage's authorization
@@ -358,8 +356,6 @@ export const gbpImportRequestItems = pgTable(
         (
           ${t.approvalBindingId} IS NULL
           AND ${t.expectedExecutionPolicyVersion} IS NULL
-          AND ${t.expectedGoogleContentPolicyVersion} IS NULL
-          AND ${t.expectedEmergencyKillVersion} IS NULL
           AND ${t.expectedActorRole} IS NULL
           AND ${t.expectedPermissionDigest} IS NULL
           AND ${t.expectedPrincipalKind} IS NULL
@@ -368,8 +364,6 @@ export const gbpImportRequestItems = pgTable(
         OR (
           char_length(${t.approvalBindingId}) BETWEEN 1 AND 255
           AND char_length(${t.expectedExecutionPolicyVersion}) BETWEEN 1 AND 32
-          AND ${t.expectedGoogleContentPolicyVersion} >= 0
-          AND ${t.expectedEmergencyKillVersion} >= 0
           AND char_length(${t.expectedActorRole}) BETWEEN 1 AND 50
           AND ${t.expectedPermissionDigest} ~ '^[a-f0-9]{64}$'
           AND char_length(${t.expectedPrincipalKind}) BETWEEN 1 AND 32

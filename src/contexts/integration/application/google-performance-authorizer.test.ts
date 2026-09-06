@@ -129,8 +129,6 @@ function setup(
           emergencyKillVersion: 3,
           authorizationVector: overrides.contentVector ?? {
             executionPolicyVersion: 'beta-local-2',
-            googleContentPolicyVersion: 12,
-            emergencyKillVersion: 3,
             principalKind: 'user',
             role: 'PropertyManager',
             permissionVersion: 7,
@@ -249,8 +247,6 @@ describe('createGooglePerformanceAuthorizer', () => {
     if (!result.ok) throw new Error('expected authorization')
     expect(result.snapshot.authorizationVector).toMatchObject({
       executionPolicyVersion: 'beta-local-2',
-      googleContentPolicyVersion: 12,
-      emergencyKillVersion: 3,
       principalKind: 'user',
       role: 'PropertyManager',
       permissionVersion: 7,
@@ -274,8 +270,6 @@ describe('createGooglePerformanceAuthorizer', () => {
   it('keeps the lease fence stable across a credential-generation refresh', async () => {
     const refreshedVector = {
       executionPolicyVersion: 'beta-local-2',
-      googleContentPolicyVersion: 12,
-      emergencyKillVersion: 3,
       principalKind: 'user',
       role: 'PropertyManager',
       permissionVersion: 7,
@@ -318,8 +312,6 @@ describe('createGooglePerformanceAuthorizer', () => {
       connection: connection({ credentialGeneration: 7 }),
       contentVector: {
         executionPolicyVersion: 'beta-local-2',
-        googleContentPolicyVersion: 12,
-        emergencyKillVersion: 3,
         principalKind: 'user',
         role: 'PropertyManager',
         permissionVersion: 7,
@@ -345,8 +337,6 @@ describe('createGooglePerformanceAuthorizer', () => {
     const drifted = await setup({
       contentVector: {
         executionPolicyVersion: 'beta-local-2',
-        googleContentPolicyVersion: 12,
-        emergencyKillVersion: 3,
         principalKind: 'user',
         role: 'PropertyManager',
         permissionVersion: 7,
@@ -578,8 +568,6 @@ describe('createGooglePerformanceAuthorizer', () => {
     const { authorize, getAccessToken } = setup({
       contentVector: {
         executionPolicyVersion: 'beta-local-2',
-        googleContentPolicyVersion: 12,
-        emergencyKillVersion: 3,
         principalKind: 'user',
         role: 'PropertyManager',
         permissionVersion: 7,

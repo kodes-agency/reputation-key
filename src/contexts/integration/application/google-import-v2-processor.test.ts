@@ -45,8 +45,6 @@ const authorization = {
   approvalBindingId: '00000000-0000-4000-8000-000000000006',
   authorizationVector: {
     executionPolicyVersion: 'beta-local-2',
-    googleContentPolicyVersion: 8,
-    emergencyKillVersion: 2,
     role: 'Admin',
     permissionDigest: 'a'.repeat(64),
     connectionLifecycleVersion: 4,

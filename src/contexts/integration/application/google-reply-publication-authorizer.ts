@@ -168,8 +168,6 @@ function expectedSystemVector(
   if (!validPublicationVector(input, vector)) return null
   return Object.freeze({
     executionPolicyVersion: GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
-    googleContentPolicyVersion: content.policyVersion,
-    emergencyKillVersion: content.emergencyKillVersion,
     principalKind: 'system',
     systemPrincipal: GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL,
     role: 'System',

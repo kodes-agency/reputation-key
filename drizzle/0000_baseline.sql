@@ -2083,8 +2083,6 @@ CREATE TABLE "gbp_import_request_items" (
 	"expected_credential_generation" integer,
 	"approval_binding_id" varchar(255),
 	"expected_execution_policy_version" varchar(32),
-	"expected_google_content_policy_version" integer,
-	"expected_emergency_kill_version" integer,
 	"expected_actor_role" varchar(50),
 	"expected_permission_digest" varchar(64),
 	"expected_principal_kind" varchar(32),
@@ -2150,8 +2148,6 @@ CREATE TABLE "gbp_import_request_items" (
         (
           "gbp_import_request_items"."approval_binding_id" IS NULL
           AND "gbp_import_request_items"."expected_execution_policy_version" IS NULL
-          AND "gbp_import_request_items"."expected_google_content_policy_version" IS NULL
-          AND "gbp_import_request_items"."expected_emergency_kill_version" IS NULL
           AND "gbp_import_request_items"."expected_actor_role" IS NULL
           AND "gbp_import_request_items"."expected_permission_digest" IS NULL
           AND "gbp_import_request_items"."expected_principal_kind" IS NULL
@@ -2160,8 +2156,6 @@ CREATE TABLE "gbp_import_request_items" (
         OR (
           char_length("gbp_import_request_items"."approval_binding_id") BETWEEN 1 AND 255
           AND char_length("gbp_import_request_items"."expected_execution_policy_version") BETWEEN 1 AND 32
-          AND "gbp_import_request_items"."expected_google_content_policy_version" >= 0
-          AND "gbp_import_request_items"."expected_emergency_kill_version" >= 0
           AND char_length("gbp_import_request_items"."expected_actor_role") BETWEEN 1 AND 50
           AND "gbp_import_request_items"."expected_permission_digest" ~ '^[a-f0-9]{64}$'
           AND char_length("gbp_import_request_items"."expected_principal_kind") BETWEEN 1 AND 32

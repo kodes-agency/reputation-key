@@ -34,10 +34,7 @@ export function sameGoogleContentAuthorizationVector(
  * what is being ignored: a log that blamed an excluded key would send the next
  * investigation exactly where this one already went.
  */
-export const FROZEN_VECTOR_EXCLUDED_KEYS = [
-  'googleContentPolicyVersion',
-  'credentialGeneration',
-] as const
+export const FROZEN_VECTOR_EXCLUDED_KEYS = ['credentialGeneration'] as const
 
 function withoutExcludedKeys(vector: AuthorizationVector): AuthorizationVector {
   const kept: Record<string, string | number | boolean | null> = {}
@@ -51,18 +48,28 @@ function withoutExcludedKeys(vector: AuthorizationVector): AuthorizationVector {
 /**
  * Compares a vector FROZEN at approval time against one recomputed later, at
  * effect time. Identical to `sameGoogleContentAuthorizationVector` — same
- * strict key-set equality, same per-key equality — except that the two keys in
- * `FROZEN_VECTOR_EXCLUDED_KEYS` are dropped from both sides.
+ * strict key-set equality, same per-key equality — except that the key in
+ * `FROZEN_VECTOR_EXCLUDED_KEYS` is dropped from both sides.
  *
- * ── `googleContentPolicyVersion` ────────────────────────────────────────────
- * That key is not a fact about *this* authorization. It is the global
- * `policy_version.version` counter (`policy-version-sql.ts`), whose documented
- * purpose is snapshot cache invalidation: every policy-table mutation anywhere
- * in the deployment bumps that single global row in the same statement, so the
- * persisted policy store knows its snapshot is stale. It is a cache generation,
- * not an authorization epoch — and the design already has a dedicated
- * authorization epoch, `emergencyKillVersion`, a separate counter on the same
- * row that only the kill-switch paths bump and that stays compared here.
+ * ── history: `googleContentPolicyVersion` and `emergencyKillVersion` ────────
+ * Both used to be vector keys, and this comment used to argue at length about
+ * excluding the first while comparing the second. WP2.2 step 2 removed them
+ * from the vector entirely: the resolver stopped emitting them, the four
+ * expectation builders stopped claiming them, and their two persisted columns
+ * on `gbp_import_request_items` were dropped. So there is no longer a decision
+ * to document here about either one — only `credentialGeneration` is excluded.
+ *
+ * The reasoning is kept because it explains why removal was safe rather than
+ * merely convenient. `googleContentPolicyVersion` was never a fact about *this*
+ * authorization: it is the global `policy_version.version` counter
+ * (`policy-version-sql.ts`), whose documented purpose is snapshot cache
+ * invalidation — every policy-table mutation anywhere in the deployment bumps
+ * that one global row in the same statement so the persisted policy store knows
+ * its snapshot is stale. A cache generation, not an authorization epoch.
+ * `emergencyKillVersion` was the real epoch, and the kill switch it served is
+ * still enforced — by `control.denied`, read live on every `decide()`, which is
+ * what actually stops execution. Comparing a counter proved nothing the live
+ * read does not.
  *
  * Why excluding it takes nothing away. A delayed effect's authorization is
  * re-proved from scratch on every attempt, so every dimension whose mutation
@@ -74,7 +81,7 @@ function withoutExcludedKeys(vector: AuthorizationVector): AuthorizationVector {
  * | property suspended                       | `policyAuthorizes` re-queries `property_policy`        |
  * | org capability granted/revoked           | `policyAuthorizes` re-queries `organization_capability`|
  * | property capability granted/revoked      | `policyAuthorizes` re-queries `property_capability`    |
- * | capability denied / emergency kill       | `control.denied`, `emergencyKillVersion` (still compared) |
+ * | capability denied / emergency kill       | `control.denied`, read live on every `decide()`         |
  * | consent recorded/revoked                 | `hasActiveConsent`, a live read on every `decide()`    |
  * | property access grant added/removed      | `hasActivePropertyGrant` + `role`/`permissionDigest`   |
  * | approval binding replaced                | `approvalBindingId`, compared separately               |

@@ -135,14 +135,11 @@ function safeGeneration(value: number): boolean {
 function expectedSystemVector(
   binding: ReviewSyncPropertyAuthorizationView,
   connection: GoogleConnection,
-  content: Extract<GoogleReviewSyncContentAuthorizationResult, { ok: true }>,
   operationKey: GoogleConnectionSystemOperation,
 ) {
   const notificationOperation = operationKey === 'notifications.manage'
   return Object.freeze({
     executionPolicyVersion: GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
-    googleContentPolicyVersion: content.policyVersion,
-    emergencyKillVersion: content.emergencyKillVersion,
     principalKind: 'system',
     systemPrincipal: notificationOperation
       ? GOOGLE_NOTIFICATION_SYSTEM_PRINCIPAL
@@ -180,7 +177,7 @@ function validSystemContent(
     safeGeneration(connection.credentialGeneration) &&
     sameGoogleContentAuthorizationVector(
       content.authorizationVector,
-      expectedSystemVector(binding, connection, content, operationKey),
+      expectedSystemVector(binding, connection, operationKey),
     )
   )
 }
@@ -280,12 +277,7 @@ export function createGoogleReviewSyncAuthorizer(
       return { ok: false, code: 'runtime_unavailable' }
     }
     if (!content.ok) return content
-    const expectedVector = expectedSystemVector(
-      binding,
-      connection,
-      content,
-      operationKey,
-    )
+    const expectedVector = expectedSystemVector(binding, connection, operationKey)
     if (!validSystemContent(binding, connection, content, operationKey)) {
       deps.warn?.(
         {

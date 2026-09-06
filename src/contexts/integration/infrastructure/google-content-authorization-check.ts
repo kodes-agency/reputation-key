@@ -723,8 +723,6 @@ export const createGoogleContentAuthorizationCheck = (
       allowed: true,
       vector: {
         executionPolicyVersion: GOOGLE_CONTENT_EXECUTION_POLICY_VERSION,
-        googleContentPolicyVersion: policy.version,
-        emergencyKillVersion: policy.emergencyKillVersion,
         ...principal.value,
         ...connectionVersionVector(connection),
         ...oauth.value,

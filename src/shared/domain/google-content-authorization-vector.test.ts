@@ -70,14 +70,12 @@ describe('sameGoogleContentAuthorizationVector', () => {
 })
 
 describe('sameFrozenGoogleContentAuthorizationVector', () => {
-  // The eight-key shape `authorizationFromRow` reconstitutes from
-  // google_import_v2_items (google-import-v2-store.ts:181-190).
+  // A representative vector shape `authorizationFromRow` reconstitutes from
+  // `gbp_import_request_items`.
   const persisted = (
     overrides: Partial<Record<string, string | number | boolean | null>> = {},
   ) => ({
     executionPolicyVersion: 'beta-local-2',
-    googleContentPolicyVersion: 11,
-    emergencyKillVersion: 4,
     role: 'AccountAdmin',
     permissionDigest: 'a'.repeat(64),
     connectionLifecycleVersion: 3,
@@ -86,14 +84,12 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
     ...overrides,
   })
 
-  it('ignores a moved global policy cache generation', () => {
-    expect(
-      sameFrozenGoogleContentAuthorizationVector(
-        persisted({ googleContentPolicyVersion: 11 }),
-        persisted({ googleContentPolicyVersion: 12 }),
-      ),
-    ).toBe(true)
-  })
+  // WP2.2 step 2 removed the test that lived here, which asserted that a moved
+  // `googleContentPolicyVersion` was IGNORED by the comparison. That key is no
+  // longer part of the authorization vector at all — the resolver stopped
+  // emitting it and the persisted columns are gone — so there is nothing left to
+  // ignore. Re-pinning it against any surviving key would have asserted a
+  // property nothing in the product relies on.
 
   // CONTRACT CHANGE (was: "still rejects … the credential generation").
   // `updateTokens` bumps `credential_generation` — and only it — on a routine
@@ -110,18 +106,9 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
         persisted({ credentialGeneration: 6 }),
       ),
     ).toBe(true)
-    // Both excluded counters moving at once — a sibling item's policy write and
-    // a token refresh in the same window — is still not a revocation.
-    expect(
-      sameFrozenGoogleContentAuthorizationVector(
-        persisted(),
-        persisted({ credentialGeneration: 6, googleContentPolicyVersion: 12 }),
-      ),
-    ).toBe(true)
   })
 
   it.each([
-    ['the emergency kill epoch', { emergencyKillVersion: 5 }],
     ['the execution policy version', { executionPolicyVersion: 'beta-local-3' }],
     ['the actor role', { role: 'Staff' }],
     ['the permission digest', { permissionDigest: 'b'.repeat(64) }],
@@ -134,25 +121,12 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
     // …and rejects it even when the cache generation moved in the same window,
     // so the exclusion cannot mask a real change that rode along with a bump.
     expect(
-      sameFrozenGoogleContentAuthorizationVector(
-        persisted(),
-        persisted({ ...drift, googleContentPolicyVersion: 12 }),
-      ),
-    ).toBe(false)
-  })
-
-  it('still requires every other key to be present on both sides', () => {
-    const { emergencyKillVersion: _dropped, ...missingKillEpoch } = persisted()
-    expect(
-      sameFrozenGoogleContentAuthorizationVector(persisted(), missingKillEpoch),
-    ).toBe(false)
-    expect(
-      sameFrozenGoogleContentAuthorizationVector(missingKillEpoch, persisted()),
+      sameFrozenGoogleContentAuthorizationVector(persisted(), persisted({ ...drift })),
     ).toBe(false)
   })
 
   it('compares vectors that never carried the generation key at all', () => {
-    const { googleContentPolicyVersion: _absent, ...withoutGeneration } = persisted()
+    const { credentialGeneration: _absent, ...withoutGeneration } = persisted()
     expect(
       sameFrozenGoogleContentAuthorizationVector(withoutGeneration, persisted()),
     ).toBe(true)
@@ -174,7 +148,6 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
         frozenVectorDrift(
           persisted(),
           persisted({
-            googleContentPolicyVersion: 12,
             credentialGeneration: 6,
             role: 'Staff',
           }),
@@ -184,7 +157,6 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
 
     it('is empty exactly when the comparison passes', () => {
       const recomputed = persisted({
-        googleContentPolicyVersion: 99,
         credentialGeneration: 7,
       })
       expect(sameFrozenGoogleContentAuthorizationVector(persisted(), recomputed)).toBe(

@@ -72,8 +72,6 @@ function connection(overrides: Partial<GoogleConnection> = {}): GoogleConnection
 function contentVector(overrides: Record<string, string | number | boolean | null> = {}) {
   return {
     executionPolicyVersion: 'beta-local-2',
-    googleContentPolicyVersion: 11,
-    emergencyKillVersion: 2,
     principalKind: 'system',
     systemPrincipal: GOOGLE_REVIEW_SYNC_SYSTEM_PRINCIPAL,
     role: 'System',

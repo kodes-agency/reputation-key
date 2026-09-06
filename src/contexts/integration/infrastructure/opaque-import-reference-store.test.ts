@@ -28,7 +28,6 @@ const authorization = (
   approvalBindingId: APPROVAL_BINDING_ID,
   authorizationVector: Object.freeze({
     policyVersion: 7,
-    emergencyKillVersion: 2,
     permissionVersion: 11,
     membershipGeneration: 13,
   }),

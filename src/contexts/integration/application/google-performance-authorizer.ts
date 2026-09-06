@@ -308,8 +308,6 @@ export function createGooglePerformanceAuthorizer(
     }
     const expectedAuthorizationVector = Object.freeze({
       executionPolicyVersion: readDecision.policyVersion,
-      googleContentPolicyVersion: content.policyVersion,
-      emergencyKillVersion: content.emergencyKillVersion,
       principalKind: 'user',
       role: actor.role,
       permissionVersion: Number(permissionVersion),

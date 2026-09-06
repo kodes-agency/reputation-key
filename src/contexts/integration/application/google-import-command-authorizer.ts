@@ -398,8 +398,6 @@ export function createGoogleImportCommandAuthorizer(
     }
     const expectedAuthorizationVector = {
       executionPolicyVersion,
-      googleContentPolicyVersion: contentAuthorization.policyVersion,
-      emergencyKillVersion: contentAuthorization.emergencyKillVersion,
       principalKind: 'user',
       role: input.actor.role,
       permissionVersion: Number(permissionVersion),
@@ -445,11 +443,15 @@ export function createGoogleImportCommandAuthorizer(
    * `input.expected` was frozen when the job was approved; everything above
    * was recomputed just now. This is the only CROSS-TIME vector comparison
    * in the codebase (`sameRequestVectorDrift` builds both sides in this
-   * request), so it is the only one that must tolerate the two counters that
-   * move without revoking anything — the global policy cache generation and a
-   * routine token refresh. See `FROZEN_VECTOR_EXCLUDED_KEYS`. Every other
-   * authorization fact still has to match exactly, `emergencyKillVersion`
-   * included.
+   * request), so it is the only one that must tolerate a counter that moves
+   * without revoking anything — a routine token refresh bumping
+   * `credentialGeneration`. See `FROZEN_VECTOR_EXCLUDED_KEYS`. Every other
+   * authorization fact still has to match exactly.
+   *
+   * This used to name a second tolerated counter, the global policy cache
+   * generation, and to promise that `emergencyKillVersion` was still compared.
+   * WP2.2 step 2 removed both from the vector; the kill switch is enforced by
+   * `control.denied`, read live on every decision, not by comparing a counter.
    */
   const frozenVectorDriftDenial = (
     input: AuthorizerInput,

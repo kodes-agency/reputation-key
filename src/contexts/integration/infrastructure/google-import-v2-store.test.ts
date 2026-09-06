@@ -41,8 +41,6 @@ const INTENT: GoogleImportV2Intent = {
         approvalBindingId: 'approval-1',
         authorizationVector: {
           executionPolicyVersion: 'beta-local-2',
-          googleContentPolicyVersion: 1,
-          emergencyKillVersion: 1,
           role: 'Admin',
           permissionDigest: 'a'.repeat(64),
           principalKind: 'user',
@@ -133,8 +131,6 @@ describe('Google import v2 store', () => {
         destinationPropertyId: INTENT.items[0]!.destinationPropertyId,
         approvalBindingId: 'approval-1',
         expectedExecutionPolicyVersion: 'beta-local-2',
-        expectedGoogleContentPolicyVersion: 1,
-        expectedEmergencyKillVersion: 1,
         expectedActorRole: 'Admin',
         expectedPermissionDigest: 'a'.repeat(64),
       }),
