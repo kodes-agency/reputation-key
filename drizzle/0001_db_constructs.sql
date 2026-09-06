@@ -2702,7 +2702,7 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.fail_google_execution_permit_v1(p_permit_id uuid, p_permit_generation bigint, p_policy_version bigint, p_emergency_kill_version bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_code text)
+CREATE OR REPLACE FUNCTION public.fail_google_execution_permit_v1(p_permit_id uuid, p_permit_generation bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_code text)
  RETURNS boolean
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -2721,8 +2721,6 @@ BEGIN
   WHERE permit.id = p_permit_id
     AND permit.state = 'started'
     AND permit.permit_generation = p_permit_generation
-    AND permit.policy_version = p_policy_version
-    AND permit.emergency_kill_version = p_emergency_kill_version
     AND permit.route_key = p_route_key
     AND permit.route_catalog_version = p_route_catalog_version
     AND permit.quota_policy_id = p_quota_policy_id;
@@ -6815,7 +6813,7 @@ END;
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v1(p_permit_id uuid, p_permit_generation bigint, p_policy_version bigint, p_emergency_kill_version bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
+CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v1(p_permit_id uuid, p_permit_generation bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
  RETURNS TABLE(outcome text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -6835,46 +6833,22 @@ BEGIN
           permit.route_key <> 'oauth.revoke'
           AND EXISTS (
           SELECT 1
-          FROM public.policy_version AS policy
-          INNER JOIN public.capability_execution_control AS control
-            ON control.capability = permit.capability
-          INNER JOIN public.capability_compliance_approvals AS approval
-            ON approval.id = permit.approval_binding_id
-           AND approval.capability = permit.capability
-          INNER JOIN public.google_connections AS connection
-            ON connection.id = permit.connection_id
-           AND connection.organization_id = permit.organization_id
+          -- WP2.2: the approval ceremony that used to gate this — a global
+          -- `policy_version` generation, `capability_execution_control`,
+          -- and a role-signed `capability_compliance_approvals` row with its
+          -- window, cohort and superseding-binding checks — is gone. What
+          -- remains below is the part that protects the product rather than
+          -- the process: the connection this permit names must exist for the
+          -- organization, and each capability branch must still prove its own
+          -- principal, role and (for publication) reply state.
+          FROM public.google_connections AS connection
           LEFT JOIN public.member AS member
             ON member."organizationId" = permit.organization_id
            AND member."userId" = permit.initiator_user_id
           LEFT JOIN public.permission_version AS permission
             ON permission.organization_id = permit.organization_id
-          WHERE policy.scope = 'global'
-            AND policy.version = permit.policy_version
-            AND policy.emergency_kill_version = permit.emergency_kill_version
-            AND control.denied = false
-            AND control.emergency_kill_version = policy.emergency_kill_version
-            AND approval.status = 'approved'
-            AND approval.route_catalog_version = permit.route_catalog_version
-            AND approval.execution_policy_version =
-              permit.authorization_vector->>'executionPolicyVersion'
-            AND approval.google_project_attestation_sha256 =
-              permit.authorization_vector->>'projectFingerprint'
-            AND approval.approved_at <= v_now
-            AND approval.expires_at > v_now
-            AND (
-              approval.target_phase <> 'railway_closed_beta'
-              OR approval.railway_closed_beta_cohort @>
-                to_jsonb(ARRAY[permit.organization_id]::text[])
-            )
-            AND NOT EXISTS (
-              SELECT 1
-              FROM public.capability_compliance_approvals AS newer
-              WHERE newer.capability = approval.capability
-                AND newer.target_phase = approval.target_phase
-                AND newer.environment_profile = approval.environment_profile
-                AND newer.binding_version > approval.binding_version
-            )
+          WHERE connection.id = permit.connection_id
+            AND connection.organization_id = permit.organization_id
             AND NOT EXISTS (
               SELECT 1
               FROM public.organization_policy AS organization_policy
@@ -7084,14 +7058,6 @@ BEGIN
               '^[1-9][0-9]*$'
             AND connection.credential_generation::text =
               permit.authorization_vector->>'credentialGeneration'
-            AND permit.authorization_vector->>'googleContentPolicyVersion' ~
-              '^(0|[1-9][0-9]*)$'
-            AND policy.version::text =
-              permit.authorization_vector->>'googleContentPolicyVersion'
-            AND permit.authorization_vector->>'emergencyKillVersion' ~
-              '^(0|[1-9][0-9]*)$'
-            AND policy.emergency_kill_version::text =
-              permit.authorization_vector->>'emergencyKillVersion'
             AND (
               permit.property_id IS NULL
               OR (
@@ -7171,29 +7137,17 @@ BEGIN
           AND permit.property_id IS NULL
           AND EXISTS (
             SELECT 1
-            FROM public.capability_compliance_approvals AS approval
-            INNER JOIN public.credential_revoke_permits AS revoke
-              ON revoke.cleanup_work_permit_id = permit.id
+            -- WP2.2: approval ceremony removed; see start_…_v1. The revoke
+            -- state machine below is the whole point of this branch — a
+            -- credential revocation may only be dispatched from a permit that
+            -- names a live, dispatching, not-yet-terminal revoke record.
+            FROM public.credential_revoke_permits AS revoke
             INNER JOIN public.google_credential_source_operations AS source
               ON source.id = revoke.source_operation_id
              AND source.guard_id = revoke.guard_id
             INNER JOIN public.google_subject_authority_guards AS guard
               ON guard.id = revoke.guard_id
-            WHERE approval.id = permit.approval_binding_id
-              AND approval.capability = permit.capability
-              AND approval.route_catalog_version = permit.route_catalog_version
-              AND approval.execution_policy_version =
-                permit.authorization_vector->>'executionPolicyVersion'
-              AND approval.google_project_attestation_sha256 =
-                permit.authorization_vector->>'projectFingerprint'
-              AND approval.status = 'approved'
-              AND approval.approved_at <= permit.admitted_at
-              AND approval.expires_at > permit.admitted_at
-              AND (
-                approval.target_phase <> 'railway_closed_beta'
-                OR approval.railway_closed_beta_cohort @>
-                  to_jsonb(ARRAY[permit.organization_id]::text[])
-              )
+            WHERE revoke.cleanup_work_permit_id = permit.id
               AND revoke.state = 'dispatching'
               AND revoke.cleanup_deadline_at > v_now
               AND revoke.activated_at IS NOT NULL
@@ -7240,8 +7194,6 @@ BEGIN
     WHERE permit.id = candidate.id
       AND candidate.state = 'admitted'
       AND candidate.permit_generation = p_permit_generation
-      AND candidate.policy_version = p_policy_version
-      AND candidate.emergency_kill_version = p_emergency_kill_version
       AND candidate.route_key = p_route_key
       AND candidate.route_catalog_version = p_route_catalog_version
       AND candidate.quota_policy_id = p_quota_policy_id
@@ -7282,7 +7234,7 @@ END
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v2(p_permit_id uuid, p_permit_generation bigint, p_policy_version bigint, p_emergency_kill_version bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
+CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v2(p_permit_id uuid, p_permit_generation bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
  RETURNS TABLE(outcome text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -7300,8 +7252,6 @@ BEGIN
     FROM public.start_google_execution_permit_v1(
       p_permit_id,
       p_permit_generation,
-      p_policy_version,
-      p_emergency_kill_version,
       p_route_key,
       p_route_catalog_version,
       p_quota_policy_id,
@@ -7325,49 +7275,21 @@ BEGIN
           AND permit.route_key = 'oauth.token.exchange'
           AND EXISTS (
             SELECT 1
-            FROM public.policy_version AS policy
-            INNER JOIN public.capability_execution_control AS control
-              ON control.capability = permit.capability
-            INNER JOIN public.capability_compliance_approvals AS approval
-              ON approval.id = permit.approval_binding_id
-             AND approval.capability = permit.capability
+            -- WP2.2: approval ceremony removed; see start_…_v1. The credential
+            -- home and the member/permission joins stay — an OAuth exchange is
+            -- still only admissible for an organization whose credentials live
+            -- here, initiated by a member whose permission version matches.
+            FROM public.google_organization_credential_homes AS home
             INNER JOIN public.member AS member
               ON member."organizationId" = permit.organization_id
              AND member."userId" = permit.initiator_user_id
             INNER JOIN public.permission_version AS permission
               ON permission.organization_id = permit.organization_id
-            INNER JOIN public.google_organization_credential_homes AS home
-              ON home.organization_id = permit.organization_id
-             AND home.superseded_at IS NULL
             LEFT JOIN public.google_connections AS connection
               ON connection.organization_id = permit.organization_id
              AND connection.id = permit.connection_id
-            WHERE policy.scope = 'global'
-              AND policy.version = permit.policy_version
-              AND policy.emergency_kill_version = permit.emergency_kill_version
-              AND control.denied = false
-              AND control.emergency_kill_version = policy.emergency_kill_version
-              AND approval.status = 'approved'
-              AND approval.route_catalog_version = permit.route_catalog_version
-              AND approval.execution_policy_version =
-                permit.authorization_vector->>'executionPolicyVersion'
-              AND approval.google_project_attestation_sha256 =
-                permit.authorization_vector->>'projectFingerprint'
-              AND approval.approved_at <= v_now
-              AND approval.expires_at > v_now
-              AND (
-                approval.target_phase <> 'railway_closed_beta'
-                OR approval.railway_closed_beta_cohort @>
-                  to_jsonb(ARRAY[permit.organization_id]::text[])
-              )
-              AND NOT EXISTS (
-                SELECT 1
-                FROM public.capability_compliance_approvals AS newer
-                WHERE newer.capability = approval.capability
-                  AND newer.target_phase = approval.target_phase
-                  AND newer.environment_profile = approval.environment_profile
-                  AND newer.binding_version > approval.binding_version
-              )
+            WHERE home.organization_id = permit.organization_id
+              AND home.superseded_at IS NULL
               AND NOT EXISTS (
                 SELECT 1
                 FROM public.organization_policy AS organization_policy
@@ -7391,14 +7313,6 @@ BEGIN
                 '^(0|[1-9][0-9]*)$'
               AND permission.version::text =
                 permit.authorization_vector->>'permissionVersion'
-              AND permit.authorization_vector->>'googleContentPolicyVersion' ~
-                '^(0|[1-9][0-9]*)$'
-              AND policy.version::text =
-                permit.authorization_vector->>'googleContentPolicyVersion'
-              AND permit.authorization_vector->>'emergencyKillVersion' ~
-                '^(0|[1-9][0-9]*)$'
-              AND policy.emergency_kill_version::text =
-                permit.authorization_vector->>'emergencyKillVersion'
               AND home.home_cell_id =
                 permit.authorization_vector->>'credentialHomeCellId'
               AND home.catalogue_policy_version::text =
@@ -7478,8 +7392,6 @@ BEGIN
     WHERE permit.id = candidate.id
       AND candidate.state = 'admitted'
       AND candidate.permit_generation = p_permit_generation
-      AND candidate.policy_version = p_policy_version
-      AND candidate.emergency_kill_version = p_emergency_kill_version
       AND candidate.route_key = p_route_key
       AND candidate.route_catalog_version = p_route_catalog_version
       AND candidate.quota_policy_id = p_quota_policy_id
@@ -7514,7 +7426,7 @@ END
 $function$
 ;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v3(p_permit_id uuid, p_permit_generation bigint, p_policy_version bigint, p_emergency_kill_version bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
+CREATE OR REPLACE FUNCTION public.start_google_execution_permit_v3(p_permit_id uuid, p_permit_generation bigint, p_route_key text, p_route_catalog_version text, p_quota_policy_id text, p_authorization_vector jsonb, p_release_sha text)
  RETURNS TABLE(outcome text)
  LANGUAGE plpgsql
  SECURITY DEFINER
@@ -7534,8 +7446,6 @@ BEGIN
     FROM public.start_google_execution_permit_v2(
       p_permit_id,
       p_permit_generation,
-      p_policy_version,
-      p_emergency_kill_version,
       p_route_key,
       p_route_catalog_version,
       p_quota_policy_id,
@@ -7563,9 +7473,9 @@ BEGIN
             INNER JOIN public.google_connections AS connection
               ON connection.organization_id = attempt.organization_id
              AND connection.id = attempt.connection_id
-            INNER JOIN public.capability_compliance_approvals AS approval
-              ON approval.id = permit.approval_binding_id
-             AND approval.capability = permit.capability
+            -- WP2.2: approval ceremony removed; see start_…_v1. Everything
+            -- below is the disconnect-revoke state machine, which is exactly
+            -- what this branch exists to prove.
             WHERE attempt.cleanup_work_permit_id = permit.id
               AND attempt.organization_id = permit.organization_id
               AND attempt.connection_id = permit.connection_id
@@ -7591,19 +7501,6 @@ BEGIN
                 attempt.expected_access_version::text
               AND permit.authorization_vector->>'credentialGeneration' =
                 attempt.expected_credential_generation::text
-              AND approval.route_catalog_version = permit.route_catalog_version
-              AND approval.execution_policy_version =
-                permit.authorization_vector->>'executionPolicyVersion'
-              AND approval.google_project_attestation_sha256 =
-                permit.authorization_vector->>'projectFingerprint'
-              AND approval.status = 'approved'
-              AND approval.approved_at <= permit.admitted_at
-              AND approval.expires_at > permit.admitted_at
-              AND (
-                approval.target_phase <> 'railway_closed_beta'
-                OR approval.railway_closed_beta_cohort @>
-                  to_jsonb(ARRAY[permit.organization_id]::text[])
-              )
           ) THEN 'started'
         ELSE 'changed'
       END AS admission_outcome
@@ -7629,8 +7526,6 @@ BEGIN
     WHERE permit.id = candidate.id
       AND candidate.state = 'admitted'
       AND candidate.permit_generation = p_permit_generation
-      AND candidate.policy_version = p_policy_version
-      AND candidate.emergency_kill_version = p_emergency_kill_version
       AND candidate.route_key = p_route_key
       AND candidate.route_catalog_version = p_route_catalog_version
       AND candidate.quota_policy_id = p_quota_policy_id
@@ -8267,8 +8162,6 @@ AS $function$
   SELECT encode(sha256(convert_to(jsonb_build_array(
     p_permit.id,
     p_permit.permit_generation,
-    p_permit.policy_version,
-    p_permit.emergency_kill_version,
     p_permit.route_key,
     p_permit.capability,
     p_permit.scope_schema_version,
@@ -8277,11 +8170,8 @@ AS $function$
     p_permit.connection_id,
     p_permit.initiator_user_id,
     p_permit.operation_key,
-    p_permit.approval_binding_id,
     p_permit.route_catalog_version,
     p_permit.quota_policy_id,
-    p_permit.start_vector_mode,
-    p_permit.commit_vector_mode,
     p_permit.authorization_vector,
     p_permit.admitted_at,
     p_permit.start_deadline_at
@@ -8290,7 +8180,7 @@ $function$
 ;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.load_google_execution_permit_v1(p_permit_id uuid)
- RETURNS TABLE(id uuid, capability text, route_key text, route_catalog_version text, quota_policy_id text, permit_generation bigint, policy_version bigint, emergency_kill_version bigint, approval_binding_id uuid, authorization_vector jsonb, state text, start_deadline_at timestamp with time zone, organization_id text, property_id uuid, connection_id uuid, initiator_user_id text, authority_revision text)
+ RETURNS TABLE(id uuid, capability text, route_key text, route_catalog_version text, quota_policy_id text, permit_generation bigint, authorization_vector jsonb, state text, start_deadline_at timestamp with time zone, organization_id text, property_id uuid, connection_id uuid, initiator_user_id text, authority_revision text)
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'pg_catalog', 'public'
@@ -8302,9 +8192,6 @@ AS $function$
     permit.route_catalog_version::text,
     permit.quota_policy_id::text,
     permit.permit_generation,
-    permit.policy_version,
-    permit.emergency_kill_version,
-    permit.approval_binding_id,
     permit.authorization_vector,
     permit.state::text,
     permit.start_deadline_at,

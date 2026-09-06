@@ -23,9 +23,6 @@ type PermitRow = Readonly<{
   route_catalog_version: string
   quota_policy_id: string
   permit_generation: string | number
-  policy_version: string | number
-  emergency_kill_version: string | number
-  approval_binding_id: string
   authorization_vector: unknown
   state: string
   start_deadline_at: Date
@@ -100,17 +97,7 @@ function snapshotFromRow(
   if (!policy || policy.quotaPolicyId !== row.quota_policy_id) return null
   const vector = parseVector(row.authorization_vector)
   const permitGeneration = parseGeneration(row.permit_generation)
-  const policyVersion = parseGeneration(row.policy_version)
-  const emergencyKillVersion = parseGeneration(row.emergency_kill_version)
-  if (
-    !vector ||
-    permitGeneration === null ||
-    permitGeneration < 1 ||
-    policyVersion === null ||
-    emergencyKillVersion === null
-  ) {
-    return null
-  }
+  if (!vector || permitGeneration === null || permitGeneration < 1) return null
   const quotaCredentialFingerprint = googleQuotaCredentialFingerprint(
     vector.credentialBinding,
     vector.projectFingerprint,
@@ -148,8 +135,6 @@ function snapshotFromRow(
     }),
     expiresAtMs: row.start_deadline_at.getTime(),
     permitGeneration,
-    policyVersion,
-    emergencyKillVersion,
     authorityRevision: row.authority_revision,
   })
 }
@@ -176,14 +161,11 @@ export function createPostgresGoogleAdmissionPermitAuthority(
     start: async (permit) => {
       const result = await deps.pool.query<{ outcome: string }>(
         `SELECT outcome FROM start_google_execution_permit_v3(
-          $1::uuid, $2::bigint, $3::bigint, $4::bigint,
-          $5::text, $6::text, $7::text, $8::jsonb, $9::text
+          $1::uuid, $2::bigint, $3::text, $4::text, $5::text, $6::jsonb, $7::text
         )`,
         [
           permit.permitId,
           permit.permitGeneration,
-          permit.policyVersion,
-          permit.emergencyKillVersion,
           permit.routeKey,
           permit.routeCatalogueVersion,
           permit.expectedAdmission.quotaPolicyId,
@@ -203,14 +185,11 @@ export function createPostgresGoogleAdmissionPermitAuthority(
     failStarted: async (permit, code) => {
       await deps.pool.query(
         `SELECT fail_google_execution_permit_v1(
-          $1::uuid, $2::bigint, $3::bigint, $4::bigint,
-          $5::text, $6::text, $7::text, $8::text
+          $1::uuid, $2::bigint, $3::text, $4::text, $5::text, $6::text
         )`,
         [
           permit.permitId,
           permit.permitGeneration,
-          permit.policyVersion,
-          permit.emergencyKillVersion,
           permit.routeKey,
           permit.routeCatalogueVersion,
           permit.expectedAdmission.quotaPolicyId,

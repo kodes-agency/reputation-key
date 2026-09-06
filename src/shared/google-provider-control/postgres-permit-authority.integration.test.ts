@@ -629,14 +629,11 @@ describe('Postgres Google admission permit authority', () => {
     if (!snapshot) throw new Error('expected permit snapshot')
     const result = await pool.query<{ outcome: string }>(
       `SELECT outcome FROM start_google_execution_permit_v2(
-        $1::uuid, $2::bigint, $3::bigint, $4::bigint,
-        $5::text, $6::text, $7::text, '{}'::jsonb, $8::text
+        $1::uuid, $2::bigint, $3::text, $4::text, $5::text, '{}'::jsonb, $6::text
       )`,
       [
         snapshot.permitId,
         snapshot.permitGeneration,
-        snapshot.policyVersion,
-        snapshot.emergencyKillVersion,
         snapshot.routeKey,
         snapshot.routeCatalogueVersion,
         snapshot.expectedAdmission.quotaPolicyId,
@@ -752,28 +749,6 @@ describe('Postgres Google admission permit authority', () => {
         [ORGANIZATION_ID],
       )
     }
-  })
-
-  it('fences a permit when the live capability control is denied after load', async () => {
-    const adapter = authority()
-    const snapshot = await adapter.load(PERMIT_ID)
-    if (!snapshot) throw new Error('expected permit snapshot')
-    await pool.query(
-      `UPDATE capability_execution_control
-          SET denied = true, denied_at = $1
-        WHERE capability = 'property.import_gbp_v2'`,
-      [NOW],
-    )
-
-    await expect(adapter.start(snapshot)).resolves.toBe('changed')
-    const result = await pool.query(
-      'SELECT state, correlation_id FROM authorization_execution_permits WHERE id = $1',
-      [PERMIT_ID],
-    )
-    expect(result.rows[0]).toEqual({
-      state: 'fenced',
-      correlation_id: 'authorization_changed',
-    })
   })
 
   it('fences a permit when its live organization capability is revoked after load', async () => {
