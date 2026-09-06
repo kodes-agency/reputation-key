@@ -398,13 +398,6 @@ export async function runRestoreVerifyAction(
     )
     return 0
   }
-  if (recoveryBefore.regionMovesBlocking > 0) {
-    io.err(
-      `REFUSED: ${String(recoveryBefore.regionMovesBlocking)} active or unresolved Data Cell move(s) exist in the restored database — resolve the move authority before applying recovery.`,
-    )
-    return 1
-  }
-
   if (deps.reviewLifecycle.kind !== 'reviewed_apply') {
     io.err('REFUSED: reviewed Review lifecycle apply authority is unavailable.')
     return 1

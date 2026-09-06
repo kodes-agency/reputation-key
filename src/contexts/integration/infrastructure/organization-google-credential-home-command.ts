@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm'
 import type { Tx } from '#/shared/outbox/commit'
 import type { GoogleConnectionId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type { GoogleCredentialHomeBinding } from '#/shared/domain/google-credential-home'
-import { assertSingleUsBetaDataCellAdmissionOpen } from '#/shared/db/data-cell-topology-fence'
 import { integrationError } from '../domain/errors'
 import {
   decideOrganizationGoogleCredentialHomeTransition,
@@ -43,7 +42,6 @@ function currentAuthority(
  */
 export const applyOrganizationGoogleCredentialHome: ApplyOrganizationGoogleCredentialHome =
   async (tx, input) => {
-    await assertSingleUsBetaDataCellAdmissionOpen(tx)
     await tx.execute(sql`
       SELECT pg_advisory_xact_lock(
         hashtextextended('google-credential-home:' || ${input.organizationId}, 0)

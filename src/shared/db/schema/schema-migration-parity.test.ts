@@ -15,7 +15,6 @@ import {
   reviewSyncRuns,
   inboundWebhookReceipts,
 } from './review-sync.schema'
-import { regionMoves } from './region-move.schema'
 
 function columnNames(table: Parameters<typeof getTableColumns>[0]): string[] {
   return Object.values(getTableColumns(table)).map((c) => c.name)
@@ -93,30 +92,6 @@ describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions
       expect(cols.has('provider')).toBe(true)
       expect(cols.has('topic')).toBe(true)
       expect(cols.has('message_id')).toBe(true)
-    })
-  })
-
-  describe('migrations 0016, 0147–0148 — region move workflow', () => {
-    it('registers region_moves with the machine columns', () => {
-      expect(getTableName(regionMoves)).toBe('region_moves')
-      const cols = new Set(columnNames(regionMoves))
-      for (const name of [
-        'id',
-        'property_id',
-        'organization_id',
-        'from_region',
-        'to_region',
-        'state',
-        'state_revision',
-        'denial_reason',
-        'requested_by',
-        'requested_at',
-        'state_changed_at',
-        'completed_at',
-        'error',
-      ]) {
-        expect(cols.has(name), `region_moves missing column ${name}`).toBe(true)
-      }
     })
   })
 })

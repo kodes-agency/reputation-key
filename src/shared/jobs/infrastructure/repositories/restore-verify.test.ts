@@ -91,7 +91,6 @@ const ZERO_RECOVERY = {
   aiConsumedPermitsMadeAmbiguous: 0,
   aiOperationsFenced: 0,
   aiBackfillRunsStalled: 0,
-  regionMovesBlocking: 0,
 } as const
 
 let stopPolicyPolling: (() => void) | undefined

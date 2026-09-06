@@ -420,28 +420,6 @@
       }
     },
     {
-      "files": [
-        "server/plugins/production-secret-guard.ts",
-        "server/plugins/redis-runtime-guard.ts",
-        "server/plugins/release-identity-guard.ts",
-        "server/plugins/restore-mode-guard.ts",
-        "server/plugins/security-headers.ts",
-        "server/plugins/request-guard.ts",
-        "server/plugins/graceful-shutdown.ts",
-        "server/plugins/error-monitoring.ts",
-        "src/shared/observability/web-observability-preload.ts",
-        "src/shared/observability/worker-observability-preload.ts",
-        "src/contexts/identity/server/auth-settings.org.ts",
-        "src/contexts/identity/server/organizations.roles.ts",
-        "src/contexts/identity/server/policy-admin.ts",
-        "src/contexts/identity/server/merchant-ai.ts",
-        "src/contexts/property/server/region-move.ts"
-      ],
-      "rules": {
-        "unused-files": "off"
-      }
-    },
-    {
       "files": [],
       "rules": {
         "unused-files": "off",

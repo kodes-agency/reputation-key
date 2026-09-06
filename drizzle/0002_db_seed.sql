@@ -120,7 +120,6 @@ INSERT INTO capability_execution_control (capability, denied, emergency_kill_ver
 --> statement-breakpoint
 INSERT INTO capability_execution_control (capability, denied, emergency_kill_version, denied_at, drained_at, cleanup_drained_at, operator_id, reason, updated_at) VALUES ('property.publish_reply', true, 1, '2026-09-05 23:07:05.351486+03', NULL, NULL, 'migration:0124', 'reply_publication_provider_authority_default_deny', '2026-09-05 23:07:05.351486+03');
 --> statement-breakpoint
-INSERT INTO data_cell_topology_cutovers (singleton, cutover_key, state, phase, target_cell_id, target_policy_version, target_project_id, target_environment_id, property_checkpoint, organization_checkpoint, credential_active_organization_id, credential_connection_checkpoint, properties_processed, credential_homes_processed, credential_connections_processed, error_count, last_error_code, last_report_digest_sha256, completion_digest_sha256, operator_id, change_ticket, correlation_id, fenced_at, completed_at, created_at, updated_at) VALUES (true, 'single-us-beta-v3', 'open', 'properties', 'us', 3, NULL, NULL, NULL, NULL, NULL, NULL, 0, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2026-09-05 23:07:05.351486+03', '2026-09-05 23:07:05.351486+03');
 --> statement-breakpoint
 INSERT INTO identity_invitation_fact_contract (singleton, issuance_version, generation, switched_at, verified_at, operator_id, reason, created_at, updated_at) VALUES (true, 1, 1, NULL, NULL, NULL, NULL, '2026-09-05 23:07:05.351486+03', '2026-09-05 23:07:05.351486+03');
 --> statement-breakpoint

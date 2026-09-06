@@ -244,13 +244,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'SAFE-02/PPL-01',
   }),
   ...rows({
-    schemaFile: 'data-cell-topology.schema.ts',
-    exportNames: ['dataCellTopologyCutovers'],
-    owner: 'platform',
-    disposition: 'active_authority',
-    authority: 'REG-01/REG-02',
-  }),
-  ...rows({
     schemaFile: 'dashboard.schema.ts',
     exportNames: ['setupChecklistMilestones'],
     owner: 'dashboard',
@@ -698,13 +691,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'recoverable_archive',
     authority: 'SAFE-03/REG-04/REV-01',
     exitCriteria: RETAINED_HISTORY,
-  }),
-  ...rows({
-    schemaFile: 'region-move.schema.ts',
-    exportNames: ['regionMoves'],
-    owner: 'platform',
-    disposition: 'active_authority',
-    authority: 'REG-01/REG-02',
   }),
   ...rows({
     schemaFile: 'review-sync.schema.ts',

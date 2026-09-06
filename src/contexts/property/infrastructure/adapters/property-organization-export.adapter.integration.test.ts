@@ -20,7 +20,6 @@ type Fixture = Readonly<{
   managerAssignmentId: string
   userId: string
   receiptId: string
-  regionMoveId: string
   gbpLocationId: string
   preciseCreatedAt: string
 }>
@@ -47,7 +46,6 @@ async function seedFixture(): Promise<Fixture> {
     managerAssignmentId: randomUUID(),
     userId: `property-export-user-${randomUUID()}`,
     receiptId: randomUUID(),
-    regionMoveId: randomUUID(),
     gbpLocationId: `NEVER-EXPORT-LOCATION-${randomUUID()}`,
     preciseCreatedAt,
   }
@@ -99,13 +97,6 @@ async function seedFixture(): Promise<Fixture> {
                now(), now())`,
     [fixture.receiptId, organizationId, randomUUID(), fixture.propertyId],
   )
-  await lease.pool.query(
-    `INSERT INTO region_moves (
-       id, property_id, organization_id, from_region, to_region, state,
-       requested_by, requested_at, state_changed_at
-     ) VALUES ($1, $2, $3, 'us', 'europe', 'requested', $4, now(), now())`,
-    [fixture.regionMoveId, fixture.propertyId, organizationId, fixture.userId],
-  )
   return fixture
 }
 
@@ -121,9 +112,6 @@ describe.sequential('Property Organization Export contributor', () => {
 
   afterEach(async () => {
     for (const organizationId of organizations) {
-      await lease.pool.query('DELETE FROM region_moves WHERE organization_id = $1', [
-        organizationId,
-      ])
       await lease.pool.query(
         'DELETE FROM property_operation_receipts WHERE organization_id = $1',
         [organizationId],
@@ -206,7 +194,6 @@ describe.sequential('Property Organization Export contributor', () => {
       .join('\n')
     expect(archiveText).not.toContain(fixture.gbpLocationId)
     expect(archiveText).not.toContain(fixture.receiptId)
-    expect(archiveText).not.toContain(fixture.regionMoveId)
     expect(archiveText).not.toMatch(/gbp_account_id|gbp_location_id|google_review_uri/u)
 
     const bundle = await buildOrganizationExportBundle({

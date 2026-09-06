@@ -377,17 +377,6 @@ function buildContainer(
     provisionPropertyCapabilities:
       propertyCapabilityProvisioning.provisionCreatedProperty,
     logger: getLogger(),
-    // BQC-4.5: only catalogue-accepting cells can be targets. The Identity
-    // audit sink handles typed denial evidence; an accepted request instead
-    // uses Property's atomic move+audit adapter. The stepper pauses/drains the
-    // cell's property-scoped queues.
-    regionMove: {
-      writeOperatorAudit: identity.authority.writeOperatorAudit,
-      queues: [
-        { name: 'default', queue: infra.jobQueue },
-        { name: 'background', queue: infra.backgroundQueue },
-      ],
-    },
   })
 
   const portal = buildPortalContext({

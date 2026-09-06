@@ -1,12 +1,13 @@
 ---
 status: superseded
 date: 2026-07-18
-superseded_by: 0054
+superseded_by: 0057
 ---
 
 # 0048 — Property region routing
 
-> Superseded by [ADR 0054](0054-data-cell-catalogue-and-routing.md). This file
+> Superseded by [ADR 0057](0057-single-us-beta-data-cell.md), which absorbed
+> ADR 0054 on 2026-09-06. This file
 > records the historical single-US containment phase and is not current beta
 > routing authority.
 

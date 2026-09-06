@@ -51,7 +51,6 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
     recordClass: 'property_operation_receipts',
     reasonCode: 'content_free_control_plane',
   },
-  { recordClass: 'region_moves', reasonCode: 'restricted_operational_history' },
   {
     recordClass: 'property_policy_capability_and_access_grants',
     reasonCode: 'exported_by_identity_contributor',

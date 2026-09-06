@@ -11,7 +11,7 @@ import {
   propertyId,
   userId,
 } from '#/shared/domain/ids'
-import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
+import { buildTestProperty } from '#/shared/testing/fixtures'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 vi.mock('#/shared/observability/logger', () => ({
@@ -58,7 +58,6 @@ describe('PropertyPublicApi', () => {
       localCell: 'us',
       staffPublicApi: createStubStaffApi(),
       identityManagerFacts,
-      regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
     // ARC-03-T11: `responsibility` is the named member-authority capability.
@@ -106,7 +105,6 @@ describe('PropertyPublicApi', () => {
       localCell: 'us',
       staffPublicApi,
       identityManagerFacts,
-      regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
     const exists = await publicApi.propertyExists(prop.organizationId, prop.id)
@@ -128,7 +126,6 @@ describe('PropertyPublicApi', () => {
       localCell: 'us',
       staffPublicApi,
       identityManagerFacts,
-      regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
     const exists = await publicApi.propertyExists(
@@ -160,7 +157,6 @@ describe('PropertyPublicApi', () => {
       localCell: 'us',
       staffPublicApi: createStubStaffApi(),
       identityManagerFacts,
-      regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
     await expect(
@@ -199,7 +195,6 @@ describe('PropertyPublicApi', () => {
           },
         ],
       },
-      regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
     await expect(
@@ -240,7 +235,6 @@ describe('PropertyPublicApi', () => {
       localCell: 'us',
       staffPublicApi: createStubStaffApi(),
       identityManagerFacts,
-      regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
     await expect(
@@ -252,65 +246,5 @@ describe('PropertyPublicApi', () => {
         first.organizationId,
       ),
     ).resolves.toBe(first.id)
-  })
-
-  it('uses the injected ID authority for an accepted region-move request', async () => {
-    const repo = createInMemoryPropertyRepo()
-    const prop = buildTestProperty({
-      id: '81000000-0000-4000-8000-000000000040',
-      dataCellId: 'us',
-      processingRegion: 'us',
-    })
-    repo.seed([prop])
-    const expectedMoveId = '81000000-0000-4000-8000-000000000041'
-    const idGen = vi.fn(() => expectedMoveId)
-    const tx = {
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: async () => [{ id: prop.id }],
-          }),
-        }),
-      }),
-      insert: () => ({ values: async () => {} }),
-      execute: async () => ({ rows: [] }),
-    }
-    const db = {
-      transaction: async (run: (executor: typeof tx) => Promise<unknown>) => run(tx),
-    }
-    const context = buildPropertyContext({
-      db: db as never,
-      repo,
-      events: createCapturingEventBus(),
-      clock: () => new Date('2026-08-28T00:00:00.000Z'),
-      idGen,
-      localCell: 'us',
-      staffPublicApi: createStubStaffApi(),
-      identityManagerFacts,
-      logger: {
-        info: () => {},
-        warn: () => {},
-      },
-      regionMove: {
-        writeOperatorAudit: async () => {},
-        queues: [],
-        approvedCells: new Set(['us', 'europe']),
-      },
-    })
-
-    const result = await context.internal.useCases.requestRegionMove(
-      {
-        propertyId: prop.id,
-        toRegion: 'europe',
-        reason: 'approved rehearsal',
-      },
-      buildTestAuthContext({
-        organizationId: prop.organizationId,
-        role: 'AccountAdmin',
-      }),
-    )
-
-    expect(result).toMatchObject({ ok: true, move: { id: expectedMoveId } })
-    expect(idGen).toHaveBeenCalledTimes(1)
   })
 })

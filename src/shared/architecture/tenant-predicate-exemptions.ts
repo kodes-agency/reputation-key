@@ -306,13 +306,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/property/infrastructure/repositories/reconcile-regions.repository.ts',
-    symbol: 'applyRegionReconciliation',
-    reason:
-      'The operator reconciliation intentionally applies a reviewed global or explicit regional scope and recomputes every candidate immediately before mutation.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/review/infrastructure/repositories/reply.repository.ts',
     symbol: 'findDuePublicationBatch',
     reason:
