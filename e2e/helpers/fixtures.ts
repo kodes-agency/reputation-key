@@ -16,10 +16,11 @@ import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '../../test-fixtures/generated/
 import { Pool } from 'pg'
 import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
-import { createCipheriv, createHash, randomBytes, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { hashPassword } from 'better-auth/crypto'
 import type { Page } from '@playwright/test'
 import { testEnvironment } from '../../src/shared/testing/test-environment'
+import { createTokenEncryptionAdapter } from '../../src/contexts/integration/infrastructure/adapters/token-encryption.adapter'
 import { EXECUTION_POLICY_VERSION } from '../../src/shared/auth/execution-policy'
 import { computeAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
 import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '../../src/shared/domain/data-cell-catalogue'
@@ -192,15 +193,23 @@ export async function dbQuery<T = Record<string, unknown>>(
   return result.rows as T[]
 }
 
-// ── Token encryption (must match token-encryption.adapter.ts) ─────────
+// ── Token encryption ──────────────────────────────────────────────────
 
-/** AES-256-GCM, format base64(iv):base64(authTag):base64(ciphertext). */
+/**
+ * Encrypt through the PRODUCTION adapter, never a copy of it.
+ *
+ * This helper used to reimplement AES-256-GCM under a comment reading "must
+ * match token-encryption.adapter.ts". It stopped matching the moment the
+ * adapter added its version prefix, and the only thing that noticed was the
+ * critical e2e gate, which failed inside a server function with `Invalid
+ * ciphertext format` — a fixture bug wearing a product bug's clothes.
+ * A format has exactly one definition; a second one is a latent outage.
+ */
 export function encryptToken(plaintext: string): string {
-  const key = Buffer.from(TEST_ENV.ENCRYPTION_KEY, 'hex')
-  const iv = randomBytes(12)
-  const cipher = createCipheriv('aes-256-gcm', key, iv)
-  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
-  return `${iv.toString('base64')}:${cipher.getAuthTag().toString('base64')}:${encrypted.toString('base64')}`
+  return createTokenEncryptionAdapter({
+    activeVersion: 'v1',
+    keys: { v1: TEST_ENV.ENCRYPTION_KEY },
+  }).encrypt(plaintext)
 }
 
 // ── Polling ───────────────────────────────────────────────────────────

@@ -99,9 +99,7 @@ export default defineConfig({
           include: [
             'src/**/*.test.ts',
             'services/**/*.test.ts',
-            '.railway/**/*.test.ts',
             'scripts/review/**/*.test.ts',
-            'scripts/release/**/*.test.ts',
             'scripts/ci/**/*.test.ts',
             'scripts/ops/**/*.test.ts',
             'e2e/fixtures/**/*.test.ts',
