@@ -28,11 +28,15 @@ name: Review
 # posts findings and exits non-zero. A red required check is honest; a bot
 # approving a bot's work is theatre that satisfies the rule and protects nothing.
 #
-# ACTIVATION IS TWO STEPS, and step 2 is deliberately manual:
-#   1. Add `ANTHROPIC_API_KEY` to repository secrets. Better, if you have
-#      Anthropic org admin: register GitHub Actions as an OIDC issuer and use
-#      Workload Identity Federation, so there is no static key to leak.
-#   2. Add `review` to the branch's required status checks.
+# CREDENTIALS. Either works, and the jobs below accept whichever is present:
+#   - `CLAUDE_CODE_OAUTH_TOKEN` — what `/install-github-app` provisions. In use.
+#   - `ANTHROPIC_API_KEY` — a static API key.
+# Best available option if you have Anthropic org admin: Workload Identity
+# Federation (`anthropic_federation_rule_id` + `anthropic_organization_id` and
+# `id-token: write`), which exchanges the workflow's GitHub OIDC token for a
+# short-lived credential and leaves no static secret to leak at all.
+#
+# REMAINING ACTIVATION STEP: add `review` to the branch's required status checks.
 # Until step 2, this workflow reports but cannot block — which is why it fails
 # loudly on a missing key rather than skipping. A review gate that silently
 # no-ops is precisely the class of thing this program exists to delete.
@@ -56,12 +60,15 @@ jobs:
     steps:
       - name: Require review credentials
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -z "${ANTHROPIC_API_KEY}" ]; then
-            echo "::error::ANTHROPIC_API_KEY is not set. The review gate cannot run."
-            echo "::error::Add it under Settings > Secrets and variables > Actions,"
-            echo "::error::or configure Workload Identity Federation for keyless auth."
+          if [ -z "${OAUTH}" ] && [ -z "${API_KEY}" ]; then
+            echo "::error::No review credential is set. The review gate cannot run."
+            echo "::error::Add CLAUDE_CODE_OAUTH_TOKEN (what /install-github-app"
+            echo "::error::provisions) or ANTHROPIC_API_KEY under Settings >"
+            echo "::error::Secrets and variables > Actions, or configure Workload"
+            echo "::error::Identity Federation for keyless auth."
             exit 1
           fi
 
@@ -81,6 +88,7 @@ jobs:
       - name: Adversarial control-vs-ceremony review
         uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
         with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
             You are an adversarial reviewer on a codebase mid-way through a
@@ -196,6 +204,7 @@ jobs:
       - name: Security review
         uses: anthropics/claude-code-action@9c5ddab2e6d17b83ea679153b31f1d5f023cf636 # v1
         with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
             Review this pull request for security vulnerabilities only. Ignore
