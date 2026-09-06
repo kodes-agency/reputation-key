@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
@@ -13,12 +13,12 @@ const staffPublicApi = {
 } as unknown as StaffPublicApi
 
 describe('revokePortalTokens', () => {
-  it('trims the audit reason, preserves tenant scope, and emits after a revocation', async () => {
+  it('trims the audit reason, preserves tenant scope, and records a revocation fact', async () => {
     const portalRepo = createInMemoryPortalRepo()
     const portal = buildTestPortal()
     portalRepo.seed([portal])
     const revokeForPortal = vi.fn(async () => 2)
-    const events = createCapturingEventBus()
+    const outbox = createRecordedOutbox()
     const ctx = buildTestAuthContext()
     const portalTokenRepo = { revokeForPortal } as unknown as PortalTokenRepository
     const useCase = revokePortalTokens({
@@ -28,7 +28,7 @@ describe('revokePortalTokens', () => {
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
         portalTokenRepo,
-        events,
+        outbox,
       }),
       clock: () => NOW,
     })
@@ -43,7 +43,7 @@ describe('revokePortalTokens', () => {
       reason: 'compromised print',
       at: NOW,
     })
-    expect(events.capturedByTag('portal.token.revoked')).toHaveLength(1)
+    expect(outbox.byTag('portal.token.revoked')).toHaveLength(1)
   })
 
   it('fails before repository mutation when the revocation reason is blank', async () => {
@@ -52,7 +52,7 @@ describe('revokePortalTokens', () => {
     portalRepo.seed([portal])
     const revokeForPortal = vi.fn()
     const portalTokenRepo = { revokeForPortal } as unknown as PortalTokenRepository
-    const events = createCapturingEventBus()
+    const outbox = createRecordedOutbox()
     const useCase = revokePortalTokens({
       portalRepo,
       portalTokenRepo,
@@ -60,7 +60,7 @@ describe('revokePortalTokens', () => {
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
         portalTokenRepo,
-        events,
+        outbox,
       }),
       clock: () => NOW,
     })
@@ -71,11 +71,11 @@ describe('revokePortalTokens', () => {
     expect(revokeForPortal).not.toHaveBeenCalled()
   })
 
-  it('does not emit a revocation event when no active tokens changed', async () => {
+  it('does not record a revocation fact when no active tokens changed', async () => {
     const portalRepo = createInMemoryPortalRepo()
     const portal = buildTestPortal()
     portalRepo.seed([portal])
-    const events = createCapturingEventBus()
+    const outbox = createRecordedOutbox()
     const portalTokenRepo = {
       revokeForPortal: vi.fn(async () => 0),
     } as unknown as PortalTokenRepository
@@ -86,7 +86,7 @@ describe('revokePortalTokens', () => {
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
         portalTokenRepo,
-        events,
+        outbox,
       }),
       clock: () => NOW,
     })
@@ -94,6 +94,6 @@ describe('revokePortalTokens', () => {
     await expect(
       useCase({ portalId: portal.id, reason: 'retired' }, buildTestAuthContext()),
     ).resolves.toEqual({ revoked: 0 })
-    expect(events.capturedByTag('portal.token.revoked')).toHaveLength(0)
+    expect(outbox.byTag('portal.token.revoked')).toHaveLength(0)
   })
 })

@@ -6,11 +6,10 @@ const read = (file: string): string =>
   readFileSync(join(process.cwd(), 'src/contexts/activity', file), 'utf8')
 
 describe('Activity runtime dependency injection', () => {
-  it('keeps repository, job, and event-handler logging caller-owned', () => {
+  it('keeps repository and job logging caller-owned', () => {
     for (const file of [
       'infrastructure/recent-activity-repository.drizzle.ts',
       'infrastructure/jobs/project-recent-activity.job.ts',
-      'infrastructure/event-handlers/on-inbox-status-changed.ts',
     ]) {
       expect(read(file), file).not.toMatch(/\bgetLogger\s*\(/u)
     }

@@ -1,5 +1,5 @@
 // Goal context — public API surface for cross-context consumers.
-// Other contexts consume these types to query goal data and subscribe to events.
+// Other contexts consume these types to query goal data and interpret durable facts.
 // Per architecture: contexts must not import from another context's internal layers.
 
 // ── DTO re-exports (schemas + inferred types) ─────────────────────────

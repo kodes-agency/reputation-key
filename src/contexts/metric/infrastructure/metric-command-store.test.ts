@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { metricCorrections, metricReadings } from '#/shared/db/schema/metric.schema'
-import type { EventBus } from '#/shared/events/event-bus'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas, validateEventPayload } from '#/shared/events/schema-registry'
@@ -115,15 +114,6 @@ const createMockDb = (order: string[]) => {
   return { db: db as unknown as Database, stateValues, outboxRows }
 }
 
-const makeEvents = (order: string[], fail = false): EventBus => ({
-  on: vi.fn(),
-  emit: vi.fn(async () => {
-    if (fail) throw new Error('bus down')
-    order.push('emit')
-  }),
-  clear: vi.fn(),
-})
-
 describe('createAtomicMetricCommandStore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -131,10 +121,10 @@ describe('createAtomicMetricCommandStore', () => {
     registerAllEventSchemas()
   })
 
-  it('commits governed reading and outbox fact before emitting', async () => {
+  it('commits governed reading and outbox fact atomically', async () => {
     const order: string[] = []
     const { db, stateValues, outboxRows } = createMockDb(order)
-    const store = createAtomicMetricCommandStore(db, makeEvents(order), randomUUID)
+    const store = createAtomicMetricCommandStore(db, randomUUID)
     const reading = makeReading()
     const result = await store.recordMetric({ reading, event: recordedEvent(reading) })
 
@@ -147,43 +137,24 @@ describe('createAtomicMetricCommandStore', () => {
       propertyLocalDate: '2026-08-08',
     })
     expect(outboxRows).toHaveLength(1)
-    expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+    expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
   })
 
   it('rolls back the reading when the outbox fact is invalid', async () => {
     const order: string[] = []
     const { db } = createMockDb(order)
-    const events = makeEvents(order)
     const ghost = {
       ...recordedEvent(),
       _tag: 'metric.ghost',
     } as unknown as MetricRecorded
 
     await expect(
-      createAtomicMetricCommandStore(db, events, randomUUID).recordMetric({
+      createAtomicMetricCommandStore(db, randomUUID).recordMetric({
         reading: makeReading(),
         event: ghost,
       }),
     ).rejects.toThrow(/Event type metric\.ghost:v1 is not registered for the outbox/)
-    expect(events.emit).not.toHaveBeenCalled()
     expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.rollback'])
-  })
-
-  it('retains the durable fact when post-commit bus emission fails', async () => {
-    const order: string[] = []
-    const { db, outboxRows } = createMockDb(order)
-    const result = await createAtomicMetricCommandStore(
-      db,
-      makeEvents(order, true),
-      randomUUID,
-    ).recordMetric({
-      reading: makeReading(),
-      event: recordedEvent(),
-    })
-
-    expect(result.status).toBe('recorded')
-    expect(outboxRows).toHaveLength(1)
-    expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
   })
 
   it('publishes an identifier-only provenance payload accepted by the schema', () => {
@@ -261,13 +232,8 @@ describe('createAtomicMetricCommandStore', () => {
         work(tx),
       ),
     } as unknown as Database
-    const events = makeEvents([])
 
-    const result = await createAtomicMetricCommandStore(
-      db,
-      events,
-      randomUUID,
-    ).recordMetric({
+    const result = await createAtomicMetricCommandStore(db, randomUUID).recordMetric({
       reading: replacement,
       supersedesSourceEventId: 'source-event-1',
       event: recordedEvent(replacement),
@@ -286,7 +252,6 @@ describe('createAtomicMetricCommandStore', () => {
       'metric.recorded',
       'metric.corrected',
     ])
-    expect(events.emit).toHaveBeenCalledTimes(2)
   })
 
   // Delivery is at-least-once, so this consumer WILL see the same event twice —
@@ -353,22 +318,17 @@ describe('createAtomicMetricCommandStore', () => {
         work(tx),
       ),
     } as unknown as Database
-    const events = makeEvents([])
 
-    const result = await createAtomicMetricCommandStore(
-      db,
-      events,
-      randomUUID,
-    ).recordMetric({
+    const result = await createAtomicMetricCommandStore(db, randomUUID).recordMetric({
       reading: replacement,
       supersedesSourceEventId: 'source-event-1',
       event: recordedEvent(replacement),
     })
 
     expect(result).toEqual({ status: 'recorded', reading: replacement })
-    // The event must describe the correction that EXISTS, not the id this pass
-    // happened to generate — otherwise a replay announces a second correction
-    // that was never written.
+    // The outbox fact must describe the correction that exists, not the ID this
+    // pass generated; otherwise a replay announces a second correction that
+    // was never written.
     const corrected = outboxRows.find((row) => row.eventType === 'metric.corrected')
     expect(corrected?.payload).toMatchObject({ correctionId: EXISTING_CORRECTION_ID })
   })
@@ -417,7 +377,7 @@ describe('createAtomicMetricCommandStore', () => {
       }),
     } as unknown as Database
 
-    await createAtomicMetricCommandStore(db, makeEvents(order), randomUUID).recordMetric({
+    await createAtomicMetricCommandStore(db, randomUUID).recordMetric({
       reading: rating,
       portalLifetimeFact: portalLifetimeFactForMetric({
         metricKey: rating.metricKey,
@@ -434,11 +394,10 @@ describe('createAtomicMetricCommandStore', () => {
       'tx.lifetime.3',
       'tx.outbox',
       'tx.commit',
-      'emit',
     ])
   })
 
-  it('does not publish when the lifetime aggregate mutation fails', async () => {
+  it('does not record a fact when the lifetime aggregate mutation fails', async () => {
     const rating = makeReading({
       portalId: portalId('b0000000-0000-4000-8000-0000000000b1'),
       portalGroupId: null,
@@ -448,6 +407,7 @@ describe('createAtomicMetricCommandStore', () => {
       sourcePolicy: 'first_party_guest_private',
     })
     let executeCount = 0
+    const outboxRows: Array<Record<string, unknown>> = []
     const tx = {
       execute: vi.fn(async () => {
         executeCount += 1
@@ -465,7 +425,11 @@ describe('createAtomicMetricCommandStore', () => {
           }
         }
         if (table === outboxEvents) {
-          return { values: vi.fn(async () => undefined) }
+          return {
+            values: vi.fn(async (row: Record<string, unknown>) => {
+              outboxRows.push(row)
+            }),
+          }
         }
         throw new Error('unexpected table')
       }),
@@ -475,10 +439,9 @@ describe('createAtomicMetricCommandStore', () => {
         work(tx),
       ),
     } as unknown as Database
-    const events = makeEvents([])
 
     await expect(
-      createAtomicMetricCommandStore(db, events, randomUUID).recordMetric({
+      createAtomicMetricCommandStore(db, randomUUID).recordMetric({
         reading: rating,
         portalLifetimeFact: portalLifetimeFactForMetric({
           metricKey: rating.metricKey,
@@ -487,6 +450,6 @@ describe('createAtomicMetricCommandStore', () => {
         event: recordedEvent(rating),
       }),
     ).rejects.toThrow('aggregate unavailable')
-    expect(events.emit).not.toHaveBeenCalled()
+    expect(outboxRows).toEqual([])
   })
 })

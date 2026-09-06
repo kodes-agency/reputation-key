@@ -8,9 +8,8 @@ import {
   replyPublicationAttempts,
   reviews,
 } from '#/shared/db/schema/review.schema'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
-import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { replyId, userId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type {
@@ -569,7 +568,7 @@ type ObservationDecision = ReturnType<typeof decideGoogleReplyObservation>
 
 /** Append the new observation and replace the Review's head with it. */
 /**
- * A re-read that restates the current head has nothing to say: it emits no
+ * A re-read that restates the current head has nothing to say: it records no
  * fact (see the `!== 'unchanged'` gate in `record`), confirms no attempt, and
  * supersedes none. Advancing the head for it is not free — downstream permits
  * are scoped to the EXACT current observation, so a redundant read silently
@@ -717,7 +716,6 @@ async function settleSupersededPublication(
  * both durable facts. */
 export const createGoogleReplyObservationStore = (
   db: Database,
-  events: EventBus,
 ): GoogleReplyObservationStore => {
   return {
     allocateReadGeneration: () =>
@@ -758,16 +756,13 @@ export const createGoogleReplyObservationStore = (
         assertObservationFence(input)
         const inputDigest = googleReplyObservationInputDigest(input)
 
-        const committed = await db.transaction(async (tx) => {
+        return db.transaction(async (tx) => {
           await lockReplyTruthScope(tx, input.organizationId, input.reviewId)
 
           const review = await lockObservationSubject(tx, input)
           const replayed = await findReplayedObservation(tx, input, inputDigest)
           if (replayed) {
-            return {
-              result: resultFromRow(replayed, true),
-              facts: [] as DomainEvent[],
-            }
+            return resultFromRow(replayed, true)
           }
 
           // New evidence still has to satisfy the current source fences.
@@ -827,7 +822,7 @@ export const createGoogleReplyObservationStore = (
           if (restatesCurrentHead({ input, decision, head, supersedes, evidence })) {
             const current = await selectHeadObservation(tx, input)
             if (current) {
-              return { result: resultFromRow(current, true), facts: [] as DomainEvent[] }
+              return resultFromRow(current, true)
             }
           }
 
@@ -899,11 +894,8 @@ export const createGoogleReplyObservationStore = (
             )
           }
           for (const fact of facts) await insertOutboxRow(tx, fact)
-          return { result: resultFromRow(observation, false), facts }
+          return resultFromRow(observation, false)
         })
-
-        for (const fact of committed.facts) await emitAfterCommit(events, fact)
-        return committed.result
       }),
   }
 }

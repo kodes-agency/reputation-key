@@ -16,7 +16,6 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import {
   organizationId,
@@ -164,12 +163,6 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
   }
 }
 
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
-
 /** Same shape as a real reply event but with a type no schema is registered for. */
 function unregisteredEvent(base: DomainEvent): DomainEvent {
   return { ...base, _tag: 'review.reply.ghost' } as unknown as DomainEvent
@@ -202,7 +195,6 @@ describe.sequential('replyCommandStore (integration)', () => {
     const replyRepo = createReplyRepository(db, () => new Date())
     const store = createAtomicReplyCommandStore(
       db,
-      silentEvents,
       () => new Date(),
       async () => true,
     )
@@ -306,7 +298,6 @@ describe.sequential('replyCommandStore (integration)', () => {
     const replyRepo = createReplyRepository(db, () => new Date())
     const store = createAtomicReplyCommandStore(
       db,
-      silentEvents,
       () => new Date(),
       async () => true,
     )
@@ -407,12 +398,7 @@ describe.sequential('replyCommandStore (integration)', () => {
           permission: 'reply.manage',
         })
       ).allowed
-    const store = createAtomicReplyCommandStore(
-      db,
-      silentEvents,
-      () => new Date(),
-      actorAuthority,
-    )
+    const store = createAtomicReplyCommandStore(db, () => new Date(), actorAuthority)
 
     await reviewRepo.upsert(makeReview())
     const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
@@ -499,7 +485,6 @@ describe.sequential('replyCommandStore (integration)', () => {
     const replyRepo = createReplyRepository(db, () => new Date())
     const store = createAtomicReplyCommandStore(
       db,
-      silentEvents,
       () => new Date(),
       async () => true,
     )
@@ -558,7 +543,7 @@ describe.sequential('replyCommandStore (integration)', () => {
     const db = getDb()
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
+    const store = createAtomicReplyCommandStore(db, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ status: 'draft' }))
@@ -598,7 +583,7 @@ describe.sequential('replyCommandStore (integration)', () => {
   it('rolls back a mirror upsert when its outbox insert fails (reply row absent)', async () => {
     const db = getDb()
     const reviewRepo = createReviewRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
+    const store = createAtomicReplyCommandStore(db, () => new Date())
 
     await reviewRepo.upsert(makeReview())
 
@@ -650,7 +635,7 @@ describe.sequential('replyCommandStore (integration)', () => {
     const db = getDb()
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
+    const store = createAtomicReplyCommandStore(db, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ status: 'draft' }))
@@ -700,7 +685,7 @@ describe.sequential('replyCommandStore (integration)', () => {
     const db = getDb()
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())
-    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
+    const store = createAtomicReplyCommandStore(db, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply())

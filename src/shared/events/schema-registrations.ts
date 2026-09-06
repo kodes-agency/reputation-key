@@ -456,9 +456,8 @@ const inboxResponseTargetPolicyChangedSchema = z
 // ── Metric event schemas ────────────────────────────────────────────
 
 // BQC-3.5: corrected IN PLACE at version 1 — no version bump. Justification:
-// buildMetricContext never forwarded outboxRepo to recordMetric, so
-// emitAndRecord short-circuited after the bus emit and zero historical
-// outbox rows exist for metric.recorded; and had it been wired, every insert
+// buildMetricContext never forwarded outboxRepo to recordMetric, so zero
+// historical outbox rows exist for metric.recorded; and had it been wired, every insert
 // would have thrown invalid_payload — the registered schema required
 // `recordedAt` while the domain event (and its consumers) carry
 // `occurredAt`. Now recorded atomically via the metric command store.

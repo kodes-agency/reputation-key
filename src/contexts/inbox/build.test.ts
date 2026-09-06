@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
-import { createEventBus } from '#/shared/events/event-bus'
 import { createConsumerRegistry } from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -9,15 +8,11 @@ import type { InboxContextBuildInput } from './build'
 import { buildInboxContext } from './build'
 
 describe('buildInboxContext', () => {
-  function build(
-    cutoverState: InboxContextBuildInput['cutoverState'] = () => 'record-only',
-  ) {
+  function build() {
     return buildInboxContext({
       db: {} as Database,
-      events: createEventBus(),
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
       idGen: () => '00000000-0000-4000-8000-000000000001',
-      cutoverState,
       staffPublicApi: {} as StaffPublicApi,
       reviewLookup: {} as ReviewLookupPort,
       sources: {
@@ -88,18 +83,12 @@ describe('buildInboxContext', () => {
     )
   })
 
-  it('registers durable consumers only after a family leaves record-only', () => {
-    for (const state of ['record-only', 'shadow', 'switch'] as const) {
-      const context = build((family) =>
-        family === 'review.created' ? state : 'record-only',
-      )
-      const registry = createConsumerRegistry()
+  it('registers durable consumers unconditionally', () => {
+    const context = build()
+    const registry = createConsumerRegistry()
 
-      context.worker.registerOutboxConsumers(registry)
+    context.worker.registerOutboxConsumers(registry)
 
-      expect(registry.listFor('review.created')).toHaveLength(
-        state === 'record-only' ? 0 : 1,
-      )
-    }
+    expect(registry.listFor('review.created')).toHaveLength(1)
   })
 })

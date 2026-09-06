@@ -16,9 +16,7 @@ import {
 import { trace } from '#/shared/observability/trace'
 import { lockPortalPublicationProperty } from '../portal-publication-serialization'
 import { recordPortalPendingContentChange } from '../portal-pending-content-changes'
-import type { Tx } from '#/shared/outbox/commit'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
-import type { EventBus } from '#/shared/events/event-bus'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { portalApprovedDestinationUpdated } from '../../domain/events'
 
 type DestinationRow = typeof portalApprovedDestinations.$inferSelect
@@ -71,7 +69,6 @@ function fromRow(row: DestinationRow): PortalApprovedDestination {
 
 export const createPortalApprovedDestinationRepository = (
   db: Database,
-  events: EventBus,
 ): PortalApprovedDestinationRepository => ({
   request: (input) =>
     trace('portalApprovedDestination.request', async () => {
@@ -161,7 +158,7 @@ export const createPortalApprovedDestinationRepository = (
           )
           .limit(1)
         if (!row) throw new Error('Approved destination disappeared after request')
-        if (!changed) return { result: fromRow(row), event: null }
+        if (!changed) return fromRow(row)
         await recordDestinationPending(tx, row)
         const event = portalApprovedDestinationUpdated({
           approvedDestinationId: portalApprovedDestinationId(row.id),
@@ -172,10 +169,10 @@ export const createPortalApprovedDestinationRepository = (
           occurredAt: row.updatedAt,
         })
         await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
-        return { result: fromRow(row), event }
+        return fromRow(row)
       })
-      if (committed.event) await emitAfterCommit(events, committed.event)
-      return committed.result
+
+      return committed
     }),
 
   findById: (orgId, propertyIdValue, id) =>
@@ -292,7 +289,7 @@ export const createPortalApprovedDestinationRepository = (
           )
           .returning()
         if (!row || safe) {
-          return { result: row ? fromRow(row) : null, event: null }
+          return row ? fromRow(row) : null
         }
         await recordDestinationPending(tx, row)
         const event = portalApprovedDestinationUpdated({
@@ -304,10 +301,10 @@ export const createPortalApprovedDestinationRepository = (
           occurredAt: row.updatedAt,
         })
         await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
-        return { result: fromRow(row), event }
+        return fromRow(row)
       })
-      if (committed.event) await emitAfterCommit(events, committed.event)
-      return committed.result
+
+      return committed
     }),
 
   approve: (input) =>
@@ -341,7 +338,7 @@ export const createPortalApprovedDestinationRepository = (
             ),
           )
           .returning()
-        if (!row) return { result: null, event: null }
+        if (!row) return null
         await recordDestinationPending(tx, row)
         const event = portalApprovedDestinationUpdated({
           approvedDestinationId: portalApprovedDestinationId(row.id),
@@ -352,10 +349,10 @@ export const createPortalApprovedDestinationRepository = (
           occurredAt: row.updatedAt,
         })
         await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
-        return { result: fromRow(row), event }
+        return fromRow(row)
       })
-      if (committed.event) await emitAfterCommit(events, committed.event)
-      return committed.result
+
+      return committed
     }),
 
   disable: (input) =>
@@ -387,7 +384,7 @@ export const createPortalApprovedDestinationRepository = (
             ),
           )
           .returning()
-        if (!row) return { result: null, event: null }
+        if (!row) return null
         await recordDestinationPending(tx, row)
         const event = portalApprovedDestinationUpdated({
           approvedDestinationId: portalApprovedDestinationId(row.id),
@@ -398,9 +395,9 @@ export const createPortalApprovedDestinationRepository = (
           occurredAt: row.updatedAt,
         })
         await insertOutboxRow(tx, event, { recordedAt: row.updatedAt })
-        return { result: fromRow(row), event }
+        return fromRow(row)
       })
-      if (committed.event) await emitAfterCommit(events, committed.event)
-      return committed.result
+
+      return committed
     }),
 })

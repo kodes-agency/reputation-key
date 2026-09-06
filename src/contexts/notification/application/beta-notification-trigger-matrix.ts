@@ -67,7 +67,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       ['account.organization_purge_pending'],
       ['account_admin'],
     ),
-    // LIF-01 program bullet 5. The lifecycle fact is emitted on every
+    // LIF-01 program bullet 5. The lifecycle fact is recorded on every
     // transition; only Purge Pending produces the mandatory final notice.
     eventCondition: 'state === purge_pending',
   },
@@ -224,7 +224,6 @@ export type BetaNotificationEventFamilyEvidence = Readonly<{
   consumers: ReadonlyArray<
     Readonly<{
       name: string
-      kind: string
       disposition: string
     }>
   >
@@ -487,9 +486,7 @@ const matrixRowSourceGap = (
   }
   const consumerIsActive = evidence.consumers.some(
     (consumer) =>
-      consumer.name === row.consumerName &&
-      consumer.kind === 'durable' &&
-      consumer.disposition === 'enabled',
+      consumer.name === row.consumerName && consumer.disposition === 'enabled',
   )
   return consumerIsActive
     ? null

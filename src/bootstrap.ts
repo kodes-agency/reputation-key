@@ -397,10 +397,6 @@ export async function bootstrap(
     'registered property AI trend scheduler job handler',
   )
 
-  // ── Register event handlers here as contexts are added ────────────
-  // Example:
-  //   container.eventBus.on('portal.created', (event) => { ... })
-
   // ── Canonical monthly Goal Program maintenance ───────────────────
   // The dispatch gate authorizes this tenant-cross enumeration. The service
   // then re-authorizes every discovered property immediately before reading
@@ -490,10 +486,7 @@ export async function bootstrap(
     }),
   })
   const oauthExchangeRecovery = createGoogleOAuthExchangeRecoveryRepository(container.db)
-  const disconnectRevokeRecovery = createGoogleDisconnectRevokeRepository(
-    container.db,
-    container.eventBus,
-  )
+  const disconnectRevokeRecovery = createGoogleDisconnectRevokeRepository(container.db)
   container.jobRegistry.register(PERMIT_START_DEADLINE_SWEEP_JOB_NAME, async (job) => {
     await permitStartDeadlineSweep(job)
     const now = container.clock()
@@ -807,11 +800,9 @@ async function registerNotificationJobs(
   )
 
   // ── Notification-gap healing sweep ───────────────────────────────
-  // `emitAfterCommit` catches and warns, so a throw in the inbox or
-  // notification handler can leave a committed review with no notification.
-  // OUTBOX_DISPATCHER_ENABLED is enabled in google-closed-beta, making the
-  // notification durable consumer the ordinary prevention path. This sweep
-  // remains the live at-least-once repair for gaps that predate or exhaust it.
+  // The notification durable consumer is the delivery path; this sweep is the
+  // at-least-once repair for a committed review whose consumer delivery was
+  // exhausted (quarantined) before a notification row existed.
   const { JOB_NAME: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } =
     await import('#/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job')
   const reconcileMissingNotifications = container.reconcileMissingNotificationsHandler

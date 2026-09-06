@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
@@ -32,10 +32,7 @@ const PROPERTY = '10000000-0000-4000-8000-000000000001'
 const CONNECTION = '20000000-0000-4000-8000-000000000001'
 const NOW = new Date('2026-08-15T12:00:00.000Z')
 
-const eventBus = { emit: vi.fn(async () => undefined) }
-const store = createMerchantAiAuthorizationStore(db, eventBus, randomUUID, {
-  warn: vi.fn(),
-})
+const store = createMerchantAiAuthorizationStore(db, randomUUID)
 
 function command(overrides: Record<string, unknown> = {}) {
   return {
@@ -188,7 +185,6 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  eventBus.emit.mockClear()
   await resetAuthorization()
 })
 
@@ -295,7 +291,6 @@ describe('Merchant AI authorization store', () => {
     ])
     expect(outbox.rows[0]?.payload).not.toHaveProperty('actorUserId')
     expect(outbox.rows[0]?.payload).not.toHaveProperty('capabilities')
-    expect(eventBus.emit).toHaveBeenCalledTimes(1)
   })
 
   it('creates an explicit zero Review head when enabling analysis on a zero-review Property', async () => {
@@ -426,7 +421,6 @@ describe('Merchant AI authorization store', () => {
         (SELECT count(*)::int FROM outbox_events WHERE organization_id = ${ORG}) AS events
     `)
     expect(counts.rows[0]).toEqual({ evidence: 1, events: 1 })
-    expect(eventBus.emit).toHaveBeenCalledTimes(1)
   })
 
   it('enforces transition, optimistic-version, and material-change rules', async () => {

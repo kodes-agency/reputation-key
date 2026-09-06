@@ -116,7 +116,7 @@ describe('Organization lifecycle rules', () => {
     expect(() => validateLifecycleEvidenceRef('x'.repeat(201))).toThrow(/200/)
   })
 
-  it('emits a content-minimal revision-fenced lifecycle fact', () => {
+  it('creates a content-minimal revision-fenced lifecycle fact', () => {
     expect(
       identityOrganizationLifecycleChanged({
         organizationId: 'org-1' as never,

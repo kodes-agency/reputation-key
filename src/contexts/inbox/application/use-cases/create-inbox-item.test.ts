@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createInboxItem as createInboxItemUseCase } from './create-inbox-item'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import { isInboxError } from '../../domain/errors'
@@ -14,8 +14,8 @@ const PROP_ID = propertyId('prop-1')
 
 const setup = () => {
   const repo = createInMemoryInboxRepo()
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialInboxCommandStore({ repo, events })
+  const events = createRecordedOutbox()
+  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
   const deps = {
     repo,
     commandStore,
@@ -49,7 +49,7 @@ describe('createInboxItem', () => {
     expect(repo.items).toHaveLength(1)
   })
 
-  it('emits inbox.item.created event', async () => {
+  it('records inbox.item.created in the outbox', async () => {
     const { useCase, events } = setup()
 
     await useCase({
@@ -61,9 +61,9 @@ describe('createInboxItem', () => {
       platform: null,
     })
 
-    const emitted = events.capturedEvents
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0]._tag).toBe('inbox.inbox_item.created')
+    const facts = events.facts
+    expect(facts).toHaveLength(1)
+    expect(facts[0]._tag).toBe('inbox.inbox_item.created')
   })
 
   it('throws already_exists for duplicate source', async () => {

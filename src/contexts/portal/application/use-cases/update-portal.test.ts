@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { updatePortal, resolvePortalContentFields } from './update-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
@@ -25,13 +25,13 @@ const setup = (
   propertyLifecycle: 'active' | 'inactive' | 'error' = 'active',
 ) => {
   const portalRepo = createInMemoryPortalRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   let destinationLookups = 0
   let propertyLifecycleLookups = 0
   let commandWrites = 0
   let lastUpdateCommand: UpdatePortalCommand | null = null
   let generatedId = 0
-  const baseCommandStore = createInMemoryPortalCommandStore({ portalRepo, events })
+  const baseCommandStore = createInMemoryPortalCommandStore({ portalRepo, outbox })
   const publicationRepo: PortalPublicationRepository = {
     loadWorkingCopy: async (organizationId, portalId) => {
       const portal = await portalRepo.findById(organizationId, portalId)
@@ -148,7 +148,7 @@ const setup = (
   return {
     useCase,
     portalRepo,
-    events,
+    outbox,
     destinationLookups: () => destinationLookups,
     propertyLifecycleLookups: () => propertyLifecycleLookups,
     commandWrites: () => commandWrites,
@@ -326,14 +326,14 @@ describe('updatePortal', () => {
   })
 
   it('keeps occurrence time from the clock while allocating a later revision', async () => {
-    const { useCase, portalRepo, events, lastUpdateCommand } = setup()
+    const { useCase, portalRepo, outbox, lastUpdateCommand } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({})
     portalRepo.seed([portal])
 
     await useCase({ portalId: portal.id, name: 'Updated' }, ctx)
 
-    const emitted = events.capturedByTag('portal.updated')
+    const emitted = outbox.byTag('portal.updated')
     expect(emitted).toHaveLength(1)
     expect(emitted[0]).toMatchObject({
       propertyId: portal.propertyId,
@@ -377,7 +377,7 @@ describe('updatePortal', () => {
   })
 
   it('returns existing portal unchanged when no fields are different', async () => {
-    const { useCase, portalRepo, events } = setup()
+    const { useCase, portalRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ name: 'Same Name', slug: 'same-slug' })
     portalRepo.seed([portal])
@@ -388,7 +388,7 @@ describe('updatePortal', () => {
     )
 
     expect(result.name).toBe('Same Name')
-    expect(events.capturedByTag('portal.updated')).toHaveLength(0)
+    expect(outbox.byTag('portal.updated')).toHaveLength(0)
   })
 
   it('rejects PropertyManager without assignment to the property', async () => {

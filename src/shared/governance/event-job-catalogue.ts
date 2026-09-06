@@ -49,7 +49,7 @@
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { SystemAction } from './entry-point-catalogue'
 
-export const RECORDED_EVENT_RETENTION = 'outbox:30d,receipts:30d' as const
+const RECORDED_EVENT_RETENTION = 'outbox:30d,receipts:30d' as const
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -61,18 +61,12 @@ export type EventDisposition =
   | 'quarantined' // retained schema/producer code, but no active runtime producer or consumer
   | 'denied_dark' // belongs to a dark beta context (capability-gated off)
 
-/** How a consumer is wired to the event. */
-export type EventConsumerKind =
-  | 'bus' // in-process event-bus `.on(...)` handler
-  | 'durable' // outbox registerConsumer (receipt-idempotent)
-
-/** A consumer of an event family, pinned to its handler module. */
+/** A durable outbox consumer of an event family, pinned to its registration module. */
 export type EventConsumerRef = Readonly<{
-  /** Consumer name, e.g. 'inbox.on-review-created' (durable) or '<context>.event-handlers' (bus). */
+  /** Consumer name, e.g. 'inbox.on-review-created'. */
   name: string
-  /** Repo-relative file containing the handler registration. */
+  /** Repo-relative file containing the registerConsumer call. */
   module: string
-  kind: EventConsumerKind
   /** denied_dark when the consuming module belongs to a dark context. */
   disposition: 'enabled' | 'denied_dark'
 }>
@@ -90,7 +84,7 @@ export type EventFamilyRow = Readonly<{
   stateOwner: string
   /** True when a Zod schema is registered in schema-registrations.ts. */
   schemaRegistered: boolean
-  /** True when a producer path records to the outbox (false when producers only eventBus.emit). */
+  /** True when the producer records the fact to the outbox inside its command transaction. */
   recordedInOutbox: boolean
   consumers: ReadonlyArray<EventConsumerRef>
   /** Context owning the primary projection of this event, or 'none'. */
@@ -103,8 +97,8 @@ export type EventFamilyRow = Readonly<{
    */
   ordering: 'per_aggregate'
   /**
-   * Deduplication key: 'eventId+consumerName' for durably consumed,
-   * 'eventId' for recorded-only, 'none' for bus-only families.
+   * Deduplication key: 'eventId+consumerName' for consumed families,
+   * 'eventId' for recorded-only, 'none' for a quarantined producer.
    */
   idempotencyKey: 'eventId+consumerName' | 'eventId' | 'none'
   /** Governing beta capability; 'none' when ungated. */
@@ -114,8 +108,7 @@ export type EventFamilyRow = Readonly<{
   /**
    * Event delivery never floats across an unspecified region. Property facts
    * are stamped from the current routing authority immediately before relay;
-   * Organization/global facts and bus-only events inherit the source
-   * database/process cell. Consumers may re-resolve more narrowly, but may
+   * Organization/global facts inherit the source database/process cell. Consumers may re-resolve more narrowly, but may
    * never reinterpret the fact as belonging to another source cell.
    */
   region: 'source_cell'
@@ -181,22 +174,12 @@ export type JobFamilyRow = Readonly<{
 
 const DARK_CONTEXT_MODULE_RE = /\/contexts\/(portal|guest)\//
 
-/** Consumer ref; dark posture derived from the module path. */
-function ref(name: string, module: string, kind: EventConsumerKind): EventConsumerRef {
-  return {
-    name,
-    module,
-    kind,
-    disposition: DARK_CONTEXT_MODULE_RE.test(module) ? 'denied_dark' : 'enabled',
-  }
-}
-
-/** In-process bus consumer ('<context>.event-handlers'). */
-const bus = (name: string, module: string): EventConsumerRef => ref(name, module, 'bus')
-
-/** Durable outbox consumer ('<context>.<handler-name>'). */
-const durable = (name: string, module: string): EventConsumerRef =>
-  ref(name, module, 'durable')
+/** Durable outbox consumer ('<context>.<handler-name>'); dark posture derived from the module path. */
+const durable = (name: string, module: string): EventConsumerRef => ({
+  name,
+  module,
+  disposition: DARK_CONTEXT_MODULE_RE.test(module) ? 'denied_dark' : 'enabled',
+})
 
 type EventBase = Readonly<{
   stateOwner: string
@@ -227,7 +210,7 @@ function ev(
   base: EventBase,
   opts: EventOpts = {},
 ): EventFamilyRow {
-  const durableConsumed = base.consumers.some((c) => c.kind === 'durable')
+  const durableConsumed = base.consumers.length > 0
   return {
     eventType,
     version: opts.version ?? 1,
@@ -291,23 +274,13 @@ function job(
 
 // ── Consumer modules ────────────────────────────────────────────────
 
-const ACTIVITY_HANDLERS = 'src/contexts/activity/infrastructure/event-handlers/index.ts'
 const ACTIVITY_OUTBOX = 'src/contexts/activity/infrastructure/outbox-consumers.ts'
-const NOTIFICATION_HANDLERS =
-  'src/contexts/notification/infrastructure/event-handlers/index.ts'
-const NOTIFICATION_PORTAL_HANDLERS =
-  'src/contexts/notification/infrastructure/event-handlers/portal-event-handlers.ts'
-const NOTIFICATION_PROPERTY_HANDLERS =
-  'src/contexts/notification/infrastructure/event-handlers/property-event-handlers.ts'
-const INBOX_HANDLERS = 'src/contexts/inbox/infrastructure/event-handlers/index.ts'
-const METRIC_HANDLERS = 'src/contexts/metric/infrastructure/event-handlers/index.ts'
 const METRIC_OUTBOX = 'src/contexts/metric/infrastructure/outbox-consumers.ts'
 const METRIC_GUEST_OUTBOX = 'src/contexts/metric/infrastructure/guest-outbox-consumers.ts'
 const METRIC_CORRECTION_OUTBOX =
   'src/contexts/metric/infrastructure/correction-outbox-consumers.ts'
 const GOAL_METRIC_CORRECTION_OUTBOX =
   'src/contexts/goal/infrastructure/metric-correction-outbox-consumers.ts'
-const REVIEW_HANDLERS = 'src/contexts/review/infrastructure/event-handlers/index.ts'
 const REVIEW_OUTBOX = 'src/contexts/review/infrastructure/outbox-consumers.ts'
 const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
 const INBOX_GUEST_FEEDBACK_OUTBOX =
@@ -374,8 +347,6 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('inbox.event-handlers', INBOX_HANDLERS),
-        bus('metric.event-handlers', METRIC_HANDLERS),
         durable('inbox.on-review-created', INBOX_OUTBOX),
         durable('ai.analyze-review-event', AI_OUTBOX),
         durable('metric.public-reputation', METRIC_PUBLIC_REPUTATION_OUTBOX),
@@ -385,8 +356,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       projectionOwner: 'inbox',
       repairCommand: 'reconcileReplyPublication',
-      notes:
-        'atomic command-store outbox write (BQR-2.3); OUTBOX_DISPATCHER_ENABLED is enabled in google-closed-beta, while this Inbox consumer remains governed by its family cutover state',
+      notes: 'atomic command-store outbox write (BQR-2.3)',
     },
   ),
   ev(
@@ -408,7 +378,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       projectionOwner: 'inbox',
       repairCommand: 'reconcileReplyPublication',
       notes:
-        'BQC-3.4 resolved the BQC-3.1 orphan: metadata-only projection refresh (sourceDate/platform) via the inbox command store; OUTBOX_DISPATCHER_ENABLED is enabled in google-closed-beta, while this Inbox consumer remains governed by its family cutover state',
+        'BQC-3.4 resolved the BQC-3.1 orphan: metadata-only projection refresh (sourceDate/platform) via the inbox command store',
     },
   ),
   ev(
@@ -499,10 +469,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:review.purge',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('inbox.event-handlers', INBOX_HANDLERS),
-        durable('inbox.on-review-expired', INBOX_OUTBOX),
-      ],
+      consumers: [durable('inbox.on-review-expired', INBOX_OUTBOX)],
       disposition: 'enabled',
     },
     {
@@ -522,11 +489,9 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
-        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable('notification.on-review-reply-submitted', NOTIFICATION_WORKFLOW_OUTBOX),
-        bus('inbox.event-handlers', INBOX_HANDLERS),
+        durable('inbox.on-reply-submitted', INBOX_OUTBOX),
       ],
       disposition: 'enabled',
     },
@@ -546,9 +511,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
-        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable('notification.on-review-reply-approved', NOTIFICATION_WORKFLOW_OUTBOX),
       ],
       disposition: 'enabled',
@@ -588,9 +551,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
-        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable('notification.on-review-reply-rejected', NOTIFICATION_WORKFLOW_OUTBOX),
       ],
       disposition: 'enabled',
@@ -610,10 +571,8 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
         durable('activity.operational-action-history', ACTIVITY_OUTBOX),
-        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable('notification.on-review-reply-published', NOTIFICATION_WORKFLOW_OUTBOX),
         durable('inbox.on-reply-published', INBOX_OUTBOX),
       ],
@@ -655,7 +614,6 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable(
           'notification.on-review-reply-publish_failed',
           NOTIFICATION_WORKFLOW_OUTBOX,
@@ -678,10 +636,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
-        durable('activity.recent-activity', ACTIVITY_OUTBOX),
-      ],
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
       disposition: 'enabled',
     },
     {
@@ -699,10 +654,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
-        durable('activity.recent-activity', ACTIVITY_OUTBOX),
-      ],
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
       disposition: 'enabled',
     },
     {
@@ -724,9 +676,7 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
-        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable('notification.on-inbox-item-created', NOTIFICATION_OUTBOX),
       ],
       disposition: 'enabled',
@@ -746,10 +696,7 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:inbox.update',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
-        durable('activity.recent-activity', ACTIVITY_OUTBOX),
-      ],
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
       disposition: 'enabled',
     },
     {
@@ -767,9 +714,7 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
-        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable(
           'notification.on-inbox-inbox_item-assigned',
           NOTIFICATION_WORKFLOW_OUTBOX,
@@ -792,10 +737,7 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:inbox.update',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
-        durable('activity.recent-activity', ACTIVITY_OUTBOX),
-      ],
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
       disposition: 'enabled',
     },
     {
@@ -814,9 +756,7 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
-        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable(
           'notification.on-inbox-inbox_item-escalated',
           NOTIFICATION_WORKFLOW_OUTBOX,
@@ -840,7 +780,6 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
         durable(
           'notification.on-inbox-escalation-resolved',
@@ -865,9 +804,7 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
-        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable('notification.on-inbox-inbox_note-added', NOTIFICATION_WORKFLOW_OUTBOX),
       ],
       disposition: 'enabled',
@@ -887,10 +824,7 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:inbox.update',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
-        durable('activity.recent-activity', ACTIVITY_OUTBOX),
-      ],
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
       disposition: 'enabled',
     },
     {
@@ -1045,10 +979,7 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:identity.create_organization',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
-        durable('activity.recent-activity', ACTIVITY_OUTBOX),
-      ],
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
       disposition: 'enabled',
     },
     {
@@ -1065,10 +996,7 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
-        durable('activity.recent-activity', ACTIVITY_OUTBOX),
-      ],
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
       disposition: 'enabled',
     },
     { notes: 'atomic command-store outbox write (BQC-3.5)' },
@@ -1083,7 +1011,6 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
         durable(
           'notification.on-identity-invitation-accepted',
@@ -1103,10 +1030,7 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
-        durable('activity.recent-activity', ACTIVITY_OUTBOX),
-      ],
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
       disposition: 'enabled',
     },
     { notes: 'atomic command-store outbox write (BQC-3.5)' },
@@ -1121,7 +1045,6 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
         durable(
           'notification.on-identity-member-removed',
@@ -1142,7 +1065,6 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
         durable('activity.operational-action-history', ACTIVITY_OUTBOX),
         durable(
@@ -1212,10 +1134,7 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
-        durable('activity.recent-activity', ACTIVITY_OUTBOX),
-      ],
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
       disposition: 'enabled',
     },
     {
@@ -1233,7 +1152,6 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
         durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
       ],
@@ -1254,7 +1172,6 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
         durable('activity.operational-action-history', ACTIVITY_OUTBOX),
         durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
@@ -1344,7 +1261,6 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('notification.property-event-handlers', NOTIFICATION_PROPERTY_HANDLERS),
         durable(
           'notification.on-property-responsibility-needed',
           NOTIFICATION_PROPERTY_OUTBOX,
@@ -1512,7 +1428,6 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('notification.portal-event-handlers', NOTIFICATION_PORTAL_HANDLERS),
         durable(
           'notification.on-portal-responsibility-needed',
           NOTIFICATION_PORTAL_OUTBOX,
@@ -1617,10 +1532,7 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     action: 'system:metric.record_portal_workflow',
     schemaRegistered: true,
     recordedInOutbox: true,
-    consumers: [
-      bus('metric.event-handlers', METRIC_HANDLERS),
-      durable('metric.portal-workflow', METRIC_OUTBOX),
-    ],
+    consumers: [durable('metric.portal-workflow', METRIC_OUTBOX)],
     disposition: 'denied_dark',
   }),
   ev('portal.configuration_completeness.recorded', PORTAL_EVENTS, {
@@ -1629,10 +1541,7 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     action: 'system:metric.record_portal_workflow',
     schemaRegistered: true,
     recordedInOutbox: true,
-    consumers: [
-      bus('metric.event-handlers', METRIC_HANDLERS),
-      durable('metric.portal-workflow', METRIC_OUTBOX),
-    ],
+    consumers: [durable('metric.portal-workflow', METRIC_OUTBOX)],
     disposition: 'denied_dark',
   }),
   ev('portal.approved_destination_ratio.recorded', PORTAL_EVENTS, {
@@ -1641,10 +1550,7 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     action: 'system:metric.record_portal_workflow',
     schemaRegistered: true,
     recordedInOutbox: true,
-    consumers: [
-      bus('metric.event-handlers', METRIC_HANDLERS),
-      durable('metric.portal-workflow', METRIC_OUTBOX),
-    ],
+    consumers: [durable('metric.portal-workflow', METRIC_OUTBOX)],
     disposition: 'denied_dark',
   }),
   ev(
@@ -1862,10 +1768,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:guest.scan',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('metric.event-handlers', METRIC_HANDLERS),
-        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
-      ],
+      consumers: [durable('metric.guest-analytics', METRIC_GUEST_OUTBOX)],
       disposition: 'denied_dark',
     },
     {
@@ -1883,10 +1786,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:guest.scan',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('metric.event-handlers', METRIC_HANDLERS),
-        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
-      ],
+      consumers: [durable('metric.guest-analytics', METRIC_GUEST_OUTBOX)],
       disposition: 'denied_dark',
     },
     {
@@ -1904,10 +1804,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:guest.scan',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('metric.event-handlers', METRIC_HANDLERS),
-        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
-      ],
+      consumers: [durable('metric.guest-analytics', METRIC_GUEST_OUTBOX)],
       disposition: 'denied_dark',
     },
     {
@@ -1925,10 +1822,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:guest.rating',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('metric.event-handlers', METRIC_HANDLERS),
-        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
-      ],
+      consumers: [durable('metric.guest-analytics', METRIC_GUEST_OUTBOX)],
       disposition: 'denied_dark',
     },
     {
@@ -1946,10 +1840,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:guest.rating',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('metric.event-handlers', METRIC_HANDLERS),
-        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
-      ],
+      consumers: [durable('metric.guest-analytics', METRIC_GUEST_OUTBOX)],
       disposition: 'denied_dark',
     },
     {
@@ -1968,8 +1859,6 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('inbox.event-handlers', INBOX_HANDLERS),
-        bus('metric.event-handlers', METRIC_HANDLERS),
         durable('inbox.on-guest-feedback-submitted', INBOX_GUEST_FEEDBACK_OUTBOX),
         durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
       ],
@@ -1991,8 +1880,6 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('inbox.event-handlers', INBOX_HANDLERS),
-        bus('metric.event-handlers', METRIC_HANDLERS),
         durable('inbox.on-guest-feedback-retracted', INBOX_GUEST_FEEDBACK_OUTBOX),
         durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
       ],
@@ -2013,10 +1900,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:guest.click_track',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('metric.event-handlers', METRIC_HANDLERS),
-        durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
-      ],
+      consumers: [durable('metric.guest-analytics', METRIC_GUEST_OUTBOX)],
       disposition: 'denied_dark',
     },
     {
@@ -2038,7 +1922,6 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
         durable('activity.operational-action-history', ACTIVITY_OUTBOX),
       ],
@@ -2059,10 +1942,9 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
         durable('activity.recent-activity', ACTIVITY_OUTBOX),
         durable('activity.operational-action-history', ACTIVITY_OUTBOX),
-        bus('review.event-handlers', REVIEW_HANDLERS),
+        durable('review.on-google-account-disconnected', REVIEW_OUTBOX),
       ],
       disposition: 'enabled',
     },
@@ -2081,7 +1963,6 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       schemaRegistered: true,
       recordedInOutbox: true,
       consumers: [
-        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable(
           'notification.on-google-reauthorization-required',
           NOTIFICATION_INTEGRATION_OUTBOX,
@@ -2163,10 +2044,7 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [
-        bus('activity.event-handlers', ACTIVITY_HANDLERS),
-        durable('activity.recent-activity', ACTIVITY_OUTBOX),
-      ],
+      consumers: [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
       disposition: 'enabled',
     },
     {
@@ -2573,7 +2451,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     {
       timeoutMs: 120_000,
       notes:
-        'notification-gap healing sweep (100x5, keyset on inbox_items (created_at, id), 24h lookback, 5m grace); OUTBOX_DISPATCHER_ENABLED is enabled in google-closed-beta, so the notification durable consumer delivers and this remains the at-least-once repair sweep rather than the sole delivery path. Only enqueues items with ZERO notification rows, so a re-run cannot coalesce a second arrival onto an existing unread row',
+        'notification-gap healing sweep (100x5, keyset on inbox_items (created_at, id), 24h lookback, 5m grace); the notification durable consumer delivers and this remains the at-least-once repair sweep rather than the sole delivery path. Only enqueues items with ZERO notification rows, so a re-run cannot coalesce a second arrival onto an existing unread row',
     },
   ),
   job(
@@ -2879,11 +2757,10 @@ export const JOB_FAMILY_ROWS: ReadonlyArray<JobFamilyRow> = [
 
 /**
  * BQC-3.6: durable consumer refs declared for an event type. The dispatcher
- * uses this to tell a misconfigured deployment (catalogue expects a durable
- * consumer that was never registered → fail + retry) from a genuinely
- * bus-only family (no durable dispatch expected → complete).
+ * uses this to tell a misconfigured deployment (catalogue expects a consumer
+ * that was never registered → fail + retry) from a family with no consumers
+ * (recorded for audit only → complete).
  */
 export function durableConsumersFor(eventType: string): ReadonlyArray<EventConsumerRef> {
-  const row = EVENT_FAMILY_ROWS.find((r) => r.eventType === eventType)
-  return row?.consumers.filter((c) => c.kind === 'durable') ?? []
+  return EVENT_FAMILY_ROWS.find((r) => r.eventType === eventType)?.consumers ?? []
 }

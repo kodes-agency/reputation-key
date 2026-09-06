@@ -3,7 +3,7 @@ import {
   bulkUpdateInboxStatus,
   type BulkUpdateInboxStatusInput,
 } from './bulk-update-inbox-status'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
@@ -85,8 +85,8 @@ const defaultStaffApi: StaffPublicApi = {
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialInboxCommandStore({ repo, events })
+  const events = createRecordedOutbox()
+  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
   const reviewSourceLookup: ReviewSourceLookupPort = {
     getReviewSourceMetaById: async () => null,
     getReviewSourceMetaByIds: async (ids) =>
@@ -265,7 +265,7 @@ describe('bulkUpdateInboxStatus', () => {
     ])
   })
 
-  it('reports a stale client revision without mutating or emitting a fact', async () => {
+  it('reports a stale client revision without mutating or recording a fact', async () => {
     const { useCase, repo, events } = setup()
     repo.items.push(seedItem('ii-1', 'closed'))
 
@@ -287,7 +287,7 @@ describe('bulkUpdateInboxStatus', () => {
       results: [{ inboxItemId: inboxItemId('ii-1'), outcome: 'revision_conflict' }],
     })
     expect(repo.items[0]!.status).toBe('closed')
-    expect(events.capturedByTag('inbox.inbox_item.bulk_status_changed')).toEqual([])
+    expect(events.byTag('inbox.inbox_item.bulk_status_changed')).toEqual([])
   })
 
   it('rejects duplicate command IDs at the application boundary', async () => {
@@ -301,7 +301,7 @@ describe('bulkUpdateInboxStatus', () => {
     )
   })
 
-  it('emits bulk status changed events for each updated item with shared bulkId', async () => {
+  it('records one bulk status fact per updated item with a shared bulkId', async () => {
     const { useCase, repo, events } = setup()
     repo.items.push(seedItem('ii-1', 'closed'))
     repo.items.push(seedItem('ii-2', 'closed'))
@@ -314,11 +314,11 @@ describe('bulkUpdateInboxStatus', () => {
       ctxFor('AccountAdmin'),
     )
 
-    const emitted = events.capturedByTag('inbox.inbox_item.bulk_status_changed')
-    expect(emitted).toHaveLength(2)
-    const bulkIds = emitted.map((e) => e.bulkId)
+    const facts = events.byTag('inbox.inbox_item.bulk_status_changed')
+    expect(facts).toHaveLength(2)
+    const bulkIds = facts.map((fact) => fact.bulkId)
     expect(bulkIds[0]).toBeTruthy()
-    expect(new Set(bulkIds).size).toBe(1) // all events share the same bulkId
+    expect(new Set(bulkIds).size).toBe(1)
   })
 
   it('reopens both review and feedback items without a source-type guard', async () => {

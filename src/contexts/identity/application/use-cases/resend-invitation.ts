@@ -1,7 +1,6 @@
 // Identity context — resend invitation use case
-// Per architecture: "Every use case follows this order:
-// 1. Authorize → 2. Validate → 3. Check invariants → 4. Build → 5. Persist → 6. Emit → 7. Return"
-// Use cases THROW tagged errors at the application boundary (never return Result).
+// Order: authorize → validate → check invariants → build → persist → return.
+// Use cases throw tagged errors at the application boundary (never return Result).
 
 import type { IdentityPort } from '../ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'

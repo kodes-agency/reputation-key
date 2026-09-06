@@ -14,7 +14,6 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { EventBus } from '#/shared/events/event-bus'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../../domain/types'
 import { propertyCreated, propertyDeleted, propertyUpdated } from '../../domain/events'
@@ -27,12 +26,6 @@ const NOW = new Date('2026-06-01T12:00:00.000Z')
 
 let pool: Pool
 const db = getDb()
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 function makeProperty(overrides: Partial<Property> = {}): Property {
   return {
@@ -101,7 +94,7 @@ beforeEach(async () => {
 
 describe.sequential('propertyCommandStore (integration)', () => {
   it('createProperty commits the property + created fact in one transaction', async () => {
-    const store = createAtomicPropertyCommandStore(db, silentEvents)
+    const store = createAtomicPropertyCommandStore(db)
     const property = makeProperty()
     const event = propertyCreated({
       propertyId: property.id,
@@ -131,7 +124,7 @@ describe.sequential('propertyCommandStore (integration)', () => {
   })
 
   it('createProperty rolls back the insert when the fact insert fails (unregistered type)', async () => {
-    const store = createAtomicPropertyCommandStore(db, silentEvents)
+    const store = createAtomicPropertyCommandStore(db)
     const ghost = {
       ...propertyCreated({
         propertyId: PROP_ID,
@@ -159,7 +152,7 @@ describe.sequential('propertyCommandStore (integration)', () => {
   })
 
   it('createProperty enforces the tenant guard', async () => {
-    const store = createAtomicPropertyCommandStore(db, silentEvents)
+    const store = createAtomicPropertyCommandStore(db)
 
     await expect(
       store.createProperty({
@@ -177,7 +170,7 @@ describe.sequential('propertyCommandStore (integration)', () => {
   })
 
   it('updateProperty commits the patch + updated fact in one transaction', async () => {
-    const store = createAtomicPropertyCommandStore(db, silentEvents)
+    const store = createAtomicPropertyCommandStore(db)
     await store.createProperty({
       organizationId: ORG_ID,
       property: makeProperty(),
@@ -219,7 +212,7 @@ describe.sequential('propertyCommandStore (integration)', () => {
   })
 
   it('deleteProperty commits the delete + deleted fact in one transaction', async () => {
-    const store = createAtomicPropertyCommandStore(db, silentEvents)
+    const store = createAtomicPropertyCommandStore(db)
     await store.createProperty({
       organizationId: ORG_ID,
       property: makeProperty(),

@@ -11,7 +11,6 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
 import { googleConnectionId } from '#/shared/domain/ids'
-import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import {
   listImportAccountsInputSchema,
   listImportCandidatesInputSchema,
@@ -66,11 +65,6 @@ function requireGoogleImportDiscovery() {
   return discovery
 }
 function requireGoogleImportTransaction() {
-  const runtime = requestRuntimeConfig()
-  // Production import admission requires OUTBOX_DISPATCHER_ENABLED=true.
-  if (runtime.nodeEnv === 'production' && !runtime.outboxDispatcherEnabled) {
-    throw new GoogleImportTransactionError('temporarily_unavailable')
-  }
   const transaction = getContainer().integrationPublicApi.imports.transact
   if (!transaction) {
     throw new GoogleImportTransactionError('temporarily_unavailable')

@@ -9,7 +9,6 @@
 import { wireUseCases } from '#/contexts/inbox/build-use-cases'
 import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import { createEventBus } from '#/shared/events/event-bus'
 import {
   organizationId,
   userId,
@@ -240,7 +239,6 @@ export function createInboxContainer() {
   const inboxRepo = createInMemoryInboxRepo()
   const inboxNoteRepo = createInMemoryNoteRepo()
   const inboxViewRepo = createInMemoryViewRepo()
-  const events = createEventBus()
   let clockNow = new Date('2025-01-15T12:00:00Z')
 
   const useCases = wireUseCases({
@@ -252,7 +250,6 @@ export function createInboxContainer() {
     commandStore: createSequentialInboxCommandStore({
       repo: inboxRepo,
       noteRepo: inboxNoteRepo,
-      events,
     }),
     handlingCycleStore: emptyHandlingCycleStore,
     feedbackHandlingStore: emptyFeedbackHandlingStore,

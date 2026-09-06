@@ -43,11 +43,11 @@ Property management — creation, updates, lifecycle containment, and cross-cont
 
 ## Events produced
 
-| Tag                                     | Payload                                                                                                       | When emitted                                                                                                   |
+| Tag                                     | Payload                                                                                                       | When recorded                                                                                                  |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | `property.created`                      | eventId, propertyId, organizationId, name, slug, dataCellId/legacy processingRegion, occurredAt               | A Property is created with its resolved routing facts                                                          |
 | `property.updated`                      | eventId, propertyId, organizationId, name, slug, occurredAt                                                   | Mutable Property metadata changes                                                                              |
-| `property.deleted`                      | eventId, propertyId, organizationId, occurredAt                                                               | Legacy/future Erase compatibility only; normal product actions cannot emit it during LIF-01 containment        |
+| `property.deleted`                      | eventId, propertyId, organizationId, occurredAt                                                               | Legacy/future Erase compatibility only; normal product actions cannot record it during LIF-01 containment      |
 | `property.archived`                     | eventId, organizationId, propertyId, userId, previousState, sourceEpoch, recoveryDeadline, occurredAt         | Archive commits in place and opens the bounded recovery window; reason/content remain Property-local           |
 | `property.restored`                     | eventId, organizationId, propertyId, userId, previousState, sourceEpoch, Google binding readiness, occurredAt | Explicit restore passes current responsibility and Data Cell checks                                            |
 | `property.google_binding.changed`       | eventId, organizationId, propertyId, connectionId, sourceEpoch, change, occurredAt                            | The Property-owned Google binding is created, relinked, disconnected, or enters deletion                       |
@@ -84,8 +84,8 @@ property/
 
 ## Use cases
 
-- **`createProperty`** — Create a new property, emits `property.created`.
-- **`updateProperty`** — Update property settings, emits `property.updated`.
+- **`createProperty`** — Create a new property and atomically record `property.created`.
+- **`updateProperty`** — Update property settings and atomically record `property.updated`.
 - **`getProperty`** — Retrieve a single property by ID.
 - **`listProperties`** — List properties for an org, filtered by user's accessible properties (via StaffPublicApi).
 - **`deleteProperty`** — Contained legacy entry point (file: `soft-delete-property.ts`). Always refuses before effects. It does not implement Archive/Disconnect or support-mediated erasure.

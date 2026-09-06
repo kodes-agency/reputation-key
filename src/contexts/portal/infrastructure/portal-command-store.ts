@@ -1,8 +1,7 @@
 // Atomic Portal command store (ARC-01).
 //
 // Portal state, responsibility/token side effects, and every required durable
-// lifecycle fact commit in one PostgreSQL transaction. The EventBus is only a
-// post-commit acceleration path; the outbox remains the recovery authority.
+// lifecycle fact commit together in one PostgreSQL transaction.
 
 import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -23,8 +22,7 @@ import {
 } from '#/shared/db/schema/portal.schema'
 import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { lockPortalPublicationProperty } from './portal-publication-serialization'
 import {
   recordPortalPendingContentChange,
@@ -1252,10 +1250,7 @@ function assertRevokeTokenCommand(command: RevokePortalTokensCommand): void {
   }
 }
 
-export const createAtomicPortalCommandStore = (
-  db: Database,
-  events: EventBus,
-): PortalCommandStore => {
+export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore => {
   return {
     createPortal: async (command) =>
       trace('portal.commandStore.createPortal', async () => {
@@ -1304,10 +1299,6 @@ export const createAtomicPortalCommandStore = (
             })
           }
         })
-        await emitAfterCommit(events, command.event)
-        if (command.responsibilityNeededEvent) {
-          await emitAfterCommit(events, command.responsibilityNeededEvent)
-        }
       }),
 
     updatePortal: async (command) =>
@@ -1469,13 +1460,6 @@ export const createAtomicPortalCommandStore = (
             })
           }
         })
-        await emitAfterCommit(events, command.event)
-        if (command.lifecycleEvent) {
-          await emitAfterCommit(events, command.lifecycleEvent)
-        }
-        if (command.localeSetEvent) {
-          await emitAfterCommit(events, command.localeSetEvent)
-        }
       }),
 
     deletePortal: async (command) =>
@@ -1536,10 +1520,6 @@ export const createAtomicPortalCommandStore = (
           return revokedRows.length
         })
 
-        await emitAfterCommit(events, command.event)
-        if (revoked > 0) {
-          await emitAfterCommit(events, command.tokenRevokedEvent)
-        }
         return { revoked }
       }),
 
@@ -1597,7 +1577,6 @@ export const createAtomicPortalCommandStore = (
             await insertOutboxRow(tx, event, { recordedAt: command.group.createdAt })
           }
         })
-        for (const event of command.events) await emitAfterCommit(events, event)
       }),
 
     updatePortalGroup: async (command) =>
@@ -1609,7 +1588,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
 
     addPortalToGroup: async (command) =>
@@ -1679,7 +1657,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
 
     removePortalFromGroup: async (command) =>
@@ -1735,7 +1712,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
 
     createPortalLinkCategory: async (command) =>
@@ -1749,7 +1725,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
 
     updatePortalLinkCategory: async (command) =>
@@ -1779,7 +1754,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
 
     deletePortalLinkCategory: async (command) =>
@@ -1808,7 +1782,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
 
     reorderPortalLinkCategories: async (command) =>
@@ -1855,7 +1828,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
 
     createPortalLink: async (command) =>
@@ -1869,7 +1841,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
 
     updatePortalLink: async (command) =>
@@ -1906,7 +1877,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
 
     deletePortalLink: async (command) =>
@@ -1933,7 +1903,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
 
     reorderPortalLinks: async (command) =>
@@ -1976,7 +1945,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
 
     issuePortalToken: async (command) =>
@@ -2025,10 +1993,6 @@ export const createAtomicPortalCommandStore = (
             await insertOutboxRow(tx, event, { recordedAt: command.occurredAt })
           }
         })
-        await emitAfterCommit(events, command.event)
-        for (const event of command.accessArtifactEvents) {
-          await emitAfterCommit(events, event)
-        }
       }),
 
     rotatePortalToken: async (command) =>
@@ -2068,10 +2032,6 @@ export const createAtomicPortalCommandStore = (
             await insertOutboxRow(tx, event, { recordedAt: command.occurredAt })
           }
         })
-        await emitAfterCommit(events, command.event)
-        for (const event of command.accessArtifactEvents) {
-          await emitAfterCommit(events, event)
-        }
       }),
 
     revokePortalTokens: async (command) =>
@@ -2127,7 +2087,7 @@ export const createAtomicPortalCommandStore = (
           })
           return rows.length
         })
-        if (revoked > 0) await emitAfterCommit(events, command.event)
+
         return { revoked }
       }),
 
@@ -2186,7 +2146,6 @@ export const createAtomicPortalCommandStore = (
             recordedAt: command.occurredAt,
           })
         })
-        await emitAfterCommit(events, command.event)
       }),
   }
 }

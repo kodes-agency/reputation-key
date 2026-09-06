@@ -3,7 +3,7 @@ import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
@@ -44,23 +44,12 @@ const OPENED_AT = new Date('2026-08-28T08:00:00.000Z')
 const db = getDb()
 let pool: Pool
 
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
-
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
   allowed: true,
 })
 
 const commandStore = (database: Database) =>
-  createProductionInboxCommandStore(
-    database,
-    silentEvents,
-    allowAllCommandAuthority,
-    () => OPENED_AT,
-  )
+  createProductionInboxCommandStore(database, allowAllCommandAuthority, () => OPENED_AT)
 
 const makeItem = (): InboxItem => ({
   id: ITEM,
@@ -279,7 +268,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
       materialReviewRevision: 1,
     })
 
-    const targets = createResponseTargetStore(db, silentEvents)
+    const targets = createResponseTargetStore(db)
     await expect(
       targets.getCycleTarget(REVIEW_ITEM, ORG, OPENED_AT),
     ).resolves.toMatchObject({
@@ -359,12 +348,8 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
       organizationMinutes: 2_880,
       propertyMinutes: 720,
     })
-    const targets = createResponseTargetStore(db, silentEvents)
-    const handling = createFeedbackHandlingStore(
-      db,
-      silentEvents,
-      allowAllCommandAuthority,
-    )
+    const targets = createResponseTargetStore(db)
+    const handling = createFeedbackHandlingStore(db, allowAllCommandAuthority)
 
     await expect(targets.getCycleTarget(ITEM, ORG, OPENED_AT)).resolves.toMatchObject({
       cycleNumber: 1,
@@ -503,7 +488,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
 
   it('releases each halfway and target-passed fact once under concurrent workers and never escalates workflow', async () => {
     const item = await seedScope({ organizationMinutes: 2_880 })
-    const targets = createResponseTargetStore(db, silentEvents)
+    const targets = createResponseTargetStore(db)
     const halfway = new Date('2026-08-29T08:00:00.000Z')
 
     const halfwayRace = await Promise.all([
@@ -553,7 +538,6 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
     const lateAt = new Date('2026-08-30T09:00:00.000Z')
     const handled = await createFeedbackHandlingStore(
       db,
-      silentEvents,
       allowAllCommandAuthority,
     ).markHandled({
       item,
@@ -711,7 +695,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
       { cycle_number: 2, cancelled: 0 },
     ])
     await expect(
-      createResponseTargetStore(db, silentEvents).getGoogleReviewAnalytics({
+      createResponseTargetStore(db).getGoogleReviewAnalytics({
         organizationId: ORG,
         propertyIds: null,
         now: observedAt,
@@ -843,7 +827,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
       },
     })
 
-    const targets = createResponseTargetStore(db, silentEvents)
+    const targets = createResponseTargetStore(db)
     await expect(
       targets.getCycleTarget(HISTORICAL_ITEM, ORG, reopenedAt),
     ).resolves.toMatchObject({
@@ -938,7 +922,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
       stop_reason: 'source_ineligible',
     })
     await expect(
-      createResponseTargetStore(db, silentEvents).getGoogleReviewAnalytics({
+      createResponseTargetStore(db).getGoogleReviewAnalytics({
         organizationId: ORG,
         propertyIds: null,
         now: OPENED_AT,
@@ -953,7 +937,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
 
   it('enforces immutable snapshots and excludes cancelled and legacy-unknown cycles from performance', async () => {
     await seedScope({ propertyMinutes: null })
-    const targets = createResponseTargetStore(db, silentEvents)
+    const targets = createResponseTargetStore(db)
     await db.transaction(async (tx) => {
       const { cancelPrivateFeedbackTarget } = await import('./response-target.store')
       await cancelPrivateFeedbackTarget(
@@ -1053,7 +1037,7 @@ describe.sequential('Inbox Response Target store (PostgreSQL)', () => {
 
   it('serializes policy creation and fences stale Organization and Property updates', async () => {
     await seedScope()
-    const policies = createResponseTargetPolicyStore(db, silentEvents)
+    const policies = createResponseTargetPolicyStore(db)
     await expect(policies.getPolicySettings(ORG, PROPERTY)).resolves.toEqual({
       organization: {
         googleReviewResponse: {

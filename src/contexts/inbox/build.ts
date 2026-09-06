@@ -4,8 +4,8 @@
 // persistence details remain context-internal.
 //
 // Runtime contribution exposed to the composition root:
-//   - worker.registerOutboxConsumers — BQR-2.2/2.4 durable consumer
-//     registration; the worker calls it before optional durable dispatch start.
+//   - worker.registerOutboxConsumers — registers Inbox's durable consumers
+//     before the worker begins processing outbox jobs.
 
 import type { Database } from '#/shared/db'
 import type { ConsumerRegistry } from '#/shared/outbox'
@@ -13,13 +13,7 @@ import {
   createInboxAssignmentRuntime,
   type InboxAssignmentRuntime,
 } from './application/inbox-assignment-runtime'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import {
-  INBOX_CUTOVER_FAMILIES,
-  type CutoverFamily,
-  type CutoverState,
-} from '#/shared/outbox/cutover-flags'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type {
   ReviewReplyObservationAuthority,
@@ -85,7 +79,6 @@ import { createReviewHandlingCycleStore } from './infrastructure/review-handling
 import { createFeedbackHandlingStore } from './infrastructure/feedback-handling.store'
 import { createResponseTargetStore } from './infrastructure/response-target.store'
 import { createResponseTargetPolicyStore } from './infrastructure/response-target-policy.store'
-import { registerInboxHandlers } from './infrastructure/event-handlers'
 import { registerInboxConsumers } from './infrastructure/outbox-consumers'
 import { registerGuestFeedbackConsumer } from './infrastructure/guest-feedback-outbox-consumers'
 import { createFeedbackLookupAdapter } from './infrastructure/adapters/feedback-lookup.adapter'
@@ -103,10 +96,8 @@ import { wireUseCases } from './build-use-cases'
 
 export type InboxContextBuildInput = Readonly<{
   db: Database
-  events: EventBus
   clock: () => Date
   idGen: () => string
-  cutoverState: (family: CutoverFamily) => CutoverState
   staffPublicApi: StaffPublicApi
   /** BQC-1.4: review.publicApi IS the governed read interface — it satisfies
    * the inbox ReviewLookupPort directly (single rule, one owner). */
@@ -312,26 +303,20 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   const actorDirectory = createInboxActorDirectoryAdapter(input.db)
   const inboxViewRepo = createInboxViewRepository(input.db, input.clock)
 
-  // BQC-3.4: atomic inbox state + outbox writes for every fact-emitting
-  // command. This closes the wiring gap — inbox facts were previously
-  // bus-only in production because wireUseCases never received outboxRepo.
+  // BQC-3.4: every fact-producing command commits state and its outbox row in
+  // one transaction.
   const commandStore = createAtomicInboxCommandStore(
     input.db,
-    input.events,
     input.authorizeCommand,
     input.clock,
   )
   const handlingCycleStore = createReviewHandlingCycleStore(input.db)
   const feedbackHandlingStore = createFeedbackHandlingStore(
     input.db,
-    input.events,
     input.authorizeCommand,
   )
-  const responseTargetStore = createResponseTargetStore(input.db, input.events)
-  const responseTargetPolicyStore = createResponseTargetPolicyStore(
-    input.db,
-    input.events,
-  )
+  const responseTargetStore = createResponseTargetStore(input.db)
+  const responseTargetPolicyStore = createResponseTargetPolicyStore(input.db)
 
   const useCases = wireUseCases({
     inboxRepo,
@@ -387,36 +372,9 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     rebuildInboxProjection: useCases.rebuildInboxProjection,
   })
 
-  // Register cross-context event handlers (expand-phase bus dual path)
-  registerInboxHandlers({
-    events: input.events,
-    createInboxItem: lifecycle.createInboxItem,
-    repo: inboxRepo,
-    commandStore,
-    logger: input.logger,
-    cutoverState: input.cutoverState,
-  })
-
-  // BQR-2.2/2.4: durable consumer registration — inbox's runtime
-  // contribution. The worker calls this before optional durable dispatch
-  // start; wiring stays a single assignment in the composition root while
-  // the deps stay captured here.
+  // Durable consumer registration is the single cross-context delivery path.
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
-    // Keep the three states operationally distinct: record-only has only the
-    // bus path, shadow has both paths, and switch has only the durable path.
-    const cutoverAwareRegistry: ConsumerRegistry = {
-      ...consumerRegistry,
-      registerConsumer: (registration) => {
-        const family = INBOX_CUTOVER_FAMILIES.find(
-          (candidate) => candidate === registration.eventType,
-        )
-        if (family !== undefined && input.cutoverState(family) === 'record-only') {
-          return
-        }
-        consumerRegistry.registerConsumer(registration)
-      },
-    }
-    registerInboxConsumers(cutoverAwareRegistry, {
+    registerInboxConsumers(consumerRegistry, {
       commandStore,
       handlingCycleStore,
       replyObservationAuthority,

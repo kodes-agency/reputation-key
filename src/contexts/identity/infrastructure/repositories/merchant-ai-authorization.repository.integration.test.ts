@@ -39,19 +39,7 @@ const NOW = new Date('2026-08-19T12:00:00.000Z')
 
 describe('merchant AI authorization store (real PostgreSQL)', () => {
   const db = getDb()
-  const emitted: unknown[] = []
-  const store = createMerchantAiAuthorizationStore(
-    db,
-    {
-      emit: (event: unknown) => {
-        emitted.push(event)
-      },
-    } as unknown as Parameters<typeof createMerchantAiAuthorizationStore>[1],
-    randomUUID,
-    {
-      warn: () => {},
-    },
-  )
+  const store = createMerchantAiAuthorizationStore(db, randomUUID)
 
   const clear = async () => {
     // Consent evidence is append-only and the enablement row is transition

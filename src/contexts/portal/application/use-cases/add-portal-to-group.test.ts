@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { addPortalToGroup } from './add-portal-to-group'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
@@ -130,7 +130,7 @@ const seedPortal = (): Portal => ({
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const portalRepo = createPortalRepoMock(seedPortal())
   const deps = {
     portalGroupRepo,
@@ -139,12 +139,12 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
     commandStore: createInMemoryPortalCommandStore({
       portalRepo,
       portalGroupRepo,
-      events,
+      outbox,
     }),
     clock: () => FIXED_TIME,
   }
   const useCase = addPortalToGroup(deps)
-  return { useCase, portalGroupRepo, events }
+  return { useCase, portalGroupRepo, outbox }
 }
 
 const seedGroup = (orgId: PortalGroup['organizationId']): PortalGroup => ({
@@ -159,8 +159,8 @@ const seedGroup = (orgId: PortalGroup['organizationId']): PortalGroup => ({
 })
 
 describe('addPortalToGroup', () => {
-  it('adds a portal to a group and emits added event (PM assigned to the property)', async () => {
-    const { useCase, portalGroupRepo, events } = setup([PROPERTY_ID])
+  it('adds a portal to a group and records the fact (PM assigned to the property)', async () => {
+    const { useCase, portalGroupRepo, outbox } = setup([PROPERTY_ID])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
 
@@ -172,7 +172,7 @@ describe('addPortalToGroup', () => {
     )
     expect(String(membership)).toBe(String(GROUP_ID))
 
-    const emitted = events.capturedByTag('portal_group.portal_added')
+    const emitted = outbox.byTag('portal_group.portal_added')
     expect(emitted).toHaveLength(1)
     expect(String(emitted[0].portalId)).toBe(String(PORTAL_ID))
     expect(String(emitted[0].portalGroupId)).toBe(String(GROUP_ID))

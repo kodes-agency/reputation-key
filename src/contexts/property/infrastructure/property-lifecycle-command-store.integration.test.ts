@@ -1,9 +1,8 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type { EventBus } from '#/shared/events/event-bus'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { propertyArchived } from '../domain/events'
@@ -15,12 +14,6 @@ const PROPERTY_ID = propertyId('f5000000-0000-4000-8000-000000000001')
 const ACTOR_ID = userId('admin-property-lifecycle')
 const NOW = new Date('2026-08-28T12:00:00.000Z')
 const RECOVERY_DEADLINE = new Date('2026-09-27T12:00:00.000Z')
-
-const events: EventBus = {
-  on: vi.fn(),
-  clear: vi.fn(),
-  emit: vi.fn(),
-}
 
 const archiveEvent = () =>
   propertyArchived({
@@ -98,7 +91,6 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  vi.clearAllMocks()
   await resetProperty()
 })
 
@@ -114,7 +106,7 @@ describe('Property lifecycle command store atomicity', () => {
   it('preserves one stable row while co-committing archive and its durable fact', async () => {
     const event = archiveEvent()
 
-    await createPropertyLifecycleCommandStore(db, events, 'us').transitionLifecycle(
+    await createPropertyLifecycleCommandStore(db, 'us').transitionLifecycle(
       archiveCommand(event),
     )
 
@@ -145,7 +137,6 @@ describe('Property lifecycle command store atomicity', () => {
     expect(new Date(String(result.rows[0]?.purge_scheduled_for))).toEqual(
       RECOVERY_DEADLINE,
     )
-    expect(events.emit).toHaveBeenCalledWith(event)
   })
 
   it('rolls the lifecycle update back when the required fact cannot be inserted', async () => {
@@ -161,7 +152,7 @@ describe('Property lifecycle command store atomicity', () => {
     `)
 
     await expect(
-      createPropertyLifecycleCommandStore(db, events, 'us').transitionLifecycle(
+      createPropertyLifecycleCommandStore(db, 'us').transitionLifecycle(
         archiveCommand(event),
       ),
     ).rejects.toMatchObject({ cause: { code: '23505' } })
@@ -177,14 +168,13 @@ describe('Property lifecycle command store atomicity', () => {
       purge_scheduled_for: null,
       source_epoch: 7,
     })
-    expect(events.emit).not.toHaveBeenCalled()
   })
 
   it('refuses a Property assigned to another Data Cell without any write', async () => {
     const event = archiveEvent()
 
     await expect(
-      createPropertyLifecycleCommandStore(db, events, 'europe').transitionLifecycle(
+      createPropertyLifecycleCommandStore(db, 'europe').transitionLifecycle(
         archiveCommand(event),
       ),
     ).rejects.toMatchObject({
@@ -207,6 +197,5 @@ describe('Property lifecycle command store atomicity', () => {
       source_epoch: 7,
       fact_count: 0,
     })
-    expect(events.emit).not.toHaveBeenCalled()
   })
 })

@@ -9,6 +9,10 @@ immutable audit log or audit trail are historical rationale, not current
 product or integrity claims. The current model is the rebuildable **Recent
 Activity** projection defined by ADR 0056 and the Activity context contract.
 
+**2026-09-07 (WP3.1):** the in-process EventBus and every bus handler are deleted.
+The `activity.recent-activity` outbox consumer is the only delivery path; the
+BullMQ accelerator described below no longer exists.
+
 **2026-08-28 recovery amendment:** the EventBus-to-`project-recent-activity` BullMQ
 path is retained only as a low-latency accelerator. Source-context transactional
 outbox facts consumed by `activity.recent-activity` are the recovery authority.
@@ -82,5 +86,5 @@ The metric context remains in-process. Metrics are aggregate counters — losing
 - Codebase standards: `docs/standards.md` (event envelope, per-tag handlers, build function shape)
 - Original Q12 decision: session `20260601_173316_58f765`
 - Metric context CONTEXT.md: `src/contexts/metric/CONTEXT.md`
-- Event bus: `src/shared/events/event-bus.ts`
+- Outbox consumers: `src/contexts/activity/infrastructure/outbox-consumers.ts`
 - BullMQ infrastructure: `src/shared/jobs/queue.ts`, `src/shared/jobs/worker.ts`

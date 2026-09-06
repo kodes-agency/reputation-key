@@ -2,7 +2,6 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { propertyId } from '#/shared/domain/ids'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { PropertyRepository } from '../ports/property.repository'
 import type { PropertyResponsibleManagerRepository } from '../ports/property-responsible-manager.repository'
 import type { PropertyManagerEligibilityDeps } from '../property-manager-eligibility'
@@ -16,8 +15,6 @@ type QueryDeps = PropertyManagerEligibilityDeps &
     managerRepo: PropertyResponsibleManagerRepository
     clock: () => Date
   }>
-
-type CommandDeps = QueryDeps & Readonly<{ events: EventBus }>
 
 async function loadAccessibleProperty(
   deps: QueryDeps,
@@ -65,7 +62,7 @@ export const listPropertyResponsibleManagers =
   }
 
 export const updatePropertyResponsibleManagers =
-  (deps: CommandDeps) =>
+  (deps: QueryDeps) =>
   async (
     input: Readonly<{
       propertyId: string
@@ -114,8 +111,5 @@ export const updatePropertyResponsibleManagers =
       at,
       responsibilityNeededEvent,
     })
-    if (updated.becameResponsibilityNeeded) {
-      await deps.events.emit(responsibilityNeededEvent)
-    }
     return updated
   }

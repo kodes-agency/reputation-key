@@ -5,7 +5,6 @@ import type { Review } from '../domain/types'
 import { getDb } from '#/shared/db'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { EventBus } from '#/shared/events/event-bus'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { eraseReviewSourceContent } from './review-source-content-store'
@@ -40,12 +39,6 @@ const { getPool } = setupIntegrationDb({
     'reviews',
   ],
 })
-
-const events: EventBus = {
-  on: vi.fn(),
-  emit: vi.fn().mockResolvedValue(undefined),
-  clear: vi.fn(),
-}
 
 function review(contentExpiresAt: Date): Omit<Review, 'createdAt' | 'updatedAt'> {
   return {
@@ -101,7 +94,7 @@ beforeEach(async () => {
 
 describe('atomic review re-observation', () => {
   it('issues exact current target permits and orders a complete batch', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
     const first = review(REFRESHED_UNTIL)
     const second = {
       ...first,
@@ -188,7 +181,7 @@ describe('atomic review re-observation', () => {
   })
 
   it('excludes a material revision first seen during historical onboarding', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
     const initial = review(REFRESHED_UNTIL)
 
     await store.upsertAndRecord(
@@ -222,7 +215,7 @@ describe('atomic review re-observation', () => {
   })
 
   it('keeps a future provider timestamp as source evidence but excludes it from measured targets', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
     const futureProviderTime = new Date('2026-08-25T12:05:00.000Z')
     const initial = {
       ...review(REFRESHED_UNTIL),
@@ -287,7 +280,7 @@ describe('atomic review re-observation', () => {
 
   it('preserves staff-authored reply history while advancing the source lifecycle', async () => {
     // @proof REVIEW_REOBSERVATION_IDENTITY#1
-    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
     const initial = review(EXPIRED_AT)
     const created = await store.upsertAndRecord(
       initial,
@@ -429,7 +422,7 @@ describe('atomic review re-observation', () => {
   })
 
   it('versions every observation but advances material revision only for rating or normalized original text', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
     const initial = {
       ...review(REFRESHED_UNTIL),
       sourceUpdatedAt: new Date('2026-08-01T12:00:00.000Z'),
@@ -610,7 +603,7 @@ describe('atomic review re-observation', () => {
   })
 
   it('restores erased content on the same identity without inventing a material edit', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
     const initial = review(REFRESHED_UNTIL)
     const created = await store.upsertAndRecord(
       initial,
@@ -674,7 +667,7 @@ describe('atomic review re-observation', () => {
   })
 
   it('carries one provider identity and its current material state into a newer source epoch', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
     const initial = review(REFRESHED_UNTIL)
     const created = await store.upsertAndRecord(
       initial,
@@ -693,7 +686,7 @@ describe('atomic review re-observation', () => {
       '7'.repeat(64),
       'ongoing',
     )
-    const replyObservations = createGoogleReplyObservationStore(getDb(), events)
+    const replyObservations = createGoogleReplyObservationStore(getDb())
     await replyObservations.record({
       organizationId: ORG,
       propertyId: PROPERTY,
@@ -854,7 +847,7 @@ describe('atomic review re-observation', () => {
   })
 
   it('re-observes an expired provider identity from a superseded source epoch', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
     const initial = review(EXPIRED_AT)
     await store.upsertAndRecord(
       initial,
@@ -926,7 +919,7 @@ describe('atomic review re-observation', () => {
   })
 
   it('fails closed when one provider identity is presented in another Property scope', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const store = createAtomicReviewCommandStore(getDb(), () => new Date())
     const initial = review(REFRESHED_UNTIL)
     await store.upsertAndRecord(
       initial,

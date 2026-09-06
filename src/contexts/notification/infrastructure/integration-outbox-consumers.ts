@@ -1,17 +1,35 @@
 import type { IntegrationGoogleAccountReauthorizationRequired } from '#/contexts/integration/application/public-api'
-import { googleConnectionId, organizationId } from '#/shared/domain/ids'
+import {
+  googleConnectionId,
+  organizationId,
+  propertyId,
+  type GoogleConnectionId,
+  type OrganizationId,
+} from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
-import {
-  onGoogleReauthorizationRequired,
-  type GoogleReauthorizationNotificationDeps,
-} from './event-handlers/on-google-reauthorization-required'
+import type { UserLookupPort } from '../application/ports/user-lookup.port'
+import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
+import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 
 export const ON_GOOGLE_REAUTHORIZATION_REQUIRED_CONSUMER =
   'notification.on-google-reauthorization-required' as const
 
-export type IntegrationNotificationConsumerDeps = GoogleReauthorizationNotificationDeps &
-  Readonly<{ receipts: Pick<OutboxRepository, 'insertReceipt'> }>
+export type GoogleConnectionPropertyLookup = Readonly<{
+  findGoogleNotificationAnchor: (
+    connectionId: GoogleConnectionId,
+    organizationId: OrganizationId,
+  ) => Promise<string | null>
+}>
+
+export type IntegrationNotificationConsumerDeps = Readonly<{
+  queue: NotificationJobEnqueuePort
+  userLookup: UserLookupPort
+  googleConnectionProperties: GoogleConnectionPropertyLookup
+  logger: LoggerPort
+  receipts: Pick<OutboxRepository, 'insertReceipt'>
+}>
 
 type Payload = Readonly<{
   connectionId: string
@@ -44,7 +62,49 @@ export async function handleNotificationGoogleReauthorizationRequired(
   deps: IntegrationNotificationConsumerDeps,
   event: ConsumerEvent,
 ): Promise<Readonly<{ status: 'applied' }>> {
-  await onGoogleReauthorizationRequired(deps)(parse(event))
+  const fact = parse(event)
+  const anchorPropertyId =
+    await deps.googleConnectionProperties.findGoogleNotificationAnchor(
+      fact.connectionId,
+      fact.organizationId,
+    )
+  if (!anchorPropertyId) {
+    deps.logger.warn(
+      { correlationId: fact.correlationId ?? undefined },
+      'Google reauthorization notification has no Property delivery scope',
+    )
+  } else {
+    const recipients = await deps.userLookup.findByRole(
+      fact.organizationId,
+      'AccountAdmin',
+    )
+    if (recipients.length === 0) {
+      deps.logger.warn(
+        { correlationId: fact.correlationId ?? undefined },
+        'Google reauthorization notification has no AccountAdmin recipients',
+      )
+    } else {
+      await Promise.all(
+        recipients.map((recipientId) =>
+          deps.queue.add(
+            INSERT_NOTIFICATION_JOB_NAME,
+            {
+              userId: recipientId,
+              organizationId: fact.organizationId,
+              propertyId: propertyId(anchorPropertyId),
+              type: 'integration.reauthorization_required',
+              resourceType: 'integration',
+              resourceId: fact.connectionId,
+              eventId: fact.eventId,
+              payload: {},
+              audience: { kind: 'account_admin' },
+            },
+            { jobId: `${fact.eventId}-${recipientId}` },
+          ),
+        ),
+      )
+    }
+  }
   await deps.receipts.insertReceipt(
     event.eventId,
     ON_GOOGLE_REAUTHORIZATION_REQUIRED_CONSUMER,

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '#/shared/db'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { EventBus } from '#/shared/events/event-bus'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId, type ReviewId } from '#/shared/domain/ids'
 import type { Review } from '../../domain/types'
@@ -44,12 +43,6 @@ const { getPool } = setupIntegrationDb({
   ],
 })
 
-const events: EventBus = {
-  on: vi.fn(),
-  emit: vi.fn().mockResolvedValue(undefined),
-  clear: vi.fn(),
-}
-
 function review(id: ReviewId, ordinal: number): Omit<Review, 'createdAt' | 'updatedAt'> {
   return {
     id,
@@ -85,7 +78,7 @@ function review(id: ReviewId, ordinal: number): Omit<Review, 'createdAt' | 'upda
 }
 
 async function seedReview(id: ReviewId, ordinal: number): Promise<Review> {
-  const commandStore = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+  const commandStore = createAtomicReviewCommandStore(getDb(), () => new Date())
   return commandStore.upsertAndRecord(
     review(id, ordinal),
     (persisted) =>
@@ -548,7 +541,7 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
     const matched = await seedReview(MATCHED, 1)
     await seedReview(DRIFTED, 2)
     const staleHead = await seedReview(STALE_REPLY_HEAD, 3)
-    await createGoogleReplyObservationStore(getDb(), events).record({
+    await createGoogleReplyObservationStore(getDb()).record({
       organizationId: ORG,
       propertyId: PROPERTY,
       reviewId: MATCHED,
@@ -562,7 +555,7 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
       observedAt: OBSERVED_AT,
       contentExpiresAt: EXPIRES_AT,
     })
-    await createGoogleReplyObservationStore(getDb(), events).record({
+    await createGoogleReplyObservationStore(getDb()).record({
       organizationId: ORG,
       propertyId: PROPERTY,
       reviewId: STALE_REPLY_HEAD,
@@ -665,7 +658,6 @@ describe('Review source-content lifecycle store (real PostgreSQL)', () => {
     }
     const restore = createAtomicReviewCommandStore(
       getDb(),
-      events,
       () => new Date(),
     ).reobserveExpiredAndRecord(freshInput, REOBSERVED_AT, 'e'.repeat(64))
     const lifecycle = createReviewSourceContentLifecycleStore(

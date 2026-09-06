@@ -5,7 +5,6 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { EventBus } from '#/shared/events/event-bus'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -30,8 +29,6 @@ let lease: TestLease
 let db: Database
 const organizations = new Set<string>()
 const users = new Set<string>()
-
-const noEvents: EventBus = { on: () => {}, emit: async () => {}, clear: () => {} }
 
 const acknowledgements: readonly OrganizationReactivationAcknowledgement[] = [
   { id: 'portal_republished', actorUserId: 'human-1', reasonCode: 'portal_restored' },
@@ -80,7 +77,7 @@ async function seedCancelledClosure() {
     [actorUserId, organizationId, REQUESTED_AT],
   )
 
-  const store = createOrganizationLifecycleCommandStore(db, noEvents)
+  const store = createOrganizationLifecycleCommandStore(db)
   await store.requestClosure({
     operationId: randomUUID(),
     organizationId,

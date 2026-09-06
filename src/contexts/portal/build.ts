@@ -10,7 +10,6 @@ import type {
 } from '#/contexts/property/application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
 import {
   createCurrentPortalIdReader,
@@ -107,7 +106,6 @@ import {
 
 type PortalContextDeps = Readonly<{
   db: Database
-  events: EventBus
   outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   propertyApi: PropertyPublicApi &
@@ -150,7 +148,7 @@ type PublicPortalByTokenResult =
 export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
   const listCurrentPortalIds = createCurrentPortalIdReader(deps.db)
-  const portalCommandStore = createAtomicPortalCommandStore(deps.db, deps.events)
+  const portalCommandStore = createAtomicPortalCommandStore(deps.db)
   const portalUploadStore = createPortalUploadIssuanceStore(deps.db)
   const portalLinkRepo = createPortalLinkRepository(deps.db, deps.clock)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
@@ -158,18 +156,14 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     deps.db,
     portalGroupRepo,
   )
-  const portalApprovedDestinationRepo = createPortalApprovedDestinationRepository(
-    deps.db,
-    deps.events,
-  )
-  const portalExperienceRepo = createPortalExperienceRepository(deps.db, deps.events)
+  const portalApprovedDestinationRepo = createPortalApprovedDestinationRepository(deps.db)
+  const portalExperienceRepo = createPortalExperienceRepository(deps.db)
   const aiReplyBrandProfileAuthority = createPortalAiReplyBrandProfileAuthority(deps.db)
   const portalHealthRepo = createPortalHealthRepository(deps.db)
-  const portalHealthReconciliationStore = createPortalHealthReconciliationStore(
-    deps.db,
-    deps.events,
-    { clock: deps.clock, idGen: deps.idGen },
-  )
+  const portalHealthReconciliationStore = createPortalHealthReconciliationStore(deps.db, {
+    clock: deps.clock,
+    idGen: deps.idGen,
+  })
   const portalDestinationNetworkValidator = createPortalDestinationNetworkValidator({
     clock: deps.clock,
   })
@@ -181,7 +175,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     secret: deps.tokenHashSecret,
     randomBytes: deps.secureRandomBytes,
   })
-  const portalWorkflowFactStore = createPortalWorkflowFactStore(deps.db, deps.events)
+  const portalWorkflowFactStore = createPortalWorkflowFactStore(deps.db)
   const storage =
     deps.storage ??
     createS3StorageAdapter({
@@ -286,7 +280,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       identityPublicApi: deps.identityManagerFacts,
       staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
-      events: deps.events,
     }),
     completeContentReview: completeContentReview({
       portalRepo,

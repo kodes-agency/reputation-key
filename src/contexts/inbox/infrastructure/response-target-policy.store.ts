@@ -5,8 +5,7 @@ import {
   inboxResponseTargetOrganizationPolicies,
 } from '#/shared/db/schema/inbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type {
   ResponseTargetPolicyStore,
@@ -45,7 +44,6 @@ const versionConflict = (currentPolicyVersion: number | null) =>
 
 export const createResponseTargetPolicyStore = (
   db: Database,
-  events: EventBus,
 ): ResponseTargetPolicyStore => ({
   getPolicySettings: async (orgId, requestedPropertyId) =>
     trace('inbox.responseTargetPolicy.getSettings', async () => {
@@ -132,7 +130,7 @@ export const createResponseTargetPolicyStore = (
     trace('inbox.responseTargetPolicy.setOrganization', async () => {
       assertDuration(command.durationMinutes, false)
       assertExpectedVersion(command.expectedPolicyVersion)
-      const committed = await db.transaction(async (tx) => {
+      const result = await db.transaction(async (tx) => {
         const policyLockKey = JSON.stringify([command.organizationId, command.targetKind])
         await tx.execute(
           sql`SELECT pg_advisory_xact_lock(hashtextextended(${policyLockKey}, 0))`,
@@ -222,17 +220,16 @@ export const createResponseTargetPolicyStore = (
           occurredAt: command.at,
         })
         await insertOutboxRow(tx, fact, { recordedAt: command.at })
-        return { result, fact }
+        return result
       })
-      await emitAfterCommit(events, committed.fact)
-      return committed.result
+      return result
     }),
 
   setPrivateFeedbackPropertyOverride: async (command) =>
     trace('inbox.responseTargetPolicy.setPropertyOverride', async () => {
       assertDuration(command.durationMinutes, true)
       assertExpectedVersion(command.expectedPolicyVersion)
-      const committed = await db.transaction(async (tx) => {
+      const result = await db.transaction(async (tx) => {
         const policyLockKey = JSON.stringify([
           command.organizationId,
           command.propertyId,
@@ -342,9 +339,8 @@ export const createResponseTargetPolicyStore = (
           occurredAt: command.at,
         })
         await insertOutboxRow(tx, fact, { recordedAt: command.at })
-        return { result, fact }
+        return result
       })
-      await emitAfterCommit(events, committed.fact)
-      return committed.result
+      return result
     }),
 })

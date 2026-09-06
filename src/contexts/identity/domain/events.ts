@@ -81,9 +81,9 @@ export const identityInvitationAccepted = (
   }
 }
 
-// BQC-3.9: identity.invitation.rejected retired — never emitted (constructor
-// only), never schema-registered, no consumers. The event type and its
-// catalogue row are gone; guard suites enforce consistency both ways.
+// BQC-3.9: identity.invitation.rejected is retired. It has no constructor,
+// schema registration, consumer, or catalogue row; guard suites enforce
+// consistency both ways.
 
 export type IdentityInvitationCanceled = Readonly<{
   _tag: 'identity.invitation.canceled'

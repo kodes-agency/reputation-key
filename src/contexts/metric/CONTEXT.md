@@ -2,7 +2,7 @@
 
 ## Bounded context
 
-Event-driven metric recording and aggregation. Subscribes to domain events from other contexts and records raw metric readings.
+Durable outbox projection and aggregation. Consumes domain facts from other contexts and records raw metric readings.
 
 ## Glossary
 
@@ -15,7 +15,7 @@ Event-driven metric recording and aggregation. Subscribes to domain events from 
 
 ## Relationships
 
-- Metric context **subscribes to** `review.created`, Guest diagnostic/Qualified Scan, rating/feedback submission and retraction facts, and `guest.review_link.clicked` events from other contexts. Google review creation is projected by the durable `metric.public-reputation` consumer; the in-process handler remains only the low-latency path and a database failure there cannot permanently lose the reading.
+- Metric context consumes `review.created`, Guest diagnostic/Qualified Scan, rating/feedback submission and retraction facts, and `guest.review_link.clicked` through durable outbox consumers.
 - Metric context **subscribes to** `review.google_reputation_snapshot.verified` through the distinct durable `metric.current-google-reputation` consumer. Review owns verification and its append-only source fact; Metric owns only the current state projection and read semantics.
 - Goal context **depends on** `MetricPublicApi` for querying governed monthly
   evidence and for resolving the exact original/replacement reading facts
@@ -45,7 +45,7 @@ reviewed authority row.
 ## Invariants
 
 - Only built-in metric keys are accepted. Unknown keys are rejected with `unknown_metric_key` error.
-- Every metric reading emits a `metric.recorded` event.
+- Every metric reading records a `metric.recorded` outbox fact in the same transaction.
 - Monthly Goal reads pin one immutable definition-version ID, one tenant-owned Property/Portal Group/Portal subject, and a half-open property-local period. Mutable metric keys never select source rows.
 - A zero count is eligible only after the 24-hour late-arrival window and exact durable proof that every relevant Guest fact has an applied/duplicate `metric.guest-analytics` receipt, the expected projection/correction, no quarantine, and correct event-time attribution. A latest-seen timestamp is not completeness proof.
 - Rating averages are weighted from eligible samples and require ten ratings. Missing or undersampled averages are never converted to zero.
@@ -81,14 +81,14 @@ reviewed authority row.
 
 ## Events produced
 
-| Tag                | Payload                                                                                                       | When emitted                                                                                       |
+| Tag                | Payload                                                                                                       | When recorded                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `metric.recorded`  | eventId, reading/scope IDs, definition version, source event, value/provenance, staff attribution, occurredAt | A successful Metric transaction commits a governed reading and its identifier/provenance-only fact |
 | `metric.corrected` | eventId, corrected/replacement reading IDs, exact scope, staff attribution, occurredAt                        | A correction or retraction commits against an existing governed reading                            |
 
-`metric.recorded` remains a canonical recorded-only fact. REC-01 removed its
-unreachable Badge and Leaderboard subscribers; Goal Programs read governed
-Metric state and do not subscribe to this event.
+`metric.recorded` is the canonical outbox fact. REC-01 removed its unreachable
+Badge and Leaderboard subscribers; Goal Programs read governed Metric state and
+do not consume this fact.
 
 ## Events consumed
 
@@ -124,18 +124,17 @@ metric/
                        current-google-reputation-snapshot.repository.ts,
                        goal-metric-correction-impact.lookup.ts (Drizzle)
     portal-lifetime-aggregate-store.ts (atomic incremental projection)
+    outbox-consumers.ts (durable Portal workflow projections)
+    guest-outbox-consumers.ts (durable Guest analytics projections)
+    record-portal-metric.ts (Guest fact-to-reading projection factories)
     public-reputation-outbox-consumers.ts (durable Google-review projection)
     current-google-reputation-outbox-consumers.ts (durable current provider state)
-    event-handlers/    on-review-created.ts, on-scan-recorded.ts,
-                       on-qualified-scan-recorded.ts, on-qualified-scan-retracted.ts,
-                       on-rating-submitted.ts,
-                       on-feedback-submitted.ts, on-review-link-clicked.ts, index.ts
   build.ts             composition root
 ```
 
 ## Use cases
 
-- **`recordMetric`** — Validates metric key, inserts raw reading + records the `metric.recorded` fact atomically via the metric command store (BQC-3.5: one transaction, post-commit bus emit).
+- **`recordMetric`** — Validates the metric key and commits the raw reading with its `metric.recorded` outbox fact in one transaction.
 - **`queryGoalMetric`** — Returns correction-aware, definition-pinned Qualified Scan/rating Goal evidence only after durable source completeness and the month-end reconciliation delay.
 - **`queryPortalAnalytics`** — Validates the half-open period and exposes Metric-owned governed Portal KPI/distribution/trend reads plus per-family availability evidence to Dashboard.
 - **`portalLifetime.get/inspect/rebuild/sealThrough`** — Reads, performs a write-free parity inspection, parity-rebuilds, and advances the anonymous All-Time retention checkpoint under a per-Portal transaction lock. Dashboard consumes `get` for All Time; serving never invokes the mutating reconciliation methods or manufactures a time series from totals. Operators use `ops:rebuild-metric-projection` in report mode first, then apply only to the exact Organization/Property/Portal scope.
@@ -159,7 +158,7 @@ None. Metric is an internal context with no HTTP surface. Metrics are queried th
 
 ## Permissions
 
-None. Metric is a system-internal context with no HTTP surface and no own permissions. Metric readings are recorded exclusively by internal event handlers. Aggregated metric data is surfaced to users through the dashboard context, gated by `dashboard.read` (and `dashboard.fleet_read` for cross-property fleet views). Organization-level data scoping is enforced at the repository layer via `organizationId` filtering.
+None. Metric is a system-internal context with no HTTP surface and no own permissions. Metric readings are recorded exclusively by durable outbox consumers. Aggregated metric data is surfaced to users through the dashboard context, gated by `dashboard.read` (and `dashboard.fleet_read` for cross-property fleet views). Organization-level data scoping is enforced at the repository layer via `organizationId` filtering.
 
 ## Background jobs
 

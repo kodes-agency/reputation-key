@@ -26,7 +26,7 @@ The codebase has multiple bounded contexts (identity, staff, property, portal, t
    - Direct imports from another context's `domain/`, `infrastructure/`, or `server/` layers are boundary violations.
 
 4. **Events are the preferred mechanism for cross-context side effects.**
-   - When a context needs to react to changes in another context, it subscribes to domain events via `infrastructure/event-handlers/`.
+   - When a context needs to react to changes in another context, it registers a durable outbox consumer in `infrastructure/outbox-consumers.ts` (delivered by the worker relay + dispatcher).
    - Event types are imported from the producing context's `public-api.ts`.
 
 ## Consequences

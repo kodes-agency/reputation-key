@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { rebuildInboxProjection } from './rebuild-inbox-projection'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import type {
@@ -84,8 +84,8 @@ function setup(opts: {
 }) {
   const repo = createInMemoryInboxRepo()
   for (const item of opts.items ?? []) repo.items.push(item)
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialInboxCommandStore({ repo, events })
+  const events = createRecordedOutbox()
+  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
   const reviewSourceLookup: ReviewSourceLookupPort = {
     getReviewSourceMetaById: vi.fn(async () => null),
     getReviewSourceMetaByIds: vi.fn(async () => []),
@@ -112,7 +112,7 @@ describe('rebuildInboxProjection', () => {
     seq = 0
   })
 
-  it('creates missing items for canonical reviews — without re-emitting created facts', async () => {
+  it('creates missing items for canonical reviews without recording created facts', async () => {
     const src = makeSource()
     const { useCase, repo, events } = setup({ sources: [src] })
 
@@ -124,7 +124,7 @@ describe('rebuildInboxProjection', () => {
     expect(repo.items[0]!.status).toBe('open')
     expect(repo.items[0]!.sourceDate).toEqual(src.sourceDate)
     // Rebuild is repair, not new information: no created fact.
-    expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.created')).toHaveLength(0)
   })
 
   it('creates a missing expired review open without inferring a handling outcome', async () => {
@@ -139,7 +139,7 @@ describe('rebuildInboxProjection', () => {
       status: 'open',
       closedAt: null,
     })
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
   })
 
   it('creates a missing review open while preserving reply milestones', async () => {
@@ -175,7 +175,7 @@ describe('rebuildInboxProjection', () => {
 
     expect(report.closed).toBe(0)
     expect(repo.items[0]!.status).toBe('open')
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
   })
 
   it('does not close an open item whose review content is expired', async () => {
@@ -223,7 +223,7 @@ describe('rebuildInboxProjection', () => {
     expect(report.closed).toBe(0)
     expect(repo.items[0]!.firstReplySubmittedAt).toEqual(new Date('2026-06-05'))
     expect(repo.items[0]!.status).toBe('open')
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
   })
 
   it('stamps a published milestone without inferring a close', async () => {
@@ -249,7 +249,7 @@ describe('rebuildInboxProjection', () => {
     expect(report.closed).toBe(0)
     expect(repo.items[0]!.status).toBe('open')
     expect(repo.items[0]!.firstReplyPublishedAt).toEqual(new Date('2026-06-06'))
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
   })
 
   it('stamps the published milestone on an already-closed item without a fact', async () => {
@@ -276,7 +276,7 @@ describe('rebuildInboxProjection', () => {
     expect(report.milestones).toBe(1)
     expect(report.closed).toBe(0)
     expect(repo.items[0]!.firstReplyPublishedAt).toEqual(new Date('2026-06-06'))
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(events.byTag('inbox.inbox_item.status_changed')).toHaveLength(0)
   })
 
   it('never touches inbox-owned fields (assignment, escalation)', async () => {
@@ -315,7 +315,7 @@ describe('rebuildInboxProjection', () => {
     expect(repo.items).toHaveLength(2)
     expect(repo.items[0]!.status).toBe('open')
     expect(repo.items[1]!.status).toBe('open')
-    expect(events.capturedEvents).toHaveLength(0)
+    expect(events.facts).toHaveLength(0)
   })
 
   it('is idempotent: a second run reconciles nothing', async () => {

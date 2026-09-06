@@ -138,9 +138,8 @@ async function main() {
   // reconciliation removes their repeats and any queued remnant quarantines.
   await bootstrap(container, { runtime: createBootstrapRuntimeConfig(env) })
 
-  // BQR-2.2: always register durable consumers when outbox is available so
-  // the dispatcher is never started with an empty registry. Registration
-  // alone does not process work — relay still requires the enable flag.
+  // BQR-2.2: durable consumers register before the dispatcher starts, so it
+  // never runs against an empty registry; readiness below proves the set.
   if (container.outboxRepo) {
     container.registerOutboxConsumers()
     logger.info('Outbox consumers registered with dispatcher')
@@ -160,13 +159,10 @@ async function main() {
   )
 
   // BQC-3.6: fail the boot on catalogue/runtime mismatch — a missing handler
-  // for an enabled job, a stale registered handler, or (only when the durable
-  // dispatcher is enabled) an unregistered durable consumer. Readiness
-  // failure is a deployment/config error per the failure taxonomy.
+  // for an enabled job, a stale registered handler, or an unregistered
+  // durable consumer. Readiness failure is a deployment/config error per the
+  // failure taxonomy.
   assertJobReadiness(registry, logger, {
-    dispatcherEnabled: Boolean(
-      container.outboxRepo && jobRedisUrl && env.OUTBOX_DISPATCHER_ENABLED,
-    ),
     // ARC-03-T7: readiness validates THIS container's registry. The old
     // process-global default could pass on consumers another container had
     // registered.
@@ -329,67 +325,43 @@ async function main() {
     )
   }
 
-  // ── Outbox relay + dispatcher (PRE17A A3/A4) ─────────────────────
-  // Durable dispatch stays off by default and is opted into per environment.
-  // BQR-2 exit criteria are met except crash-boundary evidence, which is
-  // structural unit tests only until the BQR-6 DB+Redis evidence pack: 2.1 gave
-  // relay and dispatcher one envelope contract, 2.2 registers consumers before
-  // the durable path can start, 2.3 commits state and outbox atomically on the
-  // enabled producer path, 2.4 stops consumers acknowledging work they did not
-  // perform, and 2.5 allowlist-validates at insert. Inbox families still
-  // default to `record-only`, so enabling this relays and records without
-  // handing delivery to durable consumers (see `resolveCutoverState`).
-  let domainEventsWorker: Worker | undefined
-  let stopRelay: (() => void) | undefined
-
-  if (container.outboxRepo && jobRedisUrl && env.OUTBOX_DISPATCHER_ENABLED) {
-    if (domainEventsQueue) {
-      const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue, {
-        sourceCell: env.PROCESSING_CELL,
-        // REG-01: a Property-scoped fact is admitted against CURRENT routing
-        // immediately before queue publication. Organization/global facts are
-        // cell-local by database placement and carry no Property to resolve.
-        admitEvent: async (event) => {
-          if (!event.propertyId) return true
-          const decision = await container.dataCellExecutionFence.decideProperty(
-            event.propertyId,
-          )
-          return decision.kind === 'allow'
-            ? {
-                dataCellId: decision.cell,
-                routingPolicyVersion: decision.routingPolicyVersion,
-              }
-            : false
-        },
-      })
-      stopRelay = relay.start(5_000)
-      const dispatchHandler = createDispatcherHandler(container.outboxRepo, {
-        consumers: container.consumerRegistry,
-        localCell: env.PROCESSING_CELL,
-      })
-      domainEventsWorker = createJobWorker(
-        'domain-events',
-        dispatchHandler,
-        20,
-        quarantineQueue,
-      )
-
-      if (domainEventsWorker) {
-        logger.warn(
-          'Outbox relay + dispatcher started — OUTBOX_DISPATCHER_ENABLED is true. ' +
-            'Crash-boundary coverage is structural until the BQR-6 evidence pack; ' +
-            'inbox families deliver per OUTBOX_CUTOVER state (default record-only).',
-        )
-      }
-    }
-  } else if (container.outboxRepo && jobRedisUrl && !env.OUTBOX_DISPATCHER_ENABLED) {
-    logger.info(
-      'Outbox relay + dispatcher DISABLED (BQR-0 containment). ' +
-        'Consumers are registered; events still deliver via in-process bus until BQR-2 exit.',
-    )
-  } else {
-    logger.warn('Outbox relay not started — no outboxRepo or Redis')
+  // ── Outbox relay + dispatcher ─────────────────────────────────────
+  // The only delivery path: every command commits its fact as an outbox row,
+  // the relay claims unpublished rows (SKIP LOCKED over the partial index
+  // outbox_events_unpublished_idx) into the domain-events queue, and the
+  // dispatcher hands each envelope to the registered durable consumers. A
+  // worker with no delivery path must not start.
+  if (!container.outboxRepo || !jobRedisUrl || !domainEventsQueue) {
+    throw new Error('[WORKER] outbox relay requires outboxRepo and a job Redis URL')
   }
+  const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue, {
+    sourceCell: env.PROCESSING_CELL,
+    // REG-01: a Property-scoped fact is admitted against CURRENT routing
+    // immediately before queue publication. Organization/global facts are
+    // cell-local by database placement and carry no Property to resolve.
+    admitEvent: async (event) => {
+      if (!event.propertyId) return true
+      const decision = await container.dataCellExecutionFence.decideProperty(
+        event.propertyId,
+      )
+      return decision.kind === 'allow'
+        ? {
+            dataCellId: decision.cell,
+            routingPolicyVersion: decision.routingPolicyVersion,
+          }
+        : false
+    },
+  })
+  const stopRelay = relay.start(1_000)
+  const domainEventsWorker = createJobWorker(
+    'domain-events',
+    createDispatcherHandler(container.outboxRepo, {
+      consumers: container.consumerRegistry,
+      localCell: env.PROCESSING_CELL,
+    }),
+    20,
+    quarantineQueue,
+  )
 
   // Graceful shutdown — drain in-progress jobs before exiting.
   // BQC-7.1: the close sequence races DRAIN_BUDGET_MS (default 25s, below
@@ -400,7 +372,7 @@ async function main() {
     logger.info({ exitCode, trigger }, 'Worker termination requested, draining workers')
 
     // Stop the outbox relay first (stop claiming new events)
-    stopRelay?.()
+    stopRelay()
     logger.info('Outbox relay stopped')
 
     const result = await drainWorkerResources({

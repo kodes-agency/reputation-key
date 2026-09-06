@@ -4,9 +4,13 @@ import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
-import type { RecordMetric } from '../application/use-cases/record-metric'
+import type {
+  RecordMetric,
+  RecordMetricInput,
+} from '../application/use-cases/record-metric'
 import type { ReviewRatingLookupPort } from '../application/ports/review-rating-lookup.port'
-import { projectReviewCreatedMetric } from './event-handlers/on-review-created'
+import type { ReadingResult } from '../domain/metric-reading'
+import { METRIC_VERSION_IDS } from '../domain/metric-registry'
 
 const PUBLIC_REPUTATION_CONSUMER = 'metric.public-reputation' as const
 
@@ -65,6 +69,39 @@ export type PublicReputationMetricConsumerDeps = Readonly<{
   reviewRatingLookup: ReviewRatingLookupPort
   db: Database
 }>
+type ProjectReviewCreatedMetricDeps = Readonly<{
+  recordMetric(input: RecordMetricInput): Promise<ReadingResult>
+  reviewRatingLookup: ReviewRatingLookupPort
+}>
+
+async function projectReviewCreatedMetric(
+  deps: ProjectReviewCreatedMetricDeps,
+  event: ReviewCreated,
+): Promise<ReadingResult | null> {
+  const rating = await deps.reviewRatingLookup.getEligibleRatingById(
+    event.reviewId,
+    event.organizationId,
+  )
+  if (rating === null) return null
+  return deps.recordMetric({
+    organizationId: event.organizationId,
+    propertyId: event.propertyId,
+    portalId: null,
+    portalGroupId: null,
+    definitionVersionId: METRIC_VERSION_IDS.propertyReviewDashboard,
+    sourceEventId: event.eventId,
+    sourcePolicy: 'google_property_derivative',
+    scope: 'property',
+    value: rating,
+    sampleCount: 1,
+    occurredAt: event.occurredAt,
+    attributionQuality: 'exact',
+    sourceReceipt: {
+      eventId: event.eventId,
+      consumerName: 'metric.public-reputation',
+    },
+  })
+}
 
 export function registerPublicReputationMetricConsumers(
   registry: ConsumerRegistry,

@@ -8,7 +8,6 @@ import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/re
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 import { getDb } from '#/shared/db'
-import { createEventBus } from '#/shared/events/event-bus'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 import { createGoogleDisconnectRevokeRepository } from '#/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository'
@@ -1317,7 +1316,7 @@ describe('Postgres Google admission permit authority', () => {
   it('acquires one disconnect cleanup permit and reconciles a started crash without resending', async () => {
     const activatedAt = new Date()
     const cleanupDeadlineAt = new Date(activatedAt.getTime() + 60_000)
-    const repository = createGoogleDisconnectRevokeRepository(getDb(), createEventBus())
+    const repository = createGoogleDisconnectRevokeRepository(getDb())
     const permission = await pool.query<{ version: string }>(
       'SELECT version FROM permission_version WHERE organization_id = $1',
       [ORGANIZATION_ID],

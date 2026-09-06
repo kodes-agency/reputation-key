@@ -1,7 +1,6 @@
 // Identity context — remove member use case
-// Per architecture: "Every use case follows this order:
-// 1. Authorize → 2. Validate → 3. Check invariants → 4. Build → 5. Persist → 6. Emit → 7. Return"
-// Use cases THROW tagged errors at the application boundary.
+// Order: authorize → validate → check invariants → build → persist → return.
+// Use cases throw tagged errors at the application boundary.
 
 import type { IdentityPort } from '../ports/identity.port'
 import type { IdentityCommandStore } from '../ports/identity-command-store.port'
@@ -48,7 +47,7 @@ export type RemoveMember = ReturnType<typeof removeMember>
  * 1. Authorize — check that the user's role allows removing members
  * 2. Validate — load the target member; last-owner UX guard (the command
  *    store re-enforces the same invariant under the org advisory lock)
- * 3. Persist + emit — command store: member delete + removed fact, atomic
+ * 3. Persist — command store: member delete + removed fact, atomic
  */
 export const removeMember =
   (deps: RemoveMemberDeps) =>

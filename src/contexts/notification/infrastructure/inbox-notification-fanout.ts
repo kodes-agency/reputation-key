@@ -1,14 +1,9 @@
 // Notification context — the ONE fan-out path from "an inbox item exists" to
 // "an insert-notification job is queued for every recipient".
 //
-// Three callers share it, and that is the point: the in-process bus handler
-// (event-handlers/on-inbox-item-created.ts), the durable outbox consumer
-// (outbox-consumers.ts), and the reconciliation sweep
-// (jobs/reconcile-missing-notifications.job.ts). Before this module the bus
-// handler was the only implementation, so the durable path and the sweep would
-// each have had to re-derive recipient resolution, the AccountAdmin fallback,
-// the source→type mapping and the payload allowlist — three chances to drift
-// on who gets notified about a new review.
+// The durable outbox consumer and reconciliation sweep share this definition,
+// so recipient resolution, AccountAdmin fallback, source-to-type mapping, and
+// the payload allowlist cannot drift.
 //
 // Content-free by construction: the job data carries identifiers plus the
 // ADR 0046 r.8 fact allowlist that buildInboxItemPayload assembles, never
@@ -24,7 +19,7 @@ import {
   unbrand,
   type UserId,
 } from '#/shared/domain/ids'
-import { buildInboxItemPayload } from './event-handlers/payload-facts'
+import { buildInboxItemPayload } from './notification-payload-facts'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 import type { NotificationType } from '../domain/types'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
@@ -69,17 +64,16 @@ export type InboxFanoutInput = Readonly<{
   propertyId: string | null | undefined
   sourceType: string
   /**
-   * Stamped onto the notification row's `event_id`. The bus and durable paths
-   * pass the originating event id; the sweep passes its own healing origin, so
-   * a backfilled row is distinguishable from a happy-path one.
+   * Stamped onto the notification row's `event_id`. The durable path passes the
+   * originating event id; the sweep passes its own healing origin, so a
+   * backfilled row is distinguishable from ordinary delivery.
    */
   eventId: string
   correlationId?: string | null
   /**
    * When set, each enqueue gets the deterministic job id
-   * `<jobIdScope>-<userId>`. The durable consumer uses it so an ambiguous
-   * relay redelivery converges instead of coalescing a second time; the bus
-   * handler and the sweep leave it unset (see the sweep's own note).
+   * `<jobIdScope>-<userId>`. Durable delivery uses it so an ambiguous relay
+   * redelivery converges; the sweep relies on the notification insert fence.
    */
   jobIdScope?: string | null
 }>

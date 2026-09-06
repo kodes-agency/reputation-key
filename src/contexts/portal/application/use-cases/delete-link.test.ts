@@ -12,7 +12,7 @@ import {
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -25,7 +25,7 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const useCase = deleteLink({
     portalRepo,
     portalLinkRepo,
@@ -33,16 +33,16 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     commandStore: createInMemoryPortalCommandStore({
       portalRepo,
       portalLinkRepo,
-      events,
+      outbox,
     }),
     clock: () => FIXED_TIME,
   })
-  return { useCase, portalRepo, portalLinkRepo, events }
+  return { useCase, portalRepo, portalLinkRepo, outbox }
 }
 
 describe('deleteLink', () => {
   it('deletes an existing link', async () => {
-    const { useCase, portalRepo, portalLinkRepo, events } = setup()
+    const { useCase, portalRepo, portalLinkRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({})
     portalRepo.seed([portal])
@@ -52,7 +52,7 @@ describe('deleteLink', () => {
     await useCase({ linkId: link.id }, ctx)
 
     expect(portalLinkRepo.allLinks()).toHaveLength(0)
-    expect(events.capturedByTag('portal_link.deleted')).toEqual([
+    expect(outbox.byTag('portal_link.deleted')).toEqual([
       expect.objectContaining({ linkId: link.id, occurredAt: FIXED_TIME }),
     ])
   })

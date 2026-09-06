@@ -11,7 +11,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import type { Queue } from 'bullmq'
 import { buildReviewContext } from './build'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type {
@@ -88,7 +87,6 @@ function setup(
       isCurrentAiReplyBrandProfile: async () => true,
     },
     db: (over.db ?? dbReturningProperty(null)) as never,
-    events: createCapturingEventBus(),
     outboxRepo: { insertReceipt: vi.fn() } as never,
     clock: () => new Date('2026-07-18T00:00:00Z'),
     idGen: () => 'review-build-id',

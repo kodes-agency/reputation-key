@@ -15,7 +15,9 @@ import {
 } from '#/shared/outbox/consumer-registry'
 import type { Reply } from '../domain/types'
 import {
+  handleGoogleAccountDisconnected,
   handleReplyPublicationRequested,
+  ON_GOOGLE_ACCOUNT_DISCONNECTED_CONSUMER,
   ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
   registerReplyPublicationConsumers,
   type ReviewOutboxLogger,
@@ -94,6 +96,11 @@ function deps(current: Reply | null = reply()) {
     queue: { addPublishJob: vi.fn(async () => {}) },
     receipts: { insertReceipt: vi.fn(async () => {}) },
     logger,
+    cancelPublicationsForConnection: vi.fn(async () => ({
+      reviewsScanned: 3,
+      cancelled: 2,
+      batches: 1,
+    })),
   }
 }
 
@@ -117,8 +124,12 @@ describe('reply publication requested durable consumer', () => {
       eventType: 'review.reply.publication_requested',
       consumerName: ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
     })
+    expect(consumerRegistry.list()).toContainEqual({
+      eventType: 'integration.google_account.disconnected',
+      consumerName: ON_GOOGLE_ACCOUNT_DISCONNECTED_CONSUMER,
+    })
     expect(subject.logger.info).toHaveBeenCalledWith(
-      'Review reply-publication recovery consumer registered',
+      'Review consumers registered (2 consumers)',
     )
   })
 
@@ -195,6 +206,65 @@ describe('reply publication requested durable consumer', () => {
       handleReplyPublicationRequested(subject as never, event()),
     ).rejects.toThrow('queue unavailable')
 
+    expect(subject.receipts.insertReceipt).not.toHaveBeenCalled()
+  })
+})
+
+// BQC-3.8: durable delivery cancels every in-flight reply publication on a
+// revoked Google connection. The use case is idempotent, so redelivery after
+// a crash between cancellation and receipt converges.
+describe('google account disconnected durable consumer', () => {
+  const disconnected = (): ConsumerEvent =>
+    event({
+      eventType: 'integration.google_account.disconnected',
+      eventVersion: 1,
+      payload: { organizationId: 'org-publication-recovery', connectionId: 'conn-1' },
+      propertyId: null,
+      sourceContext: 'integration',
+      sourceAggregateId: 'conn-1',
+    })
+
+  it('runs the publication cancellation for the connection with cause disconnect', async () => {
+    const subject = deps()
+
+    await expect(
+      handleGoogleAccountDisconnected(subject as never, disconnected()),
+    ).resolves.toEqual({
+      status: 'applied',
+    })
+
+    expect(subject.cancelPublicationsForConnection).toHaveBeenCalledTimes(1)
+    expect(subject.cancelPublicationsForConnection).toHaveBeenCalledWith({
+      organizationId: 'org-publication-recovery',
+      connectionId: 'conn-1',
+      cause: 'disconnect',
+    })
+    expect(subject.receipts.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      ON_GOOGLE_ACCOUNT_DISCONNECTED_CONSUMER,
+      'applied',
+    )
+  })
+
+  it('refuses an envelope whose payload organization differs from its attribution', async () => {
+    const subject = deps()
+
+    await expect(
+      handleGoogleAccountDisconnected(subject as never, {
+        ...disconnected(),
+        organizationId: 'org-other',
+      }),
+    ).rejects.toThrow('attribution mismatch')
+    expect(subject.cancelPublicationsForConnection).not.toHaveBeenCalled()
+  })
+
+  it('propagates a use-case failure without a receipt so the dispatcher retries', async () => {
+    const subject = deps()
+    subject.cancelPublicationsForConnection.mockRejectedValueOnce(new Error('db down'))
+
+    await expect(
+      handleGoogleAccountDisconnected(subject as never, disconnected()),
+    ).rejects.toThrow('db down')
     expect(subject.receipts.insertReceipt).not.toHaveBeenCalled()
   })
 })

@@ -1,5 +1,5 @@
 // Portal context — create portal group use case
-// Full 7-step pattern: authorize → validate refs → check uniqueness → build → persist → emit → return
+// Full pattern: authorize → validate refs → check uniqueness → build → atomically persist with facts → return
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalRepository } from '../ports/portal.repository'

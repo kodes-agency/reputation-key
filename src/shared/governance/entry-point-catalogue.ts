@@ -214,67 +214,14 @@ export type EntryPointRow = Readonly<{
 }>
 
 /** Beta posture derived from the authoritative capability sets (ADR 0032). */
-export function postureForCapability(cap: Capability | 'none'): BetaPosture {
+function postureForCapability(cap: Capability | 'none'): BetaPosture {
   if (cap === 'none') return 'core'
   if (isBlockedCapability(cap)) return 'blocked'
   if (isCoreCapability(cap)) return 'core'
   return 'non_core'
 }
 
-function entryRegistrationIssues(
-  id: string,
-  registration: EntryPointRegistration | undefined,
-): readonly string[] {
-  if (!registration?.ownerFile || !registration.reachability) {
-    return [`${id}: registration ownership is missing`]
-  }
-  if (
-    !['direct_declaration', 'source_composed', 'boot_registry', 'declared_only'].includes(
-      registration.reachability,
-    )
-  ) {
-    return [`${id}: registration reachability is invalid`]
-  }
-  return []
-}
-
-export function validateEntryPointGovernance(
-  rows: readonly unknown[],
-): readonly string[] {
-  const issues: string[] = []
-  for (const candidate of rows) {
-    const entry = candidate as Partial<EntryPointRow>
-    const id = typeof entry.id === 'string' ? entry.id : '<unknown-entry>'
-    issues.push(
-      ...entryOwnerIssues(id, entry),
-      ...entryRegistrationIssues(id, entry.registration),
-    )
-  }
-  return issues
-}
-
 // ── Row factories (records of functions — no classes) ───────────────
-
-const ENTRY_POINT_OWNERS = new Set<EntryPointOwner>([
-  'activity',
-  'ai',
-  'dashboard',
-  'goal',
-  'guest',
-  'identity',
-  'inbox',
-  'integration',
-  'metric',
-  'notification',
-  'portal',
-  'property',
-  'review',
-  'staff',
-  'operations',
-  'shared',
-  'web',
-  'worker',
-])
 
 const CONTEXT_OWNER_RE = /^src\/contexts\/([a-z-]+)\//
 
@@ -285,15 +232,6 @@ function ownerForFile(file: string): EntryPointOwner {
   if (file === 'src/bootstrap.ts' || file.startsWith('src/worker/')) return 'worker'
   if (file === 'package.json' || file.startsWith('scripts/')) return 'operations'
   return 'shared'
-}
-
-function entryOwnerIssues(id: string, entry: Partial<EntryPointRow>): readonly string[] {
-  if (!entry.owner) return [`${id}: owner is missing`]
-  if (!ENTRY_POINT_OWNERS.has(entry.owner)) return [`${id}: owner is invalid`]
-  if (entry.file && entry.owner !== ownerForFile(entry.file)) {
-    return [`${id}: owner does not match definition path`]
-  }
-  return []
 }
 
 function registrationForEntry(
@@ -3182,7 +3120,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     ['inbox.inbox_item.created'],
     {
       notes:
-        'durable identifier-only fan-out to insert-notification jobs; receipt written after the enqueue and each job carries the deterministic id <eventId>-<userId>, so redelivery converges instead of coalescing a second arrival. OUTBOX_DISPATCHER_ENABLED is enabled in google-closed-beta, so the notification durable consumer delivers; reconcile-missing-notifications remains the at-least-once repair sweep rather than the sole delivery path',
+        'durable identifier-only fan-out to insert-notification jobs; receipt written after the enqueue and each job carries the deterministic id <eventId>-<userId>, so redelivery converges instead of coalescing a second arrival. The notification durable consumer delivers; reconcile-missing-notifications remains the at-least-once repair sweep rather than the sole delivery path',
     },
   ),
   consumer(
@@ -3388,42 +3326,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   consumer(
-    'activity.event-handlers',
-    'src/contexts/activity/infrastructure/event-handlers/index.ts',
-    'system:activity.record',
-    'none',
-    'organization',
-    [
-      'inbox.inbox_item.created',
-      'inbox.inbox_item.status_changed',
-      'inbox.inbox_item.escalated',
-      'inbox.inbox_item.escalation_resolved',
-      'inbox.inbox_item.assigned',
-      'inbox.inbox_item.unassigned',
-      'inbox.inbox_note.added',
-      'inbox.inbox_item.bulk_status_changed',
-      'review.reply.published',
-      'review.reply.submitted',
-      'review.reply.approved',
-      'review.reply.rejected',
-      'review.reply.publication_cancelled',
-      'review.reply.updated',
-      'identity.organization.created',
-      'identity.member.invited',
-      'identity.invitation.accepted',
-      'identity.invitation.canceled',
-      'identity.member.removed',
-      'identity.member.role_changed',
-      'integration.google_account.connected',
-      'integration.google_account.disconnected',
-      'integration.google_connection.visibility_changed',
-      'property.created',
-      'property.updated',
-      'property.deleted',
-    ],
-    { notes: 'each handler enqueues project-recent-activity' },
-  ),
-  consumer(
     'activity.outbox-consumers',
     'src/contexts/activity/infrastructure/outbox-consumers.ts',
     'system:activity.record',
@@ -3488,28 +3390,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   consumer(
-    'metric.event-handlers',
-    'src/contexts/metric/infrastructure/event-handlers/index.ts',
-    'system:metric.record',
-    'none',
-    'organization',
-    [
-      'guest.scan.recorded',
-      'guest.qualified_scan.recorded',
-      'guest.qualified_scan.retracted',
-      'guest.rating.submitted',
-      'guest.rating.retracted',
-      'guest.feedback.submitted',
-      'guest.feedback.retracted',
-      'guest.review_link.clicked',
-      'review.created',
-      'portal.content_review.completed',
-      'portal.configuration_completeness.recorded',
-      'portal.approved_destination_ratio.recorded',
-    ],
-    { notes: 'guest-sourced tags only flow when portal.read is enabled (dark)' },
-  ),
-  consumer(
     'metric.portal-workflow',
     'src/contexts/metric/infrastructure/outbox-consumers.ts',
     'system:metric.record_portal_workflow',
@@ -3572,73 +3452,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'organization',
     ['metric.corrected'],
     { notes: 'durable append-only correction reconciliation watermark' },
-  ),
-  consumer(
-    'notification.event-handlers',
-    'src/contexts/notification/infrastructure/event-handlers/index.ts',
-    'system:notification.insert',
-    'none',
-    'organization',
-    [
-      'inbox.inbox_item.created',
-      'inbox.inbox_item.assigned',
-      'inbox.inbox_item.escalated',
-      'inbox.inbox_note.added',
-      'review.reply.submitted',
-      'review.reply.approved',
-      'review.reply.rejected',
-      'review.reply.published',
-      'review.reply.publish_failed',
-      'integration.google_account.reauthorization_required',
-    ],
-    { notes: 'each active handler enqueues insert-notification' },
-  ),
-  consumer(
-    'notification.portal-event-handlers',
-    'src/contexts/notification/infrastructure/event-handlers/portal-event-handlers.ts',
-    'system:notification.insert_portal',
-    'portal.write',
-    'property',
-    ['portal.responsibility_became_needed'],
-    { notes: 'portal-gated fast path for the content-free recovery alert' },
-  ),
-  consumer(
-    'notification.property-event-handlers',
-    'src/contexts/notification/infrastructure/event-handlers/property-event-handlers.ts',
-    'system:notification.insert_property_responsibility',
-    'property.create',
-    'property',
-    ['property.responsibility_became_needed'],
-    { notes: 'fast path for the content-free Property recovery alert' },
-  ),
-  consumer(
-    'review.event-handlers',
-    'src/contexts/review/infrastructure/event-handlers/index.ts',
-    'system:review.sync',
-    'none',
-    'property',
-    ['integration.google_account.disconnected'],
-    {
-      notes: 'disconnect cancels in-flight reply publications (BQC-3.8)',
-    },
-  ),
-  consumer(
-    'inbox.event-handlers',
-    'src/contexts/inbox/infrastructure/event-handlers/index.ts',
-    'system:inbox.update',
-    'none',
-    'organization',
-    [
-      'review.created',
-      'guest.feedback.submitted',
-      'guest.feedback.retracted',
-      'review.reply.submitted',
-      'review.expired',
-    ],
-    {
-      notes:
-        'in-process lifecycle handlers; provider-reply close/reopen authority is intentionally durable-only',
-    },
   ),
 ]
 

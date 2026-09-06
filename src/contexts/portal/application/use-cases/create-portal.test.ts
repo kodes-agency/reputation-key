@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { createPortal } from './create-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -35,7 +35,7 @@ const setup = (
   managerRole: 'AccountAdmin' | 'PropertyManager' = 'PropertyManager',
 ) => {
   const portalRepo = createInMemoryPortalRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const deps = {
     portalRepo,
     propertyApi: {
@@ -63,12 +63,12 @@ const setup = (
         },
       ],
     },
-    commandStore: createInMemoryPortalCommandStore({ portalRepo, events }),
+    commandStore: createInMemoryPortalCommandStore({ portalRepo, outbox }),
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
   }
   const useCase = createPortal(deps)
-  return { useCase, portalRepo, events }
+  return { useCase, portalRepo, outbox }
 }
 
 describe('createPortal', () => {
@@ -156,8 +156,8 @@ describe('createPortal', () => {
     )
   })
 
-  it('emits portal.created event on success', async () => {
-    const { useCase, events } = setup()
+  it('records a portal.created outbox fact on success', async () => {
+    const { useCase, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await useCase(
@@ -165,7 +165,7 @@ describe('createPortal', () => {
       ctx,
     )
 
-    const emitted = events.capturedByTag('portal.created')
+    const emitted = outbox.byTag('portal.created')
     expect(emitted).toHaveLength(1)
     expect(emitted[0]).toMatchObject({
       propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
@@ -233,7 +233,7 @@ describe('createPortal', () => {
   })
 
   it('creates a visible responsibility-needed state when the creator is not eligible', async () => {
-    const { useCase, events } = setup(
+    const { useCase, outbox } = setup(
       [propertyId('a0000000-0000-0000-0000-000000000001')],
       false,
     )
@@ -245,7 +245,7 @@ describe('createPortal', () => {
     )
 
     expect(portal.responsibilityNeededSince).toEqual(FIXED_TIME)
-    expect(events.capturedByTag('portal.responsibility_became_needed')).toEqual([
+    expect(outbox.byTag('portal.responsibility_became_needed')).toEqual([
       expect.objectContaining({
         portalId: FIXED_ID,
         organizationId: ctx.organizationId,
@@ -256,13 +256,13 @@ describe('createPortal', () => {
   })
 
   it('does not raise a recovery alert when the creator becomes the default manager', async () => {
-    const { useCase, events } = setup()
+    const { useCase, outbox } = setup()
 
     await useCase(
       { name: 'Owned', propertyId: 'a0000000-0000-0000-0000-000000000001' },
       buildTestAuthContext({ role: 'PropertyManager' }),
     )
 
-    expect(events.capturedByTag('portal.responsibility_became_needed')).toHaveLength(0)
+    expect(outbox.byTag('portal.responsibility_became_needed')).toHaveLength(0)
   })
 })

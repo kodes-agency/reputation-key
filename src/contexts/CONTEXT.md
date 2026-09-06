@@ -244,10 +244,9 @@ Ordinary alternatives that are not failures use explicit outcome unions. Unexpec
 
 - Past-tense: `portal.created`, `review.created`. Never commands.
 - Live in emitting context's `domain/events.ts`. Master union in `shared/events/events.ts`.
-- Subscribers in **receiving** context's `infrastructure/event-handlers/`.
-- Handlers are idempotent, don't throw, log via shared logger.
-- Durable work → enqueue BullMQ job, don't do inline.
-- Event bus wired in `composition.ts`, passed to use cases via deps.
+- Recorded as an `outbox_events` row inside the command transaction (`insertOutboxRow`); the row is the fact.
+- Consumed in the **receiving** context's `infrastructure/outbox-consumers.ts` via `registerConsumer`; the worker's relay + dispatcher deliver at-least-once, receipts make redelivery a no-op.
+- Consumers are idempotent and state-fenced; every consumer is catalogued in `shared/governance/event-job-catalogue.ts` and required at worker boot.
 
 ## Permission check pattern
 

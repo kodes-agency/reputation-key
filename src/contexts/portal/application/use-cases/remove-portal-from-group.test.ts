@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { removePortalFromGroup } from './remove-portal-from-group'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
@@ -100,19 +100,19 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const deps = {
     portalGroupRepo,
     staffPublicApi: staffApiMock(accessible),
     commandStore: createInMemoryPortalCommandStore({
       portalRepo: createInMemoryPortalRepo(),
       portalGroupRepo,
-      events,
+      outbox,
     }),
     clock: () => FIXED_TIME,
   }
   const useCase = removePortalFromGroup(deps)
-  return { useCase, portalGroupRepo, events }
+  return { useCase, portalGroupRepo, outbox }
 }
 
 const seedGroup = (orgId: PortalGroup['organizationId']): PortalGroup => ({
@@ -127,8 +127,8 @@ const seedGroup = (orgId: PortalGroup['organizationId']): PortalGroup => ({
 })
 
 describe('removePortalFromGroup', () => {
-  it('removes a portal from a group and emits removed event (PM assigned to the property)', async () => {
-    const { useCase, portalGroupRepo, events } = setup([PROPERTY_ID])
+  it('removes a portal from a group and records the fact (PM assigned to the property)', async () => {
+    const { useCase, portalGroupRepo, outbox } = setup([PROPERTY_ID])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
     await portalGroupRepo.addPortal(
@@ -147,7 +147,7 @@ describe('removePortalFromGroup', () => {
     )
     expect(membership).toBeNull()
 
-    const emitted = events.capturedByTag('portal_group.portal_removed')
+    const emitted = outbox.byTag('portal_group.portal_removed')
     expect(emitted).toHaveLength(1)
     expect(String(emitted[0].portalId)).toBe(String(PORTAL_ID))
     expect(String(emitted[0].portalGroupId)).toBe(String(GROUP_ID))

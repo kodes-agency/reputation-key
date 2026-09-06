@@ -1,8 +1,7 @@
 // Atomic property command store (BQC-3.5).
 //
-// One PostgreSQL transaction per command: properties state mutation +
-// outbox_events insert. After commit: in-process EventBus emit for
-// expand-phase legacy consumers.
+// One PostgreSQL transaction commits each property state mutation with its
+// outbox_events row. A fact exists exactly when that durable row commits.
 //
 // Crash contract:
 // - Crash anywhere inside the transaction rolls back BOTH the state mutation
@@ -10,15 +9,13 @@
 //   pre-BQC-3.5 use cases could lose the fact between the repo write and
 //   the separate fact record, and the integration property-event adapter
 //   never recorded at all).
-// - Crash after commit but before the bus emit leaves a durable outbox row
-//   for the relay; the emit is best-effort (failure-isolated, logged).
+// - A successful commit makes the durable fact available to the outbox relay.
 
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import { propertyOperationReceipts } from '#/shared/db/schema/property-operation-receipt.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { propertyError } from '../domain/errors'
 import type { Property } from '../domain/types'
@@ -32,48 +29,45 @@ import type {
 import type { PropertySetValues } from './repositories/property.repository'
 import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
+/** The columns a property patch may set — never identity columns. */
+const SETTABLE_PROPERTY_KEYS = [
+  'updatedAt',
+  'name',
+  'slug',
+  'timezone',
+  'defaultReplyLanguage',
+  'address',
+  'gbpLocationId',
+  'gbpAccountId',
+  'googleConnectionId',
+  'profileVersion',
+  'googleBindingState',
+  'profileSource',
+  'profileConfirmedAt',
+  'profileConfirmedBy',
+  'countryCode',
+  'countrySource',
+  'timezoneSource',
+  'timezoneResolvedAt',
+  'processingRegion',
+  'dataCellId',
+  'processingRegionSource',
+  'routingPolicyVersion',
+  'processingRegionResolvedAt',
+  'sourceEpoch',
+] as const satisfies ReadonlyArray<keyof PropertySetValues & keyof Property>
+
 /** Same field-picking as PropertyRepository.update — never sets identity columns. */
 function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySetValues {
-  const set: PropertySetValues = {}
-  if (patch.updatedAt !== undefined) set.updatedAt = patch.updatedAt
-  if (patch.name !== undefined) set.name = patch.name
-  if (patch.slug !== undefined) set.slug = patch.slug
-  if (patch.timezone !== undefined) set.timezone = patch.timezone
-  if (patch.defaultReplyLanguage !== undefined)
-    set.defaultReplyLanguage = patch.defaultReplyLanguage
-  if (patch.address !== undefined) set.address = patch.address
-  if (patch.gbpLocationId !== undefined) set.gbpLocationId = patch.gbpLocationId
-  if (patch.gbpAccountId !== undefined) set.gbpAccountId = patch.gbpAccountId
-  if (patch.googleConnectionId !== undefined)
-    set.googleConnectionId = patch.googleConnectionId
-  if (patch.profileVersion !== undefined) set.profileVersion = patch.profileVersion
-  if (patch.googleBindingState !== undefined)
-    set.googleBindingState = patch.googleBindingState
-  if (patch.profileSource !== undefined) set.profileSource = patch.profileSource
-  if (patch.profileConfirmedAt !== undefined)
-    set.profileConfirmedAt = patch.profileConfirmedAt
-  if (patch.profileConfirmedBy !== undefined)
-    set.profileConfirmedBy = patch.profileConfirmedBy
-  if (patch.countryCode !== undefined) set.countryCode = patch.countryCode
-  if (patch.countrySource !== undefined) set.countrySource = patch.countrySource
-  if (patch.timezoneSource !== undefined) set.timezoneSource = patch.timezoneSource
-  if (patch.timezoneResolvedAt !== undefined)
-    set.timezoneResolvedAt = patch.timezoneResolvedAt
-  if (patch.processingRegion !== undefined) set.processingRegion = patch.processingRegion
-  if (patch.dataCellId !== undefined) set.dataCellId = patch.dataCellId
-  if (patch.processingRegionSource !== undefined)
-    set.processingRegionSource = patch.processingRegionSource
-  if (patch.routingPolicyVersion !== undefined)
-    set.routingPolicyVersion = patch.routingPolicyVersion
-  if (patch.processingRegionResolvedAt !== undefined)
-    set.processingRegionResolvedAt = patch.processingRegionResolvedAt
-  if (patch.sourceEpoch !== undefined) set.sourceEpoch = patch.sourceEpoch
-  return set
+  const set: Record<string, unknown> = {}
+  for (const key of SETTABLE_PROPERTY_KEYS) {
+    if (patch[key] !== undefined) set[key] = patch[key]
+  }
+  return set as PropertySetValues
 }
 
 export const createAtomicPropertyCommandStore = (
   db: Database,
-  events: EventBus,
   localCell?: DataCellId,
 ): PropertyCommandStore => {
   return {
@@ -104,7 +98,6 @@ export const createAtomicPropertyCommandStore = (
           await insertOutboxRow(tx, command.event)
           return rows[0]
         })
-        await emitAfterCommit(events, command.event)
         return propertyFromRow(inserted)
       })
     },
@@ -134,7 +127,6 @@ export const createAtomicPropertyCommandStore = (
           }
           await insertOutboxRow(tx, command.event)
         })
-        await emitAfterCommit(events, command.event)
       })
     },
 
@@ -207,10 +199,6 @@ export const createAtomicPropertyCommandStore = (
             await insertOutboxRow(tx, command.bindingEvent)
           }
         })
-        await emitAfterCommit(events, command.event)
-        if (command.bindingEvent) {
-          await emitAfterCommit(events, command.bindingEvent)
-        }
       })
     },
   }

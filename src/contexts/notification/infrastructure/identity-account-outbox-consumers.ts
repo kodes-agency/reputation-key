@@ -1,11 +1,8 @@
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { organizationId, unbrand } from '#/shared/domain/ids'
-import {
-  onOrganizationPurgePending,
-  type OrganizationPurgePendingFact,
-  type OrganizationPurgePendingNotificationDeps,
-} from './event-handlers/on-organization-purge-pending'
+import { organizationId, unbrand, type OrganizationId } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { UserLookupPort } from '../application/ports/user-lookup.port'
 import type { NotificationType } from '../domain/types'
 import type { OrganizationAccountNotificationEventType } from '../application/ports/organization-account-notification-authority.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
@@ -41,6 +38,56 @@ export const IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS = [
  */
 export const ORGANIZATION_PURGE_PENDING_CONSUMER =
   'notification.on-identity-organization-purge-pending' as const
+
+export type OrganizationPurgePendingNotificationDeps = Readonly<{
+  queue: NotificationJobEnqueuePort
+  userLookup: UserLookupPort
+  logger: LoggerPort
+}>
+
+export type OrganizationPurgePendingFact = Readonly<{
+  eventId: string
+  organizationId: OrganizationId
+  closureLineageId: string
+  revision: number
+  correlationId: string | null
+}>
+
+async function enqueueOrganizationPurgePendingNotifications(
+  deps: OrganizationPurgePendingNotificationDeps,
+  fact: OrganizationPurgePendingFact,
+): Promise<void> {
+  const recipients = await deps.userLookup.findByRole(fact.organizationId, 'AccountAdmin')
+  if (recipients.length === 0) {
+    deps.logger.warn(
+      {
+        closureLineageId: fact.closureLineageId,
+        correlationId: fact.correlationId ?? undefined,
+      },
+      'Purge Pending notification has no AccountAdmin recipient',
+    )
+    return
+  }
+  await Promise.all(
+    recipients.map((recipientId) =>
+      deps.queue.add(
+        INSERT_NOTIFICATION_JOB_NAME,
+        {
+          userId: recipientId,
+          organizationId: fact.organizationId,
+          propertyId: null,
+          type: 'account.organization_purge_pending',
+          resourceType: 'organization',
+          resourceId: fact.organizationId as string,
+          eventId: fact.eventId,
+          payload: {},
+          audience: { kind: 'account_admin' },
+        },
+        { jobId: `${fact.eventId}-${recipientId}` },
+      ),
+    ),
+  )
+}
 
 export type IdentityAccountNotificationConsumerDeps = Readonly<{
   queue: NotificationJobEnqueuePort
@@ -103,13 +150,13 @@ type LifecyclePayload = Readonly<{
 /**
  * The Purge Pending final notice.
  *
- * `obsolete` is a real, recorded outcome: the lifecycle fact is emitted on
- * EVERY transition, and treating "not purge_pending" as a failure would retry
- * forever on a fact that must never produce a notice.
+ * `obsolete` is a real, recorded outcome: every lifecycle transition records
+ * a fact, and treating "not purge_pending" as a failure would retry forever on
+ * a fact that must never produce a notice.
  */
 export async function handleOrganizationPurgePendingNotice(
   deps: IdentityAccountNotificationConsumerDeps &
-    Readonly<{ notify: (fact: OrganizationPurgePendingFact) => Promise<void> }>,
+    OrganizationPurgePendingNotificationDeps,
   event: ConsumerEvent,
 ): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
   if (event.propertyId !== null || event.sourceContext !== 'identity') {
@@ -131,7 +178,7 @@ export async function handleOrganizationPurgePendingNotice(
     )
     return { status: 'obsolete' }
   }
-  await deps.notify({
+  await enqueueOrganizationPurgePendingNotifications(deps, {
     eventId: event.eventId,
     organizationId: organizationId(event.organizationId),
     closureLineageId: payload.closureLineageId,
@@ -151,12 +198,11 @@ export function registerOrganizationPurgePendingNoticeConsumer(
   deps: IdentityAccountNotificationConsumerDeps &
     OrganizationPurgePendingNotificationDeps,
 ): void {
-  const notify = onOrganizationPurgePending(deps)
   registry.registerConsumer({
     eventType: 'identity.organization_lifecycle.changed',
     consumerName: ORGANIZATION_PURGE_PENDING_CONSUMER,
     module: 'notification.identity-account-outbox-consumers',
-    handler: (event) => handleOrganizationPurgePendingNotice({ ...deps, notify }, event),
+    handler: (event) => handleOrganizationPurgePendingNotice(deps, event),
   })
 }
 

@@ -1,13 +1,11 @@
 // BQC-3.4 — atomic inbox command store contract tests.
 //
-// Every command must commit its state mutation and its outbox_events row in
-// ONE transaction, then emit on the in-process bus AFTER commit:
-//   ['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit']
+// Every command commits its state mutation and outbox_events rows in one
+// transaction:
+//   ['tx.start', 'tx.state', 'tx.outbox', 'tx.commit']
 // Projection applyOnce commands reserve the consumer receipt before any state
-// mutation, then co-commit receipt, state, and fact in the same transaction:
-//   ['tx.start', 'tx.receipt', 'tx.state', 'tx.outbox', 'tx.commit', 'emit']
-// A lost guarded-transition race commits the receipt only — no fact, no emit.
-// A post-commit bus failure must not propagate (durable row already retained).
+// mutation, then co-commit receipt, state, and fact in the same transaction.
+// A lost guarded-transition race commits the receipt only and records no fact.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
@@ -15,6 +13,10 @@ import {
   type InboxCommandAuthority,
 } from './inbox-command-store'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
+import {
+  createRecordedOutbox,
+  type RecordedOutbox,
+} from '#/shared/testing/recorded-outbox'
 import type { Database } from '#/shared/db'
 import {
   inboxAssignmentHistory,
@@ -26,7 +28,7 @@ import {
   inboxNotes,
 } from '#/shared/db/schema/inbox.schema'
 import { outboxEvents, eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -95,8 +97,8 @@ const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
   allowed: true,
 })
 
-const createAtomicInboxCommandStore = (db: Database, events: EventBus) =>
-  createProductionInboxCommandStore(db, events, allowAllCommandAuthority, () => NOW)
+const createAtomicInboxCommandStore = (db: Database) =>
+  createProductionInboxCommandStore(db, allowAllCommandAuthority, () => NOW)
 
 function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
   return {
@@ -398,17 +400,6 @@ function createMockDb(opts: {
   return { db: db as unknown as Database, tx }
 }
 
-function makeEvents(order: string[], fail = false): EventBus {
-  return {
-    on: vi.fn(),
-    emit: vi.fn(async () => {
-      if (fail) throw new Error('bus down')
-      order.push('emit')
-    }),
-    clear: vi.fn(),
-  }
-}
-
 const createdEvent = () =>
   inboxItemCreated({
     inboxItemId: ITEM_ID,
@@ -438,20 +429,20 @@ describe('createAtomicInboxCommandStore', () => {
   })
 
   describe('createItem', () => {
-    it('commits insert + created fact in one tx before emit', async () => {
+    it('commits insert and its created fact in one transaction', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order, insertItemRows: [makeItemRow()] })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const result = await store.createItem(makeItem(), createdEvent())
 
       expect(result.created).toBe(true)
       expect(result.item.id).toBe(ITEM_ID)
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
 
-    it('tolerates the unique source race: re-selects, records no fact, emits nothing', async () => {
+    it('tolerates the unique source race: re-selects and records no fact', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
@@ -460,15 +451,15 @@ describe('createAtomicInboxCommandStore', () => {
         selectRows: [makeItemRow({ id: 'ii-existing' })],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const result = await store.createItem(makeItem(), createdEvent())
 
       expect(result.created).toBe(false)
       expect(result.item.id).toBe(inboxItemId('ii-existing'))
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.reselect', 'tx.commit'])
     })
 
@@ -476,20 +467,20 @@ describe('createAtomicInboxCommandStore', () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, insertItemRows: [makeItemRow()], outboxRows })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const result = await store.createItem(makeItem(), null)
 
       expect(result.created).toBe(true)
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
     })
   })
 
   describe('updateStatus', () => {
-    it('commits update + status_changed fact in one tx before emit', async () => {
+    it('commits update and status facts in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const handlingCycleTransitionRows: Array<Record<string, unknown>> = []
@@ -500,8 +491,8 @@ describe('createAtomicInboxCommandStore', () => {
         outboxRows,
         handlingCycleTransitionRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const result = await store.updateStatus(
         makeFeedbackItem(),
@@ -528,14 +519,14 @@ describe('createAtomicInboxCommandStore', () => {
       ])
       expect(order[0]).toBe('tx.start')
       expect(order.indexOf('tx.commit')).toBeGreaterThan(order.lastIndexOf('tx.outbox'))
-      expect(order.slice(order.indexOf('tx.commit') + 1)).toEqual(['emit', 'emit'])
+      expect(order.at(-1)).toBe('tx.commit')
     })
 
     it('null event commits the update without a fact (milestone stamping)', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order, updateRows: [makeItemRow()] })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       await store.updateStatus(
         makeItem(),
@@ -556,8 +547,8 @@ describe('createAtomicInboxCommandStore', () => {
         handlingCycleRows: [makeHandlingCycleHeadRow(makeFeedbackItem())],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       await expect(
         store.updateStatus(
@@ -568,7 +559,6 @@ describe('createAtomicInboxCommandStore', () => {
         ),
       ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
     })
 
     it('reports a safe revision conflict and records no fact when another writer won', async () => {
@@ -589,8 +579,8 @@ describe('createAtomicInboxCommandStore', () => {
         handlingCycleRows: [makeHandlingCycleHeadRow(makeFeedbackItem())],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       await expect(
         store.updateStatus(
@@ -606,7 +596,6 @@ describe('createAtomicInboxCommandStore', () => {
           error.context?.currentCommandRevision === 2,
       )
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
     })
 
     it('fails a revoked actor inside the transaction before state or outbox writes', async () => {
@@ -617,12 +606,12 @@ describe('createAtomicInboxCommandStore', () => {
         handlingCycleRows: [makeHandlingCycleHeadRow(makeFeedbackItem())],
         outboxRows,
       })
-      const events = makeEvents(order)
+
       const authorize: InboxCommandAuthority = vi.fn(async () => ({
         allowed: false,
         reason: 'actor_authority_changed',
       }))
-      const store = createProductionInboxCommandStore(db, events, authorize, () => NOW)
+      const store = createProductionInboxCommandStore(db, authorize, () => NOW)
 
       await expect(
         store.updateStatus(
@@ -638,7 +627,6 @@ describe('createAtomicInboxCommandStore', () => {
       expect(tx.update).not.toHaveBeenCalled()
       expect(tx.insert).not.toHaveBeenCalled()
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
     })
   })
 
@@ -675,8 +663,8 @@ describe('createAtomicInboxCommandStore', () => {
         handlingCycleInsertRows,
         handlingCycleTransitionRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const result = await store.reopenReviewCycle({
         item: closedItem,
@@ -716,10 +704,10 @@ describe('createAtomicInboxCommandStore', () => {
         'inbox.inbox_item.status_changed',
         'inbox.handling_cycle.reopened',
       ])
-      expect(events.emit).toHaveBeenCalledTimes(2)
+
       expect(order.at(0)).toBe('tx.start')
       expect(order.indexOf('tx.outbox')).toBeLessThan(order.indexOf('tx.commit'))
-      expect(order.at(-1)).toBe('emit')
+      expect(order.at(-1)).toBe('tx.commit')
     })
 
     it('rejects a stale head before appending a cycle or fact', async () => {
@@ -741,7 +729,7 @@ describe('createAtomicInboxCommandStore', () => {
         outboxRows,
         handlingCycleInsertRows,
       })
-      const store = createAtomicInboxCommandStore(db, makeEvents(order))
+      const store = createAtomicInboxCommandStore(db)
 
       await expect(
         store.reopenReviewCycle({
@@ -766,7 +754,7 @@ describe('createAtomicInboxCommandStore', () => {
   })
 
   describe('bulkUpdateStatus', () => {
-    it('revision-fences N updates + N per-item facts in one tx, then N emits', async () => {
+    it('revision-fences N updates and N per-item facts in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const handlingCycleTransitionRows: Array<Record<string, unknown>> = []
@@ -819,11 +807,11 @@ describe('createAtomicInboxCommandStore', () => {
         outboxRows,
         handlingCycleTransitionRows,
       })
-      const events = makeEvents(order)
+
       const authorize: InboxCommandAuthority = vi.fn(async () => ({
         allowed: true as const,
       }))
-      const store = createProductionInboxCommandStore(db, events, authorize, () => NOW)
+      const store = createProductionInboxCommandStore(db, authorize, () => NOW)
 
       const result = await store.bulkUpdateStatus(
         items,
@@ -886,12 +874,7 @@ describe('createAtomicInboxCommandStore', () => {
       ])
       expect(order[0]).toBe('tx.start')
       expect(order.indexOf('tx.commit')).toBeGreaterThan(order.lastIndexOf('tx.outbox'))
-      expect(order.slice(order.indexOf('tx.commit') + 1)).toEqual([
-        'emit',
-        'emit',
-        'emit',
-        'emit',
-      ])
+      expect(order.at(-1)).toBe('tx.commit')
     })
 
     it('updates opposite-order batches by item ID but returns caller order', async () => {
@@ -943,10 +926,11 @@ describe('createAtomicInboxCommandStore', () => {
         outboxRows,
       })
 
-      const result = await createAtomicInboxCommandStore(
-        db,
-        makeEvents(order),
-      ).bulkUpdateStatus(items, perItemEvents, BULK_REOPEN_GOVERNANCE)
+      const result = await createAtomicInboxCommandStore(db).bulkUpdateStatus(
+        items,
+        perItemEvents,
+        BULK_REOPEN_GOVERNANCE,
+      )
 
       expect(result.results).toEqual([
         { inboxItemId: second.id, outcome: 'reopened' },
@@ -962,7 +946,7 @@ describe('createAtomicInboxCommandStore', () => {
     it('no-ops without a transaction when there are no per-item events', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
-      const store = createAtomicInboxCommandStore(db, makeEvents(order))
+      const store = createAtomicInboxCommandStore(db)
 
       const result = await store.bulkUpdateStatus([], [], BULK_REOPEN_GOVERNANCE)
 
@@ -973,10 +957,7 @@ describe('createAtomicInboxCommandStore', () => {
     it('rejects bulk close before opening a transaction', async () => {
       const order: string[] = []
       const item = makeItem()
-      const store = createAtomicInboxCommandStore(
-        createMockDb({ order }).db,
-        makeEvents(order),
-      )
+      const store = createAtomicInboxCommandStore(createMockDb({ order }).db)
 
       await expect(
         store.bulkUpdateStatus(
@@ -1042,8 +1023,8 @@ describe('createAtomicInboxCommandStore', () => {
         updateRowsByCall: [[makeFeedbackItemRow({ status: 'open', commandRevision: 2 })]],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const result = await store.bulkUpdateStatus(
         items,
@@ -1069,7 +1050,6 @@ describe('createAtomicInboxCommandStore', () => {
           )!.payload as Record<string, unknown>
         ).inboxItemId,
       ).toBe(ITEM_ID)
-      expect(events.emit).toHaveBeenCalledTimes(2)
     })
   })
 
@@ -1122,12 +1102,7 @@ describe('createAtomicInboxCommandStore', () => {
       const authorize: InboxCommandAuthority = vi.fn(async () => ({
         allowed: true as const,
       }))
-      const store = createProductionInboxCommandStore(
-        db,
-        makeEvents(order),
-        authorize,
-        () => NOW,
-      )
+      const store = createProductionInboxCommandStore(db, authorize, () => NOW)
 
       const result = await store.bulkAssign({
         items: [second, first],
@@ -1208,12 +1183,7 @@ describe('createAtomicInboxCommandStore', () => {
       }))
 
       await expect(
-        createProductionInboxCommandStore(
-          db,
-          makeEvents(order),
-          authorize,
-          () => NOW,
-        ).bulkAssign({
+        createProductionInboxCommandStore(db, authorize, () => NOW).bulkAssign({
           items: [first, second],
           assignedTo: USER_B,
           actorId: USER_ID,
@@ -1234,7 +1204,7 @@ describe('createAtomicInboxCommandStore', () => {
   })
 
   describe('assign', () => {
-    it('assign path commits update + assigned fact in one tx before emit', async () => {
+    it('assign path commits its update and fact in one transaction', async () => {
       const order: string[] = []
       const assignmentHistoryRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
@@ -1243,11 +1213,11 @@ describe('createAtomicInboxCommandStore', () => {
         handlingCycleRows: [makeHandlingCycleHeadRow()],
         assignmentHistoryRows,
       })
-      const events = makeEvents(order)
+
       const authorize: InboxCommandAuthority = vi.fn(async () => ({
         allowed: true as const,
       }))
-      const store = createProductionInboxCommandStore(db, events, authorize, () => NOW)
+      const store = createProductionInboxCommandStore(db, authorize, () => NOW)
 
       const result = await store.assign(
         makeItem(),
@@ -1303,11 +1273,10 @@ describe('createAtomicInboxCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
     })
 
-    it('unassign path commits update + unassigned fact in one tx before emit', async () => {
+    it('unassign path commits its update and fact in one transaction', async () => {
       const order: string[] = []
       const assignmentHistoryRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
@@ -1316,8 +1285,8 @@ describe('createAtomicInboxCommandStore', () => {
         handlingCycleRows: [makeHandlingCycleHeadRow(makeItem({ assignedTo: USER_B }))],
         assignmentHistoryRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       await store.assign(
         makeItem({ assignedTo: USER_B }),
@@ -1341,7 +1310,6 @@ describe('createAtomicInboxCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
       expect(assignmentHistoryRows).toEqual([
         expect.objectContaining({
@@ -1356,7 +1324,7 @@ describe('createAtomicInboxCommandStore', () => {
     it('fails closed before mutation when a Review item has no current cycle', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order, updateRows: [makeItemRow()] })
-      const store = createAtomicInboxCommandStore(db, makeEvents(order))
+      const store = createAtomicInboxCommandStore(db)
 
       await expect(
         store.assign(
@@ -1392,7 +1360,7 @@ describe('createAtomicInboxCommandStore', () => {
         handlingCycleRows: [makeHandlingCycleHeadRow(feedbackItem)],
         assignmentHistoryRows,
       })
-      const store = createAtomicInboxCommandStore(db, makeEvents(order))
+      const store = createAtomicInboxCommandStore(db)
 
       await store.assign(
         feedbackItem,
@@ -1416,7 +1384,6 @@ describe('createAtomicInboxCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
       expect(assignmentHistoryRows).toEqual([
         expect.objectContaining({ handlingCycleNumber: 1 }),
@@ -1426,8 +1393,8 @@ describe('createAtomicInboxCommandStore', () => {
     it('null event commits the update without a fact', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order, updateRows: [makeItemRow()] })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       await store.assign(makeItem(), { assignedTo: null }, null, NOW)
 
@@ -1436,7 +1403,7 @@ describe('createAtomicInboxCommandStore', () => {
   })
 
   describe('escalate / resolveEscalation', () => {
-    it('escalate commits flag update + history row + escalated fact in one tx before emit', async () => {
+    it('escalate commits its update, history row, and fact in one transaction', async () => {
       const order: string[] = []
       const escalationHistoryRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
@@ -1447,8 +1414,8 @@ describe('createAtomicInboxCommandStore', () => {
         handlingCycleRows: [{ currentCycleNumber: 3 }],
         escalationHistoryRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const result = await store.escalate(
         makeItem(),
@@ -1485,11 +1452,10 @@ describe('createAtomicInboxCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
     })
 
-    it('resolveEscalation commits flag clear + history row + resolved fact in one tx before emit', async () => {
+    it('resolveEscalation commits its update, history row, and fact in one transaction', async () => {
       const order: string[] = []
       const escalationHistoryRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
@@ -1503,8 +1469,8 @@ describe('createAtomicInboxCommandStore', () => {
         ],
         escalationHistoryRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       await store.resolveEscalation(
         makeItem({ isEscalated: true, escalatedAt: NOW }),
@@ -1540,21 +1506,20 @@ describe('createAtomicInboxCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
     })
   })
 
   describe('addNote', () => {
-    it('commits note insert + note.added fact in one tx before emit', async () => {
+    it('commits the note and its fact in one transaction', async () => {
       const order: string[] = []
       const { db } = createMockDb({
         order,
         updateRows: [makeItemRow({ commandRevision: 2 })],
         noteRows: [makeNoteRow()],
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const result = await store.addNote(
         makeItem(),
@@ -1577,7 +1542,6 @@ describe('createAtomicInboxCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
     })
 
@@ -1599,8 +1563,8 @@ describe('createAtomicInboxCommandStore', () => {
         noteRows: [makeNoteRow()],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       await expect(
         store.addNote(
@@ -1621,12 +1585,11 @@ describe('createAtomicInboxCommandStore', () => {
       )
       expect(tx.insert).not.toHaveBeenCalled()
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
     })
   })
 
   describe('applySourceCreatedOnce', () => {
-    it('commits item + created fact + receipt in one tx before emit', async () => {
+    it('commits the item, created fact, and receipt in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const receiptRows: Array<Record<string, unknown>> = []
@@ -1642,8 +1605,8 @@ describe('createAtomicInboxCommandStore', () => {
         handlingCycleHeadInsertRows,
         handlingCycleTransitionRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const outcome = await store.applySourceCreatedOnce({
         eventId: 'evt-review-created-1',
@@ -1691,13 +1654,13 @@ describe('createAtomicInboxCommandStore', () => {
         }),
       ])
       // Initial Review work is announced by inbox_item.created; the durable
-      // cycle/head/transition exists atomically but emits no second opened fact.
+      // cycle/head/transition records no second opened fact.
       expect(outboxRows.map((row) => row.eventType)).toEqual(['inbox.inbox_item.created'])
       expect(order[0]).toBe('tx.start')
       expect(order.indexOf('tx.commit')).toBeGreaterThan(order.lastIndexOf('tx.state'))
       expect(order.indexOf('tx.commit')).toBeGreaterThan(order.lastIndexOf('tx.outbox'))
       expect(order.indexOf('tx.commit')).toBeGreaterThan(order.lastIndexOf('tx.receipt'))
-      expect(order.slice(order.indexOf('tx.commit') + 1)).toEqual(['emit'])
+      expect(order.at(-1)).toBe('tx.commit')
     })
 
     it('duplicate delivery: no second item, no fact, duplicate receipt', async () => {
@@ -1711,8 +1674,8 @@ describe('createAtomicInboxCommandStore', () => {
         outboxRows,
         receiptRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const outcome = await store.applySourceCreatedOnce({
         eventId: 'evt-review-created-1',
@@ -1723,7 +1686,7 @@ describe('createAtomicInboxCommandStore', () => {
 
       expect(outcome).toBe('duplicate')
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(receiptRows).toEqual([
         {
           eventId: 'evt-review-created-1',
@@ -1742,7 +1705,7 @@ describe('createAtomicInboxCommandStore', () => {
   })
 
   describe('applyReviewUpdatedOnce', () => {
-    it('commits metadata refresh + receipt — never a fact, never an emit', async () => {
+    it('commits metadata refresh and receipt without recording a fact', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const receiptRows: Array<Record<string, unknown>> = []
@@ -1753,8 +1716,8 @@ describe('createAtomicInboxCommandStore', () => {
         outboxRows,
         receiptRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const outcome = await store.applyReviewUpdatedOnce({
         eventId: 'evt-review-updated-1',
@@ -1767,7 +1730,7 @@ describe('createAtomicInboxCommandStore', () => {
 
       expect(outcome).toBe('applied')
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(receiptRows).toHaveLength(1)
       expect(order[0]).toBe('tx.start')
       expect(order).toContain('tx.reselect')
@@ -1782,7 +1745,7 @@ describe('createAtomicInboxCommandStore', () => {
         updateRows: [makeItemRow({ commandRevision: 2 })],
         receiptReserved: false,
       })
-      const store = createAtomicInboxCommandStore(db, makeEvents(order))
+      const store = createAtomicInboxCommandStore(db)
 
       await store.applyReviewUpdatedOnce({
         eventId: 'evt-review-updated-1',
@@ -1819,8 +1782,8 @@ describe('createAtomicInboxCommandStore', () => {
         outboxRows,
         handlingCycleTransitionRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       await expect(
         store.applyReviewSourceTransitionedOnce({
@@ -1855,7 +1818,7 @@ describe('createAtomicInboxCommandStore', () => {
       ])
       expect(order.indexOf('tx.commit')).toBeGreaterThan(order.lastIndexOf('tx.state'))
       expect(order.indexOf('tx.commit')).toBeGreaterThan(order.lastIndexOf('tx.outbox'))
-      expect(order.slice(order.indexOf('tx.commit') + 1)).toEqual(['emit', 'emit'])
+      expect(order.at(-1)).toBe('tx.commit')
     })
 
     it('legacy expiry scrubs only and cannot close current work', async () => {
@@ -1875,8 +1838,8 @@ describe('createAtomicInboxCommandStore', () => {
         receiptRows,
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       await expect(
         store.applyReviewSourceTransitionedOnce({
@@ -1891,14 +1854,14 @@ describe('createAtomicInboxCommandStore', () => {
 
       expect(receiptRows).toHaveLength(1)
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order[0]).toBe('tx.start')
       expect(order.filter((step) => step === 'tx.reselect')).toHaveLength(2)
       expect(order.indexOf('tx.commit')).toBeGreaterThan(order.lastIndexOf('tx.state'))
       expect(order.at(-1)).toBe('tx.commit')
     })
 
-    it('scrubs an already-closed legacy item without emitting a false status fact', async () => {
+    it('scrubs an already-closed legacy item without recording a false status fact', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
@@ -1919,8 +1882,8 @@ describe('createAtomicInboxCommandStore', () => {
         updateRows: [{ id: ITEM_ID }],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       await store.applyReviewSourceTransitionedOnce({
         eventId: 'evt-review-source-transitioned-1',
@@ -1932,7 +1895,7 @@ describe('createAtomicInboxCommandStore', () => {
       })
 
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order[0]).toBe('tx.start')
       expect(order.filter((step) => step === 'tx.reselect')).toHaveLength(2)
       expect(order.indexOf('tx.commit')).toBeGreaterThan(order.lastIndexOf('tx.state'))
@@ -1942,8 +1905,8 @@ describe('createAtomicInboxCommandStore', () => {
     it('does no row work for a duplicate transition delivery', async () => {
       const order: string[] = []
       const { db, tx } = createMockDb({ order, receiptReserved: false })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       await store.applyReviewSourceTransitionedOnce({
         eventId: 'evt-review-source-transitioned-1',
@@ -1956,19 +1919,19 @@ describe('createAtomicInboxCommandStore', () => {
 
       expect(tx.select).not.toHaveBeenCalled()
       expect(tx.update).not.toHaveBeenCalled()
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order).toEqual(['tx.start', 'tx.receipt', 'tx.commit'])
     })
   })
 
   describe('applyReplyPublishedOnce', () => {
-    it('records a compatibility receipt without mutating or emitting', async () => {
+    it('records a compatibility receipt without mutating or recording a fact', async () => {
       const order: string[] = []
       const receiptRows: Array<Record<string, unknown>> = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, receiptRows, outboxRows })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
+
+      const store = createAtomicInboxCommandStore(db)
 
       const outcome = await store.applyReplyPublishedOnce({
         eventId: 'evt-reply-published-1',
@@ -1983,7 +1946,7 @@ describe('createAtomicInboxCommandStore', () => {
       expect(outcome).toBe('applied')
       expect(receiptRows).toHaveLength(1)
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order).toEqual(['tx.start', 'tx.receipt', 'tx.commit'])
     })
   })
@@ -1993,44 +1956,13 @@ describe('createAtomicInboxCommandStore', () => {
       const order: string[] = []
       const receiptRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, receiptRows })
-      const store = createAtomicInboxCommandStore(db, makeEvents(order))
+      const store = createAtomicInboxCommandStore(db)
 
       await store.recordReceipt('evt-1', 'inbox.on-review-created', 'obsolete')
 
       expect(receiptRows).toEqual([
         { eventId: 'evt-1', consumerName: 'inbox.on-review-created', status: 'obsolete' },
       ])
-    })
-  })
-
-  describe('emit failure isolation', () => {
-    it('a post-commit bus failure does not propagate (durable row retained)', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({
-        order,
-        updateRows: [makeFeedbackItemRow({ status: 'closed', closedAt: NOW })],
-        handlingCycleRows: [makeHandlingCycleHeadRow(makeFeedbackItem())],
-        outboxRows,
-      })
-      const events = makeEvents(order, true)
-      const store = createAtomicInboxCommandStore(db, events)
-
-      const result = await store.updateStatus(
-        makeFeedbackItem(),
-        { status: 'closed', timestampFields: { closedAt: NOW } },
-        statusChangedEvent(),
-        NOW,
-      )
-
-      expect(result.status).toBe('closed')
-      expect(outboxRows.map((row) => row.eventType)).toEqual([
-        'inbox.inbox_item.status_changed',
-        'inbox.handling_cycle.closed',
-      ])
-      expect(events.emit).toHaveBeenCalledTimes(2)
-      expect(order.indexOf('tx.commit')).toBeGreaterThan(order.lastIndexOf('tx.outbox'))
-      expect(order.at(-1)).toBe('tx.commit')
     })
   })
 
@@ -2133,7 +2065,7 @@ describe('createAtomicInboxCommandStore', () => {
         noteRows: [makeNoteRow()],
         outboxRows,
       })
-      const store = createAtomicInboxCommandStore(db, makeEvents(order))
+      const store = createAtomicInboxCommandStore(db)
 
       const smuggled = {
         ...inboxNoteAdded({
@@ -2175,7 +2107,7 @@ describe('createAtomicInboxCommandStore', () => {
         handlingCycleRows: [makeHandlingCycleHeadRow()],
         outboxRows,
       })
-      const store = createAtomicInboxCommandStore(db, makeEvents(order))
+      const store = createAtomicInboxCommandStore(db)
 
       await store.assign(
         makeItem(),
@@ -2221,7 +2153,7 @@ describe('createAtomicInboxCommandStore', () => {
         updateRows: [makeFeedbackItemRow({ status: 'open', commandRevision: 2 })],
         outboxRows,
       })
-      const store = createAtomicInboxCommandStore(db, makeEvents(order))
+      const store = createAtomicInboxCommandStore(db)
 
       await store.bulkUpdateStatus(
         [makeFeedbackItem({ status: 'closed' })],
@@ -2281,46 +2213,40 @@ describe('createSequentialInboxCommandStore', () => {
     }
   }
 
-  it('applies state, then records outbox, then emits', async () => {
-    const order: string[] = []
+  it('applies state before attempting to record the outbox fact', async () => {
     const repo = createInMemoryInboxRepo()
     repo.items.push(makeItem())
+    const baseOutbox = createRecordedOutbox()
+    const outbox: RecordedOutbox = {
+      ...baseOutbox,
+      record: async () => {
+        expect(repo.items[0]?.status).toBe('closed')
+        throw new Error('outbox write failed')
+      },
+    }
     const store = createSequentialInboxCommandStore({
       repo,
       noteRepo: makeNoteRepo(),
-      recordOutbox: async () => {
-        order.push('outbox')
-      },
-      events: {
-        on: vi.fn(),
-        emit: vi.fn(async () => {
-          order.push('emit')
-        }),
-        clear: vi.fn(),
-      },
+      outbox,
     })
 
-    const result = await store.updateStatus(
-      makeItem(),
-      { status: 'closed', timestampFields: { closedAt: NOW } },
-      statusChangedEvent(),
-      NOW,
-    )
+    await expect(
+      store.updateStatus(
+        makeItem(),
+        { status: 'closed', timestampFields: { closedAt: NOW } },
+        statusChangedEvent(),
+        NOW,
+      ),
+    ).rejects.toThrow('outbox write failed')
 
-    expect(result.status).toBe('closed')
-    expect(order).toEqual(['outbox', 'emit'])
+    expect(repo.items[0]?.status).toBe('closed')
   })
 
-  it('createItem returns the existing item without a fact on duplicate source', async () => {
-    const recordOutbox = vi.fn()
-    const emit = vi.fn()
+  it('createItem returns the existing item without an outbox fact', async () => {
+    const outbox = createRecordedOutbox()
     const repo = createInMemoryInboxRepo()
     repo.items.push(makeItem())
-    const store = createSequentialInboxCommandStore({
-      repo,
-      recordOutbox,
-      events: { on: vi.fn(), emit, clear: vi.fn() },
-    })
+    const store = createSequentialInboxCommandStore({ repo, outbox })
 
     const result = await store.createItem(
       makeItem({ id: inboxItemId('ii-new') }),
@@ -2329,30 +2255,17 @@ describe('createSequentialInboxCommandStore', () => {
 
     expect(result.created).toBe(false)
     expect(result.item.id).toBe(ITEM_ID)
-    expect(recordOutbox).not.toHaveBeenCalled()
-    expect(emit).not.toHaveBeenCalled()
+    expect(outbox.facts).toEqual([])
   })
 
-  it('bulkUpdateStatus records and emits per item', async () => {
-    const order: string[] = []
+  it('bulkUpdateStatus records one outbox fact per item', async () => {
+    const outbox = createRecordedOutbox()
     const repo = createInMemoryInboxRepo()
     repo.items.push(
       makeItem({ status: 'closed' }),
       makeItem({ id: SECOND_ITEM_ID, status: 'closed' }),
     )
-    const store = createSequentialInboxCommandStore({
-      repo,
-      recordOutbox: async () => {
-        order.push('outbox')
-      },
-      events: {
-        on: vi.fn(),
-        emit: vi.fn(async () => {
-          order.push('emit')
-        }),
-        clear: vi.fn(),
-      },
-    })
+    const store = createSequentialInboxCommandStore({ repo, outbox })
 
     const items = [
       makeItem({ status: 'closed' }),
@@ -2382,21 +2295,20 @@ describe('createSequentialInboxCommandStore', () => {
         { inboxItemId: SECOND_ITEM_ID, outcome: 'reopened' },
       ],
     })
-    expect(order).toEqual(['outbox', 'emit', 'outbox', 'emit'])
+    expect(outbox.byTag('inbox.inbox_item.bulk_status_changed')).toHaveLength(2)
   })
 
-  it('applySourceCreatedOnce: duplicate source records a duplicate receipt, no fact', async () => {
+  it('applySourceCreatedOnce records a duplicate receipt but no fact', async () => {
     const receipts: Array<readonly [string, string, string]> = []
-    const recordOutbox = vi.fn()
+    const outbox = createRecordedOutbox()
     const repo = createInMemoryInboxRepo()
     repo.items.push(makeItem())
     const store = createSequentialInboxCommandStore({
       repo,
-      recordOutbox,
+      outbox,
       recordReceipt: async (eventId, consumerName, status) => {
         receipts.push([eventId, consumerName, status] as const)
       },
-      events: { on: vi.fn(), emit: vi.fn(), clear: vi.fn() },
     })
 
     const outcome = await store.applySourceCreatedOnce({
@@ -2407,7 +2319,7 @@ describe('createSequentialInboxCommandStore', () => {
     })
 
     expect(outcome).toBe('duplicate')
-    expect(recordOutbox).not.toHaveBeenCalled()
+    expect(outbox.facts).toEqual([])
     expect(receipts).toEqual([['evt-1', 'inbox.on-review-created', 'duplicate']])
   })
 })

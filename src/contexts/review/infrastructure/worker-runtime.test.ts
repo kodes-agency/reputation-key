@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
 import type { Database } from '#/shared/db'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { registerReviewWorkerJobs } from './worker-runtime'
 import { JOB_NAME as SYNC_REVIEWS_JOB_NAME } from './jobs/sync-property-reviews.job'
@@ -22,7 +21,6 @@ describe('registerReviewWorkerJobs', () => {
     await registerReviewWorkerJobs({
       db: {} as Database,
       pool: {} as Pool,
-      events: createCapturingEventBus(),
       registry: {
         register: (name) => {
           registered.push(name)

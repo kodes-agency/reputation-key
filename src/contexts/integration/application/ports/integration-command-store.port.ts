@@ -3,8 +3,7 @@
 //
 // Callers must not know Drizzle transaction types or outbox tables.
 // The production implementation commits the google_connections state write
-// and the outbox_events fact in ONE PostgreSQL transaction, then emits on the
-// in-process bus after commit.
+// and its durable outbox_events fact in one PostgreSQL transaction.
 
 import type { OrganizationId } from '#/shared/domain/ids'
 import type { GoogleCredentialHomeBinding } from '#/shared/domain/google-credential-home'

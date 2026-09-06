@@ -5,7 +5,6 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { EventBus } from '#/shared/events/event-bus'
 import { reviewSourceTransitioned } from '#/contexts/review/domain/events'
 import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
 import { createSourceTransitionAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/source-transition-authority.adapter'
@@ -37,12 +36,6 @@ const logger = createMockLogger()
 
 let lease: TestLease
 let pool: Pool
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
   allowed: true,
@@ -170,7 +163,6 @@ describe.sequential('Review source transition -> Inbox exact-current boundary', 
     )
     const commandStore = createProductionInboxCommandStore(
       database,
-      silentEvents,
       allowAllCommandAuthority,
       () => TRANSITIONED_AT,
     )

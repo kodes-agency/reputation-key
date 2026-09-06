@@ -3,7 +3,7 @@ import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import {
   inboxItemId,
   organizationId,
@@ -42,23 +42,12 @@ const responseTargetPermit = (materialReviewRevision: number) => ({
   targetStart: { basis: 'review_provenance' as const },
 })
 
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
-
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
   allowed: true,
 })
 
-const createAtomicInboxCommandStore = (database: Database, events: EventBus) =>
-  createProductionInboxCommandStore(
-    database,
-    events,
-    allowAllCommandAuthority,
-    () => OPENED_AT,
-  )
+const createAtomicInboxCommandStore = (database: Database) =>
+  createProductionInboxCommandStore(database, allowAllCommandAuthority, () => OPENED_AT)
 
 const makeItem = (): InboxItem => ({
   id: ITEM_ID,
@@ -130,7 +119,7 @@ async function seedScope(): Promise<void> {
     ],
   )
   await insertMaterialRevision(1)
-  await createAtomicInboxCommandStore(db, silentEvents).createItem(makeItem(), null, {
+  await createAtomicInboxCommandStore(db).createItem(makeItem(), null, {
     materialReviewRevision: 1,
   })
 }

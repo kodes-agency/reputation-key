@@ -19,7 +19,6 @@
 // (ARC-03-T14).
 
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { Redis } from 'ioredis'
 import type { Clock } from '#/shared/domain/clock'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -102,7 +101,6 @@ export const OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE =
 
 export type GoogleProviderAuthorityInput = Readonly<{
   db: Database
-  eventBus: EventBus
   clock: Clock
   logger: Pick<LoggerPort, 'warn' | 'info'>
   /** Parsed configuration, supplied once by the composition boundary. */
@@ -193,7 +191,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
   if (input.mode === 'refusing') {
     return buildRefusingGoogleProviderAuthority(input.logger)
   }
-  const { db, eventBus, clock, logger, env, redis, providerEndpoints } = input
+  const { db, clock, logger, env, redis, providerEndpoints } = input
   const dataCellExecutionFence = input.dataCellExecutionFence
   const options = input.options
 
@@ -601,7 +599,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       })
     })
 
-  const googleDisconnectRevokeStore = createGoogleDisconnectRevokeRepository(db, eventBus)
+  const googleDisconnectRevokeStore = createGoogleDisconnectRevokeRepository(db)
 
   // WP2.1: the egress runtime is in this process, so "configured" no longer
   // means "an origin, a server name and a private CA are present". It means the

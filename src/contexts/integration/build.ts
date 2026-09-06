@@ -9,7 +9,6 @@
 //     supplies the review-owned queue at container assembly.
 
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
@@ -205,7 +204,6 @@ function sameAuthorizationVectorExceptCredentialGeneration(
 type IntegrationContextDeps = Readonly<{
   db: Database
   outboxRepo: OutboxRepository
-  events: EventBus
   clock: () => Date
   idGen: () => string
   invalidationOwnerGen: () => string
@@ -447,17 +445,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const credentialLifecycle = createCredentialLifecycleRepository(deps.db)
   const googleOAuthExchangeRecovery = createGoogleOAuthExchangeRecoveryRepository(deps.db)
   const googleDisconnectRevokeStore =
-    deps.googleDisconnectRevokeStore ??
-    createGoogleDisconnectRevokeRepository(deps.db, deps.events)
-  const commandStore = createAtomicIntegrationCommandStore(
-    deps.db,
-    deps.events,
-    deps.clock,
-  )
-  const connectorDepartureStore = createGoogleConnectorDepartureStore(
-    deps.db,
-    deps.events,
-  )
+    deps.googleDisconnectRevokeStore ?? createGoogleDisconnectRevokeRepository(deps.db)
+  const commandStore = createAtomicIntegrationCommandStore(deps.db, deps.clock)
+  const connectorDepartureStore = createGoogleConnectorDepartureStore(deps.db)
 
   // ── Adapters ──────────────────────────────────────────────────────
   // BQC-4.3: every Google endpoint comes from the composition-resolved

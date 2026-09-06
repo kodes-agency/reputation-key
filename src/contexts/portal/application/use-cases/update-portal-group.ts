@@ -1,5 +1,5 @@
 // Portal context — update portal group use case
-// Full 7-step pattern: authorize → find → check uniqueness → update → emit → return
+// Full pattern: authorize → find → check uniqueness → atomically update with fact → return
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalGroup } from '../../domain/types'

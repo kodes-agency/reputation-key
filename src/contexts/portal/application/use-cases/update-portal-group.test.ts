@@ -1,7 +1,7 @@
 // Portal context — updatePortalGroup use case tests
 import { describe, it, expect } from 'vitest'
 import { updatePortalGroup } from './update-portal-group'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
@@ -38,7 +38,7 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 })
 
 function setup(notFound = false, accessible: ReadonlyArray<PropertyId> | null = null) {
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const portalGroupRepo = {
     findById: async () => (notFound ? null : existing),
     listByProperty: async () => [],
@@ -58,17 +58,17 @@ function setup(notFound = false, accessible: ReadonlyArray<PropertyId> | null = 
     commandStore: createInMemoryPortalCommandStore({
       portalRepo: createInMemoryPortalRepo(),
       portalGroupRepo,
-      events,
+      outbox,
     }),
     clock: () => FIXED_TIME,
     staffPublicApi: staffApiMock(accessible),
   })
-  return { useCase, events }
+  return { useCase, outbox }
 }
 
 describe('updatePortalGroup (use case)', () => {
-  it('updates group name and emits PortalGroupUpdated', async () => {
-    const { useCase, events } = setup()
+  it('updates the group name and records PortalGroupUpdated', async () => {
+    const { useCase, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     const result = await useCase(
@@ -77,7 +77,7 @@ describe('updatePortalGroup (use case)', () => {
     )
 
     expect(result).toMatchObject({ name: 'New Name', updatedAt: NEXT_REVISION })
-    expect(events.capturedByTag('portal_group.updated')).toEqual([
+    expect(outbox.byTag('portal_group.updated')).toEqual([
       expect.objectContaining({
         sourceAggregateVersion: NEXT_REVISION.toISOString(),
         occurredAt: FIXED_TIME,
@@ -133,7 +133,7 @@ describe('updatePortalGroup (use case)', () => {
   })
 
   it('allows PropertyManager assigned to the property', async () => {
-    const { useCase, events } = setup(false, [
+    const { useCase, outbox } = setup(false, [
       propertyId('a0000000-0000-4000-8000-000000000001'),
     ])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
@@ -144,6 +144,6 @@ describe('updatePortalGroup (use case)', () => {
     )
 
     expect(result.name).toBe('New Name')
-    expect(events.capturedByTag('portal_group.updated')).toHaveLength(1)
+    expect(outbox.byTag('portal_group.updated')).toHaveLength(1)
   })
 })

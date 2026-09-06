@@ -6,7 +6,6 @@ import {
   createSequentialReviewCommandStore,
 } from './review-command-store'
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -84,7 +83,7 @@ function makeEvent(): DomainEvent {
 }
 
 describe('createSequentialReviewCommandStore', () => {
-  it('upserts then records outbox then emits', async () => {
+  it('upserts then records the outbox fact', async () => {
     const order: string[] = []
     const review = makeReview()
     const saved = { ...review, createdAt: NOW, updatedAt: NOW }
@@ -98,18 +97,11 @@ describe('createSequentialReviewCommandStore', () => {
       recordOutbox: async () => {
         order.push('outbox')
       },
-      events: {
-        on: vi.fn(),
-        emit: async () => {
-          order.push('emit')
-        },
-        clear: vi.fn(),
-      },
     })
 
     const result = await store.upsertAndRecord(review, makeEvent(), NOW)
     expect(result).toEqual(saved)
-    expect(order).toEqual(['upsert', 'outbox', 'emit'])
+    expect(order).toEqual(['upsert', 'outbox'])
   })
 })
 
@@ -120,7 +112,7 @@ describe('createAtomicReviewCommandStore', () => {
     registerAllEventSchemas()
   })
 
-  it('runs upsert + outbox insert inside a single transaction before emit', async () => {
+  it('runs upsert and outbox insert inside a single transaction', async () => {
     const order: string[] = []
     const review = makeReview()
     const saved = {
@@ -164,16 +156,8 @@ describe('createAtomicReviewCommandStore', () => {
       },
     )
 
-    const events: EventBus = {
-      on: vi.fn(),
-      emit: vi.fn(async () => {
-        order.push('emit')
-      }),
-      clear: vi.fn(),
-    }
-
     const persistObservation: NonNullable<
-      Parameters<typeof createAtomicReviewCommandStore>[3]
+      Parameters<typeof createAtomicReviewCommandStore>[2]
     > = vi.fn(async (_tx, input) => {
       order.push('tx.observation')
       return {
@@ -187,12 +171,7 @@ describe('createAtomicReviewCommandStore', () => {
       }
     })
     const db = { transaction } as unknown as Database
-    const store = createAtomicReviewCommandStore(
-      db,
-      events,
-      () => NOW,
-      persistObservation,
-    )
+    const store = createAtomicReviewCommandStore(db, () => NOW, persistObservation)
 
     const eventFactory = vi.fn(
       (persisted: Review) =>
@@ -205,14 +184,7 @@ describe('createAtomicReviewCommandStore', () => {
     await store.upsertAndRecord(review, eventFactory, NOW, 'f'.repeat(64))
 
     expect(transaction).toHaveBeenCalledTimes(1)
-    expect(order).toEqual([
-      'tx.start',
-      'tx.observation',
-      'tx.outbox',
-      'tx.commit',
-      'emit',
-    ])
-    expect(events.emit).toHaveBeenCalledTimes(1)
+    expect(order).toEqual(['tx.start', 'tx.observation', 'tx.outbox', 'tx.commit'])
     expect(persistObservation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({

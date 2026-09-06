@@ -22,10 +22,10 @@ import {
   type NotificationConsumerDeps,
 } from './outbox-consumers'
 import {
-  createEventHandlerDeps,
-  type FakeEventHandlerDeps,
+  createNotificationConsumerDeps,
+  type FakeNotificationConsumerDeps,
   NOTIF_TEST_IDS,
-} from './event-handlers/test-fixtures'
+} from './notification-consumer-test-fixtures'
 import { unbrand } from '#/shared/domain/ids'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
@@ -51,10 +51,10 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
   ...overrides,
 })
 
-type Deps = NotificationConsumerDeps & { fakes: FakeEventHandlerDeps }
+type Deps = NotificationConsumerDeps & { fakes: FakeNotificationConsumerDeps }
 
 const makeDeps = (): Deps => {
-  const fakes = createEventHandlerDeps()
+  const fakes = createNotificationConsumerDeps()
   fakes.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
   return {
     queue: fakes.queue,

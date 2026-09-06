@@ -111,7 +111,6 @@ import {
 } from '#/shared/auth/system-execution-policy'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { EventBus } from '#/shared/events/event-bus'
 import {
   organizationId,
   propertyId,
@@ -472,12 +471,6 @@ const NOW_C = new Date('2026-07-18T12:00:00.000Z')
 // causally newer than every attempted send.
 const PROVIDER_OBSERVED_AT_C = new Date('2027-01-18T12:00:00.000Z')
 
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
-
 function makeReviewC(): Review {
   return {
     id: REVIEW_C,
@@ -648,7 +641,6 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     // injects the real transaction-bound, fail-closed authority.
     const replyCommandStore = createAtomicReplyCommandStore(
       db,
-      silentEvents,
       () => new Date(),
       async () => true,
     )
@@ -739,7 +731,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       replyRepo,
       reviewRepo,
       googleReviewApi,
-      googleReplyObservationStore: createGoogleReplyObservationStore(db, silentEvents),
+      googleReplyObservationStore: createGoogleReplyObservationStore(db),
       replyCommandStore,
       clock: () => PROVIDER_OBSERVED_AT_C,
       logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },

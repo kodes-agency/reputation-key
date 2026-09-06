@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { updateInboxStatus } from './update-inbox-status'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import { isInboxError } from '../../domain/errors'
@@ -78,8 +78,8 @@ const staffApiAllAccess: StaffPublicApi = {
 
 const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
   const repo = createInMemoryInboxRepo()
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialInboxCommandStore({ repo, events })
+  const events = createRecordedOutbox()
+  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
   const cycleStore: ReviewHandlingCycleStore = {
     findSourceHead: async (itemId, organizationIdValue) => {
       const item = repo.items.find(
@@ -229,7 +229,7 @@ describe('updateInboxStatus', () => {
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
 
-  it('emits inbox.status.changed event when governed reopen succeeds', async () => {
+  it('records inbox.status.changed when a governed reopen succeeds', async () => {
     const { useCase, repo, events } = setup()
     repo.items.push(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
 
@@ -242,9 +242,9 @@ describe('updateInboxStatus', () => {
       ctxFor('AccountAdmin'),
     )
 
-    const emitted = events.capturedEvents
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0]._tag).toBe('inbox.inbox_item.status_changed')
+    const facts = events.facts
+    expect(facts).toHaveLength(1)
+    expect(facts[0]._tag).toBe('inbox.inbox_item.status_changed')
   })
 
   it('rejects manual close on a Review because Google observation owns closure', async () => {

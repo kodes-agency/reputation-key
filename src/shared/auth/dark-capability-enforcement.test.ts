@@ -151,8 +151,4 @@ describe('BQR-0: Dark job / schedule containment', () => {
       'container.jobRegistry.register(\n    PORTAL_UPLOAD_SOURCE_CLEANUP_JOB',
     )
   })
-
-  it('outbox dispatcher remains opt-in', () => {
-    expect(workerSrc).toContain('OUTBOX_DISPATCHER_ENABLED')
-  })
 })

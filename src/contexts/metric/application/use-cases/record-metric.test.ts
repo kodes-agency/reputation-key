@@ -7,7 +7,7 @@ import {
 import type { MetricReading } from '../../domain/metric-reading'
 import type { GovernedMetricVersion } from '../../domain/metric-registry'
 import type { QuarantineMetricCommand } from '../ports/metric-command-store.port'
-import type { DomainEvent } from '#/shared/events/events'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createSequentialMetricCommandStore } from '#/shared/testing/sequential-metric-command-store'
 import {
   metricReadingId,
@@ -75,14 +75,7 @@ const input = (overrides: Partial<RecordMetricInput> = {}): RecordMetricInput =>
 const createDeps = (version: GovernedMetricVersion | null = governed) => {
   const readings: MetricReading[] = []
   const quarantined: QuarantineMetricCommand[] = []
-  const events: DomainEvent[] = []
-  const bus = {
-    on: () => {},
-    emit: async (event: DomainEvent) => {
-      events.push(event)
-    },
-    clear: () => {},
-  }
+  const outbox = createRecordedOutbox()
   const deps: RecordMetricDeps = {
     commandStore: createSequentialMetricCommandStore({
       insertReading: async (reading) => {
@@ -92,18 +85,18 @@ const createDeps = (version: GovernedMetricVersion | null = governed) => {
       quarantine: async (command) => {
         quarantined.push(command)
       },
-      events: bus,
+      outbox,
     }),
     registry: { findVersionById: async () => version },
     clock: () => NOW,
     idGen: () => metricReadingId('d4000000-0000-4000-8000-000000000071'),
     resolvePropertyLocalDate: async () => '2026-08-08',
   }
-  return { deps, readings, quarantined, events }
+  return { deps, readings, quarantined, outbox }
 }
 
 describe('recordMetric', () => {
-  it('records a versioned reading and emits only its registry-approved consumers', async () => {
+  it('records a versioned reading and its registry-approved outbox fact', async () => {
     const fakes = createDeps()
     const result = await recordMetric(fakes.deps)(input())
 
@@ -117,11 +110,12 @@ describe('recordMetric', () => {
       portalGroupId: 'd4000000-0000-4000-8000-000000000061',
       propertyLocalDate: '2026-08-08',
     })
-    expect(fakes.events).toHaveLength(1)
-    expect(fakes.events[0]).toMatchObject({
-      _tag: 'metric.recorded',
-      permittedConsumers: governed.version.permittedConsumers,
-    })
+    expect(fakes.outbox.byTag('metric.recorded')).toEqual([
+      expect.objectContaining({
+        _tag: 'metric.recorded',
+        permittedConsumers: governed.version.permittedConsumers,
+      }),
+    ])
   })
 
   it('passes the anonymous lifetime contribution only for an eligible Portal fact', async () => {
@@ -175,7 +169,7 @@ describe('recordMetric', () => {
     })
   })
 
-  it('quarantines an unknown immutable version without recording or emitting', async () => {
+  it('quarantines an unknown immutable version without recording a fact', async () => {
     const fakes = createDeps(null)
     const result = await recordMetric(fakes.deps)(input())
 
@@ -190,7 +184,7 @@ describe('recordMetric', () => {
     })
     expect(fakes.quarantined[0]?.payloadHash).toMatch(/^[a-f0-9]{64}$/)
     expect(fakes.readings).toEqual([])
-    expect(fakes.events).toEqual([])
+    expect(fakes.outbox.facts).toEqual([])
   })
 
   it.each([

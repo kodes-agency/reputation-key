@@ -46,7 +46,6 @@ import {
   type ConsentSelector,
   type MerchantAiConsentFence,
 } from '#/shared/auth/execution-policy'
-import type { DomainEvent } from '#/shared/events/events'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 import { getLogger } from '#/shared/observability/logger'
 import {
@@ -343,52 +342,6 @@ export function createScheduledScopeAuthorizer(
       throw new GateDenyRetryError(action, decision.reason)
     }
     return decision.allowed
-  }
-}
-
-/** Authorize an in-process bus consumer (registration carries the catalogue name). */
-export async function gateBusConsumer(
-  consumerModule: string,
-  event: DomainEvent,
-): Promise<GateOutcome> {
-  const row = CONSUMER_ROW_BY_NAME.get(consumerModule)
-  const decision = await getDelayedExecutionPolicy().decide({
-    principal: { kind: 'system', id: `consumer:${consumerModule}` },
-    action: row?.action ?? consumerModule,
-    organizationId: event.organizationId as string,
-    propertyId: 'propertyId' in event ? (event.propertyId as string) : undefined,
-    executionKind: 'consumer',
-    correlationId: event.correlationId ?? event.eventId,
-    now: new Date(),
-  })
-  return toOutcome(decision)
-}
-
-/**
- * BQC-3.2: the event-bus authorizer wired by the composition root
- * (src/composition.ts) — injected so the bus module itself never imports
- * the server-only policy stack (browser/Storybook bundles stay clean).
- * deny_terminal skips with a warning; deny_retry skips with an error — the
- * bus is fire-and-forget with no retry semantics, so retries belong to the
- * durable dispatcher path (BQC-3.3–3.5), not here.
- */
-export function createBusAuthorizer() {
-  const logger = getLogger()
-  return async (consumer: string, event: DomainEvent): Promise<boolean> => {
-    const outcome = await gateBusConsumer(consumer, event)
-    if (outcome.kind === 'allow') return true
-    if (outcome.kind === 'deny_terminal') {
-      logger.warn(
-        { consumer, tag: event._tag, reason: outcome.decision.reason },
-        'delayed execution denied — terminal (event bus consumer skipped)',
-      )
-      return false
-    }
-    logger.error(
-      { consumer, tag: event._tag, reason: outcome.decision.reason },
-      'delayed execution denied — policy unavailable (event bus consumer skipped)',
-    )
-    return false
   }
 }
 

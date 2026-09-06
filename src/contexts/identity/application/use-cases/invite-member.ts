@@ -1,7 +1,6 @@
 // Identity context — invite member use case
-// Per architecture: "Every use case follows this order:
-// 1. Authorize → 2. Validate → 3. Check invariants → 4. Build → 5. Persist → 6. Emit → 7. Return"
-// Use cases THROW tagged errors at the application boundary (never return Result).
+// Order: authorize → validate → check invariants → build → persist → return.
+// Use cases throw tagged errors at the application boundary (never return Result).
 
 import type { IdentityPort } from '../ports/identity.port'
 import type { IdentityCommandStore } from '../ports/identity-command-store.port'
@@ -45,7 +44,7 @@ export type InviteMemberDeps = Readonly<{
  * 1. Authorize — permission check via centralized can()
  * 2. Validate — DTO validation already happened at the server boundary
  * 3. Check business invariants — domain rule restricts target role hierarchy
- * 4. Persist + emit — the command store commits the invitation row and the
+ * 4. Persist — the command store commits the invitation row and the
  *    member.invited fact in ONE transaction (BQC-3.5; previously better-auth
  *    created the row and the fact was a separate, losable write)
  * 5. Send the invitation email (post-commit — previously sent inside

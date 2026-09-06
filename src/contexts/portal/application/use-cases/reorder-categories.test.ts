@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { reorderCategories } from './reorder-categories'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import {
   buildTestAuthContext,
@@ -30,7 +30,7 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const deps = {
     portalRepo,
     portalLinkRepo,
@@ -38,12 +38,12 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     commandStore: createInMemoryPortalCommandStore({
       portalRepo,
       portalLinkRepo,
-      events,
+      outbox,
     }),
     clock: () => FIXED_TIME,
   }
   const useCase = reorderCategories(deps)
-  return { useCase, portalRepo, portalLinkRepo, events }
+  return { useCase, portalRepo, portalLinkRepo, outbox }
 }
 
 describe('reorderCategories', () => {
@@ -120,8 +120,8 @@ describe('reorderCategories', () => {
     )
   })
 
-  it('emits portal_link_category.reordered event', async () => {
-    const { useCase, portalRepo, portalLinkRepo, events } = setup()
+  it('records a portal_link_category.reordered outbox fact', async () => {
+    const { useCase, portalRepo, portalLinkRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     portalRepo.seed([buildTestPortal({})])
     const cat1 = buildTestPortalLinkCategory({ id: portalLinkCategoryId('cat-1') })
@@ -135,7 +135,7 @@ describe('reorderCategories', () => {
       ctx,
     )
 
-    const emitted = events.capturedByTag('portal_link_category.reordered')
+    const emitted = outbox.byTag('portal_link_category.reordered')
     expect(emitted).toHaveLength(1)
   })
 
@@ -158,7 +158,7 @@ describe('reorderCategories', () => {
   })
 
   it('allows PropertyManager assigned to the property', async () => {
-    const { useCase, portalRepo, portalLinkRepo, events } = setup([
+    const { useCase, portalRepo, portalLinkRepo, outbox } = setup([
       propertyId('a0000000-0000-0000-0000-000000000001'),
     ])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
@@ -174,6 +174,6 @@ describe('reorderCategories', () => {
       ctx,
     )
 
-    expect(events.capturedByTag('portal_link_category.reordered')).toHaveLength(1)
+    expect(outbox.byTag('portal_link_category.reordered')).toHaveLength(1)
   })
 })

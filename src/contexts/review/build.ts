@@ -5,7 +5,6 @@
 import { randomUUID } from 'node:crypto'
 import { reviewError } from './domain/errors'
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import type { Queue } from 'bullmq'
 import type { Pool } from 'pg'
@@ -95,7 +94,6 @@ import { createEligibleReads, type EligibleReads } from './application/eligible-
 import { reviewId, replyId } from '#/shared/domain/ids'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
-import { registerReviewHandlers } from './infrastructure/event-handlers'
 import { registerReplyPublicationConsumers } from './infrastructure/outbox-consumers'
 import { createPublishReplyScopeResolver } from './infrastructure/jobs/publish-reply-scope-resolver'
 import { JOB_NAME as PUBLISH_REPLY_JOB_NAME } from './infrastructure/jobs/publish-reply.job'
@@ -107,7 +105,6 @@ import type {
 
 export type ReviewContextBuildInput = Readonly<{
   db: Database
-  events: EventBus
   outboxRepo: OutboxRepository
   clock: () => Date
   idGen: () => string
@@ -442,19 +439,13 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     getProcessingScope: (orgId, pid) => input.propertyApi.getProcessingScope(orgId, pid),
   }
 
-  // BQC-3.3: atomic reply state + outbox writes for the reply command family.
-  // This closes the replyDeps wiring gap — reply facts were previously
-  // bus-only in production because replyDeps never received outboxRepo.
+  // BQC-3.3: atomic reply state and outbox writes for the reply command family.
   const replyCommandStore = createAtomicReplyCommandStore(
     input.db,
-    input.events,
     input.clock,
     input.publicationActorAuthority,
   )
-  const googleReplyObservationStore = createGoogleReplyObservationStore(
-    input.db,
-    input.events,
-  )
+  const googleReplyObservationStore = createGoogleReplyObservationStore(input.db)
   const replyObservationAuthority = createReviewReplyObservationAuthority(input.db)
   const responseTargetAuthority = createReviewResponseTargetAuthority(input.db)
   const sourceTransitionAuthority = createReviewSourceTransitionAuthority(input.db)
@@ -478,21 +469,18 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     staffPublicApi: input.staffPublicApi,
   }
 
-  registerReviewHandlers({
-    events: input.events,
-    logger: input.logger,
-    // BQC-3.8: disconnect cancels in-flight publications before/with the
-    // source-content purge (the guarded store tolerates the race).
-    cancelPublicationsForConnection: cancelPublicationsForConnection({
-      reviewRepo,
-      replyRepo,
-      commandStore: replyCommandStore,
-      clock: input.clock,
-    }),
+  // BQC-3.8: disconnect cancels in-flight publications before/with the
+  // source-content purge (the guarded store tolerates the race). Delivered by
+  // the durable review.on-google-account-disconnected consumer.
+  const cancelPublications = cancelPublicationsForConnection({
+    reviewRepo,
+    replyRepo,
+    commandStore: replyCommandStore,
+    clock: input.clock,
   })
 
   // BQR-2.3: atomic review upsert + outbox insert for sync path
-  const commandStore = createAtomicReviewCommandStore(input.db, input.events, input.clock)
+  const commandStore = createAtomicReviewCommandStore(input.db, input.clock)
 
   const observationWriter = createReviewProviderObservationWriter({
     reviewRepo,
@@ -510,7 +498,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     runReviewProviderSnapshot: runReviewProviderSnapshot({
       repository: createReviewProviderSnapshotRepository(
         input.db,
-        input.events,
         input.snapshotRunIdGen,
       ),
       googleReviewApi: input.googleReviewApi,
@@ -571,6 +558,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       queue: replyQueue,
       receipts: input.outboxRepo,
       logger: input.logger,
+      cancelPublicationsForConnection: cancelPublications,
     })
   // BQC-5.5: governed aggregate serving reads — eligibility in SQL,
   // clock-injected. Wired into the dashboard build by composition. ONE
@@ -583,7 +571,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     await registerReviewWorkerJobs({
       db: input.db,
       pool: input.workerRuntime.pool,
-      events: input.events,
       registry: input.workerRuntime.registry,
       backgroundQueue: input.workerRuntime.backgroundQueue,
       reviewQueue: queue,

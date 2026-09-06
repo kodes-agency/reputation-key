@@ -4,7 +4,6 @@
 
 import type { Job } from 'bullmq'
 import type { GoalRepository } from '../../application/ports/goal.repository'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { GoalProgress, RecurrenceFrequency } from '../../domain/types'
 import { buildGoal } from '../../domain/constructors'
 import { goalId, goalProgressId } from '#/shared/domain/ids'
@@ -12,14 +11,12 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 
 // Retained only for migration diagnostics; the governed Goal runtime does not register it.
-export const LEGACY_SPAWN_RECURRING_NAME = 'spawn-recurring-instances' as const
 
 import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 // ── Deps ──────────────────────────────────────────────────────────────────
 
 export type SpawnRecurringInstancesDeps = Readonly<{
   goalRepo: GoalRepository
-  events: EventBus
   clock: () => Date
   idGen: () => string
   authorizeScope: ScheduledScopeAuthorizer
@@ -35,6 +32,9 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
 export const createSpawnRecurringInstancesHandler =
   (deps: SpawnRecurringInstancesDeps) =>
   async (_job: Job): Promise<SpawnSummary> => {
+    // Pre-existing (cognitive 23); WP3.1 only removed the unused bus dep. The
+    // legacy goal families are deleted in WP3.4.
+    // fallow-ignore-next-line complexity
     return trace('job.spawnRecurringInstances', async () => {
       const now = deps.clock()
 

@@ -5,7 +5,6 @@
 import type { Job } from 'bullmq'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
-import type { EventBus } from '#/shared/events/event-bus'
 import { buildProgressQuery } from '../../domain/progress-strategy'
 import {
   computeValue,
@@ -16,14 +15,12 @@ import { trace } from '#/shared/observability/trace'
 
 import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 // Retained only for migration diagnostics; the governed Goal runtime does not register it.
-export const LEGACY_RECONCILE_GOAL_NAME = 'reconcile-goal-progress' as const
 
 // ── Deps ──────────────────────────────────────────────────────────────────
 
 export type ReconcileGoalProgressDeps = Readonly<{
   goalRepo: GoalRepository
   metricApi: MetricPublicApi
-  events: EventBus
   clock: () => Date
   authorizeScope: ScheduledScopeAuthorizer
   logger: Pick<LoggerPort, 'error' | 'info' | 'warn'>
@@ -33,9 +30,11 @@ export type ReconcileGoalProgressDeps = Readonly<{
 
 export const createReconcileGoalProgressHandler =
   // Pre-existing BQC-5.7 bucket-5 dark finding (registered); the 7.3 sweep only stripped banned log fields, no branches added.
-  // fallow-ignore-next-line complexity
   (deps: ReconcileGoalProgressDeps) =>
     async (_job: Job): Promise<ReconcileSummary> => {
+      // Pre-existing (cognitive 34); WP3.1 only removed the unused bus dep. The
+      // legacy goal families are deleted in WP3.4.
+      // fallow-ignore-next-line complexity
       return trace('job.reconcileGoalProgress', async () => {
         const now = deps.clock()
 

@@ -6,7 +6,7 @@
 // 1. Receives an identifier-only ConsumerEvent (no review text, PII)
 // 2. Checks the receipt (idempotency — dispatcher pre-checks hasReceipt)
 // 3. Applies the projection via InboxCommandStore applyOnce — state change,
-//    emitted facts, and the receipt co-commit in ONE transaction (no crash
+//    outbox facts, and the receipt co-commit in ONE transaction (no crash
 //    window can lose a fact or duplicate a side effect across redelivery).
 //
 // BQC-3.4: review.updated gained a metadata-only refresh consumer (sourceDate/
@@ -50,6 +50,7 @@ const ON_REVIEW_UPDATED = 'inbox.on-review-updated'
 const ON_REVIEW_SOURCE_TRANSITIONED = 'inbox.on-review-source-transitioned'
 const ON_REPLY_PUBLISHED = 'inbox.on-reply-published'
 const ON_REPLY_OBSERVED = 'inbox.on-reply-observed'
+const ON_REPLY_SUBMITTED = 'inbox.on-reply-submitted'
 
 type ReviewIdPayload = Readonly<{
   reviewId: string
@@ -233,7 +234,7 @@ export async function handleInboxReviewExpired(
 }
 
 /**
- * REV-01 content-free handoff. Review owns the source lifecycle and emits an
+ * REV-01 content-free handoff. Review owns the source lifecycle and records an
  * identifier-only transition. Inbox owns its stable projection, so it closes
  * unservable work and removes legacy provider-controlled copies itself. The
  * command store co-commits the scrub, optional status fact, and receipt.
@@ -335,6 +336,39 @@ export async function handleInboxReplyPublished(
   // workflow fact and can no longer prove provider state; only the exact
   // current `review.reply.observed` head may mutate Inbox status.
   await deps.commandStore.recordReceipt(event.eventId, ON_REPLY_PUBLISHED, 'applied')
+  return { status: 'applied' }
+}
+
+/**
+ * Stamp the firstReplySubmittedAt milestone on the associated inbox item.
+ * Milestone only — this consumer never touches `inbox_items.status`; exact
+ * current observed Google truth (review.reply.observed) owns close/reopen.
+ * The milestone update is idempotent because a set milestone is never
+ * overwritten.
+ */
+export async function handleInboxReplySubmitted(
+  deps: InboxConsumerDeps,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const payload = asReviewIdPayload(event.payload)
+  const orgId = organizationId(payload.organizationId)
+  const item = await deps.inboxRepo.findBySource(
+    'review',
+    unbrand(reviewId(payload.reviewId)),
+    orgId,
+  )
+  if (!item || item.firstReplySubmittedAt) {
+    await deps.commandStore.recordReceipt(event.eventId, ON_REPLY_SUBMITTED, 'applied')
+    return { status: 'applied' }
+  }
+  const submittedAt = event.occurredAt ? new Date(event.occurredAt) : deps.clock()
+  await deps.inboxRepo.stampReplyMilestones(
+    item.id,
+    item.organizationId,
+    { firstReplySubmittedAt: submittedAt },
+    submittedAt,
+  )
+  await deps.commandStore.recordReceipt(event.eventId, ON_REPLY_SUBMITTED, 'applied')
   return { status: 'applied' }
 }
 
@@ -503,5 +537,12 @@ export function registerInboxConsumers(
     handler: (event) => handleInboxReplyObserved(deps, event),
   })
 
-  deps.logger.info('Inbox consumers registered with outbox dispatcher (6 consumers)')
+  registerConsumer({
+    eventType: 'review.reply.submitted',
+    consumerName: 'inbox.on-reply-submitted',
+    module: 'inbox.outbox-consumers',
+    handler: (event) => handleInboxReplySubmitted(deps, event),
+  })
+
+  deps.logger.info('Inbox consumers registered with outbox dispatcher (7 consumers)')
 }

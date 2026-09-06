@@ -17,7 +17,7 @@ import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
@@ -61,21 +61,10 @@ const WELL_PAST_TARGET = new Date('2026-09-27T12:00:00.000Z')
 const db = getDb()
 let pool: Pool
 
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
-
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
 
 const commandStore = (database: Database) =>
-  createProductionInboxCommandStore(
-    database,
-    silentEvents,
-    allowAllCommandAuthority,
-    () => OPENED_AT,
-  )
+  createProductionInboxCommandStore(database, allowAllCommandAuthority, () => OPENED_AT)
 
 const makeItem = (): InboxItem => ({
   id: ITEM,
@@ -112,7 +101,7 @@ const makeItem = (): InboxItem => ({
 function createTimeTraveller() {
   let current = OPENED_AT
   const releaseDue = releaseDueResponseTargetReminders({
-    targetStore: createResponseTargetStore(db, silentEvents),
+    targetStore: createResponseTargetStore(db),
     clock: () => current,
   })
   return {
@@ -279,11 +268,7 @@ describe.sequential('Response Target reminder time travel (PostgreSQL)', () => {
     scheduler.travelTo(HALFWAY)
     await expect(scheduler.tick()).resolves.toEqual({ released: 1 })
 
-    await createFeedbackHandlingStore(
-      db,
-      silentEvents,
-      allowAllCommandAuthority,
-    ).markHandled({
+    await createFeedbackHandlingStore(db, allowAllCommandAuthority).markHandled({
       item,
       outcomeId: '6c000000-0000-4000-8000-000000000010',
       outcome: 'follow_up_completed',
@@ -373,7 +358,7 @@ describe.sequential('Response Target reminder time travel (PostgreSQL)', () => {
       },
     ])
     await expect(
-      createResponseTargetStore(db, silentEvents).getPrivateFeedbackAnalytics({
+      createResponseTargetStore(db).getPrivateFeedbackAnalytics({
         organizationId: ORG,
         propertyIds: null,
         now: WELL_PAST_TARGET,

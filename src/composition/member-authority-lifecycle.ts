@@ -39,28 +39,20 @@ export type MemberAuthorityLifecycleDeps = Readonly<{
   inboxAssignments: InboxAssignmentRuntime
   propertyAccess: MemberPropertyAccessRevocation
   eligibility: ResponsibleManagerEligibilityDeps
-  /** Domain events raised by the release; published through the container bus. */
-  emit: (event: unknown) => Promise<unknown>
 }>
 
 export function createMemberAuthorityLifecycle(
   deps: MemberAuthorityLifecycleDeps,
 ): MemberAuthorityLifecyclePort {
-  const emitAll = async (
-    ...batches: ReadonlyArray<readonly unknown[]>
-  ): Promise<void> => {
-    for (const event of batches.flat()) {
-      await deps.emit(event)
-    }
-  }
-
   const releaseMemberAuthorities = async (
     orgId: string,
     memberId: string,
     actorId: string | null,
   ): Promise<void> => {
     const at = deps.clock()
-    const [propertyRelease, portalRelease] = await Promise.all([
+    // Each release records its own responsibility_became_needed facts in the
+    // outbox inside its transaction; nothing is announced here.
+    await Promise.all([
       deps.propertyResponsibility.releaseForUser({
         organizationId: orgId,
         userId: memberId,
@@ -81,10 +73,6 @@ export function createMemberAuthorityLifecycle(
       }),
     ])
     await deps.propertyAccess.revokeAllPropertyAccessForUser(orgId, memberId)
-    await emitAll(
-      propertyRelease.responsibilityNeededEvents,
-      portalRelease.responsibilityNeededEvents,
-    )
   }
 
   const reconcileResponsibleManagerEligibility = async (
@@ -127,7 +115,7 @@ export function createMemberAuthorityLifecycle(
       .filter((assignment) => isIneligible(assignment.propertyId))
       .map((assignment) => assignment.portalId)
     const at = deps.clock()
-    const [propertyRelease, portalRelease] = await Promise.all([
+    await Promise.all([
       deps.propertyResponsibility.releaseForUser({
         organizationId: orgId,
         userId: memberId,
@@ -152,10 +140,6 @@ export function createMemberAuthorityLifecycle(
         at,
       }),
     ])
-    await emitAll(
-      propertyRelease.responsibilityNeededEvents,
-      portalRelease.responsibilityNeededEvents,
-    )
   }
 
   return Object.freeze({

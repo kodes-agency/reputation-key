@@ -180,10 +180,10 @@ export function withOutboxNotificationDelivery(
 }
 
 /**
- * Queue used by both the immediate EventBus path and every durable consumer.
- * The executable beta matrix guarantees one route per active type, so whichever
- * path wins BullMQ's deterministic job-id race carries the same settlement
- * marker. Retained beta-dark types pass through without claiming durability.
+ * Queue used by every durable consumer. The executable beta matrix guarantees
+ * one route per active type, and deterministic job ids make redelivery carry
+ * the same settlement marker. Retained beta-dark types pass through without
+ * claiming durability.
  */
 export function withBetaOutboxNotificationDelivery(
   queue: QueuePort,

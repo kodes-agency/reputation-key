@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted. Amended 2026-09-07 (WP3.1): the `eventBus` override is gone with the
+in-process bus; the remaining overrides are unchanged.
 
 ## Context
 
@@ -30,7 +31,6 @@ createContainer(options?: {
   redis?: Redis           // default: getRedis()
   env?: ReturnType<typeof getEnv>  // default: getEnv()
   clock?: Clock           // default: () => new Date()  (ADR 0017)
-  eventBus?: EventBus     // default: createEventBus()
 })
 ```
 
@@ -42,8 +42,8 @@ before.
 
 **Positive:**
 
-- Simulations and tests can inject ephemeral DB/Redis, a controllable clock, and
-  a deterministic event bus without env tricks.
+- Simulations and tests can inject ephemeral DB/Redis and a controllable clock
+  without env tricks.
 - Multiple isolated containers can coexist in one process (parallel scenarios).
 - `getContainer()` is unchanged — prod singleton behavior preserved.
 

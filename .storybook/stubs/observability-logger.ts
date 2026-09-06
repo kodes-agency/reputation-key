@@ -2,10 +2,9 @@
 //
 // The real module (src/shared/observability/logger.ts) returns a pino logger and
 // calls require.resolve('pino-pretty'); pino + better-auth's ALS pull Node
-// builtins that crash the Storybook preview. createEventBus()'s emit() catch
-// block dynamically imports this module only when a registered event handler
-// throws — non-triggering today (the in-memory container registers no handlers),
-// but this stub prevents a latent crash if a future story registers one.
+// builtins that crash the Storybook preview. Shared modules reachable from the
+// in-memory container import it lazily on failure paths; this stub keeps those
+// paths from crashing the preview.
 //
 // Aliased ONLY in the Storybook Vite build (.storybook/main.ts viteFinal); tsc
 // still resolves the real module for type-checking.

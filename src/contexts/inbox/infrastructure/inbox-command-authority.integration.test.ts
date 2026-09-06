@@ -6,7 +6,7 @@ import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-tri
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import {
   feedbackId,
   inboxItemId,
@@ -38,12 +38,6 @@ const FEEDBACK_B = feedbackId('4e000000-0000-4000-8000-000000000022')
 const NOW = new Date('2026-08-27T00:00:00.000Z')
 const ASSIGN_SESSION = 'ibx-batch-assign-target-revocation'
 const BULK_SESSION = 'ibx-batch-bulk-later-revocation'
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 async function waitForSessionLock(applicationName: string): Promise<void> {
   const deadline = Date.now() + 5_000
@@ -215,7 +209,6 @@ describe.sequential('Inbox command-wide authority', () => {
 
       const store = createAtomicInboxCommandStore(
         db,
-        silentEvents,
         authorityForSession(ASSIGN_SESSION),
         () => NOW,
       )
@@ -305,7 +298,6 @@ describe.sequential('Inbox command-wide authority', () => {
       )
       const store = createAtomicInboxCommandStore(
         db,
-        silentEvents,
         authorityForSession(BULK_SESSION),
         () => NOW,
       )

@@ -32,7 +32,7 @@ describe('identity events', () => {
     expect(event.occurredAt).toBe(NOW)
   })
 
-  it('identityMemberInvited emits an identifier-only fact', () => {
+  it('identityMemberInvited creates an identifier-only fact', () => {
     const event = identityMemberInvited({
       organizationId: ORG_ID,
       userId: USER_ID,
@@ -135,7 +135,7 @@ describe('identity events', () => {
     }
   })
 
-  it('emits a versioned identifier-only merchant AI authorization change', () => {
+  it('creates a versioned identifier-only merchant AI authorization change', () => {
     const valid = {
       organizationId: ORG_ID,
       propertyId: 'property-1',
@@ -175,9 +175,9 @@ describe('identity events', () => {
   })
 
   it('accepts the domain default source epoch of 0 for a merchant AI change', () => {
-    // `properties.source_epoch` starts at 0, so enabling AI on a property that
-    // has never been edited emits this event with 0. Asserting `>= 1` here was
-    // one of nine places that rejected it (see drizzle/0060).
+    // `properties.source_epoch` starts at 0, so the fact records 0 for a
+    // Property that has never been edited. Asserting `>= 1` here was one of
+    // nine places that rejected it (see drizzle/0060).
     expect(() =>
       identityMerchantAiChanged({
         organizationId: ORG_ID,

@@ -1,10 +1,9 @@
 // Inbox command store — atomic inbox state mutation + outbox record (BQC-3.4).
 //
 // Callers must not know Drizzle transaction types or outbox tables.
-// The production implementation commits the state write, the outbox_events
-// rows (emitted facts), and consumer receipts in one PostgreSQL transaction,
-// then emits on the in-process bus after commit (expand-phase dual path
-// until the durable switch).
+// The production implementation commits the state write, outbox facts, and
+// consumer receipts in one PostgreSQL transaction. Durable consumers receive
+// those facts through the outbox relay.
 
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type {
@@ -149,7 +148,7 @@ export type ApplyReviewUpdatedCommand = Readonly<{
  * Ordered, content-free Review projection convergence command. Review holds
  * its current source fence while this one Inbox transaction creates the
  * stable item, restores every Material Revision cycle, closes inactive work,
- * emits facts, and commits the consumer receipt.
+ * records facts, and commits the consumer receipt.
  */
 export type ApplyReviewProjectionCommand = Readonly<{
   eventId: string
@@ -164,7 +163,7 @@ export type ApplyReviewProjectionCommand = Readonly<{
 /**
  * REV-01 source transition: preserve the stable Inbox identity while removing
  * every legacy provider-controlled projection value. The store decides under
- * its row lock whether open work also closes and emits `closeFact` only when
+ * its row lock whether open work also closes and records `closeFact` only when
  * that open -> closed transition actually lands.
  */
 export type ApplyReviewSourceTransitionedCommand = Readonly<{
@@ -241,7 +240,7 @@ export type InboxCommandStore = Readonly<{
    * a conflicting concurrent insert returns the existing row with
    * `created: false` and records NO fact. `event` is null only for repair
    * paths (rebuild) — creation-during-repair is not new information, so no
-   * fact is recorded or emitted.
+   * fact is recorded.
    */
   createItem(
     item: InboxItem,
@@ -274,7 +273,7 @@ export type InboxCommandStore = Readonly<{
    * One transaction preauthorizes the complete reopen set, applies one CAS per
    * item, and writes a bulk_status_changed fact only for each landed CAS.
    * Per-item results preserve input order at the use-case boundary; landed
-   * facts emit after commit. Bulk Close is rejected.
+   * facts are recorded in the command transaction. Bulk Close is rejected.
    */
   bulkUpdateStatus(
     items: ReadonlyArray<InboxItem>,
@@ -324,7 +323,7 @@ export type InboxCommandStore = Readonly<{
   addNote(item: InboxItem, note: InboxNote, event: InboxNoteAdded): Promise<InboxNote>
 
   // ── Projection applyOnce (durable consumers) ──────────────────────
-  // Each co-commits the projection state change, any emitted fact, and the
+  // Each co-commits the projection state change, any outbox fact, and the
   // consumer receipt in ONE transaction — a crash can never lose a fact or
   // duplicate a side effect across redelivery.
 

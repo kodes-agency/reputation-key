@@ -221,7 +221,7 @@ describe('cancelPublicationsForConnection', () => {
     const calls = vi.mocked(deps.reviewRepo.findByConnection).mock.calls
     expect(calls[0]).toEqual([ORG_ID, CONN_ID, null, 2])
     expect(calls[1]).toEqual([ORG_ID, CONN_ID, { id: REVIEW_2 }, 2])
-    // The cause flows into every emitted fact.
+    // The cause flows into every recorded fact.
     const commands = vi.mocked(deps.commandStore.cancelPublications).mock.calls[0]![0]
     expect(commands).toHaveLength(0)
   })

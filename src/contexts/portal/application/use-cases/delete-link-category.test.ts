@@ -13,7 +13,7 @@ import {
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
 import { isPortalError } from '../../domain/errors'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -26,7 +26,7 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const useCase = deleteLinkCategory({
     portalRepo,
     portalLinkRepo,
@@ -34,16 +34,16 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     commandStore: createInMemoryPortalCommandStore({
       portalRepo,
       portalLinkRepo,
-      events,
+      outbox,
     }),
     clock: () => FIXED_TIME,
   })
-  return { useCase, portalRepo, portalLinkRepo, events }
+  return { useCase, portalRepo, portalLinkRepo, outbox }
 }
 
 describe('deleteLinkCategory', () => {
   it('deletes an existing category', async () => {
-    const { useCase, portalRepo, portalLinkRepo, events } = setup()
+    const { useCase, portalRepo, portalLinkRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const category = buildTestPortalLinkCategory({})
     portalLinkRepo.seedCategories([category])
@@ -52,7 +52,7 @@ describe('deleteLinkCategory', () => {
     await useCase({ categoryId: category.id }, ctx)
 
     expect(portalLinkRepo.allCategories()).toHaveLength(0)
-    expect(events.capturedByTag('portal_link_category.deleted')).toEqual([
+    expect(outbox.byTag('portal_link_category.deleted')).toEqual([
       expect.objectContaining({ categoryId: category.id, occurredAt: FIXED_TIME }),
     ])
   })

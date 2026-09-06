@@ -1,6 +1,6 @@
 // Identity context — public API surface for cross-context consumers.
-// Shared infrastructure (event bus) and other contexts consume event
-// types and port interfaces from this barrel. Per ADR-0001.
+// Other contexts consume event types and port interfaces from this barrel.
+// Per ADR-0001.
 
 import type { ManagerMembership } from './ports/identity.port'
 import type { OutstandingResponsibility } from './ports/member-offboarding.port'
@@ -32,7 +32,6 @@ export type {
 } from '../domain/events'
 
 export {
-  CURRENT_MERCHANT_AI_CAPABILITIES,
   type CurrentMerchantAiCapability,
   type MerchantAiCapability,
   type MerchantAiSnapshot,

@@ -22,7 +22,7 @@ describe('Google provider recovery runtime', () => {
       /createGoogleOAuthExchangeRecoveryRepository\(\s*container\.db,?\s*\)/u,
     )
     expect(bootstrap).toMatch(
-      /createGoogleDisconnectRevokeRepository\(\s*container\.db,\s*container\.eventBus,?\s*\)/u,
+      /createGoogleDisconnectRevokeRepository\(\s*container\.db,?\s*\)/u,
     )
     expect(bootstrap).toContain('oauthExchangeRecovery.expire({ now, limit: 100 })')
     expect(bootstrap).toContain(

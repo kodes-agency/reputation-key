@@ -80,7 +80,7 @@ These are **pure functions** that validate simple values, not complex entities.
 - `MemberRemoved` - Track when members are removed
 - `MemberRoleChanged` - Track when roles change
 
-These events are emitted by use cases after delegating to better-auth, allowing other contexts to react to identity changes.
+These facts are recorded in `outbox_events` with their Identity state changes, allowing durable consumers in other contexts to react.
 
 #### Domain Errors (`errors.ts`)
 

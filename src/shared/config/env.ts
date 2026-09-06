@@ -317,19 +317,6 @@ const baseEnvSchema = z.object({
   // shared/auth/beta-capabilities.ts). The Playwright stack sets E2E=1
   // (compose.local.yml); production must never set it.
   E2E: z.literal('1').optional(),
-  // Durable outbox relay/dispatcher deployment gate. Unset defaults to false,
-  // so each environment must opt in explicitly after its consumers and
-  // readiness contract are proven. google-closed-beta sets it to true across
-  // the application services.
-  OUTBOX_DISPATCHER_ENABLED: z
-    .string()
-    .optional()
-    .transform((v) => v?.toLowerCase() === 'true'),
-  // BQC-3.9: durable Inbox consumer cutover. Values are parsed by the shared
-  // cutover resolver at composition so invalid states fail startup closed.
-  DURABLE_CUTOVER_INBOX: z.string().optional(),
-  DURABLE_CUTOVER_INBOX_REVIEW_CREATED: z.string().optional(),
-  DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED: z.string().optional(),
   // Org slugs/IDs suspended from the beta (B0.5 operator controls).
   BETA_SUSPENDED_ORGS: z.string().optional(),
   // Deployed request-edge contract. Production defaults to Railway's documented

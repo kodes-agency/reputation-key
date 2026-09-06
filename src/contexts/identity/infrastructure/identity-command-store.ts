@@ -1,20 +1,18 @@
 // Atomic identity command store (BQC-3.5).
 //
-// One PostgreSQL transaction per command: better-auth-owned state mutation
-// (invitation / member / organization rows — the app-owned write path, the
-// same precedent as the pre-existing acceptInvitation transaction and the
-// custom-role writes) + outbox_events insert. After commit: in-process
-// EventBus emit for expand-phase legacy consumers.
+// One PostgreSQL transaction per command commits the better-auth-owned state
+// mutation (invitation / member / organization rows — the app-owned write
+// path, the same precedent as the pre-existing acceptInvitation transaction
+// and the custom-role writes) together with its outbox_events fact.
 //
 // Crash contract:
 // - Crash anywhere inside the transaction rolls back BOTH the state mutation
 //   and the outbox row — no state/outbox split is ever observable (the
 //   pre-BQC-3.5 use cases could lose the fact between the better-auth write
 //   and the separate fact record).
-// - Crash after commit but before the bus emit leaves a durable outbox row
-//   for the relay; the emit is best-effort (failure-isolated, logged).
+// - A committed outbox row is the durable fact and is delivered by the relay.
 // - Guarded transitions (already-member/already-invited, last-owner,
-//   invitation lifecycle, slug conflict) record NO fact and emit nothing.
+//   invitation lifecycle, slug conflict) record no fact.
 // - removeMember/changeMemberRole take the org advisory lock inside the
 //   transaction and re-check the last-owner invariant under it, preserving
 //   the pre-BQC-3.5 withOrgLock serialization semantics.
@@ -31,8 +29,7 @@ import {
 } from '#/shared/db/schema/auth'
 import { userOrganizationBindings } from '#/shared/db/schema/identity-governance.schema'
 import { invitedRegistrationAttempts } from '#/shared/db/schema/invited-registration.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { isOwnerToken } from '#/shared/domain/roles'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
@@ -208,7 +205,6 @@ function parsePropertyIds(raw: string | null): ReadonlyArray<string> {
 
 export const createAtomicIdentityCommandStore = (
   db: Database,
-  events: EventBus,
   idGen: () => string,
 ): IdentityCommandStore => {
   return {
@@ -352,7 +348,6 @@ export const createAtomicIdentityCommandStore = (
           })
           await insertOutboxRow(tx, command.event)
         })
-        await emitAfterCommit(events, command.event)
       })
     },
 
@@ -484,12 +479,11 @@ export const createAtomicIdentityCommandStore = (
               })
               .where(eq(invitedRegistrationAttempts.id, command.registrationAttemptId))
           }
-          return { kind: 'accepted' as const, result: accepted, event: fact }
+          return { kind: 'accepted' as const, result: accepted }
         })
         if (outcome.kind === 'rejected') {
           throw identityError('forbidden', outcome.message)
         }
-        await emitAfterCommit(events, outcome.event)
         return outcome.result
       })
     },
@@ -512,7 +506,6 @@ export const createAtomicIdentityCommandStore = (
           }
           await insertOutboxRow(tx, command.event)
         })
-        await emitAfterCommit(events, command.event)
       })
     },
 
@@ -574,7 +567,6 @@ export const createAtomicIdentityCommandStore = (
             )
           await insertOutboxRow(tx, command.event)
         })
-        await emitAfterCommit(events, command.event)
       })
     },
 
@@ -606,7 +598,6 @@ export const createAtomicIdentityCommandStore = (
             )
           await insertOutboxRow(tx, command.event)
         })
-        await emitAfterCommit(events, command.event)
       })
     },
 
@@ -650,7 +641,6 @@ export const createAtomicIdentityCommandStore = (
           })
           await insertOutboxRow(tx, command.event)
         })
-        await emitAfterCommit(events, command.event)
       })
     },
   }

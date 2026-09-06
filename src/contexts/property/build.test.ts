@@ -4,7 +4,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { buildPropertyContext } from './build'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import {
   googleConnectionId,
   organizationId,
@@ -52,7 +51,6 @@ describe('PropertyPublicApi', () => {
     const context = buildPropertyContext({
       db: {} as never,
       repo: createInMemoryPropertyRepo(),
-      events: createCapturingEventBus(),
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
       ...runtimeDeps,
       localCell: 'us',
@@ -92,14 +90,12 @@ describe('PropertyPublicApi', () => {
     const prop = buildTestProperty({ id: 'prop-1' })
     repo.seed([prop])
 
-    const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
     const staffPublicApi = createStubStaffApi()
 
     const { publicApi } = buildPropertyContext({
       db: {} as never,
       repo,
-      events,
       clock,
       ...runtimeDeps,
       localCell: 'us',
@@ -113,14 +109,12 @@ describe('PropertyPublicApi', () => {
 
   it('propertyExists returns false when repo does not have the property', async () => {
     const repo = createInMemoryPropertyRepo()
-    const events = createCapturingEventBus()
     const clock = () => new Date('2025-01-01')
     const staffPublicApi = createStubStaffApi()
 
     const { publicApi } = buildPropertyContext({
       db: {} as never,
       repo,
-      events,
       clock,
       ...runtimeDeps,
       localCell: 'us',
@@ -151,7 +145,6 @@ describe('PropertyPublicApi', () => {
     const { publicApi } = buildPropertyContext({
       db: {} as never,
       repo,
-      events: createCapturingEventBus(),
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
       ...runtimeDeps,
       localCell: 'us',
@@ -181,7 +174,6 @@ describe('PropertyPublicApi', () => {
     const { publicApi } = buildPropertyContext({
       db: {} as never,
       repo,
-      events: createCapturingEventBus(),
       clock: () => new Date('2025-01-01'),
       ...runtimeDeps,
       localCell: 'us',
@@ -229,7 +221,6 @@ describe('PropertyPublicApi', () => {
     const { publicApi } = buildPropertyContext({
       db: {} as never,
       repo,
-      events: createCapturingEventBus(),
       clock: () => new Date('2025-01-01'),
       ...runtimeDeps,
       localCell: 'us',

@@ -197,7 +197,7 @@ export const createPropertyResponsibleManagerRepository = (
   releaseForUser: async (input) =>
     db.transaction(async (tx) => {
       if (input.propertyIds?.length === 0) {
-        return { released: 0, responsibilityNeededEvents: [] }
+        return { released: 0 }
       }
       const activeRows = await tx
         .select()
@@ -213,7 +213,7 @@ export const createPropertyResponsibleManagerRepository = (
           ),
         )
       if (activeRows.length === 0) {
-        return { released: 0, responsibilityNeededEvents: [] }
+        return { released: 0 }
       }
       const candidatePropertyIds = [...new Set(activeRows.map((row) => row.propertyId))]
       await tx
@@ -241,11 +241,10 @@ export const createPropertyResponsibleManagerRepository = (
         )
         .returning()
       if (releasedRows.length === 0) {
-        return { released: 0, responsibilityNeededEvents: [] }
+        return { released: 0 }
       }
       const propertyIds = [...new Set(releasedRows.map((row) => row.propertyId))]
 
-      const recoveryEvents = []
       for (const rawPropertyId of propertyIds) {
         const remaining = await tx
           .select({ id: propertyResponsibleManagers.id })
@@ -283,12 +282,8 @@ export const createPropertyResponsibleManagerRepository = (
             occurredAt: input.at,
           })
           await insertOutboxRow(tx, event, { recordedAt: input.at })
-          recoveryEvents.push(event)
         }
       }
-      return {
-        released: releasedRows.length,
-        responsibilityNeededEvents: recoveryEvents,
-      }
+      return { released: releasedRows.length }
     }),
 })
