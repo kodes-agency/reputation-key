@@ -4,14 +4,13 @@
 // not authorize a restored database. Railway's generated PITR private DNS is
 // stable evidence that the runtime is connected to a sibling. Such a runtime
 // must carry the exact recovery run ID/generation printed by restore-verify,
-// and that tuple must still be the latest durable run in this Data Cell.
+// and that tuple must still be the latest durable recovery run.
 
 import { isRailwayPitrDatabaseUrl, isRestoreIsolated } from './restore-mode'
 
 export type RecoveryCutoverEnv = Readonly<{
   RESTORE_MODE?: string
   DATABASE_URL?: string
-  PROCESSING_CELL?: string
   RECOVERY_CUTOVER_RUN_ID?: string
   RECOVERY_CUTOVER_GENERATION?: number
 }>
@@ -22,12 +21,12 @@ export type RecoveryCutoverRun = Readonly<{
 }>
 
 export interface RecoveryCutoverRunReader {
-  findLatest(dataCellId: string): Promise<RecoveryCutoverRun | undefined>
+  findLatest(): Promise<RecoveryCutoverRun | undefined>
 }
 
 /**
  * Refuse normal web/worker boot on a PITR sibling unless the configured tuple
- * names the latest completed recovery run in the process's exact Data Cell.
+ * names the latest completed recovery run.
  */
 export async function assertRecoveryCutoverAttestation(
   runs: RecoveryCutoverRunReader,
@@ -36,7 +35,6 @@ export async function assertRecoveryCutoverAttestation(
   if (isRestoreIsolated(env) || !isRailwayPitrDatabaseUrl(env.DATABASE_URL)) return
 
   if (
-    !env.PROCESSING_CELL ||
     !env.RECOVERY_CUTOVER_RUN_ID ||
     !Number.isSafeInteger(env.RECOVERY_CUTOVER_GENERATION) ||
     (env.RECOVERY_CUTOVER_GENERATION ?? 0) < 1
@@ -46,14 +44,14 @@ export async function assertRecoveryCutoverAttestation(
     )
   }
 
-  const latest = await runs.findLatest(env.PROCESSING_CELL)
+  const latest = await runs.findLatest()
   if (
     !latest ||
     latest.id !== env.RECOVERY_CUTOVER_RUN_ID ||
     Number(latest.generation) !== env.RECOVERY_CUTOVER_GENERATION
   ) {
     throw new Error(
-      '[RECOVERY CUTOVER] configured attestation is absent, stale, or belongs to another Data Cell — boot refused',
+      '[RECOVERY CUTOVER] configured attestation is absent or stale — boot refused',
     )
   }
 }

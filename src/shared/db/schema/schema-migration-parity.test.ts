@@ -26,18 +26,13 @@ describe('BQR-1.1: schema parity with migrations 0006–0007 and later additions
       expect(getTableName(properties)).toBe('properties')
     })
 
-    it('includes all routing / processing-profile columns', () => {
+    it('includes all locale / processing-profile columns', () => {
       const cols = new Set(columnNames(properties))
       for (const name of [
         'country_code',
         'country_source',
         'timezone_source',
         'timezone_resolved_at',
-        'processing_region',
-        'data_cell_id',
-        'processing_region_source',
-        'routing_policy_version',
-        'processing_region_resolved_at',
         'source_epoch',
       ]) {
         expect(cols.has(name), `properties missing column ${name}`).toBe(true)

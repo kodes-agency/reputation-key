@@ -6,14 +6,14 @@ allowed to hold, and where the executable authorities for those rules live.
 
 ---
 
-## 1. One Data Cell
+## 1. One deployment
 
-Beta runs exactly **one logical US Data Cell: `cell-us`**. There is no second
-cell, no cross-cell effect, and no cell selection at runtime. A property that
-does not route to `cell-us` is refused by the Data Cell execution fence rather
-than served from a fallback.
+Beta runs exactly **one deployment** serving every supported country. There is
+no second cell, no cross-cell effect, and no cell selection at runtime: a
+property carries its `country_code` and `timezone` and nothing else about
+where it is processed.
 
-Every process described below belongs to that one cell.
+Every process described below belongs to that one deployment.
 
 ## 2. Three deployables
 

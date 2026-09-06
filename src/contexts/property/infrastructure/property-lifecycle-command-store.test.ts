@@ -25,8 +25,6 @@ describe('createPropertyLifecycleCommandStore', () => {
       id: PROPERTY_ID,
       lifecycleState: 'active',
       sourceEpoch: 7,
-      dataCellId: 'us',
-      processingRegion: 'us',
       googleReviewDestination: {
         state: 'verified',
         uri: 'https://search.google.com/local/writereview?placeid=property-1',
@@ -86,10 +84,7 @@ describe('createPropertyLifecycleCommandStore', () => {
       occurredAt: NOW,
     })
 
-    const result = await createPropertyLifecycleCommandStore(
-      db,
-      'us',
-    ).transitionLifecycle({
+    const result = await createPropertyLifecycleCommandStore(db).transitionLifecycle({
       organizationId: property.organizationId,
       propertyId: property.id,
       from: 'active',
@@ -142,8 +137,6 @@ describe('createPropertyLifecycleCommandStore', () => {
       purgeScheduledFor: RECOVERY_DEADLINE,
       lifecycleInitiatedBy: 'admin-previous',
       sourceEpoch: 8,
-      dataCellId: 'us',
-      processingRegion: 'us',
       googleBindingState: 'disconnected',
       googleConnectionId: null,
       gbpAccountId: null,
@@ -189,10 +182,7 @@ describe('createPropertyLifecycleCommandStore', () => {
       occurredAt: NOW,
     })
 
-    const result = await createPropertyLifecycleCommandStore(
-      db,
-      'us',
-    ).transitionLifecycle({
+    const result = await createPropertyLifecycleCommandStore(db).transitionLifecycle({
       organizationId: property.organizationId,
       propertyId: property.id,
       from: 'archived',
@@ -235,8 +225,6 @@ describe('createPropertyLifecycleCommandStore', () => {
       id: PROPERTY_ID,
       lifecycleState: 'active',
       sourceEpoch: 9,
-      dataCellId: 'us',
-      processingRegion: 'us',
     })
     const current = propertyToRow(property) as Record<string, unknown>
     const tx = {
@@ -264,7 +252,7 @@ describe('createPropertyLifecycleCommandStore', () => {
     })
 
     await expect(
-      createPropertyLifecycleCommandStore(db, 'us').transitionLifecycle({
+      createPropertyLifecycleCommandStore(db).transitionLifecycle({
         organizationId: property.organizationId,
         propertyId: property.id,
         from: 'active',
@@ -288,8 +276,6 @@ describe('createPropertyLifecycleCommandStore', () => {
       id: PROPERTY_ID,
       lifecycleState: 'active',
       sourceEpoch: 7,
-      dataCellId: 'us',
-      processingRegion: 'us',
     })
     const db = { transaction: vi.fn() } as unknown as Database
     const event = propertyArchived({
@@ -303,7 +289,7 @@ describe('createPropertyLifecycleCommandStore', () => {
     })
 
     await expect(
-      createPropertyLifecycleCommandStore(db, 'us').transitionLifecycle({
+      createPropertyLifecycleCommandStore(db).transitionLifecycle({
         organizationId: property.organizationId,
         propertyId: property.id,
         from: 'active',

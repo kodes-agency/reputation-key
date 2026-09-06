@@ -9,7 +9,7 @@ import {
   type BackupErasureReplayer,
 } from './backup-erasure-ledger'
 import {
-  assertRestoredCellVerified,
+  assertRestoredDatabaseVerified,
   mergeRecoveryFenceCounts,
 } from '#/shared/ops/recovery-fence'
 import type { Tx } from '#/shared/outbox/commit'
@@ -29,7 +29,6 @@ const append = (
   effectiveErasureAt: ERASED_AT,
   erasedRowCount: 12,
   evidenceRef: 'guest:purge:complete:r1',
-  dataCellId: 'us',
   ...overrides,
 })
 
@@ -142,7 +141,6 @@ describe('restore resurrection fence (LIF-01-T15)', () => {
           erased_row_count: candidate.erasedRowCount,
           evidence_ref: candidate.evidenceRef,
           hold_reference: candidate.holdReference ?? null,
-          data_cell_id: candidate.dataCellId,
           hold_released_at: candidate.holdReleasedAt?.toISOString() ?? null,
         })),
       }),
@@ -150,7 +148,6 @@ describe('restore resurrection fence (LIF-01-T15)', () => {
 
   it('re-applies a resurrected erasure and reports the re-erased rows', async () => {
     const result = await applyRestoreResurrectionFence(read([entry()]), {
-      dataCellId: 'us',
       restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
       replayers: [guestReplayer(12)],
     })
@@ -166,19 +163,17 @@ describe('restore resurrection fence (LIF-01-T15)', () => {
   it('fails closed when an entry has no registered replayer', async () => {
     // A partially re-erased restore must never be declared verified.
     const result = await applyRestoreResurrectionFence(read([entry()]), {
-      dataCellId: 'us',
       restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
       replayers: [],
     })
     expect(result.verified).toBe(false)
     expect(result.unreplayedEntryIds).toEqual([entry().id])
-    expect(() => assertRestoredCellVerified(result)).toThrow(/is not verified/u)
+    expect(() => assertRestoredDatabaseVerified(result)).toThrow(/is not verified/u)
   })
 
-  it('does not re-apply a held entry and still verifies the cell', async () => {
+  it('does not re-apply a held entry and still verifies the database', async () => {
     const held = entry({ holdReference: 'legal-hold:2026-08:counsel-4471' })
     const result = await applyRestoreResurrectionFence(read([held]), {
-      dataCellId: 'us',
       restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
       replayers: [guestReplayer(12)],
     })
@@ -186,7 +181,7 @@ describe('restore resurrection fence (LIF-01-T15)', () => {
     expect(result.counts.ledgerRowsReErased).toBe(0)
     expect(result.heldEntryIds).toEqual([held.id])
     expect(result.verified).toBe(true)
-    expect(() => assertRestoredCellVerified(result)).not.toThrow()
+    expect(() => assertRestoredDatabaseVerified(result)).not.toThrow()
   })
 
   it('reports the replay counts alongside the base fence counts', () => {

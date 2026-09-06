@@ -84,7 +84,6 @@ function event(overrides: Partial<ConsumerEvent> = {}): ConsumerEvent {
     correlationId: null,
     causationId: null,
     sourceAggregateVersion: null,
-    region: 'unscoped',
     ...overrides,
   }
 }

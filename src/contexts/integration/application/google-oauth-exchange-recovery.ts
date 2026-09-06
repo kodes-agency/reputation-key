@@ -1,5 +1,3 @@
-import type { GoogleCredentialHomeBinding } from '#/shared/domain/google-credential-home'
-
 export const GOOGLE_OAUTH_EXCHANGE_RESPONSE_TTL_MS = 10 * 60_000
 export const GOOGLE_OAUTH_EXCHANGE_APPLY_LEASE_MS = 30_000
 
@@ -15,7 +13,6 @@ export type GoogleOAuthExchangeAttemptFacts = Readonly<{
   expectedLifecycleVersion: number
   expectedAccessVersion: number
   expectedCredentialGeneration: number
-  credentialHome: GoogleCredentialHomeBinding
 }>
 
 export type GoogleOAuthExchangeAttemptState =

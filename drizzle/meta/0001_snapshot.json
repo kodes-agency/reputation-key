@@ -1,6 +1,6 @@
 {
-  "id": "cefb005e-f7f1-4b82-b807-e07e992f7255",
-  "prevId": "81e2caf3-3bb8-462e-9247-afb0adc8aa12",
+  "id": "cb4c2417-5a84-4fd2-8783-d2451ec27c67",
+  "prevId": "151f6d05-a909-41e2-9a9f-885e38650ef6",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -11732,24 +11732,6 @@
           "notNull": true,
           "default": 1
         },
-        "credential_home_cell_id": {
-          "name": "credential_home_cell_id",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "credential_home_policy_version": {
-          "name": "credential_home_policy_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "credential_home_authority_generation": {
-          "name": "credential_home_authority_generation",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
         "encryption_key_id": {
           "name": "encryption_key_id",
           "type": "varchar(50)",
@@ -11846,27 +11828,7 @@
           "concurrently": false
         }
       },
-      "foreignKeys": {
-        "google_connections_credential_home_authority_fk": {
-          "name": "google_connections_credential_home_authority_fk",
-          "tableFrom": "google_connections",
-          "columnsFrom": [
-            "organization_id",
-            "credential_home_authority_generation",
-            "credential_home_cell_id",
-            "credential_home_policy_version"
-          ],
-          "tableTo": "google_organization_credential_homes",
-          "columnsTo": [
-            "organization_id",
-            "authority_generation",
-            "home_cell_id",
-            "catalogue_policy_version"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "restrict"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
@@ -11879,481 +11841,9 @@
           "name": "google_connections_versions_check",
           "value": "\"google_connections\".\"lifecycle_version\" >= 1 AND \"google_connections\".\"access_version\" >= 1 AND \"google_connections\".\"credential_generation\" >= 1"
         },
-        "google_connections_credential_authority_pair_check": {
-          "name": "google_connections_credential_authority_pair_check",
-          "value": "(\"google_connections\".\"credential_authorized_by\" IS NULL) = (\"google_connections\".\"credential_authorized_at\" IS NULL)"
-        },
-        "google_connections_credential_home_pair_check": {
-          "name": "google_connections_credential_home_pair_check",
-          "value": "((\"google_connections\".\"credential_home_cell_id\" IS NULL)::int + (\"google_connections\".\"credential_home_policy_version\" IS NULL)::int + (\"google_connections\".\"credential_home_authority_generation\" IS NULL)::int) IN (0, 3)"
-        },
-        "google_connections_credential_home_value_check": {
-          "name": "google_connections_credential_home_value_check",
-          "value": "\"google_connections\".\"credential_home_cell_id\" IS NULL OR (\"google_connections\".\"credential_home_cell_id\" IN ('us', 'europe', 'global') AND \"google_connections\".\"credential_home_policy_version\" >= 1 AND \"google_connections\".\"credential_home_authority_generation\" >= 1)"
-        },
         "google_connections_organization_owned_check": {
           "name": "google_connections_organization_owned_check",
           "value": "\"google_connections\".\"visibility\" = 'organization'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.google_organization_credential_homes": {
-      "name": "google_organization_credential_homes",
-      "schema": "",
-      "columns": {
-        "organization_id": {
-          "name": "organization_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "authority_generation": {
-          "name": "authority_generation",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "home_cell_id": {
-          "name": "home_cell_id",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "catalogue_policy_version": {
-          "name": "catalogue_policy_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "transition_reason": {
-          "name": "transition_reason",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "changed_by": {
-          "name": "changed_by",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "change_ticket": {
-          "name": "change_ticket",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "effective_from": {
-          "name": "effective_from",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "superseded_at": {
-          "name": "superseded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "google_organization_credential_homes_current_idx": {
-          "name": "google_organization_credential_homes_current_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "where": "\"google_organization_credential_homes\".\"superseded_at\" IS NULL",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "google_organization_credential_homes_pk": {
-          "name": "google_organization_credential_homes_pk",
-          "columns": [
-            "organization_id",
-            "authority_generation"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "google_organization_credential_homes_binding_key": {
-          "name": "google_organization_credential_homes_binding_key",
-          "columns": [
-            "organization_id",
-            "authority_generation",
-            "home_cell_id",
-            "catalogue_policy_version"
-          ],
-          "nullsNotDistinct": false
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "google_organization_credential_homes_values_valid": {
-          "name": "google_organization_credential_homes_values_valid",
-          "value": "\"google_organization_credential_homes\".\"authority_generation\" >= 1 AND \"google_organization_credential_homes\".\"catalogue_policy_version\" >= 1 AND \"google_organization_credential_homes\".\"home_cell_id\" IN ('us', 'europe', 'global') AND \"google_organization_credential_homes\".\"transition_reason\" IN ('new_grant', 'governed_reconnect', 'legacy_backfill')"
-        },
-        "google_organization_credential_homes_interval_valid": {
-          "name": "google_organization_credential_homes_interval_valid",
-          "value": "\"google_organization_credential_homes\".\"superseded_at\" IS NULL OR \"google_organization_credential_homes\".\"superseded_at\" > \"google_organization_credential_homes\".\"effective_from\""
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.google_credential_broker_replay": {
-      "name": "google_credential_broker_replay",
-      "schema": "",
-      "columns": {
-        "organization_id": {
-          "name": "organization_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "lookup_key_version": {
-          "name": "lookup_key_version",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "grant_id_hmac": {
-          "name": "grant_id_hmac",
-          "type": "varchar(43)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "one_use_nonce_hmac": {
-          "name": "one_use_nonce_hmac",
-          "type": "varchar(43)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "connection_id": {
-          "name": "connection_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "property_id": {
-          "name": "property_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "home_cell_id": {
-          "name": "home_cell_id",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_cell_id": {
-          "name": "target_cell_id",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "target_gateway_identity": {
-          "name": "target_gateway_identity",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "route_key": {
-          "name": "route_key",
-          "type": "varchar(96)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_home_authority_generation": {
-          "name": "credential_home_authority_generation",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "connection_lifecycle_version": {
-          "name": "connection_lifecycle_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "connection_access_version": {
-          "name": "connection_access_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_generation": {
-          "name": "credential_generation",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "property_source_epoch": {
-          "name": "property_source_epoch",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "request_digest_sha256": {
-          "name": "request_digest_sha256",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_binding_sha256": {
-          "name": "credential_binding_sha256",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "routing_directory_revision": {
-          "name": "routing_directory_revision",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "routing_policy_version": {
-          "name": "routing_policy_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "material_locator": {
-          "name": "material_locator",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "material_encryption_key_id": {
-          "name": "material_encryption_key_id",
-          "type": "varchar(255)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "material_binding_sha256": {
-          "name": "material_binding_sha256",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "issued_at": {
-          "name": "issued_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "redeemed_at": {
-          "name": "redeemed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "google_credential_broker_replay_expiry_idx": {
-          "name": "google_credential_broker_replay_expiry_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "google_credential_broker_replay_pk": {
-          "name": "google_credential_broker_replay_pk",
-          "columns": [
-            "organization_id",
-            "lookup_key_version",
-            "grant_id_hmac"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "google_credential_broker_replay_values_valid": {
-          "name": "google_credential_broker_replay_values_valid",
-          "value": "\"google_credential_broker_replay\".\"lookup_key_version\" ~ '^[a-z][a-z0-9_-]{0,31}$' AND \"google_credential_broker_replay\".\"grant_id_hmac\" ~ '^[A-Za-z0-9_-]{43}$' AND \"google_credential_broker_replay\".\"one_use_nonce_hmac\" ~ '^[A-Za-z0-9_-]{43}$' AND \"google_credential_broker_replay\".\"request_digest_sha256\" ~ '^[a-f0-9]{64}$' AND \"google_credential_broker_replay\".\"credential_binding_sha256\" ~ '^[a-f0-9]{64}$' AND \"google_credential_broker_replay\".\"material_binding_sha256\" ~ '^[a-f0-9]{64}$' AND \"google_credential_broker_replay\".\"home_cell_id\" IN ('us', 'europe', 'global') AND \"google_credential_broker_replay\".\"target_cell_id\" IN ('us', 'europe', 'global') AND \"google_credential_broker_replay\".\"home_cell_id\" <> \"google_credential_broker_replay\".\"target_cell_id\" AND \"google_credential_broker_replay\".\"credential_home_authority_generation\" >= 1 AND \"google_credential_broker_replay\".\"connection_lifecycle_version\" >= 1 AND \"google_credential_broker_replay\".\"connection_access_version\" >= 1 AND \"google_credential_broker_replay\".\"credential_generation\" >= 1 AND \"google_credential_broker_replay\".\"property_source_epoch\" >= 0 AND \"google_credential_broker_replay\".\"routing_directory_revision\" BETWEEN 1 AND '9007199254740991'::bigint AND \"google_credential_broker_replay\".\"routing_policy_version\" >= 1 AND \"google_credential_broker_replay\".\"expires_at\" > \"google_credential_broker_replay\".\"issued_at\" AND \"google_credential_broker_replay\".\"state\" IN ('issued', 'redeemed') AND ((\"google_credential_broker_replay\".\"state\" = 'issued' AND \"google_credential_broker_replay\".\"redeemed_at\" IS NULL) OR (\"google_credential_broker_replay\".\"state\" = 'redeemed' AND \"google_credential_broker_replay\".\"redeemed_at\" IS NOT NULL))"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.google_credential_routing_directory_snapshots": {
-      "name": "google_credential_routing_directory_snapshots",
-      "schema": "",
-      "columns": {
-        "revision": {
-          "name": "revision",
-          "type": "bigint",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "catalogue_policy_version": {
-          "name": "catalogue_policy_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "issued_at": {
-          "name": "issued_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "digest_sha256": {
-          "name": "digest_sha256",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "signature_key_version": {
-          "name": "signature_key_version",
-          "type": "varchar(32)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "signature": {
-          "name": "signature",
-          "type": "varchar(43)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "directory": {
-          "name": "directory",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "google_credential_routing_directory_expiry_idx": {
-          "name": "google_credential_routing_directory_expiry_idx",
-          "columns": [
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "google_credential_routing_directory_snapshot_valid": {
-          "name": "google_credential_routing_directory_snapshot_valid",
-          "value": "\"google_credential_routing_directory_snapshots\".\"revision\" BETWEEN 1 AND '9007199254740991'::bigint AND \"google_credential_routing_directory_snapshots\".\"catalogue_policy_version\" >= 1 AND \"google_credential_routing_directory_snapshots\".\"expires_at\" > \"google_credential_routing_directory_snapshots\".\"issued_at\" AND \"google_credential_routing_directory_snapshots\".\"digest_sha256\" ~ '^[a-f0-9]{64}$' AND \"google_credential_routing_directory_snapshots\".\"signature\" ~ '^[A-Za-z0-9_-]{43}$'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.google_credential_routing_directory_state": {
-      "name": "google_credential_routing_directory_state",
-      "schema": "",
-      "columns": {
-        "singleton": {
-          "name": "singleton",
-          "type": "boolean",
-          "primaryKey": true,
-          "notNull": true,
-          "default": true
-        },
-        "current_revision": {
-          "name": "current_revision",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "google_credential_routing_directory_state_valid": {
-          "name": "google_credential_routing_directory_state_valid",
-          "value": "\"google_credential_routing_directory_state\".\"singleton\" = TRUE AND \"google_credential_routing_directory_state\".\"current_revision\" BETWEEN 0 AND '9007199254740991'::bigint"
         }
       },
       "isRLSEnabled": false
@@ -12972,18 +12462,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "processing_region": {
-          "name": "processing_region",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "routing_policy_version": {
-          "name": "routing_policy_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "status": {
           "name": "status",
           "type": "google_import_v2_item_status",
@@ -13129,8 +12607,8 @@
           "where": "\"gbp_import_request_items\".\"status\" IN ('pending', 'processing')",
           "concurrently": false
         },
-        "gbp_import_request_items_routing_idx": {
-          "name": "gbp_import_request_items_routing_idx",
+        "gbp_import_request_items_dispatch_idx": {
+          "name": "gbp_import_request_items_dispatch_idx",
           "columns": [
             {
               "expression": "organization_id",
@@ -13215,7 +12693,7 @@
         },
         "gbp_import_request_items_generations_valid": {
           "name": "gbp_import_request_items_generations_valid",
-          "value": "(\n        (\n          (\n          \"gbp_import_request_items\".\"expected_connection_lifecycle_version\" >= 1\n          AND \"gbp_import_request_items\".\"expected_connection_access_version\" >= 1\n          AND \"gbp_import_request_items\".\"expected_credential_generation\" >= 1\n          )\n          OR (\n          \"gbp_import_request_items\".\"status\" NOT IN ('pending', 'processing')\n          AND \"gbp_import_request_items\".\"outcome_code\" <> 'temporarily_unavailable'\n          AND \"gbp_import_request_items\".\"expected_connection_lifecycle_version\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_connection_access_version\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_credential_generation\" IS NULL\n          )\n        )\n        AND \"gbp_import_request_items\".\"routing_policy_version\" >= 1\n        AND \"gbp_import_request_items\".\"retry_revision\" >= 0\n      )"
+          "value": "(\n        (\n          (\n          \"gbp_import_request_items\".\"expected_connection_lifecycle_version\" >= 1\n          AND \"gbp_import_request_items\".\"expected_connection_access_version\" >= 1\n          AND \"gbp_import_request_items\".\"expected_credential_generation\" >= 1\n          )\n          OR (\n          \"gbp_import_request_items\".\"status\" NOT IN ('pending', 'processing')\n          AND \"gbp_import_request_items\".\"outcome_code\" <> 'temporarily_unavailable'\n          AND \"gbp_import_request_items\".\"expected_connection_lifecycle_version\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_connection_access_version\" IS NULL\n          AND \"gbp_import_request_items\".\"expected_credential_generation\" IS NULL\n          )\n        )\n        AND \"gbp_import_request_items\".\"retry_revision\" >= 0\n      )"
         },
         "gbp_import_request_items_authorization_snapshot_valid": {
           "name": "gbp_import_request_items_authorization_snapshot_valid",
@@ -13227,7 +12705,7 @@
         },
         "gbp_import_request_items_status_outcome_valid": {
           "name": "gbp_import_request_items_status_outcome_valid",
-          "value": "(\n        (\"gbp_import_request_items\".\"status\" IN ('pending', 'processing') AND \"gbp_import_request_items\".\"outcome_code\" IS NULL)\n        OR (\"gbp_import_request_items\".\"status\" = 'imported' AND \"gbp_import_request_items\".\"outcome_code\" = 'imported')\n        OR (\"gbp_import_request_items\".\"status\" = 'relinked' AND \"gbp_import_request_items\".\"outcome_code\" = 'relinked')\n        OR (\"gbp_import_request_items\".\"status\" = 'already_exists' AND \"gbp_import_request_items\".\"outcome_code\" = 'already_exists')\n        OR (\"gbp_import_request_items\".\"status\" = 'region_unavailable' AND \"gbp_import_request_items\".\"outcome_code\" = 'region_unavailable')\n        OR (\"gbp_import_request_items\".\"status\" = 'failed' AND \"gbp_import_request_items\".\"outcome_code\" IN ('active_binding_conflict', 'stale_binding', 'reauthentication_required', 'reconnect_required', 'temporarily_unavailable', 'cleanup_required', 'internal_error'))\n        OR (\"gbp_import_request_items\".\"status\" = 'cancelled' AND \"gbp_import_request_items\".\"outcome_code\"::text IN ('authorization_changed', 'user_cancelled', 'policy_disabled', 'organization_suspended', 'property_suspended', 'property_deleted'))\n      )"
+          "value": "(\n        (\"gbp_import_request_items\".\"status\" IN ('pending', 'processing') AND \"gbp_import_request_items\".\"outcome_code\" IS NULL)\n        OR (\"gbp_import_request_items\".\"status\" = 'imported' AND \"gbp_import_request_items\".\"outcome_code\" = 'imported')\n        OR (\"gbp_import_request_items\".\"status\" = 'relinked' AND \"gbp_import_request_items\".\"outcome_code\" = 'relinked')\n        OR (\"gbp_import_request_items\".\"status\" = 'already_exists' AND \"gbp_import_request_items\".\"outcome_code\" = 'already_exists')\n        OR (\"gbp_import_request_items\".\"status\" = 'failed' AND \"gbp_import_request_items\".\"outcome_code\" IN ('active_binding_conflict', 'stale_binding', 'reauthentication_required', 'reconnect_required', 'temporarily_unavailable', 'cleanup_required', 'internal_error'))\n        OR (\"gbp_import_request_items\".\"status\" = 'cancelled' AND \"gbp_import_request_items\".\"outcome_code\"::text IN ('authorization_changed', 'user_cancelled', 'policy_disabled', 'organization_suspended', 'property_suspended', 'property_deleted'))\n      )"
         },
         "gbp_import_request_items_terminal_valid": {
           "name": "gbp_import_request_items_terminal_valid",
@@ -13237,8 +12715,8 @@
           "name": "gbp_import_request_items_deadline_valid",
           "value": "\"gbp_import_request_items\".\"effect_deadline_at\" = \"gbp_import_request_items\".\"created_at\" + interval '24 hours'"
         },
-        "gbp_import_request_items_routing_retention_valid": {
-          "name": "gbp_import_request_items_routing_retention_valid",
+        "gbp_import_request_items_provider_reference_retention_valid": {
+          "name": "gbp_import_request_items_provider_reference_retention_valid",
           "value": "(\n        (\n          \"gbp_import_request_items\".\"status\" IN ('pending', 'processing')\n          AND \"gbp_import_request_items\".\"connection_id\" IS NOT NULL\n          AND \"gbp_import_request_items\".\"provider_account_suffix\" IS NOT NULL\n          AND \"gbp_import_request_items\".\"provider_location_suffix\" IS NOT NULL\n        )\n        OR (\n          \"gbp_import_request_items\".\"status\" NOT IN ('pending', 'processing')\n          AND ((\"gbp_import_request_items\".\"provider_account_suffix\" IS NULL) = (\"gbp_import_request_items\".\"provider_location_suffix\" IS NULL))\n        )\n      )"
         },
         "gbp_import_request_items_provider_suffix_valid": {
@@ -13343,13 +12821,6 @@
         },
         "already_exists_count": {
           "name": "already_exists_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "region_unavailable_count": {
-          "name": "region_unavailable_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,
@@ -13582,7 +13053,7 @@
         },
         "gbp_import_requests_counts_valid": {
           "name": "gbp_import_requests_counts_valid",
-          "value": "(\n        \"gbp_import_requests\".\"total_count\" BETWEEN 1 AND 100\n        AND \"gbp_import_requests\".\"deletion_fence\" >= 0\n        AND \"gbp_import_requests\".\"pending_count\" >= 0\n        AND \"gbp_import_requests\".\"processing_count\" >= 0\n        AND \"gbp_import_requests\".\"imported_count\" >= 0\n        AND \"gbp_import_requests\".\"relinked_count\" >= 0\n        AND \"gbp_import_requests\".\"already_exists_count\" >= 0\n        AND \"gbp_import_requests\".\"region_unavailable_count\" >= 0\n        AND \"gbp_import_requests\".\"failed_count\" >= 0\n        AND \"gbp_import_requests\".\"cancelled_count\" >= 0\n        AND \"gbp_import_requests\".\"processed_count\" = \"gbp_import_requests\".\"imported_count\" + \"gbp_import_requests\".\"relinked_count\" + \"gbp_import_requests\".\"already_exists_count\" + \"gbp_import_requests\".\"region_unavailable_count\" + \"gbp_import_requests\".\"failed_count\" + \"gbp_import_requests\".\"cancelled_count\"\n        AND \"gbp_import_requests\".\"total_count\" = \"gbp_import_requests\".\"pending_count\" + \"gbp_import_requests\".\"processing_count\" + \"gbp_import_requests\".\"processed_count\"\n      )"
+          "value": "(\n        \"gbp_import_requests\".\"total_count\" BETWEEN 1 AND 100\n        AND \"gbp_import_requests\".\"deletion_fence\" >= 0\n        AND \"gbp_import_requests\".\"pending_count\" >= 0\n        AND \"gbp_import_requests\".\"processing_count\" >= 0\n        AND \"gbp_import_requests\".\"imported_count\" >= 0\n        AND \"gbp_import_requests\".\"relinked_count\" >= 0\n        AND \"gbp_import_requests\".\"already_exists_count\" >= 0\n        AND \"gbp_import_requests\".\"failed_count\" >= 0\n        AND \"gbp_import_requests\".\"cancelled_count\" >= 0\n        AND \"gbp_import_requests\".\"processed_count\" = \"gbp_import_requests\".\"imported_count\" + \"gbp_import_requests\".\"relinked_count\" + \"gbp_import_requests\".\"already_exists_count\" + \"gbp_import_requests\".\"failed_count\" + \"gbp_import_requests\".\"cancelled_count\"\n        AND \"gbp_import_requests\".\"total_count\" = \"gbp_import_requests\".\"pending_count\" + \"gbp_import_requests\".\"processing_count\" + \"gbp_import_requests\".\"processed_count\"\n      )"
         },
         "gbp_import_requests_saga_batch_valid": {
           "name": "gbp_import_requests_saga_batch_valid",
@@ -14749,24 +14220,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "credential_home_cell_id": {
-          "name": "credential_home_cell_id",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_home_policy_version": {
-          "name": "credential_home_policy_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "credential_home_authority_generation": {
-          "name": "credential_home_authority_generation",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
         "encrypted_result": {
           "name": "encrypted_result",
           "type": "text",
@@ -14892,10 +14345,6 @@
         "google_oauth_exchange_attempts_versions_check": {
           "name": "google_oauth_exchange_attempts_versions_check",
           "value": "\"google_oauth_exchange_attempts\".\"expected_lifecycle_version\" >= 0 AND \"google_oauth_exchange_attempts\".\"expected_access_version\" >= 0 AND \"google_oauth_exchange_attempts\".\"expected_credential_generation\" >= 0"
-        },
-        "google_oauth_exchange_attempts_home_check": {
-          "name": "google_oauth_exchange_attempts_home_check",
-          "value": "\"google_oauth_exchange_attempts\".\"credential_home_cell_id\" IN ('us', 'europe', 'global') AND \"google_oauth_exchange_attempts\".\"credential_home_policy_version\" >= 1 AND \"google_oauth_exchange_attempts\".\"credential_home_authority_generation\" >= 1"
         },
         "google_oauth_exchange_attempts_state_check": {
           "name": "google_oauth_exchange_attempts_state_check",
@@ -22079,12 +21528,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "data_cell_id": {
-          "name": "data_cell_id",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": true
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -22131,12 +21574,6 @@
           "name": "backup_erasure_ledger_replay_idx",
           "columns": [
             {
-              "expression": "data_cell_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "effective_erasure_at",
               "isExpression": false,
               "asc": true,
@@ -22182,10 +21619,6 @@
         "backup_erasure_ledger_context_valid": {
           "name": "backup_erasure_ledger_context_valid",
           "value": "\"backup_erasure_ledger\".\"context\" IN ('activity', 'ai', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'metric', 'notification', 'portal', 'property', 'review', 'staff')"
-        },
-        "backup_erasure_ledger_cell_valid": {
-          "name": "backup_erasure_ledger_cell_valid",
-          "value": "\"backup_erasure_ledger\".\"data_cell_id\" IN ('us', 'europe', 'global')"
         },
         "backup_erasure_ledger_revision_positive": {
           "name": "backup_erasure_ledger_revision_positive",
@@ -32894,39 +32327,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "processing_region": {
-          "name": "processing_region",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'unresolved'"
-        },
-        "data_cell_id": {
-          "name": "data_cell_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "processing_region_source": {
-          "name": "processing_region_source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'country_default'"
-        },
-        "routing_policy_version": {
-          "name": "routing_policy_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "processing_region_resolved_at": {
-          "name": "processing_region_resolved_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "source_epoch": {
           "name": "source_epoch",
           "type": "integer",
@@ -33057,28 +32457,6 @@
           "where": "gbp_location_id IS NOT NULL AND deleted_at IS NULL",
           "concurrently": false
         },
-        "properties_routing_backfill_idx": {
-          "name": "properties_routing_backfill_idx",
-          "columns": [
-            {
-              "expression": "routing_policy_version",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "where": "processing_region = 'unresolved' AND deleted_at IS NULL",
-          "concurrently": false
-        },
         "properties_lifecycle_state_idx": {
           "name": "properties_lifecycle_state_idx",
           "columns": [
@@ -33146,10 +32524,6 @@
         "properties_lifecycle_state_valid": {
           "name": "properties_lifecycle_state_valid",
           "value": "\"properties\".\"lifecycle_state\" IN ('active', 'suspended', 'archived', 'disconnecting', 'purge_pending', 'purging', 'purged')"
-        },
-        "properties_data_cell_id_valid": {
-          "name": "properties_data_cell_id_valid",
-          "value": "\"properties\".\"data_cell_id\" IS NULL OR \"properties\".\"data_cell_id\" IN ('us', 'europe', 'global')"
         },
         "properties_responsible_manager_revision_positive": {
           "name": "properties_responsible_manager_revision_positive",
@@ -33515,12 +32889,6 @@
           "notNull": true,
           "default": "gen_random_uuid()"
         },
-        "data_cell_id": {
-          "name": "data_cell_id",
-          "type": "varchar(16)",
-          "primaryKey": false,
-          "notNull": true
-        },
         "generation": {
           "name": "generation",
           "type": "integer",
@@ -33578,15 +32946,9 @@
         }
       },
       "indexes": {
-        "recovery_runs_cell_generation_unique": {
-          "name": "recovery_runs_cell_generation_unique",
+        "recovery_runs_generation_unique": {
+          "name": "recovery_runs_generation_unique",
           "columns": [
-            {
-              "expression": "data_cell_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "generation",
               "isExpression": false,
@@ -33602,12 +32964,6 @@
         "recovery_runs_source_unique": {
           "name": "recovery_runs_source_unique",
           "columns": [
-            {
-              "expression": "data_cell_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "source_manifest_sha256",
               "isExpression": false,
@@ -33630,12 +32986,6 @@
           "name": "recovery_runs_completed_idx",
           "columns": [
             {
-              "expression": "data_cell_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
               "expression": "completed_at",
               "isExpression": false,
               "asc": false,
@@ -33653,10 +33003,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "recovery_runs_cell_valid": {
-          "name": "recovery_runs_cell_valid",
-          "value": "\"recovery_runs\".\"data_cell_id\" IN ('us', 'europe', 'global')"
-        },
         "recovery_runs_generation_valid": {
           "name": "recovery_runs_generation_valid",
           "value": "\"recovery_runs\".\"generation\" >= 1"
@@ -33725,12 +33071,6 @@
         "expires_at": {
           "name": "expires_at",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "data_cell_id": {
-          "name": "data_cell_id",
-          "type": "varchar(16)",
           "primaryKey": false,
           "notNull": true
         },
@@ -33928,15 +33268,9 @@
           "method": "btree",
           "concurrently": false
         },
-        "review_lifecycle_recovery_cell_generation_unique": {
-          "name": "review_lifecycle_recovery_cell_generation_unique",
+        "review_lifecycle_recovery_generation_unique": {
+          "name": "review_lifecycle_recovery_generation_unique",
           "columns": [
-            {
-              "expression": "data_cell_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "recovery_generation",
               "isExpression": false,
@@ -33952,12 +33286,6 @@
         "review_lifecycle_recovery_state_idx": {
           "name": "review_lifecycle_recovery_state_idx",
           "columns": [
-            {
-              "expression": "data_cell_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "state",
               "isExpression": false,
@@ -33979,10 +33307,6 @@
         "review_lifecycle_recovery_state_valid": {
           "name": "review_lifecycle_recovery_state_valid",
           "value": "\"review_lifecycle_recovery_executions\".\"state\" IN ('applying', 'lifecycle_applied', 'completed')"
-        },
-        "review_lifecycle_recovery_cell_valid": {
-          "name": "review_lifecycle_recovery_cell_valid",
-          "value": "\"review_lifecycle_recovery_executions\".\"data_cell_id\" IN ('us', 'europe', 'global')"
         },
         "review_lifecycle_recovery_generation_valid": {
           "name": "review_lifecycle_recovery_generation_valid",
@@ -34061,7 +33385,7 @@
       "checkConstraints": {
         "setup_checklist_milestones_step_valid": {
           "name": "setup_checklist_milestones_step_valid",
-          "value": "\"setup_checklist_milestones\".\"step\" IN ('google_connection', 'imported_property', 'initial_review_sync', 'published_portal', 'responsible_managers')"
+          "value": "\"setup_checklist_milestones\".\"step\" IN ('google_connection', 'initial_review_sync', 'published_portal', 'responsible_managers')"
         }
       },
       "isRLSEnabled": false
@@ -38934,7 +38258,6 @@
         "imported",
         "relinked",
         "already_exists",
-        "region_unavailable",
         "failed",
         "cancelled"
       ]
@@ -38946,7 +38269,6 @@
         "imported",
         "relinked",
         "already_exists",
-        "region_unavailable",
         "active_binding_conflict",
         "stale_binding",
         "reauthentication_required",

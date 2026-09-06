@@ -57,9 +57,6 @@ function policyAdminHarness(
     explainPolicyDecision: async () => {
       throw new Error('not used')
     },
-    getRegionDiagnostic: async () => {
-      throw new Error('not used')
-    },
     refreshPolicy,
     commandStore,
     loadOrgPolicyState: async () => ({

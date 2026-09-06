@@ -34,10 +34,7 @@ function sameFacts(
     row.targetConnectionId === input.targetConnectionId &&
     row.expectedLifecycleVersion === input.expectedLifecycleVersion &&
     row.expectedAccessVersion === input.expectedAccessVersion &&
-    row.expectedCredentialGeneration === input.expectedCredentialGeneration &&
-    row.credentialHomeCellId === input.credentialHome.homeCellId &&
-    row.credentialHomePolicyVersion === input.credentialHome.cataloguePolicyVersion &&
-    row.credentialHomeAuthorityGeneration === input.credentialHome.authorityGeneration
+    row.expectedCredentialGeneration === input.expectedCredentialGeneration
   )
 }
 
@@ -70,9 +67,6 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
             expectedLifecycleVersion: input.expectedLifecycleVersion,
             expectedAccessVersion: input.expectedAccessVersion,
             expectedCredentialGeneration: input.expectedCredentialGeneration,
-            credentialHomeCellId: input.credentialHome.homeCellId,
-            credentialHomePolicyVersion: input.credentialHome.cataloguePolicyVersion,
-            credentialHomeAuthorityGeneration: input.credentialHome.authorityGeneration,
             createdAt: input.now,
             updatedAt: input.now,
           })
@@ -220,11 +214,6 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
           expectedLifecycleVersion: row.expectedLifecycleVersion,
           expectedAccessVersion: row.expectedAccessVersion,
           expectedCredentialGeneration: row.expectedCredentialGeneration,
-          credentialHome: {
-            homeCellId: row.credentialHomeCellId as 'us' | 'europe' | 'global',
-            cataloguePolicyVersion: row.credentialHomePolicyVersion,
-            authorityGeneration: row.credentialHomeAuthorityGeneration,
-          },
           encryptedResult: row.encryptedResult,
         })
       }),
@@ -253,11 +242,6 @@ export const createGoogleOAuthExchangeRecoveryRepository = (
             expectedLifecycleVersion: row.expectedLifecycleVersion,
             expectedAccessVersion: row.expectedAccessVersion,
             expectedCredentialGeneration: row.expectedCredentialGeneration,
-            credentialHome: {
-              homeCellId: row.credentialHomeCellId as 'us' | 'europe' | 'global',
-              cataloguePolicyVersion: row.credentialHomePolicyVersion,
-              authorityGeneration: row.credentialHomeAuthorityGeneration,
-            },
           }
         : null
     },

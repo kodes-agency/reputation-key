@@ -158,10 +158,6 @@ async function createPropertyAndPortal(
       name: propSpec.name,
       slug: propSpec.slug,
       timezone: 'UTC',
-      // What production writers persist for a US property: routing reads
-      // and the relay fence filter on data_cell_id (until WP3.2b).
-      processingRegion: 'us',
-      dataCellId: 'us',
     })
     .onConflictDoNothing()
 

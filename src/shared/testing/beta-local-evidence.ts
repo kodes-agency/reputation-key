@@ -12,9 +12,16 @@ import {
 import { basename, dirname, join, resolve, sep } from 'node:path'
 import {
   BETA_LOCAL_EVIDENCE_VERSION,
-  REQUIRED_APPROVAL_ROLES,
-  REQUIRED_BETA_LOCAL_GATE_IDS,
-} from './release-bundle'
+  BETA_LOCAL_REQUIRED_GATE_IDS as REQUIRED_BETA_LOCAL_GATE_IDS,
+} from '#/shared/bqc/status-schema'
+
+export const REQUIRED_APPROVAL_ROLES = [
+  'engineering/runtime',
+  'product/property',
+  'security/privacy',
+  'google-project/integration',
+  'operations/on-call',
+] as const
 
 export const BETA_LOCAL_APPROVAL_VERSION = 'beta-local-approval-1' as const
 export const BETA_LOCAL_INDEX_VERSION = 'beta-local-index-1' as const

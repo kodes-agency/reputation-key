@@ -6,16 +6,15 @@
 //
 // BQC-3.7 / ARC-01: the envelope preserves envelope-grade metadata alongside
 // the identifier-only payload: occurred/recorded time, aggregate identity,
-// correlation/causation/command identity, source aggregate version, and
-// processing region — never content. Back-compat parsing accepts historical
-// 8-field envelopes; build always populates the current fields.
+// correlation/causation/command identity and source aggregate version — never
+// content. Back-compat parsing accepts historical 8-field envelopes; build
+// always populates the current fields.
 //
 // Job name remains eventType; job ID remains the outbox event UUID (dedup).
 
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
 import { extractAggregateId, withoutEnvelopeIdentifiers } from './event-adapter'
 import { sanitizeIdentityInvitationQueuePayload } from './identity-invitation-fact-contract'
-import { dataCellById, type DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 const DURABLE_COMMAND_CLASSIFICATION = 'durable_domain_fact_required' as const
 const IDENTIFIER_ONLY_CONTENT_CLASSIFICATION = 'identifier_only' as const
@@ -75,18 +74,6 @@ export type ConsumerEvent = Readonly<{
    * legacy or unversioned event families.
    */
   sourceAggregateVersion?: string | number | null
-  /**
-   * Data Cell that owns the database/process which committed this fact.
-   * Current relays always stamp it; optional only for pre-ARC-02 in-flight
-   * envelopes and direct unit fixtures.
-   */
-  sourceCellId?: DataCellId
-  /** REG-01: freshly resolved immutable Property cell; optional for old jobs. */
-  dataCellId?: DataCellId
-  /** Routing policy version observed with dataCellId. */
-  routingPolicyVersion?: number
-  /** Compatibility field; new envelopes carry the same stable cell id. */
-  region?: 'unscoped' | DataCellId
 }>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -99,14 +86,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * single validation authority at consume time (BQC-3.7 — no relay-side
  * validation).
  */
-export function buildConsumerEvent(
-  event: UnpublishedEvent,
-  routing?: Readonly<{ dataCellId: DataCellId; routingPolicyVersion: number }>,
-  sourceCell?: DataCellId,
-): ConsumerEvent {
-  if (sourceCell && routing && sourceCell !== routing.dataCellId) {
-    throw new Error('Outbox fact routing does not match its source Data Cell')
-  }
+export function buildConsumerEvent(event: UnpublishedEvent): ConsumerEvent {
   const payload = isRecord(event.payload) ? event.payload : {}
   const durablePayload = sanitizeIdentityInvitationQueuePayload(
     event.eventType,
@@ -144,14 +124,6 @@ export function buildConsumerEvent(
       typeof payload.sourceAggregateVersion === 'number'
         ? payload.sourceAggregateVersion
         : null,
-    ...(sourceCell ? { sourceCellId: sourceCell } : {}),
-    ...(routing
-      ? {
-          dataCellId: routing.dataCellId,
-          routingPolicyVersion: routing.routingPolicyVersion,
-        }
-      : {}),
-    region: routing?.dataCellId ?? sourceCell ?? 'unscoped',
   }
 }
 
@@ -166,11 +138,6 @@ type EnvelopeMetadataFields = Pick<
   | 'sourceAggregateVersion'
   | 'commandClassification'
   | 'contentClassification'
->
-
-type EnvelopeRoutingFields = Pick<
-  ConsumerEvent,
-  'sourceCellId' | 'dataCellId' | 'routingPolicyVersion' | 'region'
 >
 
 const isAbsentOrString = (value: unknown): boolean =>
@@ -232,69 +199,6 @@ function parseEnvelopeMetadata(
     ...(contentClassification !== undefined
       ? { contentClassification: IDENTIFIER_ONLY_CONTENT_CLASSIFICATION }
       : {}),
-  }
-}
-
-/**
- * Resolve one cell-id field: absent stays absent, a known cell resolves to its
- * canonical id, anything else is invalid (`null`).
- */
-function resolveCellField(value: unknown): DataCellId | undefined | null {
-  if (value === undefined) return undefined
-  if (typeof value !== 'string') return null
-  return dataCellById(value)?.id ?? null
-}
-
-const isRoutingPolicyVersion = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isSafeInteger(value) && value >= 1
-
-/**
- * `region` must name a known cell (or the explicit `unscoped` sentinel) and must
- * agree with the routing cell the envelope carries. Absent region is derived
- * from that cell.
- */
-function resolveEnvelopeRegion(
-  region: unknown,
-  cell: DataCellId | undefined,
-): 'unscoped' | DataCellId | null {
-  if (region === undefined) return cell ?? 'unscoped'
-  if (region !== 'unscoped' && !(typeof region === 'string' && dataCellById(region)))
-    return null
-  if (cell && region !== cell) return null
-  return region as 'unscoped' | DataCellId
-}
-
-/**
- * Validate the REG-01 routing fields when present. Absent fields are the
- * pre-REG-01 shape (accepted); present fields must name known cells and agree
- * with each other.
- */
-function parseEnvelopeRouting(
-  data: Record<string, unknown>,
-): EnvelopeRoutingFields | null {
-  const { sourceCellId, dataCellId, routingPolicyVersion, region } = data
-
-  const parsedCell = resolveCellField(dataCellId)
-  if (parsedCell === null) return null
-  const parsedSourceCell = resolveCellField(sourceCellId)
-  if (parsedSourceCell === null) return null
-  if (routingPolicyVersion !== undefined && !isRoutingPolicyVersion(routingPolicyVersion))
-    return null
-  // REG-01 expand compatibility: the immediately preceding relay version
-  // stamped dataCellId without a policy version. Keep accepting that bounded
-  // in-flight shape so a rolling deploy does not poison its queue. New
-  // envelopes always carry both; a version without a cell is never valid.
-  if (parsedCell === undefined && routingPolicyVersion !== undefined) return null
-  if (parsedCell && parsedSourceCell && parsedCell !== parsedSourceCell) return null
-
-  const resolvedRegion = resolveEnvelopeRegion(region, parsedCell ?? parsedSourceCell)
-  if (resolvedRegion === null) return null
-
-  return {
-    ...(parsedSourceCell ? { sourceCellId: parsedSourceCell } : {}),
-    ...(parsedCell ? { dataCellId: parsedCell } : {}),
-    ...(routingPolicyVersion !== undefined ? { routingPolicyVersion } : {}),
-    region: resolvedRegion,
   }
 }
 
@@ -360,8 +264,5 @@ export function parseConsumerEvent(data: unknown): ConsumerEvent | null {
   const metadata = parseEnvelopeMetadata(data)
   if (!metadata) return null
 
-  const routing = parseEnvelopeRouting(data)
-  if (!routing) return null
-
-  return { ...required, ...metadata, ...routing }
+  return { ...required, ...metadata }
 }

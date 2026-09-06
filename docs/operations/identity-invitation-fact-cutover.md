@@ -1,7 +1,7 @@
 # Identity invitation fact privacy cutover
 
 This runbook moves `identity.member.invited` from the rolling v1 contract to
-the identifier-only v2 contract in each Railway Data Cell. It is an
+the identifier-only v2 contract in the Railway deployment. It is an
 **expand → report/backfill → verify → cut over → later contract** migration.
 The already-published migration 0105 performs a best-effort PostgreSQL scrub
 and is immutable. Migration 0106 adds the rolling contract and must also never
@@ -53,7 +53,7 @@ provide the complete cross-store guarantee.
   therefore safe even if an operator redrive overlaps the independent queue
   scans: no scan ordering can move a private invitation fact past the seal.
 
-## Railway rollout, one Data Cell at a time
+## Railway rollout
 
 Use the exact promoted image digest and the cell-local PostgreSQL and Queue
 Redis bindings. Never point one invocation at another cell's resources.
@@ -128,9 +128,7 @@ Redis bindings. Never point one invocation at another cell's resources.
    pnpm ops:queue resume default --operator <id> --reason "invitation fact v2 verified" --apply
    ```
 
-For beta, run steps 1–8 once against `cell-us` and seal its contract row. If a
-future Data Cell is approved, it must run this cutover independently before it
-can accept traffic; dormant cell identifiers create no beta work.
+For beta, run steps 1–8 once against `cell-us` and seal its contract row.
 
 ## Rollback and forward recovery
 

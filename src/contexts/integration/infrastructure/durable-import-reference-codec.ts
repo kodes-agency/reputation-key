@@ -74,7 +74,6 @@ const eligibility = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('relink'), propertyId: z.string().min(1), profile }),
   z.object({ kind: z.literal('already_imported'), propertyId: z.string().min(1) }),
   z.object({ kind: z.literal('active_binding_conflict') }),
-  z.object({ kind: z.literal('region_unavailable') }),
   z.object({ kind: z.literal('unavailable') }),
 ])
 export const durableCandidatePayloadSchema = z.object({

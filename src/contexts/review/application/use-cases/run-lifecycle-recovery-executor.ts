@@ -90,7 +90,6 @@ export function createRunReviewLifecycleRecoveryExecutor(
       const expectedTarget = {
         releaseSha: target.releaseSha,
         releaseManifestSha256: target.releaseManifestSha256,
-        dataCellId: target.dataCellId,
         restorePointAt: target.restorePointAt.toISOString(),
         restoreDatabaseServiceName: target.restoreDatabaseServiceName,
         railwayProjectId: target.railwayProjectId,
@@ -147,7 +146,6 @@ export function createRunReviewLifecycleRecoveryExecutor(
         approvalKeyId: bundle.approval.keyId,
         approvedAt: new Date(bundle.approval.approvedAt),
         expiresAt: new Date(bundle.approval.expiresAt),
-        dataCellId: target.dataCellId,
         releaseSha: target.releaseSha,
         releaseManifestSha256: target.releaseManifestSha256,
         restorePointAt: target.restorePointAt,
@@ -190,7 +188,6 @@ export function createRunReviewLifecycleRecoveryExecutor(
       }
 
       const recoveryInput: RecoveryFenceInput = {
-        dataCellId: target.dataCellId,
         sourceReleaseSha: target.releaseSha,
         sourceManifestSha256: target.releaseManifestSha256,
         restorePointAt: target.restorePointAt,

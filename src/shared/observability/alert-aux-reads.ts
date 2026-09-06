@@ -1,16 +1,12 @@
 // BQC-7.4 — auxiliary alert reads the OperationsSnapshot does not carry.
 //
-// Four cheap aggregate reads, gathered once per health-check run (5-min
+// Three cheap aggregate reads, gathered once per health-check run (5-min
 // cadence) and fed to the pure alert evaluation as AlertAuxReads:
 //
 //   - retention_runs latest-per-subject outcome (purge/retention failure) —
 //     DISTINCT ON (subject), content-free: subject names + outcome only;
 //   - policy_decision_audit denials in the trailing drift window, grouped by
 //     stable reason (deployment-drift signal);
-//   - quarantine envelopes carrying a region-attempt policyReason, counted
-//     per reason (wrong/unresolved region attempts) — the 7.3
-//     routing.denials per-reason split, now wired (bounded scan; the
-//     quarantine is operator-drained).
 //   - delivered, unresolved native-feedback receipts: count and oldest age
 //     only. Report text, provider content, identifiers, and attachment bytes
 //     are not present in the local triage authority and cannot enter the read.
@@ -28,13 +24,7 @@ import { betaFeedbackTriage } from '#/shared/db/schema/beta-feedback-triage.sche
 import { retentionRuns } from '#/shared/db/schema/review-sync.schema'
 import { policyDecisionAudit } from '#/shared/db/schema/policy.schema'
 import {
-  listQuarantinedJobs,
-  type QuarantinedEntry,
-  type QuarantineReadPort,
-} from '#/shared/jobs/failure-quarantine'
-import {
   POLICY_DENIAL_DRIFT_WINDOW_MS,
-  REGION_ATTEMPT_REASONS,
   type AlertAuxReads,
 } from '#/shared/observability/alert-definitions'
 
@@ -44,27 +34,8 @@ export type AlertAuxReader = Readonly<{
 
 export type AlertAuxReaderDeps = Readonly<{
   db: Database
-  /** The ops quarantine read handle (absent = region-attempt counts empty). */
-  quarantineQueue: QuarantineReadPort | null | undefined
   logger: pino.Logger
 }>
-
-/**
- * Count quarantined envelopes whose policyReason is a wrong/unresolved
- * region attempt (REGION_ATTEMPT_REASONS). Pure over the listed entries.
- */
-export function countRegionAttempts(
-  entries: readonly QuarantinedEntry[],
-): Record<string, number> {
-  const counts: Record<string, number> = {}
-  for (const { envelope } of entries) {
-    const reason = envelope.policyReason
-    if (reason == null) continue
-    if (!(REGION_ATTEMPT_REASONS as readonly string[]).includes(reason)) continue
-    counts[reason] = (counts[reason] ?? 0) + 1
-  }
-  return counts
-}
 
 /** retention_runs subjects whose LATEST sweep run failed (DISTINCT ON). */
 async function readRetentionFailedSubjects(db: Database): Promise<readonly string[]> {
@@ -149,59 +120,38 @@ async function readBetaFeedbackTriage(
 export function createAlertAuxReader(deps: AlertAuxReaderDeps): AlertAuxReader {
   return {
     read: async () => {
-      const [
-        retentionFailedSubjects,
-        policyDenialsByReason,
-        routingBlockedByReason,
-        betaFeedbackTriage,
-      ] = await Promise.all([
-        readRetentionFailedSubjects(deps.db).catch((err: unknown) => {
-          deps.logger.warn(
-            { err },
-            '[alert-aux] retention_runs read failed — empty fallback',
-          )
-          return [] as readonly string[]
-        }),
-        readPolicyDenialsByReason(deps.db, POLICY_DENIAL_DRIFT_WINDOW_MS).catch(
-          (err: unknown) => {
+      const [retentionFailedSubjects, policyDenialsByReason, betaFeedbackTriage] =
+        await Promise.all([
+          readRetentionFailedSubjects(deps.db).catch((err: unknown) => {
             deps.logger.warn(
               { err },
-              '[alert-aux] policy_decision_audit read failed — empty fallback',
+              '[alert-aux] retention_runs read failed — empty fallback',
             )
-            return {} as Record<string, number>
-          },
-        ),
-        (async () => {
-          if (!deps.quarantineQueue) return {} as Record<string, number>
-          try {
-            return countRegionAttempts(await listQuarantinedJobs(deps.quarantineQueue))
-          } catch (err) {
+            return [] as readonly string[]
+          }),
+          readPolicyDenialsByReason(deps.db, POLICY_DENIAL_DRIFT_WINDOW_MS).catch(
+            (err: unknown) => {
+              deps.logger.warn(
+                { err },
+                '[alert-aux] policy_decision_audit read failed — empty fallback',
+              )
+              return {} as Record<string, number>
+            },
+          ),
+          readBetaFeedbackTriage(deps.db).catch((err: unknown) => {
             deps.logger.warn(
               { err },
-              '[alert-aux] quarantine scan failed — empty fallback',
+              '[alert-aux] beta-feedback triage read failed — unavailable fallback',
             )
-            return {} as Record<string, number>
-          }
-        })(),
-        readBetaFeedbackTriage(deps.db).catch((err: unknown) => {
-          deps.logger.warn(
-            { err },
-            '[alert-aux] beta-feedback triage read failed — unavailable fallback',
-          )
-          return {
-            monitorAvailable: false,
-            deliveredUnresolvedCount: 0,
-            oldestDeliveredUnresolvedAgeMs: null,
-          } as const
-        }),
-      ])
+            return {
+              monitorAvailable: false,
+              deliveredUnresolvedCount: 0,
+              oldestDeliveredUnresolvedAgeMs: null,
+            } as const
+          }),
+        ])
 
-      return {
-        retentionFailedSubjects,
-        policyDenialsByReason,
-        routingBlockedByReason,
-        betaFeedbackTriage,
-      }
+      return { retentionFailedSubjects, policyDenialsByReason, betaFeedbackTriage }
     },
   }
 }

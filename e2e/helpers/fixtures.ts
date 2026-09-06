@@ -23,7 +23,6 @@ import { testEnvironment } from '../../src/shared/testing/test-environment'
 import { createTokenEncryptionAdapter } from '../../src/contexts/integration/infrastructure/adapters/token-encryption.adapter'
 import { EXECUTION_POLICY_VERSION } from '../../src/shared/auth/execution-policy'
 import { computeAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '../../src/shared/domain/data-cell-catalogue'
 import { googleReplyTextDigest } from '../../src/shared/domain/google-reply-text'
 
 /**
@@ -657,71 +656,27 @@ export async function seedStaffUserWithGrant(input: {
  * An ACTIVE Google connection with test-key-encrypted tokens. token_expires_at
  * is far-future so the app's refresh path (5-min buffer) never fires and the
  * OAuth token endpoint is never needed mid-test.
- *
- * A usable connection is NOT just an active row with the right scope. Since
- * "feat(integration): Google credential home, routing authority, and import
- * checkpoints", every direct use of a stored credential passes through
- * `createDirectGoogleCredentialUseGate`, which refuses the moment
- * `credential_home_cell_id` is null — the credential has no data cell it is
- * allowed to be used from. That commit changed no fixture, so this helper kept
- * producing a row the product would never accept, and the refusal surfaced far
- * downstream as a bare 403 from import discovery, an "unavailable" performance
- * report, and a review sync that failed before its first HTTP call.
- *
- * So the organization's credential-home authority is established here, exactly
- * as `applyOrganizationGoogleCredentialHome` does on the real connect path:
- * generation 1 for the first grant, preserved for every later grant in the same
- * organization. The generation is read back rather than assumed, because the
- * connection's foreign key targets the whole
- * (organization, generation, cell, policy version) tuple.
  */
 export async function seedGoogleConnection(input: {
   organizationId: string
   connectedBy: string
   googleSubject: string
 }): Promise<{ connectionId: string }> {
-  await dbQuery(
-    `INSERT INTO google_organization_credential_homes
-       (organization_id, authority_generation, home_cell_id, catalogue_policy_version,
-        transition_reason, changed_by, effective_from)
-     VALUES ($1, 1, 'us', $3, 'new_grant', $2, now())
-     ON CONFLICT (organization_id, authority_generation) DO NOTHING`,
-    [input.organizationId, input.connectedBy, DATA_CELL_CATALOGUE_POLICY_VERSION],
-  )
-  const [home] = await dbQuery<{
-    generation: number
-    cell: string
-    policyVersion: number
-  }>(
-    `SELECT authority_generation AS generation, home_cell_id AS cell,
-            catalogue_policy_version AS "policyVersion"
-     FROM google_organization_credential_homes
-     WHERE organization_id = $1 AND superseded_at IS NULL`,
-    [input.organizationId],
-  )
-  if (!home) throw new Error('E2E Google credential home is unavailable')
-
   // `google_subject` is globally unique, and a connection outlives cleanup
   // whenever a Property still binds it — so scenarios that share an account
   // must ADOPT the surviving connection rather than collide with it.
   const rows = await dbQuery<{ id: string }>(
     `INSERT INTO google_connections
        (organization_id, google_subject, encrypted_access_token,
-        encrypted_refresh_token, token_expires_at, scopes, connected_by, visibility, status,
-        credential_home_cell_id, credential_home_policy_version,
-        credential_home_authority_generation)
+        encrypted_refresh_token, token_expires_at, scopes, connected_by, visibility, status)
      VALUES ($1, $2, $3, $4, now() + interval '1 hour',
-             ARRAY['https://www.googleapis.com/auth/business.manage'], $5, 'organization', 'active',
-             $6, $7, $8)
+             ARRAY['https://www.googleapis.com/auth/business.manage'], $5, 'organization', 'active')
      ON CONFLICT (google_subject) WHERE google_subject IS NOT NULL
        DO UPDATE SET
          encrypted_access_token = EXCLUDED.encrypted_access_token,
          encrypted_refresh_token = EXCLUDED.encrypted_refresh_token,
          token_expires_at = EXCLUDED.token_expires_at,
-         status = 'active',
-         credential_home_cell_id = EXCLUDED.credential_home_cell_id,
-         credential_home_policy_version = EXCLUDED.credential_home_policy_version,
-         credential_home_authority_generation = EXCLUDED.credential_home_authority_generation
+         status = 'active'
      RETURNING id`,
     [
       input.organizationId,
@@ -729,9 +684,6 @@ export async function seedGoogleConnection(input: {
       encryptToken('stub-access-token'),
       encryptToken('stub-refresh-token'),
       input.connectedBy,
-      home.cell,
-      home.policyVersion,
-      home.generation,
     ],
   )
   return { connectionId: rows[0].id }
@@ -817,13 +769,12 @@ export async function seedProperty(input: {
   const rows = await dbQuery<{ id: string }>(
     `INSERT INTO properties
        (organization_id, name, slug, timezone, country_code, country_source,
-        processing_region, data_cell_id, processing_region_source, routing_policy_version,
-        processing_region_resolved_at, lifecycle_state, source_epoch,
+        lifecycle_state, source_epoch,
         google_connection_id, gbp_account_id, gbp_location_id,
         google_binding_state, profile_source, profile_confirmed_at,
         profile_confirmed_by)
      VALUES ($1, $2, $3, 'America/New_York', 'US', 'manual',
-             'us', 'us', 'country_default', 1, now(), 'active', $4,
+             'active', $4,
              $5, $6, $7, $8, $9, $10, $11)
      RETURNING id`,
     [

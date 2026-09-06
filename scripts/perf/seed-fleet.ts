@@ -4,7 +4,6 @@ import { dirname, resolve } from 'node:path'
 import { Pool, type PoolClient, type QueryResult } from 'pg'
 import { deterministicFixtureHash } from '../../src/shared/testing/local-stack-controller'
 import { deleteTestOrganizations } from '../../src/shared/testing/integration-helpers'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '../../src/shared/domain/data-cell-catalogue'
 
 const VERSION = 'fleet-local-2'
 const DEFAULT_PROPERTIES = 5_000
@@ -128,14 +127,13 @@ async function main(): Promise<void> {
     await client.query(
       `INSERT INTO properties (
          id, organization_id, name, slug, timezone, country_code, country_source,
-         processing_region, data_cell_id, processing_region_source, routing_policy_version,
-         processing_region_resolved_at, lifecycle_state, source_epoch
+         lifecycle_state, source_epoch
        )
        SELECT id::uuid, $1, 'Fleet Property ' || lpad(ordinal::text, 5, '0'),
          'local-fleet-' || lpad(ordinal::text, 5, '0'), 'America/New_York', 'US',
-         'manual', 'us', 'us', 'country_default', $3, now(), 'active', 0
+         'manual', 'active', 0
        FROM unnest($2::text[]) WITH ORDINALITY AS fixture(id, ordinal)`,
-      [organizationId, ids, DATA_CELL_CATALOGUE_POLICY_VERSION],
+      [organizationId, ids],
     )
     await client.query(
       `INSERT INTO property_policy (property_id, suspended_at, suspended_reason)

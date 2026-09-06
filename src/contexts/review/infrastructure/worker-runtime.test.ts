@@ -36,7 +36,7 @@ describe('registerReviewWorkerJobs', () => {
         getAccessiblePropertyIds: vi.fn(),
         getAssignedPortals: vi.fn(),
       },
-      propertyRouting: { getProcessingScope: vi.fn() },
+      propertySourceEpoch: { getSourceEpoch: vi.fn() },
       runSnapshot: vi.fn(),
       runTargetedFetch: vi.fn(),
       runSourceContentLifecycle: vi.fn(),

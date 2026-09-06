@@ -14,7 +14,6 @@ import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
 import type { GoogleRefreshCoordination } from '../ports/google-refresh-coordination.port'
-import type { AssertDirectGoogleCredentialUse } from '../google-credential-execution-gate'
 
 const REFRESH_COORDINATION_DEADLINE_MS = 25_000
 
@@ -29,7 +28,6 @@ export type RefreshGoogleTokenDeps = Readonly<{
   encryption: TokenEncryptionPort
   clock: () => Date
   coordination?: GoogleRefreshCoordination
-  assertDirectCredentialUse: AssertDirectGoogleCredentialUse
   authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer
 }>
 
@@ -97,7 +95,6 @@ export const refreshGoogleToken =
     ): Promise<GoogleConnection> => {
       // Credential material is not decrypted until the replica owns the
       // renewable Redis lease and shared failure backoff has admitted it.
-      await deps.assertDirectCredentialUse(connection)
       const providerAuthorization = deps.authorizeProviderCall
         ? await deps.authorizeProviderCall({
             operation: 'oauth.token.refresh',

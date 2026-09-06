@@ -54,7 +54,7 @@ describe('PropertyLookupPort contract', () => {
   })
 
   it('returns null for an unknown location instead of throwing', async () => {
-    // A webhook for a location this cell does not host is normal traffic.
+    // A webhook for an unknown location is normal traffic.
     expect(await lookup.findByGbpLocationId(UNKNOWN_LOCATION_ID)).toBeNull()
   })
 

@@ -1,7 +1,6 @@
 import { createHash, createPublicKey, verify, type KeyObject } from 'node:crypto'
 import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 export const REVIEW_LIFECYCLE_RECOVERY_APPROVAL_VERSION =
   'review-lifecycle-recovery-approval-v1' as const
@@ -30,7 +29,6 @@ const requestSchema = z
       .object({
         releaseSha: sha,
         releaseManifestSha256: sha256,
-        dataCellId: z.enum(['us', 'europe', 'global']),
         restorePointAt: instant,
         restoreDatabaseServiceName: subject,
         railwayProjectId: subject.nullable(),
@@ -86,7 +84,6 @@ export type ReviewLifecycleRecoveryUnsignedApproval = Omit<
 export type ReviewLifecycleRecoveryRuntimeTarget = Readonly<{
   releaseSha: string
   releaseManifestSha256: string
-  dataCellId: DataCellId
   restorePointAt: Date
   restoreDatabaseServiceName: string
   railwayProjectId: string | null

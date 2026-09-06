@@ -194,11 +194,9 @@ async function seedFixture(): Promise<Fixture> {
     `INSERT INTO properties (
        id, organization_id, name, slug, timezone, lifecycle_state,
        google_connection_id, gbp_account_id, gbp_location_id,
-       google_binding_state, profile_source, routing_policy_version,
-       processing_region, source_epoch
+       google_binding_state, profile_source, source_epoch
      ) VALUES ($1, $2, 'AI Closure Property', $3, 'UTC', 'active', $4,
-               'account-ai-closure', 'location-ai-closure', 'active', 'legacy', 1,
-               'global', 0)`,
+               'account-ai-closure', 'location-ai-closure', 'active', 'legacy', 0)`,
     [
       fixture.propertyId,
       fixture.organizationId,

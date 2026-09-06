@@ -28,7 +28,6 @@ const request = (
     propertyAuthorizationGeneration: null,
     capabilityPolicyVersion: 'beta-local-2',
     executionPolicyVersion: 'beta-local-2',
-    routingPolicyVersion: 1,
   },
   routeKey: 'account-management.accounts.list',
   routeCatalogueVersion: GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,

@@ -53,11 +53,10 @@ async function seedFixture(): Promise<Fixture> {
   await lease.pool.query(
     `INSERT INTO properties (
        id, organization_id, name, slug, timezone, address, country_code,
-       processing_region, data_cell_id, processing_region_source,
-       processing_region_resolved_at, lifecycle_state, created_at, updated_at
+       lifecycle_state, created_at, updated_at
      ) VALUES (
        $1, $2, 'Harbour House', 'harbour-house', 'Europe/Sofia',
-       '12 Dock Road', 'US', 'us', 'us', 'country_policy', $3, 'active', $3, $3
+       '12 Dock Road', 'US', 'active', $3, $3
      )`,
     [fixture.propertyId, organizationId, preciseCreatedAt],
   )
@@ -86,8 +85,7 @@ async function seedFixture(): Promise<Fixture> {
     ],
   )
 
-  // Neither of these belongs in a tenant archive: a receipt is content-free
-  // control plane, and a region move is restricted operational history.
+  // This content-free receipt does not belong in a tenant archive.
   await lease.pool.query(
     `INSERT INTO property_operation_receipts (
        id, organization_id, idempotency_key, destination_property_id, outcome,
@@ -128,7 +126,7 @@ describe.sequential('Property Organization Export contributor', () => {
     organizations.clear()
   })
 
-  it('exports Property rows and responsibility without receipts, moves, or provider identifiers', async () => {
+  it('exports Property rows and responsibility without receipts or provider identifiers', async () => {
     const fixture = await seedFixture()
     const asOf = new Date(Date.now() - 1000)
     const contributor = createPropertyOrganizationExportContributor(db)
@@ -170,7 +168,6 @@ describe.sequential('Property Organization Export contributor', () => {
           timezone: 'Europe/Sofia',
           address: '12 Dock Road',
           country_code: 'US',
-          data_cell_id: 'us',
           lifecycle_state: 'active',
           created_at: fixture.preciseCreatedAt,
         }),

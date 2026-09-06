@@ -92,8 +92,6 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       slug: 'snapshot-repo-property',
       timezone: 'Europe/Sofia',
       countryCode: 'BG',
-      processingRegion: 'europe',
-      routingPolicyVersion: 1,
       profileVersion: 1,
       // The domain default: a property that has never been edited. The AI plane
       // used to reject this value outright (see drizzle/0060).

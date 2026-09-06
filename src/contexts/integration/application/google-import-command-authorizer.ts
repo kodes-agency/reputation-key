@@ -343,7 +343,6 @@ export function createGoogleImportCommandAuthorizer(
       accessToken = await deps.tokenProvider.getAccessToken(
         input.actor.organizationId,
         input.connectionId,
-        (input.properties ?? []).map((property) => property.propertyId),
       )
       reread = await deps.connectionRepo.findById(
         input.actor.organizationId,

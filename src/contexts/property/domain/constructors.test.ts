@@ -140,7 +140,7 @@ describe('buildProperty', () => {
     }
   })
 
-  it('leaves processing region unresolved without country (BQR-3.5)', () => {
+  it('defaults absent country and locale provenance', () => {
     const result = buildProperty({
       id: FIXED_ID,
       organizationId: FIXED_ORG,
@@ -151,13 +151,10 @@ describe('buildProperty', () => {
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       expect(result.value.countryCode).toBeNull()
-      expect(result.value.processingRegion).toBe('unresolved')
-      expect(result.value.dataCellId).toBeNull()
-      expect(result.value.processingRegionResolvedAt).toBeNull()
     }
   })
 
-  it('resolves processing region from country code (BQR-3.5)', () => {
+  it('normalizes the country business fact', () => {
     const result = buildProperty({
       id: FIXED_ID,
       organizationId: FIXED_ORG,
@@ -170,10 +167,6 @@ describe('buildProperty', () => {
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       expect(result.value.countryCode).toBe('DE')
-      expect(result.value.processingRegion).toBe('us')
-      expect(result.value.dataCellId).toBe('us')
-      expect(result.value.processingRegionSource).toBe('country_default')
-      expect(result.value.processingRegionResolvedAt).toBe(FIXED_TIME)
     }
   })
 

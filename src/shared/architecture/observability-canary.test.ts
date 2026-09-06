@@ -77,7 +77,6 @@ describe('canary: the OperationsSnapshot carries no tenant identifiers (BQC-7.3)
         capabilityPolicy: 'bqc-0.3',
         executionPolicy: 'bqc-0.3',
         policyStore: () => 3,
-        routingPolicy: 1,
         sourceContentPolicy: 1,
       },
       runtime: {

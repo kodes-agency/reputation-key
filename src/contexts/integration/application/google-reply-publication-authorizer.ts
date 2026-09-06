@@ -266,9 +266,7 @@ export function createGoogleReplyPublicationAuthorizer(
 
     let accessToken: string
     try {
-      accessToken = await deps.getAccessToken(input.organizationId, input.connectionId, [
-        input.propertyId,
-      ])
+      accessToken = await deps.getAccessToken(input.organizationId, input.connectionId)
     } catch {
       return { ok: false, code: 'runtime_unavailable' }
     }

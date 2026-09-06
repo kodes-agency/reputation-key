@@ -31,7 +31,7 @@ health always remains in the owning context and Dashboard emits no domain event.
 - **FleetEntry** — One property row in the cross-property fleet overview: identity + Property-local period evidence + KPI summary + attention signals + total.
 - **FleetOverviewData** — The keyset-paginated fleet response: name-ordered `FleetEntry[]` + an org-total `FleetTotals` strip.
 - **StaffDashboardData** — Staff-scoped dashboard response: filtered to the portals assigned to a staff user.
-- **Setup Checklist** — Five canonical onboarding facts with a monotonic first-completion timestamp and a separately evaluated current-health state. It is resumable, has no manual completion command, and never turns a milestone into source authority.
+- **Setup Checklist** — Four canonical onboarding facts with a monotonic first-completion timestamp and a separately evaluated current-health state. It is resumable, has no manual completion command, and never turns a milestone into source authority.
 
 ## Relationships
 
@@ -46,7 +46,7 @@ Dashboard is a read-oriented aggregation context with no domain entities. It que
 ## Invariants
 
 - Analytics are read-only. Setup Checklist reads may insert an absent content-free first-completion milestone with `ON CONFLICT DO NOTHING`; there is no update/delete/manual-completion operation, no event, and no event handler.
-- Setup completion is derived only from the five EXP-01 canonical facts. A later outage changes current health to degraded but never clears or rewrites historical completion.
+- Setup completion is derived only from the four EXP-01 canonical facts. A later outage changes current health to degraded but never clears or rewrites historical completion.
 - Setup scope is Organization-wide for AccountAdmin and the exact current PropertyAccessGrant set for PropertyManager. A manager with no Property access receives a content-free `no_access` result without a canonical-fact query. Staff is beta-dark and rejected at the server boundary.
 - Single-Property dated presets are rolling Property-local calendar windows ending at the injected current instant. Their preceding comparison has the same number of Property-local days and ends exactly at the current-period start; DST does not shift the local wall-clock boundary. All Time is unbounded and non-comparative.
 - Fleet derives the same rolling and preceding boundaries independently for every row from that Property's trusted timezone. A Fleet average is weighted by eligible rating count, exposes its total sample, and its per-row comparison is an absolute star delta only when both periods have at least ten eligible ratings.
@@ -105,7 +105,7 @@ dashboard/
 | `getStaffDashboardData` | organizationId, userId, propertyId, portalId?, timeRange, propertyTimezone  | `StaffDashboardData`   | Staff-scoped dashboard aggregation filtered to assigned portals.                                                                                                                                    |
 | `getAttentionSignals`   | organizationId, propertyId, timeRange, propertyTimezone                     | `AttentionSignals`     | Five attention reasons plus the distinct work total for one property; Inbox owns the overdue response-target count.                                                                                 |
 | `getFleetOverview`      | organizationId, properties[], timeRange                                     | `FleetOverviewData`    | Cross-property aggregation: per-property attention + KPI summary, name-ordered and keyset-paginated, with one batched Inbox target read for the page. Property identities are resolved server-side. |
-| `getSetupChecklist`     | organizationId, role, exact Property scope, allowed actions                 | `SetupChecklist`       | Derives five canonical facts, records only missing first-completion timestamps, and returns complete/incomplete/waiting/no-access/degraded states with authorized actions.                          |
+| `getSetupChecklist`     | organizationId, role, exact Property scope, allowed actions                 | `SetupChecklist`       | Derives four canonical facts, records only missing first-completion timestamps, and returns complete/incomplete/waiting/no-access/degraded states with authorized actions.                          |
 
 ## Public API
 
@@ -144,7 +144,7 @@ Dashboard defines facade ports (per ADR-0007 / ADR-0008) for cross-context data:
 - **PortalResponseIntegrityPort** — current content-free Guest response-integrity counts. Implemented by the Guest context public API wired at composition.
 - **StaffPortalResolverPort** — resolves which portals a staff user has access to for a given property. Implemented by staff context adapter.
 - **AttentionSignalsPort** — open-Inbox, active-escalation, goals-behind-pace, and distinct-work counts per property. Implemented by `attention-signals.adapter.ts`; overdue Google response-target counts come from Inbox's public API at each property or Fleet use-case boundary.
-- **SetupChecklistRepository** — one transaction reads the five content-minimal canonical facts under tenant/Property scope and inserts missing `setup_checklist_milestones`; it cannot fake, update, or delete completion.
+- **SetupChecklistRepository** — one transaction reads the four content-minimal canonical facts under tenant/Property scope and inserts missing `setup_checklist_milestones`; it cannot fake, update, or delete completion.
 
 Review stats, governed Portal metrics, and Guest integrity counts arrive through composition-wired owner APIs. The remaining Metric reads are limited by the executable MET-01 authority inventory to two named Dashboard projections. The legacy KPI projection now pins the four Portal analytics definition versions, registry consumer/source policy, current correction tips, and minimum-sample signals. The Fleet projection pins its three versions and returns per-family evidence. Both run under the shared statement timeout (`DASHBOARD_READ_BUDGET_MS`). Cache policy is deliberately NONE server-side (client TanStack Query staleTimes are the cache policy — a server cache would be a second read model beside the authoritative query path). Inbox and Goal projection reads remain separately catalogued owner-contract work; neither widens Metric authority.
 

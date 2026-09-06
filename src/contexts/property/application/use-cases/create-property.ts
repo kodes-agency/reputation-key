@@ -98,9 +98,7 @@ export const createProperty =
       )
     }
 
-    // 4. Build domain object. Every new active Property must receive an
-    // immutable Data Cell assignment; unresolved rows are legacy/reconciliation
-    // states and cannot be created through this command.
+    // 4. Build the Property from its country and timezone business facts.
     const propertyResult = buildProperty({
       id: deps.idGen(),
       organizationId: ctx.organizationId,
@@ -118,12 +116,6 @@ export const createProperty =
     }
 
     const property = propertyResult.value
-    if (property.dataCellId === null) {
-      throw propertyError(
-        'invalid_country',
-        'country does not resolve to an approved Data Cell',
-      )
-    }
 
     // 5. Persist + fact — atomic via the command store (BQC-3.5)
     await deps.commandStore.createProperty({
@@ -134,9 +126,6 @@ export const createProperty =
         organizationId: property.organizationId,
         name: property.name,
         slug: property.slug,
-        // BQC-4.1: content-free routing fact travels with the creation fact.
-        processingRegion: property.processingRegion ?? undefined,
-        dataCellId: property.dataCellId ?? undefined,
         occurredAt: property.createdAt,
       }),
     })

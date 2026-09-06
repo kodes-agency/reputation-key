@@ -2,12 +2,11 @@
 // Per architecture: integration tests against real Postgres.
 // Tenant isolation test is NON-NEGOTIABLE.
 
-import { beforeEach, describe, it, expect } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { createGoogleConnectionRepository } from './google-connection.repository'
 import { getDb } from '#/shared/db'
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
 import { organizationId, userId, googleConnectionId } from '#/shared/domain/ids'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import type { PropertyFkCleanupPort } from '../../application/ports/property-fk-cleanup.port'
 
@@ -18,25 +17,7 @@ const REPOSITORY_NOW = new Date('2026-04-10T12:34:56.789Z')
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
-  tables: ['google_connections', 'google_organization_credential_homes'],
-})
-
-beforeEach(async () => {
-  for (const organization of [ORG_A, ORG_B]) {
-    await getPool().query(
-      `INSERT INTO google_organization_credential_homes (
-         organization_id, authority_generation, home_cell_id,
-         catalogue_policy_version, transition_reason, changed_by,
-         effective_from, created_at, updated_at
-       ) VALUES ($1, 1, 'us', $2, 'new_grant', $3, $4, $4, $4)`,
-      [
-        organization,
-        DATA_CELL_CATALOGUE_POLICY_VERSION,
-        'user-google-connection-repository-test',
-        new Date('2026-04-10T12:00:00.000Z'),
-      ],
-    )
-  }
+  tables: ['google_connections'],
 })
 
 /** No-op FK cleanup for integration tests — we don't test FK nulling here. */

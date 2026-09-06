@@ -93,7 +93,6 @@ describe('run record store', () => {
     versions: {
       capabilityPolicy: 'cap-1',
       policyStore: 7,
-      routingPolicy: 1,
       sourceContentPolicy: 3,
     },
     slo: { rate: 20, duration: 1800, noLoss: true },

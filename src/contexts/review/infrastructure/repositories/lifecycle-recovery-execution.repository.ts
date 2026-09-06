@@ -30,7 +30,6 @@ function sameExecutionBinding(
     row.approvalKeyId === input.approvalKeyId &&
     sameInstant(row.approvedAt, input.approvedAt) &&
     sameInstant(row.expiresAt, input.expiresAt) &&
-    row.dataCellId === input.dataCellId &&
     row.releaseSha === input.releaseSha &&
     row.releaseManifestSha256 === input.releaseManifestSha256 &&
     sameInstant(row.restorePointAt, input.restorePointAt) &&
@@ -112,7 +111,7 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
     resume: async (input) =>
       db.transaction(async (tx) => {
         await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtext('repkey.review-lifecycle-recovery'), hashtext(${input.dataCellId}))`,
+          sql`SELECT pg_advisory_xact_lock(hashtext('repkey.review-lifecycle-recovery'), 0)`,
         )
         const candidates = await tx
           .select()
@@ -125,12 +124,9 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
                 reviewLifecycleRecoveryExecutions.approvalBundleSha256,
                 input.approvalBundleSha256,
               ),
-              and(
-                eq(reviewLifecycleRecoveryExecutions.dataCellId, input.dataCellId),
-                eq(
-                  reviewLifecycleRecoveryExecutions.recoveryGeneration,
-                  input.recoveryGeneration,
-                ),
+              eq(
+                reviewLifecycleRecoveryExecutions.recoveryGeneration,
+                input.recoveryGeneration,
               ),
             ),
           )
@@ -152,7 +148,6 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
           .select({
             id: recoveryRuns.id,
             generation: recoveryRuns.generation,
-            dataCellId: recoveryRuns.dataCellId,
             sourceReleaseSha: recoveryRuns.sourceReleaseSha,
             sourceManifestSha256: recoveryRuns.sourceManifestSha256,
             restorePointAt: recoveryRuns.restorePointAt,
@@ -161,12 +156,8 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
           .where(
             or(
               eq(recoveryRuns.id, input.recoveryRunId),
+              eq(recoveryRuns.generation, input.recoveryGeneration),
               and(
-                eq(recoveryRuns.dataCellId, input.dataCellId),
-                eq(recoveryRuns.generation, input.recoveryGeneration),
-              ),
-              and(
-                eq(recoveryRuns.dataCellId, input.dataCellId),
                 eq(recoveryRuns.sourceManifestSha256, input.releaseManifestSha256),
                 eq(recoveryRuns.restorePointAt, input.restorePointAt),
               ),
@@ -177,7 +168,6 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
           (row) =>
             row.id === input.recoveryRunId &&
             row.generation === input.recoveryGeneration &&
-            row.dataCellId === input.dataCellId &&
             row.sourceReleaseSha === input.releaseSha &&
             row.sourceManifestSha256 === input.releaseManifestSha256 &&
             sameInstant(row.restorePointAt, input.restorePointAt),
@@ -196,7 +186,7 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
     begin: async (input) =>
       db.transaction(async (tx) => {
         await tx.execute(
-          sql`SELECT pg_advisory_xact_lock(hashtext('repkey.review-lifecycle-recovery'), hashtext(${input.dataCellId}))`,
+          sql`SELECT pg_advisory_xact_lock(hashtext('repkey.review-lifecycle-recovery'), 0)`,
         )
 
         const candidates = await tx
@@ -210,12 +200,9 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
                 reviewLifecycleRecoveryExecutions.approvalBundleSha256,
                 input.approvalBundleSha256,
               ),
-              and(
-                eq(reviewLifecycleRecoveryExecutions.dataCellId, input.dataCellId),
-                eq(
-                  reviewLifecycleRecoveryExecutions.recoveryGeneration,
-                  input.recoveryGeneration,
-                ),
+              eq(
+                reviewLifecycleRecoveryExecutions.recoveryGeneration,
+                input.recoveryGeneration,
               ),
             ),
           )
@@ -239,7 +226,6 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
           .select({
             id: recoveryRuns.id,
             generation: recoveryRuns.generation,
-            dataCellId: recoveryRuns.dataCellId,
             sourceReleaseSha: recoveryRuns.sourceReleaseSha,
             sourceManifestSha256: recoveryRuns.sourceManifestSha256,
             restorePointAt: recoveryRuns.restorePointAt,
@@ -248,12 +234,8 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
           .where(
             or(
               eq(recoveryRuns.id, input.recoveryRunId),
+              eq(recoveryRuns.generation, input.recoveryGeneration),
               and(
-                eq(recoveryRuns.dataCellId, input.dataCellId),
-                eq(recoveryRuns.generation, input.recoveryGeneration),
-              ),
-              and(
-                eq(recoveryRuns.dataCellId, input.dataCellId),
                 eq(recoveryRuns.sourceManifestSha256, input.releaseManifestSha256),
                 eq(recoveryRuns.restorePointAt, input.restorePointAt),
               ),
@@ -264,7 +246,6 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
           (row) =>
             row.id === input.recoveryRunId &&
             row.generation === input.recoveryGeneration &&
-            row.dataCellId === input.dataCellId &&
             row.sourceReleaseSha === input.releaseSha &&
             row.sourceManifestSha256 === input.releaseManifestSha256 &&
             sameInstant(row.restorePointAt, input.restorePointAt),
@@ -285,7 +266,6 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
         const generationRows = await tx.execute(sql`
           SELECT COALESCE(MAX(generation), 0)::int + 1 AS next_generation
           FROM recovery_runs
-          WHERE data_cell_id = ${input.dataCellId}
         `)
         const nextGeneration = Number(generationRows.rows[0]?.next_generation)
         if (nextGeneration !== input.recoveryGeneration) {
@@ -295,16 +275,11 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
           .select({ id: reviewLifecycleRecoveryExecutions.id })
           .from(reviewLifecycleRecoveryExecutions)
           .where(
-            and(
-              eq(reviewLifecycleRecoveryExecutions.dataCellId, input.dataCellId),
-              sql`${reviewLifecycleRecoveryExecutions.state} IN ('applying', 'lifecycle_applied')`,
-            ),
+            sql`${reviewLifecycleRecoveryExecutions.state} IN ('applying', 'lifecycle_applied')`,
           )
           .limit(1)
         if (active[0]) {
-          throw new Error(
-            'Another Review lifecycle recovery execution is already active in this Data Cell',
-          )
+          throw new Error('Another Review lifecycle recovery execution is already active')
         }
 
         await tx.insert(reviewLifecycleRecoveryExecutions).values({
@@ -316,7 +291,6 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
           approvalKeyId: input.approvalKeyId,
           approvedAt: input.approvedAt,
           expiresAt: input.expiresAt,
-          dataCellId: input.dataCellId,
           releaseSha: input.releaseSha,
           releaseManifestSha256: input.releaseManifestSha256,
           restorePointAt: input.restorePointAt,
@@ -409,25 +383,21 @@ export const createReviewLifecycleRecoveryExecutionRepository = (
 
 /** Read-only recovery-plan allocation facts kept behind Review infrastructure. */
 export const createReviewLifecycleRecoveryPlanningQuery = (db: Database) => ({
-  loadNextRecoveryGeneration: async (dataCellId: string): Promise<number> => {
+  loadNextRecoveryGeneration: async (): Promise<number> => {
     const result = await db.execute(sql`
       SELECT
         (SELECT COALESCE(MAX(generation), 0)::int + 1
-         FROM recovery_runs
-         WHERE data_cell_id = ${dataCellId}) AS next_generation,
+         FROM recovery_runs) AS next_generation,
         EXISTS (
           SELECT 1
           FROM review_lifecycle_recovery_executions
-          WHERE data_cell_id = ${dataCellId}
-            AND state IN ('applying', 'lifecycle_applied')
+          WHERE state IN ('applying', 'lifecycle_applied')
         ) AS active_execution
     `)
     const row = result.rows[0] as
       { next_generation?: number | string; active_execution?: boolean } | undefined
     if (row?.active_execution) {
-      throw new Error(
-        'An unfinished Review lifecycle recovery execution already exists in this Data Cell',
-      )
+      throw new Error('An unfinished Review lifecycle recovery execution already exists')
     }
     const generation = Number(row?.next_generation)
     if (!Number.isSafeInteger(generation) || generation < 1) {

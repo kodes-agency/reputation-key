@@ -1,13 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import {
-  googleConnectionId,
-  organizationId,
-  propertyId,
-  userId,
-} from '#/shared/domain/ids'
+import { organizationId, userId } from '#/shared/domain/ids'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import { OutboxPayloadError } from '#/shared/outbox/event-adapter'
 import { isBannedLogKey } from '#/shared/observability/metrics-schema'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -107,50 +101,6 @@ function startInput(candidateRefs: readonly string[] = [REF_A]) {
       },
     })),
   })
-}
-
-function propertyApi(): PropertyGoogleBindingPublicApi {
-  return {
-    readInternal: vi.fn(async () => null),
-    readByLocationIds: vi.fn(async () => []),
-    readSummary: vi.fn(async () => null),
-    readReceipt: vi.fn(async () => null),
-    createBoundProperty: vi.fn(async () => ({
-      propertyId: propertyId('00000000-0000-4000-8000-000000000009'),
-      outcome: 'imported' as const,
-      sourceEpoch: 1,
-      profileVersion: 1,
-      replayed: false,
-      tombstone: false,
-    })),
-    relink: vi.fn(async () => ({
-      propertyId: propertyId('00000000-0000-4000-8000-000000000009'),
-      outcome: 'relinked' as const,
-      sourceEpoch: 1,
-      profileVersion: 1,
-      replayed: false,
-      tombstone: false,
-    })),
-    disconnect: vi.fn(async () => ({
-      state: 'disconnected' as const,
-      sourceEpoch: 1,
-      profileVersion: 1,
-      profileSource: 'tenant_confirmed' as const,
-      profileConfirmedAt: NOW,
-    })),
-    scrubProviderIdentity: vi.fn(async () => ({
-      state: 'disconnected' as const,
-      sourceEpoch: 1,
-      profileVersion: 1,
-      profileSource: 'tenant_confirmed' as const,
-      profileConfirmedAt: NOW,
-    })),
-    releaseRetention: vi.fn(async () => 0),
-    releaseRetentionFromEvent: vi.fn(async () => 'applied' as const),
-    sweepReleasedExpired: vi.fn(async () => 0),
-    countUnreleasedExpired: vi.fn(async () => 0),
-    cleanupOrganization: vi.fn(async () => 0),
-  }
 }
 
 function referenceStore(claims: readonly ClaimedImportCandidate[]) {
@@ -280,7 +230,6 @@ function setup(
   candidateRefs: readonly string[] = [REF_A],
   overrides?: Readonly<{
     cancelImportSaga?: (organizationId: string, importJobId: string) => Promise<void>
-    propertyBindingApi?: PropertyGoogleBindingPublicApi
   }>,
 ) {
   const refs = referenceStore(
@@ -300,7 +249,6 @@ function setup(
   const transaction = createGoogleImportTransaction({
     store: stored.store,
     references: refs.references,
-    propertyBindingApi: overrides?.propertyBindingApi ?? propertyApi(),
     authorizeGoogleImportCommand,
     replayKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
     clock: () => NOW,
@@ -347,7 +295,6 @@ describe('Google import transaction', () => {
             {
               providerAccountSuffix: 'account-1',
               providerLocationSuffix: 'location-1',
-              processingRegion: 'us',
               effectDeadlineAt: new Date('2026-08-13T10:00:00.000Z'),
             },
           ],
@@ -381,86 +328,6 @@ describe('Google import transaction', () => {
     ])
     expect(fixture.consumeCandidateClaims).toHaveBeenCalledTimes(3)
     expect(fixture.commitIntent).not.toHaveBeenCalled()
-  })
-
-  it('fails closed before commit when a selected Data Cell is not accepting', async () => {
-    const existingPropertyId = propertyId('00000000-0000-4000-8000-000000000020')
-    const dormantPropertyApi = {
-      ...propertyApi(),
-      readInternal: vi.fn(async () => ({
-        organizationId: actor.organizationId,
-        propertyId: existingPropertyId,
-        state: 'disconnected' as const,
-        connectionId: googleConnectionId(CONNECTION_ID),
-        accountId: 'account-1',
-        locationId: 'location-1',
-        sourceEpoch: 7,
-        profileVersion: 3,
-        profileSource: 'tenant_confirmed' as const,
-        profileConfirmedAt: NOW,
-        deletedAt: null,
-        name: 'Cafe One',
-        address: '1 Main Street',
-        countryCode: 'GB',
-        timezone: 'Europe/London',
-        processingRegion: 'europe',
-        lifecycleState: 'active',
-        googleReviewDestination: {
-          state: 'unavailable' as const,
-          uri: null,
-          retrievedAt: null,
-          sourceEpoch: null,
-          profileVersion: null,
-        },
-      })),
-    } satisfies PropertyGoogleBindingPublicApi
-    const fixture = setup([REF_A], { propertyBindingApi: dormantPropertyApi })
-    const claim = createClaim(REF_A)
-    fixture.claimCandidates.mockResolvedValueOnce({
-      ok: true,
-      candidates: [
-        {
-          ...claim,
-          candidate: {
-            ...claim.candidate,
-            eligibility: {
-              kind: 'relink',
-              propertyId: existingPropertyId,
-              profile: {
-                name: 'Cafe One',
-                address: '1 Main Street',
-                countryCode: 'GB',
-                timezone: 'Europe/London',
-                profileVersion: 3,
-              },
-            },
-            expectedSourceEpoch: 7,
-            expectedProfileVersion: 3,
-            affectedPropertyId: existingPropertyId,
-          },
-        },
-      ],
-    })
-    const input = startPropertyImportInputSchema.parse({
-      requestId: REQUEST_ID,
-      confirmation: 'apply',
-      items: [
-        {
-          candidateRef: REF_A,
-          action: 'relink',
-          existingPropertyId,
-          profile: {
-            timezone: 'Europe/London',
-            confirmed: true,
-            updateExistingProfile: false,
-          },
-        },
-      ],
-    })
-
-    await expectCode(fixture.transaction.start(input, actor), 'invalid_reference')
-    expect(fixture.commitSaga).not.toHaveBeenCalled()
-    expect(fixture.releaseCandidateClaims).toHaveBeenCalledTimes(1)
   })
 
   it('replays reordered exact requests after candidate references are gone', async () => {
@@ -665,7 +532,6 @@ describe('Google import transaction', () => {
         imported: 0,
         relinked: 0,
         already_exists: 0,
-        region_unavailable: 0,
         failed: 0,
         cancelled: 0,
       },
@@ -809,7 +675,6 @@ describe('Google import transaction', () => {
         imported: 0,
         relinked: 0,
         already_exists: 0,
-        region_unavailable: 0,
         failed: 1,
         cancelled: 0,
       },

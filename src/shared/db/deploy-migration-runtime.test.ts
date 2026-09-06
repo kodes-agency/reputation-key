@@ -8,10 +8,9 @@ import {
 import { CURRENT_RELEASE_POSTURE } from '#/shared/release/release-posture'
 import { authorizeDeployMigrationRuntime } from './deploy-migration-runtime'
 
-/** The dedicated single-US cell every posture above `closed-beta` must use. */
-const dedicatedCell = {
+/** The Railway target every posture above `closed-beta` must use. */
+const publicBeta = {
   NODE_ENV: 'production',
-  PROCESSING_CELL: 'us',
   REPKEY_RAILWAY_DEPLOYMENT_PROFILE: 'production',
   RAILWAY_PROJECT_NAME: PRODUCTION_RAILWAY_PROJECT_NAME,
   RAILWAY_PROJECT_ID: 'project-opaque-id',
@@ -22,7 +21,7 @@ const dedicatedCell = {
 
 /** Where the closed beta actually runs — read from the live project. */
 const closedBeta = {
-  ...dedicatedCell,
+  ...publicBeta,
   RAILWAY_PROJECT_NAME: CLOSED_BETA_RAILWAY_PROJECT_NAME,
   RAILWAY_ENVIRONMENT_NAME: CLOSED_BETA_RAILWAY_ENVIRONMENT_NAME,
   RAILWAY_SERVICE_NAME: 'web',
@@ -38,14 +37,14 @@ describe('deploy migration runtime authority', () => {
   it('never lets the local bypass disable Railway identity checks', () => {
     expect(() =>
       authorizeDeployMigrationRuntime({
-        ...dedicatedCell,
+        ...publicBeta,
         DEPLOY_MIGRATE: '1',
       }),
     ).toThrow('local/CI bypass and is refused on Railway')
   })
 
-  it('accepts only the schema migrator or web inside the exact single-US target', () => {
-    expect(authorizeDeployMigrationRuntime(dedicatedCell, 'open-beta')).toEqual({
+  it('accepts only the schema migrator or web inside the exact public-beta target', () => {
+    expect(authorizeDeployMigrationRuntime(publicBeta, 'open-beta')).toEqual({
       mode: 'railway',
       deploymentProfile: 'production',
       projectId: 'project-opaque-id',
@@ -54,7 +53,7 @@ describe('deploy migration runtime authority', () => {
     })
     expect(
       authorizeDeployMigrationRuntime(
-        { ...dedicatedCell, RAILWAY_SERVICE_NAME: 'web' },
+        { ...publicBeta, RAILWAY_SERVICE_NAME: 'web' },
         'open-beta',
       ),
     ).toMatchObject({ mode: 'railway', service: 'web' })
@@ -64,7 +63,7 @@ describe('deploy migration runtime authority', () => {
     expect(
       authorizeDeployMigrationRuntime(
         {
-          ...dedicatedCell,
+          ...publicBeta,
           REPKEY_RAILWAY_DEPLOYMENT_PROFILE: 'rehearsal',
           RAILWAY_PROJECT_NAME: REHEARSAL_RAILWAY_PROJECT_NAME,
         },
@@ -74,15 +73,14 @@ describe('deploy migration runtime authority', () => {
   })
 
   it.each([
-    [{ ...dedicatedCell, PROCESSING_CELL: 'global' }, 'PROCESSING_CELL'],
     [
-      { ...dedicatedCell, RAILWAY_ENVIRONMENT_NAME: 'cell-global' },
+      { ...publicBeta, RAILWAY_ENVIRONMENT_NAME: 'cell-global' },
       'Railway environment mismatch',
     ],
-    [{ ...dedicatedCell, RAILWAY_SERVICE_NAME: 'worker' }, 'RAILWAY_SERVICE_NAME'],
-    [{ ...dedicatedCell, RAILWAY_PROJECT_ID: '' }, 'RAILWAY_PROJECT_ID'],
+    [{ ...publicBeta, RAILWAY_SERVICE_NAME: 'worker' }, 'RAILWAY_SERVICE_NAME'],
+    [{ ...publicBeta, RAILWAY_PROJECT_ID: '' }, 'RAILWAY_PROJECT_ID'],
     [
-      { ...dedicatedCell, RAILWAY_PROJECT_NAME: REHEARSAL_RAILWAY_PROJECT_NAME },
+      { ...publicBeta, RAILWAY_PROJECT_NAME: REHEARSAL_RAILWAY_PROJECT_NAME },
       'Railway project mismatch',
     ],
   ])('refuses a production runtime outside its exact authority', (env, error) => {
@@ -119,11 +117,11 @@ describe('deploy migration runtime authority', () => {
       })
     })
 
-    it('still refuses the dedicated cell while the beta is closed', () => {
-      // Not symmetric with the widening case, and deliberately so: a migration
-      // aimed at the production cell from a closed-beta build is a mix-up in
-      // the more dangerous direction.
-      expect(() => authorizeDeployMigrationRuntime(dedicatedCell, 'closed-beta')).toThrow(
+    it('still refuses the public-beta target while the beta is closed', () => {
+      // Not symmetric with the widening case: a migration aimed at the
+      // public-beta target from a closed-beta build is a mix-up in the more
+      // dangerous direction.
+      expect(() => authorizeDeployMigrationRuntime(publicBeta, 'closed-beta')).toThrow(
         'Railway project mismatch',
       )
     })

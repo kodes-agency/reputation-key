@@ -15,8 +15,8 @@ valid.
 One approval request binds all of the following:
 
 - the 40-character release SHA and signed release-manifest SHA-256;
-- the exact Data Cell, provider restore point, restored database service,
-  Railway project, and Railway environment;
+- the provider restore point, restored database service, Railway project, and
+  Railway environment;
 - a pre-generated recovery run UUID and the next cell recovery generation;
 - `review-source-content-lifecycle-v1`, global `expired` scope, the frozen
   evaluation instant, and the fixed maximum batch size of 100;
@@ -45,12 +45,11 @@ most 100 scanned rows, and permit only the forward
    full Review report and shadow views at one frozen instant. It prints:
    - the canonical aggregate report and its SHA-256;
    - the canonical approval request and its SHA-256; and
-   - the other retention, import, recovery-authority, and Data Cell move
-     inventories.
+   - the other retention, import, and recovery-authority inventories.
 4. Save those exact one-line canonical JSON artifacts in the controlled change
    record. A later dry run creates a different recovery UUID and is a new
    request; approve only the artifact intended for the apply attempt.
-5. Stop if there is an unresolved Data Cell move, unexplained shadow finding,
+5. Stop if there is an unexplained shadow finding,
    wrong target identity, or unreviewed policy/version change. Do not edit the
    request by hand and do not infer a missing value.
 

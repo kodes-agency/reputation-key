@@ -26,12 +26,6 @@ type PropertyLookupResult = Readonly<{
   sourceEpoch: number
 }>
 
-// Sanctioned fail-closed cell gates for protected workloads (BQC-4.1 / ADR 0048).
-export {
-  ROUTING_POLICY_VERSION,
-  isRegionProcessable,
-  assertRegionResolved,
-} from '../domain/processing-routing'
 /** Content-free property facts for governed cross-context workflows. */
 export type PropertyFactsPublicApi = Readonly<{
   getPropertyTimezone: (
@@ -40,12 +34,12 @@ export type PropertyFactsPublicApi = Readonly<{
   ) => Promise<string | null>
 }>
 
-/** Region and binding generation read from one property snapshot. */
-export type PropertyProcessingScopePublicApi = Readonly<{
-  getProcessingScope: (
+/** Current binding generation read from one Property snapshot. */
+export type PropertySourceEpochPublicApi = Readonly<{
+  getSourceEpoch: (
     orgId: OrganizationId,
     propertyId: PropertyId,
-  ) => Promise<Readonly<{ processingRegion: string | null; sourceEpoch: number }> | null>
+  ) => Promise<Readonly<{ sourceEpoch: number }> | null>
 }>
 
 /** Server-only binding lifecycle API. Provider identifiers never enter browser DTOs. */
@@ -125,16 +119,7 @@ export type PropertyPublicApi = Readonly<{
     orgId: OrganizationId,
     connectionId: GoogleConnectionId,
   ) => Promise<void>
-
-  /**
-   * Get a property's persisted processing region (content-free routing fact).
-   * Returns null when the property is missing/deleted — callers must treat
-   * null as not processable (fail closed, ADR 0048 / BQC-4.1).
-   */
-  getProcessingRegion: (
-    orgId: OrganizationId,
-    propertyId: PropertyId,
-  ) => Promise<string | null>
-}>
+}> &
+  PropertySourceEpochPublicApi
 
 export type { GoogleBindingState } from '../domain/google-binding-contract'

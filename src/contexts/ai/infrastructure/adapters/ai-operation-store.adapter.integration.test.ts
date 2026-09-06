@@ -539,7 +539,6 @@ describe('AI operation store (real PostgreSQL)', () => {
       slug: 'ai-operation-test-property',
       timezone: 'America/New_York',
       countryCode: 'US',
-      processingRegion: 'global',
       sourceEpoch: 2,
     })
     await db.insert(propertyPortalBrandProfiles).values({

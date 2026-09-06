@@ -38,7 +38,7 @@ Analysis. A capability being present in code or schema is not activation.
    content, Private Portal ratings, feedback, contact details, Inbox notes,
    manager-internal text, and Guest media never enter AI admission, prompts,
    outputs, logs, or derived tables.
-2. Every operation is fenced by Organization, Property, Data Cell/source epoch,
+2. Every operation is fenced by Organization, Property, source epoch,
    source revision, authorization epoch, capability epoch, policy/profile
    versions, model/deployment, idempotency key, and lifecycle generation.
 3. Authorization is a maximum allowed capability set. A PropertyManager may

@@ -45,10 +45,7 @@ export type GoogleProviderAuthorityAdmissionCode =
 export type GoogleProviderAdmissionCode =
   | GoogleProviderGatewayAdmissionCode
   | GoogleProviderAuthorityAdmissionCode
-  | 'wrong_cell'
-  | 'cell_unavailable'
-  | 'credential_home_unavailable'
-  | 'credential_home_mismatch'
+  | 'credential_unavailable'
   | 'runtime_unavailable'
 
 export type GoogleProviderExecutionResult =

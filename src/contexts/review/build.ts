@@ -11,7 +11,7 @@ import type { Pool } from 'pg'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { JobRegistry } from '#/shared/jobs/registry'
 import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
-import type { PropertyRoutingPort } from './application/ports/property-routing.port'
+import type { PropertySourceEpochPort } from './application/ports/property-source-epoch.port'
 import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReviewObservationRepository } from './application/ports/review-observation.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
@@ -22,12 +22,9 @@ import type {
   TargetedGoogleReviewQueuePort,
 } from './application/ports/review-queue.port'
 import type { TargetedGoogleReviewReferenceResolver } from './application/ports/targeted-google-review-reference.port'
-import type {
-  PublishReplyJobData,
-  ReplyQueuePort,
-} from './application/ports/reply-queue.port'
+import type { ReplyQueuePort } from './application/ports/reply-queue.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { PropertyProcessingScopePublicApi } from '#/contexts/property/application/public-api'
+import type { PropertySourceEpochPublicApi } from '#/contexts/property/application/public-api'
 import type { AiReplyProvenancePublicKeyring } from './application/ports/ai-suggested-draft-store.port'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import { createReviewOrganizationExportContributor } from './infrastructure/adapters/review-organization-export.adapter'
@@ -95,13 +92,6 @@ import { reviewId, replyId } from '#/shared/domain/ids'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import { registerReplyPublicationConsumers } from './infrastructure/outbox-consumers'
-import { createPublishReplyScopeResolver } from './infrastructure/jobs/publish-reply-scope-resolver'
-import { JOB_NAME as PUBLISH_REPLY_JOB_NAME } from './infrastructure/jobs/publish-reply.job'
-import type {
-  ProcessingRouter,
-  RoutingEnvelope,
-  WorkloadClass,
-} from '#/shared/routing/processing-router'
 
 export type ReviewContextBuildInput = Readonly<{
   db: Database
@@ -122,19 +112,8 @@ export type ReviewContextBuildInput = Readonly<{
   staffPublicApi: StaffPublicApi
   /** Identity-owned current actor/member/permission/Property decision. */
   publicationActorAuthority: ReplyPublicationActorAuthority
-  /**
-   * BQC-4.1: fail-closed region gate for review sync (ADR 0048). The property
-   * context owns the routing fact — the build wraps its public API into
-   * review's PropertyRoutingPort.
-   */
-  propertyApi: PropertyProcessingScopePublicApi
-  /**
-   * BQC-4.2: stamps the content-free routing envelope on sync/publish job
-   * payloads at enqueue. Optional — when absent (or when resolution fails),
-   * jobs enqueue UNSTAMPED and the worker's dispatch-time routing gate
-   * remains the authority (ADR 0048).
-   */
-  processingRouter?: ProcessingRouter
+  /** Property-owned source epoch used to reject stale provider work. */
+  propertyApi: PropertySourceEpochPublicApi
   /** Worker-only Review provider-subject key material; absent on web. */
   providerSubjectKeyring?: ReviewProviderSubjectSecretKeyring
   /** Web-side verification keys for browser-held AI reply suggestions. */
@@ -306,60 +285,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     )
   const jobQueue = input.jobQueue
 
-  // BQC-4.2: stamp the content-free routing envelope at enqueue. The stamp is
-  // telemetry — the worker re-resolves routing at dispatch and the fresh
-  // decision is the authority (a payload region is never accepted on its
-  // own). Best-effort: a blocked decision, a lookup failure, or a missing
-  // router degrades to an UNSTAMPED envelope; the job still enqueues.
-  const stampRouting = async (
-    propertyId: string | undefined,
-    workloadClass: WorkloadClass,
-  ): Promise<RoutingEnvelope | undefined> => {
-    const router = input.processingRouter
-    if (!router || !propertyId) return undefined
-    try {
-      const subject = { kind: 'property', propertyId } as const
-      const decision = await router.resolve(subject, workloadClass)
-      if (decision.kind !== 'target') return undefined
-      return {
-        subject,
-        cell: decision.cell,
-        region: decision.region,
-        workloadClass,
-        routingPolicyVersion: decision.routingPolicyVersion,
-      }
-    } catch (err) {
-      input.logger.warn(
-        { err, workloadClass },
-        'routing envelope stamp failed at enqueue — enqueueing unstamped (dispatch gate is the authority)',
-      )
-      return undefined
-    }
-  }
-
-  // Publish envelopes carry replyId only — resolve reply → propertyId at
-  // enqueue with the same identifier-only lookup the dispatch gate uses.
-  const resolvePublishPropertyId = createPublishReplyScopeResolver({ db: input.db })
-  const stampPublishRouting = async (
-    data: PublishReplyJobData,
-  ): Promise<RoutingEnvelope | undefined> => {
-    if (!input.processingRouter) return undefined
-    let propertyId: string | undefined
-    try {
-      propertyId = await resolvePublishPropertyId(PUBLISH_REPLY_JOB_NAME, data)
-    } catch (err) {
-      input.logger.warn(
-        { err },
-        'publish routing scope lookup failed at enqueue — enqueueing unstamped (dispatch gate is the authority)',
-      )
-      return undefined
-    }
-    return stampRouting(propertyId, 'reply.publish')
-  }
-
   const queue: ReviewQueuePort = {
     addSyncJob: async (data, options) => {
-      const routing = await stampRouting(data.propertyId, 'review.sync')
       const execution = createJobExecutionEnvelope({
         organizationId: data.organizationId,
         propertyId: data.propertyId,
@@ -369,7 +296,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       })
       await jobQueue.add(
         'sync-property-reviews',
-        { ...data, ...execution, ...(routing ? { routing } : {}) },
+        { ...data, ...execution },
         {
           jobId: options?.jobId,
           ...(options?.delayMs === undefined ? {} : { delay: options.delayMs }),
@@ -384,7 +311,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
 
   const targetedQueue: TargetedGoogleReviewQueuePort = {
     addTargetedFetchJob: async (data, options) => {
-      const routing = await stampRouting(data.propertyId, 'review.sync')
       const execution = createJobExecutionEnvelope({
         organizationId: data.organizationId,
         propertyId: data.propertyId,
@@ -394,7 +320,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       })
       await jobQueue.add(
         'sync-property-reviews',
-        { ...data, ...execution, ...(routing ? { routing } : {}) },
+        { ...data, ...execution },
         {
           jobId: options.jobId,
           removeOnComplete: { count: 100 },
@@ -407,18 +333,16 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
 
   const replyQueue: ReplyQueuePort = {
     addPublishJob: async (data, options) => {
-      const routing = await stampPublishRouting(data)
       const execution = createJobExecutionEnvelope({
         organizationId: data.organizationId,
-        propertyId:
-          routing?.subject.kind === 'property' ? routing.subject.propertyId : undefined,
+        propertyId: data.propertyId,
         capability: 'property.publish_reply',
         initiator: data.initiator ?? { kind: 'system', id: 'queue:reply-publish' },
         correlationId: data.correlationId,
       })
       await jobQueue.add(
         'publish-reply',
-        { ...data, ...execution, ...(routing ? { routing } : {}) },
+        { ...data, ...execution },
         {
           // BQC-3.3: saga idempotency key as BullMQ jobId — a duplicate enqueue
           // of the same approval cycle is deduped by the queue.
@@ -433,10 +357,10 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     },
   }
 
-  // Read the cell and source epoch atomically so review synchronization can
-  // reject provider results after a relink/disconnect race.
-  const propertyRoutingLookup: PropertyRoutingPort = {
-    getProcessingScope: (orgId, pid) => input.propertyApi.getProcessingScope(orgId, pid),
+  // Read the source epoch atomically so review synchronization can reject
+  // provider results after a relink or disconnect race.
+  const propertySourceEpochLookup: PropertySourceEpochPort = {
+    getSourceEpoch: (orgId, pid) => input.propertyApi.getSourceEpoch(orgId, pid),
   }
 
   // BQC-3.3: atomic reply state and outbox writes for the reply command family.
@@ -501,7 +425,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         input.snapshotRunIdGen,
       ),
       googleReviewApi: input.googleReviewApi,
-      propertyRouting: propertyRoutingLookup,
+      propertySourceEpoch: propertySourceEpochLookup,
       observationWriter,
       subjectKeyService: providerSubjectKeys,
       // Discovery-ladder activity stamps (migration 0071): a page that
@@ -513,7 +437,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     runTargetedGoogleReviewFetch: runTargetedGoogleReviewFetch({
       references: targetedReviewReferences,
       googleReviewApi: input.googleReviewApi,
-      propertyRouting: propertyRoutingLookup,
+      propertySourceEpoch: propertySourceEpochLookup,
       observationWriter,
       subjectKeyService: providerSubjectKeys,
       syncActivity,
@@ -579,7 +503,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       replyCommandStore,
       googleReviewApi: input.googleReviewApi,
       staffPublicApi: input.staffPublicApi,
-      propertyRouting: propertyRoutingLookup,
+      propertySourceEpoch: propertySourceEpochLookup,
       runSnapshot: useCases.runReviewProviderSnapshot,
       runTargetedFetch: useCases.runTargetedGoogleReviewFetch,
       runSourceContentLifecycle: useCases.runReviewSourceContentLifecycle,

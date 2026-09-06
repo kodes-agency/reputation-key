@@ -22,8 +22,8 @@ const JOB_DATA = {
   locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
 }
 
-const propertyRouting = {
-  getProcessingScope: vi.fn(async () => ({ processingRegion: 'global', sourceEpoch: 7 })),
+const propertySourceEpoch = {
+  getSourceEpoch: vi.fn(async () => ({ sourceEpoch: 7 })),
 }
 
 const makeSyncActivity = (): ReviewSyncActivityRecorder => ({
@@ -59,7 +59,7 @@ describe('sync-property-reviews snapshot handler', () => {
     const enqueueContinuation = vi.fn(async () => undefined)
     const handler = createSyncPropertyReviewsHandler({
       runSnapshot,
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation,
       ...ladderDeps(makeSyncActivity()),
     })
@@ -89,7 +89,7 @@ describe('sync-property-reviews snapshot handler', () => {
         runId: '44444444-4444-4444-8444-444444444444',
         code: 'authorization_denied' as const,
       })),
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation: vi.fn(async () => undefined),
       ...ladderDeps(makeSyncActivity(), discoveryRepo),
     })
@@ -116,7 +116,7 @@ describe('sync-property-reviews snapshot handler', () => {
         status: 'completed' as const,
         runId: '44444444-4444-4444-8444-444444444444',
       })),
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation: vi.fn(async () => undefined),
       ...ladderDeps(makeSyncActivity(), discoveryRepo),
     })
@@ -134,7 +134,7 @@ describe('sync-property-reviews snapshot handler', () => {
     }))
     const handler = createSyncPropertyReviewsHandler({
       runSnapshot,
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation: vi.fn(async () => undefined),
       ...ladderDeps(makeSyncActivity()),
     })
@@ -167,7 +167,7 @@ describe('sync-property-reviews snapshot handler', () => {
     const handler = createSyncPropertyReviewsHandler({
       runSnapshot: runSnapshot as never,
       runTargetedFetch,
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation: vi.fn(async () => undefined),
       ...ladderDeps(syncActivity),
     })
@@ -206,7 +206,7 @@ describe('sync-property-reviews snapshot handler', () => {
         locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
         reason: 'reference_expired' as const,
       })),
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation,
       ...ladderDeps(makeSyncActivity()),
     })
@@ -253,7 +253,7 @@ describe('sync-property-reviews snapshot handler', () => {
     const enqueueContinuation = vi.fn(async () => undefined)
     const handler = createSyncPropertyReviewsHandler({
       runSnapshot,
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation,
       ...ladderDeps(makeSyncActivity()),
     })
@@ -279,7 +279,7 @@ describe('sync-property-reviews snapshot handler', () => {
     const enqueueContinuation = vi.fn(async () => undefined)
     const handler = createSyncPropertyReviewsHandler({
       runSnapshot,
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation,
       ...ladderDeps(makeSyncActivity()),
     })
@@ -297,7 +297,7 @@ describe('sync-property-reviews snapshot handler', () => {
     const runSnapshot = vi.fn()
     const handler = createSyncPropertyReviewsHandler({
       runSnapshot: runSnapshot as never,
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation: vi.fn(async () => undefined),
       ...ladderDeps(makeSyncActivity()),
     })
@@ -324,7 +324,7 @@ describe('sync-property-reviews snapshot handler', () => {
         status: 'completed' as const,
         runId: '44444444-4444-4444-8444-444444444444',
       })),
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation: vi.fn(async () => undefined),
       ...ladderDeps(syncActivity),
     })
@@ -359,7 +359,7 @@ describe('sync-property-reviews snapshot handler', () => {
         status: 'completed' as const,
         runId: '44444444-4444-4444-8444-444444444444',
       })),
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation: vi.fn(async () => undefined),
       ...ladderDeps(syncActivity),
     })
@@ -382,7 +382,7 @@ describe('sync-property-reviews snapshot handler', () => {
         status: 'completed' as const,
         runId: '44444444-4444-4444-8444-444444444444',
       })),
-      propertyRouting,
+      propertySourceEpoch,
       enqueueContinuation: vi.fn(async () => undefined),
       ...ladderDeps(syncActivity),
     })

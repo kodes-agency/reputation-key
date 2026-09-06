@@ -33,11 +33,9 @@ const MARKERS = Object.freeze({
   providerLocationSuffix: 'NEVER_EXPORT_LOCATION_SUFFIX',
   googleReviewUri: 'https://never-export.example.test/writereview',
   propertyAddress: 'NEVER_EXPORT_PROVIDER_ADDRESS',
-  changeTicket: 'NEVER_EXPORT_CHANGE_TICKET',
   exchangeCiphertext: 'NEVER_EXPORT_EXCHANGE_CIPHERTEXT',
   permitOperationKey: 'NEVER_EXPORT_PERMIT_OPERATION',
   revokeTokenHmac: 'NEVER_EXPORT_REVOKE_TOKEN_HMAC',
-  brokerMaterialLocator: 'NEVER_EXPORT_BROKER_MATERIAL',
   cachePayload: 'NEVER_EXPORT_PROVIDER_CACHE',
   credentialBinding: 'ab'.repeat(32),
   replayDigest: 'NeverExportReplayDigest0123456789012345678A',
@@ -98,24 +96,14 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.memberId, fixture.userId, fixture.organizationId, createdAt],
   )
   await lease.pool.query(
-    `INSERT INTO google_organization_credential_homes (
-       organization_id, authority_generation, home_cell_id,
-       catalogue_policy_version, transition_reason, changed_by, change_ticket,
-       effective_from
-     ) VALUES ($1, 1, 'us', 1, 'new_grant', $2, $3, $4)`,
-    [fixture.organizationId, fixture.userId, MARKERS.changeTicket, createdAt],
-  )
-  await lease.pool.query(
     `INSERT INTO google_connections (
        id, organization_id, google_subject, encrypted_access_token,
        encrypted_refresh_token, token_expires_at, scopes, connected_by,
        credential_authorized_by, credential_authorized_at, visibility, status,
-       credential_home_cell_id, credential_home_policy_version,
-       credential_home_authority_generation, last_successful_sync_at,
-       status_reason, status_changed_at, created_at, updated_at
+       last_successful_sync_at, status_reason, status_changed_at, created_at, updated_at
      ) VALUES (
        $1, $2, $3, $4, $5, $6, ARRAY[$7], $8, $8, $9, 'organization', 'active',
-       'us', 1, 1, $9, 'connector_departure_none', $9, $9, $9
+       $9, 'connector_departure_none', $9, $9, $9
      )`,
     [
       fixture.connectionId,
@@ -178,13 +166,11 @@ async function seedFixture(): Promise<Fixture> {
          provider_location_suffix, google_review_uri,
          expected_connection_lifecycle_version, expected_connection_access_version,
          expected_credential_generation, action, update_existing_profile,
-         property_name, property_address, country_code, timezone,
-         processing_region, routing_policy_version, status, outcome_code,
-         first_terminal_at, effect_deadline_at, created_at, updated_at
+         property_name, property_address, country_code, timezone, status,
+         outcome_code, first_terminal_at, effect_deadline_at, created_at, updated_at
        ) VALUES (
          $1, $2, $3, $4, $5, $6, $7, $8, 1, 1, 1, 'create', true,
-         'Imported Location', $9, 'US', 'UTC', 'us', 1, $10, $11, $12, $13,
-         $14, $14
+         'Imported Location', $9, 'US', 'UTC', $10, $11, $12, $13, $14, $14
        )`,
       [
         randomUUID(),
@@ -228,11 +214,9 @@ async function seedFixture(): Promise<Fixture> {
     `INSERT INTO google_oauth_exchange_attempts (
        id, organization_id, initiator_user_id, connection_id, connection_mode,
        state, expected_lifecycle_version, expected_access_version,
-       expected_credential_generation, credential_home_cell_id,
-       credential_home_policy_version, credential_home_authority_generation,
-       encrypted_result, provider_started_at, preserved_at, response_expires_at,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'new', 'response_preserved', 1, 1, 1, 'us', 1, 1,
+       expected_credential_generation, encrypted_result, provider_started_at,
+       preserved_at, response_expires_at, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, 'new', 'response_preserved', 1, 1, 1,
                $5, $6, $6, $7, $6, $6)`,
     [
       randomUUID(),
@@ -299,36 +283,10 @@ async function seedFixture(): Promise<Fixture> {
       createdAt,
     ],
   )
-  await lease.pool.query(
-    `INSERT INTO google_credential_broker_replay (
-       organization_id, lookup_key_version, grant_id_hmac, one_use_nonce_hmac,
-       connection_id, property_id, home_cell_id, target_cell_id,
-       target_gateway_identity, route_key, credential_home_authority_generation,
-       connection_lifecycle_version, connection_access_version,
-       credential_generation, property_source_epoch, request_digest_sha256,
-       credential_binding_sha256, routing_directory_revision,
-       routing_policy_version, material_locator, material_encryption_key_id,
-       material_binding_sha256, issued_at, expires_at, state
-     ) VALUES ($1, 'broker_v1', $2, $3, $4, $5, 'us', 'europe', 'gateway',
-               'route', 1, 1, 1, 1, 0, $6, $6, 1, 1, $7, 'key-1', $6, $8, $9,
-               'issued')`,
-    [
-      fixture.organizationId,
-      'A'.repeat(43),
-      'B'.repeat(43),
-      fixture.connectionId,
-      fixture.propertyId,
-      'd'.repeat(64),
-      MARKERS.brokerMaterialLocator,
-      createdAt,
-      new Date(createdAt.getTime() + 60_000),
-    ],
-  )
   return fixture
 }
 
 const ORGANIZATION_SCOPED_TABLES = [
-  'google_credential_broker_replay',
   'google_oauth_exchange_attempts',
   'google_disconnect_revoke_attempts',
   'gbp_import_request_items',
@@ -336,7 +294,6 @@ const ORGANIZATION_SCOPED_TABLES = [
   'gbp_import_sagas',
   'properties',
   'google_connections',
-  'google_organization_credential_homes',
 ] as const
 
 async function cleanupFixture(fixture: Fixture): Promise<void> {
@@ -440,12 +397,8 @@ describe.sequential('Integration Organization Export contributor', () => {
           status: 'active',
           visibility: 'organization',
           credential_use_state: 'active',
-          credential_home_cell_id: 'us',
           connected_by: fixture.userId,
         },
-      ],
-      credentialHomeAuthority: [
-        { authority_generation: 1, home_cell_id: 'us', transition_reason: 'new_grant' },
       ],
       importSagas: [{ id: fixture.sagaId, total_count: 2, batch_count: 1 }],
       importBatches: [
@@ -506,7 +459,7 @@ describe.sequential('Integration Organization Export contributor', () => {
       /provider_account_suffix|provider_location_suffix|google_review_uri|property_address/u,
     )
     expect(archive).not.toMatch(
-      /wire_replay_digest|semantic_replay_digest|cleanup_work_permit_id|changed_by|change_ticket/u,
+      /wire_replay_digest|semantic_replay_digest|cleanup_work_permit_id/u,
     )
 
     const payload = JSON.parse(
@@ -520,7 +473,6 @@ describe.sequential('Integration Organization Export contributor', () => {
         'google_oauth_credentials',
         'google_oauth_exchange_attempts',
         'provider_execution_and_revoke_permits',
-        'google_credential_broker_and_routing_directory',
         'google_provider_account_and_location_identifiers',
         'legacy_gbp_provider_cache',
         'google_business_profile_performance_reports',

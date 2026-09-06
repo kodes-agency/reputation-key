@@ -11,7 +11,6 @@ describe('Integration infrastructure time authority', () => {
       'src/contexts/integration/infrastructure/google-import-v2-store.ts',
       'src/contexts/integration/infrastructure/integration-command-store.ts',
       'src/contexts/integration/infrastructure/repositories/google-connection.repository.ts',
-      'src/contexts/integration/infrastructure/organization-google-credential-home-backfill.store.ts',
     ]) {
       const source = read(path)
       expect(source, path).not.toMatch(/\bDate\.now\s*\(/u)

@@ -1,7 +1,5 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
-import { isRegionProcessable } from '#/contexts/property/application/public-api'
-import { resolveRegion } from '#/shared/domain/processing-profile'
 import type { GbpLocationCandidate } from './google-provider-contract'
 import type { ImportCandidateEligibility } from './google-import-v2-contract'
 import type { ImportDiscoveryCandidate } from './ports/google-import-reference-store.port'
@@ -22,7 +20,6 @@ export type GoogleImportPropertyDiscoveryView = Readonly<{
   address: string | null
   countryCode: string | null
   timezone: string
-  processingRegion: string | null
   lifecycleState: string
   deletedAt: Date | null
 }>
@@ -58,9 +55,7 @@ function resultBase(candidate: GbpLocationCandidate) {
 }
 
 /**
- * Eligibility for a location that maps to no existing Property. Verification is
- * reported ahead of the region check because it is the blocker the operator can
- * actually clear — in Google — whereas an unprocessable region is ours. A listing
+ * Eligibility for a location that maps to no existing Property. A listing
  * without Voice of Merchant serves neither reviews nor performance data, so a
  * Property created from it could only ever look broken.
  */
@@ -70,8 +65,7 @@ function creationEligibility(
 ): ImportCandidateEligibility {
   if (!canCreate) return { kind: 'unavailable' }
   if (candidate.verification === 'unverified') return { kind: 'verification_required' }
-  const region = candidate.countryCode ? resolveRegion(candidate.countryCode) : null
-  return isRegionProcessable(region) ? { kind: 'create' } : { kind: 'region_unavailable' }
+  return { kind: 'create' }
 }
 
 export function createGoogleImportPropertyClassifier(

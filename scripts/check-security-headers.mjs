@@ -86,7 +86,6 @@ function serverEnv(port) {
   return {
     ...process.env,
     NODE_ENV: 'production',
-    PROCESSING_CELL: 'us',
     HOST: '127.0.0.1',
     PORT: String(port),
     // Not contacted by the probes (liveness has no database dependency and

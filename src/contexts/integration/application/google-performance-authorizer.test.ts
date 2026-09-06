@@ -52,9 +52,6 @@ function connection(overrides: Partial<GoogleConnection> = {}): GoogleConnection
     lifecycleVersion: 4,
     accessVersion: 5,
     credentialGeneration: 6,
-    credentialHomeCellId: 'us',
-    credentialHomePolicyVersion: 2,
-    credentialHomeAuthorityGeneration: 1,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,
@@ -83,7 +80,6 @@ function binding(overrides: Record<string, unknown> = {}) {
     address: null,
     countryCode: 'US',
     timezone: 'America/New_York',
-    processingRegion: 'us',
     lifecycleState: 'active',
     ...overrides,
   }

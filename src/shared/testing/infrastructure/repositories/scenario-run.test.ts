@@ -81,7 +81,6 @@ describe('steady scenario (BQC-8.1, integration)', () => {
         versions: {
           capabilityPolicy: identitySnapshot.versions.capabilityPolicy,
           policyStore: identitySnapshot.versions.policyStore,
-          routingPolicy: identitySnapshot.versions.routingPolicy,
           sourceContentPolicy: identitySnapshot.versions.sourceContentPolicy,
         },
       },

@@ -14,7 +14,6 @@ import {
   validateSlug,
   validateTimezone,
 } from '../../domain/rules'
-import { resolvePropertyRouting } from '../../domain/processing-routing'
 import { propertyError } from '../../domain/errors'
 import { propertyUpdated } from '../../domain/events'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -64,36 +63,13 @@ async function assertSlugAvailable(
   return newSlug
 }
 
-// Country is a correctable business fact. Once assigned, Data Cell placement
-// remains immutable: a correction that maps elsewhere updates the country but
-// preserves every placement/provenance field. A legacy unresolved Property may
-// still acquire its first assignment here.
-function resolveRoutingUpdate(
-  existing: Property,
+function resolveCountryUpdate(
   countryCodeInput: string | undefined,
-  now: Date,
-): ReturnType<typeof resolvePropertyRouting> | null {
+): Readonly<{ countryCode: string; countrySource: 'manual' }> | null {
   if (countryCodeInput === undefined) return null
   const countryResult = normalizeCountryCode(countryCodeInput)
   if (countryResult.isErr()) throw countryResult.error
-  const countryCode = countryResult.value
-  const resolved = resolvePropertyRouting({
-    countryCode,
-    countrySource: 'manual',
-    now,
-    sourceEpoch: existing.sourceEpoch,
-    timezoneSource: existing.timezoneSource,
-    timezoneResolvedAt: existing.timezoneResolvedAt,
-  })
-  if (existing.dataCellId === null) return resolved
-  return {
-    ...resolved,
-    processingRegion: existing.processingRegion,
-    dataCellId: existing.dataCellId,
-    processingRegionSource: existing.processingRegionSource,
-    routingPolicyVersion: existing.routingPolicyVersion,
-    processingRegionResolvedAt: existing.processingRegionResolvedAt,
-  }
+  return { countryCode: countryResult.value, countrySource: 'manual' }
 }
 
 async function validateUpdateFields(
@@ -102,7 +78,6 @@ async function validateUpdateFields(
   existing: Property,
   propertyId: ReturnType<typeof toPropertyId>,
   organizationId: AuthContext['organizationId'],
-  now: Date,
 ) {
   const newSlug = await assertSlugAvailable(
     deps,
@@ -126,7 +101,7 @@ async function validateUpdateFields(
     newTimezone = tzResult.value
   }
 
-  const routing = resolveRoutingUpdate(existing, input.countryCode, now)
+  const country = resolveCountryUpdate(input.countryCode)
 
   return {
     newName,
@@ -136,7 +111,7 @@ async function validateUpdateFields(
       input.defaultReplyLanguage === undefined
         ? existing.defaultReplyLanguage
         : input.defaultReplyLanguage,
-    routing,
+    country,
   }
 }
 
@@ -166,7 +141,6 @@ export const updateProperty =
       existing,
       propertyId,
       ctx.organizationId,
-      updatedAt,
     )
 
     const hasChanges =
@@ -174,7 +148,7 @@ export const updateProperty =
       fields.newSlug !== existing.slug ||
       fields.newTimezone !== existing.timezone ||
       fields.newDefaultReplyLanguage !== existing.defaultReplyLanguage ||
-      fields.routing !== null
+      fields.country !== null
 
     if (!hasChanges) return existing
 
@@ -194,7 +168,7 @@ export const updateProperty =
         slug: fields.newSlug,
         timezone: fields.newTimezone,
         defaultReplyLanguage: fields.newDefaultReplyLanguage,
-        ...(fields.routing ?? {}),
+        ...(fields.country ?? {}),
         profileVersion: nextProfileVersion,
         sourceEpoch: nextSourceEpoch,
         ...(timezoneChanged
@@ -220,7 +194,7 @@ export const updateProperty =
       slug: fields.newSlug,
       timezone: fields.newTimezone,
       defaultReplyLanguage: fields.newDefaultReplyLanguage,
-      ...(fields.routing ?? {}),
+      ...(fields.country ?? {}),
       profileVersion: nextProfileVersion,
       sourceEpoch: nextSourceEpoch,
       ...(timezoneChanged

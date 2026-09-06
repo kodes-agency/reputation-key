@@ -13,30 +13,34 @@ export type GoogleEndpointClass = (typeof GOOGLE_ENDPOINT_CLASSES)[number]
 export const GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION = '2026-08-27' as const
 
 export const GOOGLE_PERFORMANCE_CATALOG_VERSION = '2026-08-05' as const
-export const GOOGLE_PERFORMANCE_DAILY_METRICS = Object.freeze([
-  'BUSINESS_IMPRESSIONS_DESKTOP_MAPS',
-  'BUSINESS_IMPRESSIONS_DESKTOP_SEARCH',
-  'BUSINESS_IMPRESSIONS_MOBILE_MAPS',
-  'BUSINESS_IMPRESSIONS_MOBILE_SEARCH',
-  'BUSINESS_CONVERSATIONS',
-  'BUSINESS_DIRECTION_REQUESTS',
-  'CALL_CLICKS',
-  'WEBSITE_CLICKS',
-  'BUSINESS_BOOKINGS',
-  'BUSINESS_FOOD_MENU_CLICKS',
-] as const)
-const GOOGLE_PERFORMANCE_DAILY_METRIC_SET = new Set<string>(
-  GOOGLE_PERFORMANCE_DAILY_METRICS,
+const GOOGLE_PERFORMANCE_DAILY_METRIC_MEMBERSHIP = Object.freeze({
+  BUSINESS_IMPRESSIONS_DESKTOP_MAPS: true,
+  BUSINESS_IMPRESSIONS_DESKTOP_SEARCH: true,
+  BUSINESS_IMPRESSIONS_MOBILE_MAPS: true,
+  BUSINESS_IMPRESSIONS_MOBILE_SEARCH: true,
+  BUSINESS_CONVERSATIONS: true,
+  BUSINESS_DIRECTION_REQUESTS: true,
+  CALL_CLICKS: true,
+  WEBSITE_CLICKS: true,
+  BUSINESS_BOOKINGS: true,
+  BUSINESS_FOOD_MENU_CLICKS: true,
+} as const satisfies Readonly<Record<string, true>>)
+const GOOGLE_PERFORMANCE_DAILY_METRIC_LOOKUP: Readonly<Record<string, true>> =
+  GOOGLE_PERFORMANCE_DAILY_METRIC_MEMBERSHIP
+export type GooglePerformanceDailyMetric =
+  keyof typeof GOOGLE_PERFORMANCE_DAILY_METRIC_MEMBERSHIP
+export const GOOGLE_PERFORMANCE_DAILY_METRICS = Object.freeze(
+  Object.keys(
+    GOOGLE_PERFORMANCE_DAILY_METRIC_MEMBERSHIP,
+  ) as GooglePerformanceDailyMetric[],
 )
 export function isGooglePerformanceDailyMetric(
   value: string,
 ): value is GooglePerformanceDailyMetric {
-  return GOOGLE_PERFORMANCE_DAILY_METRIC_SET.has(value)
+  return GOOGLE_PERFORMANCE_DAILY_METRIC_LOOKUP[value] === true
 }
 export const MAX_GOOGLE_PERFORMANCE_DAILY_VALUE = 6_152_458_507_336 as const
 export const MAX_GOOGLE_PERFORMANCE_RESPONSE_BYTES = 5 * 1024 * 1024
-export type GooglePerformanceDailyMetric =
-  (typeof GOOGLE_PERFORMANCE_DAILY_METRICS)[number]
 export const GOOGLE_PERFORMANCE_EXCLUDED_DAILY_METRICS = Object.freeze([
   'DAILY_METRIC_UNKNOWN',
   'BUSINESS_FOOD_ORDERS',
@@ -74,7 +78,6 @@ export type GoogleAuthorizationVector = Readonly<{
   propertyAuthorizationGeneration: number | null
   capabilityPolicyVersion: 'beta-local-2'
   executionPolicyVersion: 'beta-local-2'
-  routingPolicyVersion: number
 }>
 
 export type GoogleExecutionAdmissionRequest = Readonly<{

@@ -299,13 +299,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/property/infrastructure/property-routing.adapter.ts',
-    symbol: 'createPropertyRoutingLoader',
-    reason:
-      'data-cell routing resolves the cell before any tenant scope is trusted (router port is id-only by contract, adapter :12-14); the organization-scoped variant is property-region-loader.ts',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/review/infrastructure/repositories/reply.repository.ts',
     symbol: 'findDuePublicationBatch',
     reason:

@@ -4,11 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { propertyFromRow, propertyToRow } from './property.mapper'
-import {
-  DEFAULT_PROPERTY_GOOGLE_PROFILE,
-  DEFAULT_PROPERTY_ROUTING,
-  type Property,
-} from '../../domain/types'
+import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../../domain/types'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -46,11 +42,6 @@ const makePropertyRow = (overrides: Record<string, unknown> = {}) => ({
   countrySource: 'organization_default',
   timezoneSource: 'legacy',
   timezoneResolvedAt: null,
-  processingRegion: 'unresolved',
-  dataCellId: null,
-  processingRegionSource: 'country_default',
-  routingPolicyVersion: 1,
-  processingRegionResolvedAt: null,
   sourceEpoch: 0,
   responsibleManagerRevision: 1,
   responsibilityNeededSince: FIXED_TIME,
@@ -75,7 +66,11 @@ const makeProperty = (overrides: Partial<Property> = {}): Property => ({
   purgeScheduledFor: null,
   lifecycleInitiatedBy: null,
   ...DEFAULT_PROPERTY_GOOGLE_PROFILE,
-  ...DEFAULT_PROPERTY_ROUTING,
+  countryCode: null,
+  countrySource: 'organization_default',
+  timezoneSource: 'legacy',
+  timezoneResolvedAt: null,
+  sourceEpoch: 0,
   responsibleManagerRevision: 1,
   responsibilityNeededSince: FIXED_TIME,
   ...overrides,
@@ -97,7 +92,6 @@ describe('propertyFromRow', () => {
     expect(property.updatedAt).toBe(FIXED_TIME)
     expect(property.deletedAt).toBeNull()
     expect(property.lifecycleState).toBe('active')
-    expect(property.dataCellId).toBeNull()
     expect(property.googleReviewDestination).toEqual({
       state: 'unavailable',
       uri: null,
@@ -136,22 +130,6 @@ describe('propertyFromRow', () => {
 
     expect(property.lifecycleState).toBe('archived')
   })
-
-  it('reads a valid legacy region during the expand phase', () => {
-    const property = propertyFromRow(
-      makePropertyRow({ dataCellId: null, processingRegion: 'us' }),
-    )
-
-    expect(property.dataCellId).toBe('us')
-  })
-
-  it('fails closed on conflicting canonical and legacy assignments', () => {
-    const property = propertyFromRow(
-      makePropertyRow({ dataCellId: 'us', processingRegion: 'europe' }),
-    )
-
-    expect(property.dataCellId).toBeNull()
-  })
 })
 
 describe('propertyToRow', () => {
@@ -167,7 +145,6 @@ describe('propertyToRow', () => {
     expect(row.defaultReplyLanguage).toBeNull()
     expect(row.gbpLocationId).toBe('ChIJ123')
     expect(row.lifecycleState).toBe('active')
-    expect(row.dataCellId).toBeNull()
     expect(row.googleReviewDestinationState).toBe('unavailable')
   })
 
@@ -202,6 +179,5 @@ describe('round-trip: propertyToRow → propertyFromRow', () => {
     expect(restored.updatedAt).toBe(original.updatedAt)
     expect(restored.deletedAt).toBe(original.deletedAt)
     expect(restored.lifecycleState).toBe(original.lifecycleState)
-    expect(restored.dataCellId).toBe(original.dataCellId)
   })
 })

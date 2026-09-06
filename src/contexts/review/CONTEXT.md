@@ -36,7 +36,7 @@ is not the identity or history authority.
 - **Review → Reply** (1:N via `reviewId`) — A review can have up to one `google_sync` reply and one `internal` reply (enforced by unique constraint).
 - **Reply → Publication Attempt** (1:N per publication cycle) — every attempt is tenant/property/Review/Reply/revision fenced; confirmation points to the exact observation revision.
 - **Review → Google Reply Observation** (1:N history, 1:1 head) — duplicated head fields are relationally bound to one exact observation row, and a claimed RepKey match binds to one exact Publication Attempt.
-- **Cross-context** — Review listens to `property.created` to enqueue a `sync-property-reviews` job via `ReviewQueuePort.addSyncJob`. A terminal Verified Google Reputation Snapshot is published as a Review-owned durable fact; Metric may project it, but cannot infer or manufacture provider truth. Inbox may snapshot current Response Target provenance only through Review's content-free exact-current callback authority while Review retains its source fence.
+- **Cross-context** — Review listens to `property.created` to enqueue a `sync-property-reviews` job via `ReviewQueuePort.addSyncJob`. Review reads only Property's source epoch to reject stale provider results; all provider work runs in this deployment. A terminal Verified Google Reputation Snapshot is published as a Review-owned durable fact; Metric may project it, but cannot infer or manufacture provider truth. Inbox may snapshot current Response Target provenance only through Review's content-free exact-current callback authority while Review retains its source fence.
 
 ## Invariants
 
@@ -100,6 +100,7 @@ review/
     ports/             review.repository.ts, review-observation.repository.ts,
                        reply.repository.ts, review-queue.port.ts,
                        reply-queue.port.ts, google-review-api.port.ts,
+                       property-source-epoch.port.ts,
                        review-provider-snapshot.repository.ts,
                        google-reply-observation-store.port.ts,
                        serving-stats.port.ts (BQC-5.5 ReviewServingStats)

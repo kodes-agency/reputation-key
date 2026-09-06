@@ -7,7 +7,6 @@ import type {
 import type { GoogleImportV2Store } from './ports/google-import-v2-store.port'
 import type { GooglePropertyImportItemJobId } from './google-import-v2-contract'
 import { GOOGLE_PROPERTY_IMPORT_REQUESTED_EVENT } from './google-import-v2-contract'
-import { dataCellById } from '#/shared/domain/data-cell-catalogue'
 
 export const GOOGLE_IMPORT_DISPATCH_CONSUMER =
   'integration.property-import-dispatch' as const
@@ -99,33 +98,18 @@ export function createGoogleImportDispatchHandler(
       return { status: 'obsolete' }
     }
 
-    const jobs: GoogleImportV2ItemJobData[] = items.map((item) => {
-      const cell = dataCellById(item.processingRegion)
-      if (!cell) throw new Error('property import item has an invalid Data Cell')
-      return {
-        jobId: googlePropertyImportItemJobId({
-          itemId: item.itemId,
-          lifecycleVersion: item.expectedConnectionLifecycleVersion,
-          sourceEpoch: item.expectedSourceEpoch,
-          retryRevision: item.retryRevision,
-        }),
-        organizationId: payload.organizationId,
-        importJobId: payload.importJobId,
+    const jobs: GoogleImportV2ItemJobData[] = items.map((item) => ({
+      jobId: googlePropertyImportItemJobId({
         itemId: item.itemId,
+        lifecycleVersion: item.expectedConnectionLifecycleVersion,
+        sourceEpoch: item.expectedSourceEpoch,
         retryRevision: item.retryRevision,
-        routing: {
-          subject: {
-            kind: 'import_item',
-            organizationId: payload.organizationId,
-            itemId: item.itemId,
-          },
-          cell: cell.id,
-          region: cell.id,
-          workloadClass: 'property.import',
-          routingPolicyVersion: item.routingPolicyVersion,
-        },
-      }
-    })
+      }),
+      organizationId: payload.organizationId,
+      importJobId: payload.importJobId,
+      itemId: item.itemId,
+      retryRevision: item.retryRevision,
+    }))
 
     await deps.queue.addImportItemJobs(jobs)
     await deps.receipts.insertReceipt(

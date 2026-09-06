@@ -217,11 +217,6 @@ async function readPayload(
               country_source,
               timezone_source,
               ${utc('timezone_resolved_at')} AS timezone_resolved_at,
-              processing_region,
-              data_cell_id,
-              processing_region_source,
-              routing_policy_version,
-              ${utc('processing_region_resolved_at')} AS processing_region_resolved_at,
               profile_version,
               profile_source,
               ${utc('profile_confirmed_at')} AS profile_confirmed_at,
@@ -276,8 +271,8 @@ async function readPayload(
 /**
  * Property-owned Organization Export contribution.
  *
- * Exports the tenant-visible Property profile, routing/lifecycle status, and
- * workflow responsibility assignments. Identity owns the Organization,
+ * Exports the tenant-visible Property profile, lifecycle status, and workflow
+ * responsibility assignments. Identity owns the Organization,
  * member, access-grant, policy, and capability slice, so nothing here repeats
  * it. An Organization with no Property rows answers `no_data` rather than
  * shipping a header-only CSV.

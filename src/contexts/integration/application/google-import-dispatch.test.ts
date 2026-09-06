@@ -33,8 +33,6 @@ const ITEM: GoogleImportV2DispatchItem = {
   expectedConnectionLifecycleVersion: 7,
   expectedSourceEpoch: null,
   retryRevision: 0,
-  processingRegion: 'us',
-  routingPolicyVersion: 4,
 }
 
 function setup(items: readonly GoogleImportV2DispatchItem[] | null = [ITEM]) {
@@ -86,17 +84,6 @@ describe('google import v2 durable dispatch', () => {
         importJobId: '10000000-0000-4000-8000-000000000002',
         itemId: '10000000-0000-4000-8000-000000000003',
         retryRevision: 0,
-        routing: {
-          subject: {
-            kind: 'import_item',
-            organizationId: 'org-1',
-            itemId: '10000000-0000-4000-8000-000000000003',
-          },
-          cell: 'us',
-          region: 'us',
-          workloadClass: 'property.import',
-          routingPolicyVersion: 4,
-        },
       },
     ])
     expect(fixture.insertReceipt).toHaveBeenCalledWith(

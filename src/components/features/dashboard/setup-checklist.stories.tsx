@@ -8,7 +8,6 @@ const COMPLETED_AT = new Date('2026-08-20T10:00:00.000Z')
 const PROPERTY_ID = propertyId('10000000-0000-4000-8000-000000000001')
 const STEP_KEYS = [
   'google_connection',
-  'imported_property',
   'initial_review_sync',
   'published_portal',
   'responsible_managers',
@@ -36,7 +35,7 @@ type Story = StoryObj<typeof SetupChecklistPanel>
 export const Complete: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('5 of 5 milestones reached')).toBeVisible()
+    await expect(canvas.getByText('4 of 4 milestones reached')).toBeVisible()
     await expect(canvas.getByText('Connect Google')).toBeVisible()
     await expect(canvas.getByText('Publish a guest portal')).toBeVisible()
   },
@@ -56,7 +55,7 @@ export const HistoricallyCompleteButDegraded: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('5 of 5 milestones reached')).toBeVisible()
+    await expect(canvas.getByText('4 of 4 milestones reached')).toBeVisible()
     await expect(canvas.getByText(/check setup/i)).toBeVisible()
   },
 }
@@ -76,7 +75,7 @@ export const PropertyManagerWaiting: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getAllByText(/waiting for an account admin/i)).toHaveLength(5)
+    await expect(canvas.getAllByText(/waiting for an account admin/i)).toHaveLength(4)
     await expect(canvas.queryByRole('link')).not.toBeInTheDocument()
   },
 }
@@ -93,12 +92,6 @@ export const AccountAdminInProgress: Story = {
           status: 'incomplete',
           firstCompletedAt: null,
           action: { kind: 'manage_google', propertyId: null },
-        },
-        {
-          key: 'imported_property',
-          status: 'incomplete',
-          firstCompletedAt: null,
-          action: { kind: 'import_property', propertyId: null },
         },
         {
           key: 'initial_review_sync',
@@ -123,9 +116,9 @@ export const AccountAdminInProgress: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('0 of 5 milestones reached')).toBeVisible()
-    await expect(canvas.getAllByText(/next step/i)).toHaveLength(5)
-    await expect(canvas.getAllByRole('link')).toHaveLength(5)
+    await expect(canvas.getByText('0 of 4 milestones reached')).toBeVisible()
+    await expect(canvas.getAllByText(/next step/i)).toHaveLength(4)
+    await expect(canvas.getAllByRole('link')).toHaveLength(4)
   },
 }
 
@@ -153,7 +146,7 @@ export const PropertyManagerPartiallyAssigned: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getAllByText(/waiting for an account admin/i)).toHaveLength(3)
+    await expect(canvas.getAllByText(/waiting for an account admin/i)).toHaveLength(2)
     await expect(canvas.getAllByRole('link')).toHaveLength(2)
   },
 }
@@ -173,7 +166,7 @@ export const PropertyManagerNoAccess: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getAllByText(/no property access/i)).toHaveLength(5)
+    await expect(canvas.getAllByText(/no property access/i)).toHaveLength(4)
     await expect(canvas.queryByRole('link')).not.toBeInTheDocument()
   },
 }

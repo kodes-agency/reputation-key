@@ -8,16 +8,16 @@ describe('Recovery cutover run reader', () => {
     })
 
     await expect(
-      createRecoveryCutoverRunReader({ execute } as never).findLatest('eu-west'),
+      createRecoveryCutoverRunReader({ execute } as never).findLatest(),
     ).resolves.toEqual({ id: 'run-4', generation: 4 })
     expect(execute).toHaveBeenCalledTimes(1)
   })
 
-  it('returns undefined when the data cell has no completed run', async () => {
+  it('returns undefined when there is no completed run', async () => {
     const execute = vi.fn().mockResolvedValue({ rows: [] })
 
     await expect(
-      createRecoveryCutoverRunReader({ execute } as never).findLatest('eu-west'),
+      createRecoveryCutoverRunReader({ execute } as never).findLatest(),
     ).resolves.toBeUndefined()
   })
 })

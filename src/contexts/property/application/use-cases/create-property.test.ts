@@ -8,7 +8,6 @@ import { createSequentialPropertyCommandStore } from '#/shared/testing/sequentia
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import { isPropertyError } from '../../domain/errors'
-import { assertRegionResolved } from '../../domain/processing-routing'
 import { propertyId } from '#/shared/domain/ids'
 
 const FIXED_ID = propertyId('prop-00000000-0000-0000-0000-000000000001')
@@ -29,7 +28,7 @@ const setup = (extra: Partial<Parameters<typeof createProperty>[0]> = {}) => {
 }
 
 describe('createProperty', () => {
-  it('creates a cell-assigned property with defaults when optional fields are omitted', async () => {
+  it('creates a property with defaults when optional fields are omitted', async () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
@@ -41,12 +40,10 @@ describe('createProperty', () => {
     expect(property.slug).toBe('grand-hotel')
     expect(property.timezone).toBe('America/New_York')
     expect(property.gbpLocationId).toBeNull()
-    expect(property.processingRegion).toBe('us')
-    expect(property.dataCellId).toBe('us')
     expect(propertyRepo.all()).toHaveLength(1)
   })
 
-  it('resolves processing region when countryCode is provided (BQR-3.5)', async () => {
+  it('normalizes the country business fact', async () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
@@ -56,41 +53,7 @@ describe('createProperty', () => {
     )
 
     expect(property.countryCode).toBe('US')
-    expect(property.processingRegion).toBe('us')
-    expect(property.dataCellId).toBe('us')
     expect(property.countrySource).toBe('manual')
-    expect(property.processingRegionResolvedAt).toEqual(FIXED_TIME)
-  })
-
-  it('refuses a country that cannot produce an immutable assignment', async () => {
-    const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-
-    await expect(
-      useCase(
-        {
-          name: 'Unknown Country Hotel',
-          timezone: 'America/New_York',
-          countryCode: 'ZZ',
-        },
-        ctx,
-      ),
-    ).rejects.toSatisfy(
-      (error: unknown) =>
-        isPropertyError(error) && (error as { code: string }).code === 'invalid_country',
-    )
-  })
-
-  it('is born processable when the country resolves into the approved cell (BQC-4.1)', async () => {
-    const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-
-    const property = await useCase(
-      { name: 'US Hotel', timezone: 'America/New_York', countryCode: 'US' },
-      ctx,
-    )
-
-    expect(() => assertRegionResolved(property)).not.toThrow()
   })
 
   it('creates browser-submitted properties without a provider binding', async () => {
@@ -151,7 +114,6 @@ describe('createProperty', () => {
     const recorded = outbox.byTag('property.created')
     expect(recorded).toHaveLength(1)
     expect(recorded[0].name).toBe('Grand Hotel')
-    expect(recorded[0].dataCellId).toBe('us')
   })
 
   it('rejects invalid timezone', async () => {

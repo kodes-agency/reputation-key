@@ -24,7 +24,6 @@ export type IntegrationOrganizationExportPayload = Readonly<{
   requestedAsOf: string
   snapshotBound: 'repeatable_read_within_15m_of_request'
   googleConnections: readonly ExportRecord[]
-  credentialHomeAuthority: readonly ExportRecord[]
   importSagas: readonly ExportRecord[]
   importBatches: readonly ExportRecord[]
   importItemStateCounts: readonly ExportRecord[]
@@ -76,16 +75,12 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  *   them.
  * - `gbp_import_sagas` / `gbp_import_requests` replay key versions and digests
  *   are keyed idempotency material, not lifecycle status.
- * - `google_credential_broker_replay` and `google_credential_routing_*` are the
- *   cross-cell broker and signed routing planes.
  * - `google_import_discovery_records` are pre-confirmation provider candidate
  *   pages behind HMAC handles — raw Google-controlled content with a 24-hour
  *   bound, copied for one browser session and never a tenant record.
  * - Business Profile Performance reports are live-only and never persisted;
  *   there is nothing to read and re-fetching one would export a live provider
  *   payload.
- * - `google_organization_credential_homes.changed_by` / `change_ticket` are the
- *   operator identity and ticket behind a governed home transition.
  */
 const EXCLUDED_RECORD_CLASSES = Object.freeze([
   { recordClass: 'google_oauth_credentials', reasonCode: 'security_secret_material' },
@@ -110,10 +105,6 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
     reasonCode: 'content_free_control_plane',
   },
   {
-    recordClass: 'google_credential_broker_and_routing_directory',
-    reasonCode: 'content_free_control_plane',
-  },
-  {
     recordClass: 'google_provider_account_and_location_identifiers',
     reasonCode: 'provider_controlled_identifiers',
   },
@@ -125,10 +116,6 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
   {
     recordClass: 'google_business_profile_performance_reports',
     reasonCode: 'live_provider_payload',
-  },
-  {
-    recordClass: 'credential_home_operator_change_authority',
-    reasonCode: 'operator_control_plane',
   },
 ])
 
@@ -231,14 +218,13 @@ function csvRow(recordType: string, record: ExportRecord): readonly string[] {
   const values: Readonly<Record<(typeof CSV_COLUMNS)[number], ExportValue | undefined>> =
     {
       record_type: recordType,
-      record_id: record.id ?? record.import_job_id ?? record.authority_generation ?? '',
+      record_id: record.id ?? record.import_job_id ?? '',
       connection_id: record.connection_id ?? '',
-      state: record.status ?? record.state ?? record.transition_reason ?? '',
+      state: record.status ?? record.state ?? '',
       reason: record.status_reason ?? record.outcome_code ?? record.action ?? '',
       item_count: record.item_count ?? record.total_count ?? '',
-      occurred_at:
-        record.created_at ?? record.effective_from ?? record.activated_at ?? '',
-      updated_at: record.updated_at ?? record.superseded_at ?? record.terminal_at ?? '',
+      occurred_at: record.created_at ?? record.activated_at ?? '',
+      updated_at: record.updated_at ?? record.terminal_at ?? '',
       record_json: record,
     }
   return CSV_COLUMNS.map((column) => csvField(values[column]))
@@ -246,7 +232,6 @@ function csvRow(recordType: string, record: ExportRecord): readonly string[] {
 
 type IntegrationExportCollection =
   | 'googleConnections'
-  | 'credentialHomeAuthority'
   | 'importSagas'
   | 'importBatches'
   | 'importItemStateCounts'
@@ -255,7 +240,6 @@ type IntegrationExportCollection =
 const CSV_COLLECTIONS: readonly (readonly [string, IntegrationExportCollection])[] =
   Object.freeze([
     ['google_connection', 'googleConnections'],
-    ['credential_home_authority', 'credentialHomeAuthority'],
     ['import_saga', 'importSagas'],
     ['import_batch', 'importBatches'],
     ['import_item_state_count', 'importItemStateCounts'],
@@ -337,9 +321,6 @@ async function readPayload(
               connection.lifecycle_version,
               connection.access_version,
               connection.credential_generation,
-              connection.credential_home_cell_id,
-              connection.credential_home_policy_version,
-              connection.credential_home_authority_generation,
               connection.connected_by,
               connection.credential_authorized_by,
               connection.status_reason,
@@ -352,22 +333,6 @@ async function readPayload(
             FROM google_connections AS connection
             WHERE connection.organization_id = ${organizationId}`,
         (record) => [record.created_at, record.id],
-      )
-
-      const credentialHomeAuthority = await readRows(
-        snapshot,
-        sql`SELECT
-              home.authority_generation,
-              home.home_cell_id,
-              home.catalogue_policy_version,
-              home.transition_reason,
-              to_char(home.effective_from AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS effective_from,
-              to_char(home.superseded_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS superseded_at,
-              to_char(home.created_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS created_at,
-              to_char(home.updated_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS updated_at
-            FROM google_organization_credential_homes AS home
-            WHERE home.organization_id = ${organizationId}`,
-        (record) => [record.authority_generation],
       )
 
       const importSagas = await readRows(
@@ -401,7 +366,6 @@ async function readPayload(
               request.imported_count,
               request.relinked_count,
               request.already_exists_count,
-              request.region_unavailable_count,
               request.failed_count,
               request.cancelled_count,
               to_char(request.first_terminal_at AT TIME ZONE 'UTC', ${UTC_TIMESTAMP_FORMAT}) AS first_terminal_at,
@@ -464,7 +428,6 @@ async function readPayload(
         requestedAsOf: asOf.toISOString(),
         snapshotBound: 'repeatable_read_within_15m_of_request',
         googleConnections,
-        credentialHomeAuthority,
         importSagas,
         importBatches,
         importItemStateCounts,

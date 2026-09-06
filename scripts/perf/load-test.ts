@@ -180,13 +180,13 @@ async function buildReplyPublicationSeam(deps: {
   const gbpStubUrl = deps.gbpStubUrl.replace(/\/+$/, '')
   const propRows = await deps.db.execute(
     sql`SELECT id FROM properties
-        WHERE organization_id = ${probeOrgId} AND processing_region = 'us' AND deleted_at IS NULL
+        WHERE organization_id = ${probeOrgId} AND deleted_at IS NULL
         LIMIT 1`,
   )
   const prop = propRows.rows[0] as { id: string } | undefined
   if (!prop) {
     console.error(
-      `replyBurst: no us-cell property for probe org — seed first (pnpm perf:seed-scale).`,
+      `replyBurst: no property for probe org — seed first (pnpm perf:seed-scale).`,
     )
     return undefined
   }
@@ -441,7 +441,6 @@ async function runScenario(
     versions: {
       capabilityPolicy: identitySnapshot.versions.capabilityPolicy,
       policyStore: identitySnapshot.versions.policyStore,
-      routingPolicy: identitySnapshot.versions.routingPolicy,
       sourceContentPolicy: identitySnapshot.versions.sourceContentPolicy,
     },
   }

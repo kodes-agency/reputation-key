@@ -4,7 +4,7 @@
 **Accountable owner:** Bozhidar Denev (product, privacy, security)
 **Scope:** All data classes across the Reputation Key beta deployment.
 **Beta target subprocessors/boundaries:** Railway-hosted PostgreSQL and private
-object storage in the single US Data Cell, Resend (email), and Sentry (error
+object storage in the single US deployment, Resend (email), and Sentry (error
 monitoring). Neon and AWS S3 are not part of the ADR-0057 target topology.
 Actual vendor activation, contracts, and regions must be reverified in retained
 release/legal evidence before launch; this inventory is not a substitute for

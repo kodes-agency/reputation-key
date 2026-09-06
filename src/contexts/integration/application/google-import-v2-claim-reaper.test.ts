@@ -109,7 +109,7 @@ describe('GoogleImportV2ClaimReaper', () => {
       itemId: EXHAUSTED_ITEM_ID,
       retryRevision: 3,
       outcomeCode: 'temporarily_unavailable',
-      retainProtectedRouting: false,
+      retainRetryState: false,
       now: NOW,
     })
   })

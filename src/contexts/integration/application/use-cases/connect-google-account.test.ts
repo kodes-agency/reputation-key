@@ -2,7 +2,6 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { connectGoogleAccount } from './connect-google-account'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
 import { createSequentialIntegrationCommandStore } from '#/shared/testing/sequential-integration-command-store'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
@@ -14,8 +13,6 @@ import {
 } from '#/shared/testing/fixtures'
 import { isIntegrationError } from '../../domain/errors'
 import { organizationId } from '#/shared/domain/ids'
-import { createGoogleCredentialHomeCapture } from '../google-credential-home'
-import type { OrganizationGoogleCredentialHomeInspection } from '../ports/organization-google-credential-home-authority.port'
 import type { GoogleOAuthProviderCallAuthorizer } from '../ports/google-oauth.port'
 import type {
   GoogleOAuthExchangeAttemptFacts,
@@ -131,17 +128,6 @@ const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
   }
   const encryption = createInMemoryTokenEncryption()
   const outbox = createRecordedOutbox()
-  let credentialHomeInspection: OrganizationGoogleCredentialHomeInspection = {
-    authority: {
-      organizationId: organizationId('org-default'),
-      homeCellId: 'us' as const,
-      cataloguePolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-      authorityGeneration: 1,
-      createdAt: FIXED_TIME,
-      updatedAt: FIXED_TIME,
-    },
-    otherActiveGrantCount: 0,
-  }
   const useCase = connectGoogleAccount({
     connectionRepo,
     oauth: recoverableOauth,
@@ -151,18 +137,6 @@ const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
     clock: () => FIXED_TIME,
     idGen: () => 'test-connection-id',
     callbackUrl: 'http://localhost:3000/api/auth/google/callback',
-    captureCredentialHome: createGoogleCredentialHomeCapture({
-      authority: {
-        inspectForCredentialExchange: async ({ organizationId: requestedOrg }) => ({
-          ...credentialHomeInspection,
-          authority: credentialHomeInspection.authority
-            ? { ...credentialHomeInspection.authority, organizationId: requestedOrg }
-            : null,
-        }),
-        reserveForCredentialExchange: async () => undefined,
-      },
-      localCellId: 'us',
-    }),
     ...(authorizeProviderCall ? { authorizeProviderCall } : {}),
   })
   return {
@@ -178,9 +152,6 @@ const setup = (authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer) => {
       attempt.state = 'completed'
       delete attempt.encryptedResult
     },
-    setCredentialHomeInspection: (value: typeof credentialHomeInspection) => {
-      credentialHomeInspection = value
-    },
   }
 }
 
@@ -195,8 +166,6 @@ describe('connectGoogleAccount', () => {
     expect(result.googleSubject).toBe('google-subject-123')
     expect(result.status).toBe('active')
     expect(result.organizationId).toBe(ctx.organizationId)
-    expect(result.credentialHomeCellId).toBe('us')
-    expect(result.credentialHomePolicyVersion).toBe(DATA_CELL_CATALOGUE_POLICY_VERSION)
     expect(oauth.exchangeVerifierCalls()).toEqual([VERIFIER])
     const facts = outbox.byTag('integration.google_account.connected')
     expect(facts).toHaveLength(1)
@@ -254,21 +223,6 @@ describe('connectGoogleAccount', () => {
     expect(oauth.exchangeVerifierCalls()).toEqual([])
   })
 
-  it('fails before OAuth when an active legacy grant has no credential home', async () => {
-    const { useCase, connectionRepo, oauth, setCredentialHomeInspection } = setup()
-    connectionRepo.seed([
-      buildTestGoogleConnection({
-        credentialHomeCellId: null,
-        credentialHomePolicyVersion: null,
-      }),
-    ])
-    setCredentialHomeInspection({ authority: null, otherActiveGrantCount: 1 })
-    await expect(
-      useCase(input(), buildTestAuthContext({ role: 'AccountAdmin' })),
-    ).rejects.toThrow('credential home is unavailable')
-    expect(oauth.exchangeVerifierCalls()).toEqual([])
-  })
-
   it('propagates an OAuth exchange failure', async () => {
     const { useCase, oauth } = setup()
     oauth.setExchangeError(new Error('OAuth provider unreachable'))
@@ -309,33 +263,6 @@ describe('connectGoogleAccount', () => {
     })
   })
 
-  it('uses governed reconnect to capture a home for a disconnected legacy row', async () => {
-    const { useCase, connectionRepo, setCredentialHomeInspection } = setup()
-    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
-    const existing = buildTestGoogleConnection({
-      googleSubject: 'google-subject-123',
-      status: 'disconnected',
-      credentialUseState: 'none',
-      credentialHomeCellId: null,
-      credentialHomePolicyVersion: null,
-    })
-    connectionRepo.seed([existing])
-    setCredentialHomeInspection({ authority: null, otherActiveGrantCount: 0 })
-
-    const result = await useCase(
-      {
-        ...input('organization'),
-        connectionMode: 'reconnect',
-        targetConnectionId: existing.id,
-      },
-      ctx,
-    )
-    expect(result).toMatchObject({
-      credentialHomeCellId: 'us',
-      credentialHomePolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-      credentialUseState: 'active',
-    })
-  })
   it('does not let a new ceremony adopt an existing same-organization subject', async () => {
     const { useCase, connectionRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })

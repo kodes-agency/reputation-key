@@ -13,7 +13,7 @@ import type {
   PropertyPublicApi,
 } from '#/contexts/property/application/public-api'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
-import type { ProviderEndpoints } from '#/shared/routing/processing-router'
+import type { GoogleProviderEndpoints } from './build'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createInMemoryGbpApiPort } from '#/shared/testing/in-memory-gbp-api-port'
@@ -32,7 +32,6 @@ import type { ExecutionDecision } from '#/shared/auth/execution-policy'
 import { initExecutionPolicy, resetExecutionPolicy } from '#/shared/auth/execution-policy'
 import type { RequiredPolicyRefreshResult } from '#/shared/auth/persisted-policy-store'
 import type { OutboxRepository } from '#/shared/outbox'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 /** Query-free guard: any DB access during construction throws. */
 const dbStub = new Proxy(
@@ -44,7 +43,7 @@ const dbStub = new Proxy(
   },
 ) as unknown as Database
 
-const ENDPOINTS: ProviderEndpoints = {
+const ENDPOINTS: GoogleProviderEndpoints = {
   gbpApiBaseUrl: 'https://gbp.example.test/v1',
   gbpAccountManagementBaseUrl: 'https://accounts.example.test/v1',
   gbpPerformanceBaseUrl: 'https://performance.example.test/v1',
@@ -92,12 +91,6 @@ function buildDeps(overrides: {
     sourceContentPurge: {} as unknown as SourceContentPurge,
     providerEndpoints: ENDPOINTS,
     config: CONFIG,
-    localDataCellId: 'us' as const,
-    admitPropertyExecution: async () => ({
-      kind: 'allow' as const,
-      cell: 'us' as const,
-      routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-    }),
     oauthStateHandles: {} as unknown as OAuthStateHandleService,
     ...overrides,
   }

@@ -21,7 +21,6 @@ const IDENTITY: ReleaseIdentity = {
   policyVersions: {
     capabilityPolicy: 'bqc-0.3',
     policyStore: 7,
-    routingPolicy: 1,
     sourceContentPolicy: 1,
   },
   datasetHash: 'f'.repeat(64),
@@ -56,7 +55,6 @@ function runRecord(overrides: Partial<ScenarioRunRecord> = {}): ScenarioRunRecor
     versions: {
       capabilityPolicy: 'bqc-0.3',
       policyStore: 7,
-      routingPolicy: 1,
       sourceContentPolicy: 1,
     },
     slo: { rate: 20, duration: 1800, noLoss: true },
@@ -107,7 +105,6 @@ describe('buildScaleEvidence', () => {
     expect(md).toContain('**Release id:** local-draft')
     expect(md).toContain('**Release sha:** abc123def456')
     expect(md).toContain('capability=bqc-0.3')
-    expect(md).toContain('routing=1')
     expect(md).toContain(`**Dataset hash:** ${'f'.repeat(64)}`)
     expect(md).toContain(
       '**Dataset:** seed `perf-scale-v1` — 2 orgs / 20 properties / 500 reviews',

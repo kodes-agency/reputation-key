@@ -6,7 +6,6 @@ import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 import { getDb } from '#/shared/db'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
@@ -331,10 +330,6 @@ beforeEach(async () => {
     ORGANIZATION_ID,
   ])
   await pool.query(
-    'DELETE FROM google_organization_credential_homes WHERE organization_id = $1',
-    [ORGANIZATION_ID],
-  )
-  await pool.query(
     `INSERT INTO organization_capability (organization_id, capability)
      VALUES ($1, 'property.import_gbp_v2')
      ON CONFLICT DO NOTHING`,
@@ -405,10 +400,6 @@ afterAll(async () => {
     )
   }
   await pool.query('DELETE FROM google_connections WHERE id = $1', [CONNECTION_ID])
-  await pool.query(
-    'DELETE FROM google_organization_credential_homes WHERE organization_id = $1',
-    [ORGANIZATION_ID],
-  )
   await pool.query('DELETE FROM organization_capability WHERE organization_id = $1', [
     ORGANIZATION_ID,
   ])
@@ -493,7 +484,7 @@ describe('Postgres Google admission permit authority', () => {
     expect(persisted.rows[0]?.state).toBe('admitted')
   })
 
-  it('starts a home-bound prospective OAuth exchange exactly once under concurrency', async () => {
+  it('starts a prospective OAuth exchange exactly once under concurrency', async () => {
     const prospectiveConnectionId = randomUUID()
     const permitId = randomUUID()
     const permission = await pool.query<{ version: string }>(
@@ -505,15 +496,6 @@ describe('Postgres Google admission permit authority', () => {
       throw new Error('expected current permission version')
     }
     try {
-      await pool.query(
-        `INSERT INTO google_organization_credential_homes (
-          organization_id, authority_generation, home_cell_id,
-          catalogue_policy_version, transition_reason, changed_by,
-          effective_from, created_at, updated_at
-        ) VALUES ($1, 1, 'us', $3, 'new_grant', $2, now(), now(), now())
-        ON CONFLICT DO NOTHING`,
-        [ORGANIZATION_ID, USER_ID, DATA_CELL_CATALOGUE_POLICY_VERSION],
-      )
       await pool.query(
         `INSERT INTO authorization_execution_permits (
           id, capability, organization_id, connection_id, initiator_user_id,
@@ -542,9 +524,6 @@ describe('Postgres Google admission permit authority', () => {
             connectionLifecycleVersion: 0,
             connectionAccessVersion: 0,
             credentialGeneration: 0,
-            credentialHomeCellId: 'us',
-            credentialHomePolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-            credentialHomeAuthorityGeneration: 1,
             requestBindingSha256: compiledOAuthExchange.admission.requestBindingSha256,
             credentialBinding: compiledOAuthExchange.admission.credentialBinding,
             projectFingerprint: PROJECT_FINGERPRINT,
@@ -574,10 +553,6 @@ describe('Postgres Google admission permit authority', () => {
       await pool.query('DELETE FROM authorization_execution_permits WHERE id = $1', [
         permitId,
       ])
-      await pool.query(
-        'DELETE FROM google_organization_credential_homes WHERE organization_id = $1',
-        [ORGANIZATION_ID],
-      )
     }
   })
 

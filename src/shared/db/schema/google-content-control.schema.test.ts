@@ -25,22 +25,6 @@ describe('Google Content control schema', () => {
     )
   })
 
-  it('stores a constrained expand-phase credential home pair', () => {
-    const config = getTableConfig(googleConnections)
-    expect(columnNames(googleConnections)).toEqual(
-      expect.arrayContaining([
-        'credential_home_cell_id',
-        'credential_home_policy_version',
-      ]),
-    )
-    expect(config.checks.map((constraint) => constraint.name)).toEqual(
-      expect.arrayContaining([
-        'google_connections_credential_home_pair_check',
-        'google_connections_credential_home_value_check',
-      ]),
-    )
-  })
-
   it('persists monotonic kill/drain and bounded permit state', () => {
     expect(googleContentCapabilityEnum.enumValues).toEqual([
       'property.import_gbp_v2',

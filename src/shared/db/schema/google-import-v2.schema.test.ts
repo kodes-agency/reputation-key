@@ -85,7 +85,7 @@ describe('Google import v2 durable schema', () => {
     )
   })
 
-  it('stores only confirmed tenant profile plus protected routing and effect fences', () => {
+  it('stores only confirmed tenant profile plus protected effect fences', () => {
     expect(columnNames(gbpImportRequestItems)).toEqual(
       expect.arrayContaining([
         'organization_id',
@@ -103,8 +103,6 @@ describe('Google import v2 durable schema', () => {
         'property_address',
         'country_code',
         'timezone',
-        'processing_region',
-        'routing_policy_version',
         'effect_deadline_at',
         'retry_revision',
         'highest_attempt_for_revision',
@@ -117,7 +115,7 @@ describe('Google import v2 durable schema', () => {
       expect.arrayContaining([
         'gbp_import_request_items_profile_valid',
         'gbp_import_request_items_attempt_fence_valid',
-        'gbp_import_request_items_routing_retention_valid',
+        'gbp_import_request_items_provider_reference_retention_valid',
       ]),
     )
     const parentFk = getTableConfig(gbpImportRequestItems).foreignKeys.find(

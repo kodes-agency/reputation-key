@@ -5,7 +5,7 @@ import type {
   GoogleReviewApiPort,
   GoogleReviewPage,
 } from '../ports/google-review-api.port'
-import type { PropertyRoutingPort } from '../ports/property-routing.port'
+import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
 import type { GoogleReview } from '../../domain/types'
 import type {
   ReviewProviderSubjectDeriver,
@@ -69,7 +69,7 @@ export type ContinuableSnapshotResult = Extract<
 export type RunReviewProviderSnapshotDeps = Readonly<{
   repository: ReviewProviderSnapshotRepository
   googleReviewApi: GoogleReviewApiPort
-  propertyRouting: PropertyRoutingPort
+  propertySourceEpoch: PropertySourceEpochPort
   observationWriter: ReviewProviderObservationWriter
   subjectKeyService: ReviewProviderSubjectKeyService
   /**
@@ -148,7 +148,7 @@ const sameScope = async (
   deps: RunReviewProviderSnapshotDeps,
   input: RunReviewProviderSnapshotInput,
 ): Promise<boolean> => {
-  const scope = await deps.propertyRouting.getProcessingScope(
+  const scope = await deps.propertySourceEpoch.getSourceEpoch(
     input.organizationId,
     input.propertyId,
   )

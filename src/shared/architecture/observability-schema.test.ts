@@ -344,7 +344,6 @@ const NON_METRIC_PATHS = new Set([
   'queues.*.name',
   'jobs.rows.*.jobName',
   'jobs.rows.*.owner',
-  'jobs.rows.*.cell',
   'jobs.rows.*.processor',
   'jobs.rows.*.action',
   'jobs.rows.*.routing',
@@ -430,7 +429,6 @@ async function assembleSnapshot() {
       capabilityPolicy: 'test-cap',
       executionPolicy: 'test-exec',
       policyStore: () => 7,
-      routingPolicy: 1,
       sourceContentPolicy: 1,
     },
     // Hermetic runtime readers — the architecture gate must never open a
@@ -463,7 +461,6 @@ async function assembleSnapshot() {
           {
             jobName: 'health-check',
             owner: 'platform',
-            cell: 'us',
             processor: 'src/shared/jobs/health-check.job.ts',
             action: 'system:health.check',
             routing: 'cell_local',

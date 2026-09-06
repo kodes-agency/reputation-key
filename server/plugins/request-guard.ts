@@ -17,8 +17,7 @@ import { createRequestGuardPlugin } from '#/shared/security/request-guard'
 // process fixture could not boot this plugin with a deterministic environment.
 export default definePlugin((nitroApp) => {
   const env = getEnv()
-  return createRequestGuardPlugin({
-    bodyLimitBytes: env.REQUEST_BODY_LIMIT_BYTES,
-    localCell: env.PROCESSING_CELL,
-  })(nitroApp)
+  return createRequestGuardPlugin({ bodyLimitBytes: env.REQUEST_BODY_LIMIT_BYTES })(
+    nitroApp,
+  )
 })

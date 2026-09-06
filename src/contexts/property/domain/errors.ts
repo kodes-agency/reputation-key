@@ -17,7 +17,6 @@ export type PropertyErrorCode =
   | 'property_recovery_expired'
   | 'property_restore_not_ready'
   | 'google_binding_not_disconnectable'
-  | 'region_unresolved'
   | 'slug_taken'
   | 'property_not_found'
   | 'invalid_transition'

@@ -5,7 +5,6 @@ import type { PropertyId } from './types'
 import type { GoogleConnectionId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 import type { PropertyLifecycleState } from './property-lifecycle'
 
 export type PropertyCreated = Readonly<{
@@ -15,13 +14,6 @@ export type PropertyCreated = Readonly<{
   propertyId: PropertyId
   name: string
   slug: string
-  /**
-   * BQC-4.1 / ADR 0048: content-free routing fact at creation time. The
-   * initial-sync consumer enqueues only when this names an approved cell.
-   */
-  processingRegion?: string
-  /** Canonical immutable assignment; absent only for unresolved legacy rows. */
-  dataCellId?: DataCellId
   occurredAt: Date
   correlationId: string | null
 }>

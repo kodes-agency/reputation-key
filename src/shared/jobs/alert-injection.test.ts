@@ -49,7 +49,6 @@ import {
   ALERT_STATE_TTL_SECONDS,
   type AlertStateStore,
 } from '#/shared/health/alert-state'
-import { countRegionAttempts } from '#/shared/observability/alert-aux-reads'
 import { isBannedLogKey } from '#/shared/observability/metrics-schema'
 import type { OperationsSnapshot } from '#/shared/health/operations-snapshot'
 import {
@@ -161,7 +160,6 @@ function healthySnapshot(): MutableSnapshot {
       capabilityPolicy: 'test',
       executionPolicy: 'test-exec',
       policyStore: 1,
-      routingPolicy: 1,
       sourceContentPolicy: 1,
       runtime: 'v22.0.0',
     },
@@ -202,7 +200,6 @@ function healthyAux(): MutableAux {
   return {
     retentionFailedSubjects: [],
     policyDenialsByReason: {},
-    routingBlockedByReason: {},
     betaFeedbackTriage: {
       monitorAvailable: true,
       deliveredUnresolvedCount: 0,
@@ -231,7 +228,6 @@ describe('alert registry contract (BQC-7.4)', () => {
       'queue.stalled',
       'reply.ambiguous-aging',
       'retention.failure',
-      'routing.region-attempts',
       'security.scan',
       'source.freshness-deadline',
       'sync.failed-nonzero',
@@ -531,17 +527,6 @@ const BREACHES: readonly Breach[] = [
     },
   },
   {
-    name: 'routing.region-attempts',
-    severity: 'P2',
-    runbook: 'runbooks.md §12',
-    threshold: 0,
-    windowMs: 5 * 60 * 1000,
-    value: 2,
-    apply: (_s, aux) => {
-      aux.routingBlockedByReason = { 'routing_blocked:region_denied': 2 }
-    },
-  },
-  {
     name: 'policy.denial-drift',
     severity: 'P2',
     runbook: 'runbooks.md §9',
@@ -794,43 +779,6 @@ describe('alert firing-state store', () => {
     await store.markFiring('queue.stalled')
     await store.clearFiring('queue.stalled')
     expect(await store.currentlyFiring(['queue.stalled'])).toEqual(new Set())
-  })
-})
-
-// ── Region-attempt aux aggregation ─────────────────────────────────
-
-describe('countRegionAttempts (quarantine policyReason split)', () => {
-  function entry(policyReason: string | undefined) {
-    return {
-      quarantineJobId: 'q1',
-      publicationState: 'confirmed_failed' as const,
-      envelope: {
-        originalQueue: 'default',
-        originalJobId: 'j1',
-        jobName: 'review.sync',
-        data: {},
-        failedReason: 'GateRejected: x',
-        attemptsMade: 0,
-        ...(policyReason ? { policyReason } : {}),
-        quarantinedAt: '2026-07-31T00:00:00.000Z',
-      },
-    }
-  }
-
-  it('counts only wrong/unresolved/denied-region reasons', () => {
-    const counts = countRegionAttempts([
-      entry('routing_blocked:region_denied'),
-      entry('routing_blocked:region_denied'),
-      entry('routing_blocked:region_unresolved'),
-      entry('wrong_cell'),
-      entry('routing_blocked:property_missing'), // data problem, not a region attempt
-      entry(undefined), // exhausted retries, no policy reason
-    ])
-    expect(counts).toEqual({
-      'routing_blocked:region_denied': 2,
-      'routing_blocked:region_unresolved': 1,
-      wrong_cell: 1,
-    })
   })
 })
 

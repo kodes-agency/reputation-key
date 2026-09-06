@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 import {
   createGoogleContentAuthorizationCheck,
   policyAuthorizes,
@@ -34,17 +33,10 @@ function checkWithRows(rows: readonly (readonly Record<string, unknown>[])[]) {
 
 const member = [{ role: 'owner', permission_version: 7 }]
 const policy = [{ version: 11, emergency_kill_version: 3 }]
-const home = [
-  {
-    home_cell_id: 'us',
-    catalogue_policy_version: DATA_CELL_CATALOGUE_POLICY_VERSION,
-    authority_generation: 4,
-  },
-]
 
 describe('Google OAuth content authorization', () => {
-  it('freezes a connectionless first exchange to the current Organization credential home', async () => {
-    const { run } = checkWithRows([member, policy, [], home])
+  it('authorizes a connectionless first exchange on this deployment', async () => {
+    const { run } = checkWithRows([member, policy, []])
 
     await expect(run()).resolves.toMatchObject({
       allowed: true,
@@ -56,15 +48,12 @@ describe('Google OAuth content authorization', () => {
         connectionLifecycleVersion: 0,
         connectionAccessVersion: 0,
         credentialGeneration: 0,
-        credentialHomeCellId: 'us',
-        credentialHomePolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-        credentialHomeAuthorityGeneration: 4,
       },
     })
   })
 
   it('recomputes the same prospective vector for gateway admission', async () => {
-    const { execute } = checkWithRows([member, policy, [], home])
+    const { execute } = checkWithRows([member, policy, []])
 
     await expect(
       createGoogleContentAuthorizationCheck({
@@ -88,12 +77,9 @@ describe('Google OAuth content authorization', () => {
         credential_generation: 13,
         status: 'disconnected',
         credential_use_state: 'none',
-        credential_home_cell_id: 'us',
-        credential_home_policy_version: DATA_CELL_CATALOGUE_POLICY_VERSION,
-        credential_home_authority_generation: 4,
       },
     ]
-    const { run } = checkWithRows([member, policy, connection, home])
+    const { run } = checkWithRows([member, policy, connection])
 
     await expect(run()).resolves.toMatchObject({
       allowed: true,
@@ -105,26 +91,6 @@ describe('Google OAuth content authorization', () => {
         connectionStatus: 'disconnected',
         credentialUseState: 'none',
       },
-    })
-  })
-
-  it.each([
-    ['missing home', []],
-    [
-      'stale home policy',
-      [
-        {
-          ...home[0],
-          catalogue_policy_version: DATA_CELL_CATALOGUE_POLICY_VERSION - 1,
-        },
-      ],
-    ],
-    ['ambiguous home', [...home, ...home]],
-  ] as const)('fails closed for a prospective exchange with %s', async (_name, rows) => {
-    const { run } = checkWithRows([member, policy, [], rows])
-    await expect(run()).resolves.toEqual({
-      allowed: false,
-      code: 'authorization_denied',
     })
   })
 })

@@ -171,8 +171,8 @@ function realDeps(env: RestoreVerifyDeps['env']): RestoreVerifyDeps {
     inspectRetentionBacklog: async () => ({}),
     sweepRetentionBacklog: async () => {},
     // The recovery fence is proved independently because it deliberately
-    // mutates cell-global authority; this shared-database test remains scoped
-    // to the review purge/operator-command integration seam.
+    // mutates deployment-wide authority; this shared-database test remains
+    // scoped to the review purge/operator-command integration seam.
     inspectRecoveryFence: async () => ZERO_RECOVERY,
     applyRecoveryFence: async () => ({
       id: '10000000-0000-4000-8000-000000000078',
@@ -213,8 +213,6 @@ function realDeps(env: RestoreVerifyDeps['env']): RestoreVerifyDeps {
 const ISOLATED_ENV = {
   RESTORE_MODE: 'isolated',
   DATABASE_URL: 'postgresql://u:p@localhost:5432/restored',
-  PROCESSING_CELL: 'us',
-  RESTORE_SOURCE_CELL: 'us',
   RESTORE_POINT_AT: new Date(NOW - 1_000).toISOString(),
   RELEASE_SHA: 'a'.repeat(40),
   RELEASE_MANIFEST_SHA256: 'b'.repeat(64),
@@ -241,6 +239,12 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     runtime = {
       decide: (request: DecisionRequest) => getExecutionPolicy().decide(request),
     }
+    // The Review lifecycle-store suite records `reviews.purge` runs in the same
+    // database; vitest orders files by cached duration, so own the subject here
+    // instead of assuming this file runs first.
+    await db.execute(
+      sql`DELETE FROM retention_runs WHERE subject = ${RESTORE_VERIFY_PURGE_SUBJECT}`,
+    )
     await db.execute(
       sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Restore Verify Org', 'restore-verify-org', NOW()) ON CONFLICT (id) DO NOTHING`,
     )

@@ -48,7 +48,7 @@ import {
 } from '#/contexts/integration/infrastructure/adapters/google-authorized-provider-executor.adapter'
 import { createDurableGoogleImportReferenceStore } from '#/contexts/integration/infrastructure/durable-import-reference-store'
 import { createGoogleDisconnectRevokeRepository } from '#/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository'
-import { createDirectGoogleProviderCredentialAdmission } from '#/contexts/integration/infrastructure/adapters/google-credential-provider-admission.adapter'
+import { createGoogleProviderCredentialAdmission } from '#/contexts/integration/infrastructure/adapters/google-credential-provider-admission.adapter'
 import {
   createOAuthStateHandleService,
   type OAuthStateHandleService,
@@ -59,7 +59,6 @@ import type { GoogleImportContentAuthorizer } from '#/contexts/integration/appli
 import type { PerformanceContentAuthorizer } from '#/contexts/integration/application/google-performance-authorizer'
 import type { GoogleReviewSyncContentAuthorizer } from '#/contexts/integration/application/google-review-sync-authorizer'
 import type { GoogleReplyPublicationContentAuthorizer } from '#/contexts/integration/application/google-reply-publication-authorizer'
-import type { createDataCellExecutionFence } from '#/shared/routing/data-cell-execution-fence'
 import type { ProviderOverrides } from './provider-runtime'
 
 /** The exact capability set this module owns. Pinned by its test. */
@@ -108,9 +107,8 @@ export type GoogleProviderAuthorityInput = Readonly<{
   /** Operator processes retain the Integration interface but deny provider calls. */
   mode?: GoogleProviderAuthorityMode
   redis: Redis | undefined
-  /** The cell's approved provider endpoints, already resolved and overridden. */
+  /** Google's approved provider endpoints, already resolved and overridden. */
   providerEndpoints: Readonly<Record<'gbpApiBaseUrl' | string, string>>
-  dataCellExecutionFence: ReturnType<typeof createDataCellExecutionFence>
   /**
    * Identity-owned authority facts this trust boundary must consult. Both are
    * typed from their consumers so the seam cannot drift from what the Google
@@ -192,7 +190,6 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
     return buildRefusingGoogleProviderAuthority(input.logger)
   }
   const { db, clock, logger, env, redis, providerEndpoints } = input
-  const dataCellExecutionFence = input.dataCellExecutionFence
   const options = input.options
 
   let providerEphemeralRedis: Redis | undefined
@@ -712,11 +709,7 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
         acquireDispatch: googleDisconnectRevokeStore.acquireDispatch,
       },
       now: clock,
-      admitPropertyExecution: dataCellExecutionFence.decideProperty,
-      admitDirectCredentialExecution: createDirectGoogleProviderCredentialAdmission({
-        db,
-        localCellId: dataCellExecutionFence.localCell,
-      }),
+      admitCredentialExecution: createGoogleProviderCredentialAdmission(db),
       routeTarget,
       admit: async ({ authorization, admission }) => {
         const binding = { capability: authorization.capability } as const

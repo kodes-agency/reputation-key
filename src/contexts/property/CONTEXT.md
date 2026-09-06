@@ -26,16 +26,14 @@ Property management — creation, updates, lifecycle containment, and cross-cont
 - Property slugs must be unique within an organization.
 - Destructive Property deletion is unreachable from the normal product in beta. The legacy `deleteProperty` server boundary and use case both fail closed before lookup, purge, provider fencing, or durable writes; `property.delete` maps to the permanently blocked `property.erase` capability.
 - Archive mutates the existing Property row in place, records the initiating AccountAdmin/reason/deadline, increments `sourceEpoch`, invalidates the Google review destination to `awaiting_refresh` when one exists, and co-commits the content-free `property.archived` fact. It never deletes the Property or a dependent row.
-- Only an archived Property inside its original recovery window may be restored through the normal product. Restore revalidates an accepting Data Cell and at least one current eligible Responsible Manager, increments `sourceEpoch`, co-commits `property.restored`, and reports whether Google reconnection is required. It does not silently reconnect or resume provider work that current binding authorization still denies.
+- Only an archived Property inside its original recovery window may be restored through the normal product. Restore revalidates at least one current eligible Responsible Manager, increments `sourceEpoch`, co-commits `property.restored`, and reports whether Google reconnection is required. It does not silently reconnect or resume provider work that current binding authorization still denies.
 - Property Google disconnect is a separate, idempotent action available only after Archive. It changes only the Property-owned binding generation and destination readiness; the Organization Google connection, stable Property identity, provider suffix history, and retained managerial data remain intact. Provider identity scrubbing and permanent erasure are not part of this action.
-- An expired recovery window leaves the Property archived for support handling. There is no automatic purge, hard-delete path, self-service region move, or irreversible erasure in this slice; support-mediated permanent erasure remains separate LIF-01 work.
+- An expired recovery window leaves the Property archived for support handling. There is no automatic purge, hard-delete path, or irreversible erasure in this slice; support-mediated permanent erasure remains separate LIF-01 work.
 - Canonical GBP location suffixes must be unique within an organization.
 - A Google review destination is accepted only from the provider discovery/import path, is restricted to approved HTTPS Google hosts, and is pinned to the Property binding generation that produced it.
 - Disconnect preserves the last destination only as `awaiting_refresh`; credential scrub clears it. Neither state is a public rendering authority.
-- `dataCellId` is assigned from the Data Cell catalogue at creation. One
-  deployment serves every supported country (`docs/BETA.md` §1); there is no
-  move workflow, and editing a Property's country or timezone changes business
-  facts only.
+- Country and timezone are business facts. One deployment serves every supported
+  country (`docs/BETA.md` §1), and editing either moves no data.
 - Responsible Managers are explicit and may be multiple. Property creation never infers one from the creator.
 - AccountAdmins are eligible organization-wide. A PropertyManager needs active membership, an active PropertyAccessGrant, and an active linked StaffParticipation for the Property.
 - Losing membership, access, or participation ends only the affected manager's active interval. If none remain, the Property records `responsibilityNeededSince`; no replacement is guessed and offboarding is not blocked.
@@ -45,11 +43,11 @@ Property management — creation, updates, lifecycle containment, and cross-cont
 
 | Tag                                     | Payload                                                                                                       | When recorded                                                                                                  |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `property.created`                      | eventId, propertyId, organizationId, name, slug, dataCellId/legacy processingRegion, occurredAt               | A Property is created with its resolved routing facts                                                          |
+| `property.created`                      | eventId, propertyId, organizationId, name, slug, occurredAt                                                   | A Property is created with its country and timezone business facts                                             |
 | `property.updated`                      | eventId, propertyId, organizationId, name, slug, occurredAt                                                   | Mutable Property metadata changes                                                                              |
 | `property.deleted`                      | eventId, propertyId, organizationId, occurredAt                                                               | Legacy/future Erase compatibility only; normal product actions cannot record it during LIF-01 containment      |
 | `property.archived`                     | eventId, organizationId, propertyId, userId, previousState, sourceEpoch, recoveryDeadline, occurredAt         | Archive commits in place and opens the bounded recovery window; reason/content remain Property-local           |
-| `property.restored`                     | eventId, organizationId, propertyId, userId, previousState, sourceEpoch, Google binding readiness, occurredAt | Explicit restore passes current responsibility and Data Cell checks                                            |
+| `property.restored`                     | eventId, organizationId, propertyId, userId, previousState, sourceEpoch, Google binding readiness, occurredAt | Explicit restore passes current responsibility checks                                                          |
 | `property.google_binding.changed`       | eventId, organizationId, propertyId, connectionId, sourceEpoch, change, occurredAt                            | The Property-owned Google binding is created, relinked, disconnected, or enters deletion                       |
 | `property.responsibility_became_needed` | eventId, propertyId, organizationId, occurredAt                                                               | The Property loses its last active responsible manager; Notification alerts current AccountAdmins content-free |
 
@@ -90,14 +88,14 @@ property/
 - **`listProperties`** — List properties for an org, filtered by user's accessible properties (via StaffPublicApi).
 - **`deleteProperty`** — Contained legacy entry point (file: `soft-delete-property.ts`). Always refuses before effects. It does not implement Archive/Disconnect or support-mediated erasure.
 - **`archiveProperty`** — AccountAdmin-only recoverable lifecycle transition. Preserves identity/history, opens one fixed 30-day recovery window, fences stale work through `sourceEpoch`, and atomically records `property.archived`.
-- **`restoreProperty`** — AccountAdmin-only explicit recovery for an archived Property before its deadline. Requires an accepting assigned Data Cell and an eligible Responsible Manager and returns `ready` or `reconnect_required` for the Google binding.
+- **`restoreProperty`** — AccountAdmin-only explicit recovery for an archived Property before its deadline. Requires an eligible Responsible Manager and returns `ready` or `reconnect_required` for the Google binding.
 - **`disconnectPropertyGoogleBinding`** — AccountAdmin-only, archived-Property binding disconnect. It does not revoke or delete the Organization Google connection.
 
 ## Public API
 
 Exported from `application/public-api.ts`:
 
-- Types: `PropertyPublicApi`, `PropertyFactsPublicApi`, `PropertyGoogleBindingPublicApi`, `PropertyGoogleReviewDestinationPublicApi`, `PropertyLifecyclePublicApi`, `GoogleBindingState`
+- Types: `PropertyPublicApi`, `PropertyFactsPublicApi`, `PropertySourceEpochPublicApi`, `PropertyGoogleBindingPublicApi`, `PropertyGoogleReviewDestinationPublicApi`, `PropertyLifecyclePublicApi`, `GoogleBindingState`
 - Lifecycle contract: `isPropertyActive`, used by cross-context request-time and external-effect gates to fail closed even before asynchronous projections settle.
 
 ## Server functions

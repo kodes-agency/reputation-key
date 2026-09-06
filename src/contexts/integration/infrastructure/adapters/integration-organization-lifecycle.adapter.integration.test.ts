@@ -31,21 +31,18 @@ import {
  * `verifyPurgeReadiness` must leave their full contents unchanged.
  */
 const OWNED_TABLES = [
-  'google_organization_credential_homes',
   'google_connections',
   'gbp_import_sagas',
   'gbp_import_requests',
   'gbp_import_request_items',
   'google_oauth_exchange_attempts',
   'google_disconnect_revoke_attempts',
-  'google_credential_broker_replay',
   'authorization_execution_permits',
 ] as const
 
 /** Rows this context keeps after purge, scrubbed to content-free facts. */
 const RETAINED_TABLES = [
   'google_connections',
-  'google_organization_credential_homes',
   'google_disconnect_revoke_attempts',
   'authorization_execution_permits',
 ] as const
@@ -59,7 +56,6 @@ const MARKERS = Object.freeze({
   accessToken: 'CLOSURE_ACCESS_TOKEN',
   refreshToken: 'CLOSURE_REFRESH_TOKEN',
   googleSubject: 'CLOSURE_GOOGLE_SUBJECT',
-  changeTicket: 'CLOSURE_CHANGE_TICKET',
   // The schema pins replay digests to exactly 43 URL-safe base64 characters.
   replayDigest: `ClosureReplayDigest${'0'.repeat(24)}`,
 })
@@ -149,25 +145,15 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.memberId, fixture.userId, fixture.organizationId, CREATED_AT],
   )
   await lease.pool.query(
-    `INSERT INTO google_organization_credential_homes (
-       organization_id, authority_generation, home_cell_id,
-       catalogue_policy_version, transition_reason, changed_by, change_ticket,
-       effective_from
-     ) VALUES ($1, 1, 'us', 1, 'new_grant', $2, $3, $4)`,
-    [fixture.organizationId, fixture.userId, MARKERS.changeTicket, CREATED_AT],
-  )
-  await lease.pool.query(
     `INSERT INTO google_connections (
        id, organization_id, google_subject, encrypted_access_token,
        encrypted_refresh_token, token_expires_at, scopes, connected_by,
        credential_authorized_by, credential_authorized_at, visibility, status,
-       credential_use_state, credential_home_cell_id,
-       credential_home_policy_version, credential_home_authority_generation,
-       last_successful_sync_at, status_reason, status_changed_at,
+       credential_use_state, last_successful_sync_at, status_reason, status_changed_at,
        created_at, updated_at
      ) VALUES (
        $1, $2, $3, $4, $5, $6, ARRAY['https://www.googleapis.com/auth/business.manage'],
-       $7, $7, $8, 'organization', 'active', 'active', 'us', 1, 1, $8,
+       $7, $7, $8, 'organization', 'active', 'active', $8,
        'connected', $8, $8, $8
      )`,
     [
@@ -226,13 +212,12 @@ async function seedFixture(): Promise<Fixture> {
          destination_property_id, provider_account_suffix,
          provider_location_suffix, expected_connection_lifecycle_version,
          expected_connection_access_version, expected_credential_generation,
-         action, update_existing_profile, property_name, country_code,
-         timezone, processing_region, routing_policy_version, status,
+         action, update_existing_profile, property_name, country_code, timezone, status,
          outcome_code, first_terminal_at, effect_deadline_at,
          created_at, updated_at
        ) VALUES (
          $1, $2, $3, $4, $5, 'account-suffix', 'location-suffix', 1, 1, 1,
-         'create', true, 'Imported Location', 'US', 'UTC', 'us', 1, $6, $7,
+         'create', true, 'Imported Location', 'US', 'UTC', $6, $7,
          $8, $9, $10, $10
        )`,
       [
@@ -270,10 +255,8 @@ async function seedFixture(): Promise<Fixture> {
     `INSERT INTO google_oauth_exchange_attempts (
        id, organization_id, initiator_user_id, connection_id, connection_mode,
        state, expected_lifecycle_version, expected_access_version,
-       expected_credential_generation, credential_home_cell_id,
-       credential_home_policy_version, credential_home_authority_generation,
-       terminal_at, outcome_code, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'new', 'completed', 1, 1, 1, 'us', 1, 1, $5,
+       expected_credential_generation, terminal_at, outcome_code, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, 'new', 'completed', 1, 1, 1, $5,
                'connected', $5, $5)`,
     [randomUUID(), fixture.organizationId, fixture.userId, randomUUID(), CREATED_AT],
   )

@@ -1,10 +1,7 @@
 // BQC-3.6 — failure quarantine with redrive metadata.
 //
 // Max-attempt jobs move to a dedicated 'quarantine' BullMQ queue. NO worker
-// ever processes that queue — it IS the dead letter. BQC-4.2 adds a second,
-// direct path (quarantineJobDirect): dispatch-time gates that reject a job
-// without running it (routing blocked / wrong cell) park it here immediately
-// — no retry burn — with the gate's reason in policyReason. The envelope is
+// ever processes that queue — it IS the dead letter. The envelope is
 // content-safe by construction:
 //
 //   - data passes through ONLY for catalogue-known work (every catalogued job
@@ -339,30 +336,6 @@ export async function confirmQuarantineFailure(
   if (!quarantined) return false
   await quarantined.updateProgress(CONFIRMED_FAILURE_PROGRESS)
   return true
-}
-
-/**
- * BQC-4.2: quarantine a job DIRECTLY — no attempt budget check. Used by the
- * dispatch-time gates that reject a job without running it (routing blocked,
- * wrong cell): the job must not burn retries on a decision that will not
- * change within its attempt budget, so it parks in the dead-letter queue
- * immediately (operator-visible via the 3.7 quarantine metrics) with the
- * gate's reason in policyReason.
- */
-export async function quarantineJobDirect(
-  quarantineQueue: QueueAddPort,
-  job: Job,
-  policyReason: string,
-): Promise<QuarantineOutcome> {
-  const envelope = buildQuarantineEnvelope(job, {
-    failedReason: `GateRejected: ${policyReason}`,
-    policyReason,
-    publicationState: 'confirmed_failed',
-  })
-
-  const quarantineJobId = quarantineJobIdFor(envelope)
-  await quarantineQueue.add(envelope.jobName, envelope, { jobId: quarantineJobId })
-  return { quarantined: true, quarantineJobId }
 }
 
 // ── Redrive ─────────────────────────────────────────────────────────

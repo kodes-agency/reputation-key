@@ -44,7 +44,6 @@ describe('Review lifecycle recovery execution repository (integration)', () => {
         const generationResult = await transaction.execute(sql`
           SELECT COALESCE(MAX(generation), 0)::int + 1 AS generation
           FROM recovery_runs
-          WHERE data_cell_id = 'us'
         `)
         const recoveryGeneration = Number(generationResult.rows[0]?.generation)
         const now = Date.now()
@@ -58,7 +57,6 @@ describe('Review lifecycle recovery execution repository (integration)', () => {
           approvalKeyId: 'review_recovery_test',
           approvedAt: new Date(now - 10_000),
           expiresAt: new Date(now + 3_600_000),
-          dataCellId: 'us',
           releaseSha: 'b'.repeat(40),
           releaseManifestSha256: 'c'.repeat(64),
           restorePointAt: new Date(now - 120_000),
@@ -167,7 +165,6 @@ describe('Review lifecycle recovery execution repository (integration)', () => {
         })
         await transaction.insert(recoveryRuns).values({
           id: RUN_ID,
-          dataCellId: 'us',
           generation: recoveryGeneration,
           sourceReleaseSha: input.releaseSha,
           sourceManifestSha256: input.releaseManifestSha256,
@@ -297,7 +294,6 @@ describe('Review lifecycle recovery execution repository (integration)', () => {
         const generationResult = await transaction.execute(sql`
           SELECT COALESCE(MAX(generation), 0)::int + 1 AS generation
           FROM recovery_runs
-          WHERE data_cell_id = 'us'
         `)
         const recoveryGeneration = Number(generationResult.rows[0]?.generation)
         const input: BeginReviewLifecycleRecoveryExecutionInput = {
@@ -310,7 +306,6 @@ describe('Review lifecycle recovery execution repository (integration)', () => {
           approvalKeyId: 'review_recovery_test',
           approvedAt,
           expiresAt: new Date(now + 3_600_000),
-          dataCellId: 'us',
           releaseSha: '2'.repeat(40),
           releaseManifestSha256: '3'.repeat(64),
           restorePointAt,

@@ -86,7 +86,7 @@ function queue(
 describe('durable job runtime observations', () => {
   it('preserves the latest success across a worker restart', async () => {
     const redis = new MemoryRedis()
-    const store = createJobRuntimeObservationStore({ redis, cell: 'europe' })
+    const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract()]
 
     await store.recordBoot({
@@ -125,7 +125,7 @@ describe('durable job runtime observations', () => {
 
   it('uses the live scheduler set instead of trusting a stale boot flag', async () => {
     const redis = new MemoryRedis()
-    const store = createJobRuntimeObservationStore({ redis, cell: 'europe' })
+    const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract()]
     await store.recordBoot({
       contracts,
@@ -144,7 +144,6 @@ describe('durable job runtime observations', () => {
 
     expect(report.ready).toBe(false)
     expect(report.rows[0]).toMatchObject({
-      cell: 'europe',
       processor: 'src/shared/jobs/health-check.job.ts',
       action: 'system:health.check',
       routing: 'cell_local',
@@ -162,7 +161,7 @@ describe('durable job runtime observations', () => {
 
   it('detects missed success and over-age queued work from retained BullMQ state', async () => {
     const redis = new MemoryRedis()
-    const store = createJobRuntimeObservationStore({ redis, cell: 'europe' })
+    const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract()]
     await store.recordBoot({
       contracts,
@@ -208,7 +207,7 @@ describe('durable job runtime observations', () => {
 
   it('does not count a future delayed execution as queue backlog', async () => {
     const redis = new MemoryRedis()
-    const store = createJobRuntimeObservationStore({ redis, cell: 'europe' })
+    const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract()]
     await store.recordBoot({
       contracts,
@@ -244,7 +243,7 @@ describe('durable job runtime observations', () => {
 
   it('keeps poison work assigned to repair until a later successful redrive', async () => {
     const redis = new MemoryRedis()
-    const store = createJobRuntimeObservationStore({ redis, cell: 'europe' })
+    const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract()]
     const startedAt = new Date('2026-08-27T05:59:00.000Z')
     await store.recordBoot({
@@ -297,7 +296,7 @@ describe('durable job runtime observations', () => {
 
   it('allows a quarantined safety handler but rejects its scheduler', async () => {
     const redis = new MemoryRedis()
-    const store = createJobRuntimeObservationStore({ redis, cell: 'europe' })
+    const store = createJobRuntimeObservationStore({ redis })
     const contracts = [contract({ posture: 'quarantined' })]
     await store.recordBoot({
       contracts,
@@ -318,7 +317,7 @@ describe('durable job runtime observations', () => {
 
   it('surfaces forbidden queued or started work for a dark family', async () => {
     const redis = new MemoryRedis()
-    const store = createJobRuntimeObservationStore({ redis, cell: 'europe' })
+    const store = createJobRuntimeObservationStore({ redis })
     const contracts = [
       contract({
         jobName: 'leaderboard.reconcile',

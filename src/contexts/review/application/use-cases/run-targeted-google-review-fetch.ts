@@ -7,7 +7,7 @@ import type {
 import { sha256Hex } from '#/shared/domain/sha256'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
-import type { PropertyRoutingPort } from '../ports/property-routing.port'
+import type { PropertySourceEpochPort } from '../ports/property-source-epoch.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
 import type { ReviewSyncActivityRecorder } from '../ports/review-sync-activity.port'
 import type { TargetedGoogleReviewReferenceResolver } from '../ports/targeted-google-review-reference.port'
@@ -45,7 +45,7 @@ export type RunTargetedGoogleReviewFetchResult =
 export type RunTargetedGoogleReviewFetchDeps = Readonly<{
   references: TargetedGoogleReviewReferenceResolver
   googleReviewApi: GoogleReviewApiPort
-  propertyRouting: PropertyRoutingPort
+  propertySourceEpoch: PropertySourceEpochPort
   observationWriter: ReviewProviderObservationWriter
   subjectKeyService: ReviewProviderSubjectKeyService
   syncActivity: ReviewSyncActivityRecorder
@@ -56,7 +56,7 @@ async function currentSource(
   deps: RunTargetedGoogleReviewFetchDeps,
   input: RunTargetedGoogleReviewFetchInput,
 ): Promise<boolean> {
-  const scope = await deps.propertyRouting.getProcessingScope(
+  const scope = await deps.propertySourceEpoch.getSourceEpoch(
     input.organizationId,
     input.propertyId,
   )

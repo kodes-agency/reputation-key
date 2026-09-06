@@ -15,7 +15,6 @@ import {
   cleanScaleDataset,
   createManifest,
 } from '#/shared/testing/scale-dataset'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 const SEED = 'bqc81-integration'
 const SHAPE = { orgs: 2, properties: 20, reviews: 500 }
@@ -39,10 +38,9 @@ async function insertSentinel(): Promise<void> {
   )
   await pool.query(
     `INSERT INTO properties (
-       id, organization_id, name, slug, timezone, country_code,
-       processing_region, data_cell_id, routing_policy_version
+       id, organization_id, name, slug, timezone, country_code
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8) ON CONFLICT DO NOTHING`,
+     VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
     [
       SENTINEL_PROPERTY,
       SENTINEL_ORG,
@@ -50,8 +48,6 @@ async function insertSentinel(): Promise<void> {
       'sentinel-prop-bqc81',
       'America/New_York',
       'US',
-      'us',
-      DATA_CELL_CATALOGUE_POLICY_VERSION,
     ],
   )
   await pool.query(

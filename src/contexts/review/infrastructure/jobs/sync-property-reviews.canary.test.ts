@@ -45,8 +45,8 @@ describe('canary: protected content never reaches log emission (BQC-7.3)', () =>
       runSnapshot: vi.fn(async () => {
         throw new Error('must not be called — the identity gate runs first')
       }),
-      propertyRouting: {
-        getProcessingScope: vi.fn(async () => null),
+      propertySourceEpoch: {
+        getSourceEpoch: vi.fn(async () => null),
       },
       enqueueContinuation: vi.fn(async () => undefined),
       discoveryRepo: {
@@ -87,9 +87,8 @@ describe('canary: protected content never reaches log emission (BQC-7.3)', () =>
       runSnapshot: vi.fn(async () => {
         throw new Error(CANARY)
       }),
-      propertyRouting: {
-        getProcessingScope: vi.fn(async () => ({
-          processingRegion: 'global',
+      propertySourceEpoch: {
+        getSourceEpoch: vi.fn(async () => ({
           sourceEpoch: 1,
         })),
       },

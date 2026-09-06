@@ -34,10 +34,7 @@ import {
   assertProductionRedisTopology,
   getJobRedisUrl,
 } from '#/shared/jobs/redis-topology'
-import {
-  createGatedJobHandler,
-  type JobRoutingGate,
-} from '#/shared/jobs/delayed-execution-gate'
+import { createGatedJobHandler } from '#/shared/jobs/delayed-execution-gate'
 import { assertJobReadiness } from '#/shared/jobs/readiness'
 import { reconcileJobSchedulers } from '#/shared/jobs/job-schedulers'
 import {
@@ -53,7 +50,6 @@ import {
   createWorkerProcessFailurePolicy,
   type WorkerTerminationTrigger,
 } from './process-failure'
-import { quarantineJobDirect } from '#/shared/jobs/failure-quarantine'
 import { createPublishReplyScopeResolver } from '#/contexts/review/infrastructure/jobs/publish-reply-scope-resolver'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
@@ -177,33 +173,11 @@ async function main() {
   // ARC-03-T15: the dead-letter quarantine barrier queue is CONTAINER-owned.
   // It is written to and never processed; jobs whose attempt budget is spent
   // land here with a content-safe envelope.
-  const { quarantineQueue, domainEventsQueue, processingRouter } =
-    container.jobDispatchWorkerRuntime
+  const { quarantineQueue, domainEventsQueue } = container.jobDispatchWorkerRuntime
   const runtimeObservationQueue = container.backgroundQueue ?? container.jobQueue
   const runtimeObservationStore = runtimeObservationQueue
-    ? createQueueJobRuntimeObservationStore({
-        queue: runtimeObservationQueue,
-        cell: env.PROCESSING_CELL,
-      })
+    ? createQueueJobRuntimeObservationStore({ queue: runtimeObservationQueue })
     : null
-
-  // BQC-4.2: the worker declares its processing cell (PROCESSING_CELL, ADR
-  // 0048 — 'us' is the only approved beta cell). The routing gate re-resolves
-  // each property-scoped job's CURRENT routing at dispatch; blocked or
-  // wrong-cell jobs are quarantined directly (fail closed, no retry burn).
-  const processingCell = env.PROCESSING_CELL
-  const routingGate: JobRoutingGate = {
-    // ARC-03-T15: the container's ONE routing model. The worker used to build a
-    // second ProcessingRouter, so a single process held two routing decisions.
-    router: processingRouter,
-    cell: processingCell,
-    quarantine: async (job, policyReason) => {
-      // Undefined only when Redis is absent — but then no worker starts, so
-      // this callback is unreachable; the guard is for the type.
-      if (!quarantineQueue) return
-      await quarantineJobDirect(quarantineQueue, job, policyReason)
-    },
-  }
 
   // ── Default queue — user-facing jobs (import, review sync, reply publish, etc.)
   // Concurrency is budgeted against the connection pool, NOT maximized:
@@ -217,7 +191,7 @@ async function main() {
     // dispatch (current policy — a stale allow never overrides a deny).
     worker = createJobWorker(
       'default',
-      createGatedJobHandler('default', registry, resolveScope, routingGate),
+      createGatedJobHandler('default', registry, resolveScope),
       DEFAULT_QUEUE_CONCURRENCY,
       quarantineQueue,
       runtimeObservationStore ?? undefined,
@@ -240,7 +214,7 @@ async function main() {
   if (container.backgroundQueue) {
     backgroundWorker = createJobWorker(
       'background',
-      createGatedJobHandler('background', registry, resolveScope, routingGate),
+      createGatedJobHandler('background', registry, resolveScope),
       BACKGROUND_QUEUE_CONCURRENCY,
       quarantineQueue,
       runtimeObservationStore ?? undefined,
@@ -334,30 +308,12 @@ async function main() {
   if (!container.outboxRepo || !jobRedisUrl || !domainEventsQueue) {
     throw new Error('[WORKER] outbox relay requires outboxRepo and a job Redis URL')
   }
-  const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue, {
-    sourceCell: env.PROCESSING_CELL,
-    // REG-01: a Property-scoped fact is admitted against CURRENT routing
-    // immediately before queue publication. Organization/global facts are
-    // cell-local by database placement and carry no Property to resolve.
-    admitEvent: async (event) => {
-      if (!event.propertyId) return true
-      const decision = await container.dataCellExecutionFence.decideProperty(
-        event.propertyId,
-      )
-      return decision.kind === 'allow'
-        ? {
-            dataCellId: decision.cell,
-            routingPolicyVersion: decision.routingPolicyVersion,
-          }
-        : false
-    },
-  })
+  const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue)
   const stopRelay = relay.start(1_000)
   const domainEventsWorker = createJobWorker(
     'domain-events',
     createDispatcherHandler(container.outboxRepo, {
       consumers: container.consumerRegistry,
-      localCell: env.PROCESSING_CELL,
     }),
     20,
     quarantineQueue,

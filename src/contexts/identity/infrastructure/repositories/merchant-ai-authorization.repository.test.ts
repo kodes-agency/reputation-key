@@ -79,12 +79,11 @@ async function insertProperty(): Promise<void> {
     INSERT INTO properties (
       id, organization_id, name, slug, timezone, lifecycle_state,
       google_connection_id, gbp_account_id, gbp_location_id,
-      google_binding_state, profile_source, routing_policy_version,
-      processing_region, source_epoch
+      google_binding_state, profile_source, source_epoch
     ) VALUES (
       ${PROPERTY}::uuid, ${ORG}, 'AI Property', 'ai-property', 'UTC', 'active',
       ${CONNECTION}::uuid, 'account-1', 'location-1',
-      'active', 'legacy', 1, 'global', 3
+      'active', 'legacy', 3
     )
   `)
   await db.execute(sql`

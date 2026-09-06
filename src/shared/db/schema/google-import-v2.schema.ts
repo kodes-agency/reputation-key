@@ -32,7 +32,6 @@ export const googleImportV2ItemStatusEnum = pgEnum('google_import_v2_item_status
   'imported',
   'relinked',
   'already_exists',
-  'region_unavailable',
   'failed',
   'cancelled',
 ])
@@ -46,7 +45,6 @@ export const googleImportV2OutcomeEnum = pgEnum('google_import_v2_outcome', [
   'imported',
   'relinked',
   'already_exists',
-  'region_unavailable',
   'active_binding_conflict',
   'stale_binding',
   'reauthentication_required',
@@ -128,7 +126,6 @@ export const gbpImportRequests = pgTable(
     importedCount: integer('imported_count').notNull().default(0),
     relinkedCount: integer('relinked_count').notNull().default(0),
     alreadyExistsCount: integer('already_exists_count').notNull().default(0),
-    regionUnavailableCount: integer('region_unavailable_count').notNull().default(0),
     failedCount: integer('failed_count').notNull().default(0),
     cancelledCount: integer('cancelled_count').notNull().default(0),
     deletionFence: integer('deletion_fence').notNull().default(0),
@@ -204,10 +201,9 @@ export const gbpImportRequests = pgTable(
         AND ${t.importedCount} >= 0
         AND ${t.relinkedCount} >= 0
         AND ${t.alreadyExistsCount} >= 0
-        AND ${t.regionUnavailableCount} >= 0
         AND ${t.failedCount} >= 0
         AND ${t.cancelledCount} >= 0
-        AND ${t.processedCount} = ${t.importedCount} + ${t.relinkedCount} + ${t.alreadyExistsCount} + ${t.regionUnavailableCount} + ${t.failedCount} + ${t.cancelledCount}
+        AND ${t.processedCount} = ${t.importedCount} + ${t.relinkedCount} + ${t.alreadyExistsCount} + ${t.failedCount} + ${t.cancelledCount}
         AND ${t.totalCount} = ${t.pendingCount} + ${t.processingCount} + ${t.processedCount}
       )`,
     ),
@@ -256,8 +252,6 @@ export const gbpImportRequestItems = pgTable(
     propertyAddress: text('property_address'),
     countryCode: varchar('country_code', { length: 2 }),
     timezone: varchar('timezone', { length: 64 }).notNull(),
-    processingRegion: text('processing_region').notNull(),
-    routingPolicyVersion: integer('routing_policy_version').notNull(),
     status: googleImportV2ItemStatusEnum('status').notNull().default('pending'),
     outcomeCode: googleImportV2OutcomeEnum('outcome_code'),
     effectDeadlineAt: timestamptz('effect_deadline_at').notNull(),
@@ -303,7 +297,7 @@ export const gbpImportRequestItems = pgTable(
     index('gbp_import_request_items_effect_deadline_idx')
       .on(t.effectDeadlineAt, t.id)
       .where(sql`${t.status} IN ('pending', 'processing')`),
-    index('gbp_import_request_items_routing_idx')
+    index('gbp_import_request_items_dispatch_idx')
       .on(t.organizationId, t.id, t.status)
       .where(sql`${t.status} IN ('pending', 'processing')`),
     check(
@@ -345,7 +339,6 @@ export const gbpImportRequestItems = pgTable(
           AND ${t.expectedCredentialGeneration} IS NULL
           )
         )
-        AND ${t.routingPolicyVersion} >= 1
         AND ${t.retryRevision} >= 0
       )`,
     ),
@@ -386,7 +379,6 @@ export const gbpImportRequestItems = pgTable(
         OR (${t.status} = 'imported' AND ${t.outcomeCode} = 'imported')
         OR (${t.status} = 'relinked' AND ${t.outcomeCode} = 'relinked')
         OR (${t.status} = 'already_exists' AND ${t.outcomeCode} = 'already_exists')
-        OR (${t.status} = 'region_unavailable' AND ${t.outcomeCode} = 'region_unavailable')
         OR (${t.status} = 'failed' AND ${t.outcomeCode} IN ('active_binding_conflict', 'stale_binding', 'reauthentication_required', 'reconnect_required', 'temporarily_unavailable', 'cleanup_required', 'internal_error'))
         OR (${t.status} = 'cancelled' AND ${t.outcomeCode}::text IN ('authorization_changed', 'user_cancelled', 'policy_disabled', 'organization_suspended', 'property_suspended', 'property_deleted'))
       )`,
@@ -400,7 +392,7 @@ export const gbpImportRequestItems = pgTable(
       sql`${t.effectDeadlineAt} = ${t.createdAt} + interval '24 hours'`,
     ),
     check(
-      'gbp_import_request_items_routing_retention_valid',
+      'gbp_import_request_items_provider_reference_retention_valid',
       sql`(
         (
           ${t.status} IN ('pending', 'processing')

@@ -6,12 +6,10 @@ import type { Property } from '../../domain/types'
 import type { PropertyLifecycleState } from '../../domain/property-lifecycle'
 import { unbrand } from '#/shared/domain/ids'
 import { propertyId, organizationId, googleConnectionId } from '#/shared/domain/ids'
-import { resolvePersistedDataCellId } from '#/shared/domain/data-cell-catalogue'
 
 type PropertyRow = Omit<
   typeof properties.$inferSelect,
   | 'defaultReplyLanguage'
-  | 'dataCellId'
   | 'responsibleManagerRevision'
   | 'responsibilityNeededSince'
   | 'googleReviewUri'
@@ -22,8 +20,6 @@ type PropertyRow = Omit<
 > &
   Readonly<{
     defaultReplyLanguage?: string | null
-    /** Optional only for tests and expand-phase row fixtures. */
-    dataCellId?: string | null
     /** Optional only for pre-expand fixtures. */
     responsibleManagerRevision?: number
     responsibilityNeededSince?: Date | null
@@ -74,11 +70,6 @@ export const propertyFromRow = (row: PropertyRow): Property => ({
   countrySource: row.countrySource ?? null,
   timezoneSource: row.timezoneSource ?? null,
   timezoneResolvedAt: row.timezoneResolvedAt ?? null,
-  processingRegion: row.processingRegion ?? null,
-  dataCellId: resolvePersistedDataCellId(row.dataCellId, row.processingRegion),
-  processingRegionSource: row.processingRegionSource ?? null,
-  routingPolicyVersion: row.routingPolicyVersion ?? 1,
-  processingRegionResolvedAt: row.processingRegionResolvedAt ?? null,
   sourceEpoch: row.sourceEpoch ?? 0,
   responsibleManagerRevision: row.responsibleManagerRevision ?? 1,
   responsibilityNeededSince: row.responsibilityNeededSince ?? null,
@@ -121,11 +112,6 @@ export const propertyToRow = (property: Property): PropertyInsertRow => ({
   countrySource: property.countrySource,
   timezoneSource: property.timezoneSource,
   timezoneResolvedAt: property.timezoneResolvedAt,
-  processingRegion: property.processingRegion,
-  dataCellId: property.dataCellId,
-  processingRegionSource: property.processingRegionSource,
-  routingPolicyVersion: property.routingPolicyVersion,
-  processingRegionResolvedAt: property.processingRegionResolvedAt,
   sourceEpoch: property.sourceEpoch,
   responsibleManagerRevision: property.responsibleManagerRevision,
   responsibilityNeededSince: property.responsibilityNeededSince,

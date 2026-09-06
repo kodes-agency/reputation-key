@@ -68,7 +68,6 @@ export type ResolvedImportCandidate = Omit<ImportDiscoveryCandidate, 'eligibilit
         }>
       | Readonly<{ kind: 'already_imported'; propertyId: string }>
       | Readonly<{ kind: 'active_binding_conflict' }>
-      | Readonly<{ kind: 'region_unavailable' }>
       | Readonly<{ kind: 'verification_required' }>
       | Readonly<{ kind: 'unavailable' }>
   }>

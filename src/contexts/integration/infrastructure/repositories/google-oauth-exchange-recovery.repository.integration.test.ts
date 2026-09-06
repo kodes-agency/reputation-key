@@ -27,11 +27,6 @@ const facts = (id: string) => ({
   expectedLifecycleVersion: 0,
   expectedAccessVersion: 0,
   expectedCredentialGeneration: 0,
-  credentialHome: {
-    homeCellId: 'us' as const,
-    cataloguePolicyVersion: 1,
-    authorityGeneration: 1,
-  },
 })
 
 describe('PostgreSQL Google OAuth exchange recovery repository', () => {

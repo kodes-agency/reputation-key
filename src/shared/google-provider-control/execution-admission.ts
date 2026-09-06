@@ -14,23 +14,27 @@ const SHA256 = /^[a-f0-9]{64}$/
 const SAFE_ID = /^[A-Za-z0-9._:@/-]{1,255}$/
 const MAX_ADMISSION_BYTES = 8 * 1024 * 1024
 
-const CAPABILITY_ROUTES = Object.freeze({
-  'property.import_gbp_v2': new Set([
-    'account-management.accounts.list',
-    'business-information.locations.list',
-  ]),
-  'property.read_gbp_performance': new Set(['performance.fetch']),
-  'property.connect_gbp': new Set([
-    'reviews.list',
-    'reviews.get',
-    'notifications.get',
-    'notifications.subscribe',
-    'notifications.unsubscribe',
-  ]),
-  'property.publish_reply': new Set(['reviews.reply']),
-} satisfies Readonly<
-  Record<GoogleExecutionAdmissionRequest['capability'], ReadonlySet<string>>
->)
+const CAPABILITY_ROUTES: Readonly<
+  Record<GoogleExecutionAdmissionRequest['capability'], Readonly<Record<string, true>>>
+> = Object.freeze({
+  'property.import_gbp_v2': Object.freeze({
+    'account-management.accounts.list': true,
+    'business-information.locations.list': true,
+  }),
+  'property.read_gbp_performance': Object.freeze({
+    'performance.fetch': true,
+  }),
+  'property.connect_gbp': Object.freeze({
+    'reviews.list': true,
+    'reviews.get': true,
+    'notifications.get': true,
+    'notifications.subscribe': true,
+    'notifications.unsubscribe': true,
+  }),
+  'property.publish_reply': Object.freeze({
+    'reviews.reply': true,
+  }),
+})
 
 function validGeneration(value: number | null): boolean {
   return value === null || (Number.isSafeInteger(value) && value >= 1)
@@ -55,7 +59,6 @@ export function validateGoogleExecutionAdmissionRequest(
       request.authorization.accessVersion,
       request.authorization.credentialGeneration,
       request.authorization.propertyAuthorizationGeneration,
-      request.authorization.routingPolicyVersion,
     ].every(validGeneration) ||
     request.authorization.capabilityPolicyVersion !== 'beta-local-2' ||
     request.authorization.executionPolicyVersion !== 'beta-local-2' ||
@@ -81,7 +84,7 @@ export function validateGoogleExecutionAdmissionRequest(
   }
   const policy = GOOGLE_PROVIDER_ROUTE_POLICIES[request.routeKey]
   if (!policy) return 'route_mismatch'
-  if (!CAPABILITY_ROUTES[request.capability]?.has(request.routeKey)) {
+  if (CAPABILITY_ROUTES[request.capability][request.routeKey] !== true) {
     return 'route_mismatch'
   }
   if (policy.endpointClass !== request.endpointClass) return 'endpoint_mismatch'
@@ -109,8 +112,7 @@ function sameAuthorization(
     left.credentialGeneration === right.credentialGeneration &&
     left.propertyAuthorizationGeneration === right.propertyAuthorizationGeneration &&
     left.capabilityPolicyVersion === right.capabilityPolicyVersion &&
-    left.executionPolicyVersion === right.executionPolicyVersion &&
-    left.routingPolicyVersion === right.routingPolicyVersion
+    left.executionPolicyVersion === right.executionPolicyVersion
   )
 }
 

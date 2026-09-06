@@ -1,8 +1,4 @@
 import { z } from 'zod/v4'
-import {
-  DATA_CELL_IDS,
-  isBetaDeploymentDataCellId,
-} from '#/shared/domain/data-cell-catalogue'
 import { isRailwayPitrDatabaseUrl } from '#/shared/config/restore-mode'
 
 const baseEnvSchema = z.object({
@@ -39,8 +35,8 @@ const baseEnvSchema = z.object({
   // starts. Format is Resend's `whsec_<base64>`; the verifier strips the
   // prefix and base64-decodes the remainder as the HMAC-SHA256 key.
   RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
-  // RFC 8058 bearer-capability signing keys shared by the web and worker in
-  // one Data Cell. Optional at schema level for expand/configure/cutover:
+  // RFC 8058 bearer-capability signing keys shared by the web and worker.
+  // Optional at schema level for expand/configure/cutover:
   // optional mail refuses to send and the endpoint returns 503 while absent.
   // Format: active-plus-retained versioned HMAC keys (v2:<64-hex>,v1:<64-hex>).
   NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS:
@@ -138,9 +134,9 @@ const baseEnvSchema = z.object({
     .optional()
     .transform((value) => value?.toLowerCase() === 'true'),
 
-  // Error tracking — optional for local/test execution. Every deployed
-  // production Data Cell requires a Germany-ingestion DSN at the monitoring
-  // preload boundary (shared/observability/telemetry.ts).
+  // Error tracking — optional for local/test execution. A deployed production
+  // process requires a Germany-ingestion DSN at the monitoring preload
+  // boundary (shared/observability/telemetry.ts).
   SENTRY_DSN: z.url().optional(),
   // Optional source-map upload inputs. Railway exposes build variables to the
   // process environment too, but application runtime behavior never depends on
@@ -201,22 +197,6 @@ const baseEnvSchema = z.object({
   GOOGLE_EGRESS_GATEWAY_IDENTITY: z.string().min(1).optional(),
   GOOGLE_ADMISSION_GRANT_HMAC_KEYS: z.string().optional(),
   GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
-  // Cross-environment credential broker Phase B. Railway exposes this through
-  // a public TCP proxy, so validate-only mode requires self-TLS/mTLS and exact
-  // cryptographic peer identities. No live-execution mode exists yet.
-  GOOGLE_CREDENTIAL_BROKER_MODE: z
-    .enum(['disabled', 'validate_only'])
-    .default('disabled'),
-  GOOGLE_CREDENTIAL_BROKER_PUBLIC_ORIGIN: z.string().min(1).optional(),
-  GOOGLE_CREDENTIAL_BROKER_SERVER_NAME: z.string().min(1).optional(),
-  GOOGLE_CREDENTIAL_BROKER_SERVICE_IDENTITY: z.string().min(1).optional(),
-  GOOGLE_CREDENTIAL_BROKER_PEER_IDENTITIES: z.string().min(1).optional(),
-  GOOGLE_CREDENTIAL_BROKER_MTLS_CA_B64: z.string().min(1).optional(),
-  GOOGLE_CREDENTIAL_BROKER_MTLS_CERT_B64: z.string().min(1).optional(),
-  GOOGLE_CREDENTIAL_BROKER_MTLS_KEY_B64: z.string().min(1).optional(),
-  GOOGLE_CREDENTIAL_BROKER_SIGNATURE_HMAC_KEYS: z.string().max(195).optional(),
-  GOOGLE_CREDENTIAL_BROKER_REPLAY_HMAC_KEYS: z.string().max(195).optional(),
-  GOOGLE_CREDENTIAL_ROUTING_HMAC_KEYS: z.string().max(195).optional(),
 
   // Settlement-receipt and provenance verification keyrings. The transport that
   // used to sit beside them here — gateway origin, server name and three mTLS
@@ -332,11 +312,6 @@ const baseEnvSchema = z.object({
   // routing. Default 1 MiB — the largest legitimate payloads (portal image
   // uploads go through presigned S3 URLs, not this server).
   REQUEST_BODY_LIMIT_BYTES: z.coerce.number().int().min(1).default(1_048_576),
-  // REG-01: the stable Data Cell this process belongs to. Catalogue admission,
-  // not this variable, decides whether that cell may accept work. Unknown cell
-  // names fail environment parsing; known wrong-cell work fails at the shared
-  // execution, repository, queue, provider, and storage boundaries.
-  PROCESSING_CELL: z.enum(DATA_CELL_IDS).optional(),
   // BQC-7.1: worker graceful-shutdown drain budget (ms). BullMQ worker.close()
   // resolves only when in-flight jobs finish — a hung job would otherwise hang
   // the deploy window until the platform's SIGKILL. On budget expiry the
@@ -351,10 +326,6 @@ const baseEnvSchema = z.object({
   // (no schedules/consumers/relay). Cutover = unset this and redeploy.
   // See docs/operations/backup-and-lifecycle.md.
   RESTORE_MODE: z.literal('isolated').optional(),
-  // REG-01: immutable logical cell recorded by the backup/restore selection.
-  // Required in restore-isolated mode and must equal PROCESSING_CELL; a backup
-  // from another cell may only be inspected in a separately declared target.
-  RESTORE_SOURCE_CELL: z.enum(DATA_CELL_IDS).optional(),
   // REG-04: exact provider restore point bound into the durable recovery
   // generation. Optional at normal boot; ops:restore-verify requires it.
   RESTORE_POINT_AT: z.iso.datetime({ offset: true }).optional(),
@@ -449,112 +420,65 @@ function isSecureAuthOrigin(origin: URL): boolean {
   )
 }
 
-const envSchema = baseEnvSchema
-  .superRefine((env, context) => {
-    if (env.NODE_ENV === 'production' && !env.PROCESSING_CELL) {
-      context.addIssue({
-        code: 'custom',
-        path: ['PROCESSING_CELL'],
-        message: 'Production deployments require an explicit PROCESSING_CELL',
-      })
-    } else if (
-      env.NODE_ENV === 'production' &&
-      env.PROCESSING_CELL !== undefined &&
-      !isBetaDeploymentDataCellId(env.PROCESSING_CELL)
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['PROCESSING_CELL'],
-        message: 'Production deployments require a beta-deployable PROCESSING_CELL (us)',
-      })
-    }
-    // A production auth origin controls trusted-origin checks, callback URLs,
-    // and the Secure attribute on session cookies. Refuse the deployment before
-    // either web or worker starts if a configuration mistake would make those
-    // cookies eligible for plaintext transport.
-    if (
-      env.NODE_ENV === 'production' &&
-      !isSecureAuthOrigin(new URL(env.BETTER_AUTH_URL))
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['BETTER_AUTH_URL'],
-        message: 'Production BETTER_AUTH_URL must use HTTPS',
-      })
-    }
-    if (env.RESTORE_MODE === 'isolated' && !env.RESTORE_SOURCE_CELL) {
-      context.addIssue({
-        code: 'custom',
-        path: ['RESTORE_SOURCE_CELL'],
-        message: 'Restore-isolated mode requires the backup source Data Cell',
-      })
-    } else if (
-      env.RESTORE_MODE === 'isolated' &&
-      env.RESTORE_SOURCE_CELL !== env.PROCESSING_CELL
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['RESTORE_SOURCE_CELL'],
-        message: 'Restore source Data Cell must match PROCESSING_CELL',
-      })
-    }
-    if (
-      (env.RECOVERY_CUTOVER_RUN_ID === undefined) !==
-      (env.RECOVERY_CUTOVER_GENERATION === undefined)
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['RECOVERY_CUTOVER_RUN_ID'],
-        message: 'Recovery cutover run ID and generation must be configured together',
-      })
-    }
-    const reviewRecoveryApprovalConfigured = [
-      env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON,
-      env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256,
-      env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON,
-    ].filter((value) => value !== undefined).length
-    if (
-      reviewRecoveryApprovalConfigured !== 0 &&
-      reviewRecoveryApprovalConfigured !== 3
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
-        message:
-          'Review lifecycle recovery approval bundle, digest, and public keys must be configured together',
-      })
-    } else if (
-      reviewRecoveryApprovalConfigured === 3 &&
-      env.RESTORE_MODE !== 'isolated'
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
-        message:
-          'Review lifecycle recovery approval authority is allowed only in restore-isolated mode',
-      })
-    }
-    if (
-      env.RESTORE_MODE !== 'isolated' &&
-      isRailwayPitrDatabaseUrl(env.DATABASE_URL) &&
-      (env.RECOVERY_CUTOVER_RUN_ID === undefined ||
-        env.RECOVERY_CUTOVER_GENERATION === undefined)
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['RECOVERY_CUTOVER_RUN_ID'],
-        message:
-          'A Railway PITR sibling may serve only with its recovery cutover run ID and generation',
-      })
-    }
-  })
-  .transform((env) => ({
-    ...env,
-    // A single-cell local/test stack deliberately behaves as the US cell. A
-    // production process may reach this transform only after the refinement
-    // above has established the explicit beta-deployable US identity.
-    PROCESSING_CELL: env.PROCESSING_CELL ?? 'us',
-  }))
+const envSchema = baseEnvSchema.superRefine((env, context) => {
+  // A production auth origin controls trusted-origin checks, callback URLs,
+  // and the Secure attribute on session cookies. Refuse the deployment before
+  // either web or worker starts if a configuration mistake would make those
+  // cookies eligible for plaintext transport.
+  if (
+    env.NODE_ENV === 'production' &&
+    !isSecureAuthOrigin(new URL(env.BETTER_AUTH_URL))
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['BETTER_AUTH_URL'],
+      message: 'Production BETTER_AUTH_URL must use HTTPS',
+    })
+  }
+  if (
+    (env.RECOVERY_CUTOVER_RUN_ID === undefined) !==
+    (env.RECOVERY_CUTOVER_GENERATION === undefined)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['RECOVERY_CUTOVER_RUN_ID'],
+      message: 'Recovery cutover run ID and generation must be configured together',
+    })
+  }
+  const reviewRecoveryApprovalConfigured = [
+    env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON,
+    env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256,
+    env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON,
+  ].filter((value) => value !== undefined).length
+  if (reviewRecoveryApprovalConfigured !== 0 && reviewRecoveryApprovalConfigured !== 3) {
+    context.addIssue({
+      code: 'custom',
+      path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
+      message:
+        'Review lifecycle recovery approval bundle, digest, and public keys must be configured together',
+    })
+  } else if (reviewRecoveryApprovalConfigured === 3 && env.RESTORE_MODE !== 'isolated') {
+    context.addIssue({
+      code: 'custom',
+      path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
+      message:
+        'Review lifecycle recovery approval authority is allowed only in restore-isolated mode',
+    })
+  }
+  if (
+    env.RESTORE_MODE !== 'isolated' &&
+    isRailwayPitrDatabaseUrl(env.DATABASE_URL) &&
+    (env.RECOVERY_CUTOVER_RUN_ID === undefined ||
+      env.RECOVERY_CUTOVER_GENERATION === undefined)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['RECOVERY_CUTOVER_RUN_ID'],
+      message:
+        'A Railway PITR sibling may serve only with its recovery cutover run ID and generation',
+    })
+  }
+})
 
 export type Env = z.infer<typeof envSchema>
 

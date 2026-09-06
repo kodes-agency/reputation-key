@@ -33,7 +33,6 @@ export const getSetupChecklistFn = createServerFn({ method: 'GET' }).handler(
           accessiblePropertyIds,
           allowedActions: {
             manageGoogle: canForContext(ctx, 'integration.manage'),
-            importProperty: canForContext(ctx, 'property.import_gbp_v2'),
             createPortal: canForContext(ctx, 'portal.create'),
             // The action opens Property responsibility settings, whose command
             // authority is `property.update` (not the broader people lifecycle).

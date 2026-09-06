@@ -16,7 +16,6 @@ function reader(rows: readonly unknown[] = []): RecoveryCutoverRunReader {
 
 const attested = {
   DATABASE_URL: PITR_URL,
-  PROCESSING_CELL: 'us',
   RECOVERY_CUTOVER_RUN_ID: RUN_ID,
   RECOVERY_CUTOVER_GENERATION: 3,
 } as const
@@ -38,7 +37,7 @@ describe('assertRecoveryCutoverAttestation (REG-04)', () => {
     expect(runs.findLatest).not.toHaveBeenCalled()
   })
 
-  it('accepts only the latest exact cell run and generation', async () => {
+  it('accepts only the latest exact run and generation', async () => {
     const runs = reader([{ id: RUN_ID, generation: 3 }])
     await expect(
       assertRecoveryCutoverAttestation(runs, attested),
@@ -46,21 +45,20 @@ describe('assertRecoveryCutoverAttestation (REG-04)', () => {
     expect(runs.findLatest).toHaveBeenCalledTimes(1)
   })
 
-  it('refuses a missing, stale, wrong-cell, or mismatched attestation', async () => {
+  it('refuses a missing, stale, or mismatched attestation', async () => {
     await expect(
       assertRecoveryCutoverAttestation(reader(), {
         DATABASE_URL: PITR_URL,
-        PROCESSING_CELL: 'us',
       }),
     ).rejects.toThrow(/boot refused/)
     await expect(
       assertRecoveryCutoverAttestation(reader([{ id: RUN_ID, generation: 4 }]), attested),
-    ).rejects.toThrow(/absent, stale, or belongs to another Data Cell/)
+    ).rejects.toThrow(/absent or stale/)
     await expect(
       assertRecoveryCutoverAttestation(
         reader([{ id: '20000000-0000-4000-8000-000000000002', generation: 3 }]),
         attested,
       ),
-    ).rejects.toThrow(/absent, stale, or belongs to another Data Cell/)
+    ).rejects.toThrow(/absent or stale/)
   })
 })

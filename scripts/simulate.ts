@@ -70,7 +70,6 @@ function runSimulation(connectionUrl: string, orgId: string): void {
       NODE_ENV: 'test',
       DATABASE_URL: connectionUrl,
       DATABASE_URL_POOLER: connectionUrl,
-      PROCESSING_CELL: 'us',
     },
   })
 }

@@ -114,7 +114,6 @@ export async function inspectRecoveryFence(
 
 type RecoveryRunDriverRow = Readonly<{
   id: string
-  data_cell_id: string
   generation: number
   source_release_sha: string
   operator_id: string
@@ -141,7 +140,7 @@ function resultFromRow(
  * Atomically rotate the recovery generation and fence every restored
  * authentication/external-effect authority. The source tuple is convergent:
  * a replay re-scans under the same run and accumulates evidence. A
- * transaction-scoped advisory lock serializes attempts in one Data Cell.
+ * transaction-scoped advisory lock serializes attempts.
  */
 export async function applyRecoveryFence(
   db: Database,
@@ -150,19 +149,18 @@ export async function applyRecoveryFence(
   validateRecoveryFenceInput(input)
   return db.transaction(async (tx) => {
     await tx.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtext('repkey.restore-recovery-fence'), hashtext(${input.dataCellId}))`,
+      sql`SELECT pg_advisory_xact_lock(hashtext('repkey.restore-recovery-fence'))`,
     )
 
     const existing = await tx.execute(sql`
-      SELECT id, data_cell_id, generation, source_release_sha,
+      SELECT id, generation, source_release_sha,
              source_manifest_sha256, restore_point_at, operator_id,
              correlation_id, counts, completed_at
       FROM recovery_runs
       WHERE id = ${input.runId}::uuid
-         OR (data_cell_id = ${input.dataCellId} AND generation = ${input.generation})
+         OR generation = ${input.generation}
          OR (
-           data_cell_id = ${input.dataCellId}
-           AND source_manifest_sha256 = ${input.sourceManifestSha256}
+           source_manifest_sha256 = ${input.sourceManifestSha256}
            AND restore_point_at = ${input.restorePointAt}
          )
       FOR UPDATE
@@ -176,7 +174,6 @@ export async function applyRecoveryFence(
     const existingRow = existingRows.find(
       (row) =>
         row.id === input.runId &&
-        row.data_cell_id === input.dataCellId &&
         row.generation === input.generation &&
         row.source_release_sha === input.sourceReleaseSha &&
         row.source_manifest_sha256 === input.sourceManifestSha256 &&
@@ -205,7 +202,6 @@ export async function applyRecoveryFence(
       const generationResult = await tx.execute(sql`
         SELECT COALESCE(MAX(generation), 0)::int + 1 AS generation
         FROM recovery_runs
-        WHERE data_cell_id = ${input.dataCellId}
       `)
       const generation = Number(
         (generationResult.rows[0] as { generation?: number | string } | undefined)
@@ -217,10 +213,10 @@ export async function applyRecoveryFence(
 
       await tx.execute(sql`
         INSERT INTO recovery_runs (
-          id, data_cell_id, generation, source_release_sha, source_manifest_sha256,
+          id, generation, source_release_sha, source_manifest_sha256,
           restore_point_at, operator_id, correlation_id, counts, completed_at
         ) VALUES (
-          ${input.runId}::uuid, ${input.dataCellId}, ${input.generation}, ${input.sourceReleaseSha},
+          ${input.runId}::uuid, ${input.generation}, ${input.sourceReleaseSha},
           ${input.sourceManifestSha256}, ${input.restorePointAt}, ${input.operatorId},
           ${input.correlationId}, ${JSON.stringify(ZERO_COUNTS)}::jsonb, clock_timestamp()
         )
@@ -395,11 +391,10 @@ export async function applyRecoveryFence(
                count(*) FILTER (WHERE item.status = 'imported')::int AS imported_count,
                count(*) FILTER (WHERE item.status = 'relinked')::int AS relinked_count,
                count(*) FILTER (WHERE item.status = 'already_exists')::int AS already_exists_count,
-               count(*) FILTER (WHERE item.status = 'region_unavailable')::int AS region_unavailable_count,
                count(*) FILTER (WHERE item.status = 'failed')::int AS failed_count,
                count(*) FILTER (WHERE item.status = 'cancelled')::int AS cancelled_count,
                bool_and(item.status IN ('imported', 'relinked')) AS all_success,
-               bool_or(item.status IN ('imported', 'relinked', 'already_exists', 'region_unavailable')) AS has_positive,
+               bool_or(item.status IN ('imported', 'relinked', 'already_exists')) AS has_positive,
                bool_and(item.status = 'cancelled') AS all_cancelled,
                bool_or(item.status = 'failed') AS has_failure
         FROM recovery_google_import_v2_parents candidate
@@ -426,7 +421,6 @@ export async function applyRecoveryFence(
           imported_count = reduced.imported_count,
           relinked_count = reduced.relinked_count,
           already_exists_count = reduced.already_exists_count,
-          region_unavailable_count = reduced.region_unavailable_count,
           failed_count = reduced.failed_count,
           cancelled_count = reduced.cancelled_count,
           first_terminal_at = COALESCE(parent.first_terminal_at, statement_timestamp()),

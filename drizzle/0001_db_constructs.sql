@@ -3885,7 +3885,6 @@ BEGIN
     NEW."approval_key_id",
     NEW."approved_at",
     NEW."expires_at",
-    NEW."data_cell_id",
     NEW."release_sha",
     NEW."release_manifest_sha256",
     NEW."restore_point_at",
@@ -3910,7 +3909,6 @@ BEGIN
     OLD."approval_key_id",
     OLD."approved_at",
     OLD."expires_at",
-    OLD."data_cell_id",
     OLD."release_sha",
     OLD."release_manifest_sha256",
     OLD."restore_point_at",
@@ -4046,7 +4044,6 @@ BEGIN
       SELECT 1
       FROM "recovery_runs" AS recovery
       WHERE recovery."id" = NEW."id"
-        AND recovery."data_cell_id" = NEW."data_cell_id"
         AND recovery."generation" = NEW."recovery_generation"
         AND recovery."source_release_sha" = NEW."release_sha"
         AND recovery."source_manifest_sha256" = NEW."release_manifest_sha256"
@@ -7055,21 +7052,17 @@ BEGIN
           AND permit.route_key = 'oauth.token.exchange'
           AND EXISTS (
             SELECT 1
-            -- WP2.2: approval ceremony removed; see start_…_v1. The credential
-            -- home and the member/permission joins stay — an OAuth exchange is
-            -- still only admissible for an organization whose credentials live
-            -- here, initiated by a member whose permission version matches.
-            FROM public.google_organization_credential_homes AS home
-            INNER JOIN public.member AS member
-              ON member."organizationId" = permit.organization_id
-             AND member."userId" = permit.initiator_user_id
+            -- WP2.2: approval ceremony removed; see start_…_v1. The member and
+            -- permission joins stay — an OAuth exchange is only admissible when
+            -- initiated by a member whose permission version matches.
+            FROM public.member AS member
             INNER JOIN public.permission_version AS permission
               ON permission.organization_id = permit.organization_id
             LEFT JOIN public.google_connections AS connection
               ON connection.organization_id = permit.organization_id
              AND connection.id = permit.connection_id
-            WHERE home.organization_id = permit.organization_id
-              AND home.superseded_at IS NULL
+            WHERE member."organizationId" = permit.organization_id
+              AND member."userId" = permit.initiator_user_id
               AND NOT EXISTS (
                 SELECT 1
                 FROM public.organization_policy AS organization_policy
@@ -7093,12 +7086,6 @@ BEGIN
                 '^(0|[1-9][0-9]*)$'
               AND permission.version::text =
                 permit.authorization_vector->>'permissionVersion'
-              AND home.home_cell_id =
-                permit.authorization_vector->>'credentialHomeCellId'
-              AND home.catalogue_policy_version::text =
-                permit.authorization_vector->>'credentialHomePolicyVersion'
-              AND home.authority_generation::text =
-                permit.authorization_vector->>'credentialHomeAuthorityGeneration'
               AND (
                 (
                   permit.authorization_vector->>'oauthCredentialOperation' =
@@ -7129,22 +7116,6 @@ BEGIN
                     permit.authorization_vector->>'connectionAccessVersion'
                   AND connection.credential_generation::text =
                     permit.authorization_vector->>'credentialGeneration'
-                  AND (
-                    (
-                      connection.credential_home_cell_id = home.home_cell_id
-                      AND connection.credential_home_policy_version =
-                        home.catalogue_policy_version
-                      AND connection.credential_home_authority_generation =
-                        home.authority_generation
-                    )
-                    OR (
-                      connection.status = 'disconnected'
-                      AND connection.credential_use_state = 'none'
-                      AND connection.credential_home_cell_id IS NULL
-                      AND connection.credential_home_policy_version IS NULL
-                      AND connection.credential_home_authority_generation IS NULL
-                    )
-                  )
                 )
               )
           ) THEN 'started'

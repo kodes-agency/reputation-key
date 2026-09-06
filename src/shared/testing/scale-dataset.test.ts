@@ -1,7 +1,7 @@
 // BQC-8.1 — unit tests for the deterministic scale dataset planner.
 //
 // Hermetic (no DB): determinism of the id stream and manifest hash, LCG
-// quality, skew/region distributions, FK consistency, and the manifest
+// quality, skew/location distributions, FK consistency, and the manifest
 // round-trip. DB load/verify/clean are covered by the integration suite.
 
 import { describe, it, expect } from 'vitest'
@@ -16,11 +16,8 @@ import {
   reviewRowValues,
   propertyRowValues,
   orgRowValues,
-  verifyScaleDataset,
   type DatasetShape,
-  type Queryable,
 } from './scale-dataset'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 const SHAPE: DatasetShape = { orgs: 3, properties: 40, reviews: 1000 }
 
@@ -96,7 +93,7 @@ describe('plan determinism', () => {
       shape: { orgs: 2, properties: 10, reviews: 100 },
     })
     expect(plan.hash).toBe(
-      '4df9cb8bafb80f80dbc1decf3c2ff0cb80d75bb720ccd449074e750b07967154',
+      '8ecac1b7c4094ad90db0cff51f008548eb0fce311ffd7b03069ea6fd75aeaa5c',
     )
   })
 
@@ -154,22 +151,11 @@ describe('plan content', () => {
     expect(topShare).toBeLessThanOrEqual(0.35)
   })
 
-  it('keeps geographic country variety while allocating every Property to us', () => {
-    const big = materialize('regions', { orgs: 10, properties: 5000, reviews: 10 })
-    const byRegion = new Map<string, number>()
-    for (const p of big.properties) {
-      byRegion.set(p.processingRegion, (byRegion.get(p.processingRegion) ?? 0) + 1)
-    }
-    expect(byRegion).toEqual(new Map([['us', big.properties.length]]))
+  it('keeps geographic country variety', () => {
+    const big = materialize('locations', { orgs: 10, properties: 5000, reviews: 10 })
     expect(new Set(big.properties.map((property) => property.countryCode))).toEqual(
       new Set(['US', 'GB', 'DE', 'FR', 'JP']),
     )
-    expect(new Set(big.properties.map((property) => property.dataCellId))).toEqual(
-      new Set(['us']),
-    )
-    expect(
-      new Set(big.properties.map((property) => property.routingPolicyVersion)),
-    ).toEqual(new Set([DATA_CELL_CATALOGUE_POLICY_VERSION]))
   })
 })
 
@@ -196,7 +182,7 @@ describe('row value mapping', () => {
     expect(row[3]).toBe('google')
   })
 
-  it('maps org and property rows with the routing policy version', () => {
+  it('maps organization and property rows', () => {
     const { orgs, properties } = materialize('rows', {
       orgs: 1,
       properties: 2,
@@ -217,66 +203,7 @@ describe('row value mapping', () => {
       properties[0].slug,
       properties[0].timezone,
       properties[0].countryCode,
-      properties[0].processingRegion,
-      properties[0].dataCellId,
-      properties[0].routingPolicyVersion,
     ])
-  })
-})
-
-describe('database verification', () => {
-  it.each([
-    ['data_cell_id', 'europe'],
-    ['routing_policy_version', DATA_CELL_CATALOGUE_POLICY_VERSION - 1],
-  ] as const)('detects %s drift in an otherwise exact dataset', async (field, value) => {
-    const plan = planScaleDataset({
-      seed: `cell-drift-${field}`,
-      shape: { orgs: 1, properties: 20, reviews: 100 },
-    })
-    const propertyRows = [...plan.properties()].map((property, index) => ({
-      id: property.id,
-      organization_id: property.orgId,
-      processing_region: property.processingRegion,
-      data_cell_id: index === 0 && field === 'data_cell_id' ? value : property.dataCellId,
-      routing_policy_version:
-        index === 0 && field === 'routing_policy_version'
-          ? value
-          : property.routingPolicyVersion,
-      country_code: property.countryCode,
-    }))
-    const distribution = new Map<string, number>()
-    for (const review of plan.reviews()) {
-      distribution.set(review.propertyId, (distribution.get(review.propertyId) ?? 0) + 1)
-    }
-    const db: Queryable = {
-      query: async (text) => {
-        if (text.includes('FROM organization')) {
-          return { rows: [{ c: plan.shape.orgs }], rowCount: 1 }
-        }
-        if (text.includes('FROM properties WHERE id')) {
-          return { rows: propertyRows, rowCount: propertyRows.length }
-        }
-        if (text.includes('GROUP BY property_id')) {
-          const rows = [...distribution].map(([property_id, c]) => ({
-            property_id,
-            c,
-          }))
-          return { rows, rowCount: rows.length }
-        }
-        if (text.includes('FROM reviews WHERE external_id')) {
-          return { rows: [{ c: plan.shape.reviews }], rowCount: 1 }
-        }
-        throw new Error(`unexpected verification query: ${text}`)
-      },
-    }
-
-    const report = await verifyScaleDataset(db, plan)
-
-    expect(report.checks.find((check) => check.check === 'property_integrity')).toEqual({
-      check: 'property_integrity',
-      passed: false,
-      detail: '1 properties with org/country/cell/policy drift vs plan',
-    })
   })
 })
 

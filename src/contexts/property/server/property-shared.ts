@@ -26,7 +26,7 @@ export const propertyErrorStatus = (code: PropertyErrorCode): number =>
       'google_binding_not_disconnectable',
       () => HTTP_STATUS.CONFLICT,
     )
-    .with('region_unresolved', 'stale_property', () => HTTP_STATUS.CONFLICT)
+    .with('stale_property', () => HTTP_STATUS.CONFLICT)
     .with(
       'invalid_slug',
       'invalid_name',

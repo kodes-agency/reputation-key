@@ -65,8 +65,6 @@ export type AlertAuxReads = Readonly<{
   retentionFailedSubjects: readonly string[]
   /** policy_decision_audit denials in the trailing drift window, by reason. */
   policyDenialsByReason: Readonly<Record<string, number>>
-  /** Quarantined envelopes carrying a region-attempt policyReason, by reason. */
-  routingBlockedByReason: Readonly<Record<string, number>>
   /** Content-free age/count of delivered native feedback awaiting resolution. */
   betaFeedbackTriage: Readonly<{
     /** false means the PostgreSQL observation failed and must alert fail-visible. */
@@ -199,17 +197,6 @@ const EVAL_CADENCE_MS = 5 * 60 * 1000
 
 /** The one escalation owner (runbooks.md). */
 const OWNER = 'Bozhidar Denev'
-
-/**
- * Wrong/unresolved region attempts (phase doc): the delayed-execution gate's
- * region-deny quarantine reasons. `routing_blocked:property_missing` is a
- * data problem, not a region attempt, and stays out of this alert.
- */
-export const REGION_ATTEMPT_REASONS = [
-  'routing_blocked:region_denied',
-  'routing_blocked:region_unresolved',
-  'wrong_cell',
-] as const
 
 // ── Definition helper ──────────────────────────────────────────────
 
@@ -733,25 +720,6 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       return {
         value: oldestAmbiguousAgeMs,
         detail: `oldest ambiguous reply publication is ${oldestAmbiguousAgeMs}ms past reconcile_due — the 30-min reconcile sweep is not keeping up`,
-      }
-    },
-  }),
-
-  // ── wrong/unresolved region attempts ──
-  // Point-in-time read of the quarantine content at each evaluation; the
-  // quarantine is operator-drained, so presence = an unactioned attempt.
-  define({
-    name: 'routing.region-attempts',
-    severity: 'P2',
-    runbook: 'runbooks.md §12',
-    windowMs: EVAL_CADENCE_MS,
-    threshold: 0,
-    read: (_snapshot, aux) => {
-      const total = sumReasons(aux.routingBlockedByReason)
-      if (total <= 0) return null
-      return {
-        value: total,
-        detail: `${total} wrong/unresolved region attempt(s) quarantined (${reasonSplit(aux.routingBlockedByReason)})`,
       }
     },
   }),

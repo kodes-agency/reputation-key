@@ -12,13 +12,12 @@ import type { GoogleRefreshCoordination } from '../ports/google-refresh-coordina
 
 const FIXED_NOW = new Date('2026-01-15T12:00:00Z')
 const clock = () => FIXED_NOW
-const assertDirectCredentialUse = async () => undefined
 
 const setup = () => {
   const connectionRepo = createInMemoryGoogleConnectionRepo()
   const oauth = createInMemoryGoogleOAuthPort()
   const encryption = createInMemoryTokenEncryption()
-  const deps = { connectionRepo, oauth, encryption, clock, assertDirectCredentialUse }
+  const deps = { connectionRepo, oauth, encryption, clock }
   const useCase = refreshGoogleToken(deps)
   return { useCase, connectionRepo, oauth, encryption }
 }
@@ -127,7 +126,6 @@ describe('refreshGoogleToken', () => {
       oauth,
       encryption,
       clock,
-      assertDirectCredentialUse,
       authorizeProviderCall,
     })
 
@@ -214,7 +212,6 @@ describe('refreshGoogleToken', () => {
       oauth,
       encryption,
       clock,
-      assertDirectCredentialUse,
     })
 
     await expect(useCase(ORG_ID, connection.id)).rejects.toSatisfy(
@@ -258,7 +255,6 @@ describe('refreshGoogleToken', () => {
       encryption,
       clock,
       coordination,
-      assertDirectCredentialUse,
     })
 
     await expect(useCase(ORG_ID, connection.id)).resolves.toEqual(committed)
@@ -278,7 +274,6 @@ describe('refreshGoogleToken', () => {
       oauth,
       encryption,
       clock,
-      assertDirectCredentialUse,
       coordination: {
         run: async () => ({
           ok: false as const,

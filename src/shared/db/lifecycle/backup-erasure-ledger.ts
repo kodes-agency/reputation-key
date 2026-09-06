@@ -36,8 +36,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const CONTENT_FREE_REF = /^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$/u
 const SHA256 = /^[0-9a-f]{64}$/u
 
-export type BackupErasureDataCellId = 'us' | 'europe' | 'global'
-
 /** One irreversible erasure, as it is appended. */
 export type BackupErasureLedgerAppend = Readonly<{
   subjectClass: BackupErasureSubjectClass
@@ -53,7 +51,6 @@ export type BackupErasureLedgerAppend = Readonly<{
   evidenceRef: string
   /** Documented delayed-erasure / legal-hold policy reference. */
   holdReference?: string
-  dataCellId: BackupErasureDataCellId
 }>
 
 /** A ledger entry as the fence reads it, with its hold state resolved. */
@@ -156,14 +153,14 @@ export async function appendBackupErasureLedgerEntry(
     INSERT INTO backup_erasure_ledger (
       subject_class, organization_id, property_id, subject_ref, context,
       closure_lineage_id, lifecycle_revision, effective_erasure_at,
-      erased_row_count, evidence_ref, hold_reference, data_cell_id
+      erased_row_count, evidence_ref, hold_reference
     ) VALUES (
       ${entry.subjectClass}, ${entry.organizationId},
       ${entry.propertyId ?? null}, ${entry.subjectRef ?? null}, ${entry.context},
       ${entry.closureLineageId}::uuid, ${entry.lifecycleRevision},
       ${entry.effectiveErasureAt.toISOString()}::timestamptz,
       ${entry.erasedRowCount}, ${entry.evidenceRef},
-      ${entry.holdReference ?? null}, ${entry.dataCellId}
+      ${entry.holdReference ?? null}
     )
     ON CONFLICT (subject_class, closure_lineage_id, lifecycle_revision, context)
     DO NOTHING
@@ -219,7 +216,6 @@ type LedgerRow = Readonly<{
   erased_row_count: number
   evidence_ref: string
   hold_reference: string | null
-  data_cell_id: BackupErasureDataCellId
   hold_released_at: string | Date | null
 }>
 
@@ -237,21 +233,18 @@ function entryFromRow(row: LedgerRow): BackupErasureLedgerEntry {
     erasedRowCount: Number(row.erased_row_count),
     evidenceRef: row.evidence_ref,
     ...(row.hold_reference ? { holdReference: row.hold_reference } : {}),
-    dataCellId: row.data_cell_id,
     ...(row.hold_released_at ? { holdReleasedAt: new Date(row.hold_released_at) } : {}),
   }
 }
 
-/** Every ledger entry for one Data Cell, oldest effect first. */
+/** Every ledger entry, oldest effect first. */
 export async function readBackupErasureLedger(
   tx: Tx,
-  dataCellId: BackupErasureDataCellId,
 ): Promise<readonly BackupErasureLedgerEntry[]> {
   const result = await tx.execute(sql`
     SELECT l.*, r.released_at AS hold_released_at
     FROM backup_erasure_ledger l
     LEFT JOIN backup_erasure_hold_releases r ON r.ledger_entry_id = l.id
-    WHERE l.data_cell_id = ${dataCellId}
     ORDER BY l.effective_erasure_at ASC, l.id ASC
   `)
   return (result.rows as unknown as LedgerRow[]).map(entryFromRow)
@@ -358,17 +351,16 @@ function replayerKey(
 }
 
 /**
- * Re-apply every erasure a restore undid, then report whether the cell may be
- * declared verified.
+ * Re-apply every erasure a restore undid, then report whether the restored
+ * database may be declared verified.
  *
  * Runs inside the caller's transaction so a replayer that throws leaves the
  * restored database untouched AND leaves `verified` false — there is no state
- * in which some subjects were re-erased and the cell was still opened.
+ * in which some subjects were re-erased and the database was still opened.
  */
 export async function applyRestoreResurrectionFence(
   tx: Tx,
   input: Readonly<{
-    dataCellId: BackupErasureDataCellId
     restorePointAt: Date
     replayers: readonly BackupErasureReplayer[]
   }>,
@@ -379,7 +371,7 @@ export async function applyRestoreResurrectionFence(
   }
 
   const plan = planBackupErasureReplay(
-    await readBackupErasureLedger(tx, input.dataCellId),
+    await readBackupErasureLedger(tx),
     input.restorePointAt,
   )
 

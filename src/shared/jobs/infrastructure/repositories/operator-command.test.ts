@@ -48,7 +48,7 @@ import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastr
 import {
   createRedriveJob,
   listQuarantinedJobs,
-  quarantineJobDirect,
+  quarantineExhaustedJob,
 } from '#/shared/jobs/failure-quarantine'
 import {
   runOperatorCommand,
@@ -110,20 +110,20 @@ async function obliterateQuietly(queue: Queue | undefined): Promise<void> {
   }
 }
 
-/** Seed one quarantined job (direct-gate path) with a unique original id. */
+/** Seed one already-failed job through the surviving exhausted-attempt path. */
 async function seedQuarantined(originalJobId: string): Promise<string> {
   const fakeJob = {
     id: originalJobId,
     name: 'sync-property-reviews',
     queueName: TARGET,
     data: { propertyId: 'prop-1', organizationId: 'org-1' },
-    attemptsMade: 0,
-    opts: {},
+    attemptsMade: 3,
+    opts: { attempts: 3 },
   } as unknown as Job
-  const outcome = await quarantineJobDirect(
+  const outcome = await quarantineExhaustedJob(
     quarantineQueue as Queue,
     fakeJob,
-    'routing.region_denied',
+    new Error('seeded exhausted failure'),
   )
   if (!outcome.quarantined || !outcome.quarantineJobId) {
     throw new Error('seed failed — job not quarantined')

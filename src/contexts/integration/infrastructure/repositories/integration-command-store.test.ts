@@ -10,7 +10,6 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import type { GoogleConnection } from '../../domain/types'
@@ -29,11 +28,6 @@ const CONN_ID = googleConnectionId('6c000000-0000-0000-0000-000000000001')
 const INITIATOR_ID = userId('user-intcmd-00000000000000000001')
 const EXCHANGE_ATTEMPT_ID = '6e000000-0000-4000-8000-000000000001'
 const NOW = new Date('2026-06-01T12:00:00.000Z')
-const HOME_BINDING = Object.freeze({
-  homeCellId: 'us' as const,
-  cataloguePolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-  authorityGeneration: 1,
-})
 
 let pool: Pool
 let lease: TestLease
@@ -56,9 +50,6 @@ function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnec
     lifecycleVersion: 1,
     accessVersion: 1,
     credentialGeneration: 1,
-    credentialHomeCellId: HOME_BINDING.homeCellId,
-    credentialHomePolicyVersion: HOME_BINDING.cataloguePolicyVersion,
-    credentialHomeAuthorityGeneration: HOME_BINDING.authorityGeneration,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,
@@ -84,10 +75,6 @@ async function truncateAll(p: Pool) {
   ])
   await p.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG_ID])
   await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
-  await p.query(
-    'DELETE FROM google_organization_credential_homes WHERE organization_id = $1',
-    [ORG_ID],
-  )
 }
 
 async function prepareExchangeAttempt(id = EXCHANGE_ATTEMPT_ID) {
@@ -102,7 +89,6 @@ async function prepareExchangeAttempt(id = EXCHANGE_ATTEMPT_ID) {
     expectedLifecycleVersion: 0,
     expectedAccessVersion: 0,
     expectedCredentialGeneration: 0,
-    credentialHome: HOME_BINDING,
   }
   await recovery.begin({ ...facts, now: NOW })
   await recovery.markProviderStarted({
@@ -152,7 +138,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
 
     await store.connectGoogleAccount({
       connection: makeConnection(),
-      credentialHomeBinding: HOME_BINDING,
       event,
     })
 
@@ -182,7 +167,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
 
     await store.connectGoogleAccount({
       connection: makeConnection(),
-      credentialHomeBinding: HOME_BINDING,
       exchangeAttemptId: EXCHANGE_ATTEMPT_ID,
       event: connectedEvent(),
     })
@@ -220,7 +204,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
     await expect(
       store.connectGoogleAccount({
         connection: makeConnection(),
-        credentialHomeBinding: HOME_BINDING,
         exchangeAttemptId: EXCHANGE_ATTEMPT_ID,
         event: ghost,
       }),
@@ -252,7 +235,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
     await expect(
       store.connectGoogleAccount({
         connection: makeConnection(),
-        credentialHomeBinding: HOME_BINDING,
         event: ghost,
       }),
     ).rejects.toThrow(/Event type integration\.ghost:v1 is not registered for the outbox/)
@@ -268,7 +250,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
     const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
       connection: makeConnection(),
-      credentialHomeBinding: HOME_BINDING,
       event: connectedEvent(),
     })
 
@@ -277,7 +258,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
         connection: makeConnection({
           id: googleConnectionId('6c000000-0000-0000-0000-000000000002'),
         }),
-        credentialHomeBinding: HOME_BINDING,
         event: connectedEvent(),
       }),
     ).rejects.toSatisfy((e: unknown) => isUniqueViolationError(e))
@@ -287,7 +267,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
     const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
       connection: makeConnection(),
-      credentialHomeBinding: HOME_BINDING,
       event: connectedEvent(),
     })
 
@@ -300,8 +279,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
       encryptedRefreshToken: 'enc-r2',
       tokenExpiresAt: new Date('2026-06-01T14:00:00.000Z'),
       visibility: 'organization',
-      credentialHome: HOME_BINDING,
-      credentialHomeReason: 'credential_rotation',
       event: connectedEvent(),
     })
 
@@ -333,7 +310,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
     const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
       connection: makeConnection(),
-      credentialHomeBinding: HOME_BINDING,
       event: connectedEvent(),
     })
     const event = integrationGoogleAccountDisconnected({
@@ -371,7 +347,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
     const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
       connection: makeConnection(),
-      credentialHomeBinding: HOME_BINDING,
       event: connectedEvent(),
     })
     const ghost = {
@@ -430,7 +405,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
     const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
       connection: makeConnection(),
-      credentialHomeBinding: HOME_BINDING,
       event: connectedEvent(),
     })
 

@@ -57,8 +57,6 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
       slug: 'ai-foundation-test-property',
       timezone: 'America/New_York',
       countryCode: 'US',
-      processingRegion: 'global',
-      routingPolicyVersion: 1,
       profileVersion: 3,
       sourceEpoch: 2,
     })

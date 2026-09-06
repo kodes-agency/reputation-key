@@ -418,50 +418,6 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     ).rejects.toThrow(UnrecoverableError)
   })
 
-  it('rejects a queue-injected envelope stamped by another Data Cell', async () => {
-    const repo = makeRepo()
-    const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    consumerRegistry.registerConsumer({
-      eventType: TEST_EVENT_TYPE,
-      consumerName: 'c-wrong-cell',
-      module: TEST_MODULE,
-      handler,
-    })
-
-    await expect(
-      createDispatcherHandler(repo, { consumers: consumerRegistry, localCell: 'us' })(
-        fakeJob(makeEnvelope({ dataCellId: 'europe', region: 'europe' })),
-      ),
-    ).rejects.toThrow(UnrecoverableError)
-
-    expect(handler).not.toHaveBeenCalled()
-    expect(repo.hasReceipt).not.toHaveBeenCalled()
-    expect(loggerMocks.error).toHaveBeenCalledWith(
-      expect.objectContaining({ localCell: 'us', targetCell: 'europe' }),
-      expect.stringMatching(/wrong Data Cell/i),
-    )
-  })
-
-  it('rejects a Property-less fact whose source Data Cell differs from the worker', async () => {
-    const repo = makeRepo()
-    const handler = vi.fn(async () => ({ status: 'applied' as const }))
-    consumerRegistry.registerConsumer({
-      eventType: TEST_EVENT_TYPE,
-      consumerName: 'c-wrong-source-cell',
-      module: TEST_MODULE,
-      handler,
-    })
-
-    await expect(
-      createDispatcherHandler(repo, { consumers: consumerRegistry, localCell: 'us' })(
-        fakeJob(makeEnvelope({ sourceCellId: 'europe', region: 'europe' })),
-      ),
-    ).rejects.toThrow(UnrecoverableError)
-
-    expect(handler).not.toHaveBeenCalled()
-    expect(repo.hasReceipt).not.toHaveBeenCalled()
-  })
-
   it('schema validation failure throws UnrecoverableError with a content-free reason', async () => {
     const repo = makeRepo()
     consumerRegistry.registerConsumer({

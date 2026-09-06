@@ -77,11 +77,8 @@ describe('reduceGoogleImportParent', () => {
       status: 'failed',
     },
     {
-      name: 'only benign skips',
-      items: [
-        item('already_exists', 'already_exists'),
-        item('region_unavailable', 'region_unavailable'),
-      ],
+      name: 'only benign skip',
+      items: [item('already_exists', 'already_exists')],
       status: 'completed_with_issues',
     },
     {

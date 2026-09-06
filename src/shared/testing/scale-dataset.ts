@@ -6,7 +6,7 @@
 // DETERMINISM CONTRACT:
 //   - Every id derives from (seed, kind, ordinal) via sha256 — org ids are
 //     text (better-auth), property/review ids are RFC-4122 v5-shaped uuids.
-//   - Every distribution (region pick, review skew, rating, age) draws from a
+//   - Every distribution (location pick, review skew, rating, age) draws from a
 //     per-kind Park-Miller LCG stream, seeded per (seed, stream) so a shape
 //     change in one entity kind never perturbs another.
 //   - Same seed + same shape + same version ⇒ byte-identical plan hash
@@ -26,29 +26,24 @@
 import { createHash } from 'node:crypto'
 import { canonicalizeRawAiReviewSource } from '#/shared/ai-review-source-contract'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import {
-  DATA_CELL_CATALOGUE_POLICY_VERSION,
-  type DataCellId,
-} from '#/shared/domain/data-cell-catalogue'
 
 // ── Constants ────────────────────────────────────────────────────────
 
 /** Dataset plan format version — bump with any generation-rule change. */
-export const SCALE_DATASET_VERSION = 3 as const
+export const SCALE_DATASET_VERSION = 4 as const
 
 const DAY_MS = 86_400_000
 
 /**
- * Country/timezone table (weights kept from the PRE17C tool). ADR 0057 maps
- * every supported country to the one `us` beta Data Cell. Weights sum to 0.92;
- * the remainder falls through to the US country fixture.
+ * Country/timezone table (weights kept from the PRE17C tool). Weights sum to
+ * 0.92; the remainder falls through to the US country fixture.
  */
 const PROPERTY_LOCATION_DISTRIBUTION = [
-  { code: 'US', region: 'us', tz: 'America/New_York', weight: 0.6 },
-  { code: 'GB', region: 'us', tz: 'Europe/London', weight: 0.1 },
-  { code: 'DE', region: 'us', tz: 'Europe/Berlin', weight: 0.08 },
-  { code: 'FR', region: 'us', tz: 'Europe/Paris', weight: 0.07 },
-  { code: 'JP', region: 'us', tz: 'Asia/Tokyo', weight: 0.07 },
+  { code: 'US', tz: 'America/New_York', weight: 0.6 },
+  { code: 'GB', tz: 'Europe/London', weight: 0.1 },
+  { code: 'DE', tz: 'Europe/Berlin', weight: 0.08 },
+  { code: 'FR', tz: 'Europe/Paris', weight: 0.07 },
+  { code: 'JP', tz: 'Asia/Tokyo', weight: 0.07 },
 ] as const
 
 /** Share of reviews assigned to the hot property slice. */
@@ -117,9 +112,6 @@ export type ScaleProperty = Readonly<{
   slug: string
   timezone: string
   countryCode: string
-  processingRegion: string
-  dataCellId: DataCellId
-  routingPolicyVersion: number
 }>
 
 export type ScaleReview = Readonly<{
@@ -173,7 +165,6 @@ function buildProperty(
   shape: DatasetShape,
   ordinal: number,
   locationDraw: number,
-  routingPolicyVersion: number,
 ): ScaleProperty {
   const orgOrdinal = orgOrdinalForProperty(shape, ordinal)
   let cumulative = 0
@@ -193,9 +184,6 @@ function buildProperty(
     slug: `perf-prop-${seedTag(seed)}-${ordinal}`,
     timezone: location.tz,
     countryCode: location.code,
-    processingRegion: location.region,
-    dataCellId: 'us',
-    routingPolicyVersion,
   }
 }
 
@@ -241,14 +229,10 @@ export function planScaleDataset(input: {
   version?: number
   /** Include fetch-clock fields for the BQC-8.3 lifecycle sweep. */
   sourceLifecycle?: boolean
-  /** Pinned routing policy version (the CLI passes ROUTING_POLICY_VERSION). */
-  routingPolicyVersion?: number
 }): ScaleDatasetPlan {
   const { seed, shape } = input
   const version = input.version ?? SCALE_DATASET_VERSION
   const sourceLifecycle = input.sourceLifecycle ?? false
-  const routingPolicyVersion =
-    input.routingPolicyVersion ?? DATA_CELL_CATALOGUE_POLICY_VERSION
   for (const [key, value] of Object.entries(shape)) {
     if (!Number.isInteger(value) || value <= 0) {
       throw new Error(`shape.${key} must be a positive integer, got ${value}`)
@@ -260,9 +244,9 @@ export function planScaleDataset(input: {
   }
 
   const properties = function* (): Generator<ScaleProperty> {
-    const lcg = createLcg(streamSeed(seed, 'property-region'))
+    const lcg = createLcg(streamSeed(seed, 'property-location'))
     for (let i = 0; i < shape.properties; i++) {
-      yield buildProperty(seed, shape, i, lcg(), routingPolicyVersion)
+      yield buildProperty(seed, shape, i, lcg())
     }
   }
 
@@ -289,10 +273,7 @@ export function planScaleDataset(input: {
         property.orgId,
         property.slug,
         property.countryCode,
-        property.processingRegion,
-        property.dataCellId,
         property.timezone,
-        property.routingPolicyVersion,
       ]),
     )
     i += 1
@@ -390,9 +371,6 @@ export function propertyRowValues(property: ScaleProperty): readonly unknown[] {
     property.slug,
     property.timezone,
     property.countryCode,
-    property.processingRegion,
-    property.dataCellId,
-    property.routingPolicyVersion,
   ]
 }
 
@@ -501,17 +479,7 @@ export async function loadScaleDataset(
   await batchInsert(
     db,
     'properties',
-    [
-      'id',
-      'organization_id',
-      'name',
-      'slug',
-      'timezone',
-      'country_code',
-      'processing_region',
-      'data_cell_id',
-      'routing_policy_version',
-    ],
+    ['id', 'organization_id', 'name', 'slug', 'timezone', 'country_code'],
     propertyRows,
   )
 
@@ -562,7 +530,7 @@ export type VerifyReport = Readonly<{ ok: boolean; checks: readonly VerifyCheck[
 
 /**
  * Re-read the database and prove it holds EXACTLY this plan: per-table
- * counts, property identity/region integrity, and the exact per-property
+ * counts, property identity integrity, and the exact per-property
  * review distribution (which subsumes orphan/link checks — a review pointing
  * at a non-plan property shows up as a distribution key mismatch).
  */
@@ -586,7 +554,7 @@ export async function verifyScaleDataset(
     detail: `expected ${plan.shape.orgs}, found ${orgsFound}`,
   })
 
-  // 2+3. Property count + identity/region integrity (chunked id probes).
+  // 2+3. Property count + identity integrity (chunked id probes).
   const planProperties = [...plan.properties()]
   const propertyById = new Map(planProperties.map((p) => [p.id, p]))
   let propertiesFound = 0
@@ -594,8 +562,7 @@ export async function verifyScaleDataset(
   for (const chunk of chunked(planProperties, PROBE_BATCH)) {
     const ids = chunk.map((p) => p.id)
     const rows = await db.query(
-      `SELECT id, organization_id, processing_region, data_cell_id,
-              routing_policy_version, country_code
+      `SELECT id, organization_id, country_code
        FROM properties WHERE id = ANY($1::uuid[])`,
       [ids],
     )
@@ -605,9 +572,6 @@ export async function verifyScaleDataset(
       if (
         !expected ||
         row.organization_id !== expected.orgId ||
-        row.processing_region !== expected.processingRegion ||
-        row.data_cell_id !== expected.dataCellId ||
-        Number(row.routing_policy_version) !== expected.routingPolicyVersion ||
         row.country_code !== expected.countryCode
       )
         propertyMismatches += 1

@@ -2,7 +2,6 @@ import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   googleConnections,
-  googleOrganizationCredentialHomes,
   portalHealthIntervals,
   portalPublicationActivations,
   portalResponsibleManagers,
@@ -25,7 +24,6 @@ import {
 type CanonicalFactRow = Readonly<{
   anchor_property_id: string | null
   google_connection_completed_at: Date | string | null
-  imported_property_completed_at: Date | string | null
   initial_review_sync_completed_at: Date | string | null
   published_portal_completed_at: Date | string | null
   responsible_managers_completed_at: Date | string | null
@@ -38,7 +36,6 @@ const completionByKey = (
   row: CanonicalFactRow,
 ): Readonly<Record<SetupChecklistStepKey, Date | null>> => ({
   google_connection: timestampFromDriver(row.google_connection_completed_at),
-  imported_property: timestampFromDriver(row.imported_property_completed_at),
   initial_review_sync: timestampFromDriver(row.initial_review_sync_completed_at),
   published_portal: timestampFromDriver(row.published_portal_completed_at),
   responsible_managers: timestampFromDriver(row.responsible_managers_completed_at),
@@ -54,7 +51,7 @@ function propertyScopeSql(propertyIds: readonly string[] | null) {
 }
 
 /**
- * Dashboard-owned read facade for the five EXP-01 setup facts. It stores no
+ * Dashboard-owned read facade for the four EXP-01 setup facts. It stores no
  * source state: only the first time a fully canonical fact was observed true.
  */
 export const createSetupChecklistRepository = (
@@ -78,8 +75,7 @@ export const createSetupChecklistRepository = (
               p.source_epoch,
               GREATEST(
                 p.profile_confirmed_at,
-                p.timezone_resolved_at,
-                p.processing_region_resolved_at
+                p.timezone_resolved_at
               ) AS completed_at
             FROM scoped_properties p
             WHERE p.google_binding_state = 'active'
@@ -92,18 +88,9 @@ export const createSetupChecklistRepository = (
               AND p.country_source = 'tenant_confirmed'
               AND p.timezone_source = 'tenant_confirmed'
               AND p.timezone_resolved_at IS NOT NULL
-              AND p.data_cell_id IS NOT NULL
-              AND p.processing_region <> 'unresolved'
-              AND p.processing_region_resolved_at IS NOT NULL
           ), healthy_connection AS (
             SELECT MIN(COALESCE(c.credential_authorized_at, c.created_at)) AS completed_at
             FROM ${googleConnections} c
-            JOIN ${googleOrganizationCredentialHomes} h
-              ON h.organization_id = c.organization_id
-              AND h.authority_generation = c.credential_home_authority_generation
-              AND h.home_cell_id = c.credential_home_cell_id
-              AND h.catalogue_policy_version = c.credential_home_policy_version
-              AND h.superseded_at IS NULL
             WHERE c.organization_id = ${input.organizationId}
               AND c.visibility = 'organization'
               AND c.status = 'active'
@@ -176,8 +163,6 @@ export const createSetupChecklistRepository = (
             ) AS anchor_property_id,
             (SELECT completed_at FROM healthy_connection)
               AS google_connection_completed_at,
-            (SELECT MIN(completed_at) FROM qualified_properties)
-              AS imported_property_completed_at,
             (SELECT completed_at FROM healthy_sync)
               AS initial_review_sync_completed_at,
             (SELECT completed_at FROM healthy_portal)
@@ -188,7 +173,6 @@ export const createSetupChecklistRepository = (
         const canonical = canonicalResult.rows[0] ?? {
           anchor_property_id: null,
           google_connection_completed_at: null,
-          imported_property_completed_at: null,
           initial_review_sync_completed_at: null,
           published_portal_completed_at: null,
           responsible_managers_completed_at: null,
@@ -231,7 +215,6 @@ export const createSetupChecklistRepository = (
               ? null
               : propertyId(canonical.anchor_property_id),
           googleConnection: fact('google_connection'),
-          importedProperty: fact('imported_property'),
           initialReviewSync: fact('initial_review_sync'),
           publishedPortal: fact('published_portal'),
           responsibleManagers: fact('responsible_managers'),

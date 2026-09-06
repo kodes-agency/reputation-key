@@ -26,8 +26,6 @@ import {
 const ISOLATED_ENV = {
   RESTORE_MODE: 'isolated',
   DATABASE_URL: 'postgresql://u:p@localhost:5432/restored',
-  PROCESSING_CELL: 'us',
-  RESTORE_SOURCE_CELL: 'us',
   RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
   RESTORE_POINT_AT: '2026-07-31T00:00:00.000Z',
   RELEASE_SHA: 'a'.repeat(40),
@@ -114,7 +112,6 @@ function depsFor(overrides: Partial<RestoreVerifyDeps> = {}): RestoreVerifyDeps 
       kind: 'reviewed_apply',
       admit: vi.fn(async () => ({
         recoveryInput: {
-          dataCellId: 'us',
           runId: '10000000-0000-4000-8000-000000000001',
           generation: 1,
           sourceReleaseSha: ISOLATED_ENV.RELEASE_SHA,
@@ -228,29 +225,11 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
       env: {
         RESTORE_MODE: 'isolated',
         DATABASE_URL: 'postgresql://u:p@db.prod.example/x',
-        PROCESSING_CELL: 'us',
-        RESTORE_SOURCE_CELL: 'us',
       },
     })
     const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
     expect(code).toBe(1)
     expect(io.errLines.join('\n')).toMatch(/not an admitted restore target/)
-    expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
-    expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
-  })
-
-  it('REFUSES a backup from another Data Cell before reading or purging rows', async () => {
-    const io = memoryIO()
-    const deps = depsFor({
-      env: {
-        ...ISOLATED_ENV,
-        RESTORE_SOURCE_CELL: 'europe',
-      },
-    })
-    const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
-    expect(code).toBe(1)
-    expect(io.errLines.join('\n')).toMatch(/exactly match PROCESSING_CELL/)
-    expect(deps.countExpired).not.toHaveBeenCalled()
     expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
     expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
   })

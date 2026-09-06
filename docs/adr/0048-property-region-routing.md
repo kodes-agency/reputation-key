@@ -7,9 +7,10 @@ superseded_by: 0057
 # 0048 — Property region routing
 
 > Superseded by [ADR 0057](0057-single-us-beta-data-cell.md), which absorbed
-> ADR 0054 on 2026-09-06. This file
-> records the historical single-US containment phase and is not current beta
-> routing authority.
+> ADR 0054 on 2026-09-06 and was itself superseded by `docs/BETA.md` §1 on
+> 2026-09-07 (the routing plane no longer exists). This file records the
+> historical single-US containment phase and is not current beta routing
+> authority.
 
 ## Context
 

@@ -380,9 +380,7 @@ export function createGooglePerformanceAuthorizer(
     }
 
     try {
-      const accessToken = await deps.getAccessToken(actor.organizationId, connection.id, [
-        input.propertyId,
-      ])
+      const accessToken = await deps.getAccessToken(actor.organizationId, connection.id)
       return { ok: true, snapshot, accessToken }
     } catch {
       return unavailable('integration_unavailable', null)

@@ -2,7 +2,6 @@ import type { AlertSeverity } from './alert-definitions'
 
 type PlatformSignalBase = Readonly<{
   name: string
-  dataCellId: 'us'
   owner: 'Bozhidar Denev'
   severity: AlertSeverity
   runbook: `runbooks.md §${number}`
@@ -31,13 +30,12 @@ export type Reg04PlatformSignal = PlatformSignalBase &
   }>
 
 const base = Object.freeze({
-  dataCellId: 'us' as const,
   owner: 'Bozhidar Denev' as const,
   activationGate: 'required_before_customer_data' as const,
 })
 
 /**
- * External signal inventory for the one deployable beta Data Cell. These
+ * External signal inventory for the beta deployment. These
  * rows register what the platform/monitoring configuration and retained drill
  * evidence must prove; they are intentionally not an assertion that Railway,
  * Sentry, an export runner, or an uptime monitor is currently configured.

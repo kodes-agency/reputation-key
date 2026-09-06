@@ -67,7 +67,7 @@ export type ReviewWorkerRegistrationInput = Readonly<{
   replyCommandStore: ReplyCommandStore
   googleReviewApi: GoogleReviewApiPort
   staffPublicApi: StaffPublicApi
-  propertyRouting: SyncHandlerDependencies['propertyRouting']
+  propertySourceEpoch: SyncHandlerDependencies['propertySourceEpoch']
   runSnapshot: SyncHandlerDependencies['runSnapshot']
   runTargetedFetch: SyncHandlerDependencies['runTargetedFetch']
   runSourceContentLifecycle: PurgeHandlerDependencies['runLifecycle']
@@ -91,7 +91,7 @@ export async function registerReviewWorkerJobs(
   const syncReviewsHandler = createSyncPropertyReviewsHandler({
     runSnapshot: input.runSnapshot,
     runTargetedFetch: input.runTargetedFetch,
-    propertyRouting: input.propertyRouting,
+    propertySourceEpoch: input.propertySourceEpoch,
     enqueueContinuation: async (data, options) => {
       await input.reviewQueue.addSyncJob(
         data,

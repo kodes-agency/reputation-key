@@ -12,7 +12,6 @@ export type BetaCriticalJourney =
 
 export type BetaCriticalJourneySignal = Readonly<{
   journey: BetaCriticalJourney
-  dataCellId: 'us'
   signalName: string
   status:
     | 'implemented_application_signal'
@@ -27,11 +26,10 @@ export type BetaCriticalJourneySignal = Readonly<{
 }>
 
 const signal = (
-  input: Omit<BetaCriticalJourneySignal, 'dataCellId' | 'owner' | 'runbook'>,
+  input: Omit<BetaCriticalJourneySignal, 'owner' | 'runbook'>,
 ): BetaCriticalJourneySignal =>
   Object.freeze({
     ...input,
-    dataCellId: 'us' as const,
     owner: 'Bozhidar Denev' as const,
     runbook: 'runbooks.md §16' as const,
   })

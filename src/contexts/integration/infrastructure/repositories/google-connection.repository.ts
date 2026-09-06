@@ -203,7 +203,6 @@ export const createGoogleConnectionRepository = (
     expiresAt,
     visibility,
     scopes,
-    credentialHome,
     credentialAuthorizedBy,
     credentialAuthorizedAt,
   ) => {
@@ -221,9 +220,6 @@ export const createGoogleConnectionRepository = (
           credentialAuthorizedBy,
           credentialAuthorizedAt,
           credentialUseState: 'active',
-          credentialHomeCellId: credentialHome.homeCellId,
-          credentialHomePolicyVersion: credentialHome.cataloguePolicyVersion,
-          credentialHomeAuthorityGeneration: credentialHome.authorityGeneration,
           cleanupMaterialDeadlineAt: null,
           lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
           accessVersion: sql`${googleConnections.accessVersion} + 1`,

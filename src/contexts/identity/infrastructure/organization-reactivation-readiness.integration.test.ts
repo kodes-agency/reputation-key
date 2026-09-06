@@ -44,7 +44,6 @@ const satisfiedProbe = async () => ({ satisfied: true, detailCode: 'ready' })
 
 const readiness = () =>
   createDefaultOrganizationReactivationReadiness({
-    admitDataCell: async () => ({ accepting: true, detailCode: 'cell_us_accepting' }),
     hasEligibleResponsibleManagers: satisfiedProbe,
     hasFreshGoogleAuthorization: satisfiedProbe,
     hasDeliberatePortalReactivation: satisfiedProbe,

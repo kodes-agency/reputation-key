@@ -34,7 +34,7 @@ type RecoveryMaintenanceDeps = Readonly<{
   createRunLifecycle: CreateRunLifecycle
   executions: ReviewLifecycleRecoveryExecutionStore
   createRecoveryRunId: () => string
-  loadNextRecoveryGeneration: (dataCellId: string) => Promise<number>
+  loadNextRecoveryGeneration: () => Promise<number>
   loadTrustedPublicKeys?: (encodedJson: string) => ReadonlyMap<string, KeyObject>
 }>
 

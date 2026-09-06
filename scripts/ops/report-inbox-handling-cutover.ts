@@ -29,9 +29,6 @@ const COMMAND_NAME = 'ops:report-inbox-handling-cutover'
 const USAGE =
   'pnpm ops:report-inbox-handling-cutover --operator <id> --org <id> --observed-at <ISO-8601>'
 
-/** Beta runs exactly one logical US Data Cell; evidence is scoped to it. */
-const DATA_CELL_ID = 'cell-us' as const
-
 const EVIDENCE_VERSION = 'inbox-handling-cutover-evidence/v1'
 
 function flagValue(args: readonly string[], name: string): string | undefined {
@@ -84,7 +81,6 @@ async function main(): Promise<void> {
         throw new Error('inbox cutover scan did not run read-only — refusing to emit')
       }
       const report = canonicalInboxHandlingCutoverReport({
-        dataCellId: DATA_CELL_ID,
         organizationId,
         generatedAt: observedAt,
         relationships: scan.relationships,
@@ -93,7 +89,6 @@ async function main(): Promise<void> {
       io.out(
         canonicalizeRfc8785({
           version: EVIDENCE_VERSION,
-          dataCellId: DATA_CELL_ID,
           organizationId,
           observedAt: observedAt.toISOString(),
           transaction: scan.transaction,

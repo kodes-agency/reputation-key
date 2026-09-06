@@ -80,8 +80,6 @@ describe('Current on Google snapshot repository (real PostgreSQL)', () => {
         slug: 'metric-current-google-property',
         timezone: 'UTC',
         countryCode: 'US',
-        processingRegion: 'global',
-        routingPolicyVersion: 1,
         profileVersion: 1,
         sourceEpoch: 1,
       })

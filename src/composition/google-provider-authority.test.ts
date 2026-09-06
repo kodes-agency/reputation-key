@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { Database } from '#/shared/db'
 import type { Env } from '#/shared/config/env'
-import { providerConfigFor } from './provider-runtime'
+import { GOOGLE_PROVIDER_ENDPOINTS } from './provider-runtime'
 import {
   buildGoogleProviderAuthority,
   GOOGLE_PROVIDER_AUTHORITY_KEYS,
@@ -47,12 +47,7 @@ function buildInput(
     logger: { warn: () => {}, info: () => {} },
     env: envWith({}),
     redis: undefined,
-    providerEndpoints: providerConfigFor('gbp-default'),
-    dataCellExecutionFence: {
-      localCell: 'us',
-      decideProperty: async () => ({ allowed: true }),
-      decideImportItem: async () => ({ allowed: true }),
-    } as unknown as GoogleProviderAuthorityInput['dataCellExecutionFence'],
+    providerEndpoints: GOOGLE_PROVIDER_ENDPOINTS,
     identity: {
       hasActivePropertyGrant: async () => false,
     },

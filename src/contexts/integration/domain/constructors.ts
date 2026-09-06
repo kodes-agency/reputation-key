@@ -5,8 +5,6 @@ import type { GoogleConnectionId, OrganizationId, UserId } from '#/shared/domain
 import { ok, err } from '#/shared/domain'
 import { integrationError } from './errors'
 import { isValidVisibility } from './rules'
-import type { GoogleCredentialHomeBinding } from '#/shared/domain/google-credential-home'
-import { canReplaceGoogleCredentialHome } from '#/shared/domain/google-credential-home'
 
 type BuildConnectionIdentity = Readonly<{
   kind: 'oidc'
@@ -23,7 +21,6 @@ type BuildConnectionArgs = Readonly<{
   scopes: ReadonlyArray<string>
   connectedBy: UserId
   visibility: 'private' | 'organization'
-  credentialHome: GoogleCredentialHomeBinding
   now: Date
 }>
 
@@ -35,9 +32,6 @@ export const buildGoogleConnection = (args: BuildConnectionArgs) => {
     return err(
       integrationError('invalid_visibility', `Invalid visibility: ${args.visibility}`),
     )
-  }
-  if (!canReplaceGoogleCredentialHome(null, args.credentialHome, 'new_grant')) {
-    return err(integrationError('oauth_failed', 'Google credential home is unavailable'))
   }
 
   return ok<GoogleConnection>({
@@ -57,9 +51,6 @@ export const buildGoogleConnection = (args: BuildConnectionArgs) => {
     lifecycleVersion: 1,
     accessVersion: 1,
     credentialGeneration: 1,
-    credentialHomeCellId: args.credentialHome.homeCellId,
-    credentialHomePolicyVersion: args.credentialHome.cataloguePolicyVersion,
-    credentialHomeAuthorityGeneration: args.credentialHome.authorityGeneration,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,

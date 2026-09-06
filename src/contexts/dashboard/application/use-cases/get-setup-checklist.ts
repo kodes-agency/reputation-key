@@ -13,11 +13,7 @@ import type {
 } from '../ports/setup-checklist.repository'
 
 export type SetupChecklistActionKind =
-  | 'manage_google'
-  | 'import_property'
-  | 'manage_property'
-  | 'manage_portals'
-  | 'assign_managers'
+  'manage_google' | 'manage_portals' | 'assign_managers'
 
 export type SetupChecklistAction = Readonly<{
   kind: SetupChecklistActionKind
@@ -47,7 +43,6 @@ export type GetSetupChecklistInput = Readonly<{
   accessiblePropertyIds: readonly PropertyId[] | null
   allowedActions: Readonly<{
     manageGoogle: boolean
-    importProperty: boolean
     createPortal: boolean
     assignManagers: boolean
   }>
@@ -102,7 +97,6 @@ export const getSetupChecklist =
         steps: (
           [
             'google_connection',
-            'imported_property',
             'initial_review_sync',
             'published_portal',
             'responsible_managers',
@@ -127,15 +121,6 @@ export const getSetupChecklist =
         key: 'google_connection',
         fact: facts.googleConnection,
         action: actions.manageGoogle ? { kind: 'manage_google', propertyId: null } : null,
-      },
-      {
-        key: 'imported_property',
-        fact: facts.importedProperty,
-        action: actions.importProperty
-          ? facts.importedProperty.firstCompletedAt !== null && property !== null
-            ? { kind: 'manage_property', propertyId: property }
-            : { kind: 'import_property', propertyId: null }
-          : null,
       },
       {
         key: 'initial_review_sync',

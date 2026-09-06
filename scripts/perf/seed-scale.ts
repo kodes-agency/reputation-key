@@ -16,7 +16,6 @@
 //   --base-time=<iso>    wall-clock anchor for reviewed_at/expires_at
 //                        (default: now; NOT part of the manifest hash)
 //   --manifest=<path>    manifest JSON path (default: scripts/perf/scale-dataset.json)
-//   --routing-policy-version=N  (default: ROUTING_POLICY_VERSION from the property domain)
 //
 // Same seed + same shape ⇒ byte-identical manifest hash. Requires DATABASE_URL.
 
@@ -33,7 +32,6 @@ import {
   serializeManifest,
   parseManifest,
 } from '../../src/shared/testing/scale-dataset'
-import { ROUTING_POLICY_VERSION } from '../../src/contexts/property/domain/processing-routing'
 
 function argValue(flag: string): string | undefined {
   const hit = process.argv.find((a) => a.startsWith(`${flag}=`))
@@ -71,12 +69,8 @@ async function main(): Promise<number> {
     return 2
   }
   const manifestPath = resolve(process.cwd(), argValue('--manifest') ?? DEFAULT_MANIFEST)
-  const routingPolicyVersion = numericArg(
-    '--routing-policy-version',
-    ROUTING_POLICY_VERSION,
-  )
 
-  const plan = planScaleDataset({ seed, shape, sourceLifecycle, routingPolicyVersion })
+  const plan = planScaleDataset({ seed, shape, sourceLifecycle })
 
   console.log('BQC-8.1 deterministic scale dataset')
   console.log('═'.repeat(60))
@@ -86,7 +80,6 @@ async function main(): Promise<number> {
     `  Shape:       ${shape.orgs} orgs / ${shape.properties} properties / ${shape.reviews} reviews`,
   )
   console.log(`  Plan hash:   ${plan.hash}`)
-  console.log(`  Routing ver: ${routingPolicyVersion}`)
   console.log(
     `  Lifecycle:   ${sourceLifecycle ? 'fetch-clock fields populated' : 'capacity-only'}`,
   )

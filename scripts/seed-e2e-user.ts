@@ -77,7 +77,6 @@ import {
 } from '../src/contexts/identity/infrastructure/adapters/better-auth-schemas'
 import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
 import { assertLocalToolExecutionIdentity } from '../src/shared/config/local-tool-execution'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '../src/shared/domain/data-cell-catalogue'
 import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/auth/google-content-contract'
 import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 
@@ -372,11 +371,6 @@ async function ensureProperty(
     timezone: 'America/New_York',
     countryCode: 'US',
     countrySource: 'manual' as const,
-    processingRegion: 'us' as const,
-    dataCellId: 'us' as const,
-    processingRegionSource: 'country_default' as const,
-    routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-    processingRegionResolvedAt: FIXTURE_AT,
     lifecycleState: 'active' as const,
     sourceEpoch: 0,
     // A verified Google review destination, matching what publishPortalSnapshot

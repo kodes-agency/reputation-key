@@ -5,7 +5,6 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { organizationId, userId, propertyId } from '#/shared/domain/ids'
 import {
   DEFAULT_PROPERTY_GOOGLE_PROFILE,
-  DEFAULT_PROPERTY_ROUTING,
   type Property,
 } from '#/contexts/property/domain/types'
 import type {
@@ -18,10 +17,6 @@ import type { ScanEvent, Rating, Feedback } from '#/contexts/guest/domain/types'
 import { scanEventId, ratingId, feedbackId } from '#/shared/domain/ids'
 import type { GoogleConnection } from '#/contexts/integration/domain/types'
 import { googleConnectionId } from '#/shared/domain/ids'
-import {
-  DATA_CELL_CATALOGUE_POLICY_VERSION,
-  resolvePersistedDataCellId,
-} from '#/shared/domain/data-cell-catalogue'
 
 /** Build a deterministic AuthContext for tests. */
 export function buildTestAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
@@ -71,9 +66,6 @@ export function buildTestProperty(
     : 'a0000000-0000-0000-0000-000000000001'
   const id = propertyId(idStr)
   const { id: _ignored, ...rest } = overrides
-  const inferredDataCellId = Object.hasOwn(overrides, 'dataCellId')
-    ? (overrides.dataCellId ?? null)
-    : resolvePersistedDataCellId(null, overrides.processingRegion)
   return {
     id,
     organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
@@ -93,9 +85,12 @@ export function buildTestProperty(
     lifecycleInitiatedBy: null,
     responsibleManagerRevision: 1,
     responsibilityNeededSince: new Date('2026-04-10T12:00:00Z'),
-    ...DEFAULT_PROPERTY_ROUTING,
+    countryCode: 'US',
+    countrySource: 'manual',
+    timezoneSource: 'manual',
+    timezoneResolvedAt: new Date('2026-04-10T12:00:00Z'),
+    sourceEpoch: 0,
     ...rest,
-    dataCellId: inferredDataCellId,
   } as Property
 }
 
@@ -243,9 +238,6 @@ export function buildTestGoogleConnection(
     lifecycleVersion: 1,
     accessVersion: 1,
     credentialGeneration: 1,
-    credentialHomeCellId: 'us',
-    credentialHomePolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-    credentialHomeAuthorityGeneration: 1,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,

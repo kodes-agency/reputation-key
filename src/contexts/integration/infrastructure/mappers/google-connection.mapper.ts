@@ -5,7 +5,6 @@ import type { googleConnections } from '#/shared/db/schema/google-connection.sch
 import type { GoogleConnection } from '../../domain/types'
 import { unbrand } from '#/shared/domain/ids'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
-import { dataCellById } from '#/shared/domain/data-cell-catalogue'
 
 type GoogleConnectionRow = typeof googleConnections.$inferSelect
 type GoogleConnectionInsertRow = typeof googleConnections.$inferInsert
@@ -27,11 +26,6 @@ export const googleConnectionFromRow = (row: GoogleConnectionRow): GoogleConnect
   lifecycleVersion: row.lifecycleVersion,
   accessVersion: row.accessVersion,
   credentialGeneration: row.credentialGeneration,
-  credentialHomeCellId: row.credentialHomeCellId
-    ? (dataCellById(row.credentialHomeCellId)?.id ?? null)
-    : null,
-  credentialHomePolicyVersion: row.credentialHomePolicyVersion,
-  credentialHomeAuthorityGeneration: row.credentialHomeAuthorityGeneration,
   encryptionKeyId: row.encryptionKeyId,
   lastSuccessfulSyncAt: row.lastSuccessfulSyncAt,
   statusReason: row.statusReason,
@@ -60,9 +54,6 @@ export const googleConnectionToInsert = (
   lifecycleVersion: conn.lifecycleVersion,
   accessVersion: conn.accessVersion,
   credentialGeneration: conn.credentialGeneration,
-  credentialHomeCellId: conn.credentialHomeCellId,
-  credentialHomePolicyVersion: conn.credentialHomePolicyVersion,
-  credentialHomeAuthorityGeneration: conn.credentialHomeAuthorityGeneration,
   encryptionKeyId: conn.encryptionKeyId,
   lastSuccessfulSyncAt: conn.lastSuccessfulSyncAt,
   statusReason: conn.statusReason,

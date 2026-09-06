@@ -9,7 +9,7 @@ import {
 } from './beta-support-operations'
 
 describe('OBS-01 beta support operations authority', () => {
-  it('covers every closed-beta critical journey in the one deployable Data Cell', () => {
+  it('covers every closed-beta critical journey', () => {
     expect(BETA_CRITICAL_JOURNEY_SIGNALS.map((signal) => signal.journey).sort()).toEqual(
       [
         'beta_feedback_delivery',
@@ -22,14 +22,6 @@ describe('OBS-01 beta support operations authority', () => {
         'review_and_inbox_triage',
       ].sort(),
     )
-    expect(
-      new Set(BETA_CRITICAL_JOURNEY_SIGNALS.map((signal) => signal.dataCellId)),
-    ).toEqual(new Set(['us']))
-    expect(
-      BETA_CRITICAL_JOURNEY_SIGNALS.some((signal) =>
-        signal.signalName.includes('europe'),
-      ),
-    ).toBe(false)
   })
 
   it('links local signals to real alert definitions and external signals to honest evidence gates', () => {

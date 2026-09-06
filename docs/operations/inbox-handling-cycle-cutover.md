@@ -59,8 +59,8 @@ byte-comparable and two operators can diff instead of trusting one run.
 
 The command prints one canonical (RFC 8785) JSON envelope containing only:
 
-- the evidence schema version, the single US Data Cell id, the Organization id
-  and the explicit observation time;
+- the evidence schema version, the Organization id and the explicit
+  observation time;
 - the read-only transaction posture the artifact was produced under;
 - the classification report payload and its SHA-256 fingerprint;
 - per-item identifiers, one controlled reason code, one target eligibility and
