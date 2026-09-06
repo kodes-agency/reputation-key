@@ -6,7 +6,10 @@ import {
 } from '#/shared/outbox/consumer-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import { createEventHandlerDeps, NOTIF_TEST_IDS } from './event-handlers/test-fixtures'
+import {
+  createNotificationConsumerDeps,
+  NOTIF_TEST_IDS,
+} from './notification-consumer-test-fixtures'
 import {
   handleNotificationPropertyResponsibilityNeeded,
   ON_PROPERTY_RESPONSIBILITY_NEEDED_CONSUMER,
@@ -37,7 +40,7 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
 })
 
 const makeDeps = () => {
-  const fakes = createEventHandlerDeps()
+  const fakes = createNotificationConsumerDeps()
   return {
     queue: fakes.queue,
     userLookup: fakes.userLookup,

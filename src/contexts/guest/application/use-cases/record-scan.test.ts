@@ -1,6 +1,6 @@
 import { recordScan } from './record-scan'
 import { vi } from 'vitest'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import {
   portalAccessArtifactId,
   portalGroupId,
@@ -24,7 +24,7 @@ const STAFF_ATTRIBUTION = {
 function observationHarness(options?: { fail?: boolean; failDiagnostic?: boolean }) {
   const scans: ScanEvent[] = []
   const qualifiedScans: QualifiedScan[] = []
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const store: GuestObservationStore = {
     commitScan: async (scan, fact) => {
       if (options?.fail || options?.failDiagnostic) throw new Error('DB down')
@@ -39,7 +39,7 @@ function observationHarness(options?: { fail?: boolean; failDiagnostic?: boolean
         return 'duplicate'
       }
       scans.push(scan)
-      await events.emit(fact)
+      await outbox.record(fact)
       return 'applied'
     },
     commitQualifiedScan: async (scan, _sessionId, fact) => {
@@ -48,13 +48,13 @@ function observationHarness(options?: { fail?: boolean; failDiagnostic?: boolean
         return 'duplicate'
       }
       qualifiedScans.push(scan)
-      await events.emit(fact)
+      await outbox.record(fact)
       return 'applied'
     },
     retractQualifiedScan: async () => 'applied',
     commitReviewLinkClick: async () => 'applied',
   }
-  return { store, scans, qualifiedScans, events }
+  return { store, scans, qualifiedScans, outbox }
 }
 
 const ORG = organizationId('org-1')
@@ -111,13 +111,13 @@ describe('recordScan', () => {
     expect(harness.scans).toHaveLength(1)
     expect(harness.scans[0]!.source).toBe('qr')
     expect(harness.scans[0]!.ipHash).toBeNull()
-    expect(harness.events.capturedByTag('guest.scan.recorded')).toHaveLength(1)
+    expect(harness.outbox.byTag('guest.scan.recorded')).toHaveLength(1)
     expect(harness.qualifiedScans[0]).toMatchObject({
       portalGroupId: GROUP,
       accessArtifactId: ARTIFACT,
       staffAttribution: STAFF_ATTRIBUTION,
     })
-    expect(harness.events.capturedByTag('guest.qualified_scan.recorded')).toMatchObject([
+    expect(harness.outbox.byTag('guest.qualified_scan.recorded')).toMatchObject([
       { staffAttribution: STAFF_ATTRIBUTION },
     ])
   })
@@ -131,7 +131,7 @@ describe('recordScan', () => {
     await expect(useCase(input())).resolves.toBe('duplicate')
 
     expect(harness.scans).toHaveLength(1)
-    expect(harness.events.capturedByTag('guest.scan.recorded')).toHaveLength(1)
+    expect(harness.outbox.byTag('guest.scan.recorded')).toHaveLength(1)
   })
 
   it('keeps the public render path available when observation persistence fails', async () => {
@@ -142,7 +142,7 @@ describe('recordScan', () => {
     await expect(useCase(input())).resolves.toBe('failed')
 
     expect(harness.scans).toHaveLength(0)
-    expect(harness.events.capturedEvents).toHaveLength(0)
+    expect(harness.outbox.facts).toHaveLength(0)
     expect(dependencies.reportObservationLoss).toHaveBeenCalledOnce()
     expect(dependencies.reportObservationLoss).toHaveBeenCalledWith('scan')
   })
@@ -156,7 +156,7 @@ describe('recordScan', () => {
 
     expect(harness.scans).toHaveLength(0)
     expect(harness.qualifiedScans).toHaveLength(1)
-    expect(harness.events.capturedByTag('guest.qualified_scan.recorded')).toHaveLength(1)
+    expect(harness.outbox.byTag('guest.qualified_scan.recorded')).toHaveLength(1)
     expect(dependencies.reportObservationLoss).toHaveBeenCalledOnce()
   })
 

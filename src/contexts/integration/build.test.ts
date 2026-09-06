@@ -8,7 +8,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
 import type {
   PropertyGoogleBindingPublicApi,
   PropertyPublicApi,
@@ -44,8 +43,6 @@ const dbStub = new Proxy(
     },
   },
 ) as unknown as Database
-
-const silentEvents: EventBus = { on: () => {}, emit: async () => {}, clear: () => {} }
 
 const ENDPOINTS: ProviderEndpoints = {
   gbpApiBaseUrl: 'https://gbp.example.test/v1',
@@ -86,7 +83,6 @@ function buildDeps(overrides: {
   return {
     db: dbStub,
     outboxRepo: {} as unknown as OutboxRepository,
-    events: silentEvents,
     clock: () => new Date('2026-01-15T12:00:00.000Z'),
     idGen: () => '00000000-0000-4000-8000-000000000101',
     invalidationOwnerGen: () => 'deterministic-invalidation-owner',

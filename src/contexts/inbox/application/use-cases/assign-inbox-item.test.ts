@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { assignInboxItem } from './assign-inbox-item'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import { isInboxError } from '../../domain/errors'
@@ -76,8 +76,8 @@ const defaultStaffApi: StaffPublicApi = {
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialInboxCommandStore({ repo, events })
+  const events = createRecordedOutbox()
+  const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
   const deps = { repo, commandStore, clock: () => FIXED_TIME, staffPublicApi: staffApi }
   const execute = assignInboxItem(deps)
   type CommandInput = Parameters<typeof execute>[0]
@@ -266,7 +266,7 @@ describe('assignInboxItem', () => {
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'not_found')
   })
 
-  it('emits inbox.item.assigned event when assigning to a user', async () => {
+  it('records inbox.item.assigned when assigning to a user', async () => {
     const { useCase, repo, events } = setup()
     repo.items.push(seedItem())
 
@@ -278,12 +278,12 @@ describe('assignInboxItem', () => {
       ctxFor('PropertyManager'),
     )
 
-    const emitted = events.capturedEvents
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0]._tag).toBe('inbox.inbox_item.assigned')
+    const facts = events.facts
+    expect(facts).toHaveLength(1)
+    expect(facts[0]._tag).toBe('inbox.inbox_item.assigned')
   })
 
-  it('emits inbox.item.unassigned event when unassigning (assignedToUserId is null)', async () => {
+  it('records inbox.item.unassigned when assignedToUserId is null', async () => {
     const { useCase, repo, events } = setup()
     repo.items.push({ ...seedItem(), assignedTo: ASSIGNEE_ID })
 
@@ -295,9 +295,9 @@ describe('assignInboxItem', () => {
       ctxFor('PropertyManager'),
     )
 
-    const emitted = events.capturedEvents
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0]._tag).toBe('inbox.inbox_item.unassigned')
+    const facts = events.facts
+    expect(facts).toHaveLength(1)
+    expect(facts[0]._tag).toBe('inbox.inbox_item.unassigned')
   })
 
   it('scopes PropertyManager caller to assigned properties (PM is NOT org-wide for inbox)', async () => {

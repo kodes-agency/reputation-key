@@ -110,8 +110,6 @@ export const createPortalResponsibleManagerRepository = (
           assignments: currentRows.map(fromRow),
           revision: portal.revision,
           becameResponsibilityNeeded: false,
-          responsibilityNeededEvent: null,
-          updatedEvent: null,
         }
       }
 
@@ -228,15 +226,13 @@ export const createPortalResponsibleManagerRepository = (
         assignments: activeRows.map(fromRow),
         revision: revised.revision,
         becameResponsibilityNeeded,
-        responsibilityNeededEvent,
-        updatedEvent,
       }
     }),
 
   releaseForUser: async (input) =>
     db.transaction(async (tx) => {
       if (input.portalIds?.length === 0) {
-        return { released: 0, responsibilityNeededEvents: [] }
+        return { released: 0 }
       }
       const activeRows = await tx
         .select()
@@ -252,7 +248,7 @@ export const createPortalResponsibleManagerRepository = (
           ),
         )
       if (activeRows.length === 0) {
-        return { released: 0, responsibilityNeededEvents: [] }
+        return { released: 0 }
       }
       const candidatePortalIds = [
         ...new Set(activeRows.map((row) => row.portalId)),
@@ -315,11 +311,10 @@ export const createPortalResponsibleManagerRepository = (
               .returning()
       const releasedRows = [...deletedRows, ...endedRows]
       if (releasedRows.length === 0) {
-        return { released: 0, responsibilityNeededEvents: [] }
+        return { released: 0 }
       }
       const portalIds = [...new Set(releasedRows.map((row) => row.portalId))].sort()
 
-      const recoveryEvents = []
       for (const rawPortalId of portalIds) {
         const remaining = await tx
           .select({ id: portalResponsibleManagers.id })
@@ -375,12 +370,8 @@ export const createPortalResponsibleManagerRepository = (
             occurredAt: input.at,
           })
           await insertOutboxRow(tx, event, { recordedAt: input.at })
-          recoveryEvents.push(event)
         }
       }
-      return {
-        released: releasedRows.length,
-        responsibilityNeededEvents: recoveryEvents,
-      }
+      return { released: releasedRows.length }
     }),
 })

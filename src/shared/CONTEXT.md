@@ -150,7 +150,7 @@ In-memory port fakes for unit testing use cases without a database:
 - `in-memory-dashboard-repo.ts`, `in-memory-google-connection-repo.ts`, `in-memory-inbox-repo.ts`
 - `in-memory-gbp-api-port.ts`, `in-memory-gbp-cache-repo.ts`, `in-memory-gbp-import-repo.ts`, `in-memory-gbp-queue-port.ts`
 - `in-memory-google-oauth-port.ts`, `in-memory-token-encryption.ts`, `mock-logger.ts`
-- `capturing-event-bus.ts` — event bus that captures emitted events for assertions
+- `recorded-outbox.ts` — in-memory outbox the sequential command-store fakes record facts into, for assertions
 - `fixtures.ts` — test data builders
 - `integration-helpers.ts` — integration test utilities
 

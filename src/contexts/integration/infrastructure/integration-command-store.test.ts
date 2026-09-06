@@ -1,16 +1,14 @@
 // BQC-3.5 — atomic integration command store contract tests.
 //
-// Every command must commit its google_connections mutation and its
-// outbox_events row in ONE transaction, then emit on the in-process bus.
-//   ['tx.start', 'tx.state'+, 'tx.outbox', 'tx.commit', 'emit']
-// A missing connection rolls back — no fact, no emit. A post-commit bus
-// failure must not propagate (durable row already retained).
+// Every command must commit its google_connections mutation and outbox_events
+// fact in one transaction:
+//   ['tx.start', 'tx.state'+, 'tx.outbox', 'tx.commit']
+// A missing connection rolls back state and fact together.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createAtomicIntegrationCommandStore as createProductionIntegrationCommandStore } from './integration-command-store'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -49,10 +47,9 @@ const MUTATION_NOW = new Date('2026-06-01T12:34:56.789Z')
 
 const createAtomicIntegrationCommandStore = (
   db: Database,
-  events: EventBus,
   clock: () => Date = () => MUTATION_NOW,
 ) =>
-  createProductionIntegrationCommandStore(db, events, clock, {
+  createProductionIntegrationCommandStore(db, clock, {
     applyCredentialHome: async () => {},
   })
 const ORG_ID = organizationId('org-integration-cmd-00000000001')
@@ -193,17 +190,6 @@ function createMockDb(opts: {
   return { db: db as unknown as Database, tx }
 }
 
-function makeEvents(order: string[], fail = false): EventBus {
-  return {
-    on: vi.fn(),
-    emit: vi.fn(async () => {
-      if (fail) throw new Error('bus down')
-      order.push('emit')
-    }),
-    clear: vi.fn(),
-  }
-}
-
 const connectedEvent = () =>
   integrationGoogleAccountConnected({
     connectionId: CONN_ID,
@@ -220,13 +206,12 @@ describe('createAtomicIntegrationCommandStore', () => {
   })
 
   describe('connectGoogleAccount', () => {
-    it('commits insert + connected fact in one tx before emit', async () => {
+    it('commits insert + connected fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const insertedRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, outboxRows, insertedRows })
-      const events = makeEvents(order)
-      const store = createAtomicIntegrationCommandStore(db, events)
+      const store = createAtomicIntegrationCommandStore(db)
       const event = connectedEvent()
 
       await store.connectGoogleAccount({
@@ -245,7 +230,7 @@ describe('createAtomicIntegrationCommandStore', () => {
         'organizationId',
         'userId',
       ])
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
 
     it('maps a unique violation to UniqueViolationError and records no fact', async () => {
@@ -256,8 +241,7 @@ describe('createAtomicIntegrationCommandStore', () => {
         insertError: Object.assign(new Error('duplicate key'), { code: '23505' }),
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIntegrationCommandStore(db, events)
+      const store = createAtomicIntegrationCommandStore(db)
 
       await expect(
         store.connectGoogleAccount({
@@ -267,13 +251,12 @@ describe('createAtomicIntegrationCommandStore', () => {
         }),
       ).rejects.toSatisfy((e: unknown) => isUniqueViolationError(e))
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.rollback'])
     })
   })
 
   describe('reconnectGoogleAccount', () => {
-    it('commits reconnection update + connected fact in one tx before emit', async () => {
+    it('commits reconnection update + connected fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const updateSets: Array<Record<string, unknown>> = []
@@ -283,8 +266,7 @@ describe('createAtomicIntegrationCommandStore', () => {
         outboxRows,
         updateSets,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIntegrationCommandStore(db, events)
+      const store = createAtomicIntegrationCommandStore(db)
 
       const result = await store.reconnectGoogleAccount({
         organizationId: ORG_ID,
@@ -309,15 +291,14 @@ describe('createAtomicIntegrationCommandStore', () => {
         updatedAt: MUTATION_NOW,
       })
       expect(outboxRows).toHaveLength(1)
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
 
     it('throws connection_not_found when the row vanished — no fact', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, updateReturning: [], outboxRows })
-      const events = makeEvents(order)
-      const store = createAtomicIntegrationCommandStore(db, events)
+      const store = createAtomicIntegrationCommandStore(db)
 
       await expect(
         store.reconnectGoogleAccount({
@@ -342,7 +323,7 @@ describe('createAtomicIntegrationCommandStore', () => {
   })
 
   describe('disconnectGoogleAccount', () => {
-    it('commits status + redaction + disconnected fact in one tx before emit', async () => {
+    it('commits status + redaction + disconnected fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const updateSets: Array<Record<string, unknown>> = []
@@ -361,12 +342,11 @@ describe('createAtomicIntegrationCommandStore', () => {
         outboxRows,
         updateSets,
       })
-      const events = makeEvents(order)
       const clock = vi
         .fn<() => Date>()
         .mockReturnValueOnce(MUTATION_NOW)
         .mockReturnValueOnce(new Date('2099-01-01T00:00:00.000Z'))
-      const store = createAtomicIntegrationCommandStore(db, events, clock)
+      const store = createAtomicIntegrationCommandStore(db, clock)
       const event = integrationGoogleAccountDisconnected({
         connectionId: CONN_ID,
         organizationId: ORG_ID,
@@ -400,7 +380,6 @@ describe('createAtomicIntegrationCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
     })
 
@@ -408,8 +387,7 @@ describe('createAtomicIntegrationCommandStore', () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, updateReturningQueue: [[]], outboxRows })
-      const events = makeEvents(order)
-      const store = createAtomicIntegrationCommandStore(db, events)
+      const store = createAtomicIntegrationCommandStore(db)
 
       await expect(
         store.disconnectGoogleAccount({
@@ -430,7 +408,7 @@ describe('createAtomicIntegrationCommandStore', () => {
   })
 
   describe('updateConnectionVisibility', () => {
-    it('commits visibility update + fact in one tx before emit', async () => {
+    it('commits visibility update + fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const updateSets: Array<Record<string, unknown>> = []
@@ -440,8 +418,7 @@ describe('createAtomicIntegrationCommandStore', () => {
         outboxRows,
         updateSets,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIntegrationCommandStore(db, events)
+      const store = createAtomicIntegrationCommandStore(db)
 
       const result = await store.updateConnectionVisibility({
         organizationId: ORG_ID,
@@ -461,25 +438,6 @@ describe('createAtomicIntegrationCommandStore', () => {
       expect(outboxRows[0]!.eventType).toBe(
         'integration.google_connection.visibility_changed',
       )
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
-    })
-  })
-
-  describe('emit failure isolation', () => {
-    it('a post-commit bus failure does not propagate (durable row retained)', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({ order, outboxRows })
-      const events = makeEvents(order, true)
-      const store = createAtomicIntegrationCommandStore(db, events)
-
-      await store.connectGoogleAccount({
-        connection: makeConnection(),
-        credentialHomeBinding: HOME_BINDING,
-        event: connectedEvent(),
-      })
-
-      expect(outboxRows).toHaveLength(1)
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
   })

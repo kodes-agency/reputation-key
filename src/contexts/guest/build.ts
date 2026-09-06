@@ -1,4 +1,3 @@
-import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
 import type {
   PortalContactRequestManagerAuthorityPublicApi,
@@ -47,7 +46,6 @@ import { contactRequestRetentionSweep } from './application/use-cases/contact-re
 
 type GuestContextDeps = Readonly<{
   db: Database
-  events: EventBus
   clock: Clock
   idGen: () => string
   monotonicNow: () => number
@@ -72,10 +70,9 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
   const guestResponseRepo = createGuestResponseRepository(deps.db, deps.clock)
   const guestResponseCommandStore = createAtomicGuestResponseCommandStore(
     deps.db,
-    deps.events,
     deps.clock,
   )
-  const guestObservationStore = createAtomicGuestObservationStore(deps.db, deps.events)
+  const guestObservationStore = createAtomicGuestObservationStore(deps.db)
   const guestNetworkPressureStore = createGuestNetworkPressureStore(deps.db, deps.idGen)
   const guestObservationLossMonitor = createGuestObservationLossMonitor(
     deps.observationLossRedis,

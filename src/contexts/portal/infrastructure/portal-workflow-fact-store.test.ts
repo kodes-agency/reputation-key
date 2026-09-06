@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
@@ -108,14 +107,7 @@ function makeHarness(existingFactCount: 0 | 1 | 3 = 0) {
       return result
     }),
   } as unknown as Database
-  const events = {
-    emit: vi.fn(async () => {
-      order.push('emit')
-    }),
-    on: vi.fn(),
-    off: vi.fn(),
-  } as unknown as EventBus
-  return { db, events, order, outboxRows, tx }
+  return { db, order, outboxRows, tx }
 }
 
 beforeEach(() => {
@@ -126,7 +118,7 @@ beforeEach(() => {
 describe('Portal workflow fact store', () => {
   it('atomically marks the review and records exact completeness and destination facts', async () => {
     const harness = makeHarness()
-    const store = createPortalWorkflowFactStore(harness.db, harness.events)
+    const store = createPortalWorkflowFactStore(harness.db)
 
     const result = await store.recordCompletedReview(command)
 
@@ -177,9 +169,6 @@ describe('Portal workflow fact store', () => {
       'tx.outbox',
       'tx.outbox',
       'tx.commit',
-      'emit',
-      'emit',
-      'emit',
     ])
   })
 
@@ -188,17 +177,14 @@ describe('Portal workflow fact store', () => {
     const duplicate = makeHarness(3)
     const firstResult = await createPortalWorkflowFactStore(
       first.db,
-      first.events,
     ).recordCompletedReview(command)
     const duplicateResult = await createPortalWorkflowFactStore(
       duplicate.db,
-      duplicate.events,
     ).recordCompletedReview(command)
 
     expect(duplicateResult.status).toBe('duplicate')
     expect(firstResult.events).toHaveLength(3)
     expect(duplicateResult.events).toEqual([])
-    expect(duplicate.events.emit).not.toHaveBeenCalled()
     expect(duplicate.tx.update).not.toHaveBeenCalled()
     expect(duplicate.outboxRows).toHaveLength(0)
   })
@@ -207,9 +193,7 @@ describe('Portal workflow fact store', () => {
     const partial = makeHarness(1)
 
     await expect(
-      createPortalWorkflowFactStore(partial.db, partial.events).recordCompletedReview(
-        command,
-      ),
+      createPortalWorkflowFactStore(partial.db).recordCompletedReview(command),
     ).rejects.toThrow('partial Portal workflow fact set detected')
     expect(partial.tx.update).not.toHaveBeenCalled()
     expect(partial.outboxRows).toHaveLength(0)
@@ -217,7 +201,7 @@ describe('Portal workflow fact store', () => {
 
   it('links every corrected fact to its exact superseded source event', async () => {
     const harness = makeHarness()
-    const store = createPortalWorkflowFactStore(harness.db, harness.events)
+    const store = createPortalWorkflowFactStore(harness.db)
 
     const result = await store.recordCompletedReview({
       ...command,

@@ -12,7 +12,6 @@ import {
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import { createAiAdvisoryScope } from '#/shared/ai-lock-order-v1'
 import type { Database } from '#/shared/db'
-import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { organizationId } from '#/shared/domain/ids'
 import { identityMerchantAiChanged } from '../../domain/events'
@@ -27,10 +26,6 @@ import {
   type MerchantAiAuthorizationStore,
   type MerchantAiMutationInput,
 } from '../../application/use-cases/merchant-ai-authorization'
-
-type EventEmitter = Readonly<{
-  emit(event: DomainEvent): Promise<void>
-}>
 
 type SnapshotRow = Record<string, unknown>
 
@@ -276,25 +271,6 @@ function nextCapabilityEpochs(
   })
 }
 
-export type MerchantAiAuthorizationStoreLogger = Readonly<{
-  warn(fields: Readonly<Record<string, unknown>>, message: string): void
-}>
-
-async function emitAfterCommit(
-  events: EventEmitter,
-  event: DomainEvent,
-  logger: MerchantAiAuthorizationStoreLogger,
-): Promise<void> {
-  try {
-    await events.emit(event)
-  } catch (error) {
-    logger.warn(
-      { error, eventType: event._tag, correlationId: event.correlationId ?? undefined },
-      'Merchant AI event emit failed after durable commit',
-    )
-  }
-}
-
 export async function getMerchantAiAuthorizationSnapshot(
   db: Database,
   input: Readonly<{ organizationId: string; propertyId: string }>,
@@ -357,9 +333,7 @@ export async function hasActiveMerchantAiConsent(
 
 export const createMerchantAiAuthorizationStore = (
   db: Database,
-  events: EventEmitter,
   idGen: () => string,
-  logger: MerchantAiAuthorizationStoreLogger,
 ): MerchantAiAuthorizationStore => {
   return {
     getSnapshot: (input) => getMerchantAiAuthorizationSnapshot(db, input),
@@ -373,9 +347,8 @@ export const createMerchantAiAuthorizationStore = (
               input.capabilities.map((capability) => sql`${capability}`),
               sql`, `,
             )}]::text[]`
-      let committedEvent: DomainEvent | null = null
 
-      const result = await db.transaction(async (tx) => {
+      return db.transaction(async (tx) => {
         const sourceDiscoveryResult = await tx.execute(sql`
           SELECT
             property.source_epoch,
@@ -709,13 +682,9 @@ export const createMerchantAiAuthorizationStore = (
           stateVersion,
           occurredAt: input.now,
         })
-        committedEvent = event
         await insertOutboxRow(tx, event)
         return snapshot
       })
-
-      if (committedEvent) await emitAfterCommit(events, committedEvent, logger)
-      return result
     },
 
     async restoreReset(input) {
@@ -738,8 +707,7 @@ export const createMerchantAiAuthorizationStore = (
           'utf8',
         )
         .digest('hex')
-      let committedEvent: DomainEvent | null = null
-      const result = await db.transaction(async (tx) => {
+      return db.transaction(async (tx) => {
         await tx.execute(
           sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.organizationId}:${input.propertyId}`}, 0))`,
         )
@@ -860,13 +828,9 @@ export const createMerchantAiAuthorizationStore = (
           stateVersion: 1,
           occurredAt: input.now,
         })
-        committedEvent = event
         await insertOutboxRow(tx, event)
         return snapshot
       })
-
-      if (committedEvent) await emitAfterCommit(events, committedEvent, logger)
-      return result
     },
   }
 }

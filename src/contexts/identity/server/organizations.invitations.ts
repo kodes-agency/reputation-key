@@ -1,7 +1,7 @@
 // Invitation server functions (accept, cancel, resend, list).
 // Per architecture: server/ contains TanStack Start server functions.
-// Business logic (better-auth calls + event emission) extracted into use
-// cases (D8-007). Server fns resolve auth + delegate.
+// Invitation business logic lives in use cases; server functions resolve auth
+// and delegate.
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'

@@ -3,8 +3,7 @@ import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { propertyOperationReceipts } from '#/shared/db/schema/property-operation-receipt.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import {
   googleConnectionId,
@@ -207,7 +206,6 @@ function assertBindingProfile(input: {
 
 export const createPropertyGoogleBindingStore = (
   db: Database,
-  events: EventBus,
   localCell?: DataCellId,
 ): PropertyGoogleBindingStore => {
   const cellWhere = () => (localCell ? [eq(properties.dataCellId, localCell)] : [])
@@ -367,7 +365,6 @@ export const createPropertyGoogleBindingStore = (
             } satisfies PropertyOperationCommit
           }),
         )
-        if (!result.replayed) await emitAfterCommit(events, event)
         return result
       } catch (error) {
         if (!isUniqueViolation(error)) throw error
@@ -518,7 +515,6 @@ export const createPropertyGoogleBindingStore = (
             } satisfies PropertyOperationCommit
           }),
         )
-        if (!result.replayed && event) await emitAfterCommit(events, event)
         return result
       } catch (error) {
         if (!isUniqueViolation(error)) throw error
@@ -600,7 +596,6 @@ export const createPropertyGoogleBindingStore = (
           return summaryFromRow(updated)
         }),
       )
-      if (event) await emitAfterCommit(events, event)
       return result
     },
 
@@ -673,7 +668,6 @@ export const createPropertyGoogleBindingStore = (
           return summaryFromRow(updated)
         }),
       )
-      if (event) await emitAfterCommit(events, event)
       return result
     },
 

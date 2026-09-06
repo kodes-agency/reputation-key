@@ -10,7 +10,6 @@ import type {
   MetricReadingsAggregate,
   MetricPublicApi,
 } from '#/contexts/metric/application/public-api'
-import type { EventBus } from '#/shared/events/event-bus'
 import {
   organizationId,
   propertyId,
@@ -185,12 +184,6 @@ function createFakeDeps() {
     findGoalMetricCorrectionImpacts: async () => [],
   }
 
-  const events: EventBus = {
-    on: () => {},
-    emit: async () => {},
-    clear: () => {},
-  }
-
   const _setAggregate = (agg: MetricReadingsAggregate) => {
     aggregateResponse = agg
   }
@@ -204,7 +197,6 @@ function createFakeDeps() {
   const deps: ReconcileGoalProgressDeps = {
     goalRepo,
     metricApi: metricApi,
-    events,
     clock: () => NOW,
     authorizeScope: async () => true,
     logger,

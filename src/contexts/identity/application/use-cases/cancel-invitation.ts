@@ -1,8 +1,7 @@
 // Identity context — cancel invitation use case
-// Extracted from the server fn (D8-007): the better-auth cancelInvitation call
-// + identity.invitation.canceled event emission now live in a use case,
-// testable independently. BQC-3.5: the status update and the fact commit in
-// ONE transaction via the command store.
+// Owns the Better Auth invitation-cancellation orchestration and is
+// independently testable. The status update and identity.invitation.canceled
+// fact commit in one transaction via the command store.
 
 import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -31,7 +30,7 @@ export type CancelInvitation = (
  *
  * Steps:
  * 1. Authorize — permission check via centralized can()
- * 2. Persist + emit — command store: status update + canceled fact, atomic
+ * 2. Persist — command store: status update + canceled fact, atomic
  */
 export const cancelInvitation =
   (deps: CancelInvitationDeps): CancelInvitation =>

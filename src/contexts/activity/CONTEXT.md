@@ -86,9 +86,8 @@ source-context facts and projects rebuildable Recent Activity rows.
   a PropertyManager beyond assigned Properties. Entries without a Property
   scope require Organization-wide read authority and are not returned to an
   assigned-Property reader.
-- Source-context events arrive through the durable outbox/queue path. The
-  in-process EventBus-to-BullMQ path remains only a low-latency acceleration;
-  the durable consumer is the recovery authority and repairs a bus-first row.
+- Source-context facts arrive through registered durable outbox consumers. Each
+  consumer projects idempotently and retains the replay fact needed for recovery.
 - `recent_activity_replay_facts` retains the minimum mapped projection input,
   original source event identity/version, and source occurrence time. It has no
   foreign key to the 30-day outbox lifecycle, so an empty retained projection
@@ -211,7 +210,7 @@ activity/
   domain/          Recent Activity entry types and constructors
   application/     projection, restricted history use cases, and public interface
   ports/           Operational Action History persistence boundary
-  infrastructure/  projection/recovery stores, history authority, handlers, jobs, adapters
+  infrastructure/  projection/recovery stores, history authority, durable consumers, jobs, adapters
   queries/         scoped Recent Activity reads
   server/          authenticated read functions
   build.ts         context-local composition
@@ -245,7 +244,7 @@ History.
 
 - Domain construction: `domain/constructors.test.ts`
 - Projection and content safety: `application/use-cases/project-recent-activity.test.ts`
-  and `infrastructure/event-handlers/activity-content-safety.test.ts`
+  and `infrastructure/outbox-consumers.test.ts`
 - Durable capture/fault/rebuild: `infrastructure/activity-delivery-store.integration.test.ts`,
   `infrastructure/activity-recovery-store.integration.test.ts`, and
   `application/use-cases/recover-recent-activity.test.ts`

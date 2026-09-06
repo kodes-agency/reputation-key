@@ -6,8 +6,7 @@ import {
   inboxHandlingCycleTransitions,
   inboxItems,
 } from '#/shared/db/schema/inbox.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import {
   feedbackId,
   inboxItemId,
@@ -272,7 +271,6 @@ const outcomeInsert = (
 
 export const createFeedbackHandlingStore = (
   db: Database,
-  events: EventBus,
   authorize: InboxCommandAuthority,
 ): FeedbackHandlingStore => {
   return {
@@ -432,10 +430,8 @@ export const createFeedbackHandlingStore = (
               [outcome.value],
               'private_feedback_handled',
             ),
-            facts: [statusFact, cycleFact] as const,
           }
         })
-        for (const fact of committed.facts) await emitAfterCommit(events, fact)
         return committed
       }),
 

@@ -14,7 +14,6 @@ import type { Pool } from 'pg'
 import type { Database } from '#/shared/db'
 import type { Env } from '#/shared/config/env'
 import type { Clock } from '#/shared/domain/clock'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
 import type { RequestContextPort } from '#/contexts/identity/application/ports/request-context.port'
 import type { AuthSessionPort } from '#/contexts/identity/application/ports/auth-session.port'
@@ -43,8 +42,6 @@ export type CreateContainerOptions = {
   runtimeEnvironment?: NodeJS.ProcessEnv
   /** Override the clock (fast-forward time in tests/simulations). ADR 0017. */
   clock?: Clock
-  /** Override the event bus (deterministic in-process delivery). */
-  eventBus?: EventBus
   /** Override the job queue (simulations inject an in-memory queue). */
   queue?: Queue
   /** Override the background queue (simulations inject an in-memory queue). */

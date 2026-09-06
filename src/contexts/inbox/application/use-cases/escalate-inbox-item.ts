@@ -1,6 +1,6 @@
 // Inbox context — escalate inbox item use case
 // Sets the orthogonal escalation flag (ADR 0023). Independent of status —
-// an item can be escalated regardless of open/closed. Emits the standalone
+// an item can be escalated regardless of open/closed. Records the standalone
 // `inbox.inbox_item.escalated` event (not a status transition).
 
 import type { InboxRepository } from '../ports/inbox.repository'

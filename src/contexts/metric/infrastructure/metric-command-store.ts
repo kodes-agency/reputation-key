@@ -7,8 +7,7 @@ import {
   metricReadings,
 } from '#/shared/db/schema/metric.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { metricReadingId, unbrand } from '#/shared/domain/ids'
 import type { ReadingResult } from '../domain/metric-reading'
@@ -342,9 +341,9 @@ async function insertReadingOrDescribeDuplicate(
  * and the whole domain-events queue stopped making progress: every downstream
  * projection then timed out for reasons that looked nothing like this.
  *
- * On conflict the EXISTING correction id is reused rather than the freshly
- * generated one, so a replay emits the same event as the first delivery instead
- * of describing a second correction that was never written.
+ * On conflict the existing correction ID is reused rather than the freshly
+ * generated one, so a replay records the same fact as the first delivery
+ * instead of describing a second correction that was never written.
  */
 async function recordRetractionCorrection(
   tx: MetricTx,
@@ -384,8 +383,8 @@ async function recordRetractionCorrection(
       .limit(1)
     if (!row) {
       // Nothing inserted and nothing there: the conflict was on some other
-      // constraint, and silently inventing an id would emit an event for a
-      // correction that does not exist.
+      // constraint, and inventing an ID would record a fact for a correction
+      // that does not exist.
       throw new Error(
         `Metric retraction correction ${correctionSourceEventId} was neither inserted nor found`,
       )
@@ -407,27 +406,19 @@ async function recordRetractionCorrection(
   })
 }
 
-type RecordCommit = Readonly<{
-  result: ReadingResult
-  correctionEvent: MetricCorrected | null
-}>
-
 async function recordMetricEntry(
   tx: MetricTx,
   command: RecordMetricEntry,
   idGen: () => string,
-): Promise<RecordCommit> {
+): Promise<ReadingResult> {
   const superseded = command.supersedesSourceEventId
     ? await resolveSupersededReading(tx, command, command.supersedesSourceEventId)
     : null
   if (superseded?.kind === 'quarantined') {
     return {
-      result: {
-        status: 'quarantined',
-        reason: 'superseded_reading_not_found',
-        sourceEventId: command.reading.sourceEventId,
-      },
-      correctionEvent: null,
+      status: 'quarantined',
+      reason: 'superseded_reading_not_found',
+      sourceEventId: command.reading.sourceEventId,
     }
   }
   const correctedReadingId = superseded?.correctedReadingId ?? null
@@ -436,11 +427,8 @@ async function recordMetricEntry(
   const insertion = await insertReadingOrDescribeDuplicate(tx, command)
   if (!insertion.inserted) {
     return {
-      result: {
-        status: 'duplicate',
-        existingReadingId: insertion.existingReadingId,
-      },
-      correctionEvent: null,
+      status: 'duplicate',
+      existingReadingId: insertion.existingReadingId,
     }
   }
 
@@ -476,10 +464,7 @@ async function recordMetricEntry(
 
   await insertOutboxRow(tx, command.event)
   if (correctionEvent) await insertOutboxRow(tx, correctionEvent)
-  return {
-    result: { status: 'recorded', reading: command.reading },
-    correctionEvent,
-  }
+  return { status: 'recorded', reading: command.reading }
 }
 
 type DuplicateRetractionResult = Extract<
@@ -519,23 +504,18 @@ async function existingRetractionResult(
   }
 }
 
-type RetractionCommit = Readonly<{
-  result: RetractMetricResult
-  event: MetricCorrected | null
-}>
-
 async function retractMetricEntry(
   tx: MetricTx,
   command: RetractMetricCommand,
   idGen: () => string,
   knownDuplicate?: DuplicateRetractionResult | null,
-): Promise<RetractionCommit> {
+): Promise<RetractMetricResult> {
   const correctionSourceEventId = `${command.sourceEventId}:${command.definitionVersionId}`
   const duplicate =
     knownDuplicate === undefined
       ? await existingRetractionResult(tx, command)
       : knownDuplicate
-  if (duplicate) return { result: duplicate, event: null }
+  if (duplicate) return duplicate
 
   const target = await tx
     .select({
@@ -561,12 +541,7 @@ async function retractMetricEntry(
       ),
     )
     .limit(1)
-  if (!target[0]) {
-    return {
-      result: { status: 'source_reading_not_found' },
-      event: null,
-    }
-  }
+  if (!target[0]) return { status: 'source_reading_not_found' }
   const targetStaffAttribution = staffAttributionFromColumns(target[0])
   if (!primaryStaffAttributionEquals(targetStaffAttribution, command.staffAttribution)) {
     throw new Error(
@@ -643,11 +618,8 @@ async function retractMetricEntry(
   }
   await insertOutboxRow(tx, event)
   return {
-    result: {
-      status: 'retracted',
-      correctedReadingId: target[0].id,
-    },
-    event,
+    status: 'retracted',
+    correctedReadingId: target[0].id,
   }
 }
 
@@ -672,7 +644,6 @@ function retractionReceipt(
 
 export const createAtomicMetricCommandStore = (
   db: Database,
-  events: EventBus,
   idGen: () => string,
 ): MetricCommandStore => {
   const recordMetrics = async (
@@ -719,21 +690,18 @@ export const createAtomicMetricCommandStore = (
           }
         }
 
-        const results: RecordCommit[] = []
+        const results: ReadingResult[] = []
         for (const [index, reading] of command.readings.entries()) {
           const existingId = priorReadingIds[index]
           if (existingId) {
             results.push({
-              result: {
-                status: 'duplicate',
-                existingReadingId: existingId,
-              },
-              correctionEvent: null,
+              status: 'duplicate',
+              existingReadingId: existingId,
             })
             continue
           }
           const result = await recordMetricEntry(tx, reading, idGen)
-          if (command.sourceReceipt && result.result.status === 'quarantined') {
+          if (command.sourceReceipt && result.status === 'quarantined') {
             throw new Error('Metric reading is not available for replacement')
           }
           results.push(result)
@@ -741,18 +709,7 @@ export const createAtomicMetricCommandStore = (
         return results
       })
 
-      for (const [index, item] of committed.entries()) {
-        if (item.result.status !== 'recorded') continue
-        const reading = command.readings[index]
-        if (!reading) {
-          throw new Error('Committed metric result has no source command')
-        }
-        await emitAfterCommit(events, reading.event)
-        if (item.correctionEvent) {
-          await emitAfterCommit(events, item.correctionEvent)
-        }
-      }
-      return committed.map((item) => item.result)
+      return committed
     })
 
   const retractMetrics = async (
@@ -790,7 +747,7 @@ export const createAtomicMetricCommandStore = (
           }
         }
 
-        const results: RetractionCommit[] = []
+        const results: RetractMetricResult[] = []
         for (const [index, command] of commands.entries()) {
           const result = await retractMetricEntry(
             tx,
@@ -798,17 +755,14 @@ export const createAtomicMetricCommandStore = (
             idGen,
             priorCorrections[index] ?? undefined,
           )
-          if (sourceReceipt && result.result.status === 'source_reading_not_found') {
+          if (sourceReceipt && result.status === 'source_reading_not_found') {
             throw new Error('Metric source reading is not available for retraction')
           }
           results.push(result)
         }
         return results
       })
-      for (const item of committed) {
-        if (item.event) await emitAfterCommit(events, item.event)
-      }
-      return committed.map((item) => item.result)
+      return committed
     })
 
   return {

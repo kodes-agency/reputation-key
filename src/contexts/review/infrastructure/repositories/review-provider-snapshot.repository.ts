@@ -1,10 +1,8 @@
 import { timingSafeEqual } from 'node:crypto'
 import { and, asc, eq, gt, inArray, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
-import type { DomainEvent } from '#/shared/events/events'
 import type { Tx } from '#/shared/outbox/commit'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
   reviewProviderDeletionCandidates,
   reviewGoogleReputationSnapshotFacts,
@@ -175,8 +173,7 @@ async function markDeletionCandidateObserved(
     )
 }
 
-type DeletionCandidateOutcome =
-  Readonly<{ kind: 'observed' }> | Readonly<{ kind: 'applied'; event: DomainEvent }>
+type DeletionCandidateOutcome = Readonly<{ kind: 'observed' | 'applied' }>
 
 const DELETION_OBSERVED: DeletionCandidateOutcome = { kind: 'observed' }
 
@@ -237,7 +234,7 @@ async function applyDeletionCandidate(
     await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
     return DELETION_OBSERVED
   }
-  const event = await recordSourceTransition(tx, mapping, 'provider_deleted')
+  await recordSourceTransition(tx, mapping, 'provider_deleted')
   await tx
     .update(reviewProviderSubjects)
     .set({
@@ -256,12 +253,12 @@ async function applyDeletionCandidate(
         eq(reviewProviderSubjects.locatorHmac, mapping.locatorHmac),
       ),
     )
-  return { kind: 'applied', event }
+  return { kind: 'applied' }
 }
 
 /** The completed run publishes the verified provider aggregate exactly once,
  * durably, at the database's own transaction instant. */
-async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<DomainEvent> {
+async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<void> {
   if (
     run.expectedTotal == null ||
     !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating)
@@ -299,7 +296,6 @@ async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<DomainEv
     evaluatedAt,
   })
   await insertOutboxRow(tx, verified, { recordedAt: evaluatedAt })
-  return verified
 }
 
 /**
@@ -622,7 +618,7 @@ async function recordSourceTransition(
   tx: Tx,
   mapping: SubjectRow,
   change: 'source_expired' | 'provider_deleted',
-): Promise<DomainEvent> {
+): Promise<void> {
   const sequenceResult = await tx.execute(sql`
     SELECT lock_review_ai_analysis_head_v1(
       ${mapping.organizationId},
@@ -692,12 +688,10 @@ async function recordSourceTransition(
     occurredAt,
   })
   await insertOutboxRow(tx, event)
-  return event
 }
 
 export const createReviewProviderSnapshotRepository = (
   db: Database,
-  events: EventBus,
   idGen: () => string,
 ): ReviewProviderSnapshotRepository => ({
   startOrResume: async (input) =>
@@ -1180,7 +1174,6 @@ export const createReviewProviderSnapshotRepository = (
   applyDeletionBatch: async ({ runId, limit }) => {
     if (limit !== 100)
       throw new TypeError('Provider deletion batch must contain 100 rows')
-    const emitted: DomainEvent[] = []
     const result = await db.transaction(async (tx) => {
       const runRows = await tx
         .select()
@@ -1246,7 +1239,6 @@ export const createReviewProviderSnapshotRepository = (
           lockedReviewsById.get(candidate.reviewId),
         )
         if (outcome.kind === 'applied') {
-          emitted.push(outcome.event)
           applied += 1
         } else {
           observed += 1
@@ -1270,9 +1262,7 @@ export const createReviewProviderSnapshotRepository = (
               .limit(1)
           : []
       const done = more.length === 0
-      if (done) {
-        emitted.push(await recordVerifiedSnapshotFact(tx, run))
-      }
+      if (done) await recordVerifiedSnapshotFact(tx, run)
       const updated = await tx
         .update(reviewProviderSnapshotRuns)
         .set(
@@ -1299,7 +1289,6 @@ export const createReviewProviderSnapshotRepository = (
         )
       return { run: fromRunRow(updated[0]), applied, observed, done }
     })
-    for (const event of emitted) await emitAfterCommit(events, event)
     return result
   },
 

@@ -33,9 +33,9 @@ import {
   type DelayedDecision,
   type DelayedDecisionRequest,
 } from '#/shared/auth/system-execution-policy'
-import { createEventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
-import { emitAndRecord } from './emit-and-record'
+import { toOutboxEvent, withEnvelopeIdentifiers } from './event-adapter'
+import { getRequestContext } from '#/shared/observability/request-context'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -153,16 +153,21 @@ describe('dispatcher gate (BQC-3.2)', () => {
     decideMock.mockResolvedValue(ALLOW)
     const insert = vi.fn(async (_event: unknown) => undefined)
     const emittedRepo = { insert } as unknown as OutboxRepository
-    const events = createEventBus()
     const handler = vi.fn(async () => {
-      await emitAndRecord(events, emittedRepo, {
-        _tag: TEST_EVENT_TYPE,
-        eventId: 'evt-child-1',
-        resourceId: 'res-child-1',
-        organizationId: 'org-1',
-        propertyId: null,
-        correlationId: null,
-      } as unknown as DomainEvent)
+      // The same envelope-identifier stamping insertOutboxRow applies inside a
+      // command transaction: the delivered event's context is the cause.
+      const child = withEnvelopeIdentifiers(
+        {
+          _tag: TEST_EVENT_TYPE,
+          eventId: 'evt-child-1',
+          resourceId: 'res-child-1',
+          organizationId: 'org-1',
+          propertyId: null,
+          correlationId: null,
+        } as unknown as DomainEvent,
+        getRequestContext(),
+      )
+      await emittedRepo.insert({ ...toOutboxEvent(child), id: child.eventId })
       return { status: 'applied' as const }
     })
     consumerRegistry.registerConsumer({
@@ -378,35 +383,11 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     expect(loggerMocks.error).toHaveBeenCalled()
   })
 
-  it('record-only cutover family whose only durable consumer is the inbox completes', async () => {
-    // `review.expired` is catalogued with exactly ONE durable consumer, the
-    // inbox's, and the inbox deliberately does not register it while the family
-    // is record-only (no DURABLE_CUTOVER_INBOX* set). Treating that as a config
-    // failure would retry and quarantine every expired review once the
-    // dispatcher is enabled — which it is in production.
-    const RECORD_ONLY_TYPE = 'review.expired'
+  it('audit-only event type (catalogued without consumers) completes with a debug log', async () => {
+    // `metric.recorded` is recorded for audit and read by no consumer.
+    const AUDIT_ONLY_TYPE = 'metric.recorded'
     registerEventSchema({
-      type: RECORD_ONLY_TYPE,
-      version: 1,
-      schema: z.object({ resourceId: z.string() }),
-    })
-
-    await expect(
-      createDispatcherHandler(makeRepo(), { consumers: consumerRegistry })(
-        fakeJob(makeEnvelope({ eventType: RECORD_ONLY_TYPE })),
-      ),
-    ).resolves.toBeUndefined()
-
-    expect(loggerMocks.error).not.toHaveBeenCalled()
-  })
-
-  it('genuinely bus-only event type completes with a debug log', async () => {
-    // `metric.recorded` is the retained bus-only delivery family. Identity
-    // membership facts now also feed durable Recent Activity, so they are no
-    // longer valid fixtures for this branch.
-    const BUS_ONLY_TYPE = 'metric.recorded'
-    registerEventSchema({
-      type: BUS_ONLY_TYPE,
+      type: AUDIT_ONLY_TYPE,
       version: 1,
       schema: z.object({ resourceId: z.string() }),
     })
@@ -414,13 +395,13 @@ describe('dispatcher corrections (BQC-3.6)', () => {
 
     await expect(
       createDispatcherHandler(repo, { consumers: consumerRegistry })(
-        fakeJob(makeEnvelope({ eventType: BUS_ONLY_TYPE })),
+        fakeJob(makeEnvelope({ eventType: AUDIT_ONLY_TYPE })),
       ),
     ).resolves.toBeUndefined()
 
     expect(loggerMocks.debug).toHaveBeenCalledWith(
-      expect.objectContaining({ eventType: BUS_ONLY_TYPE }),
-      expect.stringMatching(/no durable consumers/i),
+      expect.objectContaining({ eventType: AUDIT_ONLY_TYPE }),
+      expect.stringMatching(/no consumers/i),
     )
   })
 

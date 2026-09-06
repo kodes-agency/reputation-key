@@ -8,11 +8,6 @@ const read = (file: string): string => readFileSync(join(ROOT, file), 'utf8')
 describe('Inbox ARC-03 runtime dependency injection', () => {
   it('keeps context logging composition-owned', () => {
     for (const file of [
-      'src/contexts/inbox/infrastructure/event-handlers/on-feedback-retracted.ts',
-      'src/contexts/inbox/infrastructure/event-handlers/on-feedback-submitted.ts',
-      'src/contexts/inbox/infrastructure/event-handlers/on-reply-submitted.ts',
-      'src/contexts/inbox/infrastructure/event-handlers/on-review-created.ts',
-      'src/contexts/inbox/infrastructure/event-handlers/on-review-expired.ts',
       'src/contexts/inbox/infrastructure/outbox-consumers.ts',
       'src/contexts/inbox/infrastructure/repositories/inbox.repository.ts',
       'src/contexts/inbox/server/inbox-queries.ts',
@@ -39,17 +34,7 @@ describe('Inbox ARC-03 runtime dependency injection', () => {
     expect(source).toContain('logger: input.logger')
     expect(source).toContain('clock: input.clock')
     expect(source).toMatch(
-      /createAtomicInboxCommandStore\(\s*input\.db,\s*input\.events,\s*input\.authorizeCommand,\s*input\.clock/u,
+      /createAtomicInboxCommandStore\(\s*input\.db,\s*input\.authorizeCommand,\s*input\.clock/u,
     )
-  })
-
-  it('keeps durable cutover configuration composition-owned', () => {
-    const handlers = read('src/contexts/inbox/infrastructure/event-handlers/index.ts')
-    expect(handlers).not.toContain('resolveCutoverState')
-    expect(handlers).not.toMatch(/cutoverState\?:/u)
-
-    const build = read('src/contexts/inbox/build.ts')
-    expect(build).toContain('cutoverState: (family: CutoverFamily) => CutoverState')
-    expect(build).toContain('cutoverState: input.cutoverState')
   })
 })

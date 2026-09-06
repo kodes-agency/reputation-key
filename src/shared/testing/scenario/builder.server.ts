@@ -1,5 +1,7 @@
 // Scenario builder — generates realistic, backdated test data via the
-// container's repos, event bus, and use-cases.
+// container's repos and use-cases. Every fact it announces is an outbox row;
+// the caller drains them through the container's durable consumers
+// (`SimulationHandle.drainOutbox`) to materialise projections.
 //
 // Reviews and guest interactions carry explicit timestamps (not DB defaults)
 // so the simulation controls the time dimension (ADR 0017).
@@ -30,6 +32,8 @@ import { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
 import { metricReadings } from '#/shared/db/schema/metric.schema'
 import { goals } from '#/shared/db/schema/goal.schema'
 import { user, member, organization } from '#/shared/db/schema/auth'
+import { insertOutboxRow } from '#/shared/outbox/commit'
+import type { DomainEvent } from '#/shared/events/events'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 
 const MS_PER_DAY = 86_400_000
@@ -72,7 +76,7 @@ export type ScenarioSpec = Readonly<{
 
 export type ScenarioResult = Readonly<{
   reviewsCreated: number
-  eventsEmitted: number
+  factsRecorded: number
   propertiesCreated: number
   portalsCreated: number
   guestInteractions: number
@@ -89,6 +93,13 @@ type Ctx = Readonly<{
   simUserId: ReturnType<typeof userId>
   now: Date
 }>
+
+/** Record a scenario fact the way a command store would: one outbox row. */
+async function recordFact(ctx: Ctx, event: DomainEvent): Promise<void> {
+  await ctx.db.transaction((tx) =>
+    insertOutboxRow(tx, event, { recordedAt: event.occurredAt }),
+  )
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -237,7 +248,8 @@ async function createReviews(
         undefined,
         'ongoing',
       )
-      await ctx.container.eventBus.emit(
+      await recordFact(
+        ctx,
         reviewCreated({
           reviewId: rId,
           propertyId: propId,
@@ -258,8 +270,8 @@ async function createReviews(
       events++
     } catch (err) {
       // Was a bare `catch { /* idempotent */ }`. The upsert COMMITS before the
-      // emit, so anything thrown by the projection left a persisted review with
-      // no inbox item and no diagnostic -- which is exactly the shape the
+      // fact is recorded, so a throw here left a persisted review with no
+      // outbox row and no diagnostic -- which is exactly the shape the
       // review-inbox-consistency invariant reports, five minutes later, with no
       // cause attached. Mirrors the reply path below -- and logs the message
       // only: `reviewId` is a banned log key under BQC-7.3, and the assertion
@@ -318,7 +330,8 @@ async function createGuestData(
         sessionId: `sim-${crypto.randomUUID()}`,
         ipHash: 'sim',
       })
-      await ctx.container.eventBus.emit(
+      await recordFact(
+        ctx,
         guestScanRecorded({
           scanId: sId,
           organizationId: ctx.orgId,
@@ -357,7 +370,8 @@ async function createGuestData(
         source: 'qr',
         ipHash: 'sim',
       })
-      await ctx.container.eventBus.emit(
+      await recordFact(
+        ctx,
         guestRatingSubmitted({
           ratingId: rId,
           organizationId: ctx.orgId,
@@ -399,7 +413,8 @@ async function createGuestData(
         source: 'qr',
         ipHash: 'sim',
       })
-      await ctx.container.eventBus.emit(
+      await recordFact(
+        ctx,
         guestFeedbackSubmitted({
           feedbackId: fId,
           organizationId: ctx.orgId,
@@ -522,7 +537,7 @@ export async function buildScenario(
   await seedSimUser(ctx)
 
   let reviewsCreated = 0,
-    eventsEmitted = 0,
+    factsRecorded = 0,
     propertiesCreated = 0
   let portalsCreated = 0,
     guestInteractions = 0,
@@ -536,13 +551,13 @@ export async function buildScenario(
 
     const r = await createReviews(ctx, propId, propSpec.reviews ?? [])
     reviewsCreated += r.created
-    eventsEmitted += r.events
+    factsRecorded += r.events
     repliesCreated += r.replies
 
     if (propSpec.guest) {
       const g = await createGuestData(ctx, pId, propId, propSpec.guest)
       guestInteractions += g.interactions
-      eventsEmitted += g.events
+      factsRecorded += g.events
     }
 
     goalsCreated += await createGoals(ctx, propId, pId, propSpec.goals ?? [])
@@ -560,7 +575,7 @@ export async function buildScenario(
 
   return {
     reviewsCreated,
-    eventsEmitted,
+    factsRecorded,
     propertiesCreated,
     portalsCreated,
     guestInteractions,

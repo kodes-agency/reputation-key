@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { and, eq } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
@@ -7,7 +7,6 @@ import { portalHealthIntervals } from '#/shared/db/schema/portal.schema'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { organizationId } from '#/shared/domain/ids'
-import type { EventBus } from '#/shared/events/event-bus'
 import { createPortalHealthReconciliationStore } from './portal-health-reconciliation-store'
 
 const ORG = organizationId('portal-health-reconcile-org')
@@ -75,9 +74,7 @@ beforeEach(async () => {
 
 describe.sequential('Portal Health reconciliation store (real PostgreSQL)', () => {
   it('atomically changes the interval, records one fact and settles replay once', async () => {
-    const emit = vi.fn(async () => {})
-    const events: EventBus = { on: () => {}, emit, clear: () => {} }
-    const store = createPortalHealthReconciliationStore(getDb(), events, {
+    const store = createPortalHealthReconciliationStore(getDb(), {
       clock: () => new Date(NOW.getTime() + 1_000),
       idGen: () => '89000000-0000-4000-8000-000000000005',
     })
@@ -132,6 +129,5 @@ describe.sequential('Portal Health reconciliation store (real PostgreSQL)', () =
       .from(eventConsumerReceipts)
       .where(eq(eventConsumerReceipts.eventId, SOURCE_EVENT))
     expect(receipts).toHaveLength(1)
-    expect(emit).toHaveBeenCalledTimes(1)
   })
 })

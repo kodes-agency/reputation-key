@@ -17,7 +17,6 @@ import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { EventBus } from '#/shared/events/event-bus'
 import { invitationId, organizationId, userId } from '#/shared/domain/ids'
 import {
   identityInvitationAccepted,
@@ -31,8 +30,8 @@ import type { IdentityMemberInvited } from '../../domain/events'
 import { isIdentityError } from '../../domain/errors'
 import { createAtomicIdentityCommandStore as createAtomicIdentityCommandStoreWithDeps } from '../identity-command-store'
 
-const createAtomicIdentityCommandStore = (db: Database, events: EventBus) =>
-  createAtomicIdentityCommandStoreWithDeps(db, events, randomUUID)
+const createAtomicIdentityCommandStore = (db: Database) =>
+  createAtomicIdentityCommandStoreWithDeps(db, randomUUID)
 
 const ORG_ID = organizationId('org-idcmd-0000-0000-0000-000000000001')
 const INVITER_ID = userId('user-idcmd-inviter-00000000000001')
@@ -42,12 +41,6 @@ const SLUG = 'idcmd-org-slug'
 
 let pool: Pool
 const db = getDb()
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 async function seedOrgAndUsers(p: Pool) {
   await p.query(
@@ -147,7 +140,7 @@ const invitedEvent = (invId: string): IdentityMemberInvited =>
 
 describe.sequential('identityCommandStore (integration)', () => {
   it('inviteMember commits the invitation + fact in one transaction', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     const event = invitedEvent('inv-idcmd-1')
 
     await store.inviteMember({
@@ -190,7 +183,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('inviteMember rolls back the invitation when the fact insert fails (unregistered type)', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     const ghost = {
       ...invitedEvent('inv-idcmd-2'),
       _tag: 'identity.member.ghost',
@@ -220,7 +213,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('inviteMember rejects an already-member email and a duplicate pending invite', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     await pool.query(
       `INSERT INTO member (id, "organizationId", "userId", role, "createdAt")
        VALUES ('member-idcmd-1', $1, $2, 'member', NOW())`,
@@ -250,7 +243,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('inviteMember rejects an existing user binding before an email is sent', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     await pool.query(
       `INSERT INTO user_organization_bindings
          (user_id, organization_id, state, source, version, created_at, updated_at)
@@ -282,7 +275,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('serializes competing cross-Organization invitations for one email', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     const otherOrg = organizationId('org-idcmd-0000-0000-0000-000000000003')
     await pool.query(
       `INSERT INTO organization (id, name, slug, "createdAt")
@@ -327,7 +320,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('preflights the exact pending beta-manager invitation', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     await pool.query(
       `INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "inviterId", "createdAt")
        VALUES ('inv-idcmd-register-preflight', $1, 'idcmd-new@test.com', 'admin', 'pending', $2, $3, NOW())`,
@@ -353,7 +346,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('acceptInvitation commits member + accepted status + fact in one transaction', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     await pool.query(
       `INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "inviterId", "propertyIds", "createdAt")
        VALUES ('inv-idcmd-accept', $1, 'idcmd-acceptor@test.com', 'admin', 'pending', $2, $3, '["prop-a","prop-b"]', NOW())`,
@@ -410,7 +403,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('rejects and consumes no authority for a legacy Staff-user invitation', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     await pool.query(
       `INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "inviterId", "createdAt")
        VALUES ('inv-idcmd-staff-beta', $1, 'idcmd-acceptor@test.com', 'member', 'pending', $2, $3, NOW())`,
@@ -452,7 +445,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('rejects a legacy membership in another Organization even without a binding', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     const otherOrg = organizationId('org-idcmd-0000-0000-0000-000000000004')
     await pool.query(
       `INSERT INTO organization (id, name, slug, "createdAt")
@@ -502,7 +495,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('serializes competing invitations and permits only one Organization binding', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     const otherOrg = organizationId('org-idcmd-0000-0000-0000-000000000002')
     await pool.query(
       `INSERT INTO organization (id, name, slug, "createdAt")
@@ -566,7 +559,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('cancelInvitation commits the status update + fact; missing invitation records nothing', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     await pool.query(
       `INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "inviterId", "createdAt")
        VALUES ('inv-idcmd-cancel', $1, 'idcmd-new@test.com', 'member', 'pending', $2, $3, NOW())`,
@@ -610,7 +603,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('removeMember revokes sessions and releases the Organization binding atomically', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     await pool.query(
       `INSERT INTO member (id, "organizationId", "userId", role, "createdAt")
        VALUES ('member-idcmd-owner', $1, $2, 'owner', NOW()),
@@ -689,7 +682,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('changeMemberRole updates the role + records the fact', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     await pool.query(
       `INSERT INTO member (id, "organizationId", "userId", role, "createdAt")
        VALUES ('member-idcmd-staff', $1, $2, 'member', NOW())`,
@@ -726,7 +719,7 @@ describe.sequential('identityCommandStore (integration)', () => {
   })
 
   it('registerOrganization commits org + owner member + fact; forced outbox failure rolls back both', async () => {
-    const store = createAtomicIdentityCommandStore(db, silentEvents)
+    const store = createAtomicIdentityCommandStore(db)
     const newOrgId = organizationId('org-idcmd-registered-000000000001')
     const event = identityOrganizationCreated({
       organizationId: newOrgId,

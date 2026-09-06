@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { rollbackPortalPublication } from './rollback-portal-publication'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
@@ -71,8 +71,8 @@ function setup(
   const portalRepo = createInMemoryPortalRepo()
   const seeded = { ...portal, publicationState: options.state ?? 'published' }
   portalRepo.seed([seeded])
-  const events = createCapturingEventBus()
-  const baseCommandStore = createInMemoryPortalCommandStore({ portalRepo, events })
+  const outbox = createRecordedOutbox()
+  const baseCommandStore = createInMemoryPortalCommandStore({ portalRepo, outbox })
   let command: UpdatePortalCommand | null = null
   const publicationRepo: PortalPublicationRepository = {
     loadWorkingCopy: async () => null,

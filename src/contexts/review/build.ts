@@ -5,7 +5,6 @@
 import { randomUUID } from 'node:crypto'
 import { reviewError } from './domain/errors'
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import type { Queue } from 'bullmq'
 import type { Pool } from 'pg'
@@ -106,7 +105,6 @@ import type {
 
 export type ReviewContextBuildInput = Readonly<{
   db: Database
-  events: EventBus
   outboxRepo: OutboxRepository
   clock: () => Date
   idGen: () => string
@@ -441,19 +439,13 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     getProcessingScope: (orgId, pid) => input.propertyApi.getProcessingScope(orgId, pid),
   }
 
-  // BQC-3.3: atomic reply state + outbox writes for the reply command family.
-  // This closes the replyDeps wiring gap — reply facts were previously
-  // bus-only in production because replyDeps never received outboxRepo.
+  // BQC-3.3: atomic reply state and outbox writes for the reply command family.
   const replyCommandStore = createAtomicReplyCommandStore(
     input.db,
-    input.events,
     input.clock,
     input.publicationActorAuthority,
   )
-  const googleReplyObservationStore = createGoogleReplyObservationStore(
-    input.db,
-    input.events,
-  )
+  const googleReplyObservationStore = createGoogleReplyObservationStore(input.db)
   const replyObservationAuthority = createReviewReplyObservationAuthority(input.db)
   const responseTargetAuthority = createReviewResponseTargetAuthority(input.db)
   const sourceTransitionAuthority = createReviewSourceTransitionAuthority(input.db)
@@ -488,7 +480,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   })
 
   // BQR-2.3: atomic review upsert + outbox insert for sync path
-  const commandStore = createAtomicReviewCommandStore(input.db, input.events, input.clock)
+  const commandStore = createAtomicReviewCommandStore(input.db, input.clock)
 
   const observationWriter = createReviewProviderObservationWriter({
     reviewRepo,
@@ -506,7 +498,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     runReviewProviderSnapshot: runReviewProviderSnapshot({
       repository: createReviewProviderSnapshotRepository(
         input.db,
-        input.events,
         input.snapshotRunIdGen,
       ),
       googleReviewApi: input.googleReviewApi,
@@ -580,7 +571,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     await registerReviewWorkerJobs({
       db: input.db,
       pool: input.workerRuntime.pool,
-      events: input.events,
       registry: input.workerRuntime.registry,
       backgroundQueue: input.workerRuntime.backgroundQueue,
       reviewQueue: queue,

@@ -22,16 +22,18 @@ import {
 } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
-import { onFeedbackSubmittedDurably } from './event-handlers/on-feedback-submitted'
-import { onRatingSubmittedDurably } from './event-handlers/on-rating-submitted'
-import { onReviewLinkClickedDurably } from './event-handlers/on-review-link-clicked'
-import { onScanRecordedDurably } from './event-handlers/on-scan-recorded'
-import { onQualifiedScanRecordedDurably } from './event-handlers/on-qualified-scan-recorded'
-import { onQualifiedScanRetractedDurably } from './event-handlers/on-qualified-scan-retracted'
-import type { RecordPortalMetricDeps } from './event-handlers/record-portal-metric'
-import { onRatingRetractedDurably } from './event-handlers/on-rating-retracted'
-import { onFeedbackRetractedDurably } from './event-handlers/on-feedback-retracted'
-import type { RetractPortalMetricDeps } from './event-handlers/retract-portal-metric'
+import {
+  onFeedbackRetractedDurably,
+  onFeedbackSubmittedDurably,
+  onQualifiedScanRecordedDurably,
+  onQualifiedScanRetractedDurably,
+  onRatingRetractedDurably,
+  onRatingSubmittedDurably,
+  onReviewLinkClickedDurably,
+  onScanRecordedDurably,
+  type RecordPortalMetricDeps,
+  type RetractPortalMetricDeps,
+} from './record-portal-metric'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 
 type GuestMetricPayload = Readonly<{

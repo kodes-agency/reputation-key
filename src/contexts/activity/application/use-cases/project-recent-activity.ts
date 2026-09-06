@@ -1,5 +1,5 @@
 // Activity context — project a Recent Activity entry
-// Extracted from in-process handler for BullMQ worker consumption.
+// Shared by durable consumers, recovery, and the drain-only queued-job handler.
 // Per architecture: "Use cases are standalone functions that receive deps and return an async function."
 
 import type { RecentActivityRepository } from '../../ports/recent-activity-repository.port'

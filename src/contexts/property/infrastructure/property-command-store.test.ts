@@ -1,16 +1,13 @@
 // BQC-3.5 — atomic property command store contract tests.
 //
-// Every command must commit its properties mutation and its outbox_events
-// row in ONE transaction, then emit on the in-process bus AFTER commit:
-//   ['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit']
-// A tenant mismatch rolls back — no fact, no emit. A post-commit bus
-// failure must not propagate (durable row already retained).
+// Every command must commit its properties mutation and outbox_events row in
+// one transaction: ['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'].
+// A tenant mismatch rolls back both state and fact.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createAtomicPropertyCommandStore } from './property-command-store'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -196,17 +193,6 @@ function createMockDb(opts: {
   return { db: db as unknown as Database, tx }
 }
 
-function makeEvents(order: string[], fail = false): EventBus {
-  return {
-    on: vi.fn(),
-    emit: vi.fn(async () => {
-      if (fail) throw new Error('bus down')
-      order.push('emit')
-    }),
-    clear: vi.fn(),
-  }
-}
-
 const createdEvent = (property: Property = makeProperty()) =>
   propertyCreated({
     propertyId: property.id,
@@ -224,7 +210,7 @@ describe('createAtomicPropertyCommandStore', () => {
   })
 
   describe('createProperty', () => {
-    it('commits insert + created fact in one tx before emit', async () => {
+    it('commits insert + created fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const insertedRows: Array<Record<string, unknown>> = []
@@ -234,8 +220,7 @@ describe('createAtomicPropertyCommandStore', () => {
         outboxRows,
         insertedRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicPropertyCommandStore(db, events)
+      const store = createAtomicPropertyCommandStore(db)
       const property = makeProperty()
       const event = createdEvent(property)
 
@@ -250,7 +235,7 @@ describe('createAtomicPropertyCommandStore', () => {
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.eventType).toBe('property.created')
       expect(outboxRows[0]!.id).toBe(event.eventId)
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
 
     it('throws forbidden on a tenant mismatch — no insert, no fact', async () => {
@@ -258,8 +243,7 @@ describe('createAtomicPropertyCommandStore', () => {
       const outboxRows: Array<Record<string, unknown>> = []
       const insertedRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, outboxRows, insertedRows })
-      const events = makeEvents(order)
-      const store = createAtomicPropertyCommandStore(db, events)
+      const store = createAtomicPropertyCommandStore(db)
 
       await expect(
         store.createProperty({
@@ -270,7 +254,6 @@ describe('createAtomicPropertyCommandStore', () => {
       ).rejects.toSatisfy((e: unknown) => isPropertyError(e) && e.code === 'forbidden')
       expect(insertedRows).toHaveLength(0)
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
       expect(order).toEqual(['tx.start', 'tx.rollback'])
     })
 
@@ -279,8 +262,7 @@ describe('createAtomicPropertyCommandStore', () => {
       const outboxRows: Array<Record<string, unknown>> = []
       const insertedRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, outboxRows, insertedRows })
-      const events = makeEvents(order)
-      const store = createAtomicPropertyCommandStore(db, events, 'us')
+      const store = createAtomicPropertyCommandStore(db, 'us')
       const property = makeProperty({
         processingRegion: 'europe',
         dataCellId: 'europe',
@@ -295,19 +277,17 @@ describe('createAtomicPropertyCommandStore', () => {
       ).rejects.toSatisfy((e: unknown) => isPropertyError(e) && e.code === 'forbidden')
       expect(insertedRows).toHaveLength(0)
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
       expect(order).toEqual(['tx.start', 'tx.rollback'])
     })
   })
 
   describe('updateProperty', () => {
-    it('commits patch + updated fact in one tx before emit, never setting identity columns', async () => {
+    it('commits patch + updated fact in one transaction, never setting identity columns', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const updateSets: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, outboxRows, updateSets })
-      const events = makeEvents(order)
-      const store = createAtomicPropertyCommandStore(db, events)
+      const store = createAtomicPropertyCommandStore(db)
       const event = propertyUpdated({
         propertyId: PROP_ID,
         organizationId: ORG_ID,
@@ -330,17 +310,16 @@ describe('createAtomicPropertyCommandStore', () => {
       ])
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.eventType).toBe('property.updated')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
   })
 
   describe('deleteProperty', () => {
-    it('commits delete + deleted fact in one tx before emit', async () => {
+    it('commits delete + deleted fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db, tx } = createMockDb({ order, outboxRows })
-      const events = makeEvents(order)
-      const store = createAtomicPropertyCommandStore(db, events)
+      const store = createAtomicPropertyCommandStore(db)
       const event = propertyDeleted({
         propertyId: PROP_ID,
         organizationId: ORG_ID,
@@ -365,32 +344,7 @@ describe('createAtomicPropertyCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
-    })
-  })
-
-  describe('emit failure isolation', () => {
-    it('a post-commit bus failure does not propagate (durable row retained)', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({
-        order,
-        insertReturning: [makePropertyRow()],
-        outboxRows,
-      })
-      const events = makeEvents(order, true)
-      const store = createAtomicPropertyCommandStore(db, events)
-
-      const result = await store.createProperty({
-        organizationId: ORG_ID,
-        property: makeProperty(),
-        event: createdEvent(),
-      })
-
-      expect(result.id).toBe(PROP_ID)
-      expect(outboxRows).toHaveLength(1)
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
   })
 

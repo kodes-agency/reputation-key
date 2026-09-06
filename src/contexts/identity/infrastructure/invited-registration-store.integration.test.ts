@@ -5,7 +5,6 @@ import type { Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import type { EventBus } from '#/shared/events/event-bus'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { identityInvitationAccepted } from '../domain/events'
@@ -19,12 +18,6 @@ const PREFIX = 'invreg-integration-'
 
 let lease: TestLease
 let db: Database
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 type Fixture = Readonly<{
   organizationId: string
@@ -254,7 +247,7 @@ describe.sequential('invited registration store (integration)', () => {
     })
     if (recovery.kind !== 'ready_to_accept') throw new Error('expected recovery')
 
-    const commandStore = createAtomicIdentityCommandStore(db, silentEvents, randomUUID)
+    const commandStore = createAtomicIdentityCommandStore(db, randomUUID)
     const accepted = await commandStore.acceptInvitation({
       invitationId: fixture.invitationId,
       registrationAttemptId: prepared.id,
@@ -307,7 +300,7 @@ describe.sequential('invited registration store (integration)', () => {
     const prepared = await prepare(fixture)
     await insertProviderAuthority(fixture)
     const registrationStore = createInvitedRegistrationStore(db)
-    const commandStore = createAtomicIdentityCommandStore(db, silentEvents, randomUUID)
+    const commandStore = createAtomicIdentityCommandStore(db, randomUUID)
 
     const [recovery, accepted] = await Promise.all([
       registrationStore.reconcile({

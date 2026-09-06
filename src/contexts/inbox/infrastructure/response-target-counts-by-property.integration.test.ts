@@ -12,7 +12,7 @@ import {
   type PropertyId,
   type ReviewId,
 } from '#/shared/domain/ids'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createResponseTargetStore } from './response-target.store'
 
@@ -44,12 +44,6 @@ const COMPLETED_AT = new Date('2026-09-03T10:30:00.000Z')
 
 const db = getDb()
 let pool: Pool
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 type ReviewTargetFixture = Readonly<{
   itemId: InboxItemId
@@ -314,7 +308,6 @@ describe.sequential(
       try {
         const counts = await createResponseTargetStore(
           db,
-          silentEvents,
         ).getGoogleReviewTargetCountsByProperty({
           organizationId: ORG,
           propertyIds: [OVERDUE_PROPERTY, ACTIVE_PROPERTY, EMPTY_PROPERTY],

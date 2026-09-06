@@ -6,8 +6,7 @@ import {
   portals,
 } from '#/shared/db/schema/portal.schema'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRowIfNew, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRowIfNew, type Tx } from '#/shared/outbox/commit'
 import {
   portalApprovedDestinationRatioRecorded,
   portalConfigurationCompletenessRecorded,
@@ -268,10 +267,7 @@ async function insertFacts(
   return inserted
 }
 
-export const createPortalWorkflowFactStore = (
-  db: Database,
-  events: EventBus,
-): PortalWorkflowFactStore => {
+export const createPortalWorkflowFactStore = (db: Database): PortalWorkflowFactStore => {
   return {
     recordCompletedReview: async (
       command: PortalWorkflowFactCommand,
@@ -327,11 +323,6 @@ export const createPortalWorkflowFactStore = (
         return { status: 'recorded' as const, events: facts }
       })
 
-      if (result.status === 'recorded') {
-        for (const event of result.events) {
-          await emitAfterCommit(events, event)
-        }
-      }
       return result
     },
   }

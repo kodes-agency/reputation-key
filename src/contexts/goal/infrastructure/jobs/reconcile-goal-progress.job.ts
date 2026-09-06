@@ -5,7 +5,6 @@
 import type { Job } from 'bullmq'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
-import type { EventBus } from '#/shared/events/event-bus'
 import { buildProgressQuery } from '../../domain/progress-strategy'
 import {
   computeValue,
@@ -23,7 +22,6 @@ export const LEGACY_RECONCILE_GOAL_NAME = 'reconcile-goal-progress' as const
 export type ReconcileGoalProgressDeps = Readonly<{
   goalRepo: GoalRepository
   metricApi: MetricPublicApi
-  events: EventBus
   clock: () => Date
   authorizeScope: ScheduledScopeAuthorizer
   logger: Pick<LoggerPort, 'error' | 'info' | 'warn'>

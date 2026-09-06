@@ -7,14 +7,14 @@
 
 ## Control matrix
 
-| #   | Control                                        | Mechanism                                                                                                                                       | Class                                   |
-| --- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| 1   | Disable Google sync / import / publish         | `BETA_CAPABILITIES_OFF=property.connect_gbp,property.publish_reply` + restart                                                                   | boot-time env, per-capability kill list |
-| 2   | Disable durable relay / dispatcher / schedules | `OUTBOX_DISPATCHER_ENABLED` (default off); dark schedules gated + no-op handlers; queue pause for the rest                                      | boot-time env + capability gates        |
-| 3   | Deny new property activation                   | `BETA_CAPABILITIES_OFF=property.create`                                                                                                         | boot-time env, per-capability kill list |
-| 4   | Quarantine a queue without deleting jobs       | `pnpm ops:queue pause <default\|background\|domain-events>` (`resume` to restore)                                                               | operator CLI (BullMQ pause/resume)      |
-| 5   | Deny all Phase 17/18 (AI) work                 | `ai.*` non-core (default deny) + blocked AI-adjacent caps + boot assertion (BQC-0.3); no AI implementation exists to gate                       | capability policy (default deny)        |
-| 6   | Preserve evidence and canonical state          | outbox append-only (purge fns have no callers); quarantine = pause, never obliterate; destructive cleanup scripts prohibited during containment | design + procedure                      |
+| #   | Control                                  | Mechanism                                                                                                                                       | Class                                   |
+| --- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 1   | Disable Google sync / import / publish   | `BETA_CAPABILITIES_OFF=property.connect_gbp,property.publish_reply` + restart                                                                   | boot-time env, per-capability kill list |
+| 2   | Stop delivery / schedules                | `pnpm ops:queue pause domain-events` (facts keep recording; nothing dispatches until `resume`); dark schedules gated + no-op handlers           | boot-time env + capability gates        |
+| 3   | Deny new property activation             | `BETA_CAPABILITIES_OFF=property.create`                                                                                                         | boot-time env, per-capability kill list |
+| 4   | Quarantine a queue without deleting jobs | `pnpm ops:queue pause <default\|background\|domain-events>` (`resume` to restore)                                                               | operator CLI (BullMQ pause/resume)      |
+| 5   | Deny all Phase 17/18 (AI) work           | `ai.*` non-core (default deny) + blocked AI-adjacent caps + boot assertion (BQC-0.3); no AI implementation exists to gate                       | capability policy (default deny)        |
+| 6   | Preserve evidence and canonical state    | outbox append-only (purge fns have no callers); quarantine = pause, never obliterate; destructive cleanup scripts prohibited during containment | design + procedure                      |
 
 ## Rehearsal results (executed 2026-07-17, local)
 
@@ -32,9 +32,9 @@
 
 - **Runbook:** `docs/operations/runbooks.md` §11 corrected — previously prescribed a comma list that the old `=== '1'` implementation would have **silently ignored**; the list form now works as documented, and `all` is the documented full stop.
 
-### 2. Durable relay / dispatcher / schedules stop
+### 2. Delivery / schedules stop
 
-- **Procedure:** keep `OUTBOX_DISPATCHER_ENABLED` unset/false (default). Worker log confirms: "Outbox relay + dispatcher DISABLED (BQR-0 containment)". Consumers stay registered but inert; events still deliver via the in-process bus.
+- **Procedure:** `pnpm ops:queue pause domain-events`. The relay and dispatcher are unconditional in the worker (a worker without them refuses to boot), so the stop control is the queue pause: facts keep committing as outbox rows and dispatch when the queue resumes — nothing is lost and nothing runs meanwhile.
 - **Schedules:** blocked/dark schedules are gated by `isCapabilityJobEnabled`, receive no executable handler, and are reconciled out of BullMQ (`bootstrap.ts`, `worker/index.ts`). Any already-queued remnant fails unknown-job admission and moves to the governed quarantine instead of being acknowledged. Retained schedules still authorize at dispatch. To stop processing entirely without deleting jobs, pause the `background` queue (control 4).
 - **Proof:** worker boot log lines (captured during the control-1 smoke); dark-job gating covered by `dark-capability-enforcement.test.ts` (27 tests).
 
@@ -71,6 +71,6 @@ Executed against staging web+worker with real Redis:
 
 1. Set the kill list, restart, trigger sync + publish → expect skip logs and zero Google calls; remove list, restart, confirm backlog drains.
 2. `pnpm ops:queue pause default` under load → confirm zero in-flight losses and identical job counts; `resume` → backlog drains.
-3. Toggle `OUTBOX_DISPATCHER_ENABLED=true` in the staging worker, observe relay/dispatch, then back to false → confirm no duplicate side effects.
+3. `pnpm ops:queue pause domain-events` in the staging worker under load, then `resume` → confirm the backlog drains with no duplicate side effects (receipts).
 
 **Owner:** engineering. **When:** BQC-0.5 baseline window. Results to be appended here with the release identity they ran against.

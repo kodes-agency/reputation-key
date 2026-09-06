@@ -86,9 +86,7 @@ evidence and deletion gate are documented in
   closed results with the same Organization, Property, immutable metric
   version, event-time subject, and half-open month. No Goal code queries Metric
   tables, and no Metric code queries Goal tables.
-- Retained legacy event-handler implementations are historical/migration
-  evidence only. Their index exports no registrar, and Portal or Portal Group
-  deletion does not mutate retained legacy Goal rows in the beta runtime.
+- Portal and Portal Group deletion leaves retained legacy Goal rows unchanged.
 - Goal exposes exact delivery-time lookups for achieved close notices and for
   corrected result notices. Correction delivery supplies the full Program,
   Assignment, Result, and revision fence; a superseded revision resolves to
@@ -108,16 +106,14 @@ evidence and deletion gate are documented in
   - `rolling`: requires `rollingWindowDays > 0`. No period, no recurrence.
   - `recurring`: requires `recurrenceRule`. Templates have no period; instances have bounded periods from the scheduler.
 - At most one of [`portalId`, `portalGroupId`] determines scope. If all null, scope is `property`.
-- Goals are cancelled (not deleted) when their target entity (portal, portal group) is removed.
 
 ## Events produced
 
-| Tag                                          | Payload                                                                                                                    | When                                                                                                   |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `goal.monthly_result.reconciled`             | tenant/property + Program, version, assignment and monthly-result IDs; period; evaluation state; achieved; occurrence time | An open/reconciling canonical result is evaluated but not closed                                       |
-| `goal.monthly_result.closed`                 | the same identifier-only/result facts, with `status=closed`                                                                | The result wins the `reconciling` → `closed` CAS; state and outbox row commit in one transaction       |
-| `goal.monthly_result.revised`                | the same result identities plus direct revision lineage and outcome/availability-change flags                              | A governed late correction appends a new closed-result revision, audit row, and outbox fact atomically |
-| `goal.completed` (legacy compatibility only) | legacy Goal/progress facts                                                                                                 | Retained schema/factory only; no active Metric subscription produces it                                |
+| Tag                              | Payload                                                                                                                    | When                                                                                                   |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `goal.monthly_result.reconciled` | tenant/property + Program, version, assignment and monthly-result IDs; period; evaluation state; achieved; occurrence time | An open/reconciling canonical result is evaluated but not closed                                       |
+| `goal.monthly_result.closed`     | the same identifier-only/result facts, with `status=closed`                                                                | The result wins the `reconciling` → `closed` CAS; state and outbox row commit in one transaction       |
+| `goal.monthly_result.revised`    | the same result identities plus direct revision lineage and outcome/availability-change flags                              | A governed late correction appends a new closed-result revision, audit row, and outbox fact atomically |
 
 ## Events consumed
 
@@ -130,10 +126,6 @@ the deliberate exception: the durable `goal.metric-correction-reconciliation`
 consumer invokes `reconcileMetricCorrection`, deduplicates affected closed
 results, and retries while Metric completeness is `updating`. Replays converge
 because unchanged heads are no-ops and revision appends are serialized by CAS.
-The split
-`upsertProgress` + `markGoalCompleted` port operations and handler remain
-compatibility-only migration code and are executablely excluded from runtime
-composition.
 
 ## Architecture layers
 
@@ -153,7 +145,6 @@ goal/
     legacy-goal-inventory.repository.ts  read-only retained-table snapshot
     metric-correction-outbox-consumers.ts
     mappers/           goal.mapper.ts
-    event-handlers/    on-metric-recorded.ts, on-portal-deleted.ts, on-portal-group-deleted.ts
     jobs/              goal-program-maintenance.job.ts plus legacy lifecycle jobs
   server/              goal-programs.ts plus temporary staff-goals.ts compatibility read
   build.ts             composition root

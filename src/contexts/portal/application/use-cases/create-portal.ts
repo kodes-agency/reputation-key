@@ -1,5 +1,5 @@
 // Portal context — create portal use case
-// Full 7-step pattern: authorize → validate refs → check uniqueness → build → persist → emit → return
+// Full pattern: authorize → validate refs → check uniqueness → build → atomically persist with facts → return
 
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'

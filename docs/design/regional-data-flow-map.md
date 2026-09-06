@@ -106,7 +106,7 @@ and [AI release-evidence index](../product-readiness-program-2026-07/ai-governan
 - `src/composition.test.ts` — `providerConfigFor` fails closed on unknown/denied/missing refs.
 - `src/shared/routing/processing-router.test.ts` — `ProcessingTarget.provider`, `providerRefForCell` approved-only.
 - `src/shared/observability/health-metrics.test.ts` — marker-content proof for the metrics snapshot.
-- `src/contexts/activity/infrastructure/event-handlers/activity-content-safety.test.ts` — marker-content proof for activity writes.
+- `src/contexts/activity/infrastructure/outbox-consumers.test.ts` — marker-content proof for activity writes.
 - `src/shared/architecture/fleet-aggregates.test.ts` — BQC-4.4 fleet/org-level views are content-free aggregates (path, query, and DTO scans).
 - `src/shared/auth/policy-diagnostic.test.ts` + `src/contexts/identity/infrastructure/repositories/region-diagnostic.test.ts` — BQC-4.4 region diagnostic shape, per-state blocked reasons, org scoping, operator audit.
 - `src/contexts/activity/infrastructure/repositories/recent-activity-repository.test.ts` — BQC-4.4 Recent Activity read Organization isolation (real PostgreSQL).

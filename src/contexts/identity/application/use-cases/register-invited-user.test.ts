@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
 import { invitationId } from '#/shared/domain/ids'
 import { isIdentityError } from '../../domain/errors'
@@ -9,8 +9,8 @@ const NOW = new Date('2026-08-25T12:00:00.000Z')
 const INVITATION_ID = invitationId('inv-register-manager')
 
 function setup(clock: () => Date = () => NOW) {
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialIdentityCommandStore({ events })
+  const outbox = createRecordedOutbox()
+  const commandStore = createSequentialIdentityCommandStore({ outbox })
   commandStore.seedInvitation({
     id: INVITATION_ID as string,
     organizationId: 'org-manager',
@@ -66,7 +66,7 @@ function setup(clock: () => Date = () => NOW) {
     useCase,
     input,
     commandStore,
-    events,
+    outbox,
     signUp,
     runOnAccepted,
     logger,
@@ -118,7 +118,7 @@ describe('registerInvitedUser', () => {
         role: 'admin',
       }),
     ])
-    expect(fixture.events.capturedByTag('identity.invitation.accepted')).toHaveLength(1)
+    expect(fixture.outbox.byTag('identity.invitation.accepted')).toHaveLength(1)
     expect(fixture.runOnAccepted).toHaveBeenCalledWith({
       userId: 'user-preallocated-manager',
       organizationId: 'org-manager',
@@ -201,7 +201,7 @@ describe('registerInvitedUser', () => {
       now: NOW,
       nextRecoveryAt: new Date('2026-08-25T12:05:00.000Z'),
     })
-    expect(fixture.events.capturedEvents).toHaveLength(0)
+    expect(fixture.outbox.facts).toHaveLength(0)
   })
 
   it('rechecks expiry with a fresh clock value after sign-up', async () => {

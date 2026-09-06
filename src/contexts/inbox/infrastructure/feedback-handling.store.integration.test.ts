@@ -3,7 +3,7 @@ import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
@@ -40,23 +40,12 @@ const CORRECTED_AT = new Date('2026-08-27T10:00:00.000Z')
 const db = getDb()
 let pool: Pool
 
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
-
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
   allowed: true,
 })
 
 const createAtomicInboxCommandStore = (database: Database) =>
-  createProductionInboxCommandStore(
-    database,
-    silentEvents,
-    allowAllCommandAuthority,
-    () => OPENED_AT,
-  )
+  createProductionInboxCommandStore(database, allowAllCommandAuthority, () => OPENED_AT)
 
 const makeItem = (): InboxItem => ({
   id: ITEM,
@@ -136,7 +125,7 @@ beforeEach(async () => {
 describe.sequential('private-feedback handling store (PostgreSQL)', () => {
   it('closes with one outcome, appends corrections, and preserves completion facts', async () => {
     const item = await seed()
-    const store = createFeedbackHandlingStore(db, silentEvents, allowAllCommandAuthority)
+    const store = createFeedbackHandlingStore(db, allowAllCommandAuthority)
 
     await expect(store.getState(ITEM, OTHER_ORG)).resolves.toBeNull()
     await expect(store.getState(ITEM, ORG)).resolves.toMatchObject({
@@ -296,7 +285,7 @@ describe.sequential('private-feedback handling store (PostgreSQL)', () => {
 
   it('serializes competing corrections so exactly one superseding fact lands', async () => {
     const item = await seed()
-    const store = createFeedbackHandlingStore(db, silentEvents, allowAllCommandAuthority)
+    const store = createFeedbackHandlingStore(db, allowAllCommandAuthority)
     const handled = await store.markHandled({
       item,
       outcomeId: '6a000000-0000-4000-8000-000000000020',
@@ -354,7 +343,7 @@ describe.sequential('private-feedback handling store (PostgreSQL)', () => {
 
   it('serializes competing completion commands so one close has exactly one outcome', async () => {
     const item = await seed()
-    const store = createFeedbackHandlingStore(db, silentEvents, allowAllCommandAuthority)
+    const store = createFeedbackHandlingStore(db, allowAllCommandAuthority)
     const command = {
       item,
       outcome: 'handled_with_team' as const,
@@ -423,7 +412,7 @@ describe.sequential('private-feedback handling store (PostgreSQL)', () => {
       }),
     })
 
-    const store = createFeedbackHandlingStore(db, silentEvents, allowAllCommandAuthority)
+    const store = createFeedbackHandlingStore(db, allowAllCommandAuthority)
     const state = await store.getState(ITEM, ORG)
     expect(state).toMatchObject({ status: 'closed', stateRevision: 2 })
     expect(state?.history).toEqual([])

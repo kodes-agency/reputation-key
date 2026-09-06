@@ -54,14 +54,6 @@ describe('BQC-5.1: cross-context public-api rule', () => {
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
   })
 
-  it('allows infrastructure/event-handlers → foreign public-api', async () => {
-    const messages = await lintSnippet(
-      `import { isRegionProcessable } from '#/contexts/property/application/public-api'\nexport const gate = isRegionProcessable\n`,
-      'src/contexts/review/infrastructure/event-handlers/sample.ts',
-    )
-    expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
-  })
-
   it('allows infrastructure/adapters → foreign application/ports (adapter exception)', async () => {
     const messages = await lintSnippet(
       `import type { AccessiblePropertyLookupPort } from '#/contexts/staff/application/ports/accessible-property-lookup.port'\nexport type { AccessiblePropertyLookupPort }\n`,

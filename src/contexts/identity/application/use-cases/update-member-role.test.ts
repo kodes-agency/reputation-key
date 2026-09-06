@@ -11,7 +11,7 @@ import { updateMemberRole } from './update-member-role'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
 import type { SequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isIdentityError } from '../../domain/errors'
 import type { MemberRecord } from '../ports/identity.port'
@@ -88,15 +88,15 @@ const setup = (
   ) => Promise<void>,
 ) => {
   const identity = createInMemoryIdentityPort()
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialIdentityCommandStore({ events })
+  const outbox = createRecordedOutbox()
+  const commandStore = createSequentialIdentityCommandStore({ outbox })
   const useCase = updateMemberRole({
     identity,
     commandStore,
     clock: () => FIXED_TIME,
     reconcileResponsibleManagerEligibility,
   })
-  return { useCase, identity, events, commandStore }
+  return { useCase, identity, outbox, commandStore }
 }
 
 describe('updateMemberRole', () => {
@@ -133,7 +133,7 @@ describe('updateMemberRole', () => {
   })
 
   it('allows AccountAdmin to promote Staff to PropertyManager', async () => {
-    const { useCase, identity, events, commandStore } = setup()
+    const { useCase, identity, outbox, commandStore } = setup()
     seedMemberBoth(identity, commandStore, STAFF_MEMBER)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
@@ -147,11 +147,11 @@ describe('updateMemberRole', () => {
     // The member row carries the better-auth role string
     expect(commandStore.memberById('member-staff')?.role).toBe('admin')
 
-    // Verify event
-    const emitted = events.capturedByTag('identity.member.role_changed')
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0].previousRole).toBe('Staff')
-    expect(emitted[0].newRole).toBe('PropertyManager')
+    // Verify the durable fact.
+    const facts = outbox.byTag('identity.member.role_changed')
+    expect(facts).toHaveLength(1)
+    expect(facts[0].previousRole).toBe('Staff')
+    expect(facts[0].newRole).toBe('PropertyManager')
   })
 
   it('rejects PropertyManager from changing any member role', async () => {
@@ -203,14 +203,14 @@ describe('updateMemberRole', () => {
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'member_not_found')
   })
 
-  it('emits member.role-changed with previous and new role', async () => {
-    const { useCase, identity, events, commandStore } = setup()
+  it('records member.role-changed with previous and new role', async () => {
+    const { useCase, identity, outbox, commandStore } = setup()
     seedMemberBoth(identity, commandStore, STAFF_MEMBER)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase({ memberId: 'member-staff', role: 'PropertyManager' }, ctx)
 
-    const [event] = events.capturedByTag('identity.member.role_changed')
+    const [event] = outbox.byTag('identity.member.role_changed')
     expect(event.previousRole).toBe('Staff')
     expect(event.newRole).toBe('PropertyManager')
     expect(event.userId).toBe(ctx.userId)
@@ -235,7 +235,7 @@ describe('updateMemberRole', () => {
   })
 
   it('rejects demoting an AccountAdmin even with a second admin (role hierarchy guards first)', async () => {
-    const { useCase, identity, events, commandStore } = setup()
+    const { useCase, identity, outbox, commandStore } = setup()
     seedMemberBoth(identity, commandStore, ADMIN_MEMBER)
     seedMemberBoth(identity, commandStore, ADMIN_MEMBER_2)
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
@@ -251,7 +251,7 @@ describe('updateMemberRole', () => {
 
     const still = await identity.getMember(ctx, 'member-admin')
     expect(still?.role).toBe('AccountAdmin')
-    expect(events.capturedByTag('identity.member.role_changed')).toHaveLength(0)
+    expect(outbox.byTag('identity.member.role_changed')).toHaveLength(0)
   })
 
   it('counts a multi-role owner via rawRole for the last-owner guard (H2/M4)', async () => {

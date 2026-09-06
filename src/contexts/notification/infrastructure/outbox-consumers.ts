@@ -1,17 +1,10 @@
-// Outbox consumer registrations for the notification context.
+// Durable notification delivery for `inbox.inbox_item.created`.
 //
-// The gap this closes: `emitAfterCommit` (src/shared/outbox/commit.ts) catches
-// and warns, so when the in-process notification handler threw, the review was
-// committed, the inbox item was committed, and the notification simply never
-// existed — with nothing retrying. Every other context that owns a projection
-// already had a durable consumer; notification had none, so the bus was its
-// ONLY path.
-//
-// Scope of this module: `inbox.inbox_item.created`. The sibling
-// workflow-outbox-consumers module durably covers assignment, escalation,
-// notes, and Reply lifecycle notifications while reusing their existing
-// recipient handlers. Keeping the created-item fan-out here preserves its
-// source-specific lookup and obsolete-event policy.
+// The source transaction records an identifier-only outbox fact. This consumer
+// resolves current recipients and copy facts, enqueues one deterministic job
+// per recipient, and acknowledges only after every enqueue succeeds. The
+// sibling workflow consumers cover assignment, escalation, notes, and Reply
+// lifecycle facts with the same delivery guarantees.
 //
 // Idempotency, in the order the fences apply:
 //   1. The dispatcher pre-checks `hasReceipt(eventId, consumerName)` and skips

@@ -3,7 +3,6 @@ import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   organizationId,
@@ -98,7 +97,7 @@ afterAll(async () => {
 
 describe.sequential('atomic Guest observations', () => {
   it('requires the signed-session pseudonym but keeps the diagnostic fact free of a network copy', async () => {
-    const store = createAtomicGuestObservationStore(db, createCapturingEventBus())
+    const store = createAtomicGuestObservationStore(db)
     const candidate = { ...scan(99), sessionId: null, ipHash: null }
 
     await expect(store.commitScan(candidate, scanFact(candidate))).rejects.toThrow(
@@ -119,8 +118,7 @@ describe.sequential('atomic Guest observations', () => {
 
   it('serializes concurrent scans to one source row and one fact', async () => {
     // @proof PUBLIC_REDIRECT_AND_ABUSE#1
-    const events = createCapturingEventBus()
-    const store = createAtomicGuestObservationStore(db, events)
+    const store = createAtomicGuestObservationStore(db)
     const candidates = Array.from({ length: 8 }, (_, index) => scan(index + 1))
 
     const outcomes = await Promise.all(
@@ -138,11 +136,10 @@ describe.sequential('atomic Guest observations', () => {
     `)
     expect(scans.rows).toHaveLength(1)
     expect(outbox.rows).toHaveLength(1)
-    expect(events.capturedByTag('guest.scan.recorded')).toHaveLength(1)
   })
 
   it('independently scrubs session and network pseudonyms without deleting the visit fact', async () => {
-    const store = createAtomicGuestObservationStore(db, createCapturingEventBus())
+    const store = createAtomicGuestObservationStore(db)
     const candidate = { ...scan(10), ipHash: 'rotating-abuse-pseudonym' }
     await expect(store.commitScan(candidate, scanFact(candidate))).resolves.toBe(
       'applied',
@@ -195,7 +192,7 @@ describe.sequential('atomic Guest observations', () => {
   })
 
   it('rolls back the scan row when its fact is invalid', async () => {
-    const store = createAtomicGuestObservationStore(db, createCapturingEventBus())
+    const store = createAtomicGuestObservationStore(db)
     const candidate = scan(20)
     const invalid = {
       ...scanFact(candidate),
@@ -214,8 +211,7 @@ describe.sequential('atomic Guest observations', () => {
 
   it('serializes a session/destination action to one receipt and one fact', async () => {
     // @proof PUBLIC_REDIRECT_AND_ABUSE#2
-    const events = createCapturingEventBus()
-    const store = createAtomicGuestObservationStore(db, events)
+    const store = createAtomicGuestObservationStore(db)
     const fact = guestReviewLinkClicked({
       linkId: portalLinkId('52000000-0000-4000-8000-000000000030'),
       destinationKind: 'secondary_link',
@@ -253,11 +249,10 @@ describe.sequential('atomic Guest observations', () => {
     `)
     expect(outbox.rows).toHaveLength(1)
     expect(receipts.rows).toHaveLength(1)
-    expect(events.capturedByTag('guest.review_link.clicked')).toHaveLength(1)
   })
 
   it('purges the expired session receipt without deleting the action fact', async () => {
-    const store = createAtomicGuestObservationStore(db, createCapturingEventBus())
+    const store = createAtomicGuestObservationStore(db)
     const fact = guestReviewLinkClicked({
       linkId: portalLinkId('52000000-0000-4000-8000-000000000031'),
       destinationKind: 'google_review',
@@ -298,7 +293,7 @@ describe.sequential('atomic Guest observations', () => {
   })
 
   it('rolls back the action receipt when its durable fact is invalid', async () => {
-    const store = createAtomicGuestObservationStore(db, createCapturingEventBus())
+    const store = createAtomicGuestObservationStore(db)
     const valid = guestReviewLinkClicked({
       linkId: portalLinkId('52000000-0000-4000-8000-000000000032'),
       destinationKind: 'secondary_link',

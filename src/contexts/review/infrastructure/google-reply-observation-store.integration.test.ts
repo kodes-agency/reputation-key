@@ -5,8 +5,6 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { EventBus } from '#/shared/events/event-bus'
-import type { DomainEvent } from '#/shared/events/events'
 import {
   organizationId,
   propertyId,
@@ -44,36 +42,12 @@ const USER = userId('user-rpl-observation-integration')
 const NOW = new Date('2026-08-20T12:00:00.000Z')
 const EXPIRES = new Date('2026-09-20T12:00:00.000Z')
 
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
-
-const createRecordingEvents = (): {
-  events: EventBus
-  emitted: DomainEvent[]
-} => {
-  const emitted: DomainEvent[] = []
-  return {
-    emitted,
-    events: {
-      on: () => {},
-      emit: async (event) => {
-        emitted.push(event)
-      },
-      clear: () => {},
-    },
-  }
-}
-
 /** Identity behavior is outside this Review truth-chain fixture. Production
  * composition injects the real transaction-bound authority; these tests grant
  * their one explicitly seeded manager. */
 const createTestReplyCommandStore = () =>
   createAtomicReplyCommandStore(
     getDb(),
-    silentEvents,
     () => new Date(),
     async () => true,
   )
@@ -291,7 +265,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     const { review, reply } = await seedReviewAndReply({})
     expect(reply.publicationState).toBe('pending_observation')
 
-    const result = await createGoogleReplyObservationStore(getDb(), silentEvents).record(
+    const result = await createGoogleReplyObservationStore(getDb()).record(
       observationInput(review),
     )
 
@@ -324,13 +298,12 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
 
   it('does not let a redundant re-read supersede the confirming observation', async () => {
     // A snapshot run re-reads every review in its confirmation scan. That
-    // second read says nothing new — it emits no fact, confirms no attempt,
-    // supersedes nothing — but advancing the head for it revoked the Inbox
-    // close permit scoped to the confirming observation, and nothing ever
-    // re-issued it: the reply showed Published while its Inbox item stayed
-    // Open forever.
+    // second read says nothing new — it records no fact, confirms no attempt,
+    // and supersedes nothing. Advancing the head used to revoke the Inbox
+    // close permit scoped to the confirming observation, leaving a Published
+    // reply whose Inbox item stayed Open.
     const { review } = await seedReviewAndReply({})
-    const store = createGoogleReplyObservationStore(getDb(), silentEvents)
+    const store = createGoogleReplyObservationStore(getDb())
 
     const confirming = await store.record(observationInput(review))
     expect(confirming).toMatchObject({
@@ -356,7 +329,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
 
   it('accepts a same-key/same-evidence replay but refuses changed evidence', async () => {
     const { review } = await seedReviewAndReply({ claim: false })
-    const store = createGoogleReplyObservationStore(getDb(), silentEvents)
+    const store = createGoogleReplyObservationStore(getDb())
     const input = observationInput(review)
 
     expect(await store.record(input)).toMatchObject({ duplicate: false })
@@ -376,7 +349,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
 
   it('keeps an exact committed replay idempotent after the Review advances', async () => {
     const { review } = await seedReviewAndReply({ claim: false })
-    const store = createGoogleReplyObservationStore(getDb(), silentEvents)
+    const store = createGoogleReplyObservationStore(getDb())
     const input = observationInput(review, {
       observationKey: sha256Hex('replay-before-material-advance'),
     })
@@ -407,7 +380,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
 
   it('validates exact tenant/property ownership before honoring a duplicate key', async () => {
     const { review } = await seedReviewAndReply({ claim: false })
-    const store = createGoogleReplyObservationStore(getDb(), silentEvents)
+    const store = createGoogleReplyObservationStore(getDb())
     const input = observationInput(review)
     await store.record(input)
 
@@ -432,7 +405,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     })
 
     await expect(
-      createGoogleReplyObservationStore(getDb(), silentEvents).record(
+      createGoogleReplyObservationStore(getDb()).record(
         observationInput(review, {
           observationKey: sha256Hex('provider-truth-after-content-erasure'),
         }),
@@ -454,8 +427,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
 
   it('records different live text as external and prevents retroactive confirmation', async () => {
     const { review } = await seedReviewAndReply({})
-    const recording = createRecordingEvents()
-    const store = createGoogleReplyObservationStore(getDb(), recording.events)
+    const store = createGoogleReplyObservationStore(getDb())
     const externalInput = observationInput(review, {
       observedText: 'A different live reply',
     })
@@ -475,7 +447,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       publicationState: 'cancelled',
     })
     await expect(
-      createGoogleReplyObservationStore(getDb(), silentEvents).record(
+      createGoogleReplyObservationStore(getDb()).record(
         observationInput(review, {
           observationKey: sha256Hex('expected-text-after-external-reply'),
         }),
@@ -502,17 +474,11 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       [ORG],
     )
     expect(cancellations.rows).toHaveLength(1)
-    expect(
-      recording.emitted.filter(
-        (event) => event._tag === 'review.reply.publication_cancelled',
-      ),
-    ).toHaveLength(1)
   })
 
   it('supersedes a newer attempt when the existing external-live head is unchanged', async () => {
     const { review } = await seedReviewAndReply({ claim: false })
-    const recording = createRecordingEvents()
-    const observationStore = createGoogleReplyObservationStore(getDb(), recording.events)
+    const observationStore = createGoogleReplyObservationStore(getDb())
     await expect(
       observationStore.record(
         observationInput(review, {
@@ -621,17 +587,12 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     // One exact cancellation for the zero-attempt authorization and one for
     // the later in-flight attempt; replay cannot duplicate either fact.
     expect(cancellations.rows).toHaveLength(2)
-    expect(
-      recording.emitted.filter(
-        (event) => event._tag === 'review.reply.publication_cancelled',
-      ),
-    ).toHaveLength(2)
   })
 
   it('permits a sending re-claim only after a newer targeted absence observation', async () => {
     const { review, reply } = await seedReviewAndReply({ providerPending: false })
     expect(reply.publicationState).toBe('sending')
-    await createGoogleReplyObservationStore(getDb(), silentEvents).record(
+    await createGoogleReplyObservationStore(getDb()).record(
       observationInput(review, {
         observationKey: sha256Hex('targeted-absence-after-attempt'),
         source: 'targeted_reconciliation',
@@ -687,7 +648,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     )
 
     await expect(
-      createGoogleReplyObservationStore(getDb(), silentEvents).record(
+      createGoogleReplyObservationStore(getDb()).record(
         observationInput(review, {
           observationKey: sha256Hex('legacy-uncertain-targeted-live'),
           source: 'targeted_reconciliation',
@@ -755,7 +716,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     )
 
     await expect(
-      createGoogleReplyObservationStore(getDb(), silentEvents).record(
+      createGoogleReplyObservationStore(getDb()).record(
         observationInput(review, {
           observationKey: sha256Hex('legacy-uncertain-targeted-absence'),
           source: 'targeted_reconciliation',
@@ -800,7 +761,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
 
   it('refuses a targeted read captured for an older attempt after a newer attempt is current', async () => {
     const { review, reply } = await seedReviewAndReply({ providerPending: false })
-    const store = createGoogleReplyObservationStore(getDb(), silentEvents)
+    const store = createGoogleReplyObservationStore(getDb())
     const staleTarget = {
       replyId: REPLY_A,
       publicationCycle: 1,
@@ -851,7 +812,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
 
   it('does not let an older acquired provider response replace a newer observation head', async () => {
     const { review } = await seedReviewAndReply({ claim: false })
-    const store = createGoogleReplyObservationStore(getDb(), silentEvents)
+    const store = createGoogleReplyObservationStore(getDb())
     const olderGeneration = await store.allocateReadGeneration()
     const newerGeneration = await store.allocateReadGeneration()
     const older = observationInput(review, {
@@ -918,7 +879,6 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     const later = new Date(NOW.getTime() + 2_000)
     const advanced = await createAtomicReviewCommandStore(
       getDb(),
-      silentEvents,
       () => new Date(),
     ).upsertAndRecord(
       {
@@ -974,8 +934,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
 
   it('atomically cancels a zero-attempt authorization when an absent Google reply head advances', async () => {
     const { review, reply } = await seedReviewAndReply({ claim: false })
-    const recording = createRecordingEvents()
-    const store = createGoogleReplyObservationStore(getDb(), recording.events)
+    const store = createGoogleReplyObservationStore(getDb())
     const absentInput = observationInput(review, {
       observationKey: sha256Hex('absent-head-advanced-after-authorization'),
       observedText: null,
@@ -1010,11 +969,6 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       authorizations: 1,
       cancellations: 1,
     })
-    expect(
-      recording.emitted.filter(
-        (event) => event._tag === 'review.reply.publication_cancelled',
-      ),
-    ).toHaveLength(1)
 
     // A delayed durable intent still cannot reach the provider; cancellation
     // is already durable instead of leaving an invisible authorized row.
@@ -1054,7 +1008,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     ).resolves.toBe(1)
 
     await expect(
-      createGoogleReplyObservationStore(getDb(), silentEvents).record(
+      createGoogleReplyObservationStore(getDb()).record(
         observationInput(review, {
           observationKey: sha256Hex('provider-truth-after-cancellation'),
           source: 'targeted_reconciliation',
@@ -1280,9 +1234,7 @@ describe.sequential('RPL evidence-chain relational fences (real PostgreSQL)', ()
 
   it('binds every head field to the same exact observation row', async () => {
     const { review } = await seedReviewAndReply({ claim: false })
-    await createGoogleReplyObservationStore(getDb(), silentEvents).record(
-      observationInput(review),
-    )
+    await createGoogleReplyObservationStore(getDb()).record(observationInput(review))
     await expectConstraint(
       `UPDATE google_reply_observation_heads
        SET provenance = 'none' WHERE review_id = $1`,
@@ -1299,7 +1251,7 @@ describe.sequential('RPL evidence-chain relational fences (real PostgreSQL)', ()
       externalId: 'external-review-b',
       claim: false,
     })
-    await createGoogleReplyObservationStore(getDb(), silentEvents).record(
+    await createGoogleReplyObservationStore(getDb()).record(
       observationInput(otherReview, {
         observationKey: sha256Hex('other-review-observation'),
       }),

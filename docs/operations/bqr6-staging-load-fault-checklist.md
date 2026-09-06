@@ -13,7 +13,7 @@
 - [ ] Staging Postgres + Redis available (not production)
 - [ ] `DATABASE_URL`, `REDIS_URL`, and `QUEUE_REDIS_URL` point at distinct staging resources
 - [ ] Web + worker deployed from the **same release candidate SHA**
-- [ ] `OUTBOX_DISPATCHER_ENABLED` still **default-off** unless this exercise explicitly enables it under a ticketed window
+- [ ] Worker boot log shows the outbox relay started (it is unconditional; a worker without Redis refuses to boot)
 - [ ] Synthetic data only (`pnpm exec tsx scripts/perf/seed-scale.ts …`)
 - [ ] Evidence pack directory: `docs/release-evidence/beta/<release-id>/`
 - [ ] Health probes green: `/api/health/live`, `/api/health/ready`, `/api/health/metrics`

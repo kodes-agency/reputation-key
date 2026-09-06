@@ -4,7 +4,6 @@
 
 import type { Database } from '#/shared/db'
 import type { ConsumerRegistry } from '#/shared/outbox'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { OrganizationId, PortalId, PortalGroupId } from '#/shared/domain/ids'
 import type {
   PortalGroupPublicApi,
@@ -17,7 +16,6 @@ import { createGoalMetricSourceStatus } from './infrastructure/repositories/goal
 import { createAtomicMetricCommandStore } from './infrastructure/metric-command-store'
 import { recordMetric, recordMetrics } from './application/use-cases/record-metric'
 import { retractMetrics } from './application/use-cases/retract-metric'
-import { registerMetricHandlers } from './infrastructure/event-handlers'
 import { registerMetricCorrectionConsumer } from './infrastructure/correction-outbox-consumers'
 import { registerPortalWorkflowMetricConsumers } from './infrastructure/outbox-consumers'
 import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-consumers'
@@ -42,12 +40,10 @@ import { createMetricOrganizationLifecycleAdapter } from './infrastructure/adapt
 
 export type MetricContextBuildInput = Readonly<{
   db: Database
-  events: EventBus
   clock: () => Date
   idGen: () => string
   logger: LoggerPort
-  /** Portal group resolution (portal public API) — the build wraps it into
-   * the findGroupForPortal shape the event handlers consume. */
+  /** Portal group resolution wrapped for durable Guest fact projection. */
   portalGroupApi: PortalGroupPublicApi
   portalApi: PortalPublicApi
   reviewRatingLookup: ReviewRatingLookupPort
@@ -65,7 +61,7 @@ export const buildMetricContext = (input: MetricContextBuildInput) => {
     input.db,
   )
   // BQC-3.5: every metric state mutation + fact commits atomically here.
-  const commandStore = createAtomicMetricCommandStore(input.db, input.events, input.idGen)
+  const commandStore = createAtomicMetricCommandStore(input.db, input.idGen)
   const readGoalMetric = queryGoalMetric({
     metrics: metricRepo,
     registry,
@@ -126,17 +122,6 @@ export const buildMetricContext = (input: MetricContextBuildInput) => {
       portalGroupId: group?.id ?? null,
     }
   }
-
-  registerMetricHandlers({
-    events: input.events,
-    recordMetric: record,
-    recordMetrics: recordBatch,
-    retractMetrics: retractBatch,
-    findGroupForPortal,
-    reviewRatingLookup: input.reviewRatingLookup,
-    resolvePortalWorkflowAttribution,
-    logger: input.logger,
-  })
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     const portalWorkflowDeps = {

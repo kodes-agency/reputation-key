@@ -26,7 +26,7 @@ describe('Integration infrastructure time authority', () => {
       /createGoogleConnectionRepository\(\s*deps\.db,\s*propertyFkCleanup,\s*deps\.clock,?\s*\)/u,
     )
     expect(build).toMatch(
-      /createAtomicIntegrationCommandStore\(\s*deps\.db,\s*deps\.events,\s*deps\.clock,?\s*\)/u,
+      /createAtomicIntegrationCommandStore\(\s*deps\.db,\s*deps\.clock,?\s*\)/u,
     )
     expect(build).toContain('createGoogleImportV2Store(deps.db, deps.clock)')
   })

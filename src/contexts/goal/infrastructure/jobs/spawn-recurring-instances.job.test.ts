@@ -9,7 +9,6 @@ import {
 } from './spawn-recurring-instances.job'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { Goal, GoalProgress } from '../../domain/types'
-import type { EventBus } from '#/shared/events/event-bus'
 import { organizationId, propertyId, goalId, userId } from '#/shared/domain/ids'
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -129,12 +128,6 @@ function createFakeDeps(state: {
     },
   }
 
-  const eventBus: EventBus = {
-    on: () => {},
-    emit: async () => {},
-    clear: () => {},
-  }
-
   let idCounter = 0
   const logger = {
     error: vi.fn(),
@@ -143,7 +136,6 @@ function createFakeDeps(state: {
   }
   const deps: SpawnRecurringInstancesDeps = {
     goalRepo,
-    events: eventBus,
     clock: () => state.now,
     idGen: () => `spawned-${++idCounter}`,
     authorizeScope: async () => true,

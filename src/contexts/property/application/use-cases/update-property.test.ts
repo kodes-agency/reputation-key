@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { updateProperty } from './update-property'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
 import { createSequentialPropertyCommandStore } from '#/shared/testing/sequential-property-command-store'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import { isPropertyError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -19,15 +19,15 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const propertyRepo = createInMemoryPropertyRepo()
-  const events = createCapturingEventBus()
+  const outbox = createRecordedOutbox()
   const deps = {
     propertyRepo,
-    commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, events }),
+    commandStore: createSequentialPropertyCommandStore({ repo: propertyRepo, outbox }),
     clock: () => FIXED_TIME,
     staffPublicApi: staffApiMock(accessible),
   }
   const useCase = updateProperty(deps)
-  return { useCase, propertyRepo, events }
+  return { useCase, propertyRepo, outbox }
 }
 
 describe('updateProperty', () => {
@@ -168,17 +168,17 @@ describe('updateProperty', () => {
     )
   })
 
-  it('emits property.updated event', async () => {
-    const { useCase, propertyRepo, events } = setup()
+  it('records a property.updated fact', async () => {
+    const { useCase, propertyRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const prop = buildTestProperty({})
     propertyRepo.seed([prop])
 
     await useCase({ propertyId: prop.id, name: 'Updated' }, ctx)
 
-    const emitted = events.capturedByTag('property.updated')
-    expect(emitted).toHaveLength(1)
-    expect(emitted[0].name).toBe('Updated')
+    const recorded = outbox.byTag('property.updated')
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0].name).toBe('Updated')
   })
 
   // ── Field-level validation tests ────────────────────────────────────
@@ -310,7 +310,7 @@ describe('updateProperty', () => {
   })
 
   it('returns existing property unchanged when no fields are different', async () => {
-    const { useCase, propertyRepo, events } = setup()
+    const { useCase, propertyRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const prop = buildTestProperty({
       name: 'Same Name',
@@ -324,8 +324,8 @@ describe('updateProperty', () => {
       ctx,
     )
 
-    // Should return the same property without persisting or emitting events
+    // Should return the same property without persisting or recording a fact.
     expect(result.name).toBe('Same Name')
-    expect(events.capturedByTag('property.updated')).toHaveLength(0)
+    expect(outbox.byTag('property.updated')).toHaveLength(0)
   })
 })

@@ -9,7 +9,6 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { EventBus } from '#/shared/events/event-bus'
 import {
   organizationId,
   portalGroupId,
@@ -110,12 +109,6 @@ const { getPool } = setupIntegrationDb({
   ],
 })
 
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
-
 function accessArtifactCommandParts(
   token: ReturnType<typeof issueToken>,
   id: string,
@@ -183,7 +176,7 @@ const createdFact = (portal = makePortal()) =>
 
 async function seedPortalGroupMembership(): Promise<void> {
   const portal = makePortal()
-  await createAtomicPortalCommandStore(getDb(), silentEvents).createPortal({
+  await createAtomicPortalCommandStore(getDb()).createPortal({
     organizationId: ORG_A,
     portal,
     initialResponsibleManagerId: MANAGER,
@@ -310,7 +303,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       occurredAt: CREATED_AT,
     })
 
-    await createAtomicPortalCommandStore(getDb(), silentEvents).createPortal({
+    await createAtomicPortalCommandStore(getDb()).createPortal({
       organizationId: ORG_A,
       portal,
       initialResponsibleManagerId: null,
@@ -348,7 +341,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     } as unknown as ReturnType<typeof createdFact>
 
     await expect(
-      createAtomicPortalCommandStore(getDb(), silentEvents).createPortal({
+      createAtomicPortalCommandStore(getDb()).createPortal({
         organizationId: ORG_A,
         portal,
         initialResponsibleManagerId: MANAGER,
@@ -370,7 +363,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('publishes Portal state and exact immutable snapshot evidence atomically', async () => {
     const portal = makePortal({ publicationState: 'draft' })
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -477,7 +470,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('rolls back Portal state and snapshot activation when the dedicated publication fact conflicts', async () => {
     const portal = makePortal({ publicationState: 'draft' })
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -542,7 +535,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('rejects archive when portal.updated is supplied without its dedicated semantic fact', async () => {
     const portal = makePortal({ publicationState: 'disabled' })
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -592,7 +585,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('commits archive and restore facts once while stale replay changes nothing', async () => {
     const portal = makePortal({ publicationState: 'disabled' })
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -712,7 +705,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('rolls back to an earlier immutable snapshot with one exact target fact', async () => {
     const portal = makePortal({ publicationState: 'draft' })
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -912,7 +905,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('uses one Portal-first lock order for concurrent publishing and content edits', async () => {
     const portal = makePortal({ publicationState: 'draft' })
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -1078,7 +1071,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('rolls back archive and token revocation when one fact conflicts', async () => {
     const portal = makePortal({ publicationState: 'published' })
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -1159,7 +1152,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('commits archive, token revocation, and both facts as one replay-unique set', async () => {
     const portal = makePortal({ publicationState: 'published' })
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -1247,7 +1240,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       sourceAggregateVersion: DELETED_AT.toISOString(),
       occurredAt: DELETED_AT,
     })
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
 
     await store.deletePortalGroup({
       organizationId: ORG_A,
@@ -1300,7 +1293,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
                'portal', $4, $5)`,
       [event.eventId, ORG_A, PROPERTY_A, GROUP_A, DELETED_AT],
     )
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
 
     await expect(
       store.deletePortalGroup({
@@ -1339,7 +1332,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     })
 
     await expect(
-      createAtomicPortalCommandStore(getDb(), silentEvents).deletePortalGroup({
+      createAtomicPortalCommandStore(getDb()).deletePortalGroup({
         organizationId: ORG_A,
         propertyId: PROPERTY_A,
         portalGroupId: GROUP_A,
@@ -1369,52 +1362,9 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     expect(fact.rows).toHaveLength(0)
   })
 
-  it('retains the Portal Group state and durable fact when local post-commit delivery fails', async () => {
-    await seedPortalGroupMembership()
-    const event = portalGroupDeleted({
-      portalGroupId: GROUP_A,
-      organizationId: ORG_A,
-      propertyId: PROPERTY_A,
-      sourceAggregateVersion: DELETED_AT.toISOString(),
-      occurredAt: DELETED_AT,
-    })
-    const unavailableLocalEvents: EventBus = {
-      on: () => {},
-      emit: async () => {
-        throw new Error('local delivery unavailable')
-      },
-      clear: () => {},
-    }
-
-    await createAtomicPortalCommandStore(
-      getDb(),
-      unavailableLocalEvents,
-    ).deletePortalGroup({
-      organizationId: ORG_A,
-      propertyId: PROPERTY_A,
-      portalGroupId: GROUP_A,
-      expectedUpdatedAt: GROUP_UPDATED_AT,
-      revision: DELETED_AT,
-      occurredAt: DELETED_AT,
-      event,
-    })
-
-    const group = await getPool().query(
-      `SELECT deleted_at FROM portal_groups
-       WHERE organization_id = $1 AND id = $2`,
-      [ORG_A, GROUP_A],
-    )
-    const fact = await getPool().query(
-      `SELECT id FROM outbox_events WHERE organization_id = $1 AND id = $2`,
-      [ORG_A, event.eventId],
-    )
-    expect(group.rows).toEqual([{ deleted_at: DELETED_AT }])
-    expect(fact.rows).toEqual([{ id: event.eventId }])
-  })
-
   it('rolls back a new Portal Group and all initial memberships when one fact conflicts', async () => {
     const portal = makePortal()
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -1490,7 +1440,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('commits a new Portal Group, initial membership, and content-free facts together', async () => {
     const portal = makePortal()
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -1569,7 +1519,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     })
 
     await expect(
-      createAtomicPortalCommandStore(getDb(), silentEvents).updatePortalGroup({
+      createAtomicPortalCommandStore(getDb()).updatePortalGroup({
         organizationId: ORG_A,
         propertyId: PROPERTY_A,
         portalGroupId: GROUP_A,
@@ -1596,7 +1546,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('rolls back a new link category and the Portal revision when its fact conflicts', async () => {
     const portal = makePortal()
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -1657,7 +1607,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('rolls back token issuance and the Portal revision when its fact conflicts', async () => {
     const portal = makePortal()
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -1741,7 +1691,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       sourceAggregateVersion: DELETED_AT.toISOString(),
       occurredAt: DELETED_AT,
     })
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     const results = await Promise.allSettled([
       store.updatePortalGroup({
         organizationId: ORG_A,
@@ -1781,7 +1731,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('commits membership add and removal with each fenced Portal Group fact', async () => {
     const portal = makePortal()
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -1878,7 +1828,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('serializes competing group additions for the same Portal', async () => {
     const portal = makePortal()
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -1955,7 +1905,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('commits category/link creation and reorder facts against one Portal revision chain', async () => {
     const portal = makePortal()
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -2097,7 +2047,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('commits link/category update and delete state with identifier-only facts and Portal CAS', async () => {
     const portal = makePortal()
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -2332,7 +2282,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('does not let delayed workflow facts restore a stale Portal command revision', async () => {
     const portal = makePortal({ publicationState: 'published' })
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,
@@ -2387,7 +2337,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       }),
     })
 
-    const workflowStore = createPortalWorkflowFactStore(getDb(), silentEvents)
+    const workflowStore = createPortalWorkflowFactStore(getDb())
     const workflowCommand = {
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
@@ -2471,7 +2421,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
   it('commits issue, rotation, and replay-safe revocation as one revision chain', async () => {
     const portal = makePortal()
-    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
       organizationId: ORG_A,
       portal,

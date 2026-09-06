@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
-import { createEventBus } from '#/shared/events/event-bus'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createGoogleConnectorDepartureStore } from './google-connector-departure.store'
@@ -69,7 +68,7 @@ describe('PostgreSQL Google connector departure store', () => {
   })
 
   it('fences every current grant once, preserves first-connection provenance, and retries idempotently', async () => {
-    const store = createGoogleConnectorDepartureStore(getDb(), createEventBus())
+    const store = createGoogleConnectorDepartureStore(getDb())
     const first = await store.fenceForDeparture({
       organizationId: ORGANIZATION_ID,
       connectorUserId: CONNECTOR_USER_ID,

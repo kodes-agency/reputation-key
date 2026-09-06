@@ -13,6 +13,7 @@ import {
   ORGANIZATION_PURGE_PENDING_CONSUMER,
   registerIdentityAccountNotificationConsumers,
 } from './identity-account-outbox-consumers'
+import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -39,10 +40,16 @@ const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
   ...overrides,
 })
 
-const makeDeps = () => ({
-  queue: { add: vi.fn(async () => undefined) },
-  receipts: { insertReceipt: vi.fn(async () => undefined) },
-})
+const makeDeps = () => {
+  const fakes = createNotificationConsumerDeps()
+  return {
+    queue: fakes.queue,
+    receipts: { insertReceipt: vi.fn(async () => undefined) },
+    userLookup: fakes.userLookup,
+    logger: fakes.logger,
+    fakes,
+  }
+}
 
 describe('Identity account mandatory notification consumers', () => {
   beforeEach(() => {
@@ -173,7 +180,8 @@ describe('Purge Pending final-notice consumer', () => {
   })
 
   it('sends the notice at purge_pending', async () => {
-    const deps = { ...makeDeps(), notify: vi.fn(async () => {}) }
+    const deps = makeDeps()
+    deps.fakes.userLookup.findByRole.mockResolvedValue(['admin-1'])
 
     const result = await handleOrganizationPurgePendingNotice(
       deps,
@@ -181,11 +189,14 @@ describe('Purge Pending final-notice consumer', () => {
     )
 
     expect(result).toEqual({ status: 'applied' })
-    expect(deps.notify).toHaveBeenCalledWith(
+    expect(deps.queue.add).toHaveBeenCalledWith(
+      'insert-notification',
       expect.objectContaining({
+        userId: 'admin-1',
+        type: 'account.organization_purge_pending',
         eventId: EVENT_ID,
-        closureLineageId: '11111111-1111-4111-8111-111111111111',
       }),
+      { jobId: `${EVENT_ID}-admin-1` },
     )
     expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
       EVENT_ID,
@@ -197,7 +208,7 @@ describe('Purge Pending final-notice consumer', () => {
   it.each(['closure_requested', 'closing', 'purging', 'closed', 'active'])(
     'records an obsolete receipt and sends nothing for %s',
     async (state) => {
-      const deps = { ...makeDeps(), notify: vi.fn(async () => {}) }
+      const deps = makeDeps()
 
       const result = await handleOrganizationPurgePendingNotice(
         deps,
@@ -205,7 +216,7 @@ describe('Purge Pending final-notice consumer', () => {
       )
 
       expect(result).toEqual({ status: 'obsolete' })
-      expect(deps.notify).not.toHaveBeenCalled()
+      expect(deps.queue.add).not.toHaveBeenCalled()
       expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
         EVENT_ID,
         ORGANIZATION_PURGE_PENDING_CONSUMER,
@@ -215,7 +226,7 @@ describe('Purge Pending final-notice consumer', () => {
   )
 
   it('refuses a mis-attributed envelope rather than notifying the wrong tenant', async () => {
-    const deps = { ...makeDeps(), notify: vi.fn(async () => {}) }
+    const deps = makeDeps()
 
     await expect(
       handleOrganizationPurgePendingNotice(deps, {
@@ -223,6 +234,6 @@ describe('Purge Pending final-notice consumer', () => {
         organizationId: 'org-other',
       }),
     ).rejects.toThrow('attribution mismatch')
-    expect(deps.notify).not.toHaveBeenCalled()
+    expect(deps.queue.add).not.toHaveBeenCalled()
   })
 })

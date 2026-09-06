@@ -2,11 +2,9 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { googleConnectionId } from '#/shared/domain/ids'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import type { GoogleConnectorDepartureStore } from '../application/ports/google-connector-departure.port'
 import { integrationGoogleAccountReauthorizationRequired } from '../domain/events'
-import type { IntegrationGoogleAccountReauthorizationRequired } from '../domain/events'
 
 type LockedConnection = Readonly<{
   id: string
@@ -21,11 +19,9 @@ type LockedConnection = Readonly<{
  */
 export const createGoogleConnectorDepartureStore = (
   db: Database,
-  events: EventBus,
 ): GoogleConnectorDepartureStore => ({
   fenceForDeparture: async (input) => {
-    const emitted: IntegrationGoogleAccountReauthorizationRequired[] = []
-    const result = await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       const locked = await tx.execute(sql`
         SELECT id, status
         FROM google_connections
@@ -68,14 +64,10 @@ export const createGoogleConnectorDepartureStore = (
             occurredAt: input.occurredAt,
           })
           await insertOutboxRow(tx, event, { recordedAt: input.occurredAt })
-          emitted.push(event)
         }
       }
 
       return { connectionIds, transitionedConnectionIds }
     })
-
-    for (const event of emitted) await emitAfterCommit(events, event)
-    return result
   },
 })

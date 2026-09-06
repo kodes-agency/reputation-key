@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
@@ -23,12 +23,12 @@ const material = {
 }
 
 describe('issuePortalToken', () => {
-  it('persists a tenant-bound token, emits its event, and returns only public material', async () => {
+  it('persists a tenant-bound token and outbox facts, then returns only public material', async () => {
     const portalRepo = createInMemoryPortalRepo()
     const portal = buildTestPortal({ updatedAt: CURRENT_REVISION })
     portalRepo.seed([portal])
     const insert = vi.fn(async () => undefined)
-    const events = createCapturingEventBus()
+    const outbox = createRecordedOutbox()
     const portalTokenRepo = {
       findLatestForPortal: vi.fn(async () => null),
       insert,
@@ -46,7 +46,7 @@ describe('issuePortalToken', () => {
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
         portalTokenRepo,
-        events,
+        outbox,
       }),
       idGen: () => ids.shift()!,
       clock: () => NOW,
@@ -76,13 +76,13 @@ describe('issuePortalToken', () => {
         printBatch: null,
       }),
     )
-    expect(events.capturedByTag('portal.token.issued')).toEqual([
+    expect(outbox.byTag('portal.token.issued')).toEqual([
       expect.objectContaining({
         sourceAggregateVersion: NEXT_REVISION.toISOString(),
         occurredAt: NOW,
       }),
     ])
-    expect(events.capturedByTag('portal.access_artifact.published')).toEqual([
+    expect(outbox.byTag('portal.access_artifact.published')).toEqual([
       expect.objectContaining({
         accessArtifactId: '6a100000-0000-4000-8000-000000000002',
         portalId: portal.id,
@@ -121,7 +121,7 @@ describe('issuePortalToken', () => {
     const portalTokenRepo = {
       findLatestForPortal: vi.fn(async () => active),
     } as unknown as PortalTokenRepository
-    const events = createCapturingEventBus()
+    const outbox = createRecordedOutbox()
     const useCase = issuePortalToken({
       portalRepo,
       portalTokenRepo,
@@ -130,7 +130,7 @@ describe('issuePortalToken', () => {
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
         portalTokenRepo,
-        events,
+        outbox,
       }),
       idGen: () => 'portal-token-2',
       clock: () => NOW,

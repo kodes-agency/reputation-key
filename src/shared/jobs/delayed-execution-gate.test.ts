@@ -16,7 +16,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   gateJob,
   createJobExecutionEnvelope,
-  gateBusConsumer,
   gateDispatcherConsumer,
   TENANT_CROSS_ORG,
 } from './delayed-execution-gate'
@@ -35,7 +34,6 @@ import {
   resetCapabilityPolicyStore,
   type CapabilityPolicyEnv,
 } from '#/shared/auth/beta-capabilities'
-import type { DomainEvent } from '#/shared/events/events'
 import type { ConsumerEvent } from '#/shared/outbox/envelope'
 
 const PROP = 'd4000000-0000-4000-8000-000000000051'
@@ -375,52 +373,6 @@ describe('gateJob — outcome mapping (stubbed policy)', () => {
       const outcome = await gateJob('health-check', {}, 'worker:default', 'worker')
       expect(outcome.kind, reason).toBe('deny_terminal')
     }
-  })
-})
-
-describe('gateBusConsumer (stubbed policy)', () => {
-  it('builds the request from the consumer catalogue row and the event', async () => {
-    installStub()
-    decideMock.mockResolvedValue(ALLOW)
-    const event = {
-      _tag: 'metric.recorded',
-      eventId: 'evt-1',
-      organizationId: 'org-1',
-      propertyId: PROP,
-      correlationId: null,
-      occurredAt: new Date(),
-    } as unknown as DomainEvent
-
-    const outcome = await gateBusConsumer('metric.event-handlers', event)
-
-    expect(outcome.kind).toBe('allow')
-    expect(lastRequest()).toMatchObject({
-      principal: { kind: 'system', id: 'consumer:metric.event-handlers' },
-      action: 'system:metric.record',
-      organizationId: 'org-1',
-      propertyId: PROP,
-      executionKind: 'consumer',
-      // correlationId falls back to the event id when the event carries none
-      correlationId: 'evt-1',
-    })
-  })
-
-  it('passes unknown consumer modules through so decide() denies unknown_action', async () => {
-    installStub()
-    decideMock.mockResolvedValue(decision({ reason: 'unknown_action' }))
-    const event = {
-      _tag: 'metric.recorded',
-      eventId: 'evt-2',
-      organizationId: 'org-1',
-      correlationId: 'corr-2',
-      occurredAt: new Date(),
-    } as unknown as DomainEvent
-
-    const outcome = await gateBusConsumer('mystery.module', event)
-
-    expect(lastRequest().action).toBe('mystery.module')
-    expect(lastRequest().correlationId).toBe('corr-2')
-    expect(outcome.kind).toBe('deny_terminal')
   })
 })
 

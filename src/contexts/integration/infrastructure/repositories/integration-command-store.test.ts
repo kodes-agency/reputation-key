@@ -10,7 +10,6 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { EventBus } from '#/shared/events/event-bus'
 import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -39,12 +38,6 @@ const HOME_BINDING = Object.freeze({
 let pool: Pool
 let lease: TestLease
 const db = getDb()
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnection {
   return {
@@ -154,7 +147,7 @@ beforeEach(async () => {
 
 describe.sequential('integrationCommandStore (integration)', () => {
   it('connectGoogleAccount commits the connection + connected fact in one transaction', async () => {
-    const store = createAtomicIntegrationCommandStore(db, silentEvents, () => NOW)
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
     const event = connectedEvent()
 
     await store.connectGoogleAccount({
@@ -185,7 +178,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
 
   it('atomically commits a connection and erases its one-use exchange result', async () => {
     const recovery = await prepareExchangeAttempt()
-    const store = createAtomicIntegrationCommandStore(db, silentEvents, () => NOW)
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
 
     await store.connectGoogleAccount({
       connection: makeConnection(),
@@ -218,7 +211,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
 
   it('rolls back both connection and exchange completion when the fact cannot commit', async () => {
     await prepareExchangeAttempt()
-    const store = createAtomicIntegrationCommandStore(db, silentEvents, () => NOW)
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
     const ghost = {
       ...connectedEvent(),
       _tag: 'integration.ghost',
@@ -250,7 +243,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
   })
 
   it('connectGoogleAccount rolls back the insert when the fact insert fails (unregistered type)', async () => {
-    const store = createAtomicIntegrationCommandStore(db, silentEvents, () => NOW)
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
     const ghost = {
       ...connectedEvent(),
       _tag: 'integration.ghost',
@@ -272,7 +265,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
   })
 
   it('connectGoogleAccount maps the global unique race to UniqueViolationError', async () => {
-    const store = createAtomicIntegrationCommandStore(db, silentEvents, () => NOW)
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
       connection: makeConnection(),
       credentialHomeBinding: HOME_BINDING,
@@ -291,7 +284,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
   })
 
   it('reconnectGoogleAccount commits token/visibility update + fact in one transaction', async () => {
-    const store = createAtomicIntegrationCommandStore(db, silentEvents, () => NOW)
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
       connection: makeConnection(),
       credentialHomeBinding: HOME_BINDING,
@@ -337,7 +330,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
   })
 
   it('disconnectGoogleAccount commits status + redaction + fact in one transaction', async () => {
-    const store = createAtomicIntegrationCommandStore(db, silentEvents, () => NOW)
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
       connection: makeConnection(),
       credentialHomeBinding: HOME_BINDING,
@@ -375,7 +368,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
   })
 
   it('disconnectGoogleAccount rolls back status + redaction when the fact insert fails', async () => {
-    const store = createAtomicIntegrationCommandStore(db, silentEvents, () => NOW)
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
       connection: makeConnection(),
       credentialHomeBinding: HOME_BINDING,
@@ -410,7 +403,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
   })
 
   it('disconnectGoogleAccount throws connection_not_found for a missing row — no fact', async () => {
-    const store = createAtomicIntegrationCommandStore(db, silentEvents, () => NOW)
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
 
     await expect(
       store.disconnectGoogleAccount({
@@ -434,7 +427,7 @@ describe.sequential('integrationCommandStore (integration)', () => {
   })
 
   it('updateConnectionVisibility commits the update + fact in one transaction', async () => {
-    const store = createAtomicIntegrationCommandStore(db, silentEvents, () => NOW)
+    const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
       connection: makeConnection(),
       credentialHomeBinding: HOME_BINDING,

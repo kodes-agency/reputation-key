@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import {
   classifyPartialOffboarding,
   repairPartialOffboarding,
@@ -23,8 +23,8 @@ const partial: PartialOffboardingObservation = {
 }
 
 function setup(observations: readonly PartialOffboardingObservation[]) {
-  const events = createCapturingEventBus()
-  const commandStore = createSequentialIdentityCommandStore({ events })
+  const outbox = createRecordedOutbox()
+  const commandStore = createSequentialIdentityCommandStore({ outbox })
   commandStore.seedMember({
     id: MEMBER_ID,
     organizationId: ORG,
@@ -55,7 +55,7 @@ function setup(observations: readonly PartialOffboardingObservation[]) {
     clock: () => NOW,
     operatorUserId: OPERATOR,
   })
-  return { command, commandStore, events, observe, listCandidates }
+  return { command, commandStore, outbox, observe, listCandidates }
 }
 
 describe('classifyPartialOffboarding', () => {
@@ -84,7 +84,7 @@ describe('classifyPartialOffboarding', () => {
 
 describe('repairPartialOffboarding', () => {
   it('reports the inconsistent state content-free without changing anything', async () => {
-    const { command, commandStore, events } = setup([partial])
+    const { command, commandStore, outbox } = setup([partial])
 
     const report = await command.inspect({ organizationId: ORG, userId: USER })
 
@@ -96,11 +96,11 @@ describe('repairPartialOffboarding', () => {
     // Identifiers and counts only — no name, email or resource title.
     expect(JSON.stringify(report)).not.toMatch(/@|departed@test/u)
     expect(commandStore.memberById(MEMBER_ID)).not.toBeNull()
-    expect(events.capturedEvents).toEqual([])
+    expect(outbox.facts).toEqual([])
   })
 
   it('converges by completing the offboarding, never by re-granting', async () => {
-    const { command, commandStore, events } = setup([partial])
+    const { command, commandStore, outbox } = setup([partial])
 
     const report = await command.inspect({
       organizationId: ORG,
@@ -110,14 +110,12 @@ describe('repairPartialOffboarding', () => {
 
     expect(report.repaired).toBe(true)
     expect(commandStore.memberById(MEMBER_ID)).toBeNull()
-    expect(events.capturedEvents.map((event) => event._tag)).toEqual([
-      'identity.member.removed',
-    ])
-    expect(events.capturedEvents[0]).toMatchObject({ removedBy: OPERATOR })
+    expect(outbox.facts.map((event) => event._tag)).toEqual(['identity.member.removed'])
+    expect(outbox.facts[0]).toMatchObject({ removedBy: OPERATOR })
   })
 
   it('is idempotent on retry: the second run finds nothing left to repair', async () => {
-    const { command, commandStore, events } = setup([
+    const { command, commandStore, outbox } = setup([
       partial,
       { ...partial, memberId: null, bindingState: 'released' },
     ])
@@ -137,7 +135,7 @@ describe('repairPartialOffboarding', () => {
     expect(second).toMatchObject({ finding: 'already_offboarded', repaired: false })
     expect(commandStore.memberById(MEMBER_ID)).toBeNull()
     // Exactly one removal fact across both runs.
-    expect(events.capturedEvents).toHaveLength(1)
+    expect(outbox.facts).toHaveLength(1)
   })
 
   it('refuses to repair a member who still holds active access', async () => {

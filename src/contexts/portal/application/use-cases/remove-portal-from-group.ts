@@ -1,5 +1,5 @@
 // Portal context — remove portal from group use case
-// Full pattern: authorize → find group → remove → emit → return
+// Full pattern: authorize → find group → atomically remove with fact → return
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'

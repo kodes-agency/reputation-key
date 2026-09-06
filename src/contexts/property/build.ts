@@ -15,7 +15,6 @@ import type {
   PropertyId,
   UserId,
 } from '#/shared/domain/ids'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createProperty } from './application/use-cases/create-property'
 import { updateProperty } from './application/use-cases/update-property'
@@ -44,7 +43,6 @@ import {
 type PropertyContextDeps = Readonly<{
   db: Database
   repo: PropertyRepository
-  events: EventBus
   clock: () => Date
   idGen: () => string
   /** REG-01: process-local repository/command-store cell fence. */
@@ -70,21 +68,9 @@ type PropertyContextDeps = Readonly<{
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
   const idGen = () => propertyId(deps.idGen())
   // BQC-3.5: every property state mutation + fact commits atomically here.
-  const commandStore = createAtomicPropertyCommandStore(
-    deps.db,
-    deps.events,
-    deps.localCell,
-  )
-  const bindingApi = createPropertyGoogleBindingStore(
-    deps.db,
-    deps.events,
-    deps.localCell,
-  )
-  const lifecycleStore = createPropertyLifecycleCommandStore(
-    deps.db,
-    deps.events,
-    deps.localCell,
-  )
+  const commandStore = createAtomicPropertyCommandStore(deps.db, deps.localCell)
+  const bindingApi = createPropertyGoogleBindingStore(deps.db, deps.localCell)
+  const lifecycleStore = createPropertyLifecycleCommandStore(deps.db, deps.localCell)
   const responsibleManagerRepo = createPropertyResponsibleManagerRepository(deps.db)
   const managerEligibility = {
     identityPublicApi: deps.identityManagerFacts,
@@ -162,7 +148,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       propertyRepo: deps.repo,
       managerRepo: responsibleManagerRepo,
       ...managerEligibility,
-      events: deps.events,
       clock: deps.clock,
     }),
   } as const

@@ -11,8 +11,7 @@ import {
   organizationLifecycleAuthority,
   organizationLifecycleCommandReceipts,
 } from '#/shared/db/schema/organization-lifecycle.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import type {
   CancelOrganizationClosureCommand,
   OrganizationLifecycleCommandStore,
@@ -196,13 +195,11 @@ async function writeReceipt(
 
 export const createOrganizationLifecycleCommandStore = (
   db: Database,
-  events: EventBus,
   options: OrganizationLifecycleCommandStoreOptions = {},
 ): OrganizationLifecycleCommandStore => {
   async function requestClosure(
     command: RequestOrganizationClosureCommand,
   ): Promise<OrganizationLifecycleStatus> {
-    let event: ReturnType<typeof identityOrganizationLifecycleChanged> | null = null
     const result = await db.transaction(async (tx) => {
       await lockOrganizationLifecycle(tx, command.organizationId)
       await requireCurrentAccountAdmin(tx, command)
@@ -249,7 +246,7 @@ export const createOrganizationLifecycleCommandStore = (
       })
       await options.interrupt?.('after_state_and_fence', 'request')
 
-      event = identityOrganizationLifecycleChanged({
+      const event = identityOrganizationLifecycleChanged({
         organizationId: toOrganizationId(command.organizationId),
         closureLineageId: command.operationId,
         state: status.state,
@@ -263,14 +260,12 @@ export const createOrganizationLifecycleCommandStore = (
       await options.interrupt?.('after_fact', 'request')
       return status
     })
-    if (event) await emitAfterCommit(events, event)
     return result
   }
 
   async function cancelClosure(
     command: CancelOrganizationClosureCommand,
   ): Promise<OrganizationLifecycleStatus> {
-    let event: ReturnType<typeof identityOrganizationLifecycleChanged> | null = null
     const result = await db.transaction(async (tx) => {
       await lockOrganizationLifecycle(tx, command.organizationId)
       await requireCurrentAccountAdmin(tx, command)
@@ -306,7 +301,7 @@ export const createOrganizationLifecycleCommandStore = (
       const status = authorityStatus(rows[0]!)
       await options.interrupt?.('after_state_and_fence', 'cancel')
 
-      event = identityOrganizationLifecycleChanged({
+      const event = identityOrganizationLifecycleChanged({
         organizationId: toOrganizationId(command.organizationId),
         closureLineageId: status.closureLineageId!,
         state: status.state,
@@ -320,7 +315,6 @@ export const createOrganizationLifecycleCommandStore = (
       await options.interrupt?.('after_fact', 'cancel')
       return status
     })
-    if (event) await emitAfterCommit(events, event)
     return result
   }
 
@@ -347,7 +341,6 @@ export const createOrganizationLifecycleCommandStore = (
   async function reactivate(
     command: ReactivateOrganizationCommand,
   ): Promise<OrganizationLifecycleStatus> {
-    let event: ReturnType<typeof identityOrganizationLifecycleChanged> | null = null
     const result = await db.transaction(async (tx) => {
       await lockOrganizationLifecycle(tx, command.organizationId)
       await requireCurrentAccountAdmin(tx, command)
@@ -386,7 +379,7 @@ export const createOrganizationLifecycleCommandStore = (
           // The `organization_lifecycle_state_shape` check requires an active
           // row with `reactivation_required = false` to carry NO closure
           // evidence, so the whole lineage clears together. The durable trail
-          // survives in the command receipts and the emitted facts.
+          // survives in the command receipts and durable facts.
           closureLineageId: null,
           closureRequestedAt: null,
           recoverableUntil: null,
@@ -418,7 +411,7 @@ export const createOrganizationLifecycleCommandStore = (
       // The lineage and its recovery window describe the closure this
       // reactivation closes out; the fact that distinguishes it from a cancel
       // is `reactivationRequired: false`.
-      event = identityOrganizationLifecycleChanged({
+      const event = identityOrganizationLifecycleChanged({
         organizationId: toOrganizationId(command.organizationId),
         closureLineageId: command.closureLineageId,
         state: status.state,
@@ -432,14 +425,12 @@ export const createOrganizationLifecycleCommandStore = (
       await options.interrupt?.('after_fact', 'reactivate')
       return status
     })
-    if (event) await emitAfterCommit(events, event)
     return result
   }
 
   async function transition(
     command: TransitionOrganizationLifecycleCommand,
   ): Promise<OrganizationLifecycleStatus> {
-    let event: ReturnType<typeof identityOrganizationLifecycleChanged> | null = null
     const result = await db.transaction(async (tx) => {
       await lockOrganizationLifecycle(tx, command.organizationId)
       const current = await readAuthorityForUpdate(tx, command.organizationId)
@@ -494,7 +485,7 @@ export const createOrganizationLifecycleCommandStore = (
       const status = authorityStatus(rows[0]!)
       await options.interrupt?.('after_state_and_fence', 'transition')
 
-      event = identityOrganizationLifecycleChanged({
+      const event = identityOrganizationLifecycleChanged({
         organizationId: toOrganizationId(command.organizationId),
         closureLineageId: command.closureLineageId,
         state: status.state,
@@ -507,7 +498,6 @@ export const createOrganizationLifecycleCommandStore = (
       await options.interrupt?.('after_fact', 'transition')
       return status
     })
-    if (event) await emitAfterCommit(events, event)
     return result
   }
 

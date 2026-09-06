@@ -2,7 +2,6 @@
 // Per architecture: factory pattern `buildNotificationContext(deps)` returning publicApi + internal.
 
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
@@ -20,20 +19,19 @@ import type { FeedbackPortalLookupPort } from './application/ports/feedback-port
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
-import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { registerNotificationConsumers } from './infrastructure/outbox-consumers'
 import { registerWorkflowNotificationConsumers } from './infrastructure/workflow-outbox-consumers'
 import { registerPortalNotificationConsumers } from './infrastructure/portal-outbox-consumers'
-import { registerPortalNotificationHandlers } from './infrastructure/event-handlers/portal-event-handlers'
-import { registerPropertyNotificationHandlers } from './infrastructure/event-handlers/property-event-handlers'
 import { registerPropertyNotificationConsumers } from './infrastructure/property-outbox-consumers'
-import { registerIntegrationNotificationConsumers } from './infrastructure/integration-outbox-consumers'
+import {
+  registerIntegrationNotificationConsumers,
+  type GoogleConnectionPropertyLookup,
+} from './infrastructure/integration-outbox-consumers'
 import { registerBulkAssignmentNotificationConsumer } from './infrastructure/bulk-assignment-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
 import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
-import type { GoogleConnectionPropertyLookup } from './infrastructure/event-handlers/on-google-reauthorization-required'
 import { createNotificationGapRepository } from './infrastructure/repositories/notification-gap.repository'
 import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'
 import {
@@ -89,7 +87,6 @@ const NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT = MAX_NOTIFICATION_DELIVERY_LAG_SCAN_
 
 type BuildInput = Readonly<{
   db: Database
-  events: EventBus
   outboxRepo: OutboxRepository
   queue: Queue | undefined
   clock: () => Date
@@ -161,43 +158,16 @@ export const buildNotificationContext = (input: BuildInput) => {
     return transition(n, () => now).isErr() ? null : now
   }
 
-  // Register event handlers that enqueue BullMQ jobs.
-  // BQC-3.6: the queue is wrapped so every insert-notification enqueue
-  // inherits the catalogue retry policy (attempts/backoff+jitter/timeout).
+  // Every durable delivery inherits the catalogue retry policy and records its
+  // Redis-acceptance marker before the consumer acknowledges the source fact.
   const policyQueue = input.queue ? withCatalogueJobOptions(input.queue) : undefined
-  // Immediate EventBus delivery and durable replay deliberately share this
-  // wrapper. Whichever path wins the stable BullMQ job identity therefore
-  // carries the same Postgres materialization marker.
   const notificationDeliveryQueue = policyQueue
     ? withBetaOutboxNotificationDelivery(policyQueue, input.outboxRepo)
     : undefined
-  if (notificationDeliveryQueue) {
-    registerNotificationHandlers({
-      events: input.events,
-      queue: notificationDeliveryQueue,
-      userLookup,
-      responsibleManagers: input.responsibleManagers,
-      inboxItemLookup,
-      googleConnectionProperties: input.googleConnectionProperties,
-      clock: input.clock,
-      logger: input.logger,
-    })
-    registerPortalNotificationHandlers({
-      events: input.events,
-      queue: notificationDeliveryQueue,
-      userLookup,
-      logger: input.logger,
-    })
-    registerPropertyNotificationHandlers({
-      events: input.events,
-      queue: notificationDeliveryQueue,
-      userLookup,
-      logger: input.logger,
-    })
-  }
+  // Outbox consumers are registered below once their shared dependencies exist.
 
-  // The one fan-out identity the bus handler, the durable consumer and the
-  // reconciliation sweep all share (infrastructure/inbox-notification-fanout).
+  // The inbox-item durable consumer and reconciliation sweep share one fan-out
+  // definition (infrastructure/inbox-notification-fanout).
   const fanoutDeps = notificationDeliveryQueue
     ? {
         queue: notificationDeliveryQueue,

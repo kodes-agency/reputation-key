@@ -19,7 +19,7 @@ import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -76,12 +76,6 @@ const ORG = SCOPE.organizationId
 
 let lease: TestLease
 let pool: Pool
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
 
@@ -520,7 +514,6 @@ function reviewDeps(): InboxConsumerDeps {
   return {
     commandStore: createAtomicInboxCommandStore(
       database,
-      silentEvents,
       allowAllCommandAuthority,
       () => AT.consumerClock,
     ),
@@ -556,7 +549,6 @@ function guestDeps(
   return {
     commandStore: createAtomicInboxCommandStore(
       database,
-      silentEvents,
       allowAllCommandAuthority,
       () => AT.consumerClock,
     ),
@@ -757,7 +749,7 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
     // Cycle 1 was superseded and cycle 2 closed on a confirmed reply, so no
     // slot may still be releasable however far the clock is advanced.
     await expect(
-      createResponseTargetStore(getDb(), silentEvents).releaseDueReminders({
+      createResponseTargetStore(getDb()).releaseDueReminders({
         now: new Date('2027-01-01T00:00:00.000Z'),
         limit: 100,
       }),
@@ -931,17 +923,16 @@ describe.sequential('Inbox fresh-database replay matrix (PostgreSQL)', () => {
     ).toEqual([true, true])
     expect(state.outcomes).toEqual([])
     await expect(
-      createResponseTargetStore(getDb(), silentEvents).releaseDueReminders({
+      createResponseTargetStore(getDb()).releaseDueReminders({
         now: new Date('2027-01-01T00:00:00.000Z'),
         limit: 100,
       }),
     ).resolves.toEqual({ released: 0 })
     await expect(
-      createFeedbackHandlingStore(
-        getDb(),
-        silentEvents,
-        allowAllCommandAuthority,
-      ).getState(SCOPE.feedbackItemId, ORG),
+      createFeedbackHandlingStore(getDb(), allowAllCommandAuthority).getState(
+        SCOPE.feedbackItemId,
+        ORG,
+      ),
     ).resolves.toMatchObject({ closeReason: 'guest_withdrawn', currentOutcome: null })
   })
 

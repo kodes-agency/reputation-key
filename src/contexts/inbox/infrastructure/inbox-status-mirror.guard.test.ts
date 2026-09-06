@@ -32,7 +32,7 @@ const REPO_SRC = join(INBOX_ROOT, '..', '..')
  */
 const FENCED_MIRROR_WRITERS: Readonly<Record<string, string>> = {
   'contexts/inbox/infrastructure/inbox-command-store.ts':
-    'Receipt-coordinated command store: every mirror write co-commits with the Handling Cycle head, its transition row, and the emitted fact.',
+    'Receipt-coordinated command store: every mirror write co-commits with the Handling Cycle head, its transition row, and the outbox fact.',
   'contexts/inbox/infrastructure/feedback-handling.store.ts':
     'Private-feedback outcome store: closes the head and mirrors the status in one locked transaction.',
   'contexts/inbox/infrastructure/review-handling-cycle.store.ts':
@@ -84,14 +84,13 @@ describe('inbox_items.status is a read-only-retained compatibility mirror', () =
     }
   })
 
-  it('keeps the application, server, domain and event-handler layers out of the mirror entirely', () => {
+  it('keeps the application, server, and domain layers out of the mirror entirely', () => {
     const layered = productionFiles.filter((file) => {
       const path = relativeToSrc(file)
       return (
         path.startsWith('contexts/inbox/application/') ||
         path.startsWith('contexts/inbox/server/') ||
-        path.startsWith('contexts/inbox/domain/') ||
-        path.startsWith('contexts/inbox/infrastructure/event-handlers/')
+        path.startsWith('contexts/inbox/domain/')
       )
     })
     const offenders = layered

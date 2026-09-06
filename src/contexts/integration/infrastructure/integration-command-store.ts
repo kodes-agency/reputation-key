@@ -1,8 +1,7 @@
 // Atomic integration command store (BQC-3.5).
 //
-// One PostgreSQL transaction per command: google_connections state mutation
-// plus outbox_events insert. After commit, the in-process EventBus receives
-// the same fact; a crash after commit is recovered by the durable relay.
+// One PostgreSQL transaction per command commits the google_connections state
+// mutation and its durable outbox_events fact.
 
 import { and, eq, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
@@ -10,8 +9,7 @@ import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { googleOauthExchangeAttempts } from '#/shared/db/schema/google-content-control.schema'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { integrationError } from '../domain/errors'
 import { uniqueViolationError } from '../application/ports/google-connection.repository'
@@ -111,7 +109,6 @@ async function completeOAuthExchangeAttempt(
 
 export const createAtomicIntegrationCommandStore = (
   db: Database,
-  events: EventBus,
   clock: Clock,
   options?: Readonly<{
     applyCredentialHome?: ApplyOrganizationGoogleCredentialHome
@@ -161,7 +158,6 @@ export const createAtomicIntegrationCommandStore = (
           }
           throw err
         }
-        await emitAfterCommit(events, command.event)
       })
     },
 
@@ -223,7 +219,6 @@ export const createAtomicIntegrationCommandStore = (
           }
           throw error
         }
-        await emitAfterCommit(events, command.event)
         return googleConnectionFromRow(updated)
       })
     },
@@ -259,7 +254,6 @@ export const createAtomicIntegrationCommandStore = (
           await insertOutboxRow(tx, command.event)
           return redactedRows[0]
         })
-        await emitAfterCommit(events, command.event)
         return googleConnectionFromRow(redacted)
       })
     },
@@ -279,7 +273,6 @@ export const createAtomicIntegrationCommandStore = (
           await insertOutboxRow(tx, command.event)
           return rows[0]
         })
-        await emitAfterCommit(events, command.event)
         return googleConnectionFromRow(updated)
       })
     },

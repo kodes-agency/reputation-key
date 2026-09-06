@@ -18,12 +18,9 @@ import { getPool } from '#/shared/db/pool'
 import { getLogger } from '#/shared/observability/logger'
 import { getRedis } from '#/shared/cache/redis'
 import { closeJobQueueConnections } from '#/shared/jobs/queue'
-import { createEventBus } from '#/shared/events/event-bus'
-import { createBusAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createConsumerRegistry } from '#/shared/outbox'
-import { resolveCutoverState } from '#/shared/outbox/cutover-flags'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import { createTanstackRequestContext } from '#/shared/auth/tanstack-request-context'
@@ -120,11 +117,6 @@ function buildContainer(
   const pool = options?.pool ?? getPool()
   const logger = getLogger()
   const redis = options && 'redis' in options ? options.redis : getRedis()
-  // BQC-3.2: the composition root wires the bus authorizer to the delayed
-  // execution gate; bare createEventBus() (tests, Storybook, browser) stays
-  // ungoverned and free of server-only policy imports.
-  const eventBus =
-    options?.eventBus ?? createEventBus({ authorizeConsumer: createBusAuthorizer() })
   const clock = options?.clock ?? (() => new Date())
   const env = options?.env ?? getEnv()
   // Boot-time all-or-none validation only. Cross-cell effects remain dark;
@@ -275,7 +267,6 @@ function buildContainer(
   const identity = buildIdentityContext({
     db,
     identityPort,
-    events: eventBus,
     clock,
     idGen: randomUUID,
     authSession,
@@ -316,7 +307,6 @@ function buildContainer(
   // ARC-03-T10: operators refuse Google; application processes require its substrate.
   const googleProviderAuthority = buildGoogleProviderAuthority({
     db,
-    eventBus,
     clock,
     logger,
     env,
@@ -368,7 +358,6 @@ function buildContainer(
   const property = buildPropertyContext({
     db,
     repo: createPropertyRepository(db, { localCell: env.PROCESSING_CELL }),
-    events: eventBus,
     clock,
     idGen: randomUUID,
     localCell: env.PROCESSING_CELL,
@@ -381,7 +370,6 @@ function buildContainer(
 
   const portal = buildPortalContext({
     db,
-    events: eventBus,
     outboxRepo,
     clock,
     propertyApi: property.publicApi,
@@ -406,7 +394,6 @@ function buildContainer(
 
   const guest = buildGuestContext({
     db,
-    events: eventBus,
     clock,
     idGen: randomUUID,
     monotonicNow: performance.now.bind(performance),
@@ -437,7 +424,6 @@ function buildContainer(
   const integration = buildIntegrationContext({
     db,
     outboxRepo,
-    events: eventBus,
     clock,
     idGen: randomUUID,
     invalidationOwnerGen: () => randomBytes(32).toString('base64url'),
@@ -500,7 +486,6 @@ function buildContainer(
   })
   const review = buildReviewContext({
     db,
-    events: eventBus,
     outboxRepo,
     clock,
     idGen: randomUUID,
@@ -559,15 +544,8 @@ function buildContainer(
 
   const inbox = buildInboxContext({
     db,
-    events: eventBus,
     clock,
     idGen: randomUUID,
-    cutoverState: (family) =>
-      resolveCutoverState(family, {
-        DURABLE_CUTOVER_INBOX: env.DURABLE_CUTOVER_INBOX,
-        DURABLE_CUTOVER_INBOX_REVIEW_CREATED: env.DURABLE_CUTOVER_INBOX_REVIEW_CREATED,
-        DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED: env.DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED,
-      }),
     staffPublicApi: staff.publicApi,
     authorizeCommand: createInboxCommandAuthority({
       decideManagerPropertyAuthorities:
@@ -639,7 +617,6 @@ function buildContainer(
       portalResponsibility: portal.responsibility,
       inboxAssignments: inbox.assignments,
       propertyAccess: identity.authority,
-      emit: (event) => eventBus.emit(event as Parameters<typeof eventBus.emit>[0]),
       eligibility: {
         listActiveManagers: identity.publicApi.managerFacts.listActiveManagers,
         getAccessiblePropertyIds: staff.publicApi.getAccessiblePropertyIds,
@@ -658,7 +635,6 @@ function buildContainer(
   const { metricApi, goal, goalCorrectionPolicy, dashboard, activity, notification } =
     buildReadAndNotifyContexts({
       db,
-      events: eventBus,
       clock,
       idGen: randomUUID,
       logger,
@@ -705,7 +681,6 @@ function buildContainer(
     logger,
     idGen: randomUUID,
     redis,
-    eventBus,
     outboxRepo,
     clock,
     opsQueues,

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted. Amended 2026-09-07 (WP3.1): there is no in-process event bus; the
+simulation container delivers recorded outbox facts to the container's durable
+consumers through `drainOutbox()` (real relay + real dispatcher, inline).
 
 ## Context
 
@@ -44,10 +46,10 @@ queue).
 
 ### 3. Simulation container factory (`shared/testing/simulation-container.ts`)
 
-`createSimulationContainer({ clock, db, redis, eventBus, identityPort, email })`
+`createSimulationContainer({ clock, db, redis, identityPort, email })`
 builds a container with deterministic backends:
 
-- Real event bus (handlers fire synchronously in-process)
+- Inline outbox drain (`drainOutbox()` relays and dispatches recorded facts to this container's consumers)
 - In-memory queue (jobs recorded + processed inline, no Redis)
 - Injectable clock (fast-forward time)
 - Optional identity/email overrides
@@ -64,7 +66,7 @@ Records emails as `InvitationEmailParams[]` for assertion.
 
 **Positive:**
 
-- The full reactive pipeline (events → handlers → jobs → side effects) runs
+- The full pipeline (outbox facts → consumers → jobs → side effects) runs
   in-process without Redis/BullMQ/better-auth/Google/Resend.
 - `advanceClock(ms)` triggers time-dependent jobs deterministically.
 - All existing in-memory doubles (18+) are now reachable from a single factory.

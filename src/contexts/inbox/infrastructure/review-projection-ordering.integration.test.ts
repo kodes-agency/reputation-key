@@ -4,7 +4,7 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import type { ConsumerEvent } from '#/shared/outbox'
 import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -47,12 +47,6 @@ const ERASED_AT = new Date('2026-08-10T12:00:00.000Z')
 
 let lease: TestLease
 let pool: Pool
-
-const events: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
   allowed: true,
@@ -226,7 +220,6 @@ function deps(): InboxConsumerDeps {
   return {
     commandStore: createAtomicInboxCommandStore(
       database,
-      events,
       allowAllCommandAuthority,
       () => DELIVERED_AT,
     ),

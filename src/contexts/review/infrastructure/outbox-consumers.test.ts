@@ -128,7 +128,9 @@ describe('reply publication requested durable consumer', () => {
       eventType: 'integration.google_account.disconnected',
       consumerName: ON_GOOGLE_ACCOUNT_DISCONNECTED_CONSUMER,
     })
-    expect(subject.logger.info).toHaveBeenCalledWith('Review consumers registered (2 consumers)')
+    expect(subject.logger.info).toHaveBeenCalledWith(
+      'Review consumers registered (2 consumers)',
+    )
   })
 
   it('delivers the committed cycle with a deterministic job identity', async () => {
@@ -208,10 +210,9 @@ describe('reply publication requested durable consumer', () => {
   })
 })
 
-// BQC-3.8: a revoked Google connection cancels every in-flight reply
-// publication on the connection's reviews. Durable delivery replaces the
-// former in-process bus handler; the use case is idempotent, so redelivery
-// after a crash between cancel and receipt converges.
+// BQC-3.8: durable delivery cancels every in-flight reply publication on a
+// revoked Google connection. The use case is idempotent, so redelivery after
+// a crash between cancellation and receipt converges.
 describe('google account disconnected durable consumer', () => {
   const disconnected = (): ConsumerEvent =>
     event({
@@ -226,7 +227,9 @@ describe('google account disconnected durable consumer', () => {
   it('runs the publication cancellation for the connection with cause disconnect', async () => {
     const subject = deps()
 
-    await expect(handleGoogleAccountDisconnected(subject as never, disconnected())).resolves.toEqual({
+    await expect(
+      handleGoogleAccountDisconnected(subject as never, disconnected()),
+    ).resolves.toEqual({
       status: 'applied',
     })
 
@@ -259,9 +262,9 @@ describe('google account disconnected durable consumer', () => {
     const subject = deps()
     subject.cancelPublicationsForConnection.mockRejectedValueOnce(new Error('db down'))
 
-    await expect(handleGoogleAccountDisconnected(subject as never, disconnected())).rejects.toThrow(
-      'db down',
-    )
+    await expect(
+      handleGoogleAccountDisconnected(subject as never, disconnected()),
+    ).rejects.toThrow('db down')
     expect(subject.receipts.insertReceipt).not.toHaveBeenCalled()
   })
 })

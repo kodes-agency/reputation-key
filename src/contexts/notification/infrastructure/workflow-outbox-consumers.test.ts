@@ -13,10 +13,10 @@ import {
   type WorkflowNotificationConsumerDeps,
 } from './workflow-outbox-consumers'
 import {
-  createEventHandlerDeps,
+  createNotificationConsumerDeps,
   NOTIF_TEST_IDS,
-  type FakeEventHandlerDeps,
-} from './event-handlers/test-fixtures'
+  type FakeNotificationConsumerDeps,
+} from './notification-consumer-test-fixtures'
 import { unbrand } from '#/shared/domain/ids'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
@@ -24,10 +24,10 @@ let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const EVENT_ID = '30000000-0000-4000-8000-000000000008'
 
-type Deps = WorkflowNotificationConsumerDeps & { fakes: FakeEventHandlerDeps }
+type Deps = WorkflowNotificationConsumerDeps & { fakes: FakeNotificationConsumerDeps }
 
 const makeDeps = (): Deps => {
-  const fakes = createEventHandlerDeps()
+  const fakes = createNotificationConsumerDeps()
   fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
   fakes.responsibleManagers.findForProperty.mockResolvedValue([NOTIF_TEST_IDS.manager1])
   return {
@@ -148,7 +148,7 @@ describe('durable workflow notification consumers', () => {
       notificationType,
     })),
   ])(
-    'replays $eventType through the existing scoped handler',
+    'delivers $eventType through its durable route',
     async ({ eventType, payload, notificationType }) => {
       const deps = makeDeps()
       deps.fakes.inboxItemLookup.findInboxItemFacts.mockResolvedValue({

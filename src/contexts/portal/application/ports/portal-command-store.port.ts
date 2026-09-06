@@ -1,8 +1,7 @@
 // Portal command store — one authoritative state + lifecycle-fact boundary.
 //
 // Production commits each command's Portal rows and every required outbox row
-// in one regional PostgreSQL transaction. The in-process bus is emitted only
-// after commit and is never the recovery authority.
+// in one PostgreSQL transaction.
 
 import type {
   OrganizationId,

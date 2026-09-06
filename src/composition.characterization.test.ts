@@ -55,7 +55,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'dataCellExecutionFence',
   'db',
   'delayedExecutionPolicy',
-  'eventBus',
   'executionPolicy',
   'goalPublicApi',
   'goalWorkerRuntime',

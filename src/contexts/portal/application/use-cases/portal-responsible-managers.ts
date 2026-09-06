@@ -6,18 +6,12 @@ import type { PortalManagerEligibilityDeps } from '../portal-manager-eligibility
 import { listEligiblePortalManagers } from '../portal-manager-eligibility'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { portalError } from '../../domain/errors'
-import type { EventBus } from '#/shared/events/event-bus'
 
 type QueryDeps = PortalManagerEligibilityDeps &
   Readonly<{
     portalRepo: PortalRepository
     managerRepo: PortalResponsibleManagerRepository
     clock: () => Date
-  }>
-
-type CommandDeps = QueryDeps &
-  Readonly<{
-    events: EventBus
   }>
 
 export const listPortalResponsibleManagers =
@@ -41,7 +35,7 @@ export const listPortalResponsibleManagers =
   }
 
 export const updatePortalResponsibleManagers =
-  (deps: CommandDeps) =>
+  (deps: QueryDeps) =>
   async (
     input: Readonly<{
       portalId: string
@@ -87,12 +81,6 @@ export const updatePortalResponsibleManagers =
       actorId: ctx.userId,
       at,
     })
-    if (updated.updatedEvent) {
-      await deps.events.emit(updated.updatedEvent)
-    }
-    if (updated.responsibilityNeededEvent) {
-      await deps.events.emit(updated.responsibilityNeededEvent)
-    }
     return {
       assignments: updated.assignments,
       revision: updated.revision,

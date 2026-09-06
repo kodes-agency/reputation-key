@@ -578,8 +578,8 @@ function buildEntries(
   ]
 
   // Sorted by UTF-8 byte order, never by host locale. The bundle builder sorts
-  // again across all contexts; emitting sorted here means this contributor's
-  // own output is self-evidently order-stable in isolation too.
+  // again across all contexts; writing sorted output here makes this
+  // contributor self-evidently order-stable in isolation too.
   return files
     .flatMap(({ name, classification, collections, payload }) => [
       csvEntry(`inbox/${name}.csv`, classification, collections),

@@ -135,9 +135,8 @@ type GoogleAccountDisconnectedPayload = Readonly<{
  * reviews is cancelled (publication_state → 'cancelled', status → 'draft', one
  * review.reply.publication_cancelled fact per reply). A publish job holding a
  * claim then loses its post-call re-read guard against the cancelled row and
- * returns without marking. Durable replacement for the former in-process bus
- * handler: redelivery converges because the use case cancels only what is
- * still active.
+ * returns without marking. Redelivery converges because the use case cancels
+ * only what is still active.
  */
 export async function handleGoogleAccountDisconnected(
   deps: ReplyPublicationConsumerDeps,

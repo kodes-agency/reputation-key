@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
@@ -37,7 +37,7 @@ describe('rotatePortalToken', () => {
       now: new Date('2026-08-01T12:00:00.000Z'),
     })
     const saveRotation = vi.fn(async () => undefined)
-    const events = createCapturingEventBus()
+    const outbox = createRecordedOutbox()
     const portalTokenRepo = {
       findLatestForPortal: vi.fn(async () => current),
       saveRotation,
@@ -55,7 +55,7 @@ describe('rotatePortalToken', () => {
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
         portalTokenRepo,
-        events,
+        outbox,
       }),
       idGen: () => ids.shift()!,
       clock: () => NOW,
@@ -88,8 +88,8 @@ describe('rotatePortalToken', () => {
         status: 'active',
       }),
     })
-    expect(events.capturedByTag('portal.token.rotated')).toHaveLength(1)
-    expect(events.capturedByTag('portal.access_artifact.published')).toEqual([
+    expect(outbox.byTag('portal.token.rotated')).toHaveLength(1)
+    expect(outbox.byTag('portal.access_artifact.published')).toEqual([
       expect.objectContaining({
         accessArtifactId: '6a200000-0000-4000-8000-000000000002',
         portalId: portal.id,
@@ -115,7 +115,7 @@ describe('rotatePortalToken', () => {
       const portalTokenRepo = {
         findLatestForPortal,
       } as unknown as PortalTokenRepository
-      const events = createCapturingEventBus()
+      const outbox = createRecordedOutbox()
       const useCase = rotatePortalToken({
         portalRepo,
         portalTokenRepo,
@@ -124,7 +124,7 @@ describe('rotatePortalToken', () => {
         commandStore: createInMemoryPortalCommandStore({
           portalRepo,
           portalTokenRepo,
-          events,
+          outbox,
         }),
         idGen: () => 'portal-token-2',
         clock: () => NOW,
@@ -166,7 +166,7 @@ describe('rotatePortalToken', () => {
       '6a200000-0000-4000-8000-000000000012',
       '6a200000-0000-4000-8000-000000000013',
     ]
-    const events = createCapturingEventBus()
+    const outbox = createRecordedOutbox()
     const useCase = rotatePortalToken({
       portalRepo,
       portalTokenRepo,
@@ -175,7 +175,7 @@ describe('rotatePortalToken', () => {
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
         portalTokenRepo,
-        events,
+        outbox,
       }),
       idGen: () => ids.shift()!,
       clock: () => NOW,
@@ -198,7 +198,7 @@ describe('rotatePortalToken', () => {
     const portalTokenRepo = {
       findLatestForPortal: vi.fn(async () => null),
     } as unknown as PortalTokenRepository
-    const events = createCapturingEventBus()
+    const outbox = createRecordedOutbox()
     const useCase = rotatePortalToken({
       portalRepo,
       portalTokenRepo,
@@ -207,7 +207,7 @@ describe('rotatePortalToken', () => {
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
         portalTokenRepo,
-        events,
+        outbox,
       }),
       idGen: () => 'portal-token-2',
       clock: () => NOW,

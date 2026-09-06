@@ -1,16 +1,14 @@
 // Atomic inbox command store (BQC-3.4).
 //
-// One PostgreSQL transaction per command: inbox state mutation + outbox_events
-// fact insert (+ consumer receipt for the projection applyOnce paths). After
-// commit: in-process EventBus emit for expand-phase legacy consumers.
+// One PostgreSQL transaction per command commits the inbox state mutation,
+// outbox facts, and any consumer receipt together.
 //
 // Crash contract:
 // - Crash anywhere inside the transaction rolls back the state mutation, the
 //   outbox rows, AND the receipt together — no state/outbox/receipt split is
 //   ever observable (the pre-BQC-3.4 consumers could lose the
 //   inbox_item.status_changed fact between separate awaits).
-// - Crash after commit but before the bus emit leaves a durable outbox row
-//   for the relay; the emit is best-effort (failure-isolated, logged).
+// - A committed outbox row is the durable fact consumed by the relay.
 // - createItem is idempotent on the (sourceType, sourceId, organizationId)
 //   unique anchor: a conflicting concurrent insert re-selects the existing
 //   row and records NO fact — the projection path and rebuild depend on this.
@@ -29,9 +27,8 @@ import {
   inboxNotes,
 } from '#/shared/db/schema/inbox.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
-import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import {
   inboxItemId,
   feedbackId,
@@ -760,12 +757,9 @@ async function catchUpProjectionRevisions(
     active: boolean
     current: HandlingCycleHead
   }>,
-): Promise<
-  Readonly<{ head: HandlingCycleHead; facts: readonly DomainEvent[]; advanced: boolean }>
-> {
+): Promise<Readonly<{ head: HandlingCycleHead; advanced: boolean }>> {
   let current = input.current
   let advanced = false
-  const facts: DomainEvent[] = []
   for (const revision of input.revisions) {
     if (revision.materialReviewRevision <= current.currentSourceRevision) {
       continue
@@ -820,14 +814,11 @@ async function catchUpProjectionRevisions(
         'Inbox Review projection changed during history catch-up',
       )
     }
-    for (const fact of cycleFacts) {
-      await insertOutboxRow(tx, fact)
-      facts.push(fact)
-    }
+    for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
     advanced = true
     current = decision.value.head
   }
-  return { head: current, facts, advanced }
+  return { head: current, advanced }
 }
 
 /**
@@ -837,7 +828,7 @@ async function catchUpProjectionRevisions(
 async function closeCycleForErasedSource(
   tx: Tx,
   input: Readonly<{ item: InboxItem; current: HandlingCycleHead; erasedAt: Date }>,
-): Promise<Readonly<{ head: HandlingCycleHead; fact: DomainEvent }>> {
+): Promise<HandlingCycleHead> {
   const { item, current, erasedAt } = input
   await cancelResponseTargetForCycle(tx, {
     inboxItemId: current.inboxItemId,
@@ -882,7 +873,7 @@ async function closeCycleForErasedSource(
   }
   const fact = lifecycleFactFor(closed.value.transition)
   await insertOutboxRow(tx, fact)
-  return { head: closed.value.head, fact }
+  return closed.value.head
 }
 
 /** Write the converged projection back onto the Inbox row under its own fence. */
@@ -1090,7 +1081,7 @@ async function closeCycleOnObservedReply(
     itemRow: PersistedItem
     observation: CurrentReplyObservationPermit
   }>,
-): Promise<DomainEvent[]> {
+): Promise<void> {
   const { headRow, itemRow, observation } = input
   await completeGoogleReviewTarget(
     tx,
@@ -1158,7 +1149,6 @@ async function closeCycleOnObservedReply(
   }
   await insertOutboxRow(tx, command.closeFact)
   await insertOutboxRow(tx, cycleFact)
-  return [command.closeFact, cycleFact]
 }
 
 /**
@@ -1173,7 +1163,7 @@ async function reopenCycleOnDeletedReply(
     observation: CurrentReplyObservationPermit
     reopenReason: 'provider_reply_deleted'
   }>,
-): Promise<DomainEvent[]> {
+): Promise<void> {
   const { headRow, observation } = input
   const decision = createNextHandlingCycle({
     current: handlingCycleHeadFromRow(headRow),
@@ -1248,7 +1238,6 @@ async function reopenCycleOnDeletedReply(
   }
   await insertOutboxRow(tx, command.reopenFact)
   for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
-  return [command.reopenFact, ...cycleFacts]
 }
 
 /**
@@ -1471,7 +1460,6 @@ type AppliedBulkAssignment =
   | Readonly<{ outcome: 'unchanged' }>
   | Readonly<{
       outcome: 'assigned' | 'reassigned' | 'released'
-      fact: DomainEvent
       previousAssignee: UserId | null
     }>
 
@@ -1546,7 +1534,7 @@ async function applyBulkAssignmentToItem(
     occurredAt,
   })
   await insertOutboxRow(tx, fact)
-  return { outcome, fact, previousAssignee }
+  return { outcome, previousAssignee }
 }
 
 /**
@@ -1632,9 +1620,9 @@ async function resolveBulkReopenAssignee(
 }
 
 /**
- * Reopen one already-locked item: drop an assignee who lost eligibility, open
- * the next Handling Cycle, advance the fenced head, and flip the Inbox row.
- * Returns this item's facts in the order they must be emitted.
+ * Reopen one already-locked item: drop an assignee who lost eligibility,
+ * record the next Handling Cycle and its facts, advance the fenced head, and
+ * flip the Inbox row.
  */
 async function reopenLockedBulkItem(
   tx: Tx,
@@ -1650,7 +1638,7 @@ async function reopenLockedBulkItem(
     responseTarget: ReviewCycleTargetAnchor | undefined
     now: Date
   }>,
-): Promise<readonly DomainEvent[]> {
+): Promise<void> {
   const { item, event, itemRow, headRow, now } = input
   const actorId = webActorId(event)
   if (actorId === null) {
@@ -1687,14 +1675,12 @@ async function reopenLockedBulkItem(
   })
   if (decision.isErr()) throw decision.error
   const handlingCycleNumber = decision.value.head.currentCycleNumber
-  const facts: DomainEvent[] = [
-    ...(await insertNextHandlingCycleDecision(
-      tx,
-      decision.value,
-      now,
-      input.responseTarget,
-    )),
-  ]
+  const cycleFacts = await insertNextHandlingCycleDecision(
+    tx,
+    decision.value,
+    now,
+    input.responseTarget,
+  )
   const updatedHeads = await tx
     .update(inboxHandlingCycleHeads)
     .set({
@@ -1750,15 +1736,14 @@ async function reopenLockedBulkItem(
       bulkId: input.bulkId,
       occurredAt: now,
     })
-    facts.push(unassignedFact)
   }
-  facts.push(event)
-  return facts
+  for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
+  if (unassignedFact) await insertOutboxRow(tx, unassignedFact)
+  await insertOutboxRow(tx, event)
 }
 
 export const createAtomicInboxCommandStore = (
   db: Database,
-  events: EventBus,
   authorizeCommand: InboxCommandAuthority,
   clock: () => Date,
 ): InboxCommandStore => {
@@ -1824,8 +1809,8 @@ export const createAtomicInboxCommandStore = (
     tx: Tx,
     input: ReleaseInput,
     candidateIds: readonly string[],
-  ): Promise<ReturnType<typeof inboxItemUnassigned>[]> => {
-    if (candidateIds.length === 0) return []
+  ): Promise<number> => {
+    if (candidateIds.length === 0) return 0
 
     const reviewCycleRows = await tx
       .select({
@@ -1838,9 +1823,9 @@ export const createAtomicInboxCommandStore = (
         and(
           eq(inboxItems.id, inboxHandlingCycleHeads.inboxItemId),
           eq(inboxItems.organizationId, inboxHandlingCycleHeads.organizationId),
-          // Canonical heads use uuid while the expand-phase Inbox projection
-          // still accepts legacy text. Cast the canonical side so a legacy
-          // value cannot abort this authority-removal path.
+          // Canonical heads use UUIDs while retained Inbox projections may
+          // contain legacy text. Cast the canonical side so such a value cannot
+          // abort this authority-removal path.
           sql`${inboxHandlingCycleHeads.propertyId}::text = ${inboxItems.propertyId}`,
           eq(inboxItems.sourceType, inboxHandlingCycleHeads.sourceType),
           eq(inboxItems.sourceId, inboxHandlingCycleHeads.sourceId),
@@ -1872,7 +1857,7 @@ export const createAtomicInboxCommandStore = (
       .orderBy(inboxItems.id)
       .for('update')
 
-    const facts: ReturnType<typeof inboxItemUnassigned>[] = []
+    let released = 0
     for (const current of lockedRows) {
       const [row] = await tx
         .update(inboxItems)
@@ -1914,9 +1899,9 @@ export const createAtomicInboxCommandStore = (
         occurredAt: input.at,
       })
       await insertOutboxRow(tx, fact)
-      facts.push(fact)
+      released += 1
     }
-    return facts
+    return released
   }
 
   /**
@@ -1948,7 +1933,6 @@ export const createAtomicInboxCommandStore = (
         if (event) await insertOutboxRow(tx, event)
         return row
       })
-      if (event) await emitAfterCommit(events, event)
       return saved
     })
   }
@@ -1956,7 +1940,7 @@ export const createAtomicInboxCommandStore = (
   return {
     releaseAssignmentsForUser: async (input) => {
       return trace('inbox.commandStore.releaseAssignmentsForUser', async () => {
-        const facts = await db.transaction(async (tx) => {
+        const released = await db.transaction(async (tx) => {
           const candidates = await tx
             .select({ id: inboxItems.id })
             .from(inboxItems)
@@ -1973,14 +1957,13 @@ export const createAtomicInboxCommandStore = (
             candidates.map((candidate) => candidate.id),
           )
         })
-        for (const event of facts) await emitAfterCommit(events, event)
-        return { released: facts.length }
+        return { released }
       })
     },
 
     releaseIneligibleAssignmentsForUser: async (input) => {
       return trace('inbox.commandStore.releaseIneligibleAssignmentsForUser', async () => {
-        const facts = await db.transaction(async (tx) => {
+        const released = await db.transaction(async (tx) => {
           const candidates = await tx
             .select({
               id: inboxItems.id,
@@ -2059,8 +2042,7 @@ export const createAtomicInboxCommandStore = (
             .map((candidate) => candidate.id)
           return releaseAssignmentRows(tx, input, candidateIds)
         })
-        for (const event of facts) await emitAfterCommit(events, event)
-        return { released: facts.length }
+        return { released }
       })
     },
 
@@ -2074,10 +2056,6 @@ export const createAtomicInboxCommandStore = (
           }
           return inserted
         })
-        if (result.created && event) {
-          await emitAfterCommit(events, event)
-          for (const fact of result.openingFacts) await emitAfterCommit(events, fact)
-        }
         return result
       })
     },
@@ -2108,7 +2086,7 @@ export const createAtomicInboxCommandStore = (
       if (actorId === null) {
         throw inboxError('invalid_input', 'Feedback close requires a user actor')
       }
-      const committed = await db.transaction(async (tx) => {
+      const saved = await db.transaction(async (tx) => {
         const [headRow] = await tx
           .select()
           .from(inboxHandlingCycleHeads)
@@ -2177,11 +2155,9 @@ export const createAtomicInboxCommandStore = (
         )
         await insertOutboxRow(tx, event)
         await insertOutboxRow(tx, cycleFact)
-        return { saved, cycleFact }
+        return saved
       })
-      await emitAfterCommit(events, event)
-      await emitAfterCommit(events, committed.cycleFact)
-      return committed.saved
+      return saved
     },
 
     reopenReviewCycle: async (command) => {
@@ -2207,7 +2183,7 @@ export const createAtomicInboxCommandStore = (
           )
         }
 
-        const committed = await db.transaction(async (tx) => {
+        const saved = await db.transaction(async (tx) => {
           const headRows = await tx
             .select()
             .from(inboxHandlingCycleHeads)
@@ -2404,20 +2380,9 @@ export const createAtomicInboxCommandStore = (
           await insertOutboxRow(tx, fact)
           for (const cycleFact of cycleFacts) await insertOutboxRow(tx, cycleFact)
           if (unassignedFact) await insertOutboxRow(tx, unassignedFact)
-          return {
-            item: itemFromRow(updatedItem),
-            unassignedFact,
-            cycleFacts,
-          }
+          return itemFromRow(updatedItem)
         })
-        await emitAfterCommit(events, fact)
-        for (const cycleFact of committed.cycleFacts) {
-          await emitAfterCommit(events, cycleFact)
-        }
-        if (committed.unassignedFact) {
-          await emitAfterCommit(events, committed.unassignedFact)
-        }
-        return committed.item
+        return saved
       })
     },
 
@@ -2466,7 +2431,7 @@ export const createAtomicInboxCommandStore = (
           )
         }
         const now = first.occurredAt
-        const committed = await db.transaction(async (tx) => {
+        const result = await db.transaction(async (tx) => {
           // Each row is revision-fenced, while all row changes and per-item
           // facts still commit atomically as one bulk command.
           const commandOrganizationId = items[0]?.organizationId
@@ -2535,7 +2500,6 @@ export const createAtomicInboxCommandStore = (
             .for('update')
           const headByItemId = new Map(headRows.map((row) => [row.inboxItemId, row]))
           const itemById = new Map(lockedItemRows.map((row) => [row.id, row]))
-          const appliedEvents: DomainEvent[] = []
 
           for (const { event, item, originalIndex } of ordered) {
             const itemRow = itemById.get(item.id)
@@ -2552,44 +2516,35 @@ export const createAtomicInboxCommandStore = (
               continue
             }
 
-            appliedEvents.push(
-              ...(await reopenLockedBulkItem(tx, authorizeCommand, {
-                item,
-                event,
-                itemRow,
-                headRow,
-                reason: governance.reason,
-                explanation,
-                bulkId: first.bulkId,
-                responseTarget: reviewResponseTargets?.get(item.id),
-                now,
-              })),
-            )
+            await reopenLockedBulkItem(tx, authorizeCommand, {
+              item,
+              event,
+              itemRow,
+              headRow,
+              reason: governance.reason,
+              explanation,
+              bulkId: first.bulkId,
+              responseTarget: reviewResponseTargets?.get(item.id),
+              now,
+            })
             results[originalIndex] = {
               inboxItemId: item.id,
               outcome: 'reopened',
             }
           }
-          for (const event of appliedEvents) await insertOutboxRow(tx, event)
           return {
-            result: {
-              updated: results.filter((result) => result?.outcome === 'reopened').length,
-              results: results.filter(
-                (
-                  result,
-                ): result is {
-                  inboxItemId: (typeof items)[number]['id']
-                  outcome: 'reopened' | 'revision_conflict'
-                } => result !== undefined,
-              ),
-            },
-            appliedEvents,
+            updated: results.filter((result) => result?.outcome === 'reopened').length,
+            results: results.filter(
+              (
+                result,
+              ): result is {
+                inboxItemId: (typeof items)[number]['id']
+                outcome: 'reopened' | 'revision_conflict'
+              } => result !== undefined,
+            ),
           }
         })
-        for (const event of committed.appliedEvents) {
-          await emitAfterCommit(events, event)
-        }
-        return committed.result
+        return result
       })
     },
 
@@ -2609,7 +2564,7 @@ export const createAtomicInboxCommandStore = (
           throw inboxError('invalid_input', 'Inbox bulk assignment command is invalid')
         }
 
-        const committed = await db.transaction(async (tx) => {
+        const result = await db.transaction(async (tx) => {
           const ordered = [...items].sort((left, right) =>
             left.id.localeCompare(right.id),
           )
@@ -2657,14 +2612,11 @@ export const createAtomicInboxCommandStore = (
           )
           if (!exact) {
             return {
-              result: {
-                updated: 0,
-                results: items.map((item) => ({
-                  inboxItemId: item.id,
-                  outcome: 'revision_conflict' as const,
-                })),
-              },
-              facts: [] as DomainEvent[],
+              updated: 0,
+              results: items.map((item) => ({
+                inboxItemId: item.id,
+                outcome: 'revision_conflict' as const,
+              })),
             }
           }
 
@@ -2696,7 +2648,6 @@ export const createAtomicInboxCommandStore = (
             requirements,
           )
 
-          const facts: DomainEvent[] = []
           const outcomeByItemId = new Map<
             string,
             'assigned' | 'reassigned' | 'released' | 'unchanged'
@@ -2721,7 +2672,6 @@ export const createAtomicInboxCommandStore = (
               outcomeByItemId.set(item.id, 'unchanged')
               continue
             }
-            facts.push(applied.fact)
             transitions.push({
               inboxItemId: item.id,
               propertyId: item.propertyId,
@@ -2740,21 +2690,16 @@ export const createAtomicInboxCommandStore = (
               occurredAt,
             })
             await insertOutboxRow(tx, completed)
-            facts.push(completed)
           }
           return {
-            result: {
-              updated: transitions.length,
-              results: items.map((item) => ({
-                inboxItemId: item.id,
-                outcome: outcomeByItemId.get(item.id)!,
-              })),
-            },
-            facts,
+            updated: transitions.length,
+            results: items.map((item) => ({
+              inboxItemId: item.id,
+              outcome: outcomeByItemId.get(item.id)!,
+            })),
           }
         })
-        for (const fact of committed.facts) await emitAfterCommit(events, fact)
-        return committed.result
+        return result
       })
     },
 
@@ -2820,7 +2765,6 @@ export const createAtomicInboxCommandStore = (
           }
           return row
         })
-        if (event) await emitAfterCommit(events, event)
         return saved
       })
     },
@@ -2898,7 +2842,6 @@ export const createAtomicInboxCommandStore = (
           await insertOutboxRow(tx, event)
           return inboxNoteFromRow(result[0])
         })
-        await emitAfterCommit(events, event)
         return saved
       })
     },
@@ -2930,11 +2873,7 @@ export const createAtomicInboxCommandStore = (
                 : null
             if (resubmissionFacts) {
               await insertReceiptRow(tx, command.eventId, command.consumerName, 'applied')
-              return {
-                outcome: 'applied' as const,
-                openingFacts: resubmissionFacts,
-                emitCreated: false,
-              }
+              return 'applied' as const
             }
             await insertReceiptRow(tx, command.eventId, command.consumerName, 'duplicate')
             return 'duplicate' as const
@@ -2942,28 +2881,18 @@ export const createAtomicInboxCommandStore = (
           await insertOutboxRow(tx, command.fact)
           for (const fact of inserted.openingFacts) await insertOutboxRow(tx, fact)
           await insertReceiptRow(tx, command.eventId, command.consumerName, 'applied')
-          return {
-            outcome: 'applied' as const,
-            openingFacts: inserted.openingFacts,
-            emitCreated: true,
-          }
+          return 'applied' as const
         })
-        if (typeof outcome === 'string') return outcome
-        if (outcome.emitCreated) await emitAfterCommit(events, command.fact)
-        for (const fact of outcome.openingFacts) await emitAfterCommit(events, fact)
-        return outcome.outcome
+        return outcome
       })
     },
 
     applyReviewProjectionOnce: async (command) => {
       return trace('inbox.commandStore.applyReviewProjectionOnce', async () => {
         assertReviewProjectionCommand(command)
-        const committed = await db.transaction(async (tx) => {
+        const outcome = await db.transaction(async (tx) => {
           if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
-            return {
-              outcome: 'duplicate' as const,
-              facts: [] as DomainEvent[],
-            }
+            return 'duplicate' as const
           }
 
           const active = command.projection.sourceContentState === 'active'
@@ -2978,15 +2907,10 @@ export const createAtomicInboxCommandStore = (
             openedAt: initialRevision.observedAt,
             responseTarget: active ? projectionTargetAnchor(initialRevision) : null,
           })
-          const facts: DomainEvent[] = []
           let projectedChange = inserted.created
           if (inserted.created) {
             await insertOutboxRow(tx, command.fact)
-            facts.push(command.fact)
-            for (const fact of inserted.openingFacts) {
-              await insertOutboxRow(tx, fact)
-              facts.push(fact)
-            }
+            for (const fact of inserted.openingFacts) await insertOutboxRow(tx, fact)
           }
 
           // Canonical lock order for an existing projection is head -> item.
@@ -3011,20 +2935,17 @@ export const createAtomicInboxCommandStore = (
             active,
             current,
           })
-          facts.push(...catchUp.facts)
           if (catchUp.advanced) projectedChange = true
           current = catchUp.head
 
           const erasedAt = command.projection.sourceContentErasedAt
           if (!active && erasedAt instanceof Date && current.status === 'open') {
-            const closed = await closeCycleForErasedSource(tx, {
+            current = await closeCycleForErasedSource(tx, {
               item: inserted.item,
               current,
               erasedAt,
             })
-            facts.push(closed.fact)
             projectedChange = true
-            current = closed.head
           }
 
           if (!active && itemRow.status === 'open' && erasedAt instanceof Date) {
@@ -3037,7 +2958,6 @@ export const createAtomicInboxCommandStore = (
               occurredAt: erasedAt,
             })
             await insertOutboxRow(tx, statusFact)
-            facts.push(statusFact)
           }
 
           await convergeProjectedItemRow(tx, {
@@ -3064,10 +2984,9 @@ export const createAtomicInboxCommandStore = (
                 ),
               )
           }
-          return { outcome, facts }
+          return outcome
         })
-        for (const fact of committed.facts) await emitAfterCommit(events, fact)
-        return committed.outcome
+        return outcome
       })
     },
 
@@ -3086,9 +3005,9 @@ export const createAtomicInboxCommandStore = (
             'Source withdrawal fact does not match the Inbox command',
           )
         }
-        const committed = await db.transaction(async (tx) => {
+        const outcome = await db.transaction(async (tx) => {
           if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
-            return { outcome: 'applied' as const, facts: [] as DomainEvent[] }
+            return 'applied' as const
           }
           const [headRow] = await tx
             .select()
@@ -3103,9 +3022,7 @@ export const createAtomicInboxCommandStore = (
             )
             .for('update')
             .limit(1)
-          if (!headRow) {
-            return { outcome: 'obsolete' as const, facts: [] as DomainEvent[] }
-          }
+          if (!headRow) return 'obsolete' as const
           const current = handlingCycleHeadFromRow(headRow)
           if (
             command.sourceRevision !== undefined &&
@@ -3120,11 +3037,9 @@ export const createAtomicInboxCommandStore = (
                   eq(eventConsumerReceipts.consumerName, command.consumerName),
                 ),
               )
-            return { outcome: 'obsolete' as const, facts: [] as DomainEvent[] }
+            return 'obsolete' as const
           }
-          if (current.status === 'closed') {
-            return { outcome: 'applied' as const, facts: [] as DomainEvent[] }
-          }
+          if (current.status === 'closed') return 'applied' as const
           const decision = closeHandlingCycle({
             current,
             closeReason: 'guest_withdrawn',
@@ -3185,22 +3100,17 @@ export const createAtomicInboxCommandStore = (
           }
           await insertOutboxRow(tx, command.fact)
           await insertOutboxRow(tx, lifecycleFact)
-          return {
-            outcome: 'applied' as const,
-            facts: [command.fact, lifecycleFact] as DomainEvent[],
-          }
+          return 'applied' as const
         })
-        for (const fact of committed.facts) await emitAfterCommit(events, fact)
-        return committed.outcome
+        return outcome
       })
     },
 
     applyReviewUpdatedOnce: async (command) => {
       return trace('inbox.commandStore.applyReviewUpdatedOnce', async () => {
-        const facts = await db.transaction(async (tx) => {
-          if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
-            return [] as DomainEvent[]
-          }
+        await db.transaction(async (tx) => {
+          if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName)))
+            return
           const [headRow] = await tx
             .select()
             .from(inboxHandlingCycleHeads)
@@ -3292,9 +3202,7 @@ export const createAtomicInboxCommandStore = (
               ),
             )
           for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
-          return [...cycleFacts]
         })
-        for (const fact of facts) await emitAfterCommit(events, fact)
         return 'applied' as const
       })
     },
@@ -3317,10 +3225,9 @@ export const createAtomicInboxCommandStore = (
           )
         }
 
-        const committedFacts = await db.transaction(async (tx) => {
-          if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
-            return [] as DomainEvent[]
-          }
+        await db.transaction(async (tx) => {
+          if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName)))
+            return
 
           const [headRow] = await tx
             .select()
@@ -3356,7 +3263,7 @@ export const createAtomicInboxCommandStore = (
             )
             .for('update')
             .limit(1)
-          if (!current) return [] as DomainEvent[]
+          if (!current) return
 
           const shouldCloseItem = command.closeIfOpen && current.status === 'open'
           const shouldCloseCycle = command.closeIfOpen && headRow?.status === 'open'
@@ -3364,9 +3271,7 @@ export const createAtomicInboxCommandStore = (
             current.rating !== null ||
             current.snippet !== null ||
             current.reviewerName !== null
-          if (!shouldCloseItem && !shouldCloseCycle && !needsScrub) {
-            return [] as DomainEvent[]
-          }
+          if (!shouldCloseItem && !shouldCloseCycle && !needsScrub) return
 
           const cycleFact =
             shouldCloseCycle && headRow
@@ -3374,14 +3279,10 @@ export const createAtomicInboxCommandStore = (
               : null
 
           await scrubTransitionedItemRow(tx, command, current, shouldCloseItem)
-          const facts: DomainEvent[] = []
-          if (shouldCloseItem) facts.push(closeFact)
-          if (cycleFact) facts.push(cycleFact)
-          for (const fact of facts) await insertOutboxRow(tx, fact)
-          return facts
+          if (shouldCloseItem) await insertOutboxRow(tx, closeFact)
+          if (cycleFact) await insertOutboxRow(tx, cycleFact)
         })
 
-        for (const fact of committedFacts) await emitAfterCommit(events, fact)
         return 'applied' as const
       })
     },
@@ -3397,10 +3298,9 @@ export const createAtomicInboxCommandStore = (
 
     applyReplyObservedOnce: async (command) => {
       return trace('inbox.commandStore.applyReplyObservedOnce', async () => {
-        const outcome = await db.transaction(async (tx) => {
-          if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
-            return { status: 'applied' as const, facts: [] as DomainEvent[] }
-          }
+        await db.transaction(async (tx) => {
+          if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName)))
+            return
 
           const observation = command.currentObservation
           assertObservationMatchesItem(observation, command.item)
@@ -3424,31 +3324,23 @@ export const createAtomicInboxCommandStore = (
               : null
 
           if (shouldClose && itemRow.status === 'open') {
-            return {
-              status: 'applied' as const,
-              facts: await closeCycleOnObservedReply(tx, command, {
-                headRow,
-                itemRow,
-                observation,
-              }),
-            }
+            await closeCycleOnObservedReply(tx, command, {
+              headRow,
+              itemRow,
+              observation,
+            })
+            return
           }
 
           if (reopenReason !== null && itemRow.status === 'closed') {
-            return {
-              status: 'applied' as const,
-              facts: await reopenCycleOnDeletedReply(tx, command, {
-                headRow,
-                observation,
-                reopenReason,
-              }),
-            }
+            await reopenCycleOnDeletedReply(tx, command, {
+              headRow,
+              observation,
+              reopenReason,
+            })
           }
-
-          return { status: 'applied' as const, facts: [] as DomainEvent[] }
         })
-        for (const fact of outcome.facts) await emitAfterCommit(events, fact)
-        return outcome.status
+        return 'applied' as const
       })
     },
 

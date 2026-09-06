@@ -18,8 +18,7 @@ import { createAtomicMetricCommandStore } from '../metric-command-store'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createPropertyLocalDateResolver } from './property-local-date'
 import { recordMetrics } from '../../application/use-cases/record-metric'
-import { onRatingSubmittedDurably } from '../event-handlers/on-rating-submitted'
-import type { EventBus } from '#/shared/events/event-bus'
+import { onRatingSubmittedDurably } from '../record-portal-metric'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
@@ -39,12 +38,6 @@ const START = new Date('2026-06-01T00:00:00.000Z')
 const END = new Date('2026-07-01T00:00:00.000Z')
 const OCCURRED = new Date('2026-06-15T12:00:00.000Z')
 const DELIVERY_AT = new Date('2026-09-15T12:00:00.000Z')
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 const portalGroups: PortalGroupPublicApi = {
   findGroupForPortal: async (orgId, pid, asOf) =>
@@ -212,7 +205,7 @@ describe.sequential('Goal metric durable source status (integration)', () => {
   it('becomes complete after one atomic rating delivery', async () => {
     await insertSource(SUBMITTED_EVENT, 'guest.rating.submitted', DELIVERY_AT)
     const project = recordMetrics({
-      commandStore: createAtomicMetricCommandStore(db, silentEvents, randomUUID),
+      commandStore: createAtomicMetricCommandStore(db, randomUUID),
       registry: createMetricRegistryRepository(db),
       clock: () => DELIVERY_AT,
       idGen: () => metricReadingId(randomUUID()),
@@ -222,7 +215,6 @@ describe.sequential('Goal metric durable source status (integration)', () => {
       recordMetrics: project,
       findGroupForPortal: async () => ({ portalGroupId: GROUP }),
       logger: {
-        error: () => {},
         warn: () => {},
       },
     })({

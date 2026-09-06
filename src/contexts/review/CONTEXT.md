@@ -69,7 +69,7 @@ is not the identity or history authority.
 
 ## Events produced
 
-| Tag                                          | Payload                                                                                                                           | When emitted                                                                                                                                                                        |
+| Tag                                          | Payload                                                                                                                           | When recorded                                                                                                                                                                       |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `review.created`                             | identifier/scope, source epoch/revision, analysis sequence, occurredAt                                                            | The first accepted provider observation creates a stable Review; no rating, reviewer, provider ID, or text enters the fact                                                          |
 | `review.updated`                             | the same content-minimal identifiers and revision/sequence fences                                                                 | A newer accepted current observation is recorded; material change advances the business revision, while an unchanged epoch carry advances only the immutable exact-binding revision |
@@ -170,7 +170,7 @@ Review is the sharpest exclusion boundary in the export. LIF-01 bullet 6 asks
 for "manager-authored replies with AI provenance"; bullet 7 forbids raw
 Google-controlled review content and identifiers copied merely for export. The
 disclosure map permits Review exactly one class, `manager_authored`, and every
-emitted entry carries it.
+exported entry carries it.
 
 Reads exactly three tables:
 

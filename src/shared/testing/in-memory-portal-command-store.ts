@@ -7,16 +7,17 @@ import type { PortalRepository } from '#/contexts/portal/application/ports/porta
 import type { PortalTokenRepository } from '#/contexts/portal/application/ports/portal-token.repository'
 import type { PortalGroupRepository } from '#/contexts/portal/application/ports/portal-group.repository'
 import type { PortalLinkRepository } from '#/contexts/portal/application/ports/portal-link.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import { portalError } from '#/contexts/portal/domain/errors'
 
 export function createInMemoryPortalCommandStore(deps: {
   portalRepo: PortalRepository
-  events: EventBus
+  outbox?: RecordedOutbox
   portalTokenRepo?: PortalTokenRepository
   portalGroupRepo?: PortalGroupRepository
   portalLinkRepo?: PortalLinkRepository
 }): PortalCommandStore {
+  const outbox = deps.outbox ?? createRecordedOutbox()
   const mutablePortalRepo = deps.portalRepo as InMemoryPortalRepo
   const fencePortal = async (
     organizationId: Parameters<InMemoryPortalRepo['findById']>[0],
@@ -41,9 +42,9 @@ export function createInMemoryPortalCommandStore(deps: {
         command.portal,
         command.initialResponsibleManagerId,
       )
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
       if (command.responsibilityNeededEvent) {
-        await deps.events.emit(command.responsibilityNeededEvent)
+        await outbox.record(command.responsibilityNeededEvent)
       }
     },
     updatePortal: async (command) => {
@@ -54,8 +55,8 @@ export function createInMemoryPortalCommandStore(deps: {
         command.revision,
         command.patch,
       )
-      await deps.events.emit(command.event)
-      if (command.lifecycleEvent) await deps.events.emit(command.lifecycleEvent)
+      await outbox.record(command.event)
+      if (command.lifecycleEvent) await outbox.record(command.lifecycleEvent)
     },
     deletePortal: async (command) => {
       const current = await deps.portalRepo.findById(
@@ -82,8 +83,8 @@ export function createInMemoryPortalCommandStore(deps: {
           reason: command.reason,
           at: command.occurredAt,
         })) ?? 0
-      await deps.events.emit(command.event)
-      if (revoked > 0) await deps.events.emit(command.tokenRevokedEvent)
+      await outbox.record(command.event)
+      if (revoked > 0) await outbox.record(command.tokenRevokedEvent)
       return { revoked }
     },
     createPortalGroup: async (command) => {
@@ -100,7 +101,7 @@ export function createInMemoryPortalCommandStore(deps: {
           membership.createdBy,
         )
       }
-      for (const event of command.events) await deps.events.emit(event)
+      for (const event of command.events) await outbox.record(event)
     },
     updatePortalGroup: async (command) => {
       if (!deps.portalGroupRepo) {
@@ -110,7 +111,7 @@ export function createInMemoryPortalCommandStore(deps: {
         name: command.name,
         updatedAt: command.revision,
       })
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
     addPortalToGroup: async (command) => {
       if (!deps.portalGroupRepo) {
@@ -123,7 +124,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.occurredAt,
         command.changedBy,
       )
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
     removePortalFromGroup: async (command) => {
       if (!deps.portalGroupRepo) {
@@ -139,7 +140,7 @@ export function createInMemoryPortalCommandStore(deps: {
       if (!removed) {
         throw portalError('portal_not_in_group', 'portal is not a member of this group')
       }
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
     createPortalLinkCategory: async (command) => {
       if (!deps.portalLinkRepo) {
@@ -152,7 +153,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.revision,
       )
       await deps.portalLinkRepo.insertCategory(command.organizationId, command.category)
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
     updatePortalLinkCategory: async (command) => {
       if (!deps.portalLinkRepo) {
@@ -170,7 +171,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.categoryId,
         { title: command.title, updatedAt: command.occurredAt },
       )
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
     deletePortalLinkCategory: async (command) => {
       if (!deps.portalLinkRepo) {
@@ -187,7 +188,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.portalId,
         command.categoryId,
       )
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
     reorderPortalLinkCategories: async (command) => {
       if (!deps.portalLinkRepo) {
@@ -204,7 +205,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.portalId,
         command.updates,
       )
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
     createPortalLink: async (command) => {
       if (!deps.portalLinkRepo) {
@@ -217,7 +218,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.revision,
       )
       await deps.portalLinkRepo.insertLink(command.organizationId, command.link)
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
     updatePortalLink: async (command) => {
       if (!deps.portalLinkRepo) {
@@ -235,7 +236,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.linkId,
         { ...command.patch, updatedAt: command.occurredAt },
       )
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
     deletePortalLink: async (command) => {
       if (!deps.portalLinkRepo) {
@@ -252,7 +253,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.portalId,
         command.linkId,
       )
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
     reorderPortalLinks: async (command) => {
       if (!deps.portalLinkRepo) {
@@ -270,7 +271,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.categoryId,
         command.updates,
       )
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
     issuePortalToken: async (command) => {
       if (!deps.portalTokenRepo) {
@@ -283,8 +284,8 @@ export function createInMemoryPortalCommandStore(deps: {
         command.revision,
       )
       await deps.portalTokenRepo.insert(command.token)
-      await deps.events.emit(command.event)
-      for (const event of command.accessArtifactEvents) await deps.events.emit(event)
+      await outbox.record(command.event)
+      for (const event of command.accessArtifactEvents) await outbox.record(event)
     },
     rotatePortalToken: async (command) => {
       if (!deps.portalTokenRepo) {
@@ -300,8 +301,8 @@ export function createInMemoryPortalCommandStore(deps: {
         oldToken: command.oldToken,
         newToken: command.newToken,
       })
-      await deps.events.emit(command.event)
-      for (const event of command.accessArtifactEvents) await deps.events.emit(event)
+      await outbox.record(command.event)
+      for (const event of command.accessArtifactEvents) await outbox.record(event)
     },
     revokePortalTokens: async (command) => {
       if (!deps.portalTokenRepo) {
@@ -318,7 +319,7 @@ export function createInMemoryPortalCommandStore(deps: {
         await mutablePortalRepo.update(command.organizationId, command.portalId, {
           updatedAt: command.revision,
         })
-        await deps.events.emit(command.event)
+        await outbox.record(command.event)
       }
       return { revoked }
     },
@@ -334,7 +335,7 @@ export function createInMemoryPortalCommandStore(deps: {
       await deps.portalGroupRepo.update(command.organizationId, command.portalGroupId, {
         updatedAt: command.revision,
       })
-      await deps.events.emit(command.event)
+      await outbox.record(command.event)
     },
   }
 }

@@ -29,10 +29,9 @@ import {
 // ── Input ───────────────────────────────────────────────────────────
 
 /**
- * What an event handler enqueues. Handlers pass FACTS in `payload`, never a
- * title or a body: copy is rendered from (type, payload) inside
- * `createNotification` so every channel and every already-stored row agree
- * (ADR 0046 r.8).
+ * What durable consumers enqueue. They pass FACTS in `payload`, never a title
+ * or body: copy is rendered from (type, payload) inside `createNotification`
+ * so every channel and already-stored row agree (ADR 0046 r.8).
  */
 export type InsertNotificationInput = Omit<CreateNotificationInput, 'id'>
 

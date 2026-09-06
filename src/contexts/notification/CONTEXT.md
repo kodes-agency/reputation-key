@@ -84,11 +84,12 @@ application/      → use cases, ports, public-api barrel
   ports/            repository / user-lookup / email-sender ports
 domain/           → types, constructors, constructors-email, constructors-transitions, constructors-preference, errors
 infrastructure/
-  event-handlers/   subscribe to domain events, enqueue BullMQ jobs
   jobs/             BullMQ workers (insert-notification, digest, urgent-email,
                     reconcile-missing-notifications)
   outbox-consumers.ts        durable at-least-once consumer for
                              `inbox.inbox_item.created`
+  workflow-outbox-consumers.ts durable consumers for assignment, escalation,
+                             notes, and Reply lifecycle facts
   bulk-assignment-outbox-consumers.ts durable grouped consumer for
                              `inbox.inbox_items.bulk_assignment_completed`
   escalation-resolution-outbox-consumers.ts exact-state durable consumer for
@@ -106,8 +107,7 @@ infrastructure/
   identity-account-outbox-consumers.ts exact-user durable consumers for
                              three Organization account lifecycle facts
   inbox-notification-fanout.ts  the ONE inbox-item → insert-notification jobs
-                             path, shared by the bus handler, the durable
-                             consumer and the reconciliation sweep
+                             path, shared by durable delivery and repair
   adapters/         cross-context lookups (db-user-lookup, resend-email)
   repositories/     Drizzle implementations of ports (+ row mapper)
 ```
@@ -116,7 +116,7 @@ infrastructure/
 
 | Name                 | Input                                                                | Output                 | Permission                |
 | -------------------- | -------------------------------------------------------------------- | ---------------------- | ------------------------- |
-| `insertNotification` | `InsertNotificationInput` (userId, orgId, type, resource, `payload`) | `Notification \| null` | Internal (event handlers) |
+| `insertNotification` | `InsertNotificationInput` (userId, orgId, type, resource, `payload`) | `Notification \| null` | Internal (BullMQ workers) |
 
 `insertNotification` is invoked by the insert-notification BullMQ worker, not directly by server functions. Returns `null` when the user has disabled both channels (still persists if email-only) — see Q19.
 
@@ -182,14 +182,12 @@ Notifications are personal (scoped to the caller's `userId`); all three roles ma
 
 ## Durable delivery
 
-`emitAfterCommit` (`shared/outbox/commit.ts`) is best-effort: it catches and warns, so a throw in the inbox or notification handler could leave a committed workflow change with **no** notification. Four layers now contain and expose that failure:
+Every source fact is written atomically to the outbox; four layers contain and expose delivery failure:
 
-1. **Durable outbox consumers** cover Inbox creation/Handling Cycle/assignment/grouped-assignment/escalation/resolution/note events, the five manager-facing Reply lifecycle events, achieved Goal Program monthly results and outcome/availability revisions, integration reauthorization, Property/Portal responsibility-needed events, actionable automatic Portal Health changes, and the three exact Identity account lifecycle facts listed above. They acknowledge only after every enqueue succeeds and use deterministic per-recipient job identities so redelivery converges instead of inflating the unread row. Every source fact is identifier-only and is written atomically with its owning workflow change. Handling Cycle closure and `goal.monthly_result.reconciled` are durable evidence but intentionally have no Notification consumer.
-2. **Delivery-time authority** means an enqueued recipient is only a candidate. Every insert job declares one of ten identifier-only audiences: exact responsible scope, AccountAdmin recovery, current Inbox assignee, exact grouped Inbox assignee set, exact current escalation resolution, exact current Handling Cycle, exact current Portal Health, exact current Goal result revision, current Property operator, or the exact affected Organization user from one admitted Identity fact. The worker re-resolves that authority immediately before writing. The affected-user route binds the event id, type, Organization, source context, recovery fence, schema-valid payload, and exact user; it does not substitute membership, an actor, or a Property.
-3. **Redis→PostgreSQL settlement** gives every active trigger-derived delivery deterministic `notification.enqueue:*` and `notification.materialized:*` receipts. Redis acceptance precedes enqueue evidence; the materialization receipt is the concurrency claim and commits in the same transaction as preference evaluation, the notification row, coalescing, and email-queue row. A crash or concurrent replay therefore applies once; any post-claim failure rolls the claim and all notification writes back together. The durable source event's route, tenant, and recovery fence are verified before settlement.
-4. **Repair and evidence are explicit.** `reconcile-missing-notifications` remains the bounded repair path for a new Inbox item that predates or exhausts normal delivery. Normal outbox replay repairs failures before the base receipt; BullMQ retry/quarantine owns accepted jobs. `readNotificationDeliveryLag` reports, without selecting payloads, missing base receipts, accepted-but-unmaterialized deliveries, and immediate-email acceptance evidence over a 24-hour operational window after a one-minute grace edge (1,000-row per-stage bound with saturation). Email latency is measured from the durable source fact, never queue insertion; p99 is withheld when source linkage is absent or the sample saturates. It is intentionally a signal, not a false claim that application code can reconstruct a Redis job after total Redis loss once the base receipt exists.
-
-In **`google-closed-beta`**, **`OUTBOX_DISPATCHER_ENABLED=true`** on the application services (with `QUEUE_REDIS_URL` set, `worker/index.ts` starts the relay and dispatcher). The notification durable consumer therefore delivers; `reconcile-missing-notifications` remains the bounded at-least-once repair sweep rather than the sole delivery path. The `DURABLE_CUTOVER_INBOX*` flags do **not** gate this consumer: they govern the dual-path `review.*` Inbox projection families, not `inbox.inbox_item.created`.
+1. **Durable consumers** validate identifier-only facts, resolve current recipients, enqueue deterministic per-recipient jobs, and acknowledge only after every enqueue succeeds.
+2. **Delivery-time authority** treats every enqueued recipient as a candidate and re-resolves the exact audience immediately before writing.
+3. **Redis→PostgreSQL settlement** records Redis acceptance, then claims materialization in the same transaction as preference evaluation, notification/coalescing, and email-queue writes.
+4. **Repair and evidence** use outbox replay before the base receipt, BullMQ retry/quarantine after acceptance, the bounded `reconcile-missing-notifications` backstop when a receipt has no notification row, and `readNotificationDeliveryLag` for payload-free operational evidence.
 
 - **Canonical Goal delivery** — only `goal.monthly_result.closed:v1` may create `goal.completed`, and only when the Goal-owned exact lookup proves the result remains closed and achieved. Append-only `goal.monthly_result.revised:v1` creates the neutral `goal.result_revised` only when outcome or availability changed, after an exact current revision fence proves the event was not superseded; it never mislabels a false or unavailable result as completed. `goal.monthly_result.reconciled` is durable evidence without a user notification; legacy `goal.completed` retains schema/history compatibility but has no Notification registration or handler.
 - **Digest keyed by property timezone** (already on properties table), not org timezone (Q8).
@@ -203,7 +201,7 @@ In **`google-closed-beta`**, **`OUTBOX_DISPATCHER_ENABLED=true`** on the applica
 - **Filtered pagination has server-derived continuation evidence** — the server requests `limit + 1` after applying the selected filter, returns only `limit` rows, and sets `hasMore` from the extra row. The client never guesses another page merely because the current filtered page is exactly full.
 - **Periodic refresh is one atomic feed-head snapshot** — the exact unread count, offset-zero page, and transaction watermark are read in one repeatable-read repository transaction and poll through one client observer every 30 seconds while the surface is visible. Older pages live in a separate, disabled infinite-query cache and are requested only through **Load more**, so focus/interval refresh never replays all history already loaded. The refreshed head is merged ahead of retained history by stable notification id, removing offset-boundary overlap without dropping older rows. Optimistic read/dismiss actions patch both caches and restore the complete head snapshot on rollback.
 - **At most one unread per `(userId, type, resourceId)`** (2026-07 design, ADR 0046 r.2) — enforced in the database by the partial unique index `notifications_unread_resource_unique … WHERE status = 'unread'` (migration 0070, replacing the event-ID-keyed unique). `insertNotification` finds the unread row and **coalesces**: `coalesced_count + 1`, `coalesced_latest_at = now`, payload merged newest-wins with `occurrences` set, and title/body re-rendered so the row reads "… Updated 3 times". If the existing row is read/dismissed a fresh unread row is created (so the user is re-notified). Prevents the duplicate-stacking seen for re-escalations / re-submitted replies.
-- **Copy is rendered, never written by handlers** (2026-08 design, ADR 0046 r.8) — `domain/notification-templates.ts` is the single renderer for the in-app row, the urgent email and the digest line. Handlers emit a content-free `payload` (property name, local Portal guest rating, platform, waiting age, actor role, moderation reason, goal name, occurrences); `notifications.payload` is registered in `PROTECTED_FIELD_REGISTRY`, and `parseNotificationPayload` drops every unrecognised key on the way in AND out of the database. Migration 0128 and its compatibility trigger remove legacy provider-rating copies at persistence. This is what removed raw identifiers from notification copy.
+- **Copy is rendered, never written by consumers** (2026-08 design, ADR 0046 r.8) — `domain/notification-templates.ts` is the single renderer for in-app rows, urgent email, and digest lines. Durable consumers enqueue an allowlisted, content-free `payload`; `parseNotificationPayload` drops every unrecognised key on the way in and out of persistence.
 - **`digest_summary` retired as a category** (2026-08 design) — a digest is a **cadence** (`cadence = 'daily'`), and the category's default `{in_app:false, email:false}` silently dropped every `goal.completed`. Categories are now `mandatory | urgent_operational | workflow_collaboration | recognition`; `goal.completed` classifies as `recognition`. Migration 0070 remaps stored values in `notifications`, `notification_email_queue` and `notification_preferences`.
 - **Recognition preference controls remain beta-dark** (2026-08 design) — `recognition` remains a valid category for active Goal notifications, but it is absent from settings, category filter tabs, and row-level mute controls.
 - **Notification type names distinct from event tags** (Q4).

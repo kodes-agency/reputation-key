@@ -2,19 +2,16 @@
 //
 // Every command must commit its state mutation (better-auth-owned
 // invitation/member/organization rows — the app-owned write path) and its
-// outbox_events row in ONE transaction, then emit on the in-process bus
-// AFTER commit:
-//   ['tx.start', 'tx.read'*, 'tx.state'+, 'tx.outbox', 'tx.commit', 'emit']
+// outbox_events row in one transaction:
+//   ['tx.start', 'tx.read'*, 'tx.state'+, 'tx.outbox', 'tx.commit']
 // Guarded mutations (already-member/already-invited, last-owner, missing
-// rows, invitation lifecycle) roll back and record NO fact, emit nothing.
-// A post-commit bus failure must not propagate (durable row already retained).
+// rows, invitation lifecycle) roll back and record no fact.
 
 import { randomUUID } from 'node:crypto'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createAtomicIdentityCommandStore as createAtomicIdentityCommandStoreWithDeps } from './identity-command-store'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -32,8 +29,8 @@ import {
 import { isIdentityError } from '../domain/errors'
 import type { AcceptedInvitation } from '../application/ports/identity-command-store.port'
 
-const createAtomicIdentityCommandStore = (db: Database, events: EventBus) =>
-  createAtomicIdentityCommandStoreWithDeps(db, events, randomUUID)
+const createAtomicIdentityCommandStore = (db: Database) =>
+  createAtomicIdentityCommandStoreWithDeps(db, randomUUID)
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => ({
@@ -187,17 +184,6 @@ function createMockDb(opts: {
   return { db: db as unknown as Database, tx }
 }
 
-function makeEvents(order: string[], fail = false): EventBus {
-  return {
-    on: vi.fn(),
-    emit: vi.fn(async () => {
-      if (fail) throw new Error('bus down')
-      order.push('emit')
-    }),
-    clear: vi.fn(),
-  }
-}
-
 const invitedEvent = () =>
   identityMemberInvited({
     organizationId: ORG_ID,
@@ -241,7 +227,7 @@ describe('createAtomicIdentityCommandStore', () => {
       event: invitedEvent(),
     })
 
-    it('commits invitation insert + invited fact in one tx before emit', async () => {
+    it('commits invitation insert and invited fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const executedRows: Array<{ text: string; params: unknown[] }> = []
@@ -251,8 +237,8 @@ describe('createAtomicIdentityCommandStore', () => {
         outboxRows,
         executedRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
       const cmd = command()
 
       await store.inviteMember(cmd)
@@ -266,7 +252,6 @@ describe('createAtomicIdentityCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
       expect(executedRows).toHaveLength(1)
       expect(executedRows[0]!.text).toContain('INSERT INTO invitation')
@@ -293,14 +278,14 @@ describe('createAtomicIdentityCommandStore', () => {
         selectQueue: [[{ organizationId: ORG_ID as string }]],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.inviteMember(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'already_exists',
       )
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order).toEqual(['tx.start', 'tx.lock', 'tx.read', 'tx.rollback'])
     })
 
@@ -312,14 +297,14 @@ describe('createAtomicIdentityCommandStore', () => {
         selectQueue: [[], [{ organizationId: ORG_ID as string }]],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.inviteMember(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'already_exists',
       )
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order).toEqual(['tx.start', 'tx.lock', 'tx.read', 'tx.read', 'tx.rollback'])
     })
 
@@ -332,15 +317,14 @@ describe('createAtomicIdentityCommandStore', () => {
         const order: string[] = []
         const outboxRows: Array<Record<string, unknown>> = []
         const { db } = createMockDb({ order, selectQueue, outboxRows })
-        const events = makeEvents(order)
-        const store = createAtomicIdentityCommandStore(db, events)
+
+        const store = createAtomicIdentityCommandStore(db)
 
         await expect(store.inviteMember(command())).rejects.toSatisfy(
           (error: unknown) =>
             isIdentityError(error) && error.code === 'organization_conflict',
         )
         expect(outboxRows).toHaveLength(0)
-        expect(events.emit).not.toHaveBeenCalled()
       }
     })
 
@@ -357,15 +341,14 @@ describe('createAtomicIdentityCommandStore', () => {
         ],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.inviteMember(command())).rejects.toSatisfy(
         (error: unknown) =>
           isIdentityError(error) && error.code === 'organization_conflict',
       )
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
     })
   })
 
@@ -389,7 +372,7 @@ describe('createAtomicIdentityCommandStore', () => {
           })),
     })
 
-    it('commits member insert + accepted update + fact in one tx before emit', async () => {
+    it('commits member insert, accepted update, and fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const insertedRows: Array<Record<string, unknown>> = []
@@ -401,8 +384,8 @@ describe('createAtomicIdentityCommandStore', () => {
         insertedRows,
         updateSets,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       const result = await store.acceptInvitation(command())
 
@@ -437,11 +420,10 @@ describe('createAtomicIdentityCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
     })
 
-    it('rejects when the acceptor email does not match — no fact, no emit', async () => {
+    it('rejects when the acceptor email does not match and records no fact', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
@@ -449,14 +431,14 @@ describe('createAtomicIdentityCommandStore', () => {
         selectQueue: [[pendingInvitationRow({ email: 'other@test.com' })]],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.acceptInvitation(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'forbidden',
       )
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order).toEqual(['tx.start', 'tx.read', 'tx.rollback'])
     })
 
@@ -472,7 +454,7 @@ describe('createAtomicIdentityCommandStore', () => {
         insertedRows,
         updateSets,
       })
-      const store = createAtomicIdentityCommandStore(db, makeEvents(order))
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.acceptInvitation(command())).rejects.toSatisfy(
         (error: unknown) =>
@@ -506,7 +488,7 @@ describe('createAtomicIdentityCommandStore', () => {
         outboxRows,
         insertedRows,
       })
-      const store = createAtomicIdentityCommandStore(db, makeEvents(order))
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.acceptInvitation(command())).rejects.toSatisfy(
         (error: unknown) =>
@@ -533,7 +515,7 @@ describe('createAtomicIdentityCommandStore', () => {
           [pendingInvitationRow({ expiresAt: new Date('2020-01-01T00:00:00.000Z') })],
         ],
       })
-      const store = createAtomicIdentityCommandStore(db, makeEvents(order))
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.acceptInvitation(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'invitation_not_found',
@@ -547,7 +529,7 @@ describe('createAtomicIdentityCommandStore', () => {
         order,
         selectQueue: [[pendingInvitationRow({ status: 'accepted' })]],
       })
-      const store = createAtomicIdentityCommandStore(db, makeEvents(order))
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.acceptInvitation(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'invitation_not_found',
@@ -565,15 +547,15 @@ describe('createAtomicIdentityCommandStore', () => {
         outboxRows,
         updateSets,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.acceptInvitation(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'forbidden',
       )
       expect(updateSets).toEqual([{ status: 'rejected' }])
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order).toEqual(['tx.start', 'tx.read', 'tx.state', 'tx.commit'])
     })
   })
@@ -589,7 +571,7 @@ describe('createAtomicIdentityCommandStore', () => {
       }),
     })
 
-    it('commits status update + canceled fact in one tx before emit', async () => {
+    it('commits the status update and canceled fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const updateSets: Array<Record<string, unknown>> = []
@@ -599,29 +581,29 @@ describe('createAtomicIdentityCommandStore', () => {
         outboxRows,
         updateSets,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await store.cancelInvitation(command())
 
       expect(updateSets).toEqual([{ status: 'canceled' }])
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.eventType).toBe('identity.invitation.canceled')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
 
     it('throws invitation_not_found and records nothing when no row matches', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, updateReturning: [], outboxRows })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.cancelInvitation(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'invitation_not_found',
       )
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order).toEqual(['tx.start', 'tx.state', 'tx.rollback'])
     })
   })
@@ -657,8 +639,8 @@ describe('createAtomicIdentityCommandStore', () => {
         outboxRows,
         updateSets,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await store.removeMember(command())
 
@@ -677,7 +659,6 @@ describe('createAtomicIdentityCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
       expect(updateSets).toEqual([
         expect.objectContaining({
@@ -706,21 +687,21 @@ describe('createAtomicIdentityCommandStore', () => {
         ],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.removeMember(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'last_owner',
       )
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order).toEqual(['tx.start', 'tx.lock', 'tx.read', 'tx.read', 'tx.rollback'])
     })
 
     it('throws member_not_found when the row is gone — no fact', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order, selectQueue: [[]] })
-      const store = createAtomicIdentityCommandStore(db, makeEvents(order))
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.removeMember(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'member_not_found',
@@ -743,7 +724,7 @@ describe('createAtomicIdentityCommandStore', () => {
           ],
         ],
       })
-      const store = createAtomicIdentityCommandStore(db, makeEvents(order))
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(
         store.removeMember({
@@ -778,7 +759,7 @@ describe('createAtomicIdentityCommandStore', () => {
       }),
     })
 
-    it('commits role update + role_changed fact in one tx before emit', async () => {
+    it('commits the role update and role_changed fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const updateSets: Array<Record<string, unknown>> = []
@@ -790,8 +771,8 @@ describe('createAtomicIdentityCommandStore', () => {
         outboxRows,
         updateSets,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await store.changeMemberRole(command())
 
@@ -805,7 +786,6 @@ describe('createAtomicIdentityCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
     })
 
@@ -818,7 +798,7 @@ describe('createAtomicIdentityCommandStore', () => {
           [{ role: 'owner' }],
         ],
       })
-      const store = createAtomicIdentityCommandStore(db, makeEvents(order))
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.changeMemberRole(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'last_owner',
@@ -843,13 +823,13 @@ describe('createAtomicIdentityCommandStore', () => {
       }),
     })
 
-    it('commits organization + owner + binding + created fact before emit', async () => {
+    it('commits organization, owner, binding, and created fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const insertedRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({ order, selectQueue: [[]], outboxRows, insertedRows })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await store.registerOrganization(command())
 
@@ -883,7 +863,6 @@ describe('createAtomicIdentityCommandStore', () => {
         'tx.state',
         'tx.outbox',
         'tx.commit',
-        'emit',
       ])
     })
 
@@ -895,42 +874,15 @@ describe('createAtomicIdentityCommandStore', () => {
         selectQueue: [[{ id: 'org-existing' }]],
         outboxRows,
       })
-      const events = makeEvents(order)
-      const store = createAtomicIdentityCommandStore(db, events)
+
+      const store = createAtomicIdentityCommandStore(db)
 
       await expect(store.registerOrganization(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'already_exists',
       )
       expect(outboxRows).toHaveLength(0)
-      expect(events.emit).not.toHaveBeenCalled()
+
       expect(order).toEqual(['tx.start', 'tx.read', 'tx.rollback'])
-    })
-  })
-
-  describe('emit failure isolation', () => {
-    it('a post-commit bus failure does not propagate (durable row retained)', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({
-        order,
-        updateReturning: [{ id: INV_ID as string }],
-        outboxRows,
-      })
-      const events = makeEvents(order, true)
-      const store = createAtomicIdentityCommandStore(db, events)
-
-      await store.cancelInvitation({
-        invitationId: INV_ID,
-        organizationId: ORG_ID,
-        event: identityInvitationCanceled({
-          organizationId: ORG_ID,
-          invitationId: INV_ID,
-          occurredAt: NOW,
-        }),
-      })
-
-      expect(outboxRows).toHaveLength(1)
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
     })
   })
 

@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod/v4'
 import type { DomainEvent } from '#/shared/events/events'
-import type { EventBus } from '#/shared/events/event-bus'
 import { clearEventSchemas, registerEventSchema } from '#/shared/events/schema-registry'
-import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { getRequestContext } from './request-context'
 import { tracedHandler } from './traced-server-fn'
 
@@ -35,13 +34,11 @@ beforeEach(() => {
 })
 
 describe('tracedHandler command identity', () => {
-  it('stamps an emitted durable fact with the server request id as commandId', async () => {
+  it('stamps a recorded durable fact with the server request id as commandId', async () => {
     const values = vi.fn(async (_row: unknown) => undefined)
     const tx = {
       insert: vi.fn(() => ({ values })),
     } as unknown as Tx
-    const emit = vi.fn(async (_event: DomainEvent) => undefined)
-    const events = { emit } as unknown as EventBus
     const fact = {
       _tag: EVENT_TYPE,
       eventId: 'evt-server-command-1',
@@ -56,7 +53,6 @@ describe('tracedHandler command identity', () => {
       if (!requestId) throw new Error('traced handler did not install request context')
 
       await insertOutboxRow(tx, fact)
-      await emitAfterCommit(events, fact)
       return requestId
     })
 
@@ -66,6 +62,5 @@ describe('tracedHandler command identity', () => {
     expect(values.mock.calls[0]?.[0]).toMatchObject({
       payload: { commandId: requestId },
     })
-    expect(emit).toHaveBeenCalledWith(fact)
   })
 })

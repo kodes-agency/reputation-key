@@ -1,12 +1,8 @@
 import type { Database } from '#/shared/db'
 import type { ConsumerRegistry } from '#/shared/outbox'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createRecentActivityRepository } from './infrastructure/recent-activity-repository.drizzle'
-import { registerActivityHandlers } from './infrastructure/event-handlers'
-import { withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import { getActivityTimeline } from './queries/get-activity-timeline'
 import { listRecentActivity } from './queries/list-recent-activity'
 import { createDbInboxItemLookupAdapter } from './infrastructure/adapters/db-inbox-item-lookup.adapter'
@@ -44,10 +40,8 @@ import { createActivityOrganizationLifecycleContributor } from './infrastructure
 
 type BuildInput = Readonly<{
   db: Database
-  events: EventBus
   outboxRepo?: import('#/shared/outbox').OutboxRepository
   staffPublicApi: StaffPublicApi
-  queue: Queue | undefined
   clock: () => Date
   logger: LoggerPort
   idGen: () => RecentActivityEntryId
@@ -96,18 +90,6 @@ export const buildActivityContext = (input: BuildInput) => {
     staffPublicApi: input.staffPublicApi,
   })
 
-  // Register per-tag handlers that enqueue BullMQ jobs.
-  // BQC-3.6: the queue is wrapped so every project-recent-activity enqueue
-  // inherits the catalogue retry policy (attempts/backoff+jitter/timeout).
-  if (input.queue) {
-    registerActivityHandlers({
-      events: input.events,
-      queue: withCatalogueJobOptions(input.queue),
-      inboxItemLookup,
-      logger: input.logger,
-    })
-  }
-
   const publicApi = {
     getActivityTimeline: timeline,
     listRecentActivity: orgActivity,
@@ -129,7 +111,7 @@ export const buildActivityContext = (input: BuildInput) => {
 
   // ACT-005: projectRecentActivity is NOT constructed here — bootstrap.ts owns the
   // worker-side instantiation (it has the BullMQ job handler). This build
-  // function is for the web process (query + handler registration only).
+  // function exposes query APIs and durable outbox-consumer registration.
   return {
     publicApi,
     // LIF-01-T8: Activity's Organization Export contribution. It is published

@@ -85,7 +85,7 @@ describe('Property responsible manager repository', () => {
         at: UNASSIGNED,
         endReason: 'manager_became_ineligible',
       }),
-    ).toEqual({ released: 0, responsibilityNeededEvents: [] })
+    ).toEqual({ released: 0 })
 
     const first = await repo.releaseForUser({
       organizationId: ORG,
@@ -93,7 +93,7 @@ describe('Property responsible manager repository', () => {
       at: UNASSIGNED,
       endReason: 'manager_offboarded',
     })
-    expect(first).toEqual({ released: 1, responsibilityNeededEvents: [] })
+    expect(first).toEqual({ released: 1 })
     expect((await repo.listActive(ORG, PROPERTY)).map((row) => row.userId)).toEqual([
       'admin-1',
     ])
@@ -104,8 +104,20 @@ describe('Property responsible manager repository', () => {
       at: new Date(UNASSIGNED.getTime() + 1_000),
       endReason: 'manager_offboarded',
     })
-    expect(last.released).toBe(1)
-    expect(last.responsibilityNeededEvents).toHaveLength(1)
+    expect(last).toEqual({ released: 1 })
+    const recoveryFacts = await pool.query(
+      `SELECT event_type, property_id
+       FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type = 'property.responsibility_became_needed'`,
+      [ORG],
+    )
+    expect(recoveryFacts.rows).toEqual([
+      {
+        event_type: 'property.responsibility_became_needed',
+        property_id: PROPERTY,
+      },
+    ])
     expect(await repo.listActive(ORG, PROPERTY)).toEqual([])
     expect(
       await repo.releaseForUser({
@@ -114,7 +126,7 @@ describe('Property responsible manager repository', () => {
         at: new Date(UNASSIGNED.getTime() + 2_000),
         endReason: 'manager_offboarded',
       }),
-    ).toEqual({ released: 0, responsibilityNeededEvents: [] })
+    ).toEqual({ released: 0 })
     const history = await pool.query(
       `SELECT user_id, end_reason FROM property_responsible_managers
        WHERE organization_id = $1 ORDER BY user_id`,

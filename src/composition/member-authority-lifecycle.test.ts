@@ -58,14 +58,8 @@ function createFakes(
     eligibleProperties?: readonly string[]
   }> = {},
 ) {
-  const propertyRelease = vi.fn(async () => ({
-    released: 1,
-    responsibilityNeededEvents: [{ type: 'property.responsibility_needed' }] as const,
-  }))
-  const portalRelease = vi.fn(async () => ({
-    released: 1,
-    responsibilityNeededEvents: [{ type: 'portal.responsibility_needed' }] as const,
-  }))
+  const propertyRelease = vi.fn(async () => ({ released: 1 }))
+  const portalRelease = vi.fn(async () => ({ released: 1 }))
   const propertyResponsibility = {
     listActiveForUser: vi.fn(async () => seed.propertyAssignments ?? []),
     releaseForUser: propertyRelease,
@@ -79,7 +73,6 @@ function createFakes(
     releaseIneligibleAssignmentsForUser: vi.fn(async () => ({ released: 1 })),
   } as unknown as InboxAssignmentRuntime
   const propertyAccess = { revokeAllPropertyAccessForUser: vi.fn(async () => undefined) }
-  const emit = vi.fn(async () => undefined)
   const eligible = new Set(seed.eligibleProperties ?? [])
   const deps: MemberAuthorityLifecycleDeps = {
     clock,
@@ -87,7 +80,6 @@ function createFakes(
     portalResponsibility,
     inboxAssignments,
     propertyAccess,
-    emit,
     eligibility: {
       listActiveManagers: async () =>
         eligible.size > 0
@@ -109,12 +101,11 @@ function createFakes(
     portalResponsibility,
     inboxAssignments,
     propertyAccess,
-    emit,
   }
 }
 
 describe('member authority lifecycle seam', () => {
-  it('releases all four authorities exactly once and publishes both fact sets', async () => {
+  it('releases all four authorities exactly once', async () => {
     const fakes = createFakes()
     const lifecycle = createMemberAuthorityLifecycle(fakes.deps)
 
@@ -136,7 +127,6 @@ describe('member authority lifecycle seam', () => {
       at: AT,
     })
     expect(fakes.propertyAccess.revokeAllPropertyAccessForUser).toHaveBeenCalledTimes(1)
-    expect(fakes.emit).toHaveBeenCalledTimes(2)
   })
 
   it('passes a null actor through for provider lifecycle hooks', async () => {
@@ -162,7 +152,6 @@ describe('member authority lifecycle seam', () => {
     )
     // A failed release must not look like a successful offboarding.
     expect(fakes.propertyAccess.revokeAllPropertyAccessForUser).not.toHaveBeenCalled()
-    expect(fakes.emit).not.toHaveBeenCalled()
   })
 
   it('reconciliation releases only the ineligible assignments', async () => {

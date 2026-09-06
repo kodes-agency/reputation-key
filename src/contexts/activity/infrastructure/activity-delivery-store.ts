@@ -421,9 +421,9 @@ export const createActivityDeliveryStore = (db: Database): ActivityDeliveryStore
       const status = inserted.length === 1 ? 'applied' : 'duplicate'
 
       if (status === 'duplicate') {
-        // The immediate EventBus→BullMQ path may win. Re-apply the canonical
-        // durable fact so source time and content-minimal fields converge
-        // before the shared receipt and Activity replay authority commit.
+        // A redelivery may find the existing projection. Re-apply the canonical
+        // fact so source time and content-minimal fields converge before the
+        // shared receipt and Activity replay authority commit.
         await tx
           .update(recentActivityEntries)
           .set(updateValuesForActivityEntry(canonicalEntry))

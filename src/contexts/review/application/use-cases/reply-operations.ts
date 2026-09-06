@@ -42,10 +42,7 @@ export type ReplyDeps = Readonly<{
   replyRepo: ReplyRepository
   reviewRepo: ReviewRepository
   queue: ReplyQueuePort
-  /**
-   * BQC-3.3: atomic reply state mutation + outbox fact (+ post-commit bus
-   * emit). All fact-emitting reply transitions route through this store.
-   */
+  /** BQC-3.3: atomic reply state mutation and outbox facts. */
   commandStore: ReplyCommandStore
   /** Atomic verification and persistence seam for browser-held AI suggestions. */
   aiSuggestedDraftStore?: AiSuggestedDraftStore
@@ -313,8 +310,7 @@ export const submitReply =
     await assertCurrentAiDraftBinding(deps, ctx, reply)
 
     const now = deps.clock()
-    // BQC-3.3: guarded status update + submitted fact commit in one tx;
-    // the store emits on the bus after commit.
+    // BQC-3.3: guarded status update and submitted fact commit in one transaction.
     const submitted = await commitTransition(reply, 'pending_approval', now, () =>
       deps.commandStore.submitReply(
         reply,

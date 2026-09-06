@@ -1,19 +1,19 @@
 import { trackReviewLinkClick } from './track-review-link-click'
-import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { organizationId, portalId, propertyId, portalLinkId } from '#/shared/domain/ids'
 import type { GuestObservationStore } from '../ports/guest-observation-store.port'
 
 const SESSION_EXPIRES_AT = new Date('2026-05-02T12:00:00Z')
 
 describe('trackReviewLinkClick', () => {
-  it('commits the durable observation before its fast-path event', async () => {
-    const events = createCapturingEventBus()
+  it('commits the durable destination fact through the observation store', async () => {
+    const outbox = createRecordedOutbox()
     const store: GuestObservationStore = {
       commitQualifiedScan: async () => 'applied',
       retractQualifiedScan: async () => 'applied',
       commitScan: async () => 'applied',
       commitReviewLinkClick: async (_action, fact) => {
-        await events.emit(fact)
+        await outbox.record(fact)
         return 'applied'
       },
     }
@@ -32,19 +32,19 @@ describe('trackReviewLinkClick', () => {
       propertyId: propertyId('prop-1'),
     })
 
-    expect(events.capturedByTag('guest.review_link.clicked')).toMatchObject([
+    expect(outbox.byTag('guest.review_link.clicked')).toMatchObject([
       { destinationKind: 'secondary_link' },
     ])
   })
 
   it('preserves Google selections as a distinct durable destination fact', async () => {
-    const events = createCapturingEventBus()
+    const outbox = createRecordedOutbox()
     const store: GuestObservationStore = {
       commitQualifiedScan: async () => 'applied',
       retractQualifiedScan: async () => 'applied',
       commitScan: async () => 'applied',
       commitReviewLinkClick: async (_action, fact) => {
-        await events.emit(fact)
+        await outbox.record(fact)
         return 'applied'
       },
     }
@@ -64,7 +64,7 @@ describe('trackReviewLinkClick', () => {
       propertyId: propertyId('prop-1'),
     })
 
-    expect(events.capturedByTag('guest.review_link.clicked')).toMatchObject([
+    expect(outbox.byTag('guest.review_link.clicked')).toMatchObject([
       { destinationKind: 'google_review' },
     ])
   })

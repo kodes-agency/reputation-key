@@ -19,7 +19,7 @@ import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import type { DomainEvent } from '#/shared/events/events'
 import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
@@ -88,17 +88,11 @@ const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
   allowed: true,
 })
 
-const createAtomicInboxCommandStore = (db: Database, events: EventBus) =>
-  createProductionInboxCommandStore(db, events, allowAllCommandAuthority, () => NOW)
+const createAtomicInboxCommandStore = (db: Database) =>
+  createProductionInboxCommandStore(db, allowAllCommandAuthority, () => NOW)
 
 let pool: Pool
 const db = getDb()
-
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
 
 const noopLogger: LoggerPort = {
   info: () => {},
@@ -338,7 +332,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       sourceId: feedbackId('4d000000-0000-0000-0000-000000000015'),
       assignedTo: USER_B,
     })
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     await store.createItem(first, null, {
       sourceRevision: 1,
       openedReason: 'legacy_backfill',
@@ -354,10 +348,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       openedAt: NOW,
     })
 
-    const result = await createAtomicInboxCommandStore(
-      db,
-      silentEvents,
-    ).releaseAssignmentsForUser({
+    const result = await createAtomicInboxCommandStore(db).releaseAssignmentsForUser({
       organizationId: ORG_A,
       userId: USER_A,
       actorId: USER_B,
@@ -406,7 +397,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       sourceId: feedbackId('4d000000-0000-0000-0000-000000000032'),
       assignedTo: USER_A,
     })
-    const seedingStore = createAtomicInboxCommandStore(db, silentEvents)
+    const seedingStore = createAtomicInboxCommandStore(db)
     await seedingStore.createItem(denied, null, {
       sourceRevision: 1,
       openedReason: 'legacy_backfill',
@@ -426,12 +417,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         ? { allowed: false as const, reason: 'assignee_assignment_denied' }
         : { allowed: true as const },
     )
-    const store = createProductionInboxCommandStore(
-      db,
-      silentEvents,
-      authorize,
-      () => NOW,
-    )
+    const store = createProductionInboxCommandStore(db, authorize, () => NOW)
 
     await expect(
       store.releaseIneligibleAssignmentsForUser({
@@ -485,7 +471,6 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     await expect(
       createProductionInboxCommandStore(
         db,
-        silentEvents,
         authorize,
         () => NOW,
       ).releaseIneligibleAssignmentsForUser({
@@ -522,7 +507,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       NOW,
       'a'.repeat(64),
     )
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
     await store.createItem(item, null, { materialReviewRevision: 1 })
 
@@ -562,7 +547,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
   it('appends one escalation history row per decision, co-committed with the item and fact', async () => {
     await seedReviewRevisionOne()
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
     await store.createItem(item, null, { materialReviewRevision: 1 })
 
@@ -645,7 +630,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
   it('rolls the escalation history row back with the item when the fact insert fails', async () => {
     await seedReviewRevisionOne()
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
     await store.createItem(item, null, { materialReviewRevision: 1 })
 
@@ -678,7 +663,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
   it('classifies a pre-0169 escalated item as legacy_unknown instead of inventing evidence', async () => {
     await seedReviewRevisionOne()
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
     await store.createItem(item, null, { materialReviewRevision: 1 })
     // Exactly what an item escalated before migration 0169 looks like: flags
@@ -704,7 +689,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
   it('refuses a direct UPDATE, DELETE or TRUNCATE against escalation history', async () => {
     await seedReviewRevisionOne()
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
     await store.createItem(item, null, { materialReviewRevision: 1 })
     await store.escalate(
@@ -743,7 +728,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       NOW,
       'c'.repeat(64),
     )
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const closed = makeItem({
       status: 'closed',
       closedAt: NOW,
@@ -833,7 +818,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
     ])
   })
 
-  it('bulk reopen reports a stale row and emits a fact only for the landed CAS', async () => {
+  it('bulk reopen reports a stale row and records a fact only for the landed CAS', async () => {
     const first = makeItem({
       id: inboxItemId('4d000000-0000-0000-0000-000000000026'),
       sourceType: 'feedback',
@@ -850,7 +835,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       status: 'closed',
       closedAt: NOW,
     })
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     for (const item of [first, second]) {
       await store.createItem(item, null, {
         sourceRevision: 1,
@@ -936,7 +921,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       status: 'closed',
       closedAt: NOW,
     })
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     await store.createItem(first, null, { materialReviewRevision: 1 })
     await store.createItem(second, null, { materialReviewRevision: 1 })
     const command = (items: readonly InboxItem[], bulkId: string) =>
@@ -1024,7 +1009,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
   it('applySourceCreatedOnce commits item + fact + receipt in one transaction', async () => {
     await seedReviewRevisionOne()
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const source = reviewCreated({
       reviewId: REVIEW_A,
       propertyId: PROP_A,
@@ -1068,7 +1053,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
   it('rolls back the item insert when the fact insert fails (unregistered type)', async () => {
     await seedReviewRevisionOne()
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const source = reviewCreated({
       reviewId: REVIEW_A,
       propertyId: PROP_A,
@@ -1111,7 +1096,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
   it('rolls back item + fact when the receipt insert fails (source event row missing)', async () => {
     await seedReviewRevisionOne()
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     // No source outbox row — the receipt FK to outbox_events.id fails inside
     // the transaction, proving state+fact+receipt are one commit.
     const ghostEventId = crypto.randomUUID()
@@ -1146,7 +1131,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
   it('duplicate delivery: exactly one item, one fact, receipt present', async () => {
     await seedReviewRevisionOne()
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const source = reviewCreated({
       reviewId: REVIEW_A,
       propertyId: PROP_A,
@@ -1195,7 +1180,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
 
   it('co-commits a genuine material Review cycle and makes replay inert', async () => {
     await seedReviewRevisionOne()
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const item = makeItem()
     await store.createItem(item, null, { materialReviewRevision: 1 })
 
@@ -1325,7 +1310,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         assignedTo: USER_A,
         commandRevision: Number.MAX_SAFE_INTEGER,
       })
-      const store = createAtomicInboxCommandStore(db, silentEvents)
+      const store = createAtomicInboxCommandStore(db)
       await store.createItem(legacy, null, { materialReviewRevision: 1 })
       const noteId = '4d000000-0000-0000-0000-000000000099'
       await pool.query(
@@ -1430,7 +1415,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         assignedTo: USER_A,
         commandRevision: Number.MAX_SAFE_INTEGER,
       })
-      const store = createAtomicInboxCommandStore(db, silentEvents)
+      const store = createAtomicInboxCommandStore(db)
       await store.createItem(legacy, null, { materialReviewRevision: 1 })
       const noteId = '4d000000-0000-0000-0000-000000000098'
       await pool.query(
@@ -1519,7 +1504,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
   })
 
   it('applySourceWithdrawnOnce closes feedback work with fact + receipt atomically', async () => {
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const item = makeItem({
       sourceType: 'feedback',
       sourceId: FEEDBACK_A,
@@ -1604,7 +1589,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
   })
 
   it('applySourceWithdrawnOnce repairs a closed compatibility row under an open cycle head', async () => {
-    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const store = createAtomicInboxCommandStore(db)
     const item = makeItem({
       sourceType: 'feedback',
       sourceId: FEEDBACK_A,
@@ -1690,7 +1675,7 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
       [PROP_C, ORG_B],
     )
     try {
-      const store = createAtomicInboxCommandStore(db, silentEvents)
+      const store = createAtomicInboxCommandStore(db)
       const first = makeItem({
         sourceType: 'feedback',
         sourceId: FEEDBACK_A,
@@ -1772,7 +1757,7 @@ describe.sequential('rebuildInboxProjection (integration)', () => {
     const reviewRepo = createReviewRepository(db, () => new Date())
     const replyRepo = createReplyRepository(db, () => new Date())
     const repo = createInboxRepository(db, stubPorts, repositoryRuntime)
-    const commandStore = createAtomicInboxCommandStore(db, silentEvents)
+    const commandStore = createAtomicInboxCommandStore(db)
     const useCase = rebuildInboxProjection({
       repo,
       commandStore,

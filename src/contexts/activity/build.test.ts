@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { recentActivityEntryId } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -11,9 +10,7 @@ describe('buildActivityContext', () => {
   it('returns the standard publicApi/worker/internal boundary', () => {
     const context = buildActivityContext({
       db: {} as Database,
-      events: {} as EventBus,
       staffPublicApi: {} as StaffPublicApi,
-      queue: undefined,
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
       logger: createMockLogger(),
       idGen: () => recentActivityEntryId('00000000-0000-4000-8000-000000000999'),

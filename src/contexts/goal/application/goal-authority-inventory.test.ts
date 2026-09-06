@@ -29,9 +29,6 @@ describe('Goal beta authority inventory', () => {
       'legacy-goal.update',
       'legacy-goal.cancel',
       'legacy-goal.system-cancel',
-      'legacy-goal.metric-recorded-consumer',
-      'legacy-goal.portal-deleted-consumer',
-      'legacy-goal.portal-group-deleted-consumer',
       'legacy-goal.get',
       'legacy-goal.list',
       'legacy-goal.list-for-staff',
@@ -114,10 +111,6 @@ describe('Goal beta authority inventory', () => {
         'utf8',
       ),
       composition: readFileSync('src/composition.ts', 'utf8'),
-      goalConsumers: readFileSync(
-        'src/contexts/goal/infrastructure/event-handlers/index.ts',
-        'utf8',
-      ),
       attention: readFileSync(
         'src/contexts/dashboard/infrastructure/adapters/attention-signals.adapter.ts',
         'utf8',
@@ -133,7 +126,7 @@ describe('Goal beta authority inventory', () => {
     }
 
     expect(sources.build).not.toMatch(
-      /createGoalRepository|createGovernedGoalRepository|createGovernedGoalService|registerGoalEventHandlers/,
+      /createGoalRepository|createGovernedGoalRepository|createGovernedGoalService/,
     )
     for (const canonicalSource of [
       sources.build,
@@ -145,10 +138,6 @@ describe('Goal beta authority inventory', () => {
     expect(sources.composition).not.toContain('goalRepo: goal.internal.repos.goalRepo')
     expect(sources.composition).not.toMatch(
       /goal\.internal\.useCases\.(?:createGoal|updateGoal|cancelGoal|listStaffGoals)/,
-    )
-    expect(sources.goalConsumers).not.toMatch(/\.on\(['"]portal(?:_group)?\.deleted/)
-    expect(`${sources.entryPoints}\n${sources.eventJobs}`).not.toContain(
-      'goal.event-handlers',
     )
     expect(`${sources.bootstrap}\n${sources.eventJobs}`).not.toMatch(
       /spawn-recurring-instances|reconcile-goal-progress|governed-goal-(?:close|refresh)/,

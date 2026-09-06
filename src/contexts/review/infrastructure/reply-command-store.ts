@@ -1,17 +1,9 @@
 // Atomic reply command store (BQC-3.3).
 //
-// One PostgreSQL transaction: reply/review state mutation + outbox_events
-// insert. After commit: in-process EventBus emit for expand-phase legacy
-// consumers.
-//
-// Crash contract:
-// - Crash anywhere inside the transaction rolls back BOTH the state mutation
-//   and the outbox row — no state/outbox split is ever observable.
-// - Crash after commit but before the bus emit leaves a durable outbox row
-//   for the relay; the emit is best-effort (failure-isolated, logged).
-// - A guarded transition that matches no row (lost TOCTOU race) records no
-//   outbox row and emits nothing — the caller sees null, exactly as with
-//   ReplyRepository.conditionalUpdate today.
+// One PostgreSQL transaction commits each reply/review state mutation with its
+// outbox row. A crash anywhere inside the transaction rolls back both, while a
+// guarded transition that matches no row records no fact and returns null,
+// exactly as with ReplyRepository.conditionalUpdate.
 //
 // BQC-3.8: the publication state machine is persisted here. Publication
 // transitions guard on BOTH status and publication_state; the target state
@@ -28,9 +20,8 @@ import {
   replyPublicationAttempts,
   reviews,
 } from '#/shared/db/schema/review.schema'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
-import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { Reply } from '../domain/types'
@@ -452,15 +443,14 @@ function claimObservationFenceIsCurrent(
 }
 
 /** The named manager has lost current authority: move the cycle to
- * draft/cancelled in this same transaction so a consumed job never strands an
- * authorized Reply. Returns the durable cancellation fact, or null when the row
- * was no longer claimable. */
+ * cancelled and commit the durable cancellation fact when the row is still
+ * claimable. */
 async function cancelPublicationForLostAuthority(
   tx: Tx,
   reply: Reply,
   attempt: PublicationAttemptStart,
   at: Date,
-): Promise<DomainEvent | null> {
+): Promise<void> {
   const cancelled = await guardedPublicationUpdate(
     tx,
     reply,
@@ -472,7 +462,7 @@ async function cancelPublicationForLostAuthority(
       updatedAt: at,
     },
   )
-  if (!cancelled) return null
+  if (!cancelled) return
   if (cancelled.publicationAttempts > 0) {
     await updateCurrentAttempt(tx, cancelled, {
       outcome: 'superseded',
@@ -489,12 +479,10 @@ async function cancelPublicationForLostAuthority(
     occurredAt: at,
   })
   await insertOutboxRow(tx, fact)
-  return fact
 }
 
 export const createAtomicReplyCommandStore = (
   db: Database,
-  events: EventBus,
   clock: () => Date,
   publicationActorAuthority: ReplyPublicationActorAuthority = missingPublicationActorAuthority,
 ): ReplyCommandStore => {
@@ -515,7 +503,6 @@ export const createAtomicReplyCommandStore = (
         if (event) await insertOutboxRow(tx, event)
         return row
       })
-      if (saved && event) await emitAfterCommit(events, event)
       return saved
     })
   }
@@ -548,7 +535,6 @@ export const createAtomicReplyCommandStore = (
         if (fact) await insertOutboxRow(tx, fact)
         return row
       })
-      if (saved && fact) await emitAfterCommit(events, fact)
       return saved
     })
   }
@@ -665,9 +651,6 @@ export const createAtomicReplyCommandStore = (
           await insertOutboxRow(tx, facts.publicationIntent)
           return row
         })
-        if (saved && facts.lifecycleEvent) {
-          await emitAfterCommit(events, facts.lifecycleEvent)
-        }
         return saved
       })
     },
@@ -693,7 +676,6 @@ export const createAtomicReplyCommandStore = (
           throw reviewError('invalid_input', 'Invalid publication attempt fence')
         }
         const at = now ?? clock()
-        let authorityCancellation: DomainEvent | null = null
         const claimed = await db.transaction(async (tx) => {
           const scope = await lockCurrentReplyTruthScope(tx, {
             organizationId: reply.organizationId,
@@ -716,12 +698,7 @@ export const createAtomicReplyCommandStore = (
             at,
           })
           if (!actorAllowed) {
-            authorityCancellation = await cancelPublicationForLostAuthority(
-              tx,
-              reply,
-              attempt,
-              at,
-            )
+            await cancelPublicationForLostAuthority(tx, reply, attempt, at)
             return null
           }
           const duplicate = await tx
@@ -790,9 +767,6 @@ export const createAtomicReplyCommandStore = (
           })
           return claimed
         })
-        if (authorityCancellation) {
-          await emitAfterCommit(events, authorityCancellation)
-        }
         return claimed
       })
     },
@@ -953,7 +927,6 @@ export const createAtomicReplyCommandStore = (
           await insertOutboxRow(tx, command.publicationIntent)
           return row
         })
-        if (saved) await emitAfterCommit(events, command.lifecycleEvent)
         return saved
       })
     },
@@ -961,7 +934,6 @@ export const createAtomicReplyCommandStore = (
     cancelPublications: async (commands) => {
       return trace('reply.commandStore.cancelPublications', async () => {
         if (commands.length === 0) return 0
-        const committed: DomainEvent[] = []
         const cancelled = await db.transaction(async (tx) => {
           let count = 0
           for (const { reply, event, now } of commands) {
@@ -989,12 +961,10 @@ export const createAtomicReplyCommandStore = (
               })
             }
             await insertOutboxRow(tx, event)
-            committed.push(event)
             count++
           }
           return count
         })
-        for (const event of committed) await emitAfterCommit(events, event)
         return cancelled
       })
     },
@@ -1019,7 +989,6 @@ export const createAtomicReplyCommandStore = (
           if (command.event) await insertOutboxRow(tx, command.event)
           return mirrored
         })
-        if (saved && command.event) await emitAfterCommit(events, command.event)
         return saved
       })
     },
@@ -1039,9 +1008,9 @@ export const createAtomicReplyCommandStore = (
 }
 
 /**
- * Non-transactional store for unit tests / expand-phase fakes. Applies the
- * same operation order (state → outbox → emit) without a real transaction;
- * the legacy Review purge is denied before every dependency in both stores.
+ * Non-transactional store for unit tests. Applies the same state → outbox
+ * order without a real transaction; the legacy Review purge is denied before
+ * every dependency in both stores.
  * Not for production — production must use createAtomicReplyCommandStore.
  */
 export const createSequentialReplyCommandStore = (deps: {
@@ -1050,7 +1019,6 @@ export const createSequentialReplyCommandStore = (deps: {
   deleteByReviewIdAndSource: ReplyRepository['deleteByReviewIdAndSource']
   /** @deprecated SAFE-03 keeps this compatibility dependency unreachable. */
   deleteReviewById: (reviewId: ReviewId, organizationId: OrganizationId) => Promise<void>
-  events: EventBus
   clock: () => Date
   recordOutbox?: (event: DomainEvent) => Promise<void>
   /**
@@ -1064,9 +1032,8 @@ export const createSequentialReplyCommandStore = (deps: {
     now?: Date,
   ) => Promise<Reply | null>
 }): ReplyCommandStore => {
-  const recordAndEmit = async (event: DomainEvent): Promise<void> => {
+  const recordOutbox = async (event: DomainEvent): Promise<void> => {
     if (deps.recordOutbox) await deps.recordOutbox(event)
-    await emitAfterCommit(deps.events, event)
   }
 
   const transition = async (
@@ -1082,7 +1049,7 @@ export const createSequentialReplyCommandStore = (deps: {
       updates,
       now,
     )
-    if (saved && event) await recordAndEmit(event)
+    if (saved && event) await recordOutbox(event)
     return saved
   }
 
@@ -1102,7 +1069,7 @@ export const createSequentialReplyCommandStore = (deps: {
       )
     }
     const saved = await deps.publicationUpdate(reply, allowedStates, updates, now)
-    if (saved && fact) await recordAndEmit(fact)
+    if (saved && fact) await recordOutbox(fact)
     return saved
   }
 
@@ -1139,7 +1106,6 @@ export const createSequentialReplyCommandStore = (deps: {
         await deps.recordOutbox(facts.lifecycleEvent)
       }
       if (deps.recordOutbox) await deps.recordOutbox(facts.publicationIntent)
-      if (facts.lifecycleEvent) await emitAfterCommit(deps.events, facts.lifecycleEvent)
       return saved
     },
 
@@ -1236,7 +1202,6 @@ export const createSequentialReplyCommandStore = (deps: {
             await deps.recordOutbox(command.lifecycleEvent)
             await deps.recordOutbox(command.publicationIntent)
           }
-          await emitAfterCommit(deps.events, command.lifecycleEvent)
           return saved
         })
     },
@@ -1253,7 +1218,7 @@ export const createSequentialReplyCommandStore = (deps: {
           now,
         )
         if (saved) {
-          await recordAndEmit(event)
+          await recordOutbox(event)
           count++
         }
       }
@@ -1270,7 +1235,7 @@ export const createSequentialReplyCommandStore = (deps: {
         return null
       }
       const saved = await deps.upsert(command.reply, command.now)
-      if (command.event) await recordAndEmit(command.event)
+      if (command.event) await recordOutbox(command.event)
       return saved
     },
 

@@ -4,9 +4,9 @@
 // an enabled catalogue row without a handler (or a registered handler with no
 // catalogue row) is a deployment/config failure and must FAIL THE BOOT, per
 // the phase BQC-3 failure taxonomy ("Unknown job/consumer → fail readiness").
-// When the durable dispatcher is enabled, every catalogued durable consumer
-// ref must also be registered — consumers are intentionally inert while the
-// dispatcher is off (BQR-0 containment), so that check is gated on the flag.
+// Every catalogued durable consumer ref must also be registered: the outbox
+// relay + dispatcher are the only delivery path, so an unregistered consumer
+// is a fact nobody reads.
 
 import { describe, it, expect, vi } from 'vitest'
 import { assertJobReadiness } from './readiness'
@@ -15,7 +15,6 @@ import {
   JOB_FAMILY_ROWS,
   EVENT_FAMILY_ROWS,
 } from '#/shared/governance/event-job-catalogue'
-import { INBOX_CUTOVER_FAMILIES } from '#/shared/outbox/cutover-flags'
 
 function fakeLogger() {
   return { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() }
@@ -36,24 +35,9 @@ function fullyRegisteredRegistry() {
 /** Every durable consumer ref the catalogue declares, as registered pairs. */
 function allCatalogueDurableConsumers() {
   return EVENT_FAMILY_ROWS.flatMap((r) =>
-    r.consumers
-      .filter((c) => c.kind === 'durable')
-      .map((c) => ({ eventType: r.eventType, consumerName: c.name })),
+    r.consumers.map((c) => ({ eventType: r.eventType, consumerName: c.name })),
   )
 }
-
-const CUTOVER_CONSUMER_CASES = [
-  {
-    family: 'review.created',
-    state: 'shadow',
-    consumerName: 'inbox.on-review-created',
-  },
-  {
-    family: 'review.expired',
-    state: 'switch',
-    consumerName: 'inbox.on-review-expired',
-  },
-] as const
 
 describe('assertJobReadiness (BQC-3.6)', () => {
   it('passes when every enabled row has a handler and none are extra', () => {
@@ -61,8 +45,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
 
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
-        dispatcherEnabled: false,
-        listConsumers: () => [],
+        listConsumers: allCatalogueDurableConsumers,
       }),
     ).not.toThrow()
 
@@ -81,8 +64,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
 
     expect(() =>
       assertJobReadiness(registry, logger, {
-        dispatcherEnabled: false,
-        listConsumers: () => [],
+        listConsumers: allCatalogueDurableConsumers,
       }),
     ).toThrow(new RegExp(missing.jobName))
   })
@@ -94,8 +76,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
 
     expect(() =>
       assertJobReadiness(registry, logger, {
-        dispatcherEnabled: false,
-        listConsumers: () => [],
+        listConsumers: allCatalogueDurableConsumers,
       }),
     ).toThrow(/health-chek/)
   })
@@ -112,8 +93,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
 
     expect(() =>
       assertJobReadiness(registry, logger, {
-        dispatcherEnabled: false,
-        listConsumers: () => [],
+        listConsumers: allCatalogueDurableConsumers,
       }),
     ).toThrow(new RegExp(blocked.jobName))
   })
@@ -159,135 +139,15 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     ])
   })
 
-  it('skips durable-consumer validation when the dispatcher is disabled (logs info)', () => {
+  it('throws when a catalogued durable consumer is unregistered', () => {
     const logger = fakeLogger()
+    const [missing, ...rest] = allCatalogueDurableConsumers()
+    if (!missing) throw new Error('test precondition: the catalogue declares a consumer')
 
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
-        dispatcherEnabled: false,
-        listConsumers: () => [], // nothing registered — must not matter
-      }),
-    ).not.toThrow()
-  })
-
-  it('throws when the dispatcher is enabled and a catalogued durable consumer is unregistered', () => {
-    const logger = fakeLogger()
-    const durable = allCatalogueDurableConsumers()
-    const missing = durable.find(
-      ({ eventType }) => !INBOX_CUTOVER_FAMILIES.some((family) => family === eventType),
-    )
-    if (!missing) throw new Error('test precondition: a non-cutover consumer exists')
-    const rest = durable.filter((consumer) => consumer !== missing)
-
-    expect(() =>
-      assertJobReadiness(fullyRegisteredRegistry(), logger, {
-        dispatcherEnabled: true,
         listConsumers: () => rest,
       }),
     ).toThrow(new RegExp(missing.consumerName))
   })
-
-  it('passes durable-consumer validation when every catalogued ref is registered', () => {
-    const logger = fakeLogger()
-
-    expect(() =>
-      assertJobReadiness(fullyRegisteredRegistry(), logger, {
-        dispatcherEnabled: true,
-        listConsumers: () => allCatalogueDurableConsumers(),
-      }),
-    ).not.toThrow()
-  })
-
-  it('BQC-3.9: fails the boot when a family is shadow/switch but the dispatcher is off', () => {
-    const logger = fakeLogger()
-
-    expect(() =>
-      assertJobReadiness(fullyRegisteredRegistry(), logger, {
-        dispatcherEnabled: false,
-        listConsumers: () => [],
-        activeCutoverFamilies: () => [{ family: 'review.created', state: 'shadow' }],
-      }),
-    ).toThrow(/review\.created=shadow.*OUTBOX_DISPATCHER_ENABLED/)
-
-    expect(() =>
-      assertJobReadiness(fullyRegisteredRegistry(), logger, {
-        dispatcherEnabled: false,
-        listConsumers: () => [],
-        activeCutoverFamilies: () => [
-          { family: 'review.created', state: 'switch' },
-          { family: 'review.expired', state: 'shadow' },
-        ],
-      }),
-    ).toThrow(/review\.created=switch.*review\.expired=shadow/)
-  })
-
-  it('BQC-3.9: passes shadow/switch families when the dispatcher is enabled and consumers register', () => {
-    const logger = fakeLogger()
-
-    expect(() =>
-      assertJobReadiness(fullyRegisteredRegistry(), logger, {
-        dispatcherEnabled: true,
-        listConsumers: () => allCatalogueDurableConsumers(),
-        activeCutoverFamilies: () => [
-          { family: 'review.created', state: 'switch' },
-          { family: 'review.expired', state: 'shadow' },
-        ],
-      }),
-    ).not.toThrow()
-  })
-
-  it('BQC-3.9: record-only families need no durable consumer', () => {
-    const logger = fakeLogger()
-    const recordOnlyRegistrations = allCatalogueDurableConsumers().filter(
-      (consumer) =>
-        !CUTOVER_CONSUMER_CASES.some(
-          ({ family, consumerName }) =>
-            consumer.eventType === family && consumer.consumerName === consumerName,
-        ),
-    )
-
-    expect(() =>
-      assertJobReadiness(fullyRegisteredRegistry(), logger, {
-        dispatcherEnabled: true,
-        listConsumers: () => recordOnlyRegistrations,
-        activeCutoverFamilies: () => [],
-      }),
-    ).not.toThrow()
-  })
-
-  it.each(CUTOVER_CONSUMER_CASES)(
-    'BQC-3.9: $state requires the $family durable consumer',
-    ({ family, state, consumerName }) => {
-      const logger = fakeLogger()
-      const recordOnlyRegistrations = allCatalogueDurableConsumers().filter(
-        (consumer) =>
-          !CUTOVER_CONSUMER_CASES.some(
-            (cutover) =>
-              consumer.eventType === cutover.family &&
-              consumer.consumerName === cutover.consumerName,
-          ),
-      )
-      const activeConsumers = allCatalogueDurableConsumers().filter(
-        (consumer) =>
-          consumer.eventType === family && consumer.consumerName === consumerName,
-      )
-      expect(activeConsumers).toHaveLength(1)
-
-      expect(() =>
-        assertJobReadiness(fullyRegisteredRegistry(), logger, {
-          dispatcherEnabled: true,
-          listConsumers: () => recordOnlyRegistrations,
-          activeCutoverFamilies: () => [{ family, state }],
-        }),
-      ).toThrow(new RegExp(`${family}::${consumerName}`))
-
-      expect(() =>
-        assertJobReadiness(fullyRegisteredRegistry(), logger, {
-          dispatcherEnabled: true,
-          listConsumers: () => [...recordOnlyRegistrations, ...activeConsumers],
-          activeCutoverFamilies: () => [{ family, state }],
-        }),
-      ).not.toThrow()
-    },
-  )
 })

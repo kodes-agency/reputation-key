@@ -6,7 +6,7 @@
 // 1. Receives an identifier-only ConsumerEvent (no review text, PII)
 // 2. Checks the receipt (idempotency — dispatcher pre-checks hasReceipt)
 // 3. Applies the projection via InboxCommandStore applyOnce — state change,
-//    emitted facts, and the receipt co-commit in ONE transaction (no crash
+//    outbox facts, and the receipt co-commit in ONE transaction (no crash
 //    window can lose a fact or duplicate a side effect across redelivery).
 //
 // BQC-3.4: review.updated gained a metadata-only refresh consumer (sourceDate/
@@ -234,7 +234,7 @@ export async function handleInboxReviewExpired(
 }
 
 /**
- * REV-01 content-free handoff. Review owns the source lifecycle and emits an
+ * REV-01 content-free handoff. Review owns the source lifecycle and records an
  * identifier-only transition. Inbox owns its stable projection, so it closes
  * unservable work and removes legacy provider-controlled copies itself. The
  * command store co-commits the scrub, optional status fact, and receipt.
@@ -343,8 +343,8 @@ export async function handleInboxReplyPublished(
  * Stamp the firstReplySubmittedAt milestone on the associated inbox item.
  * Milestone only — this consumer never touches `inbox_items.status`; exact
  * current observed Google truth (review.reply.observed) owns close/reopen.
- * Durable replacement for the former in-process bus handler; idempotent by
- * construction because a set milestone is never overwritten.
+ * The milestone update is idempotent because a set milestone is never
+ * overwritten.
  */
 export async function handleInboxReplySubmitted(
   deps: InboxConsumerDeps,

@@ -1,7 +1,7 @@
 // Goal context — build function (composition root)
 // Per architecture: "Build functions wire ports → adapters, deps → use cases."
 // Returns the public API surface of the goal context.
-// Retained pre-beta CRUD/event handlers are intentionally not composed here;
+// Retained pre-beta CRUD is intentionally not composed here;
 // the only active durable consumer reconciles GoalProgram result corrections.
 
 import type { Database } from '#/shared/db'

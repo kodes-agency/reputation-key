@@ -14,7 +14,7 @@ import { Pool } from 'pg'
 import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
-import type { EventBus } from '#/shared/events/event-bus'
+
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
@@ -53,21 +53,10 @@ const ATTEMPTED_AT = new Date('2026-08-27T11:00:00.000Z')
 const db = getDb()
 let pool: Pool
 
-const silentEvents: EventBus = {
-  on: () => {},
-  emit: async () => {},
-  clear: () => {},
-}
-
 const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
 
 const commandStore = (database: Database) =>
-  createProductionInboxCommandStore(
-    database,
-    silentEvents,
-    allowAllCommandAuthority,
-    () => OPENED_AT,
-  )
+  createProductionInboxCommandStore(database, allowAllCommandAuthority, () => OPENED_AT)
 
 const makeItem = (id: InboxItem['id'], sourceId: InboxItem['sourceId']): InboxItem => ({
   id,
@@ -240,11 +229,7 @@ describe.sequential('Manager handling authority (PostgreSQL)', () => {
     const reopened = await reopen(item, 2)
     expect(reopened.status).toBe('open')
 
-    const handling = createFeedbackHandlingStore(
-      db,
-      silentEvents,
-      allowAllCommandAuthority,
-    )
+    const handling = createFeedbackHandlingStore(db, allowAllCommandAuthority)
     const state = await handling.getState(item.id, ORG)
     expect(state).toMatchObject({ cycleNumber: 2, status: 'open' })
 
@@ -282,11 +267,7 @@ describe.sequential('Manager handling authority (PostgreSQL)', () => {
     const item = await openFeedbackCycle(WITHDRAWN_ITEM, WITHDRAWN_FEEDBACK)
     await withdraw(item)
     const reopened = await reopen(item, 2)
-    const handling = createFeedbackHandlingStore(
-      db,
-      silentEvents,
-      allowAllCommandAuthority,
-    )
+    const handling = createFeedbackHandlingStore(db, allowAllCommandAuthority)
     const state = await handling.getState(item.id, ORG)
 
     await expect(
@@ -312,11 +293,7 @@ describe.sequential('Manager handling authority (PostgreSQL)', () => {
 
   it('permits a manager outcome on a reopened cycle whose source was never unavailable', async () => {
     const item = await openFeedbackCycle(LIVE_ITEM, LIVE_FEEDBACK)
-    const handling = createFeedbackHandlingStore(
-      db,
-      silentEvents,
-      allowAllCommandAuthority,
-    )
+    const handling = createFeedbackHandlingStore(db, allowAllCommandAuthority)
     const handled = await handling.markHandled({
       item,
       outcomeId: '6b000000-0000-4000-8000-000000000020',
