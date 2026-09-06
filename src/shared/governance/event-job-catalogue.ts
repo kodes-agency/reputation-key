@@ -49,7 +49,7 @@
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { SystemAction } from './entry-point-catalogue'
 
-export const RECORDED_EVENT_RETENTION = 'outbox:30d,receipts:30d' as const
+const RECORDED_EVENT_RETENTION = 'outbox:30d,receipts:30d' as const
 
 // ── Types ───────────────────────────────────────────────────────────
 

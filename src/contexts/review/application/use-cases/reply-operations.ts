@@ -186,6 +186,8 @@ export type DraftReplyInput = Readonly<{
 
 export const draftReply =
   (deps: ReplyDeps) =>
+  // Pre-existing (cognitive 21); WP3.1 only removed the bus dependency.
+  // fallow-ignore-next-line complexity
   async (input: DraftReplyInput, ctx: AuthContext): Promise<Reply> => {
     requireManager(ctx)
 

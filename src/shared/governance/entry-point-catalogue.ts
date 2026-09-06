@@ -214,67 +214,14 @@ export type EntryPointRow = Readonly<{
 }>
 
 /** Beta posture derived from the authoritative capability sets (ADR 0032). */
-export function postureForCapability(cap: Capability | 'none'): BetaPosture {
+function postureForCapability(cap: Capability | 'none'): BetaPosture {
   if (cap === 'none') return 'core'
   if (isBlockedCapability(cap)) return 'blocked'
   if (isCoreCapability(cap)) return 'core'
   return 'non_core'
 }
 
-function entryRegistrationIssues(
-  id: string,
-  registration: EntryPointRegistration | undefined,
-): readonly string[] {
-  if (!registration?.ownerFile || !registration.reachability) {
-    return [`${id}: registration ownership is missing`]
-  }
-  if (
-    !['direct_declaration', 'source_composed', 'boot_registry', 'declared_only'].includes(
-      registration.reachability,
-    )
-  ) {
-    return [`${id}: registration reachability is invalid`]
-  }
-  return []
-}
-
-export function validateEntryPointGovernance(
-  rows: readonly unknown[],
-): readonly string[] {
-  const issues: string[] = []
-  for (const candidate of rows) {
-    const entry = candidate as Partial<EntryPointRow>
-    const id = typeof entry.id === 'string' ? entry.id : '<unknown-entry>'
-    issues.push(
-      ...entryOwnerIssues(id, entry),
-      ...entryRegistrationIssues(id, entry.registration),
-    )
-  }
-  return issues
-}
-
 // ── Row factories (records of functions — no classes) ───────────────
-
-const ENTRY_POINT_OWNERS = new Set<EntryPointOwner>([
-  'activity',
-  'ai',
-  'dashboard',
-  'goal',
-  'guest',
-  'identity',
-  'inbox',
-  'integration',
-  'metric',
-  'notification',
-  'portal',
-  'property',
-  'review',
-  'staff',
-  'operations',
-  'shared',
-  'web',
-  'worker',
-])
 
 const CONTEXT_OWNER_RE = /^src\/contexts\/([a-z-]+)\//
 
@@ -285,15 +232,6 @@ function ownerForFile(file: string): EntryPointOwner {
   if (file === 'src/bootstrap.ts' || file.startsWith('src/worker/')) return 'worker'
   if (file === 'package.json' || file.startsWith('scripts/')) return 'operations'
   return 'shared'
-}
-
-function entryOwnerIssues(id: string, entry: Partial<EntryPointRow>): readonly string[] {
-  if (!entry.owner) return [`${id}: owner is missing`]
-  if (!ENTRY_POINT_OWNERS.has(entry.owner)) return [`${id}: owner is invalid`]
-  if (entry.file && entry.owner !== ownerForFile(entry.file)) {
-    return [`${id}: owner does not match definition path`]
-  }
-  return []
 }
 
 function registrationForEntry(

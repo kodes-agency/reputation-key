@@ -271,7 +271,7 @@ function nextCapabilityEpochs(
   })
 }
 
-export async function getMerchantAiAuthorizationSnapshot(
+async function getMerchantAiAuthorizationSnapshot(
   db: Database,
   input: Readonly<{ organizationId: string; propertyId: string }>,
 ): Promise<MerchantAiSnapshot | null> {
@@ -348,6 +348,10 @@ export const createMerchantAiAuthorizationStore = (
               sql`, `,
             )}]::text[]`
 
+      // Pre-existing finding (cyclomatic 63 over one 336-line transaction, no
+      // unit coverage: the store is integration-tested); WP3.1 only removed the
+      // post-commit bus emit. Splitting the transaction is WP3.3-B's job.
+      // fallow-ignore-next-line complexity
       return db.transaction(async (tx) => {
         const sourceDiscoveryResult = await tx.execute(sql`
           SELECT
