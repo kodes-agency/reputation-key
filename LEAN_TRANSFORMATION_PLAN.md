@@ -372,6 +372,23 @@ What actually dies is the approval half: `google-content-approval.ts` (508, bund
 
 So step 2 is smaller than written: rewire the four `authorizeGoogle*Content` closures in `google-provider-authority.ts:560-645` to call the surviving principal resolver directly instead of `googleContentAuthority.preauthorize`, drop `approvalBindingId`/`policyVersion`/`emergencyKillVersion` from `GoogleReviewSyncContentAuthorizationResult` and its three siblings, and replace `admit` with a thin issuer that writes the permit from the resolved vector plus `sha256(GOOGLE_CLIENT_ID)` as the project fingerprint.
 
+**Step 2 attempted and reverted twice, 2026-09-06. The blocker is that the authorization vector is PERSISTED.** Recording the map so the third attempt does not rediscover it.
+
+The vector looks like a value computed per request. It is not: it is constructed in five places, compared by strict key-set equality, and frozen into a database column.
+
+1. **Producer:** `google-content-authorization-check.ts` stages it per capability.
+2. **Four independent reconstructions:** each capability authorizer rebuilds what it expects the vector to be — `expectedSystemVector` in the review-sync and reply-publication authorizers, `expectedAuthorizationVector` in the performance and import ones. No compiler relationship ties any of them to the producer.
+3. **Comparison is exact:** `sameGoogleContentAuthorizationVector` compares sorted key lists AND per-key values, so one extra or one missing key is a refusal, not a near-match.
+4. **Persisted:** `google-import-v2-store.ts` freezes the vector into `google_import_v2_items` and `authorizationFromRow` reconstitutes it from an enumerated eight-key shape, with columns in `google-import-discovery.schema.ts`.
+
+First attempt (`70ad725c`, reverted in `582631b8`) removed `googleContentPolicyVersion` and `emergencyKillVersion` from the producer only. Every local gate passed — typecheck, lint:ci, the resolver's own suite, the Integration context's integration tests, 10,090 unit tests — and `e2e` failed thirteen minutes later with Google review sync refusing every call as `ReviewProviderSnapshotFailure`, because `expectedSystemVector` still listed both keys and key-set equality is exact.
+
+Second attempt fixed all five construction sites and the exclusion list, and got as far as the persisted shape: the import store's frozen vector and its schema columns still carry the keys, so contracting the vector is a schema change with a store contraction, not an edit to five literals.
+
+So step 2 is: contract the vector in all five construction sites, the exclusion list, the import store's frozen shape and `google_import_v2_items`' columns, regenerate the baseline, and update the fixtures in the nine test files that spell the eight-key shape out. Then swap the gate.
+
+`src/contexts/integration/application/authorization-vector-key-parity.test.ts` was written during the second attempt and is worth writing again first, before any of it: it asserts that every key the four expectation builders claim is a key the producer can emit, and that the exclusion list names only keys that still exist. Negative control confirmed — reintroducing the exact bug that reached CI fails it naming `review-sync#emergencyKillVersion`. It runs in milliseconds and would have replaced a thirteen-minute CI round trip.
+
 Verification: local gate; `pnpm test:integration` green; **`e2e` CI job green** (it is the only thing that proves a Google call still reaches the provider); `git grep -n "google-content\|approvalGap\|assertDirectProviderEgressAllowed" -- src services scripts` → none outside `docs/archive`.
 
 ### WP2.3 — AI pair into the worker only
