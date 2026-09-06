@@ -268,8 +268,8 @@ export function createPostgresGoogleAdmissionPermitAuthority(
             WHERE other_procedure.pronamespace = 'public'::regnamespace
               AND other_procedure.oid NOT IN (
                 'public.load_google_execution_permit_v1(uuid)'::regprocedure,
-                'public.start_google_execution_permit_v3(uuid,bigint,bigint,bigint,text,text,text,jsonb,text)'::regprocedure,
-                'public.fail_google_execution_permit_v1(uuid,bigint,bigint,bigint,text,text,text,text)'::regprocedure,
+                'public.start_google_execution_permit_v3(uuid,bigint,text,text,text,jsonb,text)'::regprocedure,
+                'public.fail_google_execution_permit_v1(uuid,bigint,text,text,text,text)'::regprocedure,
                 'public.complete_google_execution_permit_v1(uuid,text,text,integer)'::regprocedure
               )
               AND has_function_privilege(
@@ -281,8 +281,8 @@ export function createPostgresGoogleAdmissionPermitAuthority(
         FROM pg_proc AS procedure
         WHERE procedure.oid IN (
           'public.load_google_execution_permit_v1(uuid)'::regprocedure,
-          'public.start_google_execution_permit_v3(uuid,bigint,bigint,bigint,text,text,text,jsonb,text)'::regprocedure,
-          'public.fail_google_execution_permit_v1(uuid,bigint,bigint,bigint,text,text,text,text)'::regprocedure,
+          'public.start_google_execution_permit_v3(uuid,bigint,text,text,text,jsonb,text)'::regprocedure,
+          'public.fail_google_execution_permit_v1(uuid,bigint,text,text,text,text)'::regprocedure,
           'public.complete_google_execution_permit_v1(uuid,text,text,integer)'::regprocedure
           )
       `)

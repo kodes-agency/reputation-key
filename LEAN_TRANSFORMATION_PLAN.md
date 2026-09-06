@@ -361,6 +361,17 @@ The contracted replacement is one function, roughly 40 lines: the permit is in s
 
 This is why step 1 is worth doing on its own and doing first: it is the largest single deletion in WP2.2, it is behaviour-preserving for the surviving checks, and `e2e` exercises it on every push. Rewrite the three `start_…` variants into one, contract `complete_…` and `fail_…` to the columns that remain, drop `approval_binding_id`, `policy_version`, `emergency_kill_version`, `start_vector_mode` and `commit_vector_mode` from `authorization_execution_permits`, and regenerate the baseline. Keep `capability` until step 3, when the four-capability union goes — dropping it in step 1 would couple the two steps through `nextPermitGeneration`'s scope key and the start-deadline sweep.
 
+**Step 1 landed 2026-09-06 (`fb23aba8`), and reading the seam shrank the rest of WP2.2 by two thirds.** The deletion list in the bullet counted 11,054 lines of "Google content-approval cluster". Most of that is not the ceremony:
+
+- **`google-content-authorization-check.ts` (736) SURVIVES.** It is the principal resolver, not an approval reader: it stages the authorization vector — `principalKind`, `systemPrincipal`, `role`, `permissionVersion`, `permissionDigest` — for each capability, and it contains **zero** references to `capability_compliance_approvals` or any approval binding. The contracted SQL still reads exactly those vector fields, so deleting it would delete the principal binding the permit is checked against.
+- **`google-content-authorization-vector.ts` (165) SURVIVES** for the same reason: vector comparison and the permission digest.
+- **The four per-capability authorizers (1,622 lines across review-sync, reply-publication, import and performance) SURVIVE.** They already do the product checks — binding currency, connection usability, a re-read after the token fetch — and consult the ceremony only through `authorizeGoogleContent` for the approval half.
+- **The permit, its authority and the start-deadline sweep survive** (finding 2).
+
+What actually dies is the approval half: `google-content-approval.ts` (508, bundles and role signatures), the approval portion of `google-content-authority.ts` (836), `google-content-runtime-bindings.ts` (106), the approval and control tables in `google-content-control.schema.ts`, `scripts/ops/google-content-approval.ts` (125), the ceremony env, and the stack's bundle generator. Roughly 3–4k lines, not 11k.
+
+So step 2 is smaller than written: rewire the four `authorizeGoogle*Content` closures in `google-provider-authority.ts:560-645` to call the surviving principal resolver directly instead of `googleContentAuthority.preauthorize`, drop `approvalBindingId`/`policyVersion`/`emergencyKillVersion` from `GoogleReviewSyncContentAuthorizationResult` and its three siblings, and replace `admit` with a thin issuer that writes the permit from the resolved vector plus `sha256(GOOGLE_CLIENT_ID)` as the project fingerprint.
+
 Verification: local gate; `pnpm test:integration` green; **`e2e` CI job green** (it is the only thing that proves a Google call still reaches the provider); `git grep -n "google-content\|approvalGap\|assertDirectProviderEgressAllowed" -- src services scripts` → none outside `docs/archive`.
 
 ### WP2.3 — AI pair into the worker only
