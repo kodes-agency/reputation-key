@@ -355,6 +355,22 @@ Migrations 182 → 3 generated files (94 MB → 3.9 MB); database tables 233 →
 
 **The 13.4% TS reduction is short of the audit's ~30% headline, and the gap is real rather than unfinished Phase 1 work:** the audit counted the whole five-phase program. Phase 3's schema collapse (~250 → ~80 tables) and context merges are where the remaining reduction lives. What Phase 1 actually removed is the _machinery_: the governance tree halved, the release and IaC trees went to zero, and the generated-JSON journal lost 96% of its lines.
 
+### CI green, and the four regressions the local gate could not see
+
+**Full CI green on `23fae9a3` (run 34008838744): all 16 jobs, `e2e` included.** The baseline `a9d7ffe1` was green too, so every break in between was Phase 1's, and the local gate proved insufficient to catch any of the four. Each hid the next behind `--max-failures=1`, so they surfaced one at a time.
+
+1. **The lockfile** (`test-unit`, all four shards, plus every install). WP1.5 removed the `railway` devDependency without regenerating `pnpm-lock.yaml`, so `--frozen-lockfile` failed before a single test ran. The local gate never installs.
+2. **Three references to deleted files** (`artifacts`, `docker`, all three image groups, `e2e`). `tsup.config.ts` still bundled `scripts/google-import-final-schema-probe.ts` into the worker, and the `Dockerfile` still ran `scripts/check-google-import-artifacts.mjs` as a build gate. **The local gate never builds a container.** Audited the class rather than the instance: every entry in all 11 tsup configs resolves, and every Dockerfile and `node scripts/…` named in `ci.yml` and `compose.local.yml` exists.
+3. **A duplicated ciphertext format** (`e2e`). `e2e/helpers/fixtures.ts` reimplemented AES-256-GCM under a comment reading "must match token-encryption.adapter.ts", and WP1.8's version prefix broke the match. It now calls the adapter; `ciphertext-format-singleton.test.ts` pins one implementation per format, walking test and fixture files because that is where the copy lived.
+4. **An import-cycle capture** (`e2e`). The real one, and the reason WP0.3 first turned `e2e` red. `inboxFns` captured its members eagerly, the client build put the Activity/AI fns in a chunk cycling with it, and ESM handed it `undefined` — so the timeline query threw inside `queryFn` and issued no request at all. Route fn bundles are now lazy; `route-server-fn-bundles.test.ts` pins it. `-notification-fns.ts` had the same defect and was only being saved by chunk order.
+
+Two lessons worth carrying into Phase 2, both about the _shape_ of the gap rather than the individual bugs:
+
+- **The local gate does not install, build a container, or run a browser against the real topology.** Three of the four regressions were invisible to `typecheck` + `lint:ci` + `test:unit` + `test:integration` by construction, not by accident. Phase 2's program rules should add `pnpm install --frozen-lockfile` and `docker build .` to the per-WP routine; both are fast and both would have caught #1 and #2 at commit time.
+- **A duplicated definition and an eagerly-captured cross-module reference both fail silently and remotely.** Neither produced a build error, a type error, or a server log. The deletions in Phases 2–4 will keep shuffling the module graph, so the two pins added here (`ciphertext-format-singleton`, `route-server-fn-bundles`) are load-bearing for the rest of the program, not incidental to WP1.8.
+
+A third finding is recorded but not fixed, because it is local-only: on this machine the e2e stack's review sync refuses with `runtime_unavailable` from `google-provider-authority.ts:888`, where an absent runtime binding returns without logging. CI does not hit it. That silent return is a real observability gap — the file's own comment already calls out this class — and belongs with WP2.2's Google collapse.
+
 ## Assumptions & contingencies
 
 - **Storybook:** default is "keep, one runner" (WP3.6). If you prefer to drop Storybook entirely, WP3.6 instead deletes `.storybook/`, all `*.stories.tsx`, both CI jobs and the ten `@storybook*`/`@vitest/browser*` packages, and `pnpm test-storybook` leaves the local gate.
