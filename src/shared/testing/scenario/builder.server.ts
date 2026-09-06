@@ -7,7 +7,6 @@
 // so the simulation controls the time dimension (ADR 0017).
 
 import type { SimulationContainer } from '#/composition'
-import { sql } from 'drizzle-orm'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   reviewId,
@@ -331,10 +330,10 @@ async function createGuestData(
   // Metric definitions are effective from a seeded date; a reading before it
   // is quarantined (definition_version_not_effective), so the backdating floor
   // is the newest effective_from rather than an arbitrary day count.
-  const [effective] = await ctx.db
-    .select({ from: sql<Date | null>`max(${metricDefinitionVersions.effectiveFrom})` })
+  const versions = await ctx.db
+    .select({ effectiveFrom: metricDefinitionVersions.effectiveFrom })
     .from(metricDefinitionVersions)
-  const floorAt = effective?.from ? new Date(effective.from).getTime() : 0
+  const floorAt = Math.max(0, ...versions.map((v) => v.effectiveFrom.getTime()))
   const common = {
     organizationId: unbrand(ctx.orgId),
     portalId: unbrand(pId),
