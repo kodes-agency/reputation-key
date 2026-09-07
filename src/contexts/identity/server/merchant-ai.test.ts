@@ -82,6 +82,15 @@ describe('Merchant AI server functions', () => {
     })
   })
 
+  it('gates notice-only reads without reading a property', async () => {
+    await withStartContext(() => getMerchantAiAuthorizationFn({ data: {} }))
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith({
+      actor,
+      action: 'ai.manage',
+    })
+    expect(mocks.get).not.toHaveBeenCalled()
+  })
+
   it('forwards only validated capability changes with step-up proof', async () => {
     const changed = { state: 'enabled', stateVersion: 4 }
     mocks.change.mockResolvedValue(changed)
