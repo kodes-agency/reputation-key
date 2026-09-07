@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { Link } from '@tanstack/react-router'
 import { MessageSquare, Star, ScanLine, MessageCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -9,11 +10,8 @@ import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashb
 import type { PropertyPerformancePreset } from '#/shared/google-performance-report-contract'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import {
-  KPICard,
-  RatingDistributionChart,
-  RatingKPICard,
-} from './property-dashboard-helpers'
+import { KPICard, RatingKPICard } from './property-dashboard-helpers'
+import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
 import { StatGrid } from './property-stat-grid'
 import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
 import { ReviewRow } from './property-dashboard-review-row'
@@ -57,6 +55,7 @@ export function PropertyDashboard({
   getAiTrend,
   getAiAggregates,
 }: PropertyDashboardProps) {
+  const ratingDistributionHeadingId = useId()
   if (!property) return null
 
   const {
@@ -132,7 +131,20 @@ export function PropertyDashboard({
         </div>
       </div>
 
-      <RatingDistributionChart distribution={ratingDistribution} />
+      <div className="min-w-0">
+        <h2
+          id={ratingDistributionHeadingId}
+          className="text-sm font-medium uppercase tracking-wide text-muted-foreground"
+        >
+          Rating Distribution
+        </h2>
+        <div className="mt-3">
+          <RatingDistributionChart
+            distribution={ratingDistribution}
+            labelledBy={ratingDistributionHeadingId}
+          />
+        </div>
+      </div>
 
       <StatGrid
         heading="Reply Performance"

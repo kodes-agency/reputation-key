@@ -11,11 +11,8 @@ import {
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { TimeRangePicker } from '#/components/features/dashboard/time-range-picker'
 import { BarChart3, MessageCircle, MousePointerClick, ScanLine } from 'lucide-react'
-import {
-  ChartCard,
-  PortalRatingDistributionChart,
-  RatingTrendChart,
-} from './portal-analytics-charts'
+import { ChartCard, RatingTrendChart } from './portal-analytics-charts'
+import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
 import { EngagementFunnelChart } from './portal-analytics-funnel-chart'
 import { PortalRatingCard } from './portal-rating-card'
 import { PortalCountCard } from './portal-count-card'
@@ -201,7 +198,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
         {data.kpis.avgRating.evidence.state === 'ready' && (
           <ChartCard title="Private rating distribution">
             {(headingId) => (
-              <PortalRatingDistributionChart
+              <RatingDistributionChart
                 distribution={data.ratingDistribution}
                 labelledBy={headingId}
               />

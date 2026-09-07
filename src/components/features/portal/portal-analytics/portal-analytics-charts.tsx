@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { Bar, BarChart, XAxis, YAxis, Area, AreaChart, CartesianGrid } from 'recharts'
+import { XAxis, YAxis, Area, AreaChart, CartesianGrid } from 'recharts'
 import { cn } from '#/lib/utils'
 import {
   ChartContainer,
@@ -33,48 +33,6 @@ export function ChartCard({
   )
 }
 
-const distConfig = {
-  count: { label: 'Count', color: 'var(--chart-1)' },
-} satisfies ChartConfig
-
-export function PortalRatingDistributionChart({
-  distribution,
-  labelledBy,
-}: {
-  distribution: readonly { stars: number; count: number }[]
-  labelledBy: string
-}) {
-  // The distribution is a GROUP BY over portal.rating readings, so a period
-  // without ratings yields no buckets at all (and a filtered-to-zero period
-  // yields only zeroes). Either way a bar chart draws an axis-only skeleton
-  // that looks broken — say why it is empty instead.
-  const total = distribution.reduce((sum, bucket) => sum + bucket.count, 0)
-  if (total === 0) {
-    return (
-      <p className="py-12 text-center text-sm text-muted-foreground">
-        No ratings in this period.
-      </p>
-    )
-  }
-
-  const data = distribution.map((b) => ({ stars: `${b.stars}★`, count: b.count }))
-
-  return (
-    <ChartContainer
-      config={distConfig}
-      role="img"
-      aria-labelledby={labelledBy}
-      className="min-h-[200px] w-full"
-    >
-      <BarChart data={data} margin={{ left: 0, right: 0 }}>
-        <XAxis dataKey="stars" tickLine={false} axisLine={false} />
-        <YAxis hide />
-        <ChartTooltip content={<ChartTooltipContent />} />
-        <Bar dataKey="count" fill="var(--color-count)" radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ChartContainer>
-  )
-}
 
 const trendConfig = {
   avgRating: { label: 'Avg Rating', color: 'var(--chart-2)' },
