@@ -126,10 +126,10 @@ async function seedImport(
         destination_property_id, provider_account_suffix, provider_location_suffix,
         expected_connection_lifecycle_version, expected_connection_access_version,
         expected_credential_generation, expected_source_epoch, expected_profile_version,
-        action, update_existing_profile, property_name, timezone, processing_region,
-        routing_policy_version, status, effect_deadline_at, created_at, updated_at)
+        action, update_existing_profile, property_name, timezone, status,
+        effect_deadline_at, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, $5, $6, $7, 1, 1, 1, 0, 1,
-             'relink', false, 'Importing Property', 'UTC', 'global', 1, $8,
+             'relink', false, 'Importing Property', 'UTC', $8,
              NOW() + INTERVAL '24 hours', NOW(), NOW())`,
     [
       IMPORT_ITEM,

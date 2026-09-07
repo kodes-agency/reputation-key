@@ -4,7 +4,7 @@ Reply Drafting uses the stable `reply-suggestion-v1` operation wrapper and the
 current `reply-draft-v2` output profile. Migration
 `0163_ai_reply_brand_profile_grounding` adds the public Property Brand Profile
 binding; it does not activate a merchant capability, provider, route,
-deployment, or Data Cell.
+or deployment.
 
 ## Grounding and data boundary
 

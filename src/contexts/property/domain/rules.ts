@@ -48,7 +48,7 @@ export const validateTimezone = (tz: string): Result<string, PropertyError> => {
   return err(propertyError('invalid_timezone', `Unknown timezone: ${tz}`))
 }
 
-// ── Country code validation (BQR-3.5) ──────────────────────────────
+// ── Country code validation ────────────────────────────────────────
 
 /**
  * Normalize and validate an ISO 3166-1 alpha-2 country code.

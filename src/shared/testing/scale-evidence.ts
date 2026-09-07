@@ -30,7 +30,6 @@ export type ReleaseIdentity = Readonly<{
   policyVersions: Readonly<{
     capabilityPolicy: string
     policyStore: number | null
-    routingPolicy: number
     sourceContentPolicy: number
   }>
   datasetHash: string
@@ -53,8 +52,6 @@ export function validateReleaseIdentity(identity: ReleaseIdentity): void {
     )
   if (!identity.policyVersions.capabilityPolicy)
     throw new EvidenceError('release identity: capability policy version is required')
-  if (typeof identity.policyVersions.routingPolicy !== 'number')
-    throw new EvidenceError('release identity: routing policy version is required')
   if (typeof identity.policyVersions.sourceContentPolicy !== 'number')
     throw new EvidenceError('release identity: source-content policy version is required')
   if (!identity.datasetSeed)
@@ -134,7 +131,6 @@ function versionsEqual(
   return (
     a.capabilityPolicy === b.capabilityPolicy &&
     a.policyStore === b.policyStore &&
-    a.routingPolicy === b.routingPolicy &&
     a.sourceContentPolicy === b.sourceContentPolicy
   )
 }
@@ -262,7 +258,7 @@ export function buildScaleEvidence(input: {
 
 **Release id:** ${identity.releaseId}  
 **Release sha:** ${identity.releaseSha}  
-**Policy versions:** capability=${versions.capabilityPolicy} · policyStore=${versions.policyStore ?? 'null'} · routing=${versions.routingPolicy} · sourceContent=${versions.sourceContentPolicy}  
+**Policy versions:** capability=${versions.capabilityPolicy} · policyStore=${versions.policyStore ?? 'null'} · sourceContent=${versions.sourceContentPolicy}  
 **Dataset hash:** ${identity.datasetHash}  
 **Dataset:** seed \`${identity.datasetSeed}\` — ${identity.datasetShape.orgs} orgs / ${identity.datasetShape.properties} properties / ${identity.datasetShape.reviews} reviews  
 **Owner:** ${identity.owner}  

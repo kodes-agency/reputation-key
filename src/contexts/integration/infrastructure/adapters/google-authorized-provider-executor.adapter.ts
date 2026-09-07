@@ -16,7 +16,6 @@ import type {
   GoogleProviderExecutionResult,
 } from '../../application/ports/google-authorized-provider-executor.port'
 import type { GoogleContentAuthorityDenyCode } from '#/shared/auth/google-content-authority'
-import type { DataCellExecutionDecision } from '#/shared/routing/data-cell-execution-fence'
 import type { GoogleDisconnectRevokeDispatchHooks } from '../../application/google-disconnect-revoke'
 
 /**
@@ -77,8 +76,6 @@ type GoogleEgressGatewayClient = Readonly<{
 
 type ExecuteOptions = Parameters<GoogleAuthorizedProviderExecutor['execute']>[1]
 type ExecutionDenial = Extract<GoogleProviderExecutionResult, { ok: false }>
-type CredentialHomeDecision =
-  'direct' | 'credential_home_unavailable' | 'credential_home_mismatch'
 
 const REJECTION_MESSAGE = 'Google provider execution rejected'
 
@@ -102,15 +99,13 @@ export const createGoogleAuthorizedProviderExecutor = (
     gateway: GoogleEgressGatewayClient
     disconnectRevoke?: GoogleDisconnectRevokeDispatchHooks
     now?: () => Date
-    /** REG-01 defense in depth immediately before any provider permit/effect. */
-    admitPropertyExecution?: (propertyId: string) => Promise<DataCellExecutionDecision>
-    /** Phase-A direct mode only. Broker mode cannot carry raw descriptor tokens. */
-    admitDirectCredentialExecution?: (
+    /** Re-proves connection liveness immediately before permit issuance. */
+    admitCredentialExecution?: (
       input: Readonly<{
         routeKey: GoogleProviderRouteDescriptor['routeKey']
         authorization: GoogleProviderCallAuthorization
       }>,
-    ) => Promise<'direct' | 'credential_home_unavailable' | 'credential_home_mismatch'>
+    ) => Promise<boolean>
     routeTarget?: GoogleProviderRouteTarget
     logger?: Readonly<{
       warn(fields: Readonly<Record<string, unknown>>, message: string): void
@@ -125,45 +120,23 @@ export const createGoogleAuthorizedProviderExecutor = (
     deps.logger?.warn({ routeKey, stage, code }, REJECTION_MESSAGE)
   }
 
-  /** REG-01 defense in depth. Null means the call may proceed past this fence. */
-  const dataCellDenial = async (
+  const credentialDenial = async (
     descriptor: GoogleProviderRouteDescriptor,
     options: ExecuteOptions,
   ): Promise<ExecutionDenial | null> => {
-    if (!options.authorization.propertyId || !deps.admitPropertyExecution) return null
-    let cellDecision: DataCellExecutionDecision
+    if (!deps.admitCredentialExecution) return null
+    let admitted: boolean
     try {
-      cellDecision = await deps.admitPropertyExecution(options.authorization.propertyId)
-    } catch {
-      warnRejected(descriptor.routeKey, 'data-cell', 'cell_unavailable')
-      return denyAdmission('cell_unavailable')
-    }
-    if (cellDecision.kind !== 'deny') return null
-    const admissionCode =
-      cellDecision.reason === 'wrong_cell'
-        ? ('wrong_cell' as const)
-        : ('cell_unavailable' as const)
-    warnRejected(descriptor.routeKey, 'data-cell', admissionCode)
-    return denyAdmission(admissionCode)
-  }
-
-  const credentialHomeDenial = async (
-    descriptor: GoogleProviderRouteDescriptor,
-    options: ExecuteOptions,
-  ): Promise<ExecutionDenial | null> => {
-    if (!deps.admitDirectCredentialExecution) return null
-    let credentialDecision: CredentialHomeDecision
-    try {
-      credentialDecision = await deps.admitDirectCredentialExecution({
+      admitted = await deps.admitCredentialExecution({
         routeKey: descriptor.routeKey,
         authorization: options.authorization,
       })
     } catch {
-      credentialDecision = 'credential_home_unavailable'
+      admitted = false
     }
-    if (credentialDecision === 'direct') return null
-    warnRejected(descriptor.routeKey, 'credential-home', credentialDecision)
-    return denyAdmission(credentialDecision)
+    if (admitted) return null
+    warnRejected(descriptor.routeKey, 'credential', 'credential_unavailable')
+    return denyAdmission('credential_unavailable')
   }
 
   /** Null means the descriptor could not be compiled into an admissible request. */
@@ -278,11 +251,8 @@ export const createGoogleAuthorizedProviderExecutor = (
     execute: async (descriptor, options) => {
       if (options.signal?.aborted) return deadlineExceeded()
 
-      const cellDenial = await dataCellDenial(descriptor, options)
-      if (cellDenial) return cellDenial
-
-      const homeDenial = await credentialHomeDenial(descriptor, options)
-      if (homeDenial) return homeDenial
+      const credentialAdmissionDenial = await credentialDenial(descriptor, options)
+      if (credentialAdmissionDenial) return credentialAdmissionDenial
 
       const admission = compileAdmission(descriptor)
       if (!admission) return { ok: false, code: 'malformed_request', retryAfterMs: 0 }

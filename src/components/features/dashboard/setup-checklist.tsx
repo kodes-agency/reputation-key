@@ -15,10 +15,6 @@ const STEP_COPY = {
     title: 'Connect Google',
     description: 'Keep one organization-owned Google connection ready.',
   },
-  imported_property: {
-    title: 'Import a property',
-    description: 'Confirm its country, timezone, and Data Cell assignment.',
-  },
   initial_review_sync: {
     title: 'Complete the first review sync',
     description: 'Wait for the verified Google review inventory to finish.',
@@ -82,7 +78,9 @@ export function SetupChecklistPanel({
             Leave and return at any time. Progress comes from verified setup state.
           </p>
         </div>
-        <Badge variant="secondary">{completed} of 5 milestones reached</Badge>
+        <Badge variant="secondary">
+          {completed} of {checklist.steps.length} milestones reached
+        </Badge>
       </div>
 
       <ol className="mt-5 grid gap-3">

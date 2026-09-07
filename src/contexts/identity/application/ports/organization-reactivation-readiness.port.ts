@@ -25,11 +25,10 @@ export type OrganizationReactivationReadinessInput = Readonly<{
 /**
  * One content-free probe per check.
  *
- * Each is a function rather than a repository because the facts live in five
+ * Each is a function rather than a repository because the facts live in three
  * different contexts. Composition binds each probe to the context that owns
- * the fact (the same shape `admitPropertyExecution` uses on ExecutionPolicy),
- * which keeps Identity infrastructure free of foreign schema imports and keeps
- * the boundary rule in `src/contexts/CONTEXT.md` intact.
+ * the fact, which keeps Identity infrastructure free of foreign schema imports
+ * and keeps the boundary rule in `src/contexts/CONTEXT.md` intact.
  *
  * `detailCode` is a machine code (`no_eligible_manager`, `probe_unavailable`),
  * never prose and never tenant content.

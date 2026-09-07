@@ -19,7 +19,7 @@ If `.env` has ever been shared, committed by mistake, or copied to an insecure l
 After rotating, update `.env.local` (never `.env` — see §3).
 
 For `NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS`, install the new keyring on the web and
-worker services in the same Data Cell as one release. Keep the immediately
+worker services in the same deployment as one release. Keep the immediately
 previous version for at least the 90-day notification evidence window; an open
 digest also pins its signing version so provider retries remain byte-for-byte
 stable during rotation. Do not remove a retained version while any open digest

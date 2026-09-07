@@ -28,7 +28,6 @@ const setup = () => {
     commandStore: createSequentialIntegrationCommandStore({ connectionRepo, outbox }),
     clock: () => FIXED_TIME,
     logger: createMockLogger(),
-    assertDirectCredentialUse: async () => undefined,
   }
   return {
     useCase: disconnectGoogleAccount(baseDeps),
@@ -90,28 +89,6 @@ describe('disconnectGoogleAccount', () => {
       (error: unknown) =>
         isIntegrationError(error) && (error as { code: string }).code === 'forbidden',
     )
-  })
-
-  it('redacts locally without decrypting or calling Google outside the credential home', async () => {
-    const { baseDeps, connectionRepo, oauth, encryption } = setup()
-    const connection = buildTestGoogleConnection()
-    connectionRepo.seed([connection])
-    const decrypt = vi.spyOn(encryption, 'decrypt')
-    const useCase = disconnectGoogleAccount({
-      ...baseDeps,
-      assertDirectCredentialUse: async () => {
-        throw new Error('wrong home')
-      },
-    })
-
-    await expect(
-      useCase(
-        { connectionId: connection.id },
-        buildTestAuthContext({ role: 'AccountAdmin' }),
-      ),
-    ).resolves.toMatchObject({ status: 'disconnected', credentialUseState: 'none' })
-    expect(decrypt).not.toHaveBeenCalled()
-    expect(oauth.revokeTokenCalls()).toEqual([])
   })
 
   it('rejects an unknown tenant-scoped connection', async () => {

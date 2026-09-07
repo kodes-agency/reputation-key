@@ -31,10 +31,6 @@ import {
 import { propertyGoogleBindingChanged } from '../domain/events'
 import { propertyToRow } from './mappers/property.mapper'
 import {
-  resolvePersistedDataCellId,
-  type DataCellId,
-} from '#/shared/domain/data-cell-catalogue'
-import {
   awaitingRefreshGoogleReviewDestination,
   unavailableGoogleReviewDestination,
   verifiedGoogleReviewDestination,
@@ -111,7 +107,6 @@ function internalFromRow(
     address: row.address,
     countryCode: row.countryCode,
     timezone: row.timezone,
-    processingRegion: resolvePersistedDataCellId(row.dataCellId, row.processingRegion),
     lifecycleState: row.lifecycleState,
     googleReviewDestination: {
       state:
@@ -206,9 +201,7 @@ function assertBindingProfile(input: {
 
 export const createPropertyGoogleBindingStore = (
   db: Database,
-  localCell?: DataCellId,
 ): PropertyGoogleBindingStore => {
-  const cellWhere = () => (localCell ? [eq(properties.dataCellId, localCell)] : [])
   const readReceipt: PropertyGoogleBindingStore['readReceipt'] = async (
     organizationIdValue,
     idempotencyKey,
@@ -238,7 +231,6 @@ export const createPropertyGoogleBindingStore = (
           and(
             eq(properties.organizationId, organizationIdValue),
             eq(properties.id, propertyIdValue),
-            ...cellWhere(),
           ),
         )
         .limit(1)
@@ -260,7 +252,6 @@ export const createPropertyGoogleBindingStore = (
         .where(
           and(
             eq(properties.organizationId, organizationIdValue),
-            ...cellWhere(),
             inArray(properties.gbpLocationId, locationIds),
             isNull(properties.deletedAt),
           ),
@@ -277,7 +268,6 @@ export const createPropertyGoogleBindingStore = (
           and(
             eq(properties.organizationId, organizationIdValue),
             eq(properties.id, propertyIdValue),
-            ...cellWhere(),
           ),
         )
         .limit(1)
@@ -296,8 +286,7 @@ export const createPropertyGoogleBindingStore = (
       if (existingReceipt) return replayReceipt(existingReceipt, 'imported')
       if (
         input.property.organizationId !== input.organizationId ||
-        input.property.deletedAt !== null ||
-        (localCell !== undefined && input.property.dataCellId !== localCell)
+        input.property.deletedAt !== null
       ) {
         deny('invalid_binding')
       }
@@ -433,7 +422,6 @@ export const createPropertyGoogleBindingStore = (
                 and(
                   eq(properties.organizationId, input.organizationId),
                   eq(properties.id, input.propertyId),
-                  ...cellWhere(),
                 ),
               )
               .for('update')
@@ -475,7 +463,6 @@ export const createPropertyGoogleBindingStore = (
                 and(
                   eq(properties.organizationId, input.organizationId),
                   eq(properties.id, input.propertyId),
-                  ...cellWhere(),
                   eq(properties.sourceEpoch, input.expectedSourceEpoch),
                   eq(properties.profileVersion, input.expectedProfileVersion),
                 ),
@@ -541,7 +528,6 @@ export const createPropertyGoogleBindingStore = (
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
-                ...cellWhere(),
               ),
             )
             .for('update')
@@ -577,7 +563,6 @@ export const createPropertyGoogleBindingStore = (
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
-                ...cellWhere(),
                 eq(properties.sourceEpoch, input.expectedSourceEpoch),
                 eq(properties.profileVersion, input.expectedProfileVersion),
               ),
@@ -610,7 +595,6 @@ export const createPropertyGoogleBindingStore = (
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
-                ...cellWhere(),
               ),
             )
             .for('update')
@@ -649,7 +633,6 @@ export const createPropertyGoogleBindingStore = (
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
-                ...cellWhere(),
                 eq(properties.sourceEpoch, input.expectedSourceEpoch),
                 eq(properties.profileVersion, input.expectedProfileVersion),
               ),

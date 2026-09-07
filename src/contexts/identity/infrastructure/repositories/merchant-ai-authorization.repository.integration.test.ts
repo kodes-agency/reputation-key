@@ -113,8 +113,6 @@ describe('merchant AI authorization store (real PostgreSQL)', () => {
       slug: 'epoch-zero-property',
       timezone: 'Europe/Sofia',
       countryCode: 'BG',
-      processingRegion: 'europe',
-      routingPolicyVersion: 1,
       profileVersion: 1,
       // The value a freshly imported property carries.
       sourceEpoch: 0,

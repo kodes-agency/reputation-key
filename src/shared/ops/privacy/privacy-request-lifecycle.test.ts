@@ -96,7 +96,6 @@ function harness(
         return 'ledger-1'
       },
       packageTtlMs: 7 * 24 * 60 * 60 * 1_000,
-      dataCellId: 'us',
       now: () => NOW,
     },
   }
@@ -284,7 +283,6 @@ describe('privacy request erasure ordering (LIF-01-T20)', () => {
         effectiveErasureAt: NOW,
         erasedRowCount: 3,
         evidenceRef: 'privacy:erasure:req-1',
-        dataCellId: 'us',
       },
     ])
     expect(result.ledgerEntryId).toBe('ledger-1')

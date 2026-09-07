@@ -111,7 +111,6 @@ function snapshotWithWaiting(waiting: number): OperationsSnapshot {
       capabilityPolicy: 'cap-1',
       executionPolicy: 'exec-1',
       policyStore: 1,
-      routingPolicy: 1,
       sourceContentPolicy: 1,
       runtime: 'v22.0.0',
     },
@@ -188,7 +187,6 @@ function fakeEnv(opts: {
       versions: {
         capabilityPolicy: 'cap-1',
         policyStore: 1,
-        routingPolicy: 1,
         sourceContentPolicy: 1,
       },
     },

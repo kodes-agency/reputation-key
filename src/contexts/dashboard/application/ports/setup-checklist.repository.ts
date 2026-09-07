@@ -2,7 +2,6 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
 export const SETUP_CHECKLIST_STEP_KEYS = [
   'google_connection',
-  'imported_property',
   'initial_review_sync',
   'published_portal',
   'responsible_managers',
@@ -21,7 +20,6 @@ export type SetupChecklistFacts = Readonly<{
   /** Content-free action anchor, scoped by the repository before it is returned. */
   anchorPropertyId: PropertyId | null
   googleConnection: SetupChecklistFact
-  importedProperty: SetupChecklistFact
   initialReviewSync: SetupChecklistFact
   publishedPortal: SetupChecklistFact
   responsibleManagers: SetupChecklistFact

@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { organizationId, googleConnectionId, propertyId } from '#/shared/domain/ids'
+import { organizationId, googleConnectionId } from '#/shared/domain/ids'
 import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
 import { createGoogleAuthorizedProviderExecutor } from './google-authorized-provider-executor.adapter'
 
@@ -94,66 +94,30 @@ describe('createGoogleAuthorizedProviderExecutor', () => {
     expect(gateway.execute).not.toHaveBeenCalled()
   })
 
-  it('denies a wrong-cell Property before permit admission or gateway egress', async () => {
+  it('denies an unavailable credential before permit admission or gateway egress', async () => {
     const admit = vi.fn(async () => ({ ok: true as const, permitId: 'permit-1' }))
     const gateway = { execute: vi.fn() }
     const executor = createGoogleAuthorizedProviderExecutor({
       bindCredential,
       admit,
       gateway,
-      admitPropertyExecution: async () => ({
-        kind: 'deny',
-        reason: 'wrong_cell',
-        localCell: 'europe',
-        targetCell: 'us',
-      }),
+      admitCredentialExecution: async () => false,
     })
 
     await expect(
       executor.execute(descriptor, {
-        authorization: {
-          ...authorization,
-          propertyId: propertyId('33333333-3333-4333-8333-333333333333'),
-        },
+        authorization,
         deadlineMs: Date.parse('2026-08-12T10:00:15.000Z'),
       }),
     ).resolves.toEqual({
       ok: false,
       code: 'admission_denied',
-      admissionCode: 'wrong_cell',
+      admissionCode: 'credential_unavailable',
       retryAfterMs: 0,
     })
     expect(admit).not.toHaveBeenCalled()
     expect(gateway.execute).not.toHaveBeenCalled()
   })
-
-  it.each(['credential_home_unavailable', 'credential_home_mismatch'] as const)(
-    'denies %s before permit admission or gateway egress',
-    async (code) => {
-      const admit = vi.fn(async () => ({ ok: true as const, permitId: 'permit-1' }))
-      const gateway = { execute: vi.fn() }
-      const executor = createGoogleAuthorizedProviderExecutor({
-        bindCredential,
-        admit,
-        gateway,
-        admitDirectCredentialExecution: async () => code,
-      })
-
-      await expect(
-        executor.execute(descriptor, {
-          authorization,
-          deadlineMs: Date.parse('2026-08-12T10:00:15.000Z'),
-        }),
-      ).resolves.toEqual({
-        ok: false,
-        code: 'admission_denied',
-        admissionCode: code,
-        retryAfterMs: 0,
-      })
-      expect(admit).not.toHaveBeenCalled()
-      expect(gateway.execute).not.toHaveBeenCalled()
-    },
-  )
 
   it.each([
     'authorization_changed',

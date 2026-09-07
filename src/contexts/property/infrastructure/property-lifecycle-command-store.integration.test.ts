@@ -78,13 +78,10 @@ beforeAll(async () => {
   `)
   await db.execute(sql`
     INSERT INTO properties (
-      id, organization_id, name, slug, timezone, processing_region, data_cell_id,
-      processing_region_source, processing_region_resolved_at, source_epoch,
-      created_at, updated_at
+      id, organization_id, name, slug, timezone, source_epoch, created_at, updated_at
     ) VALUES (
       ${PROPERTY_ID}, ${ORGANIZATION_ID}, 'Lifecycle Property',
-      'property-lifecycle-atomicity', 'UTC', 'us', 'us', 'country_policy',
-      ${NOW}, 7, ${NOW}, ${NOW}
+      'property-lifecycle-atomicity', 'UTC', 7, ${NOW}, ${NOW}
     )
     ON CONFLICT (id) DO NOTHING
   `)
@@ -106,7 +103,7 @@ describe('Property lifecycle command store atomicity', () => {
   it('preserves one stable row while co-committing archive and its durable fact', async () => {
     const event = archiveEvent()
 
-    await createPropertyLifecycleCommandStore(db, 'us').transitionLifecycle(
+    await createPropertyLifecycleCommandStore(db).transitionLifecycle(
       archiveCommand(event),
     )
 
@@ -152,9 +149,7 @@ describe('Property lifecycle command store atomicity', () => {
     `)
 
     await expect(
-      createPropertyLifecycleCommandStore(db, 'us').transitionLifecycle(
-        archiveCommand(event),
-      ),
+      createPropertyLifecycleCommandStore(db).transitionLifecycle(archiveCommand(event)),
     ).rejects.toMatchObject({ cause: { code: '23505' } })
 
     const result = await db.execute(sql`
@@ -167,35 +162,6 @@ describe('Property lifecycle command store atomicity', () => {
       lifecycle_reason: null,
       purge_scheduled_for: null,
       source_epoch: 7,
-    })
-  })
-
-  it('refuses a Property assigned to another Data Cell without any write', async () => {
-    const event = archiveEvent()
-
-    await expect(
-      createPropertyLifecycleCommandStore(db, 'europe').transitionLifecycle(
-        archiveCommand(event),
-      ),
-    ).rejects.toMatchObject({
-      _tag: 'PropertyError',
-      code: 'property_not_found',
-    })
-
-    const result = await db.execute(sql`
-      SELECT
-        p.lifecycle_state,
-        p.source_epoch,
-        count(o.id)::int AS fact_count
-      FROM properties p
-      LEFT JOIN outbox_events o ON o.organization_id = p.organization_id
-      WHERE p.id = ${PROPERTY_ID}
-      GROUP BY p.id
-    `)
-    expect(result.rows[0]).toEqual({
-      lifecycle_state: 'active',
-      source_epoch: 7,
-      fact_count: 0,
     })
   })
 })

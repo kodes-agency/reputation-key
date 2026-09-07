@@ -125,7 +125,6 @@ export const backupErasureLedger = pgTable(
      * re-apply it — program bullet 11.
      */
     holdReference: varchar('hold_reference', { length: 200 }),
-    dataCellId: varchar('data_cell_id', { length: 16 }).notNull(),
     createdAt: timestamptz('created_at').notNull().defaultNow(),
   },
   (t) => [
@@ -138,7 +137,7 @@ export const backupErasureLedger = pgTable(
       t.context,
     ),
     // The fence's read path: everything in this cell that could be resurrected.
-    index('backup_erasure_ledger_replay_idx').on(t.dataCellId, t.effectiveErasureAt),
+    index('backup_erasure_ledger_replay_idx').on(t.effectiveErasureAt),
     index('backup_erasure_ledger_org_idx').on(t.organizationId, t.effectiveErasureAt),
     check(
       'backup_erasure_ledger_subject_class_valid',
@@ -147,10 +146,6 @@ export const backupErasureLedger = pgTable(
     check(
       'backup_erasure_ledger_context_valid',
       sql.raw(`"backup_erasure_ledger"."context" IN (${contextList})`),
-    ),
-    check(
-      'backup_erasure_ledger_cell_valid',
-      sql`${t.dataCellId} IN ('us', 'europe', 'global')`,
     ),
     check('backup_erasure_ledger_revision_positive', sql`${t.lifecycleRevision} > 0`),
     check('backup_erasure_ledger_count_nonnegative', sql`${t.erasedRowCount} >= 0`),

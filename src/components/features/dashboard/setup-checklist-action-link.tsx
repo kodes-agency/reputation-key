@@ -12,13 +12,6 @@ export function SetupChecklistActionLink({
           <Link to="/settings/integrations">Review Google setup</Link>
         </Button>
       )
-    case 'import_property':
-      return (
-        <Button asChild size="sm" variant="outline">
-          <Link to="/properties/import-google">Import property</Link>
-        </Button>
-      )
-    case 'manage_property':
     case 'assign_managers':
       return action.propertyId ? (
         <Button asChild size="sm" variant="outline">

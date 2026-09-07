@@ -69,7 +69,6 @@ describe('Google connection repository time authority', () => {
       expiresAt,
       'organization',
       ['scope-a'],
-      { homeCellId: 'us', cataloguePolicyVersion: 2, authorityGeneration: 3 },
       ACTOR,
       new Date('2099-01-01T12:30:00.000Z'),
     )

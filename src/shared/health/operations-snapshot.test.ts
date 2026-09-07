@@ -51,7 +51,6 @@ const VERSIONS = {
   capabilityPolicy: 'test-cap',
   executionPolicy: 'test-exec',
   policyStore: () => 11,
-  routingPolicy: 1,
   sourceContentPolicy: 1,
 } as const
 const RUNTIME = {
@@ -275,7 +274,6 @@ describe('createOperationsSnapshot', () => {
       capabilityPolicy: 'test-cap',
       executionPolicy: 'test-exec',
       policyStore: 11,
-      routingPolicy: 1,
       sourceContentPolicy: 1,
       runtime: process.version,
     })
@@ -375,7 +373,6 @@ describe('createOperationsSnapshot', () => {
       capabilityPolicy: 'test-cap',
       executionPolicy: 'test-exec',
       policyStore: null,
-      routingPolicy: 1,
       sourceContentPolicy: 1,
       runtime: process.version,
     })

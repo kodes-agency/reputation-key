@@ -78,7 +78,7 @@ review destination, and records `property.archived`. Archived Properties are
 excluded from normal external effects and public work by lifecycle admission.
 
 Restore is permitted only before the recovery deadline. It rechecks current
-Property access, Data Cell availability, and an eligible Responsible Manager,
+Property access and an eligible Responsible Manager,
 then advances the source epoch and records `property.restored`. The returned
 Google-binding readiness is either `ready` or `reconnect_required`; Restore does
 not silently recreate provider authority.
@@ -152,11 +152,10 @@ imports, sync, replies, notifications, or schedules.
 
 Clearing `reactivation_required` and lifting the Organization suspension is a
 separate command with its own authority, readiness evidence and receipt. It
-answers five closed checks, all of which must pass:
+answers four closed checks, all of which must pass:
 
 | Check                         | Question                                                                  |
 | ----------------------------- | ------------------------------------------------------------------------- |
-| `data_cell_health`            | is the assigned Data Cell (`cell-us`) accepting work?                     |
 | `responsible_manager`         | does every Property have an eligible CURRENT Responsible Manager?         |
 | `google_authorization`        | is there a FRESH authorization — not merely a stored credential?          |
 | `portal_reactivation`         | was at least one Portal deliberately re-pointed at its retained snapshot? |

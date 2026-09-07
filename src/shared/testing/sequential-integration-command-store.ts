@@ -30,7 +30,6 @@ export function createSequentialIntegrationCommandStore(deps: {
         command.tokenExpiresAt,
         command.visibility,
         command.scopes,
-        command.credentialHome,
         command.event.userId,
         command.event.occurredAt,
       )

@@ -21,7 +21,7 @@ export const setupChecklistMilestones = pgTable(
     }),
     check(
       'setup_checklist_milestones_step_valid',
-      sql`${t.step} IN ('google_connection', 'imported_property', 'initial_review_sync', 'published_portal', 'responsible_managers')`,
+      sql`${t.step} IN ('google_connection', 'initial_review_sync', 'published_portal', 'responsible_managers')`,
     ),
   ],
 )

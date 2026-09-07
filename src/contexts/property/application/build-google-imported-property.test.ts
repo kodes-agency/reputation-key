@@ -38,7 +38,6 @@ describe('buildGoogleImportedProperty', () => {
       countrySource: 'tenant_confirmed',
       timezoneSource: 'tenant_confirmed',
       timezoneResolvedAt: NOW,
-      processingRegion: 'us',
       sourceEpoch: 0,
     })
   })

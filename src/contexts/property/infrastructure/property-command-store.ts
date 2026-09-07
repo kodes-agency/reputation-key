@@ -27,7 +27,6 @@ import type {
   UpdatePropertyCommand,
 } from '../application/ports/property-command-store.port'
 import type { PropertySetValues } from './repositories/property.repository'
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 /** The columns a property patch may set — never identity columns. */
 const SETTABLE_PROPERTY_KEYS = [
@@ -49,11 +48,6 @@ const SETTABLE_PROPERTY_KEYS = [
   'countrySource',
   'timezoneSource',
   'timezoneResolvedAt',
-  'processingRegion',
-  'dataCellId',
-  'processingRegionSource',
-  'routingPolicyVersion',
-  'processingRegionResolvedAt',
   'sourceEpoch',
 ] as const satisfies ReadonlyArray<keyof PropertySetValues & keyof Property>
 
@@ -66,10 +60,7 @@ function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySet
   return set as PropertySetValues
 }
 
-export const createAtomicPropertyCommandStore = (
-  db: Database,
-  localCell?: DataCellId,
-): PropertyCommandStore => {
+export const createAtomicPropertyCommandStore = (db: Database): PropertyCommandStore => {
   return {
     createProperty: async (command: CreatePropertyCommand) => {
       return trace('property.commandStore.createProperty', async () => {
@@ -78,12 +69,6 @@ export const createAtomicPropertyCommandStore = (
           // (same contract as PropertyRepository.insert/insertAndReturn).
           if (command.property.organizationId !== command.organizationId) {
             throw propertyError('forbidden', 'Tenant mismatch on property insert')
-          }
-          if (localCell && command.property.dataCellId !== localCell) {
-            throw propertyError(
-              'forbidden',
-              'Property Data Cell does not match command store',
-            )
           }
           const rows = await tx
             .insert(properties)
@@ -112,7 +97,6 @@ export const createAtomicPropertyCommandStore = (
               and(
                 eq(properties.organizationId, command.organizationId as string),
                 eq(properties.id, command.propertyId as string),
-                ...(localCell ? [eq(properties.dataCellId, localCell)] : []),
                 isNull(properties.deletedAt),
                 eq(properties.sourceEpoch, command.expectedSourceEpoch),
                 eq(properties.profileVersion, command.expectedProfileVersion),
@@ -144,7 +128,6 @@ export const createAtomicPropertyCommandStore = (
               and(
                 eq(properties.organizationId, command.organizationId as string),
                 eq(properties.id, command.propertyId as string),
-                ...(localCell ? [eq(properties.dataCellId, localCell)] : []),
                 isNull(properties.deletedAt),
               ),
             )
@@ -190,7 +173,6 @@ export const createAtomicPropertyCommandStore = (
               and(
                 eq(properties.organizationId, command.organizationId as string),
                 eq(properties.id, command.propertyId as string),
-                ...(localCell ? [eq(properties.dataCellId, localCell)] : []),
                 isNull(properties.deletedAt),
               ),
             )

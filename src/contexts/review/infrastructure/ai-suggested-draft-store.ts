@@ -331,7 +331,6 @@ export const createAiSuggestedDraftStore = (
           authorization.noticeDigest !== operation.noticeDigest ||
           authorization.authorizedSourceEpoch !== provenance.sourceEpoch ||
           authorization.replyDraftingEpoch !== provenance.replyDraftingEpoch ||
-          authorization.routingPolicyVersion !== operation.routingPolicyVersion ||
           authorization.sourcePolicyId !== operation.sourcePolicyId ||
           authorization.redactionProfileFamily !== operation.redactionProfileVersion ||
           authorization.providerDeploymentProfileVersion !==

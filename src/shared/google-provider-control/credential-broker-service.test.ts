@@ -18,16 +18,12 @@ function fixture() {
       contractVersion: 'v1',
       requestId: 'broker-service-request-1',
       nonce: 'request_nonce_service_0001',
-      homeCellId: 'us',
-      targetCellId: 'europe',
-      targetGatewayIdentity: 'spiffe://repkey/cell-europe/google-gateway',
       organizationId: 'org-service-1',
       connectionId: 'connection-service-1',
       propertyId: 'property-service-1',
       routeKey: 'reviews.list',
       routeCatalogueVersion: '2026-08-27',
       authorization: {
-        credentialHomeAuthorityGeneration: 1,
         connectionLifecycleVersion: 1,
         connectionAccessVersion: 2,
         credentialGeneration: 3,
@@ -35,8 +31,6 @@ function fixture() {
       },
       requestBindingSha256: HASH_A,
       credentialBinding: HASH_B,
-      routingDirectoryRevision: 5,
-      routingPolicyVersion: 2,
       issuedAtMs: NOW,
       expiresAtMs: NOW + 20_000,
     },
@@ -62,9 +56,6 @@ function fixture() {
   const expected = {
     keys: signatureKeys,
     nowMs: NOW,
-    localTargetCellId: 'europe' as const,
-    homeCellId: 'us' as const,
-    targetGatewayIdentity: request.targetGatewayIdentity,
     organizationId: request.organizationId,
     connectionId: request.connectionId,
     propertyId: request.propertyId,
@@ -72,9 +63,6 @@ function fixture() {
     authorization: request.authorization,
     requestBindingSha256: HASH_A,
     credentialBinding: HASH_B,
-    routingDirectoryRevision: 5,
-    routingPolicyVersion: 2,
-    isAcceptingCell: () => true,
   }
   return { signatureKeys, grant, expected }
 }
@@ -100,7 +88,7 @@ describe('transport-independent Google credential broker service', () => {
     expect(JSON.stringify(issue.mock.calls)).not.toContain(grant.grantId)
   })
 
-  it('denies a route/gateway mismatch without touching durable state', async () => {
+  it('denies a route mismatch without touching durable state', async () => {
     const issue = vi.fn(async () => 'issued' as const)
     const store: DurableGoogleCredentialBrokerReplayStore = {
       issue,
@@ -120,25 +108,5 @@ describe('transport-independent Google credential broker service', () => {
       }),
     ).resolves.toEqual({ ok: false, code: 'wrong_route' })
     expect(issue).not.toHaveBeenCalled()
-  })
-
-  it('keeps cross-cell effect admission dark without consuming the one-use record', async () => {
-    const redeem = vi.fn()
-    const store: DurableGoogleCredentialBrokerReplayStore = {
-      issue: vi.fn(),
-      redeem,
-      purgeExpired: async () => 0,
-      probe: async () => true,
-    }
-    const service = createGoogleCredentialBrokerProtocolService({
-      store,
-      replayKeys: createVersionedHmacKeyring(`v1:${'33'.repeat(32)}`),
-    })
-    const { grant, expected } = fixture()
-    await expect(service.admitCrossCellExecution({ grant, expected })).resolves.toEqual({
-      ok: false,
-      code: 'live_execution_dark',
-    })
-    expect(redeem).not.toHaveBeenCalled()
   })
 })

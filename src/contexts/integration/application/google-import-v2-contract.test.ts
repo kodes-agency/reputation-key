@@ -56,7 +56,6 @@ describe('Google property import v2 contract', () => {
       'imported',
       'relinked',
       'already_exists',
-      'region_unavailable',
       'failed',
       'cancelled',
     ])

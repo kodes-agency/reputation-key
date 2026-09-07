@@ -37,13 +37,11 @@ export interface ObservabilityConfig {
   readonly dsn?: string
   readonly environment: string
   readonly release: string
-  readonly processingCell: string
   readonly tracesSampleRate: number
 }
 
 const observabilityEnvironmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PROCESSING_CELL: z.string().min(1).default('us'),
   RAILWAY_ENVIRONMENT_NAME: z.string().min(1).optional(),
   RELEASE_SHA: z.string().min(1).optional(),
   RAILWAY_GIT_COMMIT_SHA: z.string().min(1).optional(),
@@ -182,7 +180,6 @@ export function buildObservabilityConfig(
     dsn: env.SENTRY_DSN,
     environment: env.RAILWAY_ENVIRONMENT_NAME ?? env.NODE_ENV,
     release: env.RELEASE_SHA ?? env.RAILWAY_GIT_COMMIT_SHA ?? 'unknown',
-    processingCell: env.PROCESSING_CELL,
     tracesSampleRate: env.SENTRY_TRACES_SAMPLE_RATE,
   }
 }
@@ -309,7 +306,6 @@ export function createErrorMonitor(deps: {
         activeSdk = deps.sentry
         feedbackRuntimeTags = {
           service: config.service,
-          processing_cell: config.processingCell,
           release_sha: config.release,
         }
         activeSdk.setTags(feedbackRuntimeTags)
@@ -319,7 +315,6 @@ export function createErrorMonitor(deps: {
           {
             service: config.service,
             environment: config.environment,
-            processingCell: config.processingCell,
             releaseSha: config.release,
             tracesSampleRate: config.tracesSampleRate,
           },

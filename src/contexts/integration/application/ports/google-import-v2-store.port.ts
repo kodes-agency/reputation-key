@@ -25,8 +25,6 @@ export type GoogleImportV2ItemIntent = Readonly<{
   propertyAddress: string | null
   countryCode: string | null
   timezone: string
-  processingRegion: string
-  routingPolicyVersion: number
   effectDeadlineAt: Date
 }>
 
@@ -35,8 +33,6 @@ export type GoogleImportV2DispatchItem = Readonly<{
   expectedConnectionLifecycleVersion: number
   expectedSourceEpoch: number | null
   retryRevision: number
-  processingRegion: string
-  routingPolicyVersion: number
 }>
 
 export type GoogleImportV2ClaimedItem = Readonly<{
@@ -62,8 +58,6 @@ export type GoogleImportV2ClaimedItem = Readonly<{
   propertyAddress: string | null
   countryCode: string | null
   timezone: string
-  processingRegion: string
-  routingPolicyVersion: number
   retryRevision: number
   attemptOrdinal: number
   claimFence: string
@@ -89,7 +83,7 @@ export type GoogleImportV2TerminalInput = Readonly<{
   retryRevision: number
   claimFence: string
   outcomeCode: ImportOutcomeCode
-  retainProtectedRouting: boolean
+  retainRetryState: boolean
   now: Date
 }>
 
@@ -284,7 +278,7 @@ export type GoogleImportV2Store = Readonly<{
       itemId: string
       retryRevision: number
       outcomeCode: ImportOutcomeCode
-      retainProtectedRouting: boolean
+      retainRetryState: boolean
       now: Date
     }>,
   ): Promise<'completed' | 'lost'>

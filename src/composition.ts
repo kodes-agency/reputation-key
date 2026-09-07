@@ -46,15 +46,7 @@ import { feedbackId, organizationId, propertyId, userId } from '#/shared/domain/
 import { buildPropertyContext } from '#/contexts/property/build'
 import { createInboxCommandAuthority } from '#/contexts/inbox/infrastructure/adapters/inbox-command-authority.adapter'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
-import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
-import {
-  createProcessingRouter,
-  providerRefForCell,
-} from '#/shared/routing/processing-router'
-import { createDataCellExecutionFence } from '#/shared/routing/data-cell-execution-fence'
-import { parseGoogleCredentialBrokerRuntimeConfig } from '#/shared/routing/google-credential-broker-runtime'
 import { buildIntegrationContext } from '#/contexts/integration/build'
-import { createImportItemRoutingLoader } from '#/contexts/integration/infrastructure/import-item-routing.adapter'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { validateGoogleRuntimeIsolationReadiness } from '#/shared/auth/google-runtime-isolation'
@@ -77,7 +69,7 @@ import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import {
   applyProviderEndpointOverrides,
   createAiRuntimeProviders,
-  providerConfigFor,
+  GOOGLE_PROVIDER_ENDPOINTS,
 } from './composition/provider-runtime'
 import { buildInfrastructure } from './composition/infrastructure'
 import { buildReadAndNotifyContexts } from './composition/read-and-notify-contexts'
@@ -101,7 +93,7 @@ import {
 
 export {
   applyProviderEndpointOverrides,
-  providerConfigFor,
+  GOOGLE_PROVIDER_ENDPOINTS,
   type ProviderOverrides,
 } from './composition/provider-runtime'
 export { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
@@ -119,10 +111,6 @@ function buildContainer(
   const redis = options && 'redis' in options ? options.redis : getRedis()
   const clock = options?.clock ?? (() => new Date())
   const env = options?.env ?? getEnv()
-  // Boot-time all-or-none validation only. Cross-cell effects remain dark;
-  // this proves a Railway public TCP deployment cannot start with partial,
-  // private-DNS, cleartext, or unpinned broker transport configuration.
-  parseGoogleCredentialBrokerRuntimeConfig(env)
   if (
     env.REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS !== undefined ||
     (!enableJobs && env.REVIEW_PROVIDER_SUBJECT_HMAC_KEYS !== undefined)
@@ -145,16 +133,10 @@ function buildContainer(
   // build (singleton in prod; simulations/tests build per scenario).
   logger.info({ releaseSha: getReleaseSha(env) }, 'composition root boot')
 
-  // BQC-4.3: resolve the cell's approved provider endpoints ONCE from the
-  // router's cell config (PROCESSING_CELL → logical provider ref → endpoint
-  // construction config). Fails closed at startup for a cell with no approved
-  // provider — unavailability is never papered over by another endpoint.
-  // BQC-6.5: explicit operator env overrides (sandbox seam) applied once here;
-  // all absent = byte-identical passthrough.
-  const providerEndpoints = applyProviderEndpointOverrides(
-    providerConfigFor(providerRefForCell(env.PROCESSING_CELL)),
-    env,
-  )
+  // BQC-4.3: Google's approved endpoints, resolved ONCE at boot. BQC-6.5:
+  // explicit operator env overrides (sandbox seam) applied once here; all
+  // absent = byte-identical passthrough.
+  const providerEndpoints = applyProviderEndpointOverrides(GOOGLE_PROVIDER_ENDPOINTS, env)
   const runtimeIsolationConfigured =
     env.GOOGLE_RUNTIME_ISOLATION_PROFILE_JSON !== undefined ||
     env.GOOGLE_CONTROL_PLANE_POLICY_GENERATION !== undefined
@@ -228,18 +210,6 @@ function buildContainer(
   // Requests cannot reach the callback until the container finished composing.
   const memberAuthorityLifecycle = createDeferredMemberAuthorityLifecycle()
 
-  // BQC-4.2: the ONE routing decision model — shared by the review context
-  // (enqueue envelope stamping) and the BQC-4.4 operator region diagnostic.
-  const loadPropertyRouting = createPropertyRoutingLoader({ db })
-  const dataCellExecutionFence = createDataCellExecutionFence({
-    localCell: env.PROCESSING_CELL,
-    loadPropertyRouting,
-  })
-  const processingRouter = createProcessingRouter({
-    loadPropertyRouting,
-    loadImportItemRouting: createImportItemRoutingLoader({ db }),
-  })
-
   // PRE17A A4: Create outbox repository and register event schemas.
   // The outbox records domain events durably. Event schemas are registered
   // once at startup so the relay can validate payloads before publishing.
@@ -276,12 +246,8 @@ function buildContainer(
     logger,
     policy: buildIdentityPolicyDeps({
       env,
-      db,
       propertyBelongsToOrganization: (orgId, pid) =>
         property.publicApi.propertyExists(organizationId(orgId), propertyId(pid)),
-      resolveRouting: (pid) =>
-        processingRouter.resolve({ kind: 'property', propertyId: pid }, 'review.sync'),
-      admitPropertyExecution: dataCellExecutionFence.decideProperty,
     }),
     cancelGoogleImportsForUser: (orgId, userIdValue) => {
       const cancel = integration.lifecycle.cancelImportsForUser
@@ -313,7 +279,6 @@ function buildContainer(
     mode,
     redis,
     providerEndpoints,
-    dataCellExecutionFence,
     identity: {
       hasActivePropertyGrant: identity.authority.hasActivePropertyGrant,
     },
@@ -357,10 +322,9 @@ function buildContainer(
 
   const property = buildPropertyContext({
     db,
-    repo: createPropertyRepository(db, { localCell: env.PROCESSING_CELL }),
+    repo: createPropertyRepository(db),
     clock,
     idGen: randomUUID,
-    localCell: env.PROCESSING_CELL,
     staffPublicApi: staff.publicApi,
     identityManagerFacts: identity.publicApi.managerFacts,
     provisionPropertyCapabilities:
@@ -468,8 +432,6 @@ function buildContainer(
     oauthCallbackAbuseGate,
     refreshPolicyStoreRequired: identity.policy.refreshRequired,
     googleRefreshCoordination,
-    localDataCellId: dataCellExecutionFence.localCell,
-    admitPropertyExecution: dataCellExecutionFence.decideProperty,
     assertDirectCredentialEgressAllowed: (operation) =>
       assertDirectCredentialEgressAllowed(env, operation),
   })
@@ -503,11 +465,7 @@ function buildContainer(
       backgroundQueue: infra.backgroundQueue,
     },
     logger: getLogger(),
-    // effect; the property context owns the routing fact (ADR 0048).
     propertyApi: property.publicApi,
-    // BQC-4.2: stamp the content-free routing envelope at enqueue (telemetry;
-    // the worker's dispatch-time routing gate re-resolves and decides).
-    processingRouter,
     providerSubjectKeyring: reviewProviderSubjectKeyring,
     aiReplyProvenancePublicKeys: aiRuntime.provenancePublicKeys,
     replyBrandProfiles: portal.publicApi.portal,
@@ -661,7 +619,6 @@ function buildContainer(
       redis,
       enableJobs,
       infra,
-      processingRouter,
       identity: {
         stopPolicyPolling: identity.policy.stopPolling,
         policyStoreVersion: identity.policy.currentVersion,
@@ -686,7 +643,6 @@ function buildContainer(
     opsQueues,
     operationsSnapshot,
     guestContactRequestRetentionSweep: guest.contactRequestReadiness.retentionSweep,
-    dataCellExecutionFence,
     aiPublicApi: ai.publicApi,
     aiWorkerRuntime: ai.worker,
     // BQC-7.4: one composition-owned dispatcher shares the structured log,

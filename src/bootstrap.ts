@@ -173,13 +173,9 @@ export async function bootstrap(
 
   // ── Register background job handlers ─────────────────────────────
   // BQC-7.4: the alert evaluation wiring — the container-owned snapshot
-  // reader and dispatcher, the aux reads (retention/policy denials/region
-  // attempts), and the Redis firing-state store (edge-trigger hysteresis).
-  const alertAuxReader = createAlertAuxReader({
-    db: container.db,
-    quarantineQueue: container.opsQueues.quarantine ?? null,
-    logger,
-  })
+  // reader and dispatcher, the aux reads (retention/policy denials/feedback
+  // triage), and the Redis firing-state store (edge-trigger hysteresis).
+  const alertAuxReader = createAlertAuxReader({ db: container.db, logger })
   const healthCheckHandler = createHealthCheckHandler({
     dbHealthy: isDbHealthy,
     redisHealthy: areRedisDependenciesHealthy,

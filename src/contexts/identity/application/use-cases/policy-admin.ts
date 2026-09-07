@@ -22,7 +22,6 @@ import type {
   PropertyAccessGrantRecord,
   OrgPolicyState,
   PolicyAdminExplanation,
-  PolicyAdminRegionDiagnostic,
 } from '../ports/property-access-grant.port'
 import type {
   PolicyAdminAuditEntry,
@@ -48,12 +47,6 @@ export type PolicyAdminDeps = Readonly<{
     userId: string
     now: Date
   }) => Promise<PolicyAdminExplanation>
-  // BQC-4.4: content-free region diagnostic (shared/auth/policy-diagnostic —
-  // region facts + router decision + cell/provider ref; no URLs, no content).
-  getRegionDiagnostic: (input: {
-    organizationId: string
-    propertyId: string
-  }) => Promise<PolicyAdminRegionDiagnostic>
   /** Strong-read the persisted capability snapshot after tenant policy mutations. */
   refreshPolicy: () => Promise<void>
   // Identity-owned transaction boundary. Policy/grant state, its version
@@ -80,20 +73,6 @@ function requireReason(reason: string): void {
 
 function requireTicket(ticketRef: string): void {
   if (ticketRef.trim().length < 2) throw new Error('ticket/reference is required')
-}
-
-async function auditOp(
-  deps: PolicyAdminDeps,
-  input: Readonly<{
-    organizationId: string
-    propertyId?: string | null
-    action: string
-    capability?: string | null
-    reason: string
-    actorUserId: string
-  }>,
-): Promise<void> {
-  await deps.writePolicyDecision(auditEntry(deps, input))
 }
 
 function auditEntry(
@@ -333,30 +312,6 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
     )
   }
 
-  // BQC-4.4: read-only region diagnostic. Every read writes an operator
-  // audit outcome (content-free machine reason) — support access is
-  // least-privilege AND audited.
-  async function getRegionDiagnostic(
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      actorUserId: string
-    }>,
-  ): Promise<PolicyAdminRegionDiagnostic> {
-    const diagnostic = await deps.getRegionDiagnostic({
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-    })
-    await auditOp(deps, {
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      action: 'policy.region.diagnostic',
-      reason: `region diagnostic: ${diagnostic.processable ? 'processable' : diagnostic.blockedReason}`,
-      actorUserId: input.actorUserId,
-    })
-    return diagnostic
-  }
-
   return {
     getOrgPolicyState,
     setOrgCapability,
@@ -365,7 +320,6 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
     setPropertySuspension,
     grantPropertyAccessOp,
     revokePropertyAccessOp,
-    getRegionDiagnostic,
     explainPolicyDecision: deps.explainPolicyDecision,
   }
 }

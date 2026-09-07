@@ -156,7 +156,6 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
       tokenExpiresAt,
       visibility,
       scopes,
-      credentialHome,
       credentialAuthorizedBy,
       credentialAuthorizedAt,
     ) => {
@@ -173,9 +172,6 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
         credentialAuthorizedBy,
         status: 'active',
         credentialUseState: 'active',
-        credentialHomeCellId: credentialHome.homeCellId,
-        credentialHomePolicyVersion: credentialHome.cataloguePolicyVersion,
-        credentialHomeAuthorityGeneration: credentialHome.authorityGeneration,
         cleanupMaterialDeadlineAt: null,
         lifecycleVersion: existing.lifecycleVersion + 1,
         accessVersion: existing.accessVersion + 1,

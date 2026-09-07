@@ -284,7 +284,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'google-connection.schema.ts',
-    exportNames: ['googleConnections', 'googleOrganizationCredentialHomes'],
+    exportNames: ['googleConnections'],
     owner: 'integration',
     disposition: 'active_authority',
     authority: 'GGL-01/SAFE-04',
@@ -319,17 +319,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'SAFE-04',
     exitCriteria:
       'The credential binding becomes unusable at the database-recorded 60-second deadline and is erased before provider dispatch or by the next enabled five-minute recovery sweep. Retain only the content-free permit and outcome fact through disconnect recovery, audit, export, and restore evidence; contract after no retry or investigation path depends on it.',
-  }),
-  ...rows({
-    schemaFile: 'google-credential-routing.schema.ts',
-    exportNames: [
-      'googleCredentialBrokerReplay',
-      'googleCredentialRoutingDirectorySnapshots',
-      'googleCredentialRoutingDirectoryState',
-    ],
-    owner: 'integration',
-    disposition: 'active_authority',
-    authority: 'GGL-01/REG-01',
   }),
   ...rows({
     schemaFile: 'google-import-v2.schema.ts',

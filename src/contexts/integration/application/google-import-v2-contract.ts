@@ -39,7 +39,6 @@ export const GBP_IMPORT_ITEM_STATUSES = [
   'imported',
   'relinked',
   'already_exists',
-  'region_unavailable',
   'failed',
   'cancelled',
 ] as const
@@ -49,7 +48,6 @@ export const IMPORT_OUTCOME_CODES = [
   'imported',
   'relinked',
   'already_exists',
-  'region_unavailable',
   'active_binding_conflict',
   'stale_binding',
   'reauthentication_required',
@@ -96,7 +94,6 @@ export function reconciledOutcomeCode(
 
 export const IMPORT_ITEM_USER_ACTIONS = [
   'none',
-  'resolve_region',
   'rediscover',
   'reauthenticate',
   'reconnect',
@@ -130,12 +127,6 @@ export const IMPORT_OUTCOME_PRESENTATION = {
     reducerClass: 'benign_skip',
     retryable: false,
     userAction: 'none',
-  },
-  region_unavailable: {
-    status: 'region_unavailable',
-    reducerClass: 'benign_skip',
-    retryable: false,
-    userAction: 'resolve_region',
   },
   active_binding_conflict: {
     status: 'failed',
@@ -258,7 +249,6 @@ export type ImportCandidateEligibility =
     }>
   | Readonly<{ kind: 'already_imported'; propertyId: PropertyId }>
   | Readonly<{ kind: 'active_binding_conflict' }>
-  | Readonly<{ kind: 'region_unavailable' }>
   /**
    * Google reports the location as lacking Voice of Merchant, so it is not
    * verified and cannot serve reviews or performance data. Importing it would
@@ -330,9 +320,9 @@ export type StartPropertyImportInput = Readonly<{
 }>
 
 /**
- * No destination Property ID: the terminal write scrubs `destination_property_id`
- * for every non-retryable item (see the routing-retention check in migration 0037),
- * so an `imported`/`relinked` row can never carry one by the time progress is read.
+ * No destination Property ID: terminal writes scrub `destination_property_id`
+ * for every non-retryable item, so an `imported`/`relinked` row can never carry
+ * one by the time progress is read.
  */
 export type ImportProgressItemDto = Readonly<{
   itemId: string

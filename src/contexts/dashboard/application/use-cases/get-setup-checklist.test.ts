@@ -17,10 +17,6 @@ function facts(overrides: Partial<SetupChecklistFacts> = {}): SetupChecklistFact
       currentlySatisfied: true,
       firstCompletedAt: COMPLETED,
     },
-    importedProperty: {
-      currentlySatisfied: true,
-      firstCompletedAt: COMPLETED,
-    },
     initialReviewSync: {
       currentlySatisfied: true,
       firstCompletedAt: COMPLETED,
@@ -42,7 +38,7 @@ function repository(value: SetupChecklistFacts): SetupChecklistRepository {
 }
 
 describe('getSetupChecklist', () => {
-  it('returns the five canonical AccountAdmin steps as historically and currently complete', async () => {
+  it('returns the four canonical AccountAdmin steps as historically and currently complete', async () => {
     const repo = repository(facts())
     const getChecklist = getSetupChecklist({ repository: repo })
 
@@ -52,7 +48,6 @@ describe('getSetupChecklist', () => {
       accessiblePropertyIds: null,
       allowedActions: {
         manageGoogle: true,
-        importProperty: true,
         createPortal: true,
         assignManagers: true,
       },
@@ -65,7 +60,6 @@ describe('getSetupChecklist', () => {
     })
     expect(result.steps.map((step) => step.key)).toEqual([
       'google_connection',
-      'imported_property',
       'initial_review_sync',
       'published_portal',
       'responsible_managers',
@@ -95,7 +89,6 @@ describe('getSetupChecklist', () => {
       accessiblePropertyIds: null,
       allowedActions: {
         manageGoogle: true,
-        importProperty: true,
         createPortal: true,
         assignManagers: true,
       },
@@ -114,7 +107,6 @@ describe('getSetupChecklist', () => {
       repository: repository(
         facts({
           googleConnection: { currentlySatisfied: false, firstCompletedAt: null },
-          importedProperty: { currentlySatisfied: false, firstCompletedAt: null },
           initialReviewSync: { currentlySatisfied: false, firstCompletedAt: null },
           publishedPortal: { currentlySatisfied: false, firstCompletedAt: null },
           responsibleManagers: { currentlySatisfied: false, firstCompletedAt: null },
@@ -128,7 +120,6 @@ describe('getSetupChecklist', () => {
       accessiblePropertyIds: [PROPERTY],
       allowedActions: {
         manageGoogle: false,
-        importProperty: false,
         createPortal: true,
         assignManagers: true,
       },
@@ -138,7 +129,6 @@ describe('getSetupChecklist', () => {
     expect(
       result.steps.map(({ status, action }) => [status, action?.kind ?? null]),
     ).toEqual([
-      ['waiting', null],
       ['waiting', null],
       ['waiting', null],
       ['incomplete', 'manage_portals'],
@@ -156,7 +146,6 @@ describe('getSetupChecklist', () => {
       accessiblePropertyIds: [],
       allowedActions: {
         manageGoogle: false,
-        importProperty: false,
         createPortal: true,
         assignManagers: true,
       },
@@ -179,7 +168,6 @@ describe('getSetupChecklist', () => {
         accessiblePropertyIds: [],
         allowedActions: {
           manageGoogle: false,
-          importProperty: false,
           createPortal: false,
           assignManagers: false,
         },

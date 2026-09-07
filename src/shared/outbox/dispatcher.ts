@@ -34,7 +34,6 @@ import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { gateDispatcherConsumer } from '#/shared/jobs/delayed-execution-gate'
 import { durableConsumersFor } from '#/shared/governance/event-job-catalogue'
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 import { runWithContext } from '#/shared/observability/request-context'
 
 // ── Dispatcher ──────────────────────────────────────────────────────
@@ -167,7 +166,6 @@ export function createDispatcherHandler(
      * consumers, which is precisely the process-global coupling this replaced.
      */
     consumers: ConsumerRegistry
-    localCell?: DataCellId
   }>,
 ) {
   const logger = getLogger()
@@ -204,30 +202,6 @@ export function createDispatcherHandler(
       // Prefer envelope eventId; fall back to BullMQ job ID (relay sets jobId = event UUID)
       const eventId = event.eventId || jobId
       const eventType = event.eventType
-
-      // REG-01 / ARC-02: newly relayed envelopes carry their source cell and,
-      // for Property work, the freshly resolved target cell. A job injected
-      // or delivered to another cell is terminally quarantined
-      // before schema reads, receipts, or consumer effects. Missing is
-      // accepted only for the documented pre-REG-01 in-flight shape.
-      const targetCell = event.dataCellId ?? event.sourceCellId
-      if (
-        options.localCell &&
-        targetCell !== undefined &&
-        targetCell !== options.localCell
-      ) {
-        logger.error(
-          {
-            eventType,
-            localCell: options.localCell,
-            targetCell,
-          },
-          'Outbox envelope delivered to the wrong Data Cell — unrecoverable',
-        )
-        throw new UnrecoverableError(
-          `outbox wrong_cell (${eventType}): target=${targetCell}, local=${options.localCell}`,
-        )
-      }
 
       // Validate payload against the schema registry
       try {

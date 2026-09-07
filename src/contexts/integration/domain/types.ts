@@ -3,7 +3,6 @@
 // readonly on every field. Branded IDs prevent accidental substitution.
 
 import type { OrganizationId, UserId, GoogleConnectionId } from '#/shared/domain/ids'
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 export type GoogleConnectionVisibility = 'private' | 'organization'
 export type GoogleCredentialUseState = 'active' | 'cleanup_only' | 'none'
@@ -36,10 +35,6 @@ export type GoogleConnection = Readonly<{
   lifecycleVersion: number
   accessVersion: number
   credentialGeneration: number
-  /** Nullable only for expand-phase legacy rows; credential use fails closed. */
-  credentialHomeCellId: DataCellId | null
-  credentialHomePolicyVersion: number | null
-  credentialHomeAuthorityGeneration: number | null
   // B1.6: Token key versioning + health tracking
   encryptionKeyId: string
   lastSuccessfulSyncAt: Date | null

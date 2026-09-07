@@ -408,14 +408,12 @@ describe('canonicalInboxHandlingCutoverReport', () => {
   it('is byte-stable and sorts every collection deterministically', () => {
     const first = canonicalInboxHandlingCutoverReport({
       digestSha256,
-      dataCellId: 'cell-us',
       organizationId: ORG_ID,
       generatedAt: GENERATED_AT,
       relationships,
     })
     const shuffled = canonicalInboxHandlingCutoverReport({
       digestSha256,
-      dataCellId: 'cell-us',
       organizationId: ORG_ID,
       generatedAt: GENERATED_AT,
       relationships: [relationships[1]!, relationships[2]!, relationships[0]!],
@@ -450,14 +448,12 @@ describe('canonicalInboxHandlingCutoverReport', () => {
   it('changes its SHA-256 fingerprint when any count changes', () => {
     const baseline = canonicalInboxHandlingCutoverReport({
       digestSha256,
-      dataCellId: 'cell-us',
       organizationId: ORG_ID,
       generatedAt: GENERATED_AT,
       relationships,
     })
     const withOneMore = canonicalInboxHandlingCutoverReport({
       digestSha256,
-      dataCellId: 'cell-us',
       organizationId: ORG_ID,
       generatedAt: GENERATED_AT,
       relationships: [
@@ -481,7 +477,6 @@ describe('canonicalInboxHandlingCutoverReport', () => {
     expect(() =>
       canonicalInboxHandlingCutoverReport({
         digestSha256,
-        dataCellId: 'cell-us',
         organizationId: ORG_ID,
         generatedAt: GENERATED_AT,
         relationships: [relationships[0]!, relationshipAt(relationships[0]!.inboxItemId)],
@@ -531,7 +526,6 @@ describe('canonicalInboxHandlingCutoverReport', () => {
 
     const report = canonicalInboxHandlingCutoverReport({
       digestSha256,
-      dataCellId: 'cell-us',
       organizationId: ORG_ID,
       generatedAt: GENERATED_AT,
       relationships: [seeded],

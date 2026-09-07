@@ -11,7 +11,6 @@ const ITEM_STATUS_MESSAGES: Record<GbpImportItemStatus, string> = {
   imported: 'Property imported',
   relinked: 'Existing property linked',
   already_exists: 'Property already exists',
-  region_unavailable: 'Select a processing region before importing',
   failed: 'Import failed',
   cancelled: 'Import cancelled',
 }
@@ -20,7 +19,6 @@ const OUTCOME_MESSAGES: Record<ImportOutcomeCode, string> = {
   imported: 'Property imported',
   relinked: 'Existing property linked',
   already_exists: 'Property already exists',
-  region_unavailable: 'Select a processing region before importing',
   active_binding_conflict:
     'This Google location is linked elsewhere. Rediscover locations.',
   stale_binding: 'This location changed. Rediscover locations before importing.',
@@ -96,7 +94,7 @@ export function importProgressSummary(
   return {
     completed: counts.imported + counts.relinked,
     alreadyLinked: counts.already_exists,
-    issues: counts.failed + counts.cancelled + counts.region_unavailable,
+    issues: counts.failed + counts.cancelled,
     remaining: counts.pending + counts.processing,
   }
 }

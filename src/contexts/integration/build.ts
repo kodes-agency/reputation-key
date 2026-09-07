@@ -52,7 +52,6 @@ import {
 import type { HandleGbpNotification } from './application/use-cases'
 import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
 import { createGoogleImportV2Store } from './infrastructure/google-import-v2-store'
-import { createImportItemRoutingLoader } from './infrastructure/import-item-routing.adapter'
 import { createAtomicIntegrationCommandStore } from './infrastructure/integration-command-store'
 import { createGoogleConnectorDepartureStore } from './infrastructure/google-connector-departure.store'
 import {
@@ -108,7 +107,6 @@ import { createActiveMemberAuthResolver } from './infrastructure/active-member-a
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
 import { parseGbpNotificationSubscriptionConfig } from './application/notification-subscription-config'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
-import type { ProviderEndpoints } from '#/shared/routing/processing-router'
 import { googleConnectionId, propertyId } from '#/shared/domain/ids'
 import { createProviderAuthorizationInvalidationFanout } from '#/shared/provider-ephemeral/authorization-invalidation'
 
@@ -128,14 +126,20 @@ import { createGoogleReviewPushReferenceStore } from './infrastructure/google-re
 import { createGbpReviewPushReceiptStore } from './infrastructure/gbp-review-push-receipt.store'
 import { createGoogleReviewPushTargetResolver } from './infrastructure/adapters/google-review-push-target-resolver.adapter'
 import type { GooglePerformanceDependencyDescriptor } from '#/shared/architecture/google-performance-live-boundary'
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
-import type { DataCellExecutionDecision } from '#/shared/routing/data-cell-execution-fence'
-import { createDirectGoogleCredentialUseGate } from './application/google-credential-execution-gate'
-import { createGoogleCredentialHomeCapture } from './application/google-credential-home'
-import { createOrganizationGoogleCredentialHomeAuthority } from './infrastructure/organization-google-credential-home-authority'
 import { createIntegrationOrganizationExportContributor } from './infrastructure/adapters/integration-organization-export.adapter'
 import { createIntegrationOrganizationLifecycleContributor } from './infrastructure/adapters/integration-organization-lifecycle.adapter'
 import { createGoogleOrganizationClosureProvider } from './infrastructure/adapters/google-organization-closure-provider.adapter'
+
+export type GoogleProviderEndpoints = Readonly<{
+  gbpApiBaseUrl: string
+  gbpAccountManagementBaseUrl: string
+  gbpPerformanceBaseUrl: string
+  reviewsApiBaseUrl: string
+  notificationsApiBaseUrl: string
+  oauthTokenUrl: string
+  oauthJwksUrl: string
+  oauthRevokeUrl: string
+}>
 
 /**
  * ADR 0050 §10: the live Google Performance path may not depend on a write
@@ -226,10 +230,8 @@ type IntegrationContextDeps = Readonly<{
    * content. Constructed once by the composition root (the only layer that
    * may import review infrastructure) and shared across contexts. */
   sourceContentPurge: SourceContentPurge
-  /** BQC-4.3: provider endpoint construction config resolved ONCE by the
-   * composition root from the cell's logical provider reference
-   * (ProcessingTarget.provider). Adapters never hardcode URLs. */
-  providerEndpoints: ProviderEndpoints
+  /** Google provider endpoint configuration resolved once by composition. */
+  providerEndpoints: GoogleProviderEndpoints
   /**
    * Parsed once by the process composition boundary. Integration construction
    * must be deterministic and must not re-read ambient process configuration.
@@ -276,8 +278,6 @@ type IntegrationContextDeps = Readonly<{
   googleRefreshCoordination?: GoogleRefreshCoordination
   /** Production has no escape hatch for credential-bearing OAuth sockets. */
   assertDirectCredentialEgressAllowed?: (operation: string) => void
-  localDataCellId: DataCellId
-  admitPropertyExecution(propertyId: string): Promise<DataCellExecutionDecision>
 }>
 
 export type IntegrationContextApi = Readonly<{
@@ -361,7 +361,6 @@ export type IntegrationContextApi = Readonly<{
         typeof createGoogleOAuthExchangeRecoveryRepository
       >
       gbpApiPort: GbpApiPort
-      loadImportItemRouting: ReturnType<typeof createImportItemRoutingLoader>
     }>
     /** BQC-5.2: the Google review API adapter (integration-owned), typed by
      * review's port — consumed by the review context build. */
@@ -450,8 +449,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   const connectorDepartureStore = createGoogleConnectorDepartureStore(deps.db)
 
   // ── Adapters ──────────────────────────────────────────────────────
-  // BQC-4.3: every Google endpoint comes from the composition-resolved
-  // providerEndpoints (the cell's approved provider ref) — nowhere else.
+  // Every Google endpoint comes from composition-resolved providerEndpoints.
   // BQC-6.1: injected provider overrides win; absent slots build the real
   // env-driven adapters exactly as before.
   const oauthPort =
@@ -487,15 +485,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         throw new Error('Legacy Google account lookup is unavailable')
       },
     })
-  const loadImportItemRouting = createImportItemRoutingLoader({ db: deps.db })
-  const assertDirectCredentialUse = createDirectGoogleCredentialUseGate({
-    localCellId: deps.localDataCellId,
-    admitPropertyExecution: deps.admitPropertyExecution,
-  })
-  const captureCredentialHome = createGoogleCredentialHomeCapture({
-    authority: createOrganizationGoogleCredentialHomeAuthority(deps.db),
-    localCellId: deps.localDataCellId,
-  })
 
   const googleImportV2Store = createGoogleImportV2Store(deps.db, deps.clock)
   const googleReviewPushReferences: GoogleReviewPushReferenceStore =
@@ -613,7 +602,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     oauth: oauthPort,
     encryption: encryptionPort,
     clock: deps.clock,
-    assertDirectCredentialUse,
     authorizeProviderCall: deps.authorizeGoogleOAuthProviderCall,
     ...(deps.googleRefreshCoordination === undefined
       ? {}
@@ -624,7 +612,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     encryption: encryptionPort,
     clock: deps.clock,
     refreshGoogleToken: refreshGoogleTokenUseCase,
-    assertDirectCredentialUse,
   })
   let reauthorizeGoogleImportProviderCall:
     Parameters<typeof createSingle401RefreshExecutor>[0]['reauthorize'] | undefined
@@ -640,13 +627,11 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
             authorization.organizationId,
             authorization.connectionId,
             authorization.expectedCredentialGeneration,
-            authorization.propertyId ? [authorization.propertyId] : [],
           ),
         getAccessToken: ({ authorization }) =>
           activeConnectionTokenProvider.getAccessToken(
             authorization.organizationId,
             authorization.connectionId,
-            authorization.propertyId ? [authorization.propertyId] : [],
           ),
         reauthorize: async (input) => {
           if (!reauthorizeGoogleImportProviderCall) {
@@ -665,13 +650,11 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
             authorization.organizationId,
             authorization.connectionId,
             authorization.expectedCredentialGeneration,
-            authorization.propertyId ? [authorization.propertyId] : [],
           ),
         getAccessToken: ({ authorization }) =>
           activeConnectionTokenProvider.getAccessToken(
             authorization.organizationId,
             authorization.connectionId,
-            authorization.propertyId ? [authorization.propertyId] : [],
           ),
         reauthorize: async (input) => {
           if (!reauthorizeGoogleNotificationProviderCall) {
@@ -885,7 +868,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       googleImportTransaction = createGoogleImportTransaction({
         store: googleImportV2Store,
         references: deps.googleImportReferences,
-        propertyBindingApi,
         authorizeGoogleImportCommand,
         replayKeys: deps.googleImportReplayKeys,
         clock: deps.clock,
@@ -915,7 +897,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       encryption: encryptionPort,
       clock: deps.clock,
       refreshGoogleToken: refreshGoogleTokenUseCase,
-      assertDirectCredentialUse,
     })
     const authorize = createGooglePerformanceAuthorizer({
       resolveActor: createActiveMemberAuthResolver(deps.db),
@@ -935,13 +916,11 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
           authorization.organizationId,
           authorization.connectionId,
           authorization.expectedCredentialGeneration,
-          authorization.propertyId ? [authorization.propertyId] : [],
         ),
       getAccessToken: ({ authorization }) =>
         performanceTokenProvider.getAccessToken(
           authorization.organizationId,
           authorization.connectionId,
-          authorization.propertyId ? [authorization.propertyId] : [],
         ),
       reauthorize: async ({ authorization }) => {
         if (
@@ -1059,7 +1038,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     clock: deps.clock,
     idGen: deps.idGen,
     callbackUrl: `${deps.config.authBaseUrl}/api/auth/google/callback`,
-    captureCredentialHome,
     authorizeProviderCall: deps.authorizeGoogleOAuthProviderCall,
   })
 
@@ -1074,7 +1052,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       commandStore,
       clock: deps.clock,
       logger: deps.logger,
-      assertDirectCredentialUse,
       authorizeProviderCall: deps.authorizeGoogleOAuthProviderCall,
       disconnectRevokeStore: googleDisconnectRevokeStore,
       idGen: deps.idGen,
@@ -1359,13 +1336,11 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
             authorization.organizationId,
             authorization.connectionId,
             authorization.expectedCredentialGeneration,
-            authorization.propertyId ? [authorization.propertyId] : [],
           ),
         getAccessToken: ({ authorization }) =>
           activeConnectionTokenProvider.getAccessToken(
             authorization.organizationId,
             authorization.connectionId,
-            authorization.propertyId ? [authorization.propertyId] : [],
           ),
         reauthorize: async ({ authorization }) => {
           if (authorization.initiatorUserId !== null) {
@@ -1517,7 +1492,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         encryptionPort,
         oauthPort,
         gbpApiPort,
-        loadImportItemRouting,
       },
       googleReviewApi,
       googleReviewPushTargetResolver,

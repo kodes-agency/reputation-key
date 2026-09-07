@@ -3,7 +3,6 @@ import type { RecoveryFenceInput } from './recovery-fence'
 import { validateRecoveryFenceInput } from './recovery-fence'
 
 const VALID_INPUT: RecoveryFenceInput = {
-  dataCellId: 'us',
   runId: '10000000-0000-4000-8000-000000000001',
   generation: 1,
   sourceReleaseSha: 'a'.repeat(40),
@@ -21,7 +20,6 @@ describe('recovery fence input', () => {
   })
 
   it.each([
-    [{ dataCellId: 'unknown' as never }, /Data Cell/],
     [{ runId: 'not-a-uuid' }, /run ID/],
     [{ generation: 0 }, /generation/],
     [{ sourceReleaseSha: 'A'.repeat(40) }, /release SHA/],

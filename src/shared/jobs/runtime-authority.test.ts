@@ -40,7 +40,6 @@ function observation(
 ): JobRuntimeObservation {
   return {
     jobName: 'review-lifecycle-sweep',
-    cell: 'europe',
     handlerRegistered: true,
     schedulerRegistered: true,
     lastStartedAt: new Date('2026-08-27T02:56:00.000Z'),
@@ -55,7 +54,7 @@ function observation(
 }
 
 describe('job runtime authority', () => {
-  it('accepts a healthy cell-local scheduled job', () => {
+  it('accepts a healthy scheduled job', () => {
     expect(
       assessJobRuntime({
         contract: scheduledContract(),

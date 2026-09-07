@@ -83,11 +83,10 @@ async function evaluateAndDispatch(
   ])
 
   // The 7.3 per-reason denial split, emitted on the evaluation cadence
-  // (routing.denials / policy.denials — metrics-schema).
+  // (policy.denials — metrics-schema).
   deps.logger.info(
     {
       policyDenialsByReason: aux.policyDenialsByReason,
-      routingBlockedByReason: aux.routingBlockedByReason,
       betaFeedbackTriage: aux.betaFeedbackTriage,
     },
     '[health-check] content-free auxiliary alert readings',

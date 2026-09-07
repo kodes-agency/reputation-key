@@ -39,7 +39,6 @@ describe('error monitoring runtime', () => {
     dsn: 'https://public@o1.ingest.us.sentry.io/1',
     environment: 'cell-us',
     release: 'a'.repeat(40),
-    processingCell: 'us',
     tracesSampleRate: 0.1,
   }
 
@@ -69,7 +68,6 @@ describe('error monitoring runtime', () => {
     )
     expect(sentry.setTags).toHaveBeenCalledWith({
       service: 'worker',
-      processing_cell: 'us',
       release_sha: baseConfig.release,
     })
     const options = sentry.init.mock.calls[0]![0]
@@ -135,7 +133,6 @@ describe('error monitoring runtime', () => {
         source: 'repkey-native-beta-feedback',
         tags: {
           service: 'worker',
-          processing_cell: 'us',
           release_sha: 'a'.repeat(40),
           feedback_type: 'bug',
         },
@@ -386,7 +383,6 @@ describe('error monitoring runtime', () => {
   it('requires the US ingestion host and a DSN in a Railway production environment', () => {
     const deployed = {
       NODE_ENV: 'production' as const,
-      PROCESSING_CELL: 'us',
       RAILWAY_ENVIRONMENT_NAME: 'google-closed-beta',
       RELEASE_SHA: 'b'.repeat(40),
       RAILWAY_GIT_COMMIT_SHA: undefined,
@@ -416,17 +412,15 @@ describe('error monitoring runtime', () => {
       }),
     ).toMatchObject({
       environment: 'google-closed-beta',
-      processingCell: 'us',
       release: 'b'.repeat(40),
       service: 'worker',
     })
   })
 
-  it('covers legacy Railway production names without the cell prefix', () => {
+  it('covers any non-empty Railway production environment name', () => {
     expect(() =>
       buildObservabilityConfig('worker', {
         NODE_ENV: 'production',
-        PROCESSING_CELL: 'eu',
         RAILWAY_ENVIRONMENT_NAME: 'legacy-production',
         RELEASE_SHA: 'c'.repeat(40),
         RAILWAY_GIT_COMMIT_SHA: undefined,

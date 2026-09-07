@@ -76,7 +76,7 @@ export function createGoogleImportV2ClaimReaper(
           itemId: claim.itemId,
           retryRevision: claim.retryRevision,
           outcomeCode: 'temporarily_unavailable',
-          retainProtectedRouting: false,
+          retainRetryState: false,
           now,
         })
         if (terminalized === 'completed') itemsTerminalized++

@@ -21,7 +21,7 @@ type PrepareReviewLifecycleRecoveryApprovalDeps = Readonly<{
   clock: () => Date
   createRunLifecycle: (clock: () => Date) => RunReviewSourceContentLifecycle
   createRecoveryRunId: () => string
-  loadNextRecoveryGeneration: (dataCellId: string) => Promise<number>
+  loadNextRecoveryGeneration: () => Promise<number>
 }>
 
 /**
@@ -52,7 +52,7 @@ export async function prepareReviewLifecycleRecoveryApproval(
 
   const [recoveryRunId, recoveryGeneration] = await Promise.all([
     Promise.resolve(deps.createRecoveryRunId()),
-    deps.loadNextRecoveryGeneration(target.dataCellId),
+    deps.loadNextRecoveryGeneration(),
   ])
   const artifact = createReviewLifecycleRecoveryApprovalRequest({
     version: REVIEW_LIFECYCLE_RECOVERY_APPROVAL_VERSION,
@@ -60,7 +60,6 @@ export async function prepareReviewLifecycleRecoveryApproval(
     target: {
       releaseSha: target.releaseSha,
       releaseManifestSha256: target.releaseManifestSha256,
-      dataCellId: target.dataCellId,
       restorePointAt: target.restorePointAt.toISOString(),
       restoreDatabaseServiceName: target.restoreDatabaseServiceName,
       railwayProjectId: target.railwayProjectId,

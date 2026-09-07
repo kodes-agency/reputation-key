@@ -162,7 +162,6 @@ export const createPropertyProcessingProfileAdapter = (
           countryCode: properties.countryCode,
           timezone: properties.timezone,
           sourceEpoch: properties.sourceEpoch,
-          routingPolicyVersion: properties.routingPolicyVersion,
           lifecycleState: properties.lifecycleState,
         })
         .from(properties)

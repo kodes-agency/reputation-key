@@ -1,6 +1,7 @@
 import {
   validateGoogleCredentialBrokerGrant,
   type GoogleCredentialBrokerDenyCode,
+  type GoogleCredentialBrokerExpectation,
   type GoogleCredentialBrokerGrant,
 } from './credential-broker-contract'
 import {
@@ -9,32 +10,21 @@ import {
 } from './credential-broker-durable-state'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 
-export type GoogleCredentialBrokerGrantExpectation = Parameters<
-  typeof validateGoogleCredentialBrokerGrant
->[1]
-
 export type GoogleCredentialBrokerProtocolService = Readonly<{
   registerIssuedGrant(
     input: Readonly<{
       grant: GoogleCredentialBrokerGrant
-      expected: GoogleCredentialBrokerGrantExpectation
+      expected: GoogleCredentialBrokerExpectation
     }>,
   ): Promise<
     | Readonly<{ ok: true; status: 'issued' | 'duplicate' }>
     | Readonly<{ ok: false; code: GoogleCredentialBrokerDenyCode }>
   >
-  admitCrossCellExecution(
-    input: Readonly<{
-      grant: GoogleCredentialBrokerGrant
-      expected: GoogleCredentialBrokerGrantExpectation
-    }>,
-  ): Promise<Readonly<{ ok: false; code: 'live_execution_dark' }>>
 }>
 
 /**
- * Transport-independent Phase-B boundary. It can validate and register the
- * protocol, but deliberately exposes no method that returns a credential or
- * sealed reference to a target cell. Live home-cell execution remains dark.
+ * Transport-independent protocol boundary. It validates and registers an
+ * opaque credential grant without exposing provider material.
  */
 export function createGoogleCredentialBrokerProtocolService(
   deps: Readonly<{
@@ -52,12 +42,6 @@ export function createGoogleCredentialBrokerProtocolService(
         expected.nowMs,
       )
       return { ok: true, status: await deps.store.issue(issue) }
-    },
-    admitCrossCellExecution: async ({ grant, expected }) => {
-      // Validation still runs so drills can prove exact tenant/route/gateway/
-      // generation bindings without creating a target-cell token seam.
-      validateGoogleCredentialBrokerGrant(grant, expected)
-      return { ok: false, code: 'live_execution_dark' }
     },
   })
 }

@@ -1,6 +1,5 @@
 import type { Pool } from 'pg'
 import type { Env } from '#/shared/config/env'
-import type { ProviderEndpoints } from '#/shared/routing/processing-router'
 import type {
   GoogleOAuthPort,
   GoogleOAuthProviderCallAuthorizer,
@@ -51,29 +50,31 @@ export type ProviderOverrides = Readonly<{
   storage?: PortalStoragePort
 }>
 
-const PROVIDER_ENDPOINTS: Readonly<Record<string, ProviderEndpoints>> = {
-  'gbp-default': {
-    gbpApiBaseUrl: 'https://mybusinessbusinessinformation.googleapis.com/v1',
-    gbpAccountManagementBaseUrl: 'https://mybusinessaccountmanagement.googleapis.com/v1',
-    gbpPerformanceBaseUrl: 'https://businessprofileperformance.googleapis.com/v1',
-    reviewsApiBaseUrl: 'https://mybusiness.googleapis.com/v4',
-    notificationsApiBaseUrl: 'https://mybusinessnotifications.googleapis.com/v1',
-    oauthTokenUrl: 'https://oauth2.googleapis.com/token',
-    oauthJwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
-    oauthRevokeUrl: 'https://oauth2.googleapis.com/revoke',
-  },
-}
+/**
+ * Google's approved endpoint construction config. Adapters are built from this
+ * one value; the local sandbox overrides it explicitly below.
+ */
+export type ProviderEndpoints = Readonly<{
+  gbpApiBaseUrl: string
+  gbpAccountManagementBaseUrl: string
+  gbpPerformanceBaseUrl: string
+  reviewsApiBaseUrl: string
+  notificationsApiBaseUrl: string
+  oauthTokenUrl: string
+  oauthJwksUrl: string
+  oauthRevokeUrl: string
+}>
 
-/** Resolve a logical, catalogue-owned provider reference without a fallback. */
-export function providerConfigFor(ref: string | undefined): ProviderEndpoints {
-  const endpoints = ref ? PROVIDER_ENDPOINTS[ref] : undefined
-  if (!endpoints) {
-    throw new Error(
-      `No approved provider configuration for ref '${ref ?? 'none'}' (ADR 0054/0057: provider refs come from an accepting catalogue target)`,
-    )
-  }
-  return endpoints
-}
+export const GOOGLE_PROVIDER_ENDPOINTS: ProviderEndpoints = Object.freeze({
+  gbpApiBaseUrl: 'https://mybusinessbusinessinformation.googleapis.com/v1',
+  gbpAccountManagementBaseUrl: 'https://mybusinessaccountmanagement.googleapis.com/v1',
+  gbpPerformanceBaseUrl: 'https://businessprofileperformance.googleapis.com/v1',
+  reviewsApiBaseUrl: 'https://mybusiness.googleapis.com/v4',
+  notificationsApiBaseUrl: 'https://mybusinessnotifications.googleapis.com/v1',
+  oauthTokenUrl: 'https://oauth2.googleapis.com/token',
+  oauthJwksUrl: 'https://www.googleapis.com/oauth2/v3/certs',
+  oauthRevokeUrl: 'https://oauth2.googleapis.com/revoke',
+})
 
 /** Apply the explicit local-sandbox endpoint profile exactly once at build. */
 export function applyProviderEndpointOverrides(

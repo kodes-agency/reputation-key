@@ -301,7 +301,7 @@ export function createGoogleImportV2Processor(
   const complete = async (
     item: GoogleImportV2ClaimedItem,
     outcomeCode: ImportOutcomeCode,
-    retainProtectedRouting = false,
+    retainRetryState = false,
   ): Promise<void> => {
     const now = deps.clock()
     if (await reconcileReceipt(item.organizationId, item.itemId, now)) return
@@ -311,7 +311,7 @@ export function createGoogleImportV2Processor(
       retryRevision: item.retryRevision,
       claimFence: item.claimFence,
       outcomeCode,
-      retainProtectedRouting,
+      retainRetryState,
       now,
     })
   }
@@ -354,7 +354,7 @@ export function createGoogleImportV2Processor(
       itemId: input.itemId,
       retryRevision: input.retryRevision,
       outcomeCode: 'temporarily_unavailable',
-      retainProtectedRouting: false,
+      retainRetryState: false,
       now,
     })
   }

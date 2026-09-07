@@ -26,7 +26,6 @@ export type ReviewLifecycleRecoveryExecutionAuthorityInput =
       approvalKeyId: string
       approvedAt: Date
       expiresAt: Date
-      dataCellId: string
       releaseSha: string
       releaseManifestSha256: string
       restorePointAt: Date

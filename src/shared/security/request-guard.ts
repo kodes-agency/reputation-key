@@ -23,11 +23,6 @@
 
 import type { NitroAppPlugin } from 'nitro/types'
 import { getLogger } from '#/shared/observability/logger'
-import {
-  DATA_CELL_CATALOGUE,
-  DATA_CELL_IDS,
-  type DataCellId,
-} from '#/shared/domain/data-cell-catalogue'
 
 /** Maximum accepted length for an inbound x-request-id (bytes as chars). */
 export const MAX_INBOUND_REQUEST_ID_LENGTH = 128
@@ -72,35 +67,11 @@ export function bodyLimitRejection(
   })
 }
 
-/**
- * Reject a request sent to another Data Cell's canonical hostname. Unknown
- * hosts (Railway private/public service domains, localhost, preview domains)
- * are left to the normal host/auth controls; a KNOWN cell domain may never
- * fall through to a differently declared process.
- */
-export function dataCellHostRejection(
-  host: string | null | undefined,
-  localCell: DataCellId,
-): Response | undefined {
-  if (!host) return undefined
-  const normalized = host.trim().toLowerCase().replace(/:\d+$/u, '')
-  const targetCell = DATA_CELL_IDS.find(
-    (cellId) => DATA_CELL_CATALOGUE[cellId].domain === normalized,
-  )
-  if (!targetCell || targetCell === localCell) return undefined
-  return new Response(JSON.stringify({ error: 'wrong_cell' }), {
-    status: 421,
-    headers: { 'content-type': 'application/json' },
-  })
-}
-
 export type RequestGuardOptions = Readonly<{
   /** Maximum accepted request body size in bytes (declared content-length). */
   bodyLimitBytes: number
   /** Id generator for requests without a sane inbound id (tests inject). */
   idGen?: () => string
-  /** REG-01 request-edge host fence; production wiring always supplies it. */
-  localCell?: DataCellId
 }>
 
 /** Build the nitro plugin wiring the body limit + request-id controls. */
@@ -118,19 +89,6 @@ export function createRequestGuardPlugin(opts: RequestGuardOptions): NitroAppPlu
     } else {
       const previous = h3.config.onRequest
       h3.config.onRequest = (event) => {
-        const hostRejection = opts.localCell
-          ? dataCellHostRejection(
-              event.req.headers.get('host') ?? new URL(event.req.url).host,
-              opts.localCell,
-            )
-          : undefined
-        if (hostRejection) {
-          getLogger().warn(
-            { localCell: opts.localCell },
-            '[request-guard] canonical Data Cell host mismatch — 421',
-          )
-          throw hostRejection
-        }
         const rejection = bodyLimitRejection(
           event.req.headers.get('content-length'),
           opts.bodyLimitBytes,

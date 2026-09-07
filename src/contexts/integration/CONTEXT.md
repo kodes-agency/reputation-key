@@ -7,9 +7,9 @@ Owns Google OAuth connections, provider access, opaque property-import discovery
 ## Core concepts
 
 - **GoogleConnection** — tenant-owned OAuth credentials keyed by the verified Google OIDC subject. Credentials and the subject are cleared on disconnect.
-- **Opaque import reference** — bounded browser handle whose HMAC-derived key and provider routing data are checkpointed as normalized rows in the credential-home database for at most 24 hours.
+- **Opaque import reference** — bounded browser handle whose HMAC-derived key and provider facts are checkpointed as normalized rows for at most 24 hours.
 - **Provider-content view lifecycle** — framework-free application policy that advances a view epoch before ordered query/content clearing, classifies each completion as current or stale with the causal clear reason, and derives bounded expiry delays. React, cache, visibility, and timer coordination remain in the feature hook.
-- **Import saga/batch/item** — one durable tenant-scoped import command, split into stable child batches of at most 100 and per-location work. The saga is the browser-visible job; batches are worker checkpoints. Pending work keeps protected routing suffixes; terminal retention follows the v2 lifecycle.
+- **Import saga/batch/item** — one durable tenant-scoped import command, split into stable child batches of at most 100 and per-location work. The saga is the browser-visible job; batches are worker checkpoints. Pending work keeps protected provider suffixes; terminal retention follows the v2 lifecycle.
 - **Property Google binding** — Property-owned account/location suffixes, connection, lifecycle state, source epoch, confirmed profile, and validated Google review destination snapshot.
 - **Performance report** — live property-scoped Google Business Profile daily metrics, returned with source and retrieval metadata and never persisted.
 - **Token encryption** — access and refresh tokens are encrypted at rest through `TokenEncryptionPort`.
@@ -18,24 +18,12 @@ Owns Google OAuth connections, provider access, opaque property-import discovery
 
 - Provider calls require a current connection, capability approval, execution permit, quota admission, and generation checks.
 - Browser DTOs and durable events never expose provider account/location identifiers.
-- Import discovery data is bounded per provider page and by a 24-hour absolute deadline. It is stored only in the credential-home database behind opaque HMAC handles; normalized rows grow linearly without a fleet-total cap and expired rows are swept.
+- Import discovery data is bounded per provider page and by a 24-hour absolute deadline. It is stored behind opaque HMAC handles; normalized rows grow linearly without a fleet-total cap and expired rows are swept.
 - Browser consumers use the Integration public API for provider-content clearing, view-epoch guards, stale-completion outcomes, and expiry delays; feature components do not redefine that policy.
 - A confirmed selection has no product-level 100-item cap. One transaction persists the replay-safe saga root, every stable child batch, every item checkpoint, and one identifier-only dispatch fact per child batch. Pre-confirmation discovery streams bounded pages into normalized, server-side 24-hour checkpoints with no aggregate record cap; authorization, invalidation fencing, cursor redemption, and candidate claims remain exact and bounded.
 - Browser status, retry, and cancellation address the saga root and aggregate every child batch. User cancellation is initiator-scoped, idempotent, and records `user_cancelled`; partial child completion remains visible rather than being rewritten as all-or-nothing success.
 - The child worker/security bound remains 100. Provider candidate pages are also bounded, while “Select all eligible locations” fetches through every remaining page before it changes the selection.
-- Each active Organization grant is bound to the one current append-only
-  credential-home authority generation. New grants preserve that exact home;
-  beta home replacement is a governed reconnect permitted only when no other
-  active grant would remain on the superseded generation. Legacy rows without
-  an authority generation fail closed until an operator applies a digest-bound,
-  explicitly targeted backfill.
-- The signed routing directory contains identifiers, cells, authority
-  generations, policy, and monotonic revision only. It never selects a home
-  from country/request origin and never falls back from a missing exact route.
-- The cross-cell broker protocol validates short-lived, operation-bound grants
-  and persists only keyed hashes plus opaque sealed references. Live cross-cell
-  execution remains dark until public-TCP self-TLS/mTLS peer, certificate, and
-  drill evidence exists; a target cell never decrypts the home refresh token.
+- Every credential-bearing Google operation executes in this deployment; there is no credential home or routing directory.
 - Property create/relink effects use `PropertyGoogleBindingPublicApi`; Integration does not construct or insert Property entities directly.
 - Discovery reads Google's output-only `metadata.newReviewUri`, validates it against the approved HTTPS Google-host policy, carries it through opaque/durable import state, and hands it to the Property binding effect. It is never manually entered by an administrator.
 - Performance data is live-only and property-scoped; the base Dashboard does not depend on provider availability.
@@ -49,10 +37,9 @@ Owns Google OAuth connections, provider access, opaque property-import discovery
   every provider route, credential class, fixed production origin, transport,
   owner, recovery rule, and current repository activation state. A new route
   cannot compile without an explicit inventory decision.
-- A first OAuth exchange reserves the canonical Organization credential home
-  before egress, freezes that home plus a prospective connection UUID into the
-  authorization vector, and starts through the database-locked v2 permit. Two
-  concurrent starts can produce only one `started` transition. The browser can
+- A first OAuth exchange freezes a prospective connection UUID and zero generations
+  into the authorization vector, then starts through the database-locked permit.
+  Two concurrent starts can produce only one `started` transition. The browser can
   supply only the one-use code and opaque state; it never supplies PKCE verifier
   or token material to a general server function.
 - The OAuth callback's opaque state owns a server-generated exchange-attempt
@@ -133,11 +120,10 @@ the contribution answers _what state is this Organization's Google integration
 in_, never _what did Google tell us_.
 
 It reads, from one bounded read-only repeatable-read snapshot:
-`google_connections` (status, visibility, credential-use state, version and
-credential-home fences, sync/status timestamps), `google_organization_credential_homes`
-(generation, cell, policy version, transition reason, interval),
-`gbp_import_sagas`, `gbp_import_requests` (status and counts),
-`gbp_import_request_items` **aggregated to counts by state/action/outcome**, and
+`google_connections` (status, visibility, credential-use state, versions, and
+sync/status timestamps), `gbp_import_sagas`, `gbp_import_requests` (status and
+counts), `gbp_import_request_items` **aggregated to counts by
+state/action/outcome**, and
 `google_disconnect_revoke_attempts` (state, outcome, timings).
 
 It deliberately withholds encrypted access/refresh tokens, token expiry, the
@@ -145,9 +131,8 @@ encryption key id, the Google OIDC subject, granted scopes, provider account and
 location suffixes, the Google review URI, import replay digests, the disconnect
 credential binding and cleanup permit, `google_oauth_exchange_attempts`,
 `credential_revoke_permits`, `authorization_execution_permits`,
-`google_credential_broker_replay`, the signed routing directory,
-`google_import_discovery_records`, credential-home operator identity
-and change ticket, and live Business Profile Performance payloads. Every
+`google_import_discovery_records`, and live Business Profile Performance
+payloads. Every
 exclusion is listed in the returned `excludedRecordClasses`.
 
 An Organization that never connected Google contributes `no_data`, never an
@@ -176,17 +161,14 @@ an explicitly reviewed composition.
 - **verifyPurgeReadiness** is read-only and fails closed while a connection is
   still credentialed, an import item is still pending or processing, a
   disconnect-cleanup or OAuth-exchange attempt has no terminal outcome, a
-  credential source operation is still open, a cross-cell broker grant is live,
-  or a discovery handle has not expired.
+  credential source operation is still open, or a discovery handle has not
+  expired.
 - **purge** is irreversible, idempotent and content-free. It deletes this
-  tenant's import work, discovery records, OAuth exchange attempts, broker
-  grants and the legacy `gbp_*` compatibility mirror ROWS — no table is ever
-  dropped and no mirror removed. `google_connections`,
-  `google_organization_credential_homes`,
-  `google_disconnect_revoke_attempts` and `authorization_execution_permits` are
-  scrubbed in place instead of deleted: the disconnect attempt is independently
-  retained content-free evidence and references the other three with ON DELETE
-  RESTRICT.
+  tenant's import work and discovery/OAuth-exchange records.
+  `google_connections`, `google_disconnect_revoke_attempts` and
+  `authorization_execution_permits` are scrubbed in place instead of deleted:
+  the disconnect attempt is independently retained content-free evidence and
+  references the other two with ON DELETE RESTRICT.
 
 An Organization that never connected Google answers `no_data` — affirmative
 evidence, never an omitted contributor.

@@ -52,14 +52,13 @@ const view = (
   address: 'Existing address',
   countryCode: 'US',
   timezone: 'America/New_York',
-  processingRegion: 'us',
   lifecycleState: 'active',
   deletedAt: null,
   ...overrides,
 })
 
 describe('Google import Property candidate classifier', () => {
-  it('classifies create, imported, relink, conflict, resolved-region, and inaccessible rows', async () => {
+  it('classifies create, imported, relink, conflict, and inaccessible rows', async () => {
     const rows = [
       view('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'already'),
       view('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'relink', {
@@ -133,7 +132,7 @@ describe('Google import Property candidate classifier', () => {
       { kind: 'unavailable' },
       { kind: 'unavailable' },
       { kind: 'create' },
-      { kind: 'region_unavailable' },
+      { kind: 'create' },
     ])
     expect(result[2]).toMatchObject({
       expectedSourceEpoch: 7,
@@ -169,22 +168,6 @@ describe('Google import Property candidate classifier', () => {
         actor,
         connectionId: selectedConnectionId,
         candidates: [candidate('unverified', 'account-1', 'US', 'unverified')],
-      }),
-    ).resolves.toMatchObject([{ eligibility: { kind: 'verification_required' } }])
-  })
-
-  it('reports verification ahead of an unprocessable region', async () => {
-    // Verification is the blocker the operator can clear themselves, in Google.
-    const classify = createGoogleImportPropertyClassifier({
-      readByLocationIds: vi.fn(async () => []),
-      isAllowed: vi.fn(async () => true),
-    })
-
-    await expect(
-      classify({
-        actor,
-        connectionId: selectedConnectionId,
-        candidates: [candidate('both', 'account-1', 'JP', 'unverified')],
       }),
     ).resolves.toMatchObject([{ eligibility: { kind: 'verification_required' } }])
   })

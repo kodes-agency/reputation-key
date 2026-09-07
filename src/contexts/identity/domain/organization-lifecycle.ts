@@ -108,7 +108,6 @@ export const ORGANIZATION_REACTIVATION_REASON_CODE = 'explicit_reactivation'
  * evaluation is a missing answer, never an implicit pass.
  *
  * Each id maps to one program-bullet-4 requirement:
- *   * `data_cell_health`             — the assigned Data Cell accepts work
  *   * `responsible_manager`          — every Property has an eligible current
  *                                      Responsible Manager (the same question
  *                                      `restoreProperty` asks per Property)
@@ -121,7 +120,6 @@ export const ORGANIZATION_REACTIVATION_REASON_CODE = 'explicit_reactivation'
  *                                      schedules are out of quarantine
  */
 export const ORGANIZATION_REACTIVATION_CHECKS = [
-  'data_cell_health',
   'responsible_manager',
   'google_authorization',
   'portal_reactivation',

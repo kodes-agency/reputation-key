@@ -228,10 +228,8 @@ supersession authority. Key active/superseding ADRs:
 | 0039 | People, Access, and Attribution Are Separate Effective-Dated Concepts | People, Access, Attribution                  |
 | 0052 | Beta People, Access, Attribution, and Manager Responsibility          | Canonical Beta People Model, Team Quarantine |
 | 0053 | Production Redis Workload Isolation                                   | Cache/Queue Runtime Boundaries               |
-| 0054 | Data Cell Catalogue and Routing                                       | Regional Data/Execution Authority            |
 | 0055 | Stable Review Identity and Inbox Handling Cycles                      | Review, Reply, Inbox, Retention              |
 | 0056 | Operational Action History Integrity Claims                           | Activity, Audit, Honest Claims               |
-| 0057 | Single US beta Data Cell                                              | Single-cell beta topology, Railway placement |
 | 0058 | Dedicated Railway Projects and IaC-Owned Source Promotion             | Railway release isolation and source control |
 
 ## Key Files

@@ -6,7 +6,7 @@ import {
   type SyncPropertyReviewsJobData,
   type TargetedGoogleReviewFetchJobData,
 } from '../../application/ports/review-queue.port'
-import type { PropertyRoutingPort } from '../../application/ports/property-routing.port'
+import type { PropertySourceEpochPort } from '../../application/ports/property-source-epoch.port'
 import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
 import type { ReviewDiscoveryRepository } from '../../application/ports/review-discovery.repository'
 import type {
@@ -22,7 +22,7 @@ export const JOB_NAME = 'sync-property-reviews' as const
 type SyncHandlerDeps = Readonly<{
   runSnapshot: RunReviewProviderSnapshot
   runTargetedFetch?: RunTargetedGoogleReviewFetch
-  propertyRouting: PropertyRoutingPort
+  propertySourceEpoch: PropertySourceEpochPort
   enqueueContinuation(
     data: SyncPropertyReviewsJobData,
     options?: Readonly<{ delayMs?: number; jobId?: string }>,
@@ -91,15 +91,14 @@ function assertProviderJobIdentity(
   }
 }
 
-/** The step may only run against the source epoch the job was enqueued for, and
- * only while that epoch is still the property's current processing scope. */
+/** The step may run only while its source epoch is still current. */
 async function resolveStepSourceEpoch(
   deps: SyncHandlerDeps,
   data: ReviewProviderJobData,
   organization: ReturnType<typeof organizationId>,
   property: ReturnType<typeof propertyId>,
 ): Promise<number> {
-  const currentScope = await deps.propertyRouting.getProcessingScope(
+  const currentScope = await deps.propertySourceEpoch.getSourceEpoch(
     organization,
     property,
   )

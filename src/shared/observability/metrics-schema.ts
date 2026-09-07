@@ -65,18 +65,6 @@ const POLICY_DENY_REASONS = [
   'unknown_action',
 ] as const
 
-/**
- * Region-routing failure reasons (delayed-execution-gate quarantine reasons):
- * `routing_blocked:<RoutingBlockedReason>` from the ProcessingRouter plus the
- * gate's own wrong-cell / unresolved-scope outcomes.
- */
-const ROUTING_DENY_REASONS = [
-  'routing_blocked:property_missing',
-  'routing_blocked:region_unresolved',
-  'routing_blocked:region_denied',
-  'wrong_cell',
-] as const
-
 /** Reply publication_state — the DB CHECK constraint set (review.schema). */
 export const PUBLICATION_STATES = [
   'requested',
@@ -775,15 +763,6 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     description:
       'Policy denials/suspensions by stable reason. Audit-sourced (policy_decision_audit, trailing hour); BQC-7.4 emits the per-reason split on the health-check cadence.',
   }),
-  def({
-    name: 'routing.denials',
-    kind: 'counter',
-    unit: 'count',
-    labels: { reason: { values: ROUTING_DENY_REASONS } },
-    emitted: true,
-    description:
-      'Region-routing failures by stable reason. Quarantine-envelope sourced; BQC-7.4 emits the per-reason split on the health-check cadence.',
-  }),
 
   // ── cache.* — tenant-resolution cache ──
   def({
@@ -860,15 +839,6 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['versions.policyStore'],
     emitted: true,
     description: 'Persisted policy_version (null when only the env seed is present).',
-  }),
-  def({
-    name: 'versions.routing_policy',
-    kind: 'gauge',
-    unit: 'info',
-    labels: {},
-    snapshotPath: ['versions.routingPolicy'],
-    emitted: true,
-    description: 'ROUTING_POLICY_VERSION (processing-routing).',
   }),
   def({
     name: 'versions.source_content_policy',

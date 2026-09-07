@@ -4,22 +4,8 @@ import {
   REG04_PLATFORM_SIGNALS,
 } from './regional-platform-signals'
 import { ALERT_DEFINITIONS } from './alert-definitions'
-import { BETA_DEPLOYMENT_DATA_CELL_IDS } from '#/shared/domain/data-cell-catalogue'
 
 describe('REG-04 regional platform signal authority', () => {
-  it('covers the exact one-cell beta without manufacturing dormant-cell monitors', () => {
-    expect(BETA_DEPLOYMENT_DATA_CELL_IDS).toEqual(['us'])
-    expect(new Set(REG04_PLATFORM_SIGNALS.map((signal) => signal.dataCellId))).toEqual(
-      new Set(['us']),
-    )
-    expect(REG04_PLATFORM_SIGNALS.some((signal) => signal.name.includes('europe'))).toBe(
-      false,
-    )
-    expect(REG04_PLATFORM_SIGNALS.some((signal) => signal.name.includes('global'))).toBe(
-      false,
-    )
-  })
-
   it('registers every platform-owned backup, recovery, error, and drift signal', () => {
     expect(REG04_PLATFORM_SIGNALS.map((signal) => signal.name).sort()).toEqual(
       [

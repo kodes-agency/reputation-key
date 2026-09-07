@@ -76,7 +76,6 @@ export type JobRuntimeQueueRedisSource = Readonly<{
 export function createQueueJobRuntimeObservationStore(
   input: Readonly<{
     queue: JobRuntimeQueueRedisSource
-    cell: string
   }>,
 ): JobRuntimeObservationStore {
   const redis = {
@@ -91,7 +90,7 @@ export function createQueueJobRuntimeObservationStore(
     del: async (key: string) =>
       ((await input.queue.client) as JobRuntimeRedisPort).del(key),
   } satisfies JobRuntimeRedisPort
-  return createJobRuntimeObservationStore({ redis, cell: input.cell })
+  return createJobRuntimeObservationStore({ redis })
 }
 
 function safeSegment(value: string): string {
@@ -101,13 +100,13 @@ function safeSegment(value: string): string {
   return value
 }
 
-function observationKey(cell: string, jobName: string): string {
-  return `repkey:job-runtime:v1:${safeSegment(cell)}:${safeSegment(jobName)}`
+function observationKey(jobName: string): string {
+  return `repkey:job-runtime:v1:${safeSegment(jobName)}`
 }
 
-function activeJobKey(cell: string, queue: string, jobId: string): string {
+function activeJobKey(queue: string, jobId: string): string {
   const digest = createHash('sha256').update(`${queue}\0${jobId}`, 'utf8').digest('hex')
-  return `repkey:job-runtime:v1:${safeSegment(cell)}:active:${digest}`
+  return `repkey:job-runtime:v1:active:${digest}`
 }
 
 function asIso(at: Date): string {
@@ -124,10 +123,8 @@ function parseDate(value: string | undefined): Date | null {
 export function createJobRuntimeObservationStore(
   input: Readonly<{
     redis: JobRuntimeRedisPort
-    cell: string
   }>,
 ): JobRuntimeObservationStore {
-  const cell = safeSegment(input.cell)
   const { redis } = input
 
   const writeEvent = async (
@@ -135,7 +132,7 @@ export function createJobRuntimeObservationStore(
     field: 'lastStartedAt' | 'lastSucceededAt' | 'lastTerminalFailureAt',
   ): Promise<void> => {
     const at = asIso(event.at)
-    await redis.hset(observationKey(cell, event.jobName), field, at)
+    await redis.hset(observationKey(event.jobName), field, at)
   }
 
   return {
@@ -149,13 +146,11 @@ export function createJobRuntimeObservationStore(
       await Promise.all(
         contracts.map((contract) =>
           redis.hset(
-            observationKey(cell, contract.jobName),
+            observationKey(contract.jobName),
             'version',
             OBSERVATION_VERSION,
             'jobName',
             contract.jobName,
-            'cell',
-            cell,
             'handlerRegistered',
             registeredHandlers.has(contract.jobName) ? '1' : '0',
             'schedulerRegisteredAtBoot',
@@ -171,7 +166,7 @@ export function createJobRuntimeObservationStore(
       await Promise.all([
         writeEvent(event, 'lastStartedAt'),
         redis.set(
-          activeJobKey(cell, event.queue, event.jobId),
+          activeJobKey(event.queue, event.jobId),
           event.jobName,
           'PX',
           ACTIVE_JOB_INDEX_TTL_MS,
@@ -182,31 +177,30 @@ export function createJobRuntimeObservationStore(
     async recordSucceeded(event) {
       const at = asIso(event.at)
       await redis.hset(
-        observationKey(cell, event.jobName),
+        observationKey(event.jobName),
         'lastSucceededAt',
         at,
         ...(event.repair ? ['lastRepairAt', at] : []),
       )
-      await redis.del(activeJobKey(cell, event.queue, event.jobId))
+      await redis.del(activeJobKey(event.queue, event.jobId))
     },
 
     async recordTerminalFailure(event) {
       await writeEvent(event, 'lastTerminalFailureAt')
-      await redis.del(activeJobKey(cell, event.queue, event.jobId))
+      await redis.del(activeJobKey(event.queue, event.jobId))
     },
 
     async recordStalled(event) {
-      const jobName = await redis.get(activeJobKey(cell, event.queue, event.jobId))
+      const jobName = await redis.get(activeJobKey(event.queue, event.jobId))
       if (!jobName) return
-      await redis.hset(observationKey(cell, jobName), 'lastStalledAt', asIso(event.at))
+      await redis.hset(observationKey(jobName), 'lastStalledAt', asIso(event.at))
     },
 
     async read(jobName) {
-      const row = await redis.hgetall(observationKey(cell, jobName))
+      const row = await redis.hgetall(observationKey(jobName))
       if (
         row.version !== OBSERVATION_VERSION ||
         row.jobName !== jobName ||
-        row.cell !== cell ||
         !row.runtimeStartedAt
       ) {
         return null
@@ -217,7 +211,6 @@ export function createJobRuntimeObservationStore(
         runtimeStartedAt,
         observation: {
           jobName,
-          cell,
           handlerRegistered: row.handlerRegistered === '1',
           schedulerRegistered: row.schedulerRegisteredAtBoot === '1',
           lastStartedAt: parseDate(row.lastStartedAt),
@@ -389,8 +382,6 @@ function latest(left: Date | null, right: Date | undefined): Date | null {
 export type JobRuntimeReportRow = Readonly<{
   jobName: string
   owner: string
-  /** Observed processing cell; null means the durable boot head is missing. */
-  cell: string | null
   processor: string
   action: string
   routing: JobOperationalContract['routing']
@@ -504,7 +495,6 @@ export function createJobRuntimeReportReader(
         return {
           jobName: contract.jobName,
           owner: contract.owner,
-          cell: record?.observation.cell ?? null,
           processor: contract.processor,
           action: contract.action,
           routing: contract.routing,

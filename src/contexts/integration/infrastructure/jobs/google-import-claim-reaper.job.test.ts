@@ -261,7 +261,7 @@ describe('google import claim-lease reaper job', () => {
       itemId: LIVE_ITEM_ID,
       retryRevision: 0,
       outcomeCode: 'temporarily_unavailable',
-      retainProtectedRouting: false,
+      retainRetryState: false,
       now: new Date(LEASE_EXPIRES_AT.getTime() + 1),
     })
     expect(completionPayload()).toEqual({

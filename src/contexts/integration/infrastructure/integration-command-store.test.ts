@@ -48,17 +48,9 @@ const MUTATION_NOW = new Date('2026-06-01T12:34:56.789Z')
 const createAtomicIntegrationCommandStore = (
   db: Database,
   clock: () => Date = () => MUTATION_NOW,
-) =>
-  createProductionIntegrationCommandStore(db, clock, {
-    applyCredentialHome: async () => {},
-  })
+) => createProductionIntegrationCommandStore(db, clock)
 const ORG_ID = organizationId('org-integration-cmd-00000000001')
 const CONN_ID = googleConnectionId('6d000000-0000-0000-0000-000000000001')
-const HOME_BINDING = Object.freeze({
-  homeCellId: 'us' as const,
-  cataloguePolicyVersion: 2,
-  authorityGeneration: 1,
-})
 
 function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnection {
   return {
@@ -77,9 +69,6 @@ function makeConnection(overrides: Partial<GoogleConnection> = {}): GoogleConnec
     lifecycleVersion: 1,
     accessVersion: 1,
     credentialGeneration: 1,
-    credentialHomeCellId: 'us',
-    credentialHomePolicyVersion: 2,
-    credentialHomeAuthorityGeneration: 1,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,
@@ -111,8 +100,6 @@ function makeConnectionRow(overrides: Record<string, unknown> = {}) {
     lifecycleVersion: 1,
     accessVersion: 1,
     credentialGeneration: 1,
-    credentialHomeCellId: 'us',
-    credentialHomePolicyVersion: 2,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,
@@ -216,7 +203,6 @@ describe('createAtomicIntegrationCommandStore', () => {
 
       await store.connectGoogleAccount({
         connection: makeConnection(),
-        credentialHomeBinding: HOME_BINDING,
         event,
       })
 
@@ -246,7 +232,6 @@ describe('createAtomicIntegrationCommandStore', () => {
       await expect(
         store.connectGoogleAccount({
           connection: makeConnection(),
-          credentialHomeBinding: HOME_BINDING,
           event: connectedEvent(),
         }),
       ).rejects.toSatisfy((e: unknown) => isUniqueViolationError(e))
@@ -277,8 +262,6 @@ describe('createAtomicIntegrationCommandStore', () => {
         encryptedRefreshToken: 'enc-r2',
         tokenExpiresAt: new Date('2026-06-01T14:00:00.000Z'),
         visibility: 'organization',
-        credentialHome: HOME_BINDING,
-        credentialHomeReason: 'credential_rotation',
         event: connectedEvent(),
       })
 
@@ -310,8 +293,6 @@ describe('createAtomicIntegrationCommandStore', () => {
           encryptedRefreshToken: 'enc-r2',
           tokenExpiresAt: NOW,
           visibility: 'private',
-          credentialHome: HOME_BINDING,
-          credentialHomeReason: 'credential_rotation',
           event: connectedEvent(),
         }),
       ).rejects.toSatisfy(

@@ -237,56 +237,19 @@ describe('updateProperty', () => {
     )
   })
 
-  it('resolves processing region when country is set on unresolved property (BQR-3.5)', async () => {
-    const { useCase, propertyRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const prop = buildTestProperty({
-      processingRegion: 'unresolved',
-      countryCode: null,
-    })
-    propertyRepo.seed([prop])
-
-    const updated = await useCase({ propertyId: prop.id, countryCode: 'US' }, ctx)
-
-    expect(updated.countryCode).toBe('US')
-    expect(updated.processingRegion).toBe('us')
-    expect(updated.dataCellId).toBe('us')
-    expect(updated.processingRegionResolvedAt).toEqual(FIXED_TIME)
-  })
-
-  it('corrects country without changing immutable Data Cell placement', async () => {
+  it('updates country as a business fact', async () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const prop = buildTestProperty({
       countryCode: 'US',
-      processingRegion: 'us',
-      processingRegionResolvedAt: FIXED_TIME,
+      countrySource: 'organization_default',
     })
     propertyRepo.seed([prop])
 
-    const updated = await useCase({ propertyId: prop.id, countryCode: 'DE' }, ctx)
+    const updated = await useCase({ propertyId: prop.id, countryCode: 'de' }, ctx)
 
     expect(updated.countryCode).toBe('DE')
-    expect(updated.processingRegion).toBe('us')
-    expect(updated.dataCellId).toBe('us')
-    expect(updated.processingRegionResolvedAt).toEqual(FIXED_TIME)
-  })
-
-  it('allows country correction within the same resolved region (BQR-3.5)', async () => {
-    const { useCase, propertyRepo } = setup()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    const prop = buildTestProperty({
-      countryCode: 'US',
-      processingRegion: 'us',
-      processingRegionResolvedAt: FIXED_TIME,
-    })
-    propertyRepo.seed([prop])
-
-    const updated = await useCase({ propertyId: prop.id, countryCode: 'PR' }, ctx)
-
-    expect(updated.countryCode).toBe('PR')
-    expect(updated.processingRegion).toBe('us')
-    expect(updated.dataCellId).toBe('us')
+    expect(updated.countrySource).toBe('manual')
   })
 
   it('does not expose or alter the protected Google binding on profile edits', async () => {

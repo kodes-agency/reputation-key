@@ -78,8 +78,6 @@ function claimedItem(
     propertyAddress: '1 Main Street',
     countryCode: 'US',
     timezone: 'America/New_York',
-    processingRegion: 'us',
-    routingPolicyVersion: 1,
     retryRevision: 0,
     attemptOrdinal: 1,
     claimFence: CLAIM_FENCE,
@@ -189,7 +187,6 @@ function setup(
     address: '1 Main Street',
     countryCode: 'US',
     timezone: 'America/New_York',
-    processingRegion: 'us',
     lifecycleState: 'active',
   })
   const propertyBindingApi = {
@@ -485,7 +482,7 @@ describe('GoogleImportV2Processor', () => {
 
       expect(harness.createBoundProperty).not.toHaveBeenCalled()
       expect(harness.completeClaim).toHaveBeenCalledWith(
-        expect.objectContaining({ outcomeCode, retainProtectedRouting: false }),
+        expect.objectContaining({ outcomeCode, retainRetryState: false }),
       )
     },
   )
@@ -514,7 +511,7 @@ describe('GoogleImportV2Processor', () => {
       expect(harness.completeClaim).toHaveBeenCalledWith(
         expect.objectContaining({
           outcomeCode,
-          retainProtectedRouting: false,
+          retainRetryState: false,
         }),
       )
     },
@@ -565,7 +562,7 @@ describe('GoogleImportV2Processor', () => {
       itemId: ITEM_ID,
       retryRevision: 0,
       outcomeCode: 'temporarily_unavailable',
-      retainProtectedRouting: false,
+      retainRetryState: false,
       now: NOW,
     })
     expect(harness.resolveActor).not.toHaveBeenCalled()
@@ -614,7 +611,7 @@ describe('GoogleImportV2Processor', () => {
     expect(harness.completeClaim).toHaveBeenCalledWith(
       expect.objectContaining({
         outcomeCode: 'temporarily_unavailable',
-        retainProtectedRouting: true,
+        retainRetryState: true,
       }),
     )
   })
@@ -637,7 +634,7 @@ describe('GoogleImportV2Processor', () => {
     expect(harness.completeClaim).toHaveBeenCalledWith(
       expect.objectContaining({
         outcomeCode: 'temporarily_unavailable',
-        retainProtectedRouting: true,
+        retainRetryState: true,
       }),
     )
   })

@@ -27,10 +27,6 @@ import {
   scopeForPermission,
   type Permission,
 } from '#/shared/domain/permissions'
-import {
-  DATA_CELL_CATALOGUE_POLICY_VERSION,
-  dataCellById,
-} from '#/shared/domain/data-cell-catalogue'
 type GoogleContentAuthorizationCheckDeps = Readonly<{
   clock: () => Date
   hasActivePropertyGrant: (
@@ -70,30 +66,33 @@ const SHA256_PATTERN = /^[a-f0-9]{64}$/u
 const isCountFrom = (value: number, minimum: number) =>
   Number.isSafeInteger(value) && value >= minimum
 
-const REVIEW_SYNC_SYSTEM_OPERATIONS = new Set([
-  'review.sync',
-  'provider.reviews.list',
-  'provider.reviews.get',
-])
-const NOTIFICATION_SYSTEM_OPERATIONS = new Set([
-  'notifications.manage',
-  'provider.notifications.get',
-  'provider.notifications.subscribe',
-  'provider.notifications.unsubscribe',
-])
-const OAUTH_CREDENTIAL_OPERATIONS = new Set([
-  'oauth.token.exchange',
-  'provider.oauth.token.exchange',
-  'oauth.token.refresh',
-  'provider.oauth.token.refresh',
-  'oauth.revoke',
-  'provider.oauth.revoke',
-])
-const OAUTH_EXCHANGE_OPERATIONS = new Set([
-  'oauth.token.exchange',
-  'provider.oauth.token.exchange',
-])
-const REPLY_PUBLICATION_OPERATIONS = ['reply.publish', 'provider.reviews.reply']
+const REVIEW_SYNC_SYSTEM_OPERATIONS: Readonly<Record<string, true>> = {
+  'review.sync': true,
+  'provider.reviews.list': true,
+  'provider.reviews.get': true,
+}
+const NOTIFICATION_SYSTEM_OPERATIONS: Readonly<Record<string, true>> = {
+  'notifications.manage': true,
+  'provider.notifications.get': true,
+  'provider.notifications.subscribe': true,
+  'provider.notifications.unsubscribe': true,
+}
+const OAUTH_CREDENTIAL_OPERATIONS: Readonly<Record<string, true>> = {
+  'oauth.token.exchange': true,
+  'provider.oauth.token.exchange': true,
+  'oauth.token.refresh': true,
+  'provider.oauth.token.refresh': true,
+  'oauth.revoke': true,
+  'provider.oauth.revoke': true,
+}
+const OAUTH_EXCHANGE_OPERATIONS: Readonly<Record<string, true>> = {
+  'oauth.token.exchange': true,
+  'provider.oauth.token.exchange': true,
+}
+const REPLY_PUBLICATION_OPERATIONS: Readonly<Record<string, true>> = {
+  'reply.publish': true,
+  'provider.reviews.reply': true,
+}
 
 /**
  * Whether policy currently authorizes this Google content capability.
@@ -190,19 +189,20 @@ type RequestShape = Readonly<{
 const classifyRequest = (input: AuthorizationInput): RequestShape => {
   const oauthCredentialOperation =
     input.capability === 'property.import_gbp_v2' &&
-    OAUTH_CREDENTIAL_OPERATIONS.has(input.operationKey)
+    OAUTH_CREDENTIAL_OPERATIONS[input.operationKey] === true
   return {
     systemReviewSync: input.capability === 'property.connect_gbp',
     systemReplyPublication: input.capability === 'property.publish_reply',
     oauthCredentialOperation,
     oauthExchangeOperation:
-      oauthCredentialOperation && OAUTH_EXCHANGE_OPERATIONS.has(input.operationKey),
+      oauthCredentialOperation && OAUTH_EXCHANGE_OPERATIONS[input.operationKey] === true,
   }
 }
 
 const resolveReviewSyncPrincipal = (input: AuthorizationInput): VectorStage => {
-  const reviewOperation = REVIEW_SYNC_SYSTEM_OPERATIONS.has(input.operationKey)
-  const notificationOperation = NOTIFICATION_SYSTEM_OPERATIONS.has(input.operationKey)
+  const reviewOperation = REVIEW_SYNC_SYSTEM_OPERATIONS[input.operationKey] === true
+  const notificationOperation =
+    NOTIFICATION_SYSTEM_OPERATIONS[input.operationKey] === true
   if (
     input.scope.initiatorUserId !== null ||
     input.scope.propertyId === null ||
@@ -240,7 +240,7 @@ const resolveReplyPublicationPrincipal = (input: AuthorizationInput): VectorStag
   if (
     input.scope.initiatorUserId !== null ||
     input.scope.propertyId === null ||
-    !REPLY_PUBLICATION_OPERATIONS.includes(input.operationKey) ||
+    REPLY_PUBLICATION_OPERATIONS[input.operationKey] !== true ||
     !publication ||
     !isWellFormedPublicationScope(publication)
   ) {
@@ -345,9 +345,6 @@ type ConnectionRow = Readonly<{
   credential_generation: number
   status?: string
   credential_use_state?: string
-  credential_home_cell_id?: string | null
-  credential_home_policy_version?: number | null
-  credential_home_authority_generation?: number | null
 }>
 
 const loadConnection = async (
@@ -359,9 +356,7 @@ const loadConnection = async (
     oauthExchangeOperation
       ? sql`
           SELECT lifecycle_version, access_version, credential_generation,
-                 status, credential_use_state, credential_home_cell_id,
-                 credential_home_policy_version,
-                 credential_home_authority_generation
+                 status, credential_use_state
           FROM google_connections
           WHERE id = ${input.scope.connectionId}::uuid
             AND organization_id = ${input.scope.organizationId}
@@ -382,71 +377,9 @@ const loadConnection = async (
   return connectionResult.rows[0] as ConnectionRow | undefined
 }
 
-type CredentialHome = Readonly<{
-  homeCell: string
-  policyVersion: number
-  authorityGeneration: number
-}>
-
-/** Returns the single unsuperseded Organization credential home, or null when it
- * is missing, ambiguous, unknown to the catalogue, or catalogue-stale. */
-const loadCredentialHome = async (
-  tx: Database,
-  organizationId: string,
-): Promise<CredentialHome | null> => {
-  const homeResult = await tx.execute(sql`
-    SELECT home_cell_id, catalogue_policy_version, authority_generation
-    FROM google_organization_credential_homes
-    WHERE organization_id = ${organizationId}
-      AND superseded_at IS NULL
-    LIMIT 2
-  `)
-  const home = homeResult.rows[0] as
-    | {
-        home_cell_id: string
-        catalogue_policy_version: number
-        authority_generation: number
-      }
-    | undefined
-  const homeCell = home ? dataCellById(home.home_cell_id)?.id : undefined
-  if (
-    homeResult.rows.length !== 1 ||
-    !home ||
-    !homeCell ||
-    home.catalogue_policy_version !== DATA_CELL_CATALOGUE_POLICY_VERSION ||
-    !isCountFrom(home.authority_generation, 1)
-  ) {
-    return null
-  }
-  return {
-    homeCell,
-    policyVersion: home.catalogue_policy_version,
-    authorityGeneration: home.authority_generation,
-  }
-}
-
-const isLegacyReconnectTarget = (connection: ConnectionRow): boolean =>
-  connection.status === 'disconnected' &&
-  connection.credential_use_state === 'none' &&
-  connection.credential_home_cell_id == null &&
-  connection.credential_home_policy_version == null &&
-  connection.credential_home_authority_generation == null
-
-const matchesCredentialHome = (
-  connection: ConnectionRow,
-  home: CredentialHome,
-): boolean =>
-  connection.credential_home_cell_id === home.homeCell &&
-  connection.credential_home_policy_version === home.policyVersion &&
-  connection.credential_home_authority_generation === home.authorityGeneration
-
-const resolveOauthExchangeVector = async (
-  tx: Database,
-  input: AuthorizationInput,
+const resolveOauthExchangeVector = (
   connection: ConnectionRow | undefined,
-): Promise<VectorStage> => {
-  const home = await loadCredentialHome(tx, input.scope.organizationId)
-  if (!home) return deny()
+): VectorStage => {
   if (!connection) {
     return stageVector(
       Object.freeze({
@@ -454,34 +387,23 @@ const resolveOauthExchangeVector = async (
         connectionLifecycleVersion: 0,
         connectionAccessVersion: 0,
         credentialGeneration: 0,
-        credentialHomeCellId: home.homeCell,
-        credentialHomePolicyVersion: home.policyVersion,
-        credentialHomeAuthorityGeneration: home.authorityGeneration,
       }),
     )
-  }
-  if (!isLegacyReconnectTarget(connection) && !matchesCredentialHome(connection, home)) {
-    return deny()
   }
   return stageVector(
     Object.freeze({
       oauthCredentialOperation: 'exchange_existing',
       connectionStatus: connection.status ?? null,
       credentialUseState: connection.credential_use_state ?? null,
-      credentialHomeCellId: home.homeCell,
-      credentialHomePolicyVersion: home.policyVersion,
-      credentialHomeAuthorityGeneration: home.authorityGeneration,
     }),
   )
 }
 
 const resolveOauthVector = (
-  tx: Database,
-  input: AuthorizationInput,
   oauthExchangeOperation: boolean,
   connection: ConnectionRow | undefined,
-): VectorStage | Promise<VectorStage> => {
-  if (oauthExchangeOperation) return resolveOauthExchangeVector(tx, input, connection)
+): VectorStage => {
+  if (oauthExchangeOperation) return resolveOauthExchangeVector(connection)
   return connection ? EMPTY_VECTOR_STAGE : deny()
 }
 
@@ -700,12 +622,7 @@ export const createGoogleContentAuthorizationCheck = (
     if (!policy) return deny()
 
     const connection = await loadConnection(tx, input, shape.oauthExchangeOperation)
-    const oauth = await resolveOauthVector(
-      tx,
-      input,
-      shape.oauthExchangeOperation,
-      connection,
-    )
+    const oauth = resolveOauthVector(shape.oauthExchangeOperation, connection)
     if (!oauth.allowed) return oauth
 
     const property =

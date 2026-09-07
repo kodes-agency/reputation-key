@@ -18,7 +18,6 @@ import type {
   OutboxRepository,
   UnpublishedEvent,
 } from './infrastructure/outbox-repository'
-import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 const RECORDED = new Date('2026-07-17T10:00:00.000Z')
 
@@ -109,85 +108,6 @@ describe('outbox relay (BQC-3.7)', () => {
         jitter: 0.5,
       })
     }
-  })
-
-  it('leaves a lifecycle-denied event unpublished without blocking admitted events', async () => {
-    const denied = {
-      ...makeEvent('evt-denied'),
-      eventType: 'integration.property_import.completed',
-    }
-    const admitted = makeEvent('evt-admitted')
-    const { repo, state } = makeRepo([denied, admitted])
-    const { queue, added } = makeQueue()
-    const admitEvent = vi.fn(async (event: UnpublishedEvent) => event.id !== denied.id)
-
-    const relay = createOutboxRelay(repo, queue, {
-      relayId: 'relay-test-1',
-      admitEvent,
-    })
-    await relay.poll()
-
-    expect(admitEvent).toHaveBeenCalledTimes(2)
-    expect(added.map((call) => call.opts.jobId)).toEqual(['evt-admitted'])
-    expect(state.markedPublished).toEqual(['evt-admitted'])
-  })
-
-  it('publishes fresh Property routing evidence instead of relabeling from process config', async () => {
-    const propertyEvent = { ...makeEvent('evt-property'), propertyId: 'property-1' }
-    const { repo } = makeRepo([propertyEvent])
-    const { queue, added } = makeQueue()
-
-    const relay = createOutboxRelay(repo, queue, {
-      relayId: 'relay-test-1',
-      admitEvent: async () => ({
-        dataCellId: 'us',
-        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-      }),
-    })
-    await relay.poll()
-
-    expect(added[0]?.data).toMatchObject({
-      dataCellId: 'us',
-      region: 'us',
-      routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-    })
-  })
-
-  it('stamps Property-less facts with the source Data Cell instead of leaving them unscoped', async () => {
-    const { repo } = makeRepo([makeEvent('evt-organization')])
-    const { queue, added } = makeQueue()
-
-    const relay = createOutboxRelay(repo, queue, {
-      relayId: 'relay-test-1',
-      sourceCell: 'us',
-    })
-    await relay.poll()
-
-    expect(added[0]?.data).toMatchObject({
-      sourceCellId: 'us',
-      region: 'us',
-    })
-    expect(added[0]?.data).not.toHaveProperty('dataCellId')
-    expect(added[0]?.data).not.toHaveProperty('routingPolicyVersion')
-  })
-
-  it('does not publish a Property fact when fresh routing disagrees with its source cell', async () => {
-    const propertyEvent = { ...makeEvent('evt-wrong-cell'), propertyId: 'property-1' }
-    const { repo, state } = makeRepo([propertyEvent])
-    const { queue, added } = makeQueue()
-
-    const relay = createOutboxRelay(repo, queue, {
-      relayId: 'relay-test-1',
-      sourceCell: 'us',
-      admitEvent: async () => ({
-        dataCellId: 'europe',
-        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-      }),
-    })
-    await relay.poll()
-
-    expect(added).toEqual([])
-    expect(state.markedPublished).toEqual([])
   })
 
   it('renews the lease for the unprocessed remainder every 10 published events', async () => {

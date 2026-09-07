@@ -6,8 +6,6 @@
 // and its durable outbox_events fact in one PostgreSQL transaction.
 
 import type { OrganizationId } from '#/shared/domain/ids'
-import type { GoogleCredentialHomeBinding } from '#/shared/domain/google-credential-home'
-import type { GoogleCredentialHomeTransitionReason } from '../../domain/organizationGoogleCredentialHome'
 import type {
   GoogleConnection,
   GoogleConnectionId,
@@ -27,7 +25,6 @@ import type {
  */
 export type ConnectGoogleAccountCommand = Readonly<{
   connection: GoogleConnection
-  credentialHomeBinding: GoogleCredentialHomeBinding
   exchangeAttemptId?: string
   event: IntegrationGoogleAccountConnected
 }>
@@ -46,11 +43,6 @@ export type ReconnectGoogleAccountCommand = Readonly<{
   encryptedRefreshToken: string
   tokenExpiresAt: Date
   visibility: GoogleConnectionVisibility
-  credentialHome: GoogleCredentialHomeBinding
-  credentialHomeReason: Extract<
-    GoogleCredentialHomeTransitionReason,
-    'credential_rotation' | 'governed_reconnect'
-  >
   exchangeAttemptId?: string
   event: IntegrationGoogleAccountConnected
 }>

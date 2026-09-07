@@ -60,21 +60,18 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 
 ## Scripts
 
-| Command                        | Description                                                                                                                                                           |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`                     | Start dev server on :3000                                                                                                                                             |
-| `pnpm build`                   | Build web, worker, migration, and isolated local-tool bundles                                                                                                         |
-| `pnpm start`                   | Run built web server                                                                                                                                                  |
-| `pnpm start:worker`            | Run built worker                                                                                                                                                      |
-| `pnpm test`                    | Run unit tests                                                                                                                                                        |
-| `pnpm test:e2e`                | Run Playwright E2E tests                                                                                                                                              |
-| `pnpm typecheck`               | TypeScript check (src/services/e2e + the release scripts project)                                                                                                     |
-| `pnpm lint`                    | ESLint + filename/component-boundary checks                                                                                                                           |
-| `pnpm lint:ci`                 | `lint` + test-quality + Google/AI artifact gates                                                                                                                      |
-| `pnpm format`                  | Prettier format                                                                                                                                                       |
-| `pnpm infra:railway:plan-cell` | Retain the manifest-bound full-candidate plan for the dedicated `cell-us` project; requires Railway CLI 5.45.2+                                                       |
-| `pnpm release:migrate-cell`    | Audited, saved-plan schema migration for every signed single-US candidate; the first run also enables the bounded Data Cell cutover                                   |
-| `pnpm release:beta`            | Staged saved-plan promotion/read-back for the one `cell-us`; live promotion remains blocked until retained cutover, plan, provider, and recovery evidence is complete |
+| Command             | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `pnpm dev`          | Start dev server on :3000                                         |
+| `pnpm build`        | Build web, worker, migration, and isolated local-tool bundles     |
+| `pnpm start`        | Run built web server                                              |
+| `pnpm start:worker` | Run built worker                                                  |
+| `pnpm test`         | Run unit tests                                                    |
+| `pnpm test:e2e`     | Run Playwright E2E tests                                          |
+| `pnpm typecheck`    | TypeScript check (src/services/e2e + the release scripts project) |
+| `pnpm lint`         | ESLint + filename/component-boundary checks                       |
+| `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates                  |
+| `pnpm format`       | Prettier format                                                   |
 
 ### Git hooks
 

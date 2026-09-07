@@ -65,9 +65,6 @@ export function authorizeDeployMigrationRuntime(
     env.REPKEY_RAILWAY_DEPLOYMENT_PROFILE,
   )
 
-  if (env.PROCESSING_CELL !== 'us') {
-    throw new Error('PROCESSING_CELL must be us for beta deploy migrations')
-  }
   // Project AND environment are checked together, against the target the
   // DECLARED POSTURE authorizes. Previously both were pinned to the dedicated
   // cell unconditionally, which is correct for a public launch and refused

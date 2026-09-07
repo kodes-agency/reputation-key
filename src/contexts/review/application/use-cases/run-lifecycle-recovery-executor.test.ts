@@ -25,11 +25,10 @@ const EVALUATED_AT = '2026-08-28T10:00:00.000Z'
 const target = (): ReviewLifecycleRecoveryRuntimeTarget => ({
   releaseSha: 'a'.repeat(40),
   releaseManifestSha256: 'b'.repeat(64),
-  dataCellId: 'us',
   restorePointAt: new Date('2026-08-28T09:00:00.000Z'),
   restoreDatabaseServiceName: 'Postgres-restored-20260828-0900',
   railwayProjectId: 'project-us',
-  railwayEnvironmentId: 'environment-cell-us',
+  railwayEnvironmentId: 'environment-restored',
   operatorId: 'operator@example.com',
   correlationId: 'correlation-1',
 })
@@ -144,7 +143,6 @@ async function fixture(
     target: {
       releaseSha: target().releaseSha,
       releaseManifestSha256: target().releaseManifestSha256,
-      dataCellId: 'us',
       restorePointAt: target().restorePointAt.toISOString(),
       restoreDatabaseServiceName: target().restoreDatabaseServiceName,
       railwayProjectId: target().railwayProjectId,

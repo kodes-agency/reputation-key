@@ -81,8 +81,6 @@ function intent(now = NOW): GoogleImportV2Intent {
         propertyAddress: '1 Main Street',
         countryCode: 'US',
         timezone: 'America/New_York',
-        processingRegion: 'us',
-        routingPolicyVersion: 1,
         effectDeadlineAt: new Date(now.getTime() + 24 * 60 * 60 * 1_000),
       },
     ],
@@ -394,7 +392,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         itemId: ITEM_ID,
         retryRevision: 0,
         outcomeCode: 'temporarily_unavailable',
-        retainProtectedRouting: true,
+        retainRetryState: true,
         now: new Date(NOW.getTime() + 60_000),
       }),
     ).resolves.toBe('completed')
@@ -503,7 +501,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       itemId: ITEM_ID,
       retryRevision: 0,
       outcomeCode: 'temporarily_unavailable',
-      retainProtectedRouting: true,
+      retainRetryState: true,
       now: new Date(NOW.getTime() + 60_000),
     })
     const base = {
@@ -582,7 +580,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         itemId: ITEM_ID,
         retryRevision: 0,
         outcomeCode: 'authorization_changed',
-        retainProtectedRouting: false,
+        retainRetryState: false,
         now: NOW,
       }),
     ).resolves.toBe('completed')
@@ -646,7 +644,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
         itemId: ITEM_ID,
         retryRevision: 0,
         outcomeCode: 'internal_error',
-        retainProtectedRouting: false,
+        retainRetryState: false,
         now: effectDeadline,
       }),
     ).resolves.toBe('completed')

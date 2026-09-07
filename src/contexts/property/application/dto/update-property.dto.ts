@@ -19,10 +19,7 @@ export const updatePropertyInputSchema = z
     timezone: z.string().min(1, 'This field is required').optional(),
     /** Null explicitly clears the tenant-confirmed reply-language preference. */
     defaultReplyLanguage: canonicalReplyLanguageSchema.nullable().optional(),
-    /**
-     * ISO 3166-1 alpha-2. Resolves processing region when currently unresolved.
-     * Rejected when it would change an already-resolved region (BQR-3.5).
-     */
+    /** ISO 3166-1 alpha-2 business location. */
     countryCode: z.string().length(2).optional(),
   })
   .strict()

@@ -32,9 +32,6 @@ const sampleRow: GoogleConnectionRow = {
   lifecycleVersion: 2,
   accessVersion: 3,
   credentialGeneration: 4,
-  credentialHomeCellId: 'us',
-  credentialHomePolicyVersion: 2,
-  credentialHomeAuthorityGeneration: 4,
   encryptionKeyId: 'v1',
   lastSuccessfulSyncAt: null,
   statusReason: null,
@@ -65,9 +62,6 @@ describe('googleConnectionFromRow', () => {
     expect(conn.status).toBe('active')
     expect(conn.credentialUseState).toBe('active')
     expect(conn.cleanupMaterialDeadlineAt).toBeNull()
-    expect(conn.credentialHomeCellId).toBe('us')
-    expect(conn.credentialHomePolicyVersion).toBe(2)
-    expect(conn.credentialHomeAuthorityGeneration).toBe(4)
     expect(conn.createdAt).toBe(now)
     expect(conn.updatedAt).toBe(now)
   })
@@ -110,11 +104,6 @@ describe('googleConnectionToInsert', () => {
     expect(insert.lifecycleVersion).toBe(sampleRow.lifecycleVersion)
     expect(insert.accessVersion).toBe(sampleRow.accessVersion)
     expect(insert.credentialGeneration).toBe(sampleRow.credentialGeneration)
-    expect(insert.credentialHomeCellId).toBe(sampleRow.credentialHomeCellId)
-    expect(insert.credentialHomePolicyVersion).toBe(sampleRow.credentialHomePolicyVersion)
-    expect(insert.credentialHomeAuthorityGeneration).toBe(
-      sampleRow.credentialHomeAuthorityGeneration,
-    )
     expect(insert.createdAt).toBe(sampleRow.createdAt)
     expect(insert.updatedAt).toBe(sampleRow.updatedAt)
   })

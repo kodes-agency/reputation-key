@@ -46,7 +46,6 @@ const setup = (
     encryption,
     clock: () => FIXED_NOW,
     refreshGoogleToken: refreshGoogleToken as never,
-    assertDirectCredentialUse: async () => undefined,
   })
 
   return { provider, conn, encryption, refreshCalls: () => refreshCalls }

@@ -169,9 +169,8 @@ function makeDeps(
     googleReviewApi,
     observationWriter,
     subjectKeyService,
-    propertyRouting: {
-      getProcessingScope: vi.fn(async () => ({
-        processingRegion: 'global',
+    propertySourceEpoch: {
+      getSourceEpoch: vi.fn(async () => ({
         sourceEpoch: 1,
       })),
     },
@@ -459,8 +458,7 @@ describe('runReviewProviderSnapshot', () => {
 
   it('does not call the provider or delete when the source epoch changed', async () => {
     const deps = makeDeps()
-    vi.mocked(deps.propertyRouting.getProcessingScope).mockResolvedValue({
-      processingRegion: 'global',
+    vi.mocked(deps.propertySourceEpoch.getSourceEpoch).mockResolvedValue({
       sourceEpoch: 2,
     })
 

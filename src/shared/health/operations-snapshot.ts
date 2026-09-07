@@ -70,8 +70,6 @@ export type OperationsSnapshotDeps = Readonly<{
     executionPolicy: string
     /** Persisted policy_version reader (null when only the env seed exists). */
     policyStore: () => number | null
-    /** ROUTING_POLICY_VERSION (processing-routing). */
-    routingPolicy: number
     /** SourceContentPolicy.policyVersion. */
     sourceContentPolicy: number
   }>
@@ -123,7 +121,6 @@ export type OperationsVersions = Readonly<{
   capabilityPolicy: string
   executionPolicy: string
   policyStore: number | null
-  routingPolicy: number
   sourceContentPolicy: number
   /** Node runtime version (worker.runtime.version — process.version). */
   runtime: string
@@ -290,7 +287,6 @@ async function readRuntimeSection(deps: OperationsSnapshotDeps): Promise<Runtime
       capabilityPolicy: deps.versions.capabilityPolicy,
       executionPolicy: deps.versions.executionPolicy,
       policyStore: deps.versions.policyStore(),
-      routingPolicy: deps.versions.routingPolicy,
       sourceContentPolicy: deps.versions.sourceContentPolicy,
       runtime: process.version,
     },
@@ -309,7 +305,6 @@ function zeroRuntimeSection(
       capabilityPolicy: versions.capabilityPolicy,
       executionPolicy: versions.executionPolicy,
       policyStore: null,
-      routingPolicy: versions.routingPolicy,
       sourceContentPolicy: versions.sourceContentPolicy,
       runtime: process.version,
     },

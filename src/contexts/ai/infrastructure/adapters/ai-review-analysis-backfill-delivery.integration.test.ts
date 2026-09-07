@@ -379,7 +379,6 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
       slug: 'ai-reanalyze-delivery-test-property',
       timezone: 'America/New_York',
       countryCode: 'US',
-      processingRegion: 'global',
       googleBindingState: 'active',
       sourceEpoch: SOURCE_EPOCH,
     })

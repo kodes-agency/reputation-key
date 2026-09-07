@@ -8,11 +8,10 @@ import type {
 /** Infrastructure adapter for the recovery cutover boot fence. */
 export function createRecoveryCutoverRunReader(db: Database): RecoveryCutoverRunReader {
   return {
-    async findLatest(dataCellId): Promise<RecoveryCutoverRun | undefined> {
+    async findLatest(): Promise<RecoveryCutoverRun | undefined> {
       const result = await db.execute(sql`
         SELECT id, generation
         FROM recovery_runs
-        WHERE data_cell_id = ${dataCellId}
         ORDER BY generation DESC
         LIMIT 1
       `)

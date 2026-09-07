@@ -27,9 +27,6 @@ const connection = (id: string, createdAt: string) => ({
   lifecycle_version: 1,
   access_version: 1,
   credential_generation: 1,
-  credential_home_cell_id: 'us',
-  credential_home_policy_version: 1,
-  credential_home_authority_generation: 1,
   connected_by: 'user-1',
   credential_authorized_by: 'user-1',
   status_reason: null,
@@ -50,18 +47,6 @@ const payload = (
   googleConnections: [
     connection('a1', '2026-08-01T00:00:00.000000Z'),
     connection('b2', '2026-08-02T00:00:00.000000Z'),
-  ],
-  credentialHomeAuthority: [
-    {
-      authority_generation: 1,
-      home_cell_id: 'us',
-      catalogue_policy_version: 1,
-      transition_reason: 'new_grant',
-      effective_from: '2026-08-01T00:00:00.000000Z',
-      superseded_at: null,
-      created_at: '2026-08-01T00:00:00.000000Z',
-      updated_at: '2026-08-01T00:00:00.000000Z',
-    },
   ],
   importSagas: [],
   importBatches: [],
@@ -153,18 +138,16 @@ describe('Integration Organization Export entries', () => {
     expect(rows.slice(1).map((row) => row.split(',')[0])).toEqual([
       'google_connection',
       'google_connection',
-      'credential_home_authority',
       'import_item_state_count',
     ])
   })
 
   it('counts every collection when deciding complete versus no_data', () => {
-    expect(integrationExportRecordCount(payload())).toBe(4)
+    expect(integrationExportRecordCount(payload())).toBe(3)
     expect(
       integrationExportRecordCount(
         payload({
           googleConnections: [],
-          credentialHomeAuthority: [],
           importItemStateCounts: [],
         }),
       ),

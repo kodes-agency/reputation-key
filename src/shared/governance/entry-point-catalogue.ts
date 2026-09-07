@@ -799,17 +799,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
       { notes: 'read-only decision diagnostic; no PII/secrets' },
     ),
-    sf(
-      'getRegionDiagnosticFn',
-      `${IDENTITY}/policy-admin.ts`,
-      'policy.admin',
-      'identity.invite',
-      'property',
-      {
-        notes:
-          'BQC-4.4: read-only region diagnostic (region/source/policy version/processable/blocked reason/cell/provider ref — content-free); every read writes an operator audit row',
-      },
-    ),
     // ── Merchant AI authorization (private beta) ──
     sf(
       'getMerchantAiAuthorizationFn',
@@ -2712,7 +2701,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       externalEffect: true,
       notes:
-        'GBP review sync; BQC-3.2 dispatch gate authorizes; BQC-4.2 routing gate re-resolves region at dispatch (blocked/wrong-cell → quarantine); enqueued manual/cron/webhook/sweep',
+        'GBP review sync; BQC-3.2 dispatch gate authorizes; enqueued manual/cron/webhook/sweep',
     },
   ),
   job(
@@ -2823,7 +2812,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       externalEffect: true,
       notes:
-        'GBP reply publish; BQC-3.2 dispatch gate authorizes; BQC-4.2 routing gate re-resolves region at dispatch (blocked/wrong-cell → quarantine, fail closed); BQC-3.8 durable claim (publication_state) + classified outcome marks; max 3 attempts → publish_failed',
+        'GBP reply publish; BQC-3.2 dispatch gate authorizes; BQC-3.8 durable claim (publication_state) + classified outcome marks; max 3 attempts → publish_failed',
     },
   ),
   job(
@@ -3922,7 +3911,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   ops('scripts/ops/inspect-decision.ts', 'scripts/ops/inspect-decision.ts', 'property', {
     notes:
-      'ops:inspect — read-only routing/policy decision inspection: region diagnostic (org+property scope) or policy-decision explanation (org scope); audited per read (BQC-7.5)',
+      'ops:inspect — read-only policy-decision explanation (org scope); audited per read (BQC-7.5)',
   }),
   ops(
     'scripts/ops/disconnect-connection.ts',
@@ -4239,24 +4228,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:google-admission-role — explicit --apply infrastructure provisioner/rotator; uses the Railway PostgreSQL owner credential to grant one login only the four journaled Google permit operations and no tables or sequences',
-    },
-  ),
-  ops(
-    'scripts/ops/google-credential-home-backfill.ts',
-    'scripts/ops/google-credential-home-backfill.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:google-credential-home-backfill — report-first, drift-digest-bound installation of one explicitly reviewed Organization credential home; never infers placement',
-    },
-  ),
-  ops(
-    'scripts/ops/google-credential-routing-publish.ts',
-    'scripts/ops/google-credential-routing-publish.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:google-credential-routing-publish — ticketed publication of one signed, identifier-only, monotonically versioned Google credential routing directory revision',
     },
   ),
   ops(

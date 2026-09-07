@@ -162,7 +162,7 @@ export function createGoogleImportV2Lifecycle(
           itemId: item.itemId,
           retryRevision: item.retryRevision,
           outcomeCode,
-          retainProtectedRouting: false,
+          retainRetryState: false,
           now,
         })
         if (terminalized === 'completed') {
@@ -212,7 +212,7 @@ export function createGoogleImportV2Lifecycle(
         itemId: item.itemId,
         retryRevision: item.retryRevision,
         outcomeCode: 'temporarily_unavailable',
-        retainProtectedRouting: false,
+        retainRetryState: false,
         now,
       })
       if (terminalized === 'completed') itemsTerminalized++

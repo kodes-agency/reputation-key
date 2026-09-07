@@ -57,8 +57,6 @@ const INTENT: GoogleImportV2Intent = {
       propertyAddress: '1 Main Street',
       countryCode: 'US',
       timezone: 'America/New_York',
-      processingRegion: 'us',
-      routingPolicyVersion: 1,
       effectDeadlineAt: new Date('2026-08-13T10:00:00.000Z'),
     },
   ],
@@ -188,8 +186,6 @@ describe('Google import v2 store', () => {
           expectedConnectionLifecycleVersion: 3,
           expectedSourceEpoch: 5,
           retryRevision: 2,
-          processingRegion: 'us',
-          routingPolicyVersion: 4,
         },
       ],
     ])
@@ -203,8 +199,6 @@ describe('Google import v2 store', () => {
         expectedConnectionLifecycleVersion: 3,
         expectedSourceEpoch: 5,
         retryRevision: 2,
-        processingRegion: 'us',
-        routingPolicyVersion: 4,
       },
     ])
     expect(fake.calls()).toBe(2)
@@ -248,7 +242,6 @@ describe('Google import v2 store', () => {
           importedCount: 0,
           relinkedCount: 0,
           alreadyExistsCount: 0,
-          regionUnavailableCount: 0,
           failedCount: 0,
           cancelledCount: 0,
           purgeAt: null,

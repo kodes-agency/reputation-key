@@ -54,19 +54,13 @@ function setup(
         }>
       | Readonly<{ status: 'obsolete' }>
     getResult?: Awaited<ReturnType<GoogleReviewApiPort['getReview']>>
-    scopes?: readonly (Readonly<{
-      processingRegion: string
+    epochs?: readonly (Readonly<{
       sourceEpoch: number
     }> | null)[]
     isNew?: boolean
   }> = {},
 ) {
-  const scopes = [
-    ...(input.scopes ?? [
-      { processingRegion: 'us', sourceEpoch: 6 },
-      { processingRegion: 'us', sourceEpoch: 6 },
-    ]),
-  ]
+  const epochs = [...(input.epochs ?? [{ sourceEpoch: 6 }, { sourceEpoch: 6 }])]
   const getReview = vi.fn(
     async () => input.getResult ?? ({ status: 'found', review } as const),
   )
@@ -121,8 +115,8 @@ function setup(
       ),
     },
     googleReviewApi,
-    propertyRouting: {
-      getProcessingScope: vi.fn(async () => scopes.shift() ?? null),
+    propertySourceEpoch: {
+      getSourceEpoch: vi.fn(async () => epochs.shift() ?? null),
     },
     observationWriter,
     subjectKeyService,
@@ -212,10 +206,7 @@ describe('runTargetedGoogleReviewFetch', () => {
 
   it('rechecks the source epoch after provider I/O and before persistence', async () => {
     const { useCase, persist } = setup({
-      scopes: [
-        { processingRegion: 'us', sourceEpoch: 6 },
-        { processingRegion: 'us', sourceEpoch: 7 },
-      ],
+      epochs: [{ sourceEpoch: 6 }, { sourceEpoch: 7 }],
     })
     await expect(useCase(request)).resolves.toEqual({ status: 'obsolete' })
     expect(persist).not.toHaveBeenCalled()

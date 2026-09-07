@@ -225,7 +225,6 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
       slug: 'ai-reanalyze-admission-test-property',
       timezone: 'America/New_York',
       countryCode: 'US',
-      processingRegion: 'global',
       googleBindingState: 'active',
       sourceEpoch: SOURCE_EPOCH,
     })

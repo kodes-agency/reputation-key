@@ -14,6 +14,7 @@ import {
   PROPERTY_IMPORT_RETENTION_RELEASED_EVENT,
   getImportOutcomePresentation,
   type GbpImportItemStatus,
+  type ImportOutcomeCode,
   type ImportProgressDto,
   type ImportProgressItemDto,
 } from '../application/google-import-v2-contract'
@@ -34,7 +35,7 @@ import type {
   IntegrationPropertyImportRetentionReleased,
 } from '../domain/events'
 
-const ACTIVE_STATUSES = new Set(['queued', 'processing'])
+const ACTIVE_STATUSES: Readonly<Record<string, true>> = { queued: true, processing: true }
 
 /**
  * Progress polling backs off on parent *staleness*, not elapsed total. Every
@@ -59,7 +60,7 @@ export function googleImportProgressPollAfterMs(
   updatedAtMs: number,
   nowMs: number,
 ): number | null {
-  if (!ACTIVE_STATUSES.has(status)) return null
+  if (ACTIVE_STATUSES[status] !== true) return null
   const staleMs = nowMs - updatedAtMs
   // A future or unusable `updatedAt` must not buy a slower interval than a fresh
   // one, so anything below the first threshold — including negatives — is fast.
@@ -222,7 +223,6 @@ function parentPatch(reduction: ReturnType<typeof reduceGoogleImportParent>) {
     importedCount: reduction.counts.imported,
     relinkedCount: reduction.counts.relinked,
     alreadyExistsCount: reduction.counts.already_exists,
-    regionUnavailableCount: reduction.counts.region_unavailable,
     failedCount: reduction.counts.failed,
     cancelledCount: reduction.counts.cancelled,
     firstTerminalAt: reduction.firstTerminalAt,
@@ -276,36 +276,36 @@ async function reduceParentFromItems(
 }
 
 /**
- * The terminal patch for an import item. `retainProtectedRouting` leaves every
- * routing and expectation column untouched instead of clearing it; callers only
- * ever set it for a retryable failure.
+ * The terminal patch for an import item. `retainRetryState` leaves the protected
+ * intent and expectation columns untouched; callers only set it for a retryable
+ * failure.
  */
 function terminalItemPatch(
   input: Readonly<{
-    status: NonNullable<ReturnType<typeof getImportOutcomePresentation>>['status']
-    outcomeCode: Parameters<GoogleImportV2Store['completeClaim']>[0]['outcomeCode']
-    retainProtectedRouting: boolean
+    status: GbpImportItemStatus
+    outcomeCode: ImportOutcomeCode
+    retainRetryState: boolean
     now: Date
   }>,
 ) {
-  const routing = input.retainProtectedRouting ? undefined : null
+  const protectedState = input.retainRetryState ? undefined : null
   return {
     status: input.status,
     outcomeCode: input.outcomeCode,
-    connectionId: routing,
-    existingPropertyId: routing,
-    destinationPropertyId: routing,
-    expectedConnectionLifecycleVersion: routing,
-    expectedConnectionAccessVersion: routing,
-    expectedCredentialGeneration: routing,
-    providerAccountSuffix: routing,
-    providerLocationSuffix: routing,
-    googleReviewUri: routing,
-    expectedExecutionPolicyVersion: routing,
-    expectedActorRole: routing,
-    expectedPermissionDigest: routing,
-    expectedSourceEpoch: routing,
-    expectedProfileVersion: routing,
+    connectionId: protectedState,
+    existingPropertyId: protectedState,
+    destinationPropertyId: protectedState,
+    expectedConnectionLifecycleVersion: protectedState,
+    expectedConnectionAccessVersion: protectedState,
+    expectedCredentialGeneration: protectedState,
+    providerAccountSuffix: protectedState,
+    providerLocationSuffix: protectedState,
+    googleReviewUri: protectedState,
+    expectedExecutionPolicyVersion: protectedState,
+    expectedActorRole: protectedState,
+    expectedPermissionDigest: protectedState,
+    expectedSourceEpoch: protectedState,
+    expectedProfileVersion: protectedState,
     claimFence: null,
     claimLeaseExpiresAt: null,
     firstTerminalAt: sql`coalesce(${gbpImportRequestItems.firstTerminalAt}, ${input.now})`,
@@ -412,7 +412,6 @@ async function loadSagaProgress(
         imported: batch.importedCount,
         relinked: batch.relinkedCount,
         already_exists: batch.alreadyExistsCount,
-        region_unavailable: batch.regionUnavailableCount,
         failed: batch.failedCount,
         cancelled: batch.cancelledCount,
       },
@@ -526,7 +525,6 @@ async function loadProgress(
     imported: parent.importedCount,
     relinked: parent.relinkedCount,
     already_exists: parent.alreadyExistsCount,
-    region_unavailable: parent.regionUnavailableCount,
     failed: parent.failedCount,
     cancelled: parent.cancelledCount,
   } satisfies Record<GbpImportItemStatus, number>
@@ -984,8 +982,6 @@ export const createGoogleImportV2Store = (
             propertyAddress: gbpImportRequestItems.propertyAddress,
             countryCode: gbpImportRequestItems.countryCode,
             timezone: gbpImportRequestItems.timezone,
-            processingRegion: gbpImportRequestItems.processingRegion,
-            routingPolicyVersion: gbpImportRequestItems.routingPolicyVersion,
             status: gbpImportRequestItems.status,
             retryRevision: gbpImportRequestItems.retryRevision,
             highestAttemptForRevision: gbpImportRequestItems.highestAttemptForRevision,
@@ -1290,12 +1286,9 @@ export const createGoogleImportV2Store = (
         if (!current) return 'lost' as const
         const presentation = getImportOutcomePresentation(input.outcomeCode)
         if (!presentation) throw new Error('unknown google import outcome')
-        if (
-          input.retainProtectedRouting &&
-          input.outcomeCode !== 'temporarily_unavailable'
-        ) {
+        if (input.retainRetryState && input.outcomeCode !== 'temporarily_unavailable') {
           throw new Error(
-            'protected google import routing may only survive retryable failure',
+            'protected google import state may only survive retryable failure',
           )
         }
         await tx
@@ -1304,7 +1297,7 @@ export const createGoogleImportV2Store = (
             terminalItemPatch({
               status: presentation.status,
               outcomeCode: input.outcomeCode,
-              retainProtectedRouting: input.retainProtectedRouting,
+              retainRetryState: input.retainRetryState,
               now: input.now,
             }),
           )
@@ -1339,12 +1332,9 @@ export const createGoogleImportV2Store = (
 
     terminalizeItem: async (input) =>
       db.transaction(async (tx) => {
-        if (
-          input.retainProtectedRouting &&
-          input.outcomeCode !== 'temporarily_unavailable'
-        ) {
+        if (input.retainRetryState && input.outcomeCode !== 'temporarily_unavailable') {
           throw new Error(
-            'protected google import routing may only survive retryable failure',
+            'protected google import state may only survive retryable failure',
           )
         }
         const [current] = await tx
@@ -1386,7 +1376,7 @@ export const createGoogleImportV2Store = (
             terminalItemPatch({
               status: presentation.status,
               outcomeCode: input.outcomeCode,
-              retainProtectedRouting: input.retainProtectedRouting,
+              retainRetryState: input.retainRetryState,
               now: input.now,
             }),
           )
@@ -1425,7 +1415,7 @@ export const createGoogleImportV2Store = (
         )
         .limit(1)
       if (!parent) return null
-      if (!ACTIVE_STATUSES.has(parent.status)) return []
+      if (ACTIVE_STATUSES[parent.status] !== true) return []
 
       const rows = await db
         .select({
@@ -1434,8 +1424,6 @@ export const createGoogleImportV2Store = (
             gbpImportRequestItems.expectedConnectionLifecycleVersion,
           expectedSourceEpoch: gbpImportRequestItems.expectedSourceEpoch,
           retryRevision: gbpImportRequestItems.retryRevision,
-          processingRegion: gbpImportRequestItems.processingRegion,
-          routingPolicyVersion: gbpImportRequestItems.routingPolicyVersion,
         })
         .from(gbpImportRequestItems)
         .where(

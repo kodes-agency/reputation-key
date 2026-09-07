@@ -3,7 +3,6 @@ import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 import { propertyError } from '../domain/errors'
 import { assertValidTransition } from '../domain/property-lifecycle'
 import type {
@@ -49,7 +48,6 @@ const assertCommandIntegrity = (command: PropertyLifecycleTransitionCommand): vo
  */
 export const createPropertyLifecycleCommandStore = (
   db: Database,
-  localCell?: DataCellId,
 ): PropertyLifecycleCommandStore => ({
   transitionLifecycle: (command) =>
     trace('property.lifecycle.transition', async () => {
@@ -62,7 +60,6 @@ export const createPropertyLifecycleCommandStore = (
             and(
               eq(properties.organizationId, command.organizationId),
               eq(properties.id, command.propertyId),
-              ...(localCell ? [eq(properties.dataCellId, localCell)] : []),
               isNull(properties.deletedAt),
             ),
           )
@@ -101,7 +98,6 @@ export const createPropertyLifecycleCommandStore = (
             and(
               eq(properties.organizationId, command.organizationId),
               eq(properties.id, command.propertyId),
-              ...(localCell ? [eq(properties.dataCellId, localCell)] : []),
               isNull(properties.deletedAt),
               eq(properties.lifecycleState, command.from),
               eq(properties.sourceEpoch, command.expectedSourceEpoch),

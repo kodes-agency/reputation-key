@@ -52,7 +52,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   // containers in one process can each register the same consumers.
   'consumerRegistry',
   'dashboardPublicApi',
-  'dataCellExecutionFence',
   'db',
   'delayedExecutionPolicy',
   'executionPolicy',
@@ -148,7 +147,6 @@ const EXPECTED_POLICY_ADMIN_OPS = [
   'explainCapabilityRefusal',
   'explainPolicyDecision',
   'getOrgPolicyState',
-  'getRegionDiagnostic',
   'grantPropertyAccessOp',
   'revokePropertyAccessOp',
   'setOrgCapability',

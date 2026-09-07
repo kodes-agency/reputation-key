@@ -37,13 +37,12 @@ export type RecoveryFenceCounts = Readonly<{
  * Durable, convergent proof for an isolated-restore recovery fence. Re-running
  * the same source-manifest/restore-point tuple re-scans and fences any authority
  * that appeared after the previous pass, accumulating content-free counts in
- * this row. A distinct restore rotates the monotonic per-cell generation.
+ * this row. A distinct restore rotates the monotonic deployment generation.
  */
 export const recoveryRuns = pgTable(
   'recovery_runs',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    dataCellId: varchar('data_cell_id', { length: 16 }).notNull(),
     generation: integer('generation').notNull(),
     sourceReleaseSha: varchar('source_release_sha', { length: 40 }).notNull(),
     sourceManifestSha256: varchar('source_manifest_sha256', { length: 64 }).notNull(),
@@ -55,20 +54,12 @@ export const recoveryRuns = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('recovery_runs_cell_generation_unique').on(
-      table.dataCellId,
-      table.generation,
-    ),
+    uniqueIndex('recovery_runs_generation_unique').on(table.generation),
     uniqueIndex('recovery_runs_source_unique').on(
-      table.dataCellId,
       table.sourceManifestSha256,
       table.restorePointAt,
     ),
-    index('recovery_runs_completed_idx').on(table.dataCellId, table.completedAt.desc()),
-    check(
-      'recovery_runs_cell_valid',
-      sql`${table.dataCellId} IN ('us', 'europe', 'global')`,
-    ),
+    index('recovery_runs_completed_idx').on(table.completedAt.desc()),
     check('recovery_runs_generation_valid', sql`${table.generation} >= 1`),
     check(
       'recovery_runs_source_release_valid',
@@ -106,7 +97,6 @@ export const reviewLifecycleRecoveryExecutions = pgTable(
     approvalKeyId: varchar('approval_key_id', { length: 64 }).notNull(),
     approvedAt: timestamp('approved_at', { withTimezone: true }).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-    dataCellId: varchar('data_cell_id', { length: 16 }).notNull(),
     releaseSha: varchar('release_sha', { length: 40 }).notNull(),
     releaseManifestSha256: varchar('release_manifest_sha256', {
       length: 64,
@@ -145,18 +135,13 @@ export const reviewLifecycleRecoveryExecutions = pgTable(
   (table) => [
     uniqueIndex('review_lifecycle_recovery_approval_unique').on(table.approvalId),
     uniqueIndex('review_lifecycle_recovery_bundle_unique').on(table.approvalBundleSha256),
-    uniqueIndex('review_lifecycle_recovery_cell_generation_unique').on(
-      table.dataCellId,
+    uniqueIndex('review_lifecycle_recovery_generation_unique').on(
       table.recoveryGeneration,
     ),
-    index('review_lifecycle_recovery_state_idx').on(table.dataCellId, table.state),
+    index('review_lifecycle_recovery_state_idx').on(table.state),
     check(
       'review_lifecycle_recovery_state_valid',
       sql`${table.state} IN ('applying', 'lifecycle_applied', 'completed')`,
-    ),
-    check(
-      'review_lifecycle_recovery_cell_valid',
-      sql`${table.dataCellId} IN ('us', 'europe', 'global')`,
     ),
     check(
       'review_lifecycle_recovery_generation_valid',

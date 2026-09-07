@@ -15,8 +15,6 @@ describe('archiveProperty', () => {
   it('archives in place with a bounded recovery window and a new authority epoch', async () => {
     const propertyRepo = createInMemoryPropertyRepo()
     const property = buildTestProperty({
-      dataCellId: 'us',
-      processingRegion: 'us',
       sourceEpoch: 7,
       responsibilityNeededSince: null,
     })
@@ -146,8 +144,6 @@ describe('restoreProperty', () => {
       purgeScheduledFor: new Date('2026-09-19T12:00:00.000Z'),
       lifecycleInitiatedBy: 'admin-previous',
       googleBindingState: 'disconnected',
-      dataCellId: 'us',
-      processingRegion: 'us',
       sourceEpoch: 8,
       responsibilityNeededSince: null,
     })
@@ -214,8 +210,6 @@ describe('restoreProperty', () => {
       lifecycleState: 'archived',
       purgeScheduledFor: NOW,
       sourceEpoch: 8,
-      dataCellId: 'us',
-      processingRegion: 'us',
     })
     propertyRepo.seed([property])
     const transitionLifecycle = vi.fn()
@@ -241,52 +235,35 @@ describe('restoreProperty', () => {
     expect(transitionLifecycle).not.toHaveBeenCalled()
   })
 
-  it.each([
-    {
-      name: 'Data Cell is not accepting work',
-      propertyOverrides: { dataCellId: 'europe' as const, processingRegion: 'europe' },
-      managerReady: true,
-      reason: 'data_cell_unavailable',
-    },
-    {
-      name: 'no Responsible Manager remains eligible',
-      propertyOverrides: { dataCellId: 'us' as const, processingRegion: 'us' },
-      managerReady: false,
-      reason: 'responsible_manager_required',
-    },
-  ])(
-    'refuses restore when $name',
-    async ({ propertyOverrides, managerReady, reason }) => {
-      const propertyRepo = createInMemoryPropertyRepo()
-      const property = buildTestProperty({
-        lifecycleState: 'archived',
-        purgeScheduledFor: new Date('2026-09-19T12:00:00.000Z'),
-        sourceEpoch: 8,
-        ...propertyOverrides,
-      })
-      propertyRepo.seed([property])
-      const transitionLifecycle = vi.fn()
-      const useCase = restoreProperty({
-        propertyRepo,
-        lifecycleStore: { transitionLifecycle },
-        staffPublicApi: { getAccessiblePropertyIds: async () => null },
-        readiness: { hasEligibleResponsibleManager: async () => managerReady },
-        clock: () => NOW,
-      })
-      const ctx = buildTestAuthContext({
-        role: 'AccountAdmin',
-        effectivePermissions: new Set(['property.restore']),
-        scopeByPermission: new Map([['property.restore', 'organization']]),
-      })
+  it('refuses restore when no Responsible Manager remains eligible', async () => {
+    const propertyRepo = createInMemoryPropertyRepo()
+    const property = buildTestProperty({
+      lifecycleState: 'archived',
+      purgeScheduledFor: new Date('2026-09-19T12:00:00.000Z'),
+      sourceEpoch: 8,
+    })
+    propertyRepo.seed([property])
+    const transitionLifecycle = vi.fn()
+    const useCase = restoreProperty({
+      propertyRepo,
+      lifecycleStore: { transitionLifecycle },
+      staffPublicApi: { getAccessiblePropertyIds: async () => null },
+      readiness: { hasEligibleResponsibleManager: async () => false },
+      clock: () => NOW,
+    })
+    const ctx = buildTestAuthContext({
+      role: 'AccountAdmin',
+      effectivePermissions: new Set(['property.restore']),
+      scopeByPermission: new Map([['property.restore', 'organization']]),
+    })
 
-      await expect(useCase({ propertyId: property.id }, ctx)).rejects.toMatchObject({
-        _tag: 'PropertyError',
-        code: 'property_restore_not_ready',
-        context: expect.objectContaining({ reason }),
-      })
-      expect(transitionLifecycle).not.toHaveBeenCalled()
-    },
-  )
+    await expect(useCase({ propertyId: property.id }, ctx)).rejects.toMatchObject({
+      _tag: 'PropertyError',
+      code: 'property_restore_not_ready',
+      context: expect.objectContaining({ reason: 'responsible_manager_required' }),
+    })
+    expect(transitionLifecycle).not.toHaveBeenCalled()
+  })
 })
 
 describe('disconnectPropertyGoogleBinding', () => {
@@ -300,8 +277,6 @@ describe('disconnectPropertyGoogleBinding', () => {
       gbpAccountId: 'account-1',
       gbpLocationId: 'location-1',
       sourceEpoch: 8,
-      dataCellId: 'us',
-      processingRegion: 'us',
     })
     propertyRepo.seed([property])
     const disconnect = vi.fn(async () => ({

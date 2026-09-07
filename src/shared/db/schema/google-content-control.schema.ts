@@ -330,13 +330,6 @@ export const googleOauthExchangeAttempts = pgTable(
     expectedLifecycleVersion: generation('expected_lifecycle_version').notNull(),
     expectedAccessVersion: generation('expected_access_version').notNull(),
     expectedCredentialGeneration: generation('expected_credential_generation').notNull(),
-    credentialHomeCellId: varchar('credential_home_cell_id', {
-      length: 16,
-    }).notNull(),
-    credentialHomePolicyVersion: integer('credential_home_policy_version').notNull(),
-    credentialHomeAuthorityGeneration: integer(
-      'credential_home_authority_generation',
-    ).notNull(),
     encryptedResult: text('encrypted_result'),
     providerStartedAt: timestamptz('provider_started_at'),
     preservedAt: timestamptz('preserved_at'),
@@ -365,10 +358,6 @@ export const googleOauthExchangeAttempts = pgTable(
     check(
       'google_oauth_exchange_attempts_versions_check',
       sql`${table.expectedLifecycleVersion} >= 0 AND ${table.expectedAccessVersion} >= 0 AND ${table.expectedCredentialGeneration} >= 0`,
-    ),
-    check(
-      'google_oauth_exchange_attempts_home_check',
-      sql`${table.credentialHomeCellId} IN ('us', 'europe', 'global') AND ${table.credentialHomePolicyVersion} >= 1 AND ${table.credentialHomeAuthorityGeneration} >= 1`,
     ),
     check(
       'google_oauth_exchange_attempts_state_check',

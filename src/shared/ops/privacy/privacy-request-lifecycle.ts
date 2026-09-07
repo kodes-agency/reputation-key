@@ -96,7 +96,6 @@ export type PrivacyRequestLifecycleDeps = Readonly<{
   appendLedgerEntry(tx: Tx, entry: BackupErasureLedgerAppend): Promise<string>
   /** How long an access package may be retrievable. */
   packageTtlMs: number
-  dataCellId: 'us' | 'europe' | 'global'
   now: () => Date
 }>
 
@@ -290,7 +289,6 @@ export async function fulfilPrivacyRequest(
             effectiveErasureAt: deps.now(),
             erasedRowCount: affected,
             evidenceRef: `privacy:erasure:${started.id}`,
-            dataCellId: deps.dataCellId,
           })
         : undefined
 

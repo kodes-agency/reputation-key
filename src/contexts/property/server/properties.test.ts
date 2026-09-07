@@ -54,7 +54,6 @@ describe('propertyErrorStatus (imported from server module)', () => {
       'invalid_lifecycle_reason',
       'invalid_transition',
       'property_not_active',
-      'region_unresolved',
       'stale_property',
       'property_recovery_expired',
       'property_restore_not_ready',
@@ -199,7 +198,7 @@ describe('createProperty input validation', () => {
     expect(result.success).toBe(true)
   })
 
-  it('requires a supported country so creation can assign a Data Cell', () => {
+  it('requires a two-letter country business fact', () => {
     expect(
       createPropertyInputSchema.safeParse({ name: 'Test', timezone: 'UTC' }).success,
     ).toBe(false)
@@ -207,7 +206,7 @@ describe('createProperty input validation', () => {
       createPropertyInputSchema.safeParse({
         name: 'Test',
         timezone: 'UTC',
-        countryCode: 'ZZ',
+        countryCode: 'USA',
       }).success,
     ).toBe(false)
   })

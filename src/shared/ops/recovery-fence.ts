@@ -1,5 +1,4 @@
 import type { RecoveryFenceCounts } from '#/shared/db/schema/recovery.schema'
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 import {
   RESTORE_RESURRECTION_FENCE_UNVERIFIED,
   ZERO_BACKUP_ERASURE_REPLAY_COUNTS,
@@ -13,10 +12,9 @@ const SHA256 = /^[0-9a-f]{64}$/u
 export type RecoveryFenceInventory = RecoveryFenceCounts
 
 export type RecoveryFenceInput = Readonly<{
-  dataCellId: DataCellId
   /** Pre-reviewed identity; the database no longer allocates this after apply begins. */
   runId: string
-  /** Pre-reviewed next cell generation; a concurrent/stale plan fails closed. */
+  /** Pre-reviewed next recovery generation; a concurrent/stale plan fails closed. */
   generation: number
   sourceReleaseSha: string
   sourceManifestSha256: string
@@ -35,13 +33,6 @@ export type RecoveryFenceResult = Readonly<{
 
 /** Validate the content-free identity bound into a recovery generation. */
 export function validateRecoveryFenceInput(input: RecoveryFenceInput): void {
-  if (
-    input.dataCellId !== 'us' &&
-    input.dataCellId !== 'europe' &&
-    input.dataCellId !== 'global'
-  ) {
-    throw new Error('recovery Data Cell must be known')
-  }
   if (
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
       input.runId,
@@ -83,7 +74,7 @@ export function validateRecoveryFenceInput(input: RecoveryFenceInput): void {
 // ── LIF-01-T15: the restore resurrection fence's contribution ────────
 
 /**
- * The fence counts a restored cell reports: the authority/effect counts the
+ * The fence counts a restored database reports: the authority/effect counts the
  * base fence produces, PLUS the backup-erasure replay counts.
  *
  * They are a separate, additive type rather than extra members of
@@ -92,25 +83,27 @@ export function validateRecoveryFenceInput(input: RecoveryFenceInput): void {
  * Widening that document's required shape would make every historical row fail
  * to parse, which is the opposite of durable evidence.
  */
-export type RestoredCellFenceCounts = RecoveryFenceCounts & BackupErasureReplayCounts
+export type RestoredDatabaseFenceCounts = RecoveryFenceCounts & BackupErasureReplayCounts
 
 export function mergeRecoveryFenceCounts(
   base: RecoveryFenceCounts,
   replay: BackupErasureReplayCounts = ZERO_BACKUP_ERASURE_REPLAY_COUNTS,
-): RestoredCellFenceCounts {
+): RestoredDatabaseFenceCounts {
   return { ...base, ...replay }
 }
 
 /**
- * FAIL CLOSED. A restored cell may only be declared verified when every
+ * FAIL CLOSED. A restored database may only be declared verified when every
  * erasure the restore undid has been re-applied.
  *
  * Anything else — a ledger entry with no registered replayer, a replayer that
- * refused — leaves resurrected tenant data reachable in a cell that operators
+ * refused — leaves resurrected tenant data reachable in a database that operators
  * are about to open for traffic. Being noisy here is strictly better than
  * quietly serving data the product said was destroyed.
  */
-export function assertRestoredCellVerified(result: RestoreResurrectionFenceResult): void {
+export function assertRestoredDatabaseVerified(
+  result: RestoreResurrectionFenceResult,
+): void {
   if (result.verified) return
   throw new Error(
     `${RESTORE_RESURRECTION_FENCE_UNVERIFIED} (${result.unreplayedEntryIds.length} entries)`,

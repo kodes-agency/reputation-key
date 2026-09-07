@@ -33,24 +33,14 @@ beforeAll(async () => {
     )
   }
   await pool.query(
-    `INSERT INTO google_organization_credential_homes
-       (organization_id, authority_generation, home_cell_id,
-        catalogue_policy_version, transition_reason, changed_by, effective_from,
-        created_at, updated_at)
-     VALUES ($1, 1, 'us', 1, 'new_grant', 'admin-1', $2, $2, $2)`,
-    [ORG, COMPLETED_AT],
-  )
-  await pool.query(
     `INSERT INTO google_connections
        (id, organization_id, google_subject, encrypted_access_token,
         encrypted_refresh_token, token_expires_at, scopes, connected_by,
         credential_authorized_by, credential_authorized_at, visibility, status,
-        credential_use_state, credential_home_cell_id,
-        credential_home_policy_version, credential_home_authority_generation,
-        created_at, updated_at, status_changed_at)
+        credential_use_state, created_at, updated_at, status_changed_at)
      VALUES ($1, $2, $3, 'sealed-access', 'sealed-refresh', $4,
              ARRAY['business.manage'], 'admin-1', 'admin-1', $5,
-             'organization', 'active', 'active', 'us', 1, 1, $5, $5, $5)`,
+             'organization', 'active', 'active', $5, $5, $5)`,
     [
       CONNECTION,
       ORG,
@@ -126,14 +116,12 @@ describe('setup checklist repository', () => {
          id, organization_id, name, slug, timezone, google_connection_id,
          gbp_account_id, gbp_location_id, google_binding_state, profile_source,
          profile_confirmed_at, profile_confirmed_by, country_code, country_source,
-         timezone_source, timezone_resolved_at, processing_region,
-         processing_region_resolved_at, data_cell_id, source_epoch,
-         created_at, updated_at
+         timezone_source, timezone_resolved_at, source_epoch, created_at, updated_at
        ) VALUES (
          $1, $2, 'Canonical setup property', $3, 'America/New_York', $4,
          'account-setup', 'location-setup', 'active', 'tenant_confirmed',
          $5, 'admin-1', 'US', 'tenant_confirmed', 'tenant_confirmed', $5,
-         'us', $5, 'us', 0, $5, $5
+         0, $5, $5
        )`,
       [PROPERTY, ORG, `canonical-${randomUUID()}`, CONNECTION, COMPLETED_AT],
     )
@@ -212,10 +200,6 @@ describe('setup checklist repository', () => {
     expect(complete).toEqual({
       anchorPropertyId: PROPERTY,
       googleConnection: {
-        currentlySatisfied: true,
-        firstCompletedAt: COMPLETED_AT,
-      },
-      importedProperty: {
         currentlySatisfied: true,
         firstCompletedAt: COMPLETED_AT,
       },

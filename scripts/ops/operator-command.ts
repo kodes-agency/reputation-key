@@ -33,8 +33,6 @@ import {
   bindProcessPolicies,
   releaseProcessPolicies,
 } from '../../src/shared/auth/process-policy-binding'
-import { createPropertyRoutingLoader } from '../../src/contexts/property/infrastructure/property-routing.adapter'
-import { createDataCellExecutionFence } from '../../src/shared/routing/data-cell-execution-fence'
 import {
   runOperatorCommand as runCore,
   type OperatorArgs,
@@ -76,16 +74,11 @@ async function bootOperatorRuntime(): Promise<OperatorBoot> {
   const db = getDb()
   const env = getEnv()
   const logger = getLogger(process.stderr)
-  const dataCellExecutionFence = createDataCellExecutionFence({
-    localCell: env.PROCESSING_CELL,
-    loadPropertyRouting: createPropertyRoutingLoader({ db }),
-  })
   const handle = initPersistedCapabilityPolicyStore({
     db,
     env,
     clock: () => new Date(),
     logger,
-    admitPropertyExecution: dataCellExecutionFence.decideProperty,
   })
   // ARC-03-T8: this is the ops process's ONE policy installation. The
   // ExecutionPolicy consults the process capability store, so the composite

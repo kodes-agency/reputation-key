@@ -315,7 +315,7 @@ surface dark); network-level restriction of the ops surface is platform-owned
 **Prerequisites:** Name both operating roles and record the exact cell, release manifest, migration head, failed phase, source database service, last known good digest/config, and backup/PITR observations. Do not start a restore until the exact sibling target and independent Review lifecycle approval path are available.
 **Diagnostics:** Check `pg_stat_activity` for connection count. Check the Railway console (Postgres service metrics) for compute/storage. Check migration logs.
 **Containment:** Reduce worker concurrency. Pause non-critical jobs. If the predeploy migration failed: the deploy is already blocked (Railway `preDeployCommand` exited non-zero) — the previous containers keep serving; do NOT hand-roll partial schema state.
-**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: `scripts/migrate-deploy.ts` is advisory-locked and idempotent, so fix the failing migration or registered deploy SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → follow [backup-and-lifecycle.md](backup-and-lifecycle.md) §1 exactly: contain one Data Cell → Railway PITR to its generated sibling service → exact-target preflight through a Railway tunnel → migration parity → dry-run inventory → destructive retention/recovery fence → isolated signed-image read verification → fresh Redis and controlled connection cutover only after independent approval of that exact target/report/generation.
+**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: `scripts/migrate-deploy.ts` is advisory-locked and idempotent, so fix the failing migration or registered deploy SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → follow [backup-and-lifecycle.md](backup-and-lifecycle.md) §1 exactly: contain the deployment → Railway PITR to its generated sibling service → exact-target preflight through a Railway tunnel → migration parity → dry-run inventory → destructive retention/recovery fence → isolated signed-image read verification → fresh Redis and controlled connection cutover only after independent approval of that exact target/report/generation.
 **Verification:** Connection count under budget. Migration journal consistent. Restore has one replayable `recovery_runs` generation, zero overdue retention/Google-import backlog, zero unfenced restored authority, no claimable fenced outbox rows, critical reads/tenant isolation green, fresh empty queues, and no duplicate external effect before cutover.
 **Escalation:** P0 — page Bozhidar Denev for migration/restore. Railway support if platform issue.
 **Evidence:** Retain migration/backup heads, failure class, forward-fix or restore decision, signed recovery report/bundle identifiers, source/sibling and fresh-Redis identities, cutover/rollback read-backs, RPO/RTO, and alert receipts. Local tests are not this evidence.
@@ -479,7 +479,7 @@ The alert remains quiet when email is globally dark and the database contains on
 > bundle and scrubber tests are implementation evidence, not live
 > Sentry-project delivery or alert-routing evidence.
 
-**Trigger/Symptoms:** A Data Cell refuses startup with `SENTRY_DSN is required`
+**Trigger/Symptoms:** A deployment refuses startup with `SENTRY_DSN is required`
 or `US ingestion host`; logs contain `Error monitoring initialization
 failed`, `capture failed`, or `flush timed out`; or the Sentry project receives
 no web or worker events for the deployed release.
@@ -487,7 +487,7 @@ no web or worker events for the deployed release.
 **Impact:** Application work continues when the SDK or ingestion transport
 fails, but automatic error diagnosis and incident alerting are degraded. A
 missing or out-of-region DSN is different: the affected Railway web or worker
-process refuses startup because monitoring is mandatory for beta Data Cells.
+process refuses startup because monitoring is mandatory in production.
 
 **Prerequisites:** Named incident owner; access to the cell's Railway shared
 variables and the US-region Sentry project; candidate release SHA. Never paste
@@ -804,8 +804,7 @@ queued-fact routing, cached tenant state, export scope, or provider execution.
 
 **Containment:** Stop all external effects, stop affected public reads if
 necessary, revoke implicated sessions/permits, and preserve evidence. Never
-repair by changing tenant identifiers, deleting source rows, or moving work to
-another Data Cell. Communications are coordinated only through the named
+repair by changing tenant identifiers or deleting source rows. Communications are coordinated only through the named
 support role and legal/security advice.
 
 **Recovery:** Fix the earliest violated tenant boundary, add a negative test at

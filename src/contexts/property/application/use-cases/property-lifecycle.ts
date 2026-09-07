@@ -9,7 +9,6 @@ import {
   archiveRecoveryDeadline,
   assertValidTransition,
 } from '../../domain/property-lifecycle'
-import { isRegionProcessable } from '../../domain/processing-routing'
 import type { PropertyLifecycleCommandStore } from '../ports/property-lifecycle-command-store.port'
 import type { PropertyLifecycleReadiness } from '../ports/property-lifecycle-readiness.port'
 import type { PropertyRepository } from '../ports/property.repository'
@@ -157,13 +156,6 @@ export const restoreProperty =
       throw propertyError(
         'property_recovery_expired',
         'The self-service Property recovery window has ended',
-      )
-    }
-    if (!isRegionProcessable(property.dataCellId)) {
-      throw propertyError(
-        'property_restore_not_ready',
-        'Property cannot be restored until its Data Cell is accepting work',
-        { reason: 'data_cell_unavailable', dataCellId: property.dataCellId },
       )
     }
     if (

@@ -20,7 +20,6 @@ import type { GoogleConnectionId } from '../../domain/types'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleAccountConnected } from '../../domain/events'
 import { canManageOrganizationGoogleConnections } from '../google-organization-authority'
-import type { CaptureGoogleCredentialHome } from '../google-credential-home'
 import type {
   GoogleOAuthExchangeAttemptFacts,
   GoogleOAuthExchangeRecoveryClaim,
@@ -61,22 +60,10 @@ export type ConnectGoogleAccountDeps = Readonly<{
   clock: () => Date
   idGen: () => string
   callbackUrl: string
-  captureCredentialHome: CaptureGoogleCredentialHome
   authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer
 }>
 
 export type ResumeGoogleAccountConnectionInput = Readonly<{ attemptId: string }>
-
-function sameCredentialHome(
-  left: GoogleOAuthExchangeAttemptFacts['credentialHome'],
-  right: GoogleOAuthExchangeAttemptFacts['credentialHome'],
-): boolean {
-  return (
-    left.homeCellId === right.homeCellId &&
-    left.cataloguePolicyVersion === right.cataloguePolicyVersion &&
-    left.authorityGeneration === right.authorityGeneration
-  )
-}
 
 function recoveryDenied(code: string): never {
   throw integrationError(
@@ -118,13 +105,7 @@ function completedAttemptLanded(
     connection.credentialUseState === 'active' &&
     connection.lifecycleVersion === completed.expectedLifecycleVersion + 1 &&
     connection.accessVersion === completed.expectedAccessVersion + 1 &&
-    connection.credentialGeneration === completed.expectedCredentialGeneration + 1 &&
-    connection.credentialAuthorizedBy === ctx.userId &&
-    connection.credentialHomeCellId === completed.credentialHome.homeCellId &&
-    connection.credentialHomePolicyVersion ===
-      completed.credentialHome.cataloguePolicyVersion &&
-    connection.credentialHomeAuthorityGeneration ===
-      completed.credentialHome.authorityGeneration
+    connection.credentialAuthorizedBy === ctx.userId
   )
 }
 
@@ -193,7 +174,6 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
     facts: GoogleOAuthExchangeAttemptFacts,
     oauthResult: GoogleOAuthResult,
     ctx: AuthContext,
-    credentialHome: GoogleOAuthExchangeAttemptFacts['credentialHome'],
   ): Promise<GoogleConnection> => {
     const now = deps.clock()
     const tokenExpiresAt = new Date(now.getTime() + oauthResult.expiresIn * 1_000)
@@ -217,11 +197,6 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
           tokenExpiresAt,
           scopes: oauthResult.scopes,
           visibility: 'organization',
-          credentialHome,
-          credentialHomeReason:
-            facts.connectionMode === 'reconnect'
-              ? 'governed_reconnect'
-              : 'credential_rotation',
           exchangeAttemptId: facts.id,
           event,
         })
@@ -237,13 +212,11 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
         scopes: oauthResult.scopes,
         connectedBy: ctx.userId,
         visibility: 'organization',
-        credentialHome,
         now,
       })
       if (buildResult.isErr()) throw buildResult.error
       await deps.commandStore.connectGoogleAccount({
         connection: buildResult.value,
-        credentialHomeBinding: credentialHome,
         exchangeAttemptId: facts.id,
         event,
       })
@@ -278,24 +251,13 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
 
     const targetConnection = await loadAuthorizedTarget(facts, ctx)
 
-    const credentialHome = await deps.captureCredentialHome({
-      organizationId: ctx.organizationId,
-      mode: facts.connectionMode,
-      targetConnectionId: targetConnection?.id ?? null,
-      changedBy: ctx.userId,
-      now: deps.clock(),
-    })
-    if (!sameCredentialHome(credentialHome, facts.credentialHome)) {
-      throw integrationError('oauth_failed', 'Google credential home changed')
-    }
-
     await assertGoogleIdentityAvailable(
       facts,
       targetConnection,
       oauthResult.identity.googleSubject,
     )
 
-    return persistConnection(facts, oauthResult, ctx, credentialHome)
+    return persistConnection(facts, oauthResult, ctx)
   }
 
   const validateClaim = async (
@@ -387,11 +349,7 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
     }
   }
 
-  /**
-   * The exact target/home/version facts this ceremony is bound to. The typed
-   * connection id is returned alongside them because the facts record carries
-   * it as a plain string.
-   */
+  /** The exact target/version facts this ceremony is bound to. */
   const buildAttemptFacts = async (
     input: ConnectGoogleInput,
     ctx: AuthContext,
@@ -408,13 +366,6 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
     if (input.connectionMode !== 'new' && !targetConnection) {
       throw integrationError('connection_not_found', 'Google connection not found')
     }
-    const credentialHome = await deps.captureCredentialHome({
-      organizationId: ctx.organizationId,
-      mode: input.connectionMode,
-      targetConnectionId: targetConnection?.id ?? null,
-      changedBy: ctx.userId,
-      now: deps.clock(),
-    })
     const connectionId = targetConnection?.id ?? googleConnectionId(deps.idGen())
     return {
       connectionId,
@@ -428,7 +379,6 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
         expectedLifecycleVersion: targetConnection?.lifecycleVersion ?? 0,
         expectedAccessVersion: targetConnection?.accessVersion ?? 0,
         expectedCredentialGeneration: targetConnection?.credentialGeneration ?? 0,
-        credentialHome,
       },
     }
   }

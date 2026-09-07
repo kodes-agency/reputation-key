@@ -1,9 +1,16 @@
 ---
-status: accepted
+status: superseded
 date: 2026-08-27
+superseded_by: docs/BETA.md
 ---
 
 # 0057 — Single US beta Data Cell
+
+> Superseded on 2026-09-07 by [`docs/BETA.md`](../BETA.md) §1: the beta is one
+> deployment serving every supported country, with no Data Cell catalogue,
+> routing plane, execution fence, credential home, or cross-cell broker in the
+> code. This file records the topology that the collapsed machinery enforced
+> and is not current authority.
 
 ## Context
 

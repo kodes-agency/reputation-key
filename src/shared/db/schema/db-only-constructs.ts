@@ -65,8 +65,6 @@ function parse(sql: string): readonly DbOnlyConstruct[] {
  */
 const UNPARSED_CONSTRUCTS: readonly DbOnlyConstruct[] = [
   { name: 'inbox_handling_cycles_manual_reopen_valid', kind: 'check' },
-  { name: 'google_connections_credential_home_pair_check', kind: 'check' },
-  { name: 'google_connections_credential_home_value_check', kind: 'check' },
   { name: 'organization_role_org_role_lower_unique', kind: 'expression-index' },
   { name: 'pr_no_overlapping_responsibility_intervals', kind: 'index' },
   { name: 'pr_no_overlapping_primary_intervals', kind: 'index' },

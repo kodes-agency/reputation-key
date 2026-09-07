@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
-import { DATA_CELL_IDS, type DataCellId } from '#/shared/domain/data-cell-catalogue'
 import { SAFE_OPAQUE_IDENTIFIER_PATTERN } from '#/shared/domain/safe-identifier'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import {
@@ -22,7 +21,6 @@ const signatureFields = {
 }
 const authorizationSchema = z
   .object({
-    credentialHomeAuthorityGeneration: z.number().int().safe().positive(),
     connectionLifecycleVersion: z.number().int().safe().positive(),
     connectionAccessVersion: z.number().int().safe().positive(),
     credentialGeneration: z.number().int().safe().positive(),
@@ -35,9 +33,6 @@ const unsignedRequestSchema = z
     contractVersion: z.literal(GOOGLE_CREDENTIAL_BROKER_CONTRACT_VERSION),
     requestId: safeId,
     nonce: z.string().regex(/^[A-Za-z0-9_-]{22,128}$/u),
-    homeCellId: z.enum(DATA_CELL_IDS),
-    targetCellId: z.enum(DATA_CELL_IDS),
-    targetGatewayIdentity: safeId,
     organizationId: safeId,
     connectionId: safeId,
     propertyId: safeId,
@@ -46,8 +41,6 @@ const unsignedRequestSchema = z
     authorization: authorizationSchema,
     requestBindingSha256: sha256,
     credentialBinding: sha256,
-    routingDirectoryRevision: z.number().int().safe().positive(),
-    routingPolicyVersion: z.number().int().safe().positive(),
     issuedAtMs: z.number().int().safe().nonnegative(),
     expiresAtMs: z.number().int().safe().positive(),
   })
@@ -89,11 +82,6 @@ export type GoogleCredentialBrokerDenyCode =
   | 'not_yet_valid'
   | 'expired'
   | 'ttl_exceeded'
-  | 'same_cell'
-  | 'cell_not_accepting'
-  | 'wrong_home'
-  | 'wrong_target'
-  | 'wrong_gateway'
   | 'wrong_organization'
   | 'wrong_connection'
   | 'wrong_property'
@@ -101,7 +89,6 @@ export type GoogleCredentialBrokerDenyCode =
   | 'authorization_changed'
   | 'request_mismatch'
   | 'credential_mismatch'
-  | 'routing_changed'
   | 'material_mismatch'
 
 function requestValue(request: UnsignedGoogleCredentialBrokerRequest): string {
@@ -109,23 +96,17 @@ function requestValue(request: UnsignedGoogleCredentialBrokerRequest): string {
     request.contractVersion,
     request.requestId,
     request.nonce,
-    request.homeCellId,
-    request.targetCellId,
-    request.targetGatewayIdentity,
     request.organizationId,
     request.connectionId,
     request.propertyId,
     request.routeKey,
     request.routeCatalogueVersion,
-    request.authorization.credentialHomeAuthorityGeneration,
     request.authorization.connectionLifecycleVersion,
     request.authorization.connectionAccessVersion,
     request.authorization.credentialGeneration,
     request.authorization.propertySourceEpoch,
     request.requestBindingSha256,
     request.credentialBinding,
-    request.routingDirectoryRevision,
-    request.routingPolicyVersion,
     request.issuedAtMs,
     request.expiresAtMs,
   ])
@@ -199,7 +180,6 @@ function sameAuthorization(
   right: GoogleCredentialBrokerAuthorization,
 ): boolean {
   return (
-    left.credentialHomeAuthorityGeneration === right.credentialHomeAuthorityGeneration &&
     left.connectionLifecycleVersion === right.connectionLifecycleVersion &&
     left.connectionAccessVersion === right.connectionAccessVersion &&
     left.credentialGeneration === right.credentialGeneration &&
@@ -207,12 +187,9 @@ function sameAuthorization(
   )
 }
 
-type GoogleCredentialBrokerExpectation = Readonly<{
+export type GoogleCredentialBrokerExpectation = Readonly<{
   keys: VersionedHmacKeyring
   nowMs: number
-  localTargetCellId: DataCellId
-  homeCellId: DataCellId
-  targetGatewayIdentity: string
   organizationId: string
   connectionId: string
   propertyId: string
@@ -220,9 +197,6 @@ type GoogleCredentialBrokerExpectation = Readonly<{
   authorization: GoogleCredentialBrokerAuthorization
   requestBindingSha256: string
   credentialBinding: string
-  routingDirectoryRevision: number
-  routingPolicyVersion: number
-  isAcceptingCell: (cellId: string) => boolean
 }>
 
 /**
@@ -269,23 +243,11 @@ function brokerEnvelopeDenial(
   return null
 }
 
-/** The request must name this exact cross-cell route and tenant scope. */
+/** The request must name this exact tenant-scoped provider operation. */
 function brokerRouteDenial(
   request: GoogleCredentialBrokerRequest,
   expected: GoogleCredentialBrokerExpectation,
 ): GoogleCredentialBrokerDenyCode | null {
-  if (request.homeCellId === request.targetCellId) return 'same_cell'
-  if (
-    !expected.isAcceptingCell(request.homeCellId) ||
-    !expected.isAcceptingCell(request.targetCellId)
-  ) {
-    return 'cell_not_accepting'
-  }
-  if (request.homeCellId !== expected.homeCellId) return 'wrong_home'
-  if (request.targetCellId !== expected.localTargetCellId) return 'wrong_target'
-  if (request.targetGatewayIdentity !== expected.targetGatewayIdentity) {
-    return 'wrong_gateway'
-  }
   if (request.organizationId !== expected.organizationId) return 'wrong_organization'
   if (request.connectionId !== expected.connectionId) return 'wrong_connection'
   if (request.propertyId !== expected.propertyId) return 'wrong_property'
@@ -311,12 +273,6 @@ function brokerBindingDenial(
   if (request.credentialBinding !== expected.credentialBinding) {
     return 'credential_mismatch'
   }
-  if (
-    request.routingDirectoryRevision !== expected.routingDirectoryRevision ||
-    request.routingPolicyVersion !== expected.routingPolicyVersion
-  ) {
-    return 'routing_changed'
-  }
   if (grant.materialReference.bindingSha256 !== request.credentialBinding) {
     return 'material_mismatch'
   }
@@ -340,52 +296,4 @@ export function validateGoogleCredentialBrokerGrant(
   if (denial) return { ok: false, code: denial }
 
   return { ok: true, value: grant }
-}
-
-export type GoogleCredentialExecutionDecision =
-  | Readonly<{ kind: 'direct' }>
-  | Readonly<{ kind: 'broker'; grant: GoogleCredentialBrokerGrant }>
-  | Readonly<{
-      kind: 'deny'
-      code:
-        | 'wrong_target'
-        | 'cell_not_accepting'
-        | 'broker_grant_required'
-        | GoogleCredentialBrokerDenyCode
-    }>
-
-export function decideGoogleCredentialExecution(
-  input: Readonly<{
-    localTargetCellId: DataCellId
-    propertyTargetCellId: DataCellId
-    credentialHomeCellId: DataCellId
-    brokerGrant?: unknown
-  }>,
-  expectedGrant: Omit<
-    Parameters<typeof validateGoogleCredentialBrokerGrant>[1],
-    'localTargetCellId' | 'homeCellId'
-  >,
-): GoogleCredentialExecutionDecision {
-  if (
-    !expectedGrant.isAcceptingCell(input.localTargetCellId) ||
-    !expectedGrant.isAcceptingCell(input.propertyTargetCellId) ||
-    !expectedGrant.isAcceptingCell(input.credentialHomeCellId)
-  ) {
-    return { kind: 'deny', code: 'cell_not_accepting' }
-  }
-  if (input.propertyTargetCellId !== input.localTargetCellId) {
-    return { kind: 'deny', code: 'wrong_target' }
-  }
-  if (input.credentialHomeCellId === input.localTargetCellId) return { kind: 'direct' }
-  if (input.brokerGrant === undefined) {
-    return { kind: 'deny', code: 'broker_grant_required' }
-  }
-  const validated = validateGoogleCredentialBrokerGrant(input.brokerGrant, {
-    ...expectedGrant,
-    localTargetCellId: input.localTargetCellId,
-    homeCellId: input.credentialHomeCellId,
-  })
-  return validated.ok
-    ? { kind: 'broker', grant: validated.value }
-    : { kind: 'deny', code: validated.code }
 }

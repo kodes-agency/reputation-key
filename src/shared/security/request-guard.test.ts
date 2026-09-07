@@ -12,7 +12,6 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   resolveRequestId,
   bodyLimitRejection,
-  dataCellHostRejection,
   createRequestGuardPlugin,
   MAX_INBOUND_REQUEST_ID_LENGTH,
 } from './request-guard'
@@ -73,20 +72,6 @@ describe('bodyLimitRejection', () => {
   })
 })
 
-describe('dataCellHostRejection', () => {
-  it('allows the local canonical domain and non-canonical platform hosts', () => {
-    expect(dataCellHostRejection('us.reputationkey.app', 'us')).toBeUndefined()
-    expect(dataCellHostRejection('rep-key.up.railway.app', 'us')).toBeUndefined()
-    expect(dataCellHostRejection('localhost:3000', 'us')).toBeUndefined()
-  })
-
-  it('returns a content-free 421 for another canonical Data Cell domain', async () => {
-    const rejection = dataCellHostRejection('EU.REPUTATIONKEY.APP:443', 'us')
-    expect(rejection?.status).toBe(421)
-    await expect(rejection?.json()).resolves.toEqual({ error: 'wrong_cell' })
-  })
-})
-
 describe('createRequestGuardPlugin', () => {
   type FakeEvent = { req: Request }
   function fakeNitroApp() {
@@ -131,29 +116,6 @@ describe('createRequestGuardPlugin', () => {
     const event = postWithLength('100')
     h3.config.onRequest!(event)
     expect(previous).toHaveBeenCalledWith(event)
-  })
-
-  it('rejects another canonical Data Cell host before the handler chain', () => {
-    const { app, h3 } = fakeNitroApp()
-    const previous = vi.fn()
-    h3.config.onRequest = previous
-    createRequestGuardPlugin({
-      bodyLimitBytes: 100,
-      localCell: 'us',
-      idGen: () => 'gid',
-    })(app as never)
-    const event = {
-      req: new Request('https://eu.reputationkey.app/api/x'),
-    }
-    let thrown: unknown
-    try {
-      h3.config.onRequest!(event)
-    } catch (error) {
-      thrown = error
-    }
-    expect(thrown).toBeInstanceOf(Response)
-    expect((thrown as Response).status).toBe(421)
-    expect(previous).not.toHaveBeenCalled()
   })
 
   it('response hook echoes a sane inbound x-request-id', () => {

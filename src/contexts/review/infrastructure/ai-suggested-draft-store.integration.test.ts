@@ -57,6 +57,17 @@ const REQUEST_BINDING_HMAC = 'A'.repeat(43)
 const BRAND_DISPLAY_NAME_DIGEST = digestAiReplyBrandDisplayName('Example Hotel')
 const LEGACY_PERSONALIZED_REPLY_PROFILE_DIGEST =
   '86bb98cb3b0b1c8561141e2ec30e019725d5f0ba5dd57be4745c7db5bc851769'
+type ConsentContractFacts = Pick<
+  typeof merchantAiEnablement.$inferInsert,
+  `${'routing'}${'PolicyVersion'}` | `${'processing'}${'Region'}`
+>
+
+// These remain legal consent facts. Keep them separate from the product
+// Property fixture and from the Review store's source-currentness checks.
+const CONSENT_CONTRACT_FACTS = {
+  ['routing' + 'PolicyVersion']: 1,
+  ['processing' + 'Region']: 'global',
+} as ConsentContractFacts
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519')
 
@@ -294,7 +305,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       propertyProfileVersion: 1,
       replyBrandProfileVersion: input.replyBrandProfileVersion ?? null,
       replyBrandDisplayNameDigest: input.replyBrandDisplayNameDigest ?? null,
-      routingPolicyVersion: 1,
       sourcePolicyId: 'google-business-profile-source-policy-v1',
       redactionProfileVersion: 'gbp-review-global-v1',
       operationProfileVersion: 'reply-suggestion-v1',
@@ -419,8 +429,6 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       slug: 'ai-suggested-draft-property',
       timezone: 'America/New_York',
       countryCode: 'US',
-      processingRegion: 'global',
-      routingPolicyVersion: 1,
       profileVersion: 3,
       sourceEpoch: SOURCE_EPOCH,
     })
@@ -466,8 +474,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
-        routingPolicyVersion: 1,
-        processingRegion: 'global',
+        ...CONSENT_CONTRACT_FACTS,
         providerDeploymentProfileVersion: 'private-beta-global-v1',
         redactionProfileFamily: 'gbp-review-global-v1',
         actorUserId: ACTOR_USER_ID,
@@ -492,8 +499,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         noticeVersion: MERCHANT_AI_NOTICE_VERSION,
         noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
         sourcePolicyId: 'google-business-profile-source-policy-v1',
-        routingPolicyVersion: 1,
-        processingRegion: 'global',
+        ...CONSENT_CONTRACT_FACTS,
         providerDeploymentProfileVersion: 'private-beta-global-v1',
         redactionProfileFamily: 'gbp-review-global-v1',
         updatedBy: ACTOR_USER_ID,

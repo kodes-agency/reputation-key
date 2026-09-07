@@ -1,8 +1,8 @@
 // REG-04 — real PostgreSQL proof for isolated-restore recovery fencing.
 //
-// This operation is deliberately cell-global. The integration project runs
-// serially, and an outer transaction always rolls the proof back so no test
-// authority or evidence leaks into the shared scratch database.
+// This operation deliberately spans the restored database. The integration
+// project runs serially, and an outer transaction always rolls the proof back
+// so no test authority or evidence leaks into the shared scratch database.
 
 import { sql } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -78,12 +78,10 @@ describe('restore recovery fence (REG-04, integration)', () => {
         `)
         await transaction.execute(sql`
           INSERT INTO properties (
-            id, organization_id, name, slug, timezone, country_code,
-            processing_region, data_cell_id, processing_region_resolved_at
+            id, organization_id, name, slug, timezone, country_code
           ) VALUES (
             ${IMPORT_V2_PROPERTY_ID}::uuid, 'org-recovery-proof',
-            'Recovery Import Destination', 'recovery-import-destination', 'UTC', 'US',
-            'us', 'us', clock_timestamp()
+            'Recovery Import Destination', 'recovery-import-destination', 'UTC', 'US'
           )
         `)
         await transaction.execute(sql`
@@ -121,13 +119,13 @@ describe('restore recovery fence (REG-04, integration)', () => {
             destination_property_id, provider_account_suffix, provider_location_suffix,
             expected_connection_lifecycle_version, expected_connection_access_version,
             expected_credential_generation, action, update_existing_profile,
-            property_name, country_code, timezone, processing_region,
-            routing_policy_version, status, effect_deadline_at, created_at, updated_at
+            property_name, country_code, timezone, status, effect_deadline_at,
+            created_at, updated_at
           )
           SELECT item_id, 'org-recovery-proof', ${IMPORT_V2_PARENT_ID}::uuid,
                  ${GOOGLE_CONNECTION_ID}::uuid, destination_id,
                  'recovery-account', location_suffix, 1, 1, 1, 'create', true,
-                 property_name, 'US', 'UTC', 'us', 2, 'pending',
+                 property_name, 'US', 'UTC', 'pending',
                  instant.at + interval '24 hours', instant.at, instant.at
           FROM instant
           CROSS JOIN (VALUES
@@ -167,10 +165,9 @@ describe('restore recovery fence (REG-04, integration)', () => {
 
         const generationResult = await transaction.execute(sql`
           SELECT COALESCE(MAX(generation), 0)::int + 1 AS generation
-          FROM recovery_runs WHERE data_cell_id = 'us'
+          FROM recovery_runs
         `)
         const input = {
-          dataCellId: 'us' as const,
           runId: '10000000-0000-4000-8000-000000000901',
           generation: Number(generationResult.rows[0]?.generation),
           sourceReleaseSha: 'a'.repeat(40),
@@ -305,12 +302,6 @@ describe('restore recovery fence (REG-04, integration)', () => {
           applyRecoveryFence(transaction, {
             ...input,
             operatorId: 'different-operator@example.com',
-          }),
-        ).rejects.toThrow(/identity, generation, or source binding conflicts/)
-        await expect(
-          applyRecoveryFence(transaction, {
-            ...input,
-            dataCellId: 'global',
           }),
         ).rejects.toThrow(/identity, generation, or source binding conflicts/)
 

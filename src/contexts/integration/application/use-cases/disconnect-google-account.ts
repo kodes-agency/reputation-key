@@ -1,5 +1,5 @@
-// Integration context — authorize, fence, revoke, atomically disconnect, and
-// purge connection-owned source content.
+// Integration context — authorize, revoke, atomically disconnect, and purge
+// connection-owned source content.
 
 import type { GoogleConnectionRepository } from '../ports/google-connection.repository'
 import type { IntegrationCommandStore } from '../ports/integration-command-store.port'
@@ -18,7 +18,6 @@ import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleAccountDisconnected } from '../../domain/events'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { AssertDirectGoogleCredentialUse } from '../google-credential-execution-gate'
 import {
   GOOGLE_DISCONNECT_REVOKE_WINDOW_MS,
   type GoogleDisconnectRevokeStore,
@@ -49,7 +48,6 @@ export type DisconnectGoogleAccountDeps = Readonly<{
     organizationId: OrganizationId,
     connectionId: string,
   ) => Promise<void>
-  assertDirectCredentialUse: AssertDirectGoogleCredentialUse
   authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer
   disconnectRevokeStore?: GoogleDisconnectRevokeStore
   idGen?: () => string
@@ -66,25 +64,6 @@ function revokeOutcomeCode(outcome: GoogleRevokeOutcome): string {
 }
 
 export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
-  /**
-   * Wrong-home and expand-phase legacy rows may still be disconnected and
-   * redacted locally, but no provider credential is decrypted or sent.
-   */
-  const admitProviderCredential = async (
-    connection: GoogleConnection,
-  ): Promise<boolean> => {
-    try {
-      await deps.assertDirectCredentialUse(connection)
-      return true
-    } catch {
-      deps.logger.warn(
-        { stage: 'credential-home' },
-        'Google provider cleanup skipped outside the credential home',
-      )
-      return false
-    }
-  }
-
   /** GBP Pub/Sub lifecycle: unsubscribe before the token is revoked (still valid). */
   const unsubscribeFromNotifications = async (
     organizationId: OrganizationId,
@@ -207,21 +186,15 @@ export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
 
     await deps.cancelGoogleImportsForConnection?.(ctx.organizationId, connectionId)
 
-    const providerCredentialAdmitted = await admitProviderCredential(connection)
-    if (providerCredentialAdmitted) {
-      await unsubscribeFromNotifications(ctx.organizationId, input.connectionId)
-    }
+    await unsubscribeFromNotifications(ctx.organizationId, input.connectionId)
 
     // 3. Governed provider cleanup, when every governed dependency is present.
-    const revoked = providerCredentialAdmitted
-      ? await governedRevoke(connection, connectionId, ctx)
-      : null
+    const revoked = await governedRevoke(connection, connectionId, ctx)
 
-    // 4. No provider authority means no provider socket was opened. Local
-    // disconnect remains safe and deterministic for wrong-home/legacy rows.
-    // Atomic disconnect: status, identifier/secret redaction, and the
-    // durable disconnected fact commit in one transaction. Source-content
-    // purge remains an idempotent cross-context cleanup after the commit.
+    // 4. If provider cleanup is unavailable, local disconnect remains safe and
+    // deterministic. Status, identifier/secret redaction, and the durable
+    // disconnected fact commit in one transaction. Source-content purge remains
+    // an idempotent cross-context cleanup after the commit.
     const updated =
       revoked ??
       (await deps.commandStore.disconnectGoogleAccount({

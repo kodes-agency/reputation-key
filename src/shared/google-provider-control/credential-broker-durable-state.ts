@@ -1,4 +1,3 @@
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { GoogleProviderRouteKey } from './contracts'
 import {
@@ -21,15 +20,10 @@ export type GoogleCredentialBrokerReplayIssue = GoogleCredentialBrokerLookupCand
     organizationId: string
     connectionId: string
     propertyId: string
-    homeCellId: DataCellId
-    targetCellId: DataCellId
-    targetGatewayIdentity: string
     routeKey: GoogleProviderRouteKey
     authorization: GoogleCredentialBrokerAuthorization
     requestDigestSha256: string
     credentialBindingSha256: string
-    routingDirectoryRevision: number
-    routingPolicyVersion: number
     materialReference: GoogleCredentialBrokerGrant['materialReference']
     issuedAtMs: number
     expiresAtMs: number
@@ -135,15 +129,10 @@ export function credentialBrokerReplayIssueFromGrant(
     organizationId: grant.request.organizationId,
     connectionId: grant.request.connectionId,
     propertyId: grant.request.propertyId,
-    homeCellId: grant.request.homeCellId,
-    targetCellId: grant.request.targetCellId,
-    targetGatewayIdentity: grant.request.targetGatewayIdentity,
     routeKey: grant.request.routeKey,
     authorization: Object.freeze({ ...grant.request.authorization }),
     requestDigestSha256: grant.requestDigestSha256,
     credentialBindingSha256: grant.request.credentialBinding,
-    routingDirectoryRevision: grant.request.routingDirectoryRevision,
-    routingPolicyVersion: grant.request.routingPolicyVersion,
     materialReference: Object.freeze({ ...grant.materialReference }),
     issuedAtMs: grant.issuedAtMs,
     expiresAtMs: grant.expiresAtMs,

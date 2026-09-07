@@ -24,10 +24,6 @@ import type {
   ReconnectGoogleAccountCommand,
   UpdateConnectionVisibilityCommand,
 } from '../application/ports/integration-command-store.port'
-import {
-  applyOrganizationGoogleCredentialHome,
-  type ApplyOrganizationGoogleCredentialHome,
-} from './organization-google-credential-home-command'
 
 /** True when a Postgres unique-constraint violation (SQLSTATE 23505) caused the error. */
 function isPgUniqueViolation(err: unknown): boolean {
@@ -110,35 +106,12 @@ async function completeOAuthExchangeAttempt(
 export const createAtomicIntegrationCommandStore = (
   db: Database,
   clock: Clock,
-  options?: Readonly<{
-    applyCredentialHome?: ApplyOrganizationGoogleCredentialHome
-  }>,
 ): IntegrationCommandStore => {
-  const applyCredentialHome =
-    options?.applyCredentialHome ?? applyOrganizationGoogleCredentialHome
   return {
     connectGoogleAccount: async (command: ConnectGoogleAccountCommand) => {
       return trace('integration.commandStore.connectGoogleAccount', async () => {
-        if (
-          command.connection.credentialHomeCellId === null ||
-          command.connection.credentialHomePolicyVersion === null ||
-          command.connection.credentialHomeAuthorityGeneration === null ||
-          command.connection.credentialHomeAuthorityGeneration !==
-            command.credentialHomeBinding.authorityGeneration
-        ) {
-          throw integrationError('oauth_failed', 'Google credential home is unavailable')
-        }
         try {
           await db.transaction(async (tx) => {
-            await applyCredentialHome(tx, {
-              organizationId: command.connection.organizationId,
-              targetConnectionId: null,
-              requested: command.credentialHomeBinding,
-              reason: 'new_grant',
-              changedBy: command.event.userId,
-              changeTicket: null,
-              now: command.event.occurredAt,
-            })
             await tx
               .insert(googleConnections)
               .values(googleConnectionToInsert(command.connection))
@@ -166,15 +139,6 @@ export const createAtomicIntegrationCommandStore = (
         let updated: typeof googleConnections.$inferSelect
         try {
           updated = await db.transaction(async (tx) => {
-            await applyCredentialHome(tx, {
-              organizationId: command.organizationId,
-              targetConnectionId: command.connectionId,
-              requested: command.credentialHome,
-              reason: command.credentialHomeReason,
-              changedBy: command.event.userId,
-              changeTicket: null,
-              now: command.event.occurredAt,
-            })
             const now = clock()
             const rows = await updateConnectionRow(tx, command, {
               googleSubject: command.googleSubject,
@@ -191,10 +155,6 @@ export const createAtomicIntegrationCommandStore = (
               lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
               accessVersion: sql`${googleConnections.accessVersion} + 1`,
               credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
-              credentialHomeCellId: command.credentialHome.homeCellId,
-              credentialHomePolicyVersion: command.credentialHome.cataloguePolicyVersion,
-              credentialHomeAuthorityGeneration:
-                command.credentialHome.authorityGeneration,
               updatedAt: now,
             }).returning()
             if (!rows[0]) {

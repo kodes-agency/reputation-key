@@ -74,7 +74,7 @@ async function advance(
 }
 
 async function seedMilestones(organizationId: string): Promise<void> {
-  for (const step of ['google_connection', 'imported_property', 'published_portal']) {
+  for (const step of ['google_connection', 'published_portal']) {
     await lease.pool.query(
       `INSERT INTO setup_checklist_milestones
          (organization_id, step, first_completed_at, created_at)
@@ -179,12 +179,12 @@ describe.sequential('dashboard Organization lifecycle contributor', () => {
 
     expect(result.outcome).toBe('complete')
     // Closing opens a recoverable window: nothing may be deleted here.
-    expect(await milestoneCount(fixture.organizationId)).toBe(3)
+    expect(await milestoneCount(fixture.organizationId)).toBe(2)
     expect(await receipts(fixture.organizationId)).toEqual([
       {
         phase: 'closing',
         outcome: 'complete',
-        evidence_ref: 'dashboard:closing:v1:read_surface_no_effects:3',
+        evidence_ref: 'dashboard:closing:v1:read_surface_no_effects:2',
       },
     ])
   })
@@ -238,13 +238,13 @@ describe.sequential('dashboard Organization lifecycle contributor', () => {
     expect(replay).toEqual(first)
     expect(await milestoneCount(fixture.organizationId)).toBe(0)
     // No tenant-cross deletion.
-    expect(await milestoneCount(bystanderId)).toBe(3)
+    expect(await milestoneCount(bystanderId)).toBe(2)
     // The replay returned the persisted receipt rather than writing a second.
     expect(await receipts(fixture.organizationId)).toEqual([
       {
         phase: 'purge',
         outcome: 'complete',
-        evidence_ref: 'dashboard:purge:v1:milestones_deleted:3',
+        evidence_ref: 'dashboard:purge:v1:milestones_deleted:2',
       },
     ])
   })
@@ -295,7 +295,7 @@ describe.sequential('dashboard Organization lifecycle contributor', () => {
     await expect(contributor.purge(contribution(fixture, 1))).rejects.toThrow(
       /authority changed/u,
     )
-    expect(await milestoneCount(fixture.organizationId)).toBe(3)
+    expect(await milestoneCount(fixture.organizationId)).toBe(2)
     expect(await receipts(fixture.organizationId)).toEqual([])
   })
 })

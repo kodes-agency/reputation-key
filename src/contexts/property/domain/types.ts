@@ -5,7 +5,6 @@
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { PropertyLifecycleState } from './property-lifecycle'
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 import type { PropertyGoogleReviewDestination } from './google-review-destination'
 
 /** Property entity — the organizational unit everything else lives under. */
@@ -38,17 +37,11 @@ export type Property = Readonly<{
   lifecycleStateChangedAt: Date | null
   purgeScheduledFor: Date | null
   lifecycleInitiatedBy: string | null
-  // PRE17B / BQR-1.1: Processing profile + routing (migration 0006)
+  // Property locale facts.
   countryCode: string | null
   countrySource: string | null
   timezoneSource: string | null
   timezoneResolvedAt: Date | null
-  processingRegion: string | null
-  /** Canonical Property execution/residency assignment; null until resolved. */
-  dataCellId: DataCellId | null
-  processingRegionSource: string | null
-  routingPolicyVersion: number
-  processingRegionResolvedAt: Date | null
   sourceEpoch: number
   /** CAS token for explicit workflow-notification responsibility edits. */
   responsibleManagerRevision: number
@@ -56,31 +49,6 @@ export type Property = Readonly<{
   responsibilityNeededSince: Date | null
 }>
 
-/** Default processing-profile fields for new properties (migration 0006). */
-export const DEFAULT_PROPERTY_ROUTING = {
-  countryCode: null,
-  countrySource: 'organization_default',
-  timezoneSource: 'legacy',
-  timezoneResolvedAt: null,
-  processingRegion: 'unresolved',
-  dataCellId: null,
-  processingRegionSource: 'country_default',
-  routingPolicyVersion: 1,
-  processingRegionResolvedAt: null,
-  sourceEpoch: 0,
-} as const satisfies Pick<
-  Property,
-  | 'countryCode'
-  | 'countrySource'
-  | 'timezoneSource'
-  | 'timezoneResolvedAt'
-  | 'processingRegion'
-  | 'dataCellId'
-  | 'processingRegionSource'
-  | 'routingPolicyVersion'
-  | 'processingRegionResolvedAt'
-  | 'sourceEpoch'
->
 export const DEFAULT_PROPERTY_GOOGLE_PROFILE = {
   address: null,
   gbpAccountId: null,

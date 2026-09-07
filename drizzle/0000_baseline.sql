@@ -6,9 +6,9 @@ CREATE TYPE "public"."google_credential_use_state" AS ENUM('active', 'cleanup_on
 --> statement-breakpoint
 CREATE TYPE "public"."google_import_v2_action" AS ENUM('create', 'relink');
 --> statement-breakpoint
-CREATE TYPE "public"."google_import_v2_item_status" AS ENUM('pending', 'processing', 'imported', 'relinked', 'already_exists', 'region_unavailable', 'failed', 'cancelled');
+CREATE TYPE "public"."google_import_v2_item_status" AS ENUM('pending', 'processing', 'imported', 'relinked', 'already_exists', 'failed', 'cancelled');
 --> statement-breakpoint
-CREATE TYPE "public"."google_import_v2_outcome" AS ENUM('imported', 'relinked', 'already_exists', 'region_unavailable', 'active_binding_conflict', 'stale_binding', 'reauthentication_required', 'reconnect_required', 'authorization_changed', 'user_cancelled', 'policy_disabled', 'organization_suspended', 'property_suspended', 'property_deleted', 'temporarily_unavailable', 'cleanup_required', 'internal_error');
+CREATE TYPE "public"."google_import_v2_outcome" AS ENUM('imported', 'relinked', 'already_exists', 'active_binding_conflict', 'stale_binding', 'reauthentication_required', 'reconnect_required', 'authorization_changed', 'user_cancelled', 'policy_disabled', 'organization_suspended', 'property_suspended', 'property_deleted', 'temporarily_unavailable', 'cleanup_required', 'internal_error');
 --> statement-breakpoint
 CREATE TYPE "public"."google_import_v2_parent_status" AS ENUM('queued', 'processing', 'completed', 'completed_with_issues', 'failed', 'cancelled');
 --> statement-breakpoint
@@ -1913,9 +1913,6 @@ CREATE TABLE "google_connections" (
 	"lifecycle_version" integer DEFAULT 1 NOT NULL,
 	"access_version" integer DEFAULT 1 NOT NULL,
 	"credential_generation" integer DEFAULT 1 NOT NULL,
-	"credential_home_cell_id" varchar(16),
-	"credential_home_policy_version" integer,
-	"credential_home_authority_generation" integer,
 	"encryption_key_id" varchar(50) DEFAULT 'v1' NOT NULL,
 	"last_successful_sync_at" timestamp with time zone,
 	"status_reason" text,
@@ -1924,80 +1921,7 @@ CREATE TABLE "google_connections" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "google_connections_identity_check" CHECK ("google_connections"."google_subject" IS NOT NULL OR "google_connections"."status" = 'disconnected'),
 	CONSTRAINT "google_connections_versions_check" CHECK ("google_connections"."lifecycle_version" >= 1 AND "google_connections"."access_version" >= 1 AND "google_connections"."credential_generation" >= 1),
-	CONSTRAINT "google_connections_credential_authority_pair_check" CHECK (("google_connections"."credential_authorized_by" IS NULL) = ("google_connections"."credential_authorized_at" IS NULL)),
-	CONSTRAINT "google_connections_credential_home_pair_check" CHECK ((("google_connections"."credential_home_cell_id" IS NULL)::int + ("google_connections"."credential_home_policy_version" IS NULL)::int + ("google_connections"."credential_home_authority_generation" IS NULL)::int) IN (0, 3)),
-	CONSTRAINT "google_connections_credential_home_value_check" CHECK ("google_connections"."credential_home_cell_id" IS NULL OR ("google_connections"."credential_home_cell_id" IN ('us', 'europe', 'global') AND "google_connections"."credential_home_policy_version" >= 1 AND "google_connections"."credential_home_authority_generation" >= 1)),
 	CONSTRAINT "google_connections_organization_owned_check" CHECK ("google_connections"."visibility" = 'organization')
-);
---> statement-breakpoint
-CREATE TABLE "google_organization_credential_homes" (
-	"organization_id" varchar(255) NOT NULL,
-	"authority_generation" integer NOT NULL,
-	"home_cell_id" varchar(16) NOT NULL,
-	"catalogue_policy_version" integer NOT NULL,
-	"transition_reason" varchar(32) NOT NULL,
-	"changed_by" varchar(255) NOT NULL,
-	"change_ticket" varchar(255),
-	"effective_from" timestamp with time zone NOT NULL,
-	"superseded_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "google_organization_credential_homes_pk" PRIMARY KEY("organization_id","authority_generation"),
-	CONSTRAINT "google_organization_credential_homes_binding_key" UNIQUE("organization_id","authority_generation","home_cell_id","catalogue_policy_version"),
-	CONSTRAINT "google_organization_credential_homes_values_valid" CHECK ("google_organization_credential_homes"."authority_generation" >= 1 AND "google_organization_credential_homes"."catalogue_policy_version" >= 1 AND "google_organization_credential_homes"."home_cell_id" IN ('us', 'europe', 'global') AND "google_organization_credential_homes"."transition_reason" IN ('new_grant', 'governed_reconnect', 'legacy_backfill')),
-	CONSTRAINT "google_organization_credential_homes_interval_valid" CHECK ("google_organization_credential_homes"."superseded_at" IS NULL OR "google_organization_credential_homes"."superseded_at" > "google_organization_credential_homes"."effective_from")
-);
---> statement-breakpoint
-CREATE TABLE "google_credential_broker_replay" (
-	"organization_id" varchar(255) NOT NULL,
-	"lookup_key_version" varchar(32) NOT NULL,
-	"grant_id_hmac" varchar(43) NOT NULL,
-	"one_use_nonce_hmac" varchar(43) NOT NULL,
-	"connection_id" varchar(255) NOT NULL,
-	"property_id" varchar(255) NOT NULL,
-	"home_cell_id" varchar(16) NOT NULL,
-	"target_cell_id" varchar(16) NOT NULL,
-	"target_gateway_identity" varchar(255) NOT NULL,
-	"route_key" varchar(96) NOT NULL,
-	"credential_home_authority_generation" integer NOT NULL,
-	"connection_lifecycle_version" integer NOT NULL,
-	"connection_access_version" integer NOT NULL,
-	"credential_generation" integer NOT NULL,
-	"property_source_epoch" integer NOT NULL,
-	"request_digest_sha256" varchar(64) NOT NULL,
-	"credential_binding_sha256" varchar(64) NOT NULL,
-	"routing_directory_revision" bigint NOT NULL,
-	"routing_policy_version" integer NOT NULL,
-	"material_locator" varchar(255) NOT NULL,
-	"material_encryption_key_id" varchar(255) NOT NULL,
-	"material_binding_sha256" varchar(64) NOT NULL,
-	"issued_at" timestamp with time zone NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"state" varchar(16) NOT NULL,
-	"redeemed_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "google_credential_broker_replay_pk" PRIMARY KEY("organization_id","lookup_key_version","grant_id_hmac"),
-	CONSTRAINT "google_credential_broker_replay_values_valid" CHECK ("google_credential_broker_replay"."lookup_key_version" ~ '^[a-z][a-z0-9_-]{0,31}$' AND "google_credential_broker_replay"."grant_id_hmac" ~ '^[A-Za-z0-9_-]{43}$' AND "google_credential_broker_replay"."one_use_nonce_hmac" ~ '^[A-Za-z0-9_-]{43}$' AND "google_credential_broker_replay"."request_digest_sha256" ~ '^[a-f0-9]{64}$' AND "google_credential_broker_replay"."credential_binding_sha256" ~ '^[a-f0-9]{64}$' AND "google_credential_broker_replay"."material_binding_sha256" ~ '^[a-f0-9]{64}$' AND "google_credential_broker_replay"."home_cell_id" IN ('us', 'europe', 'global') AND "google_credential_broker_replay"."target_cell_id" IN ('us', 'europe', 'global') AND "google_credential_broker_replay"."home_cell_id" <> "google_credential_broker_replay"."target_cell_id" AND "google_credential_broker_replay"."credential_home_authority_generation" >= 1 AND "google_credential_broker_replay"."connection_lifecycle_version" >= 1 AND "google_credential_broker_replay"."connection_access_version" >= 1 AND "google_credential_broker_replay"."credential_generation" >= 1 AND "google_credential_broker_replay"."property_source_epoch" >= 0 AND "google_credential_broker_replay"."routing_directory_revision" BETWEEN 1 AND '9007199254740991'::bigint AND "google_credential_broker_replay"."routing_policy_version" >= 1 AND "google_credential_broker_replay"."expires_at" > "google_credential_broker_replay"."issued_at" AND "google_credential_broker_replay"."state" IN ('issued', 'redeemed') AND (("google_credential_broker_replay"."state" = 'issued' AND "google_credential_broker_replay"."redeemed_at" IS NULL) OR ("google_credential_broker_replay"."state" = 'redeemed' AND "google_credential_broker_replay"."redeemed_at" IS NOT NULL)))
-);
---> statement-breakpoint
-CREATE TABLE "google_credential_routing_directory_snapshots" (
-	"revision" bigint PRIMARY KEY NOT NULL,
-	"catalogue_policy_version" integer NOT NULL,
-	"issued_at" timestamp with time zone NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"digest_sha256" varchar(64) NOT NULL,
-	"signature_key_version" varchar(32) NOT NULL,
-	"signature" varchar(43) NOT NULL,
-	"directory" jsonb NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "google_credential_routing_directory_snapshot_valid" CHECK ("google_credential_routing_directory_snapshots"."revision" BETWEEN 1 AND '9007199254740991'::bigint AND "google_credential_routing_directory_snapshots"."catalogue_policy_version" >= 1 AND "google_credential_routing_directory_snapshots"."expires_at" > "google_credential_routing_directory_snapshots"."issued_at" AND "google_credential_routing_directory_snapshots"."digest_sha256" ~ '^[a-f0-9]{64}$' AND "google_credential_routing_directory_snapshots"."signature" ~ '^[A-Za-z0-9_-]{43}$')
-);
---> statement-breakpoint
-CREATE TABLE "google_credential_routing_directory_state" (
-	"singleton" boolean PRIMARY KEY DEFAULT true NOT NULL,
-	"current_revision" bigint DEFAULT 0 NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "google_credential_routing_directory_state_valid" CHECK ("google_credential_routing_directory_state"."singleton" = TRUE AND "google_credential_routing_directory_state"."current_revision" BETWEEN 0 AND '9007199254740991'::bigint)
 );
 --> statement-breakpoint
 CREATE TABLE "google_import_discovery_invalidations" (
@@ -2085,8 +2009,6 @@ CREATE TABLE "gbp_import_request_items" (
 	"property_address" text,
 	"country_code" varchar(2),
 	"timezone" varchar(64) NOT NULL,
-	"processing_region" text NOT NULL,
-	"routing_policy_version" integer NOT NULL,
 	"status" "google_import_v2_item_status" DEFAULT 'pending' NOT NULL,
 	"outcome_code" "google_import_v2_outcome",
 	"effect_deadline_at" timestamp with time zone NOT NULL,
@@ -2131,7 +2053,6 @@ CREATE TABLE "gbp_import_request_items" (
           AND "gbp_import_request_items"."expected_credential_generation" IS NULL
           )
         )
-        AND "gbp_import_request_items"."routing_policy_version" >= 1
         AND "gbp_import_request_items"."retry_revision" >= 0
       )),
 	CONSTRAINT "gbp_import_request_items_authorization_snapshot_valid" CHECK ((
@@ -2163,13 +2084,12 @@ CREATE TABLE "gbp_import_request_items" (
         OR ("gbp_import_request_items"."status" = 'imported' AND "gbp_import_request_items"."outcome_code" = 'imported')
         OR ("gbp_import_request_items"."status" = 'relinked' AND "gbp_import_request_items"."outcome_code" = 'relinked')
         OR ("gbp_import_request_items"."status" = 'already_exists' AND "gbp_import_request_items"."outcome_code" = 'already_exists')
-        OR ("gbp_import_request_items"."status" = 'region_unavailable' AND "gbp_import_request_items"."outcome_code" = 'region_unavailable')
         OR ("gbp_import_request_items"."status" = 'failed' AND "gbp_import_request_items"."outcome_code" IN ('active_binding_conflict', 'stale_binding', 'reauthentication_required', 'reconnect_required', 'temporarily_unavailable', 'cleanup_required', 'internal_error'))
         OR ("gbp_import_request_items"."status" = 'cancelled' AND "gbp_import_request_items"."outcome_code"::text IN ('authorization_changed', 'user_cancelled', 'policy_disabled', 'organization_suspended', 'property_suspended', 'property_deleted'))
       )),
 	CONSTRAINT "gbp_import_request_items_terminal_valid" CHECK ("gbp_import_request_items"."outcome_code" IS NULL OR "gbp_import_request_items"."first_terminal_at" IS NOT NULL),
 	CONSTRAINT "gbp_import_request_items_deadline_valid" CHECK ("gbp_import_request_items"."effect_deadline_at" = "gbp_import_request_items"."created_at" + interval '24 hours'),
-	CONSTRAINT "gbp_import_request_items_routing_retention_valid" CHECK ((
+	CONSTRAINT "gbp_import_request_items_provider_reference_retention_valid" CHECK ((
         (
           "gbp_import_request_items"."status" IN ('pending', 'processing')
           AND "gbp_import_request_items"."connection_id" IS NOT NULL
@@ -2203,7 +2123,6 @@ CREATE TABLE "gbp_import_requests" (
 	"imported_count" integer DEFAULT 0 NOT NULL,
 	"relinked_count" integer DEFAULT 0 NOT NULL,
 	"already_exists_count" integer DEFAULT 0 NOT NULL,
-	"region_unavailable_count" integer DEFAULT 0 NOT NULL,
 	"failed_count" integer DEFAULT 0 NOT NULL,
 	"cancelled_count" integer DEFAULT 0 NOT NULL,
 	"deletion_fence" integer DEFAULT 0 NOT NULL,
@@ -2241,10 +2160,9 @@ CREATE TABLE "gbp_import_requests" (
         AND "gbp_import_requests"."imported_count" >= 0
         AND "gbp_import_requests"."relinked_count" >= 0
         AND "gbp_import_requests"."already_exists_count" >= 0
-        AND "gbp_import_requests"."region_unavailable_count" >= 0
         AND "gbp_import_requests"."failed_count" >= 0
         AND "gbp_import_requests"."cancelled_count" >= 0
-        AND "gbp_import_requests"."processed_count" = "gbp_import_requests"."imported_count" + "gbp_import_requests"."relinked_count" + "gbp_import_requests"."already_exists_count" + "gbp_import_requests"."region_unavailable_count" + "gbp_import_requests"."failed_count" + "gbp_import_requests"."cancelled_count"
+        AND "gbp_import_requests"."processed_count" = "gbp_import_requests"."imported_count" + "gbp_import_requests"."relinked_count" + "gbp_import_requests"."already_exists_count" + "gbp_import_requests"."failed_count" + "gbp_import_requests"."cancelled_count"
         AND "gbp_import_requests"."total_count" = "gbp_import_requests"."pending_count" + "gbp_import_requests"."processing_count" + "gbp_import_requests"."processed_count"
       )),
 	CONSTRAINT "gbp_import_requests_saga_batch_valid" CHECK ((
@@ -2398,9 +2316,6 @@ CREATE TABLE "google_oauth_exchange_attempts" (
 	"expected_lifecycle_version" bigint NOT NULL,
 	"expected_access_version" bigint NOT NULL,
 	"expected_credential_generation" bigint NOT NULL,
-	"credential_home_cell_id" varchar(16) NOT NULL,
-	"credential_home_policy_version" integer NOT NULL,
-	"credential_home_authority_generation" integer NOT NULL,
 	"encrypted_result" text,
 	"provider_started_at" timestamp with time zone,
 	"preserved_at" timestamp with time zone,
@@ -2412,7 +2327,6 @@ CREATE TABLE "google_oauth_exchange_attempts" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "google_oauth_exchange_attempts_target_check" CHECK (("google_oauth_exchange_attempts"."connection_mode" = 'new' AND "google_oauth_exchange_attempts"."target_connection_id" IS NULL) OR ("google_oauth_exchange_attempts"."connection_mode" IN ('reauth', 'reconnect') AND "google_oauth_exchange_attempts"."target_connection_id" = "google_oauth_exchange_attempts"."connection_id")),
 	CONSTRAINT "google_oauth_exchange_attempts_versions_check" CHECK ("google_oauth_exchange_attempts"."expected_lifecycle_version" >= 0 AND "google_oauth_exchange_attempts"."expected_access_version" >= 0 AND "google_oauth_exchange_attempts"."expected_credential_generation" >= 0),
-	CONSTRAINT "google_oauth_exchange_attempts_home_check" CHECK ("google_oauth_exchange_attempts"."credential_home_cell_id" IN ('us', 'europe', 'global') AND "google_oauth_exchange_attempts"."credential_home_policy_version" >= 1 AND "google_oauth_exchange_attempts"."credential_home_authority_generation" >= 1),
 	CONSTRAINT "google_oauth_exchange_attempts_state_check" CHECK (("google_oauth_exchange_attempts"."state" = 'prepared' AND "google_oauth_exchange_attempts"."provider_started_at" IS NULL AND "google_oauth_exchange_attempts"."encrypted_result" IS NULL AND "google_oauth_exchange_attempts"."preserved_at" IS NULL AND "google_oauth_exchange_attempts"."response_expires_at" IS NULL AND "google_oauth_exchange_attempts"."apply_lease_expires_at" IS NULL AND "google_oauth_exchange_attempts"."terminal_at" IS NULL) OR ("google_oauth_exchange_attempts"."state" = 'provider_started' AND "google_oauth_exchange_attempts"."provider_started_at" IS NOT NULL AND "google_oauth_exchange_attempts"."encrypted_result" IS NULL AND "google_oauth_exchange_attempts"."preserved_at" IS NULL AND "google_oauth_exchange_attempts"."response_expires_at" IS NULL AND "google_oauth_exchange_attempts"."apply_lease_expires_at" IS NULL AND "google_oauth_exchange_attempts"."terminal_at" IS NULL) OR ("google_oauth_exchange_attempts"."state" = 'response_preserved' AND "google_oauth_exchange_attempts"."provider_started_at" IS NOT NULL AND "google_oauth_exchange_attempts"."encrypted_result" IS NOT NULL AND "google_oauth_exchange_attempts"."preserved_at" IS NOT NULL AND "google_oauth_exchange_attempts"."response_expires_at" > "google_oauth_exchange_attempts"."preserved_at" AND "google_oauth_exchange_attempts"."apply_lease_expires_at" IS NULL AND "google_oauth_exchange_attempts"."terminal_at" IS NULL) OR ("google_oauth_exchange_attempts"."state" = 'applying' AND "google_oauth_exchange_attempts"."provider_started_at" IS NOT NULL AND "google_oauth_exchange_attempts"."encrypted_result" IS NOT NULL AND "google_oauth_exchange_attempts"."preserved_at" IS NOT NULL AND "google_oauth_exchange_attempts"."response_expires_at" > "google_oauth_exchange_attempts"."preserved_at" AND "google_oauth_exchange_attempts"."apply_lease_expires_at" IS NOT NULL AND "google_oauth_exchange_attempts"."apply_lease_expires_at" <= "google_oauth_exchange_attempts"."response_expires_at" AND "google_oauth_exchange_attempts"."terminal_at" IS NULL) OR ("google_oauth_exchange_attempts"."state" IN ('completed', 'failed', 'provider_outcome_ambiguous', 'expired') AND "google_oauth_exchange_attempts"."encrypted_result" IS NULL AND "google_oauth_exchange_attempts"."response_expires_at" IS NULL AND "google_oauth_exchange_attempts"."apply_lease_expires_at" IS NULL AND "google_oauth_exchange_attempts"."terminal_at" IS NOT NULL))
 );
 --> statement-breakpoint
@@ -3485,11 +3399,9 @@ CREATE TABLE "backup_erasure_ledger" (
 	"erased_row_count" integer NOT NULL,
 	"evidence_ref" varchar(200) NOT NULL,
 	"hold_reference" varchar(200),
-	"data_cell_id" varchar(16) NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "backup_erasure_ledger_subject_class_valid" CHECK ("backup_erasure_ledger"."subject_class" IN ('organization', 'property', 'privacy_subject')),
 	CONSTRAINT "backup_erasure_ledger_context_valid" CHECK ("backup_erasure_ledger"."context" IN ('activity', 'ai', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'metric', 'notification', 'portal', 'property', 'review', 'staff')),
-	CONSTRAINT "backup_erasure_ledger_cell_valid" CHECK ("backup_erasure_ledger"."data_cell_id" IN ('us', 'europe', 'global')),
 	CONSTRAINT "backup_erasure_ledger_revision_positive" CHECK ("backup_erasure_ledger"."lifecycle_revision" > 0),
 	CONSTRAINT "backup_erasure_ledger_count_nonnegative" CHECK ("backup_erasure_ledger"."erased_row_count" >= 0),
 	CONSTRAINT "backup_erasure_ledger_evidence_valid" CHECK ("backup_erasure_ledger"."evidence_ref" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$'),
@@ -4734,11 +4646,6 @@ CREATE TABLE "properties" (
 	"country_source" text DEFAULT 'organization_default',
 	"timezone_source" text DEFAULT 'legacy',
 	"timezone_resolved_at" timestamp with time zone,
-	"processing_region" text DEFAULT 'unresolved',
-	"data_cell_id" text,
-	"processing_region_source" text DEFAULT 'country_default',
-	"routing_policy_version" integer DEFAULT 1 NOT NULL,
-	"processing_region_resolved_at" timestamp with time zone,
 	"source_epoch" integer DEFAULT 0 NOT NULL,
 	"responsible_manager_revision" integer DEFAULT 1 NOT NULL,
 	"responsibility_needed_since" timestamp with time zone,
@@ -4776,7 +4683,6 @@ CREATE TABLE "properties" (
         OR ("properties"."profile_source" = 'tenant_confirmed' AND "properties"."profile_confirmed_at" IS NOT NULL AND "properties"."profile_confirmed_by" IS NOT NULL)
       )),
 	CONSTRAINT "properties_lifecycle_state_valid" CHECK ("properties"."lifecycle_state" IN ('active', 'suspended', 'archived', 'disconnecting', 'purge_pending', 'purging', 'purged')),
-	CONSTRAINT "properties_data_cell_id_valid" CHECK ("properties"."data_cell_id" IS NULL OR "properties"."data_cell_id" IN ('us', 'europe', 'global')),
 	CONSTRAINT "properties_responsible_manager_revision_positive" CHECK ("properties"."responsible_manager_revision" >= 1)
 );
 --> statement-breakpoint
@@ -4817,7 +4723,6 @@ CREATE TABLE "property_operation_receipts" (
 --> statement-breakpoint
 CREATE TABLE "recovery_runs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"data_cell_id" varchar(16) NOT NULL,
 	"generation" integer NOT NULL,
 	"source_release_sha" varchar(40) NOT NULL,
 	"source_manifest_sha256" varchar(64) NOT NULL,
@@ -4827,7 +4732,6 @@ CREATE TABLE "recovery_runs" (
 	"counts" jsonb NOT NULL,
 	"completed_at" timestamp with time zone NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "recovery_runs_cell_valid" CHECK ("recovery_runs"."data_cell_id" IN ('us', 'europe', 'global')),
 	CONSTRAINT "recovery_runs_generation_valid" CHECK ("recovery_runs"."generation" >= 1),
 	CONSTRAINT "recovery_runs_source_release_valid" CHECK ("recovery_runs"."source_release_sha" ~ '^[0-9a-f]{40}$'),
 	CONSTRAINT "recovery_runs_source_manifest_valid" CHECK ("recovery_runs"."source_manifest_sha256" ~ '^[0-9a-f]{64}$'),
@@ -4843,7 +4747,6 @@ CREATE TABLE "review_lifecycle_recovery_executions" (
 	"approval_key_id" varchar(64) NOT NULL,
 	"approved_at" timestamp with time zone NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
-	"data_cell_id" varchar(16) NOT NULL,
 	"release_sha" varchar(40) NOT NULL,
 	"release_manifest_sha256" varchar(64) NOT NULL,
 	"restore_point_at" timestamp with time zone NOT NULL,
@@ -4871,7 +4774,6 @@ CREATE TABLE "review_lifecycle_recovery_executions" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"completed_at" timestamp with time zone,
 	CONSTRAINT "review_lifecycle_recovery_state_valid" CHECK ("review_lifecycle_recovery_executions"."state" IN ('applying', 'lifecycle_applied', 'completed')),
-	CONSTRAINT "review_lifecycle_recovery_cell_valid" CHECK ("review_lifecycle_recovery_executions"."data_cell_id" IN ('us', 'europe', 'global')),
 	CONSTRAINT "review_lifecycle_recovery_generation_valid" CHECK ("review_lifecycle_recovery_executions"."recovery_generation" >= 1),
 	CONSTRAINT "review_lifecycle_recovery_release_valid" CHECK ("review_lifecycle_recovery_executions"."release_sha" ~ '^[0-9a-f]{40}$' AND "review_lifecycle_recovery_executions"."release_manifest_sha256" ~ '^[0-9a-f]{64}$'),
 	CONSTRAINT "review_lifecycle_recovery_digests_valid" CHECK ("review_lifecycle_recovery_executions"."approval_bundle_sha256" ~ '^[0-9a-f]{64}$' AND "review_lifecycle_recovery_executions"."policy_sha256" ~ '^[0-9a-f]{64}$' AND "review_lifecycle_recovery_executions"."report_sha256" ~ '^[0-9a-f]{64}$'),
@@ -4887,7 +4789,7 @@ CREATE TABLE "setup_checklist_milestones" (
 	"first_completed_at" timestamp with time zone NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "setup_checklist_milestones_pk" PRIMARY KEY("organization_id","step"),
-	CONSTRAINT "setup_checklist_milestones_step_valid" CHECK ("setup_checklist_milestones"."step" IN ('google_connection', 'imported_property', 'initial_review_sync', 'published_portal', 'responsible_managers'))
+	CONSTRAINT "setup_checklist_milestones_step_valid" CHECK ("setup_checklist_milestones"."step" IN ('google_connection', 'initial_review_sync', 'published_portal', 'responsible_managers'))
 );
 --> statement-breakpoint
 CREATE TABLE "google_reply_observation_heads" (
@@ -5825,10 +5727,6 @@ CREATE INDEX "goals_org_portal_idx" ON "goals" USING btree ("organization_id","p
 --> statement-breakpoint
 CREATE INDEX "google_connections_status_idx" ON "google_connections" USING btree ("status") WHERE "google_connections"."status" NOT IN ('active', 'disconnected');
 --> statement-breakpoint
-CREATE INDEX "google_credential_broker_replay_expiry_idx" ON "google_credential_broker_replay" USING btree ("expires_at");
---> statement-breakpoint
-CREATE INDEX "google_credential_routing_directory_expiry_idx" ON "google_credential_routing_directory_snapshots" USING btree ("expires_at");
---> statement-breakpoint
 CREATE INDEX "google_import_discovery_invalidations_expiry_idx" ON "google_import_discovery_invalidations" USING btree ("expires_at","invalidation_key");
 --> statement-breakpoint
 CREATE INDEX "google_import_discovery_records_scope_idx" ON "google_import_discovery_records" USING btree ("organization_id","user_id","connection_id");
@@ -5841,7 +5739,7 @@ CREATE INDEX "gbp_import_request_items_parent_status_idx" ON "gbp_import_request
 --> statement-breakpoint
 CREATE INDEX "gbp_import_request_items_effect_deadline_idx" ON "gbp_import_request_items" USING btree ("effect_deadline_at","id") WHERE "gbp_import_request_items"."status" IN ('pending', 'processing');
 --> statement-breakpoint
-CREATE INDEX "gbp_import_request_items_routing_idx" ON "gbp_import_request_items" USING btree ("organization_id","id","status") WHERE "gbp_import_request_items"."status" IN ('pending', 'processing');
+CREATE INDEX "gbp_import_request_items_dispatch_idx" ON "gbp_import_request_items" USING btree ("organization_id","id","status") WHERE "gbp_import_request_items"."status" IN ('pending', 'processing');
 --> statement-breakpoint
 CREATE INDEX "gbp_import_requests_initiated_request_idx" ON "gbp_import_requests" USING btree ("organization_id","initiated_by","request_id");
 --> statement-breakpoint
@@ -5967,7 +5865,7 @@ CREATE INDEX "context_organization_lifecycle_receipts_org_time_idx" ON "context_
 --> statement-breakpoint
 CREATE INDEX "context_organization_lifecycle_receipts_lineage_idx" ON "context_organization_lifecycle_receipts" USING btree ("closure_lineage_id","lifecycle_revision","phase");
 --> statement-breakpoint
-CREATE INDEX "backup_erasure_ledger_replay_idx" ON "backup_erasure_ledger" USING btree ("data_cell_id","effective_erasure_at");
+CREATE INDEX "backup_erasure_ledger_replay_idx" ON "backup_erasure_ledger" USING btree ("effective_erasure_at");
 --> statement-breakpoint
 CREATE INDEX "backup_erasure_ledger_org_idx" ON "backup_erasure_ledger" USING btree ("organization_id","effective_erasure_at");
 --> statement-breakpoint
@@ -6089,8 +5987,6 @@ CREATE INDEX "properties_org_idx" ON "properties" USING btree ("organization_id"
 --> statement-breakpoint
 CREATE INDEX "properties_org_lower_name_id_active_idx" ON "properties" USING btree ("organization_id",lower("name"),"id") WHERE "properties"."deleted_at" IS NULL;
 --> statement-breakpoint
-CREATE INDEX "properties_routing_backfill_idx" ON "properties" USING btree ("routing_policy_version","id") WHERE processing_region = 'unresolved' AND deleted_at IS NULL;
---> statement-breakpoint
 CREATE INDEX "properties_lifecycle_state_idx" ON "properties" USING btree ("lifecycle_state") WHERE lifecycle_state <> 'purged';
 --> statement-breakpoint
 CREATE INDEX "property_rm_org_property_idx" ON "property_responsible_managers" USING btree ("organization_id","property_id");
@@ -6101,9 +5997,9 @@ CREATE INDEX "property_operation_receipts_releasable_expiry_idx" ON "property_op
 --> statement-breakpoint
 CREATE INDEX "property_operation_receipts_unreleased_expiry_idx" ON "property_operation_receipts" USING btree ("expires_at","id") WHERE "property_operation_receipts"."retention_released_at" IS NULL;
 --> statement-breakpoint
-CREATE INDEX "recovery_runs_completed_idx" ON "recovery_runs" USING btree ("data_cell_id","completed_at" DESC NULLS LAST);
+CREATE INDEX "recovery_runs_completed_idx" ON "recovery_runs" USING btree ("completed_at" DESC NULLS LAST);
 --> statement-breakpoint
-CREATE INDEX "review_lifecycle_recovery_state_idx" ON "review_lifecycle_recovery_executions" USING btree ("data_cell_id","state");
+CREATE INDEX "review_lifecycle_recovery_state_idx" ON "review_lifecycle_recovery_executions" USING btree ("state");
 --> statement-breakpoint
 CREATE INDEX "google_reply_observation_heads_scope_idx" ON "google_reply_observation_heads" USING btree ("organization_id","property_id","state");
 --> statement-breakpoint
@@ -6226,8 +6122,6 @@ CREATE UNIQUE INDEX "goal_progress_goal_uniq" ON "goal_progress" USING btree ("g
 CREATE UNIQUE INDEX "google_connections_org_id_key" ON "google_connections" USING btree ("organization_id","id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "google_connections_google_subject_idx" ON "google_connections" USING btree ("google_subject") WHERE "google_connections"."google_subject" IS NOT NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "google_organization_credential_homes_current_idx" ON "google_organization_credential_homes" USING btree ("organization_id") WHERE "google_organization_credential_homes"."superseded_at" IS NULL;
 --> statement-breakpoint
 CREATE UNIQUE INDEX "gbp_import_item_retry_receipts_request_unique" ON "gbp_import_item_retry_receipts" USING btree ("organization_id","initiating_user_id","item_id","retry_request_id");
 --> statement-breakpoint
@@ -6473,15 +6367,15 @@ CREATE UNIQUE INDEX "property_rm_unique_active_manager" ON "property_responsible
 --> statement-breakpoint
 CREATE UNIQUE INDEX "property_operation_receipts_org_idempotency_unique" ON "property_operation_receipts" USING btree ("organization_id","idempotency_key");
 --> statement-breakpoint
-CREATE UNIQUE INDEX "recovery_runs_cell_generation_unique" ON "recovery_runs" USING btree ("data_cell_id","generation");
+CREATE UNIQUE INDEX "recovery_runs_generation_unique" ON "recovery_runs" USING btree ("generation");
 --> statement-breakpoint
-CREATE UNIQUE INDEX "recovery_runs_source_unique" ON "recovery_runs" USING btree ("data_cell_id","source_manifest_sha256","restore_point_at");
+CREATE UNIQUE INDEX "recovery_runs_source_unique" ON "recovery_runs" USING btree ("source_manifest_sha256","restore_point_at");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "review_lifecycle_recovery_approval_unique" ON "review_lifecycle_recovery_executions" USING btree ("approval_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "review_lifecycle_recovery_bundle_unique" ON "review_lifecycle_recovery_executions" USING btree ("approval_bundle_sha256");
 --> statement-breakpoint
-CREATE UNIQUE INDEX "review_lifecycle_recovery_cell_generation_unique" ON "review_lifecycle_recovery_executions" USING btree ("data_cell_id","recovery_generation");
+CREATE UNIQUE INDEX "review_lifecycle_recovery_generation_unique" ON "review_lifecycle_recovery_executions" USING btree ("recovery_generation");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "google_reply_observations_revision_key" ON "google_reply_observations" USING btree ("organization_id","property_id","review_id","observation_revision");
 --> statement-breakpoint
@@ -6716,8 +6610,6 @@ ALTER TABLE "goals" ADD CONSTRAINT "goals_portal_id_portals_id_fk" FOREIGN KEY (
 ALTER TABLE "goals" ADD CONSTRAINT "goals_portal_group_id_portal_groups_id_fk" FOREIGN KEY ("portal_group_id") REFERENCES "public"."portal_groups"("id") ON DELETE set null ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "goals" ADD CONSTRAINT "goals_parent_goal_id_goals_id_fk" FOREIGN KEY ("parent_goal_id") REFERENCES "public"."goals"("id") ON DELETE set null ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "google_connections" ADD CONSTRAINT "google_connections_credential_home_authority_fk" FOREIGN KEY ("organization_id","credential_home_authority_generation","credential_home_cell_id","credential_home_policy_version") REFERENCES "public"."google_organization_credential_homes"("organization_id","authority_generation","home_cell_id","catalogue_policy_version") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "google_import_discovery_records" ADD CONSTRAINT "google_import_discovery_records_connection_tenant_fk" FOREIGN KEY ("organization_id","connection_id") REFERENCES "public"."google_connections"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint

@@ -29,17 +29,13 @@
 // RESTORE_MODE is parsed by the env schema (src/shared/config/env.ts): the
 // only accepted non-empty value is 'isolated' — anything else fails boot.
 
-import {
-  DATA_CELL_CATALOGUE,
-  isBetaDeploymentDataCellId,
-} from '#/shared/domain/data-cell-catalogue'
+/** The Railway environment the beta deployment runs in; restore drills bind to it. */
+const BETA_RAILWAY_ENVIRONMENT = 'cell-us'
 
 /** Structural env shape the restore-mode checks read (parsed Env fits). */
 export type RestoreModeEnv = Readonly<{
   RESTORE_MODE?: string
   DATABASE_URL?: string
-  PROCESSING_CELL?: string
-  RESTORE_SOURCE_CELL?: string
   RESTORE_DATABASE_SERVICE_NAME?: string
   RAILWAY_PROJECT_ID?: string
   RAILWAY_ENVIRONMENT_ID?: string
@@ -60,15 +56,6 @@ export function isRestoreIsolated(env: RestoreModeEnv): boolean {
 
 export type RestoreProcessKind = 'web' | 'worker'
 
-/** Exact backup/source-to-target cell binding; absent is denied in restore mode. */
-export function isRestoreCellCompatible(env: RestoreModeEnv): boolean {
-  return (
-    typeof env.PROCESSING_CELL === 'string' &&
-    typeof env.RESTORE_SOURCE_CELL === 'string' &&
-    env.PROCESSING_CELL === env.RESTORE_SOURCE_CELL
-  )
-}
-
 /**
  * Refuse an incompatible process boot. No-op outside restore-isolated mode.
  * The web process is the supported drill shape (capabilities deny at the
@@ -80,11 +67,6 @@ export function assertRestoreModeCompatible(
   processKind: RestoreProcessKind,
 ): void {
   if (!isRestoreIsolated(env)) return
-  if (!isRestoreCellCompatible(env)) {
-    throw new Error(
-      '[RESTORE MODE] backup Data Cell does not match PROCESSING_CELL — restore refused',
-    )
-  }
   if (
     typeof env.DATABASE_URL !== 'string' ||
     !isIsolatedRestoreTarget(env.DATABASE_URL, env)
@@ -141,9 +123,9 @@ export function isRailwayPitrDatabaseUrl(databaseUrl: string | undefined): boole
  * Local drills are restricted to exact loopback hostnames. Railway PITR is
  * different: the platform creates a new `<source>-restored-YYYYMMDD-HHMM`
  * sibling in the source environment. A Railway target is accepted only when
- * all platform identity variables exist, the environment is the authoritative
- * `cell-<PROCESSING_CELL>` environment, the operator names a PITR-shaped
- * service, and DATABASE_URL uses that exact service's private Railway DNS.
+ * all platform identity variables exist, the environment is the beta
+ * deployment's environment, the operator names a PITR-shaped service, and
+ * DATABASE_URL uses that exact service's private Railway DNS.
  * Public proxies, the source database, malformed URLs, and partial attestations
  * all fail closed.
  */
@@ -155,15 +137,6 @@ export function isIsolatedRestoreTarget(
     // WHATWG URL keeps the IPv6 brackets ('[::1]') — normalize them away.
     const parsed = new URL(databaseUrl)
     if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
-      return false
-    }
-    // A loopback tunnel is not a separate deployment identity. Bind local and
-    // Railway restore verification to the same deployable beta-cell allowlist
-    // before either hostname shape is considered.
-    if (
-      !nonEmpty(env.PROCESSING_CELL) ||
-      !isBetaDeploymentDataCellId(env.PROCESSING_CELL)
-    ) {
       return false
     }
     const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase()
@@ -182,8 +155,7 @@ export function isIsolatedRestoreTarget(
     ) {
       return false
     }
-    const placement = DATA_CELL_CATALOGUE[env.PROCESSING_CELL].railway
-    if (env.RAILWAY_ENVIRONMENT_NAME !== placement.environment) {
+    if (env.RAILWAY_ENVIRONMENT_NAME !== BETA_RAILWAY_ENVIRONMENT) {
       return false
     }
     if (!isRailwayPitrServiceName(env.RESTORE_DATABASE_SERVICE_NAME)) {

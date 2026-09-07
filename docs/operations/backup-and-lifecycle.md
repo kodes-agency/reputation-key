@@ -81,7 +81,7 @@ cutover mechanism. This procedure uses the PITR sibling described by
 
 **Restore procedure (the only database rollback path, reserved for data loss):**
 
-1. Contain the affected Data Cell: stop public routing, set
+1. Contain the deployment: stop public routing, set
    `BETA_CAPABILITIES_OFF=all`, and scale the cell worker to zero. Record the
    incident/change reference, source cell, exact restore timestamp, active
    40-character release SHA, signed release-manifest SHA-256, source Postgres
@@ -98,10 +98,9 @@ cutover mechanism. This procedure uses the PITR sibling described by
    injected project/environment identity names the authoritative `cell-us`
    environment. Public TCP proxies and the live `Postgres.railway.internal`
    service fail closed.
-4. Export `RESTORE_MODE=isolated`, `RESTORE_SOURCE_CELL`,
-   `PROCESSING_CELL`, `RESTORE_POINT_AT`, `RESTORE_DATABASE_SERVICE_NAME`,
-   `RELEASE_SHA`, and `RELEASE_MANIFEST_SHA256` in the verifier process only.
-   Never make restore variables shared cell variables. Run
+4. Export `RESTORE_MODE=isolated`, `RESTORE_POINT_AT`,
+   `RESTORE_DATABASE_SERVICE_NAME`, `RELEASE_SHA`, and `RELEASE_MANIFEST_SHA256`
+   in the verifier process only. Never make restore variables shared variables. Run
    `pnpm ops:restore-preflight --operator <id>`; it proves target admission and
    migration-journal readability before any mutation.
 5. Apply the current release's deploy migration trio to the sibling
@@ -110,9 +109,8 @@ cutover mechanism. This procedure uses the PITR sibling described by
    the production source or reverse DDL from this workflow.
 6. Run `pnpm ops:restore-verify --operator <id>` first as a dry run. Review and
    retain its canonical aggregate Review report and exact approval request,
-   together with the content-free retention, Google-import,
-   external-effect-authority, and active Data Cell move inventory. Any
-   unresolved move blocks recovery. Follow
+   together with the content-free retention, Google-import, and
+   external-effect-authority inventories. Follow
    [review-lifecycle-recovery-approval](review-lifecycle-recovery-approval.md)
    for independent signing and exact-byte configuration.
 7. The checked-in composition remains inspection-only unless all three
@@ -138,11 +136,11 @@ ops:restore-verify`. The authorized command, in process and without BullMQ,
 8. Re-run the dry run and require all counts to remain zero. Boot a temporary,
    no-public-domain web verifier from the exact signed web image with
    `RESTORE_MODE=isolated` and a service-scoped private sibling URL. Boot
-   refuses any source/public/wrong-cell target; capabilities deny every effect.
+   refuses any source/public target; capabilities deny every effect.
    Verify migration head, tenant isolation/counts, critical reads, and the
    recovery evidence. Never boot a worker in restore mode.
 9. Provision fresh empty cache, queue, and provider Redis services; restored queues are
-   never reused. Stage the sibling/fresh-Redis references for every Data Cell
+   never reused. Stage the sibling/fresh-Redis references for every
    consumer while traffic and effects remain stopped. Do not redrive
    recovery-fenced outbox rows. Set `RECOVERY_CUTOVER_RUN_ID` and
    `RECOVERY_CUTOVER_GENERATION` from step 7 on every sibling consumer. Deploy
@@ -150,7 +148,7 @@ ops:restore-verify`. The authorized command, in process and without BullMQ,
    the global capability stop only after all consumers report the same
    release/config/database generation. A web or worker process connected to a
    Railway PITR sibling refuses normal boot unless that tuple still names the
-   latest completed recovery run in its exact Data Cell.
+   latest completed recovery run.
 10. Reauthorize fenced Google connections, rebuild projections, and reconcile
     current external provider state as new work. Confirm sessions require
     reauthentication, queues contain no restored jobs, source Postgres remains
@@ -159,10 +157,10 @@ ops:restore-verify`. The authorized command, in process and without BullMQ,
     do not delete either during the recovery window.
 
 **Implemented proof.** Unit and real-PostgreSQL integration tests prove target
-admission, wrong-cell refusal, worker refusal, idempotent recovery generation,
+admission, worker refusal, idempotent recovery generation,
 retention reconciliation, restored-authority fencing, and that fenced outbox
 rows cannot be claimed or published. A timed live Railway PITR and cutover is
-still required independently for every Data Cell before it becomes accepting.
+still required before the deployment becomes accepting.
 
 ## 2. Redis durability
 
@@ -327,11 +325,10 @@ the whole sweep.
 
 ## 7. Region placement, encryption, access
 
-- **Region:** the signed Data Cell catalogue is authoritative. Beta has one
-  accepting and deployable cell, `cell-us`, in Railway US West/California with
-  object storage in Railway US West/California (`sjc`). The identifier does not
-  establish a guaranteed city. All 245 supported countries allocate there.
-  `europe` and `global` are denied future identifiers, not beta deployments.
+- **Region:** one deployment, Railway environment `cell-us`, in Railway US
+  West/California with object storage in Railway US West/California (`sjc`).
+  The identifier does not establish a guaranteed city. Every supported country
+  is served there; there is no per-region deployment (`docs/BETA.md` §1).
   Unknown or stale assignments never fall back silently (ADR 0057).
 - **Encryption at rest:** platform-managed — Railway Postgres storage and
   service volumes are encrypted by the platform; OAuth tokens are

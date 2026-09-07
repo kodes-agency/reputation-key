@@ -37,7 +37,6 @@ export type PropertyGoogleBindingInternalView = Readonly<{
   address: string | null
   countryCode: string | null
   timezone: string
-  processingRegion: string | null
   lifecycleState: string
   googleReviewDestination: PropertyGoogleReviewDestination
 }>

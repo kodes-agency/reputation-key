@@ -42,10 +42,9 @@ export type JobOperationalContract = Readonly<{
   runbook: string
 }>
 
-/** Durable, content-free head for one job family in one processing cell. */
+/** Durable, content-free head for one job family. */
 export type JobRuntimeObservation = Readonly<{
   jobName: string
-  cell: string
   handlerRegistered: boolean
   schedulerRegistered: boolean
   lastStartedAt: Date | null
@@ -189,7 +188,6 @@ function invalidObservation(observation: JobRuntimeObservation, now: Date): bool
     observation.oldestWaitingAt,
   ]
   return (
-    observation.cell.trim().length === 0 ||
     !Number.isSafeInteger(observation.deadLetterCount) ||
     observation.deadLetterCount < 0 ||
     dates.some((value) => value !== null && value.getTime() > now.getTime())
@@ -264,7 +262,7 @@ function appendSuccessObjectiveReasons(
 }
 
 /**
- * Derive worker readiness from the declared contract and one durable cell head.
+ * Derive worker readiness from the declared contract and one durable head.
  * A process restart supplies a new `runtimeStartedAt`, while the observation
  * survives; therefore restart does not erase a healthy recent success.
  */

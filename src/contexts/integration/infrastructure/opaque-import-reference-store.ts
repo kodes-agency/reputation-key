@@ -147,7 +147,6 @@ const eligibilitySchema = z.discriminatedUnion('kind', [
     })
     .strict(),
   z.object({ kind: z.literal('active_binding_conflict') }).strict(),
-  z.object({ kind: z.literal('region_unavailable') }).strict(),
   z.object({ kind: z.literal('unavailable') }).strict(),
 ])
 const accountRecordSchema = recordBaseSchema

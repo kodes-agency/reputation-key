@@ -203,39 +203,6 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     expect(decision.reason).toBe('policy_unavailable')
   })
 
-  it('denies a property-scoped interactive request routed to another cell', async () => {
-    const admitPropertyExecution = vi.fn(async () => ({
-      kind: 'deny' as const,
-      reason: 'wrong_cell' as const,
-      localCell: 'europe' as const,
-      targetCell: 'us' as const,
-    }))
-    const policy = createExecutionPolicy(deps({ admitPropertyExecution }))
-
-    const decision = await policy.decide(request({ propertyId: PROP }))
-
-    expect(decision).toMatchObject({ allowed: false, reason: 'wrong_cell' })
-    expect(admitPropertyExecution).toHaveBeenCalledWith(PROP)
-  })
-
-  it('maps unresolved or unavailable routing to a closed cell_unavailable decision', async () => {
-    const policy = createExecutionPolicy(
-      deps({
-        admitPropertyExecution: async () => ({
-          kind: 'deny',
-          reason: 'routing_unavailable',
-          localCell: 'us',
-          targetCell: null,
-        }),
-      }),
-    )
-
-    await expect(policy.decide(request({ propertyId: PROP }))).resolves.toMatchObject({
-      allowed: false,
-      reason: 'cell_unavailable',
-    })
-  })
-
   it('explicit consent selector: active → allow; missing → consent_required', async () => {
     const consent = {
       subjectType: 'property' as const,
@@ -498,22 +465,6 @@ describe('operator principal (BQC-7.5)', () => {
     expect(decision.reason).toBe('unsupported_principal')
   })
 
-  it('denies a registered property-scoped operator in the wrong Data Cell', async () => {
-    const policy = createExecutionPolicy(
-      deps({
-        isRegisteredOperator: () => true,
-        admitPropertyExecution: async () => ({
-          kind: 'deny',
-          reason: 'wrong_cell',
-          localCell: 'europe',
-          targetCell: 'us',
-        }),
-      }),
-    )
-    const decision = await policy.decide(operatorRequest({ propertyId: PROP }))
-    expect(decision).toMatchObject({ allowed: false, reason: 'wrong_cell' })
-  })
-
   it('denies when the declared capability is blocked (org-scoped)', async () => {
     const policy = createExecutionPolicy(deps({ isRegisteredOperator: () => true }))
     const decision = await policy.decide(
@@ -635,48 +586,6 @@ describe('requireExecutionAllowed (BQC-2.4 migration helper)', () => {
         propertyId: propertyId(PROP),
       }),
     ).resolves.toBeUndefined()
-  })
-
-  it('surfaces wrong-cell requests as HTTP 421 and cell outages as 503', async () => {
-    initExecutionPolicy(
-      createExecutionPolicy(
-        deps({
-          admitPropertyExecution: async () => ({
-            kind: 'deny',
-            reason: 'wrong_cell',
-            localCell: 'europe',
-            targetCell: 'us',
-          }),
-        }),
-      ),
-    )
-    await expect(
-      requireExecutionAllowed({
-        actor: orgWideCtx(['property.read']),
-        action: 'property.read',
-        propertyId: propertyId(PROP),
-      }),
-    ).rejects.toMatchObject({ code: 'wrong_cell', status: 421 })
-
-    initExecutionPolicy(
-      createExecutionPolicy(
-        deps({
-          admitPropertyExecution: async () => ({
-            kind: 'deny',
-            reason: 'routing_unavailable',
-            localCell: 'us',
-            targetCell: null,
-          }),
-        }),
-      ),
-    )
-    await expect(
-      requireExecutionAllowed({
-        actor: orgWideCtx(['property.read']),
-        action: 'property.read',
-        propertyId: propertyId(PROP),
-      }),
-    ).rejects.toMatchObject({ code: 'cell_unavailable', status: 503 })
   })
 })
 

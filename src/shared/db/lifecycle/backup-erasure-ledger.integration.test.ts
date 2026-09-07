@@ -1,8 +1,8 @@
 // LIF-01-T15 — the resurrection fence against real PostgreSQL.
 //
-// The failure this file exists to prevent: an Organization is purged, the cell
-// is later restored from a backup taken BEFORE that purge, and the purged
-// Organization's guest feedback is quietly readable again.
+// The failure this file exists to prevent: an Organization is purged, the
+// database is later restored from a backup taken BEFORE that purge, and the
+// purged Organization's guest feedback is quietly readable again.
 //
 // An outer transaction always rolls the proof back, so no ledger entry or
 // tenant fixture leaks into the shared scratch database. That matters more here
@@ -21,7 +21,7 @@ import {
   releaseBackupErasureHold,
   type BackupErasureLedgerAppend,
 } from './backup-erasure-ledger'
-import { assertRestoredCellVerified } from '#/shared/ops/recovery-fence'
+import { assertRestoredDatabaseVerified } from '#/shared/ops/recovery-fence'
 import type { Tx } from '#/shared/outbox/commit'
 
 const db = getDb()
@@ -102,7 +102,6 @@ const entryFor = (fixture: Fixture): BackupErasureLedgerAppend => ({
   effectiveErasureAt: ERASED_AT,
   erasedRowCount: 2,
   evidenceRef: `guest:purge:complete:${fixture.lineage}:r4`,
-  dataCellId: 'us',
 })
 
 /**
@@ -142,7 +141,7 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
         // one under test; a replay of the same phase must not append a second.
         const entryId = await appendBackupErasureLedgerEntry(tx, entryFor(fixture))
         expect(await appendBackupErasureLedgerEntry(tx, entryFor(fixture))).toBe(entryId)
-        const ledger = await readBackupErasureLedger(tx, 'us')
+        const ledger = await readBackupErasureLedger(tx)
         expect(ledger.filter((e) => e.organizationId === fixture.organizationId)).toEqual(
           [
             expect.objectContaining({
@@ -154,17 +153,16 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
           ],
         )
 
-        // The restore rolled the cell back to before the erasure, so the rows
-        // are back.
+        // The restore rolled the database back to before the erasure, so the
+        // rows are back.
         expect(await guestRowCount(tx, fixture.organizationId)).toBe(2)
 
         const replayed = await applyRestoreResurrectionFence(tx, {
-          dataCellId: 'us',
           restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
           replayers: [createGuestBackupErasureReplayer()],
         })
         expect(replayed.verified).toBe(true)
-        expect(() => assertRestoredCellVerified(replayed)).not.toThrow()
+        expect(() => assertRestoredDatabaseVerified(replayed)).not.toThrow()
         expect(replayed.counts.ledgerEntriesReapplied).toBeGreaterThanOrEqual(1)
         expect(replayed.counts.ledgerRowsReErased).toBeGreaterThanOrEqual(1)
         expect(await guestRowCount(tx, fixture.organizationId)).toBe(0)
@@ -177,7 +175,6 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
         // Convergent: a restore that already post-dates the entry re-erases
         // nothing and reports zero, rather than double-counting.
         const converged = await applyRestoreResurrectionFence(tx, {
-          dataCellId: 'us',
           restorePointAt: new Date(ERASED_AT.getTime() + 60_000),
           replayers: [createGuestBackupErasureReplayer()],
         })
@@ -205,13 +202,12 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
         // re-erase what the restore brought back. A partially re-erased restore
         // must never be declared verified.
         const result = await applyRestoreResurrectionFence(tx, {
-          dataCellId: 'us',
           restorePointAt: new Date(ERASED_AT.getTime() - 60_000),
           replayers: [],
         })
         expect(result.verified).toBe(false)
         expect(result.counts.ledgerEntriesUnreplayed).toBeGreaterThanOrEqual(1)
-        expect(() => assertRestoredCellVerified(result)).toThrow(/is not verified/u)
+        expect(() => assertRestoredDatabaseVerified(result)).toThrow(/is not verified/u)
         // And the resurrected rows are still there — the fence did not pretend.
         expect(await guestRowCount(tx, fixture.organizationId)).toBe(2)
 
@@ -233,7 +229,6 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
         const replayers = [createGuestBackupErasureReplayer()]
 
         const held = await applyRestoreResurrectionFence(tx, {
-          dataCellId: 'us',
           restorePointAt,
           replayers,
         })
@@ -250,7 +245,6 @@ describe('backup erasure ledger and restore resurrection fence (LIF-01-T15)', ()
           releasedAt: new Date('2027-03-15T00:00:00.000Z'),
         })
         const released = await applyRestoreResurrectionFence(tx, {
-          dataCellId: 'us',
           restorePointAt,
           replayers,
         })

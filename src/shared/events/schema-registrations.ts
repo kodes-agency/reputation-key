@@ -507,10 +507,6 @@ const propertyCreatedSchema = z.object({
   organizationId: z.string(),
   name: z.string(),
   slug: z.string(),
-  // BQC-4.1: content-free routing fact (ADR 0048) — durable evidence of the
-  // region the property was created with.
-  processingRegion: z.string().optional(),
-  dataCellId: z.enum(['us', 'europe', 'global']).optional(),
 })
 
 // BQC-3.5: registered so the orphan audit facts record with their state

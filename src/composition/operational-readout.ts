@@ -29,9 +29,7 @@ import {
 } from '#/shared/jobs/runtime-observations'
 import { CAPABILITY_POLICY_VERSION } from '#/shared/auth/beta-capabilities'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
-import { ROUTING_POLICY_VERSION } from '#/contexts/property/domain/processing-routing'
 import { createGoogleSourceContentPolicy } from '#/shared/domain/source-content-policy'
-import type { createProcessingRouter } from '#/shared/routing/processing-router'
 import type { OutboxRepository } from '#/shared/outbox'
 import { createContainerShutdown, type ContainerShutdown } from './container-lifecycle'
 import type { Infrastructure } from './infrastructure'
@@ -45,7 +43,6 @@ export type OperationalReadoutInput = Readonly<{
   redis: Redis | undefined
   enableJobs: boolean
   infra: Infrastructure
-  processingRouter: ReturnType<typeof createProcessingRouter>
   /** Identity-owned release and version facts. */
   identity: Readonly<{
     stopPolicyPolling: () => void
@@ -110,7 +107,6 @@ function buildJobRuntimeReport(
     contracts: JOB_OPERATIONAL_CONTRACTS,
     store: createQueueJobRuntimeObservationStore({
       queue: runtimeObservationQueue as JobRuntimeQueueRedisSource,
-      cell: input.env.PROCESSING_CELL,
     }),
     queues: {
       default: input.infra.jobQueue ?? null,
@@ -144,7 +140,6 @@ function buildOperationsSnapshot(
       capabilityPolicy: CAPABILITY_POLICY_VERSION,
       executionPolicy: EXECUTION_POLICY_VERSION,
       policyStore: input.identity.policyStoreVersion,
-      routingPolicy: ROUTING_POLICY_VERSION,
       sourceContentPolicy: createGoogleSourceContentPolicy().policyVersion,
     },
     // notification.missing_for_inbox_item: the query is the notification
@@ -160,9 +155,9 @@ function buildOperationsSnapshot(
 export function buildOperationalReadout(input: OperationalReadoutInput) {
   const opsQueues = openOperationsQueues(input)
   // ARC-03-T15: worker-owned dispatch handles are CONTAINER-owned. The worker
-  // entry point used to build its own quarantine barrier queue, its own
-  // domain-events queue and a SECOND ProcessingRouter, so a process had two
-  // routing models and three queue connections nobody could enumerate.
+  // entry point used to build its own quarantine barrier queue and its own
+  // domain-events queue, so a process had queue connections nobody could
+  // enumerate.
   const jobDispatchWorkerRuntime = Object.freeze({
     /** BQC-3.6 dead-letter barrier queue. Written to, never processed.
      * `maxRetriesPerRequest: null` is deliberate: abandoning a quarantine write
@@ -174,8 +169,6 @@ export function buildOperationalReadout(input: OperationalReadoutInput) {
     /** The outbox relay's publication handle — the same queue the operational
      * read handle observes, so the process opens one connection, not two. */
     domainEventsQueue: opsQueues.domainEvents,
-    /** BQC-4.2: the ONE routing decision model, shared with review enqueue. */
-    processingRouter: input.processingRouter,
   })
   const jobRuntimeReport = buildJobRuntimeReport(input, opsQueues)
   // ARC-03-T6: registered in release order. Identity's persisted policy store

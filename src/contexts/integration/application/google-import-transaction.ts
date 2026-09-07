@@ -1,12 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
-import {
-  isRegionProcessable,
-  ROUTING_POLICY_VERSION,
-} from '#/contexts/property/application/public-api'
-import { resolveRegion } from '#/shared/domain/processing-profile'
+import { googleConnectionId, propertyId } from '#/shared/domain/ids'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
 import type {
   RetryPropertyImportItemInput,
@@ -16,7 +11,6 @@ import type {
   ClaimedImportCandidate,
   GoogleImportReferenceStore,
 } from './ports/google-import-reference-store.port'
-import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import type {
   GoogleImportV2RetryCandidate,
   GoogleImportV2Store,
@@ -116,23 +110,11 @@ export function createGoogleImportTransaction(
   deps: Readonly<{
     store: GoogleImportV2Store
     references: GoogleImportReferenceStore
-    propertyBindingApi: PropertyGoogleBindingPublicApi
     authorizeGoogleImportCommand: GoogleImportCommandAuthorizer
     replayKeys: VersionedHmacKeyring
     clock: () => Date
     logger: LoggerPort
     idGen?: () => string
-    /**
-     * REG-01 gate. Until credential-home brokerage exists, a single Google
-     * credential must not fan out work to more than one Data Cell.
-     */
-    authorizeMultiCellImport?: (
-      input: Readonly<{
-        organizationId: string
-        connectionIds: readonly string[]
-        processingRegions: readonly string[]
-      }>,
-    ) => Promise<boolean>
     /** Explicit request cancellation. Absent means the capability is unavailable. */
     cancelImportSaga?: (organizationId: string, importJobId: string) => Promise<unknown>
   }>,
@@ -342,20 +324,6 @@ export function createGoogleImportTransaction(
           ) {
             return fail('invalid_reference')
           }
-          const resolvedRegion =
-            item.action === 'create'
-              ? item.profile.countryCode
-                ? resolveRegion(item.profile.countryCode)
-                : null
-              : ((
-                  await deps.propertyBindingApi.readInternal(
-                    organizationId(scope.organizationId),
-                    propertyId(item.existingPropertyId!),
-                  )
-                )?.processingRegion ?? null)
-          if (resolvedRegion === null || !isRegionProcessable(resolvedRegion)) {
-            return fail('invalid_reference')
-          }
           return {
             id: idGen(),
             connectionId: item.connectionId,
@@ -377,29 +345,12 @@ export function createGoogleImportTransaction(
             propertyAddress: item.profile.address,
             countryCode: item.profile.countryCode,
             timezone: item.profile.timezone,
-            processingRegion: resolvedRegion,
-            routingPolicyVersion: ROUTING_POLICY_VERSION,
             effectDeadlineAt: new Date(now.getTime() + EFFECT_DEADLINE_MS),
           }
         }),
       )
 
-      const processingRegions = [...new Set(items.map((item) => item.processingRegion))]
-      if (processingRegions.length > 1) {
-        const connectionIds = [...new Set(items.map((item) => item.connectionId))]
-        if (
-          !deps.authorizeMultiCellImport ||
-          !(await deps.authorizeMultiCellImport({
-            organizationId: scope.organizationId,
-            connectionIds,
-            processingRegions,
-          }))
-        ) {
-          return fail('temporarily_unavailable')
-        }
-      }
-
-      // Close routing/profile races before publishing a durable dispatch intent.
+      // Close authorization/profile races before publishing a durable dispatch intent.
       await authorizeEntries(ordered, actor)
       const batches = planGoogleImportSagaBatches(items).map((batch) => ({
         id: idGen(),

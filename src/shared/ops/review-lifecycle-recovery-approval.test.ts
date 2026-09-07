@@ -20,7 +20,6 @@ const request = (): ReviewLifecycleRecoveryApprovalRequest => ({
   target: {
     releaseSha: 'a'.repeat(40),
     releaseManifestSha256: 'b'.repeat(64),
-    dataCellId: 'us',
     restorePointAt: '2026-08-28T09:00:00.000Z',
     restoreDatabaseServiceName: 'Postgres-restored-20260828-0900',
     railwayProjectId: 'project-us',
@@ -110,7 +109,6 @@ describe('Review lifecycle recovery approval', () => {
 
   it.each([
     ['release', { target: { ...request().target, releaseSha: 'e'.repeat(40) } }],
-    ['cell', { target: { ...request().target, dataCellId: 'europe' } }],
     [
       'restore target',
       {

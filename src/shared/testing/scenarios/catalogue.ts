@@ -253,7 +253,6 @@ export type FaultName = keyof typeof FAULTS
 export type RunVersions = Readonly<{
   capabilityPolicy: string
   policyStore: number | null
-  routingPolicy: number
   sourceContentPolicy: number
 }>
 
@@ -342,7 +341,6 @@ export function parseResult(json: string): ScenarioRunRecord {
     typeof monitoring?.points !== 'number' ||
     typeof monitoring?.readErrors !== 'number' ||
     typeof versions?.capabilityPolicy !== 'string' ||
-    typeof versions?.routingPolicy !== 'number' ||
     typeof versions?.sourceContentPolicy !== 'number' ||
     typeof collectors?.redisInfo !== 'string' ||
     collectors?.dbCpuLocks !== 'not-collected-in-this-environment'

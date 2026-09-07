@@ -279,10 +279,6 @@ const READINESS_BLOCKER_FIELDS = Object.freeze([
   // A source operation that never reached terminal may still be running at the
   // provider.
   'pending_source_operations',
-  // An unredeemed, unexpired cross-cell credential grant is a live external
-  // effect. Beta is one logical US Data Cell, so this is expected to be zero;
-  // it is checked rather than assumed.
-  'live_broker_grants',
   // An unexpired discovery handle still addresses provider candidate content.
   // Its 24-hour database-enforced bound makes this drain on its own well
   // inside the recovery window, so blocking here costs nothing and refuses to
@@ -323,10 +319,6 @@ const verifyPurgeReadiness = async (
       (SELECT count(*)::int FROM google_credential_source_operations
         WHERE organization_id = ${request.organizationId}
           AND terminal_at IS NULL) AS pending_source_operations,
-      (SELECT count(*)::int FROM google_credential_broker_replay
-        WHERE organization_id = ${request.organizationId}
-          AND state = 'issued'
-          AND expires_at > ${request.occurredAt}) AS live_broker_grants,
       (SELECT count(*)::int FROM google_import_discovery_records
         WHERE organization_id = ${request.organizationId}
           AND expires_at > ${request.occurredAt}) AS live_discovery_handles
@@ -373,8 +365,6 @@ const PURGE_DELETE_TABLES = Object.freeze([
   'google_import_discovery_records',
   // The crash boundary that can hold an application-encrypted token response.
   'google_oauth_exchange_attempts',
-  // Cross-cell broker grants.
-  'google_credential_broker_replay',
 ] as const)
 
 /**
@@ -382,8 +372,8 @@ const PURGE_DELETE_TABLES = Object.freeze([
  *
  * Two rows are deliberately KEPT and scrubbed in place rather than deleted:
  *
- * - `google_connections` and `google_organization_credential_homes` are
- *   referenced with ON DELETE RESTRICT by `google_disconnect_revoke_attempts`,
+ * - `google_connections` is referenced with ON DELETE RESTRICT by
+ *   `google_disconnect_revoke_attempts`,
  *   which the data-fate authority classifies `recoverable_archive`: the
  *   content-free permit and outcome fact is independently retained evidence
  *   and this phase may not erase it. Deleting the connection would therefore
@@ -446,16 +436,6 @@ const purge = async (
     RETURNING id
   `)
 
-  const scrubbedHomes = await tx.execute(sql`
-    UPDATE google_organization_credential_homes
-    SET changed_by = 'purged',
-        change_ticket = NULL,
-        updated_at = ${request.occurredAt}
-    WHERE organization_id = ${request.organizationId}
-      AND (changed_by <> 'purged' OR change_ticket IS NOT NULL)
-    RETURNING organization_id
-  `)
-
   const scrubbedAttempts = await tx.execute(sql`
     UPDATE google_disconnect_revoke_attempts
     SET credential_binding = NULL,
@@ -483,7 +463,6 @@ const purge = async (
     evidenceRef: evidenceRef('purge', request, [
       deleted,
       scrubbedConnections.rows.length +
-        scrubbedHomes.rows.length +
         scrubbedAttempts.rows.length +
         scrubbedPermits.rows.length,
     ]),

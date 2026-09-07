@@ -53,7 +53,6 @@ describe('PropertyPublicApi', () => {
       repo: createInMemoryPropertyRepo(),
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
       ...runtimeDeps,
-      localCell: 'us',
       staffPublicApi: createStubStaffApi(),
       identityManagerFacts,
     })
@@ -98,13 +97,17 @@ describe('PropertyPublicApi', () => {
       repo,
       clock,
       ...runtimeDeps,
-      localCell: 'us',
       staffPublicApi,
       identityManagerFacts,
     })
 
     const exists = await publicApi.propertyExists(prop.organizationId, prop.id)
     expect(exists).toBe(true)
+    await expect(publicApi.getSourceEpoch(prop.organizationId, prop.id)).resolves.toEqual(
+      {
+        sourceEpoch: prop.sourceEpoch,
+      },
+    )
   })
 
   it('propertyExists returns false when repo does not have the property', async () => {
@@ -117,7 +120,6 @@ describe('PropertyPublicApi', () => {
       repo,
       clock,
       ...runtimeDeps,
-      localCell: 'us',
       staffPublicApi,
       identityManagerFacts,
     })
@@ -147,7 +149,6 @@ describe('PropertyPublicApi', () => {
       repo,
       clock: () => new Date('2026-08-28T00:00:00.000Z'),
       ...runtimeDeps,
-      localCell: 'us',
       staffPublicApi: createStubStaffApi(),
       identityManagerFacts,
     })
@@ -176,7 +177,6 @@ describe('PropertyPublicApi', () => {
       repo,
       clock: () => new Date('2025-01-01'),
       ...runtimeDeps,
-      localCell: 'us',
       staffPublicApi: createStubStaffApi(),
       identityManagerFacts: {
         listActiveManagers: async () => [
@@ -223,7 +223,6 @@ describe('PropertyPublicApi', () => {
       repo,
       clock: () => new Date('2025-01-01'),
       ...runtimeDeps,
-      localCell: 'us',
       staffPublicApi: createStubStaffApi(),
       identityManagerFacts,
     })

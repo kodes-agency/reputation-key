@@ -20,25 +20,12 @@ export type ImportPropertyJobData = JobEnqueueAttribution &
     }>
   }>
 
-export type GoogleImportV2ItemRoutingEnvelope = Readonly<{
-  subject: Readonly<{
-    kind: 'import_item'
-    organizationId: string
-    itemId: string
-  }>
-  cell: 'us' | 'europe' | 'global'
-  region: string
-  workloadClass: 'property.import'
-  routingPolicyVersion: number
-}>
-
 export type GoogleImportV2ItemJobData = Readonly<{
   jobId: string
   organizationId: string
   importJobId: string
   itemId: string
   retryRevision: number
-  routing: GoogleImportV2ItemRoutingEnvelope
 }>
 
 export type GoogleImportV2QueuePort = Readonly<{

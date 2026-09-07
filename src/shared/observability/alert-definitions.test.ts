@@ -113,7 +113,6 @@ function healthy(): MutableSnapshot {
       capabilityPolicy: 'test',
       executionPolicy: 'test-exec',
       policyStore: 1,
-      routingPolicy: 1,
       sourceContentPolicy: 1,
       runtime: 'v22.0.0',
     },
@@ -153,7 +152,6 @@ function healthy(): MutableSnapshot {
 const AUX: AlertAuxReads = {
   retentionFailedSubjects: [],
   policyDenialsByReason: {},
-  routingBlockedByReason: {},
   betaFeedbackTriage: {
     monitorAvailable: true,
     deliveredUnresolvedCount: 0,

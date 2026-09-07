@@ -46,7 +46,6 @@ import { createGrantAccessLookup } from './adapters/grant-access-lookup.adapter'
 import { getActiveConsent } from './repositories/policy-consent.repository'
 import { writePolicyDecision } from './repositories/policy-decision-audit.repository'
 import { hasActiveMerchantAiConsent } from './repositories/merchant-ai-authorization.repository'
-import type { DataCellExecutionDecision } from '#/shared/routing/data-cell-execution-fence'
 
 const MERCHANT_AI_PURPOSES = new Set([
   'ai.analyze',
@@ -91,7 +90,6 @@ export function initPersistedCapabilityPolicyStore(deps: {
   env: CapabilityPolicyEnv
   clock: () => Date
   logger: PolicyStoreLogger
-  admitPropertyExecution?: (propertyId: string) => Promise<DataCellExecutionDecision>
 }): PolicyStoreHandle {
   const envStore = createEnvCapabilityPolicyStore(deps.env)
   const persisted = createPersistedPolicyStore({
@@ -148,9 +146,6 @@ export function initPersistedCapabilityPolicyStore(deps: {
       onAuditError: (err) =>
         deps.logger.warn({ err }, 'policy decision audit write failed'),
       isRegisteredOperator: (id) => operatorIdentities.has(id),
-      ...(deps.admitPropertyExecution
-        ? { admitPropertyExecution: deps.admitPropertyExecution }
-        : {}),
     }),
   )
 

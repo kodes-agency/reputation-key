@@ -39,7 +39,6 @@ describe('backup erasure ledger schema (LIF-01-T15)', () => {
       'erased_row_count',
       'evidence_ref',
       'hold_reference',
-      'data_cell_id',
       'created_at',
     ])
   })
@@ -72,7 +71,6 @@ describe('backup erasure ledger schema (LIF-01-T15)', () => {
       'context',
       'evidence_ref',
       'hold_reference',
-      'data_cell_id',
     ])
   })
 

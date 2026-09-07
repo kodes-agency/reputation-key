@@ -93,7 +93,6 @@ function harness(
         ledger.push(entry)
         return 'ledger-entry-id'
       },
-      dataCellId: 'us',
       now: () => NOW,
     },
   }
@@ -202,7 +201,6 @@ describe('advance property erase job (LIF-01-T19)', () => {
         effectiveErasureAt: NOW,
         erasedRowCount: 7,
         evidenceRef: `property-erase:complete:${AUTHORITY_A}`,
-        dataCellId: 'us',
       },
     ])
     expect(result.ledgerEntryId).toBe('ledger-entry-id')

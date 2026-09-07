@@ -33,7 +33,6 @@ import {
 import { buildConsumerEvent } from './envelope'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 export type OutboxRelay = Readonly<{
   /** Poll once: claim, publish, mark. Called on a schedule. */
@@ -49,22 +48,6 @@ export type RelayConfig = Readonly<{
   leaseDurationMs: number
   /** Identifier for this relay instance (for lease ownership). */
   relayId: string
-  /**
-   * Cell owning the database/process that committed the claimed fact. The
-   * production worker always supplies it; optional only for isolated tests and
-   * rolling compatibility with the pre-source-cell envelope.
-   */
-  sourceCell?: DataCellId
-  /**
-   * Optional lifecycle fence evaluated immediately before queue publication.
-   * Property-scoped facts return freshly resolved routing evidence; a boolean
-   * is retained for propertyless/legacy lifecycle fences.
-   */
-  admitEvent?: (
-    event: UnpublishedEvent,
-  ) => Promise<
-    boolean | Readonly<{ dataCellId: DataCellId; routingPolicyVersion: number }>
-  >
 }>
 
 /** Renew the lease on the unprocessed remainder after this many publishes. */
@@ -126,22 +109,10 @@ export function createOutboxRelay(
     }
 
     try {
-      const admission = cfg.admitEvent ? await cfg.admitEvent(event) : true
-      if (admission === false) {
-        logger.info(
-          { eventType: event.eventType },
-          'Outbox publication denied by lifecycle fence',
-        )
-        return false
-      }
       // BQC-3.7: no payload validation here — the dispatcher validates (and
       // quarantines poison via 3.6 UnrecoverableError). The envelope carries
       // the stored payload plus envelope-grade metadata from the row.
-      const envelope = buildConsumerEvent(
-        event,
-        typeof admission === 'object' ? admission : undefined,
-        cfg.sourceCell,
-      )
+      const envelope = buildConsumerEvent(event)
 
       // Use the event UUID as the BullMQ job ID for deduplication.
       // If the job already exists (re-publish after a crash), BullMQ

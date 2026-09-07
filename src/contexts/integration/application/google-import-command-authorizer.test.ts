@@ -41,9 +41,6 @@ const connection = (overrides: Partial<GoogleConnection> = {}): GoogleConnection
   lifecycleVersion: 3,
   accessVersion: 4,
   credentialGeneration: 5,
-  credentialHomeCellId: 'us',
-  credentialHomePolicyVersion: 2,
-  credentialHomeAuthorityGeneration: 1,
   encryptionKeyId: 'v1',
   lastSuccessfulSyncAt: null,
   statusReason: null,
@@ -137,7 +134,6 @@ function setup(
     address: null,
     countryCode: 'US',
     timezone: 'America/New_York',
-    processingRegion: 'us',
     lifecycleState: 'active',
   }))
   const authorize = createGoogleImportCommandAuthorizer({
@@ -171,7 +167,7 @@ describe('authorizeGoogleImportCommand', () => {
     })
 
     expect(decide).toHaveBeenCalledTimes(2)
-    expect(getAccessToken).toHaveBeenCalledWith(actor.organizationId, connectionId, [])
+    expect(getAccessToken).toHaveBeenCalledWith(actor.organizationId, connectionId)
     expect(result).toMatchObject({
       ok: true,
       authorization: {
@@ -727,7 +723,6 @@ describe('authorizeGoogleImportCommand', () => {
         address: null,
         countryCode: 'US',
         timezone: 'America/New_York',
-        processingRegion: 'us',
         lifecycleState: 'active',
       })
 

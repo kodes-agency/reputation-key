@@ -159,7 +159,6 @@ async function runFullErase(tx: Tx, fixture: Fixture): Promise<string> {
     contributors,
     runInTransaction: async <T>(work: (inner: Tx) => Promise<T>) => work(tx),
     appendLedgerEntry: appendBackupErasureLedgerEntry,
-    dataCellId: 'us' as const,
     now: () => NOW,
   }
   // Pass 1 schedules, pass 2 crosses the irreversible boundary, pass 3 erases

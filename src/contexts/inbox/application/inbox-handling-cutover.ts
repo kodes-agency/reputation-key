@@ -336,12 +336,8 @@ export function classifyInboxLegacyRelationship(
 
 export const INBOX_HANDLING_CUTOVER_REPORT_VERSION = 'inbox-handling-cutover/v1' as const
 
-/** Beta runs exactly one logical US Data Cell. */
-const INBOX_HANDLING_CUTOVER_DATA_CELL = 'cell-us'
-
 export type InboxHandlingCutoverReportPayload = Readonly<{
   version: typeof INBOX_HANDLING_CUTOVER_REPORT_VERSION
-  dataCellId: typeof INBOX_HANDLING_CUTOVER_DATA_CELL
   organizationId: string
   generatedAt: string
   totals: Readonly<Record<'total' | InboxLegacyClassification, number>>
@@ -374,7 +370,6 @@ export type InboxHandlingCutoverReport = Readonly<{
 }>
 
 export type InboxHandlingCutoverReportInput = Readonly<{
-  dataCellId: typeof INBOX_HANDLING_CUTOVER_DATA_CELL
   organizationId: string
   generatedAt: Date
   relationships: readonly InboxLegacyRelationship[]
@@ -387,7 +382,7 @@ export type InboxHandlingCutoverReportInput = Readonly<{
   digestSha256: (canonicalJson: string) => string
 }>
 
-/** Byte order, not host locale order, so two cells produce the same digest. */
+/** Byte order, not host locale order, so every runtime produces the same digest. */
 const compareUtf8 = (left: string, right: string): number =>
   Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'))
 
@@ -402,9 +397,6 @@ function countBy<Key extends string>(
 export function canonicalInboxHandlingCutoverReport(
   input: InboxHandlingCutoverReportInput,
 ): InboxHandlingCutoverReport {
-  if (input.dataCellId !== INBOX_HANDLING_CUTOVER_DATA_CELL) {
-    throw new Error('Inbox cutover evidence is scoped to the one US Data Cell')
-  }
   if (Number.isNaN(input.generatedAt.getTime())) {
     throw new Error('Inbox cutover report generatedAt must be a valid instant')
   }
@@ -446,7 +438,6 @@ export function canonicalInboxHandlingCutoverReport(
 
   const payload = {
     version: INBOX_HANDLING_CUTOVER_REPORT_VERSION,
-    dataCellId: INBOX_HANDLING_CUTOVER_DATA_CELL,
     organizationId: input.organizationId,
     generatedAt: input.generatedAt.toISOString(),
     totals,

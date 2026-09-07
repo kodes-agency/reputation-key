@@ -84,8 +84,8 @@ None. Identity context does not subscribe to events from other contexts.
 the canonical invitation row and is absent from the domain event. During the
 bounded v1→v2 rolling migration, PostgreSQL may add only the literal
 `[redacted]` to the v1 durable shape so pre-cutover parsers remain compatible;
-v2 removes the key. The Data Cell cutover separately reports private retained
-values and content-free v1 compatibility copies; privacy sealing does not
+v2 removes the key. The invitation cutover report records private retained values
+and content-free v1 compatibility copies; privacy sealing does not
 authorize removing the v1 parser. The retained-job scrub, verification,
 contraction barrier, and rollback boundary are owned by
 `docs/operations/identity-invitation-fact-cutover.md`.

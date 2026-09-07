@@ -4,12 +4,7 @@
 // Pure — ID and time are inputs, no side effects.
 
 import { Result, err, ok } from '#/shared/domain'
-import {
-  DEFAULT_PROPERTY_GOOGLE_PROFILE,
-  DEFAULT_PROPERTY_ROUTING,
-  type Property,
-  type PropertyId,
-} from './types'
+import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property, type PropertyId } from './types'
 import { propertyError, type PropertyError } from './errors'
 import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
 import {
@@ -19,7 +14,6 @@ import {
   validateTimezone,
   normalizeCountryCode,
 } from './rules'
-import { resolvePropertyRouting } from './processing-routing'
 import { isGoogleResourceSuffix } from './google-binding-contract'
 import { verifiedGoogleReviewDestination } from './google-review-destination'
 
@@ -37,7 +31,7 @@ export type BuildPropertyInput = Readonly<{
   profileConfirmedAt?: Date | null
   profileConfirmedBy?: string | null
   googleReviewUri?: string | null
-  /** Optional ISO country; when set, processing region is resolved (BQR-3.5). */
+  /** Optional ISO country describing the Property's business location. */
   countryCode?: string | null
   countrySource?: string
   now: Date
@@ -88,14 +82,6 @@ export const buildProperty = (
 
   return Result.combine([nameResult, slug, tz, countryResult]).map(
     ([validName, validSlug, validTz, countryCode]): Property => {
-      const routing = resolvePropertyRouting({
-        countryCode,
-        countrySource:
-          input.countrySource ??
-          (countryCode ? 'manual' : DEFAULT_PROPERTY_ROUTING.countrySource),
-        now: input.now,
-      })
-
       return {
         id: input.id,
         organizationId: input.organizationId,
@@ -129,7 +115,12 @@ export const buildProperty = (
         lifecycleStateChangedAt: input.now,
         purgeScheduledFor: null,
         lifecycleInitiatedBy: null,
-        ...routing,
+        countryCode,
+        countrySource:
+          input.countrySource ?? (countryCode ? 'manual' : 'organization_default'),
+        timezoneSource: 'legacy',
+        timezoneResolvedAt: null,
+        sourceEpoch: 0,
         responsibleManagerRevision: 1,
         // Property responsibility is explicit. Creation/access provenance is
         // not silently converted into a workflow-notification assignment.

@@ -105,7 +105,6 @@ describe('reactivateOrganization', () => {
 
   it('refuses when a probe cannot answer rather than treating silence as ready', async () => {
     const readiness = createOrganizationReactivationReadiness({
-      data_cell_health: async () => ({ satisfied: true, detailCode: 'ready' }),
       responsible_manager: async () => {
         throw new Error('lookup unavailable')
       },

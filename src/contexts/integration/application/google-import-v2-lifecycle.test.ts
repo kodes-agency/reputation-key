@@ -108,7 +108,7 @@ describe('Google import v2 lifecycle', () => {
       itemId: EXPIRED_ITEM_ID,
       retryRevision: 3,
       outcomeCode: 'temporarily_unavailable',
-      retainProtectedRouting: false,
+      retainRetryState: false,
       now: NOW,
     })
     expect(fixture.store.purgeParent).toHaveBeenCalledWith({
@@ -183,7 +183,7 @@ describe('Google import v2 lifecycle', () => {
       itemId: EXPIRED_ITEM_ID,
       retryRevision: 3,
       outcomeCode: 'authorization_changed',
-      retainProtectedRouting: false,
+      retainRetryState: false,
       now: NOW,
     })
     expect(fixture.store.scrubLifecycleItems).toHaveBeenCalledWith({
@@ -267,7 +267,7 @@ describe('Google import v2 lifecycle', () => {
       itemId: EXPIRED_ITEM_ID,
       retryRevision: 3,
       outcomeCode: 'user_cancelled',
-      retainProtectedRouting: false,
+      retainRetryState: false,
       now: NOW,
     })
 

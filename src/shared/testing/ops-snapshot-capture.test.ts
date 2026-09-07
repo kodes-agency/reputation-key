@@ -103,7 +103,6 @@ function fakeSnapshot(overrides: Partial<OperationsSnapshot> = {}): OperationsSn
       capabilityPolicy: 'cap-1',
       executionPolicy: 'exec-1',
       policyStore: 7,
-      routingPolicy: 1,
       sourceContentPolicy: 3,
       runtime: 'v22.0.0',
     },

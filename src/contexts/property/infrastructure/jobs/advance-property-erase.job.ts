@@ -25,10 +25,7 @@ import type {
   PropertyEraseCommandStore,
 } from '../../application/ports/property-erase-command-store.port'
 import type { PropertyEraseContributor } from '../../application/ports/property-erase-contributor.port'
-import type {
-  BackupErasureDataCellId,
-  BackupErasureLedgerAppend,
-} from '#/shared/db/lifecycle/backup-erasure-ledger'
+import type { BackupErasureLedgerAppend } from '#/shared/db/lifecycle/backup-erasure-ledger'
 import type { Tx } from '#/shared/outbox/commit'
 
 export type AdvancePropertyEraseDeps = Readonly<{
@@ -39,7 +36,6 @@ export type AdvancePropertyEraseDeps = Readonly<{
   /** One transaction per pass; a throw leaves no partial receipt. */
   runInTransaction<T>(work: (tx: Tx) => Promise<T>): Promise<T>
   appendLedgerEntry(tx: Tx, entry: BackupErasureLedgerAppend): Promise<string>
-  dataCellId: BackupErasureDataCellId
   now: () => Date
 }>
 
@@ -190,7 +186,6 @@ async function purgeContexts(
     effectiveErasureAt: now,
     erasedRowCount: rowsErased,
     evidenceRef: `property-erase:complete:${authority.id}`,
-    dataCellId: deps.dataCellId,
   })
 
   return {

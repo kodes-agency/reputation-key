@@ -18,7 +18,7 @@
 //   3. --apply: only when a separately reviewed Review cutover executor is
 //      injected, runs review purge, Google-import lifecycle, and the static
 //      retention registry IN-PROCESS (never BullMQ), then atomically rotates
-//      the cell recovery generation and fences restored authority/outbox work.
+//      the recovery generation and fences restored authority/outbox work.
 //      Normal composition is inspection-only and refuses before mutation.
 //   4. Re-scans and proves every bounded backlog/authority count is zero.
 //   5. Prints retention + recovery evidence and the controlled cutover rules.
@@ -30,7 +30,6 @@
 
 import {
   isIsolatedRestoreTarget,
-  isRestoreCellCompatible,
   isRestoreIsolated,
   RESTORE_ISOLATED_LOG_LINE,
 } from '#/shared/config/restore-mode'
@@ -102,7 +101,6 @@ export type RestoreReviewLifecycleAuthority =
 export type RestoreReviewLifecycleRuntimeTarget = Readonly<{
   releaseSha: string
   releaseManifestSha256: string
-  dataCellId: 'us' | 'europe' | 'global'
   restorePointAt: Date
   restoreDatabaseServiceName: string
   railwayProjectId: string | null
@@ -116,8 +114,6 @@ export type RestoreVerifyDeps = Readonly<{
   env: Readonly<{
     RESTORE_MODE?: string
     DATABASE_URL: string
-    PROCESSING_CELL?: string
-    RESTORE_SOURCE_CELL?: string
     RESTORE_POINT_AT?: string
     RELEASE_SHA?: string
     RELEASE_MANIFEST_SHA256?: string
@@ -148,7 +144,7 @@ export type RestoreVerifyDeps = Readonly<{
   sweepRetentionBacklog: () => Promise<void>
   /** Content-free inventory of restored auth and external-effect authority. */
   inspectRecoveryFence: () => Promise<RecoveryFenceInventory>
-  /** Atomically rotate and apply the cell recovery generation. */
+  /** Atomically rotate and apply the recovery generation. */
   applyRecoveryFence: (input: RecoveryFenceInput) => Promise<RecoveryFenceResult>
 }>
 
@@ -169,18 +165,10 @@ function recoveryInput(
   if (Number.isNaN(restorePointAt.getTime())) {
     return 'REFUSED: RESTORE_POINT_AT must be a valid ISO-8601 instant.'
   }
-  if (
-    env.PROCESSING_CELL !== 'us' &&
-    env.PROCESSING_CELL !== 'europe' &&
-    env.PROCESSING_CELL !== 'global'
-  ) {
-    return 'REFUSED: PROCESSING_CELL must be a known Data Cell.'
-  }
   if (!env.RESTORE_DATABASE_SERVICE_NAME) {
     return 'REFUSED: RESTORE_DATABASE_SERVICE_NAME must identify the exact PITR sibling.'
   }
   return {
-    dataCellId: env.PROCESSING_CELL,
     releaseSha: env.RELEASE_SHA as string,
     releaseManifestSha256: env.RELEASE_MANIFEST_SHA256 as string,
     restorePointAt,
@@ -206,19 +194,11 @@ function restoreDrillRefused(deps: RestoreVerifyDeps, io: OperatorIO): boolean {
     return true
   }
 
-  if (!isRestoreCellCompatible(deps.env)) {
-    io.err(
-      'REFUSED: RESTORE_SOURCE_CELL must exactly match PROCESSING_CELL — ' +
-        'a backup may never be verified or cut over in another Data Cell.',
-    )
-    return true
-  }
-
   if (!isIsolatedRestoreTarget(deps.env.DATABASE_URL, deps.env)) {
     io.err(
       'REFUSED: DATABASE_URL is not an admitted restore target — use exact ' +
         'loopback for a local drill or the named Railway PITR sibling private ' +
-        'hostname in its matching Data Cell environment.',
+        'hostname in the beta deployment environment.',
     )
     return true
   }

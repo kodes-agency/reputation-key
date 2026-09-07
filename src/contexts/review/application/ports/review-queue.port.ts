@@ -5,7 +5,6 @@
 // Consumer (sync-property-reviews.job) re-brands via id constructors.
 // Using string here avoids serialization overhead and keeps BullMQ dashboard readable.
 import type { JobEnqueueAttribution } from '#/shared/jobs/delayed-execution-gate'
-import type { RoutingEnvelope } from '#/shared/routing/processing-router'
 
 export type SyncPropertyReviewsJobData = JobEnqueueAttribution &
   Readonly<{
@@ -17,12 +16,6 @@ export type SyncPropertyReviewsJobData = JobEnqueueAttribution &
     sourceEpoch?: number
     /** Content-free active snapshot run identity. */
     runId?: string
-    /**
-     * BQC-4.2: content-free routing envelope stamped at enqueue. Telemetry
-     * only — the worker re-resolves routing at dispatch; a payload region is
-     * never accepted as authority (ADR 0048).
-     */
-    routing?: RoutingEnvelope
   }>
 
 /** Identifier-only GBP push work; raw provider resources stay in Redis. */
@@ -36,7 +29,6 @@ export type TargetedGoogleReviewFetchJobData = JobEnqueueAttribution &
     referenceRef: string | null
     /** Identifier of the durable push-accepted outbox fact. */
     deliveryId: string
-    routing?: RoutingEnvelope
   }>
 
 export type ReviewProviderJobData =

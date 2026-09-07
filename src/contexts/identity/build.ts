@@ -36,14 +36,9 @@ import { updateOrganization } from './application/use-cases/update-organization'
 import type { AuthSessionPort } from './application/ports/auth-session.port'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { createInvitedRegistrationStore } from './infrastructure/invited-registration-store'
-import type { DataCellExecutionDecision } from '#/shared/routing/data-cell-execution-fence'
 import { initPersistedCapabilityPolicyStore } from './infrastructure/policy-store-init'
 import { createPolicyAdminOps } from './application/use-cases/policy-admin'
-import {
-  createPolicyDiagnostic,
-  createRegionDiagnostic,
-  type PropertyRegionRecord,
-} from '#/shared/auth/policy-diagnostic'
+import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
 import { createCapabilityRefusalExplainer } from '#/shared/governance/capability-refusal'
 import { createCapabilityRefusalReaders } from './infrastructure/repositories/capability-refusal.repository'
 import {
@@ -106,7 +101,6 @@ import {
 } from './domain/organization-lifecycle'
 import { createOrganizationExportRepository } from './infrastructure/organization-export.repository'
 import { createIdentityOrganizationExportContributor } from './infrastructure/identity-organization-export-contributor'
-import type { RoutingDecision } from '#/shared/routing/processing-router'
 import { createManagerMembershipRepository } from './infrastructure/repositories/manager-membership.repository'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import {
@@ -201,31 +195,17 @@ type IdentityContextDeps = Readonly<{
   /** Logger supplied by the process composition boundary. */
   logger: LoggerPort
   /**
-   * BQC-2.2/2.7/4.4 capability-policy wiring. Identity owns the persisted
-   * policy store (readiness), the least-privilege admin ops, and the operator
-   * audit sink; the composition root supplies env plus the shared routing
-   * primitives (region loader + router decision) as injected deps.
+   * BQC-2.2/2.7 capability-policy wiring. Identity owns the persisted policy
+   * store (readiness), the least-privilege admin ops, and the operator audit
+   * sink; the composition root supplies the environment policy.
    */
   policy: Readonly<{
     env: CapabilityPolicyEnv
-    /** Org-scoped loader of the property's persisted region facts (BQC-4.4). */
-    loadPropertyRegion: (
-      organizationId: string,
-      propertyId: string,
-    ) => Promise<PropertyRegionRecord | null>
     /** Suspension recovery bypasses the suspended property gate, then proves tenancy here. */
     propertyBelongsToOrganization: (
       organizationId: string,
       propertyId: string,
     ) => Promise<boolean>
-    /** The ProcessingRouter's fresh routing decision for a property. */
-    resolveRouting: (propertyId: string) => Promise<RoutingDecision>
-    /** The deployment's processing cell (PROCESSING_CELL). */
-    cell: string
-    /** Fresh process-local Property Data Cell admission for every policy boundary. */
-    admitPropertyExecution: (propertyId: string) => Promise<DataCellExecutionDecision>
-    /** The accepting cell's catalogue provider reference — never a URL. */
-    providerRef: string | null
   }>
   cancelGoogleImportsForUser?: (organizationId: string, userId: string) => Promise<void>
   prepareGoogleConnectorDeparture?: (
@@ -446,7 +426,7 @@ function buildOrganizationLifecycleComposition(
         })
       : null
   // LIF-01-T18. Reactivation is an AccountAdmin command, but its readiness
-  // spans four other contexts, so it exists only when every probe is bound.
+  // spans three other contexts, so it exists only when every probe is bound.
   // An unbound reactivation is not a degraded reactivation — it would be a
   // reactivation that cannot see what it is resuming.
   const reactivationProbes = deps.organizationLifecycle?.reactivationProbes
@@ -564,7 +544,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     env: deps.policy.env,
     clock: deps.clock,
     logger: deps.logger,
-    admitPropertyExecution: deps.policy.admitPropertyExecution,
   })
   const { organizationLifecycle, runtime: organizationLifecycleRuntime } =
     buildOrganizationLifecycleComposition(deps, {
@@ -634,15 +613,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       listAllCapabilities,
       policyVersion: EXECUTION_POLICY_VERSION,
       explainPolicyDecision: (input) => policyDiagnostic(input),
-      // BQC-4.4: content-free region diagnostic — the org-scoped loader treats
-      // cross-org properties as missing; the router reports the fresh decision;
-      // cell + provider ref are logical identifiers, never URLs.
-      getRegionDiagnostic: createRegionDiagnostic({
-        loadPropertyRegion: deps.policy.loadPropertyRegion,
-        resolveRouting: deps.policy.resolveRouting,
-        cell: deps.policy.cell,
-        providerRef: deps.policy.providerRef,
-      }),
       refreshPolicy: () => policyStore.refresh(),
       commandStore: policyAdminCommandStore,
       loadOrgPolicyState: (orgId) => loadOrgPolicyState(deps.db, orgId),

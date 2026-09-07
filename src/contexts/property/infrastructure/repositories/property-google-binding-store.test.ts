@@ -6,11 +6,7 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import {
-  DEFAULT_PROPERTY_GOOGLE_PROFILE,
-  DEFAULT_PROPERTY_ROUTING,
-  type Property,
-} from '../../domain/types'
+import { DEFAULT_PROPERTY_GOOGLE_PROFILE, type Property } from '../../domain/types'
 import { propertyDeleted, propertyGoogleBindingChanged } from '../../domain/events'
 import {
   PROPERTY_OPERATION_RECEIPT_TTL_MS,
@@ -52,7 +48,11 @@ function makeProperty(idSuffix: string, overrides: Partial<Property> = {}): Prop
     lifecycleInitiatedBy: null,
     responsibleManagerRevision: 1,
     responsibilityNeededSince: NOW,
-    ...DEFAULT_PROPERTY_ROUTING,
+    countryCode: null,
+    countrySource: 'organization_default',
+    timezoneSource: 'legacy',
+    timezoneResolvedAt: null,
+    sourceEpoch: 0,
     ...overrides,
   }
 }
@@ -228,7 +228,6 @@ describe.sequential('Property Google binding store', () => {
         timezone: 'America/New_York',
         profileSource: 'tenant_confirmed',
         profileConfirmedAt: CONFIRMED_AT,
-        processingRegion: null,
         lifecycleState: 'active',
         deletedAt: null,
         googleReviewDestination: {

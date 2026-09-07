@@ -20,7 +20,6 @@ const processing: ImportProgressDto = {
     imported: 0,
     relinked: 0,
     already_exists: 0,
-    region_unavailable: 0,
     failed: 0,
     cancelled: 0,
   },

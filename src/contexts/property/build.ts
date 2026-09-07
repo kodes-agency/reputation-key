@@ -33,7 +33,6 @@ import {
 } from './application/use-cases/property-responsible-managers'
 import { isEligiblePropertyManager } from './application/property-manager-eligibility'
 import { propertyId } from '#/shared/domain/ids'
-import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 import {
   archiveProperty,
   disconnectPropertyGoogleBinding,
@@ -45,8 +44,6 @@ type PropertyContextDeps = Readonly<{
   repo: PropertyRepository
   clock: () => Date
   idGen: () => string
-  /** REG-01: process-local repository/command-store cell fence. */
-  localCell: DataCellId
   staffPublicApi: StaffPublicApi
   identityManagerFacts: IdentityManagerFactsPublicApi
   /**
@@ -68,9 +65,9 @@ type PropertyContextDeps = Readonly<{
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
   const idGen = () => propertyId(deps.idGen())
   // BQC-3.5: every property state mutation + fact commits atomically here.
-  const commandStore = createAtomicPropertyCommandStore(deps.db, deps.localCell)
-  const bindingApi = createPropertyGoogleBindingStore(deps.db, deps.localCell)
-  const lifecycleStore = createPropertyLifecycleCommandStore(deps.db, deps.localCell)
+  const commandStore = createAtomicPropertyCommandStore(deps.db)
+  const bindingApi = createPropertyGoogleBindingStore(deps.db)
+  const lifecycleStore = createPropertyLifecycleCommandStore(deps.db)
   const responsibleManagerRepo = createPropertyResponsibleManagerRepository(deps.db)
   const managerEligibility = {
     identityPublicApi: deps.identityManagerFacts,
@@ -198,15 +195,9 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         sourceEpoch: p.sourceEpoch,
       }
     },
-    // BQC-4.1: content-free routing fact for fail-closed consumers (review
-    // sync asserts an approved cell before any external effect).
-    getProcessingRegion: async (orgId: OrganizationId, pid: PropertyId) => {
-      const p = await deps.repo.findById(orgId, pid)
-      return p?.dataCellId ?? null
-    },
-    getProcessingScope: async (orgId: OrganizationId, pid: PropertyId) => {
-      const p = await deps.repo.findById(orgId, pid)
-      return p ? { processingRegion: p.dataCellId, sourceEpoch: p.sourceEpoch } : null
+    getSourceEpoch: async (orgId: OrganizationId, pid: PropertyId) => {
+      const property = await deps.repo.findById(orgId, pid)
+      return property ? { sourceEpoch: property.sourceEpoch } : null
     },
     findIdsByGoogleConnection: async (
       connectionId: GoogleConnectionId,

@@ -142,7 +142,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       getPropertyNames: async () => [],
       findByGbpLocationId: async () => null,
       findBySlug: async () => null,
-      getProcessingRegion: async () => 'us',
+      getSourceEpoch: async () => ({ sourceEpoch: 0 }),
       findIdsByGoogleConnection: async () => [],
       findGoogleNotificationAnchor: async () => null,
       clearGoogleConnectionRef: async () => {},

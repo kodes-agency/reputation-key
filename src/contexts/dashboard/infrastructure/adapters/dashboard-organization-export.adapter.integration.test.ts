@@ -31,8 +31,7 @@ async function seedMilestones(): Promise<string> {
        organization_id, step, first_completed_at, created_at
      ) VALUES
        ($1, 'published_portal', TIMESTAMPTZ '2026-08-03T10:00:00Z', NOW()),
-       ($1, 'google_connection', TIMESTAMPTZ '2026-08-01T10:00:00Z', NOW()),
-       ($1, 'imported_property', TIMESTAMPTZ '2026-08-02T10:00:00Z', NOW())`,
+       ($1, 'google_connection', TIMESTAMPTZ '2026-08-01T10:00:00Z', NOW())`,
     [organizationId],
   )
   return organizationId
@@ -97,7 +96,6 @@ describe.sequential('Dashboard Organization Export contributor', () => {
     // Inserted out of order; exported in UTF-8 byte order of the step.
     expect(csvLines.slice(1).map((line) => line.split(',').slice(0, 3))).toEqual([
       ['setup_checklist_milestone', 'google_connection', '2026-08-01T10:00:00.000000Z'],
-      ['setup_checklist_milestone', 'imported_property', '2026-08-02T10:00:00.000000Z'],
       ['setup_checklist_milestone', 'published_portal', '2026-08-03T10:00:00.000000Z'],
     ])
 
@@ -109,7 +107,6 @@ describe.sequential('Dashboard Organization Export contributor', () => {
     expect(Object.keys(payload.records)).toEqual(['setup_checklist_milestone'])
     expect(payload.records.setup_checklist_milestone!.map(({ step }) => step)).toEqual([
       'google_connection',
-      'imported_property',
       'published_portal',
     ])
   })

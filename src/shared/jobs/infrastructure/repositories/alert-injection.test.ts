@@ -92,7 +92,6 @@ function realEvaluationHarness() {
       capabilityPolicy: 'bqc74-test',
       executionPolicy: 'bqc74-test',
       policyStore: () => null,
-      routingPolicy: 1,
       sourceContentPolicy: 1,
     },
     readGuestObservationLoss: async () => ({
@@ -106,7 +105,7 @@ function realEvaluationHarness() {
       ratingDisposition: 'not_applicable_durable',
     }),
   })
-  const auxReader = createAlertAuxReader({ db, quarantineQueue: null, logger })
+  const auxReader = createAlertAuxReader({ db, logger })
   const handler = createHealthCheckHandler({
     dbHealthy: async () => true,
     redisHealthy: async () => true,
