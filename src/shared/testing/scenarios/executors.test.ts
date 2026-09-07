@@ -103,7 +103,7 @@ function snapshotWithWaiting(waiting: number): OperationsSnapshot {
       domainEventsQueueName: 'domain-events',
       heartbeat: { at: null, ageMs: null, stale: true },
     },
-    queues: [{ name: 'default', waiting, active: 0, delayed: 0, failed: 0, paused: 0 }],
+    queues: [{ name: 'default', waiting, active: 0, delayed: 0, failed: 0 }],
     db: { pool: null, migrationVersion: null },
     cache: { tenant: { hits: 0, misses: 0, evictions: 0, size: 0 } },
     release: { sha: 'test-sha' },

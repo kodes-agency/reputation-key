@@ -42,7 +42,7 @@ export const QUEUE_NAMES = [
 ] as const
 
 /** Queue-depth row states (readAllQueueDepths). */
-const QUEUE_DEPTH_STATES = ['waiting', 'active', 'delayed', 'failed', 'paused'] as const
+const QUEUE_DEPTH_STATES = ['waiting', 'active', 'delayed', 'failed'] as const
 
 /** Reply publication_state — the DB CHECK constraint set (review.schema). */
 export const PUBLICATION_STATES = [

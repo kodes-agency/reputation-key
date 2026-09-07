@@ -14,7 +14,6 @@ describe('readQueueDepth', () => {
         active: 1,
         delayed: 2,
         failed: 4,
-        paused: 0,
       }),
     }
     await expect(readQueueDepth('default', queue)).resolves.toEqual({
@@ -23,14 +22,12 @@ describe('readQueueDepth', () => {
       active: 1,
       delayed: 2,
       failed: 4,
-      paused: 0,
     })
     expect(queue.getJobCounts).toHaveBeenCalledWith(
       'waiting',
       'active',
       'delayed',
       'failed',
-      'paused',
     )
   })
 
@@ -44,7 +41,6 @@ describe('readQueueDepth', () => {
       active: 0,
       delayed: 0,
       failed: 0,
-      paused: 0,
     })
   })
 })
@@ -67,7 +63,6 @@ describe('readAllQueueDepths', () => {
         active: 0,
         delayed: 0,
         failed: 0,
-        paused: 0,
       },
     ])
   })

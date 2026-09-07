@@ -7,13 +7,12 @@ export type QueueDepth = Readonly<{
   active: number
   delayed: number
   failed: number
-  paused: number
 }>
 
 /** Minimal surface of BullMQ Queue used by depth reads (easy to mock). */
 export type QueueCountsPort = Readonly<{
   getJobCounts: (
-    ...types: Array<'waiting' | 'active' | 'delayed' | 'failed' | 'paused'>
+    ...types: Array<'waiting' | 'active' | 'delayed' | 'failed'>
   ) => Promise<Partial<Record<string, number>>>
 }>
 
@@ -22,20 +21,13 @@ export async function readQueueDepth(
   queue: QueueCountsPort | null | undefined,
 ): Promise<QueueDepth | null> {
   if (!queue) return null
-  const counts = await queue.getJobCounts(
-    'waiting',
-    'active',
-    'delayed',
-    'failed',
-    'paused',
-  )
+  const counts = await queue.getJobCounts('waiting', 'active', 'delayed', 'failed')
   return {
     name,
     waiting: counts.waiting ?? 0,
     active: counts.active ?? 0,
     delayed: counts.delayed ?? 0,
     failed: counts.failed ?? 0,
-    paused: counts.paused ?? 0,
   }
 }
 

@@ -90,9 +90,7 @@ function fakeSnapshot(overrides: Partial<OperationsSnapshot> = {}): OperationsSn
       domainEventsQueueName: 'domain-events',
       heartbeat: { at: new Date(T0).toISOString(), ageMs: 1000, stale: false },
     },
-    queues: [
-      { name: 'default', waiting: 7, active: 2, delayed: 0, failed: 1, paused: 0 },
-    ],
+    queues: [{ name: 'default', waiting: 7, active: 2, delayed: 0, failed: 1 }],
     db: {
       pool: { max: 10, totalCount: 4, idleCount: 3, waitingCount: 0 },
       migrationVersion: 17,

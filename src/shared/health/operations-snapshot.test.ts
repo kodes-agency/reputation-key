@@ -118,7 +118,6 @@ function fakeQueue(waiting: number) {
       active: 0,
       delayed: 0,
       failed: 0,
-      paused: 0,
     })),
     getJobs: vi.fn(async () => []),
   }

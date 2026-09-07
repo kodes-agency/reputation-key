@@ -68,31 +68,6 @@ export type JobRuntimeObservationStore = JobRuntimeObservationSink &
     read(jobName: string): Promise<StoredJobRuntimeObservation | null>
   }>
 
-export type JobRuntimeQueueRedisSource = Readonly<{
-  client: Promise<unknown>
-}>
-
-/** Adapt BullMQ's existing Queue connection; no second Redis client is opened. */
-export function createQueueJobRuntimeObservationStore(
-  input: Readonly<{
-    queue: JobRuntimeQueueRedisSource
-  }>,
-): JobRuntimeObservationStore {
-  const redis = {
-    hset: async (key: string, ...fields: string[]) =>
-      ((await input.queue.client) as JobRuntimeRedisPort).hset(key, ...fields),
-    hgetall: async (key: string) =>
-      ((await input.queue.client) as JobRuntimeRedisPort).hgetall(key),
-    set: async (key: string, value: string, mode: 'PX', ttlMs: number) =>
-      ((await input.queue.client) as JobRuntimeRedisPort).set(key, value, mode, ttlMs),
-    get: async (key: string) =>
-      ((await input.queue.client) as JobRuntimeRedisPort).get(key),
-    del: async (key: string) =>
-      ((await input.queue.client) as JobRuntimeRedisPort).del(key),
-  } satisfies JobRuntimeRedisPort
-  return createJobRuntimeObservationStore({ redis })
-}
-
 function safeSegment(value: string): string {
   if (!/^[a-zA-Z0-9._-]+$/.test(value)) {
     throw new Error(`invalid job-runtime key segment '${value}'`)

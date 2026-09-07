@@ -85,6 +85,25 @@ export function createJobQueue(name: string): Queue | undefined {
 }
 
 /**
+ * A dedicated, tracked connection to the JOB Redis for modules that need raw
+ * commands against the queue store (job-runtime observations). BullMQ 6 no
+ * longer exposes a Queue's client, and REDIS_URL may be a different host from
+ * QUEUE_REDIS_URL in production, so this must not borrow the cache client.
+ */
+export function createJobRedisConnection(): Redis | undefined {
+  const env = getEnv()
+  const redisUrl = getJobRedisUrl(env)
+  if (!redisUrl) return undefined
+  const connection = new Redis(redisUrl, {
+    commandTimeout: JOB_QUEUE_COMMAND_TIMEOUT_MS,
+    connectTimeout: JOB_QUEUE_COMMAND_TIMEOUT_MS,
+    maxRetriesPerRequest: 1,
+  })
+  connectionStore().add(connection)
+  return connection
+}
+
+/**
  * Create the worker-owned publication barrier queue.
  *
  * Unlike request/relay producers, a terminal handler must not settle merely
