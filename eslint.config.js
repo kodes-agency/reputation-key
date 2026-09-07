@@ -23,6 +23,22 @@ const localModule = { module: { origin: 'local' } }
 const rootedElements = (descriptors) =>
   descriptors.map((descriptor) => ({ ...descriptor, partialMatch: false }))
 
+// Named target sets keep the policy rows readable; every row that could reach a
+// shared area before the Phase 4 collapse reaches the same areas now.
+const CONTEXT = ['domain', 'application']
+const UI = ['components', 'ui-support']
+const SHARED_CORE = ['shared', 'shared-auth', 'shared-domain', 'shared-governance']
+const SHARED_BROWSER = [
+  'shared',
+  'shared-domain',
+  'shared-governance',
+  'shared-health',
+  'shared-jobs',
+  'shared-queries',
+]
+const SHARED_SERVER = [...SHARED_BROWSER, 'shared-auth']
+const SHARED_ALL = [...SHARED_SERVER, 'shared-db', 'shared-events']
+
 export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -122,6 +138,7 @@ export default tseslint.config(
         { type: 'shared-queries', pattern: 'src/shared/queries/**' },
         { type: 'shared-health', pattern: 'src/shared/health/**' },
         { type: 'shared-governance', pattern: 'src/shared/governance/**' },
+        { type: 'shared-events', pattern: 'src/shared/events/**' },
         { type: 'test-helpers', pattern: 'src/shared/testing/**' },
         { type: 'test-helpers', pattern: 'src/test-fixtures/**' },
         { type: 'test-helpers', pattern: 'test-fixtures/**' },
@@ -136,18 +153,37 @@ export default tseslint.config(
         { type: 'shared', pattern: 'src/shared/**' },
       ]),
       'boundaries/files': [
-        { category: 'context-build', pattern: ['src/contexts/*/build.ts', 'src/contexts/*/build-*.ts'] },
-        { category: 'shared-outbox-runtime', pattern: ['src/shared/outbox/relay.ts', 'src/shared/outbox/dispatcher.ts', 'src/shared/outbox/event-adapter.ts'] },
-        { category: 'composition-root', pattern: ['src/composition.ts', 'src/composition/**/*.ts', 'src/bootstrap.ts'] },
+        {
+          category: 'context-build',
+          pattern: ['src/contexts/*/build.ts', 'src/contexts/*/build-*.ts'],
+        },
+        {
+          category: 'shared-outbox-runtime',
+          pattern: [
+            'src/shared/outbox/relay.ts',
+            'src/shared/outbox/dispatcher.ts',
+            'src/shared/outbox/event-adapter.ts',
+          ],
+        },
+        {
+          category: 'composition-root',
+          pattern: ['src/composition.ts', 'src/composition/**/*.ts', 'src/bootstrap.ts'],
+        },
         { category: 'start-entry', pattern: 'src/start.ts' },
         { category: 'router-entry', pattern: 'src/router.tsx' },
-        { category: 'browser-entry', pattern: ['src/client.tsx', 'src/instrument.client.ts'] },
+        {
+          category: 'browser-entry',
+          pattern: ['src/client.tsx', 'src/instrument.client.ts'],
+        },
         { category: 'generated-router', pattern: 'src/routeTree.gen.ts' },
         { category: 'ambient-types', pattern: 'src/vite-env.d.ts' },
         { category: 'api-route', pattern: 'src/routes/api/**' },
         { category: 'deployable-containers', pattern: 'src/composition/deployables.ts' },
         { category: 'stylesheet', pattern: 'src/**/*.css' },
-        { category: 'story-file', pattern: ['src/**/*.stories.ts', 'src/**/*.stories.tsx'] },
+        {
+          category: 'story-file',
+          pattern: ['src/**/*.stories.ts', 'src/**/*.stories.tsx'],
+        },
       ],
     },
     rules: {
@@ -155,63 +191,267 @@ export default tseslint.config(
         'error',
         {
           default: 'disallow',
-          message: 'Architectural boundary violated. See src/contexts/CONTEXT.md "Dependency rules".',
+          message:
+            'Architectural boundary violated. See src/contexts/CONTEXT.md "Dependency rules".',
           policies: [
             // Context, route and UI layers.
             { from: elementType('domain'), allow: { to: elementType('shared-domain') } },
-            { from: elementType('application'), allow: { to: elementTypes('domain', 'application', 'shared', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            { from: elementType('infrastructure'), allow: { to: elementTypes('domain', 'application', 'shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            { from: elementType('server'), allow: { to: elementTypes('domain', 'application', 'shared', 'shared-auth', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            { from: elementType('server'), allow: { to: fileCategory('composition-root') } },
-            { from: fileCategory('context-build'), allow: { to: elementTypes('domain', 'application', 'infrastructure', 'server', 'shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            { from: fileCategory('context-build'), allow: { to: fileCategory('context-build') } },
-            { from: elementType('context-ui'), allow: { to: elementTypes('application', 'shared', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            { from: elementType('routes'), allow: { to: elementTypes('server', 'application', 'components', 'context-ui', 'shared', 'shared-auth', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries', 'ui-support') } },
-            { from: elementType('components'), allow: { to: elementTypes('components', 'context-ui', 'shared', 'shared-auth', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries', 'application', 'server', 'ui-support') } },
-            { from: elementType('ui-support'), allow: { to: elementTypes('ui-support', 'shared', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            // Seven load-bearing shared areas plus the generic catch-all.
-            { from: elementType('shared-domain'), allow: { to: elementType('shared-domain') } },
-            { from: elementType('shared-db'), allow: { to: elementTypes('shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance') } },
-            { from: elementType('shared-auth'), allow: { to: elementTypes('shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance') } },
-            { from: elementType('shared-jobs'), allow: { to: elementTypes('shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs') } },
-            { from: elementType('shared-health'), allow: { to: elementTypes('shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-health', 'shared-jobs') } },
-            { from: elementType('shared-queries'), allow: { to: elementTypes('shared', 'shared-domain', 'shared-queries') } },
-            { from: elementType('shared-governance'), allow: { to: elementTypes('shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance') } },
-            { from: elementType('shared'), allow: { to: elementTypes('shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            // shared/events owns the generic shared area's domain-event edge.
-            { from: elementType('shared'), allow: { to: elementType('domain') } },
+            {
+              from: elementType('application'),
+              allow: { to: elementTypes(...CONTEXT, ...SHARED_BROWSER, 'shared-events') },
+            },
+            {
+              from: elementType('infrastructure'),
+              allow: { to: elementTypes(...CONTEXT, ...SHARED_ALL) },
+            },
+            {
+              from: elementType('server'),
+              allow: { to: elementTypes(...CONTEXT, ...SHARED_SERVER, 'shared-events') },
+            },
+            {
+              from: elementType('server'),
+              allow: { to: fileCategory('composition-root') },
+            },
+            {
+              from: fileCategory('context-build'),
+              allow: {
+                to: elementTypes(...CONTEXT, 'infrastructure', 'server', ...SHARED_ALL),
+              },
+            },
+            {
+              from: fileCategory('context-build'),
+              allow: { to: fileCategory('context-build') },
+            },
+            {
+              from: elementType('context-ui'),
+              allow: { to: elementTypes('application', ...SHARED_BROWSER) },
+            },
+            {
+              from: elementType('routes'),
+              allow: {
+                to: elementTypes(
+                  ...UI,
+                  'server',
+                  'application',
+                  'context-ui',
+                  ...SHARED_SERVER,
+                ),
+              },
+            },
+            {
+              from: elementType('components'),
+              allow: {
+                to: elementTypes(
+                  ...UI,
+                  'context-ui',
+                  'application',
+                  'server',
+                  ...SHARED_SERVER,
+                ),
+              },
+            },
+            {
+              from: elementType('ui-support'),
+              allow: { to: elementTypes('ui-support', ...SHARED_BROWSER) },
+            },
+            // Seven load-bearing shared areas plus the generic catch-all. Only shared/events
+            // reaches a context's domain (its *events* modules, per the block below); the
+            // browser-reachable queries area reaches nothing else in shared.
+            {
+              from: elementType('shared-domain'),
+              allow: { to: elementType('shared-domain') },
+            },
+            {
+              from: elementType('shared-db'),
+              allow: { to: elementTypes(...SHARED_CORE, 'shared-db') },
+            },
+            {
+              from: elementType('shared-auth'),
+              allow: { to: elementTypes(...SHARED_CORE, 'shared-db') },
+            },
+            {
+              from: elementType('shared-jobs'),
+              allow: {
+                to: elementTypes(
+                  ...SHARED_CORE,
+                  'shared-db',
+                  'shared-events',
+                  'shared-health',
+                  'shared-jobs',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-health'),
+              allow: {
+                to: elementTypes(
+                  ...SHARED_CORE,
+                  'shared-db',
+                  'shared-health',
+                  'shared-jobs',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-queries'),
+              allow: { to: elementType('shared-queries') },
+            },
+            {
+              from: elementType('shared-governance'),
+              allow: { to: elementTypes(...SHARED_CORE, 'shared-db') },
+            },
+            {
+              from: elementType('shared'),
+              allow: {
+                to: elementTypes(
+                  ...SHARED_CORE,
+                  'shared-db',
+                  'shared-events',
+                  'shared-health',
+                  'shared-jobs',
+                  'shared-queries',
+                ),
+              },
+            },
+            {
+              from: elementType('shared-events'),
+              allow: { to: elementTypes('domain', 'shared', 'shared-domain') },
+            },
             // Test helpers and process entry points.
-            { from: elementType('test-helpers'), allow: { to: elementTypes('domain', 'application', 'shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries', 'test-helpers') } },
-            { from: elementType('test-helpers'), allow: { to: fileCategory('composition-root') } },
-            { from: elementType('top-level'), allow: { to: elementTypes('domain', 'application', 'infrastructure', 'shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            { from: elementType('top-level'), allow: { to: fileCategory('composition-root') } },
-            { from: fileCategory('composition-root'), allow: { to: elementTypes('domain', 'application', 'infrastructure', 'shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            { from: fileCategory('composition-root'), allow: { to: fileCategory(['composition-root', 'context-build']) } },
-            { from: fileCategory('start-entry'), allow: { to: elementTypes('server', 'shared', 'shared-auth', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            { from: fileCategory('router-entry'), allow: { to: elementTypes('components', 'ui-support', 'shared', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            { from: fileCategory('router-entry'), allow: { to: fileCategory('generated-router') } },
-            { from: fileCategory('browser-entry'), allow: { to: fileCategory('browser-entry') } },
+            {
+              from: elementType('test-helpers'),
+              allow: { to: elementTypes(...CONTEXT, ...SHARED_ALL, 'test-helpers') },
+            },
+            {
+              from: elementType('test-helpers'),
+              allow: { to: fileCategory('composition-root') },
+            },
+            {
+              from: elementType('top-level'),
+              allow: { to: elementTypes(...CONTEXT, 'infrastructure', ...SHARED_ALL) },
+            },
+            {
+              from: elementType('top-level'),
+              allow: { to: fileCategory('composition-root') },
+            },
+            {
+              from: fileCategory('composition-root'),
+              allow: { to: elementTypes(...CONTEXT, 'infrastructure', ...SHARED_ALL) },
+            },
+            {
+              from: fileCategory('composition-root'),
+              allow: { to: fileCategory(['composition-root', 'context-build']) },
+            },
+            {
+              from: fileCategory('start-entry'),
+              allow: { to: elementTypes('server', ...SHARED_SERVER) },
+            },
+            {
+              from: fileCategory('router-entry'),
+              allow: { to: elementTypes(...UI, ...SHARED_BROWSER) },
+            },
+            {
+              from: fileCategory('router-entry'),
+              allow: { to: fileCategory('generated-router') },
+            },
+            {
+              from: fileCategory('browser-entry'),
+              allow: { to: fileCategory('browser-entry') },
+            },
             { from: fileCategory('browser-entry'), allow: { to: elementType('shared') } },
-            { from: fileCategory('api-route'), allow: { to: fileCategory('composition-root') } },
-            { from: elementType('runtime-plugin'), allow: { to: elementTypes('shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries') } },
-            { from: elementType('runtime-plugin'), allow: { to: fileCategory('composition-root') } },
+            {
+              from: fileCategory('api-route'),
+              allow: { to: fileCategory('composition-root') },
+            },
+            {
+              from: elementType('runtime-plugin'),
+              allow: { to: elementTypes(...SHARED_ALL) },
+            },
+            {
+              from: elementType('runtime-plugin'),
+              allow: { to: fileCategory('composition-root') },
+            },
             // Repository tooling.
-            { from: elementType('script-ci'), allow: { to: elementTypes('application', 'domain', 'shared', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries', 'test-helpers') } },
-            { from: elementType('script-operator'), allow: { to: elementTypes('domain', 'application', 'infrastructure', 'shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries', 'test-helpers') } },
-            { from: elementType('script-operator'), allow: { to: fileCategory(['composition-root', 'context-build']) } },
-            { from: elementType('script-tooling'), allow: { to: elementTypes('domain', 'application', 'infrastructure', 'shared', 'shared-auth', 'shared-db', 'shared-domain', 'shared-governance', 'shared-health', 'shared-jobs', 'shared-queries', 'test-helpers', 'script-operator', 'e2e-harness') } },
-            { from: elementType('script-tooling'), allow: { to: fileCategory(['composition-root', 'context-build']) } },
-            // Narrow runtime and composition seams.
+            {
+              from: elementType('script-ci'),
+              allow: { to: elementTypes(...CONTEXT, ...SHARED_BROWSER, 'test-helpers') },
+            },
+            {
+              from: elementType('script-operator'),
+              allow: {
+                to: elementTypes(
+                  ...CONTEXT,
+                  'infrastructure',
+                  ...SHARED_ALL,
+                  'test-helpers',
+                ),
+              },
+            },
+            {
+              from: elementType('script-operator'),
+              allow: { to: fileCategory(['composition-root', 'context-build']) },
+            },
+            {
+              from: elementType('script-tooling'),
+              allow: {
+                to: elementTypes(
+                  ...CONTEXT,
+                  'infrastructure',
+                  ...SHARED_ALL,
+                  'test-helpers',
+                  'script-operator',
+                  'e2e-harness',
+                ),
+              },
+            },
+            {
+              from: elementType('script-tooling'),
+              allow: { to: fileCategory(['composition-root', 'context-build']) },
+            },
+            // Narrow runtime and composition seams. The relay may not reach shared-auth.
             { disallow: { to: fileCategory('shared-outbox-runtime') } },
-            { from: elementTypes('shared', 'top-level', 'test-helpers'), allow: { to: fileCategory('shared-outbox-runtime') } },
-            { from: fileCategory('shared-outbox-runtime'), disallow: { to: localModule } },
-            { from: fileCategory('shared-outbox-runtime'), allow: { to: elementTypes('shared', 'shared-db', 'shared-domain', 'shared-governance', 'shared-jobs') } },
-            { from: fileCategory('shared-outbox-runtime'), disallow: { to: fileCategory('shared-outbox-runtime') } },
+            {
+              from: elementTypes('shared', 'top-level', 'test-helpers'),
+              allow: { to: fileCategory('shared-outbox-runtime') },
+            },
+            {
+              from: fileCategory('shared-outbox-runtime'),
+              disallow: { to: localModule },
+            },
+            {
+              from: fileCategory('shared-outbox-runtime'),
+              allow: {
+                to: elementTypes(
+                  'shared',
+                  'shared-db',
+                  'shared-domain',
+                  'shared-events',
+                  'shared-governance',
+                  'shared-jobs',
+                ),
+              },
+            },
+            {
+              from: fileCategory('shared-outbox-runtime'),
+              disallow: { to: fileCategory('shared-outbox-runtime') },
+            },
             { disallow: { to: fileCategory('deployable-containers') } },
-            { from: elementTypes('top-level', 'test-helpers'), allow: { to: fileCategory('deployable-containers') } },
-            { from: elementType('script-operator'), allow: { to: fileCategory('deployable-containers') } },
-            { from: elementTypes('routes', 'components', 'router-entry'), allow: { to: fileCategory('stylesheet') } },
-            { from: fileCategory('story-file'), allow: { to: elementType('story-fixtures') } },
+            {
+              from: elementTypes('top-level', 'test-helpers'),
+              allow: { to: fileCategory('deployable-containers') },
+            },
+            {
+              from: elementType('script-operator'),
+              allow: { to: fileCategory('deployable-containers') },
+            },
+            {
+              from: elementTypes('routes', 'components', 'router-entry'),
+              allow: { to: fileCategory('stylesheet') },
+            },
+            {
+              from: fileCategory('story-file'),
+              allow: { to: elementType('story-fixtures') },
+            },
           ],
         },
       ],
@@ -600,11 +840,7 @@ export default tseslint.config(
 
   // ─── Test files: relaxed boundary rules ────────────────────────────
   {
-    files: [
-      'src/**/*.test.ts',
-      'src/**/*.test.tsx',
-      'src/test-setup.ts',
-    ],
+    files: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/test-setup.ts'],
     rules: {
       'boundaries/dependencies': 'off',
       'boundaries/no-unknown-files': 'off',

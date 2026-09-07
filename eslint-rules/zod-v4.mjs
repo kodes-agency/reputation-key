@@ -1,6 +1,20 @@
 const DEPRECATED_FORMATS = new Set([
-  'base64', 'cidr', 'cuid', 'cuid2', 'date', 'datetime', 'duration', 'email',
-  'emoji', 'ip', 'jwt', 'nanoid', 'time', 'ulid', 'url', 'uuid',
+  'base64',
+  'cidr',
+  'cuid',
+  'cuid2',
+  'date',
+  'datetime',
+  'duration',
+  'email',
+  'emoji',
+  'ip',
+  'jwt',
+  'nanoid',
+  'time',
+  'ulid',
+  'url',
+  'uuid',
 ])
 const PINNED = 'zod/v4'
 
