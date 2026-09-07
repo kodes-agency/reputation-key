@@ -21,7 +21,7 @@ import {
   type NotificationChannel,
   type NotificationPreference,
   type NotificationUserSettings,
-} from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/application/public-api'
 import { NotificationsCategoryRow } from './notifications-category-row'
 import { CATEGORY_COPY } from './notifications-type-rows'
 import {

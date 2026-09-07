@@ -56,5 +56,5 @@ One BullMQ job per user per event (not per notification row). If an event produc
 
 - ADR 0010 — Activity Context: BullMQ Event Delivery
 - Notification context (Phase 16.1 in plan.md)
-- Activity context CONTEXT.md: `src/contexts/activity/CONTEXT.md`
+- Feed context guide: `src/contexts/feed/CONTEXT.md`
 - BullMQ infrastructure: `src/shared/jobs/queue.ts`, `src/shared/jobs/worker.ts`

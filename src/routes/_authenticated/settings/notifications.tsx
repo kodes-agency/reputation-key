@@ -8,7 +8,7 @@ import {
   getNotificationUserSettingsFn,
   updateNotificationPreferenceFn,
   updateNotificationUserSettingsFn,
-} from '#/contexts/notification/server/notifications'
+} from '#/contexts/feed/server/notifications'
 import { NotificationsSettingsPage } from '#/components/features/settings'
 import { notificationPropertyScopeKey } from '#/components/features/settings/notification-property-selection'
 import { notificationKeys } from '#/shared/queries/query-keys'

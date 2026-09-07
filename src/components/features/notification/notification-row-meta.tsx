@@ -10,7 +10,7 @@ import { StarRating } from '#/components/ui/star-rating'
 import {
   formatWaitingAge,
   type NotificationPayload,
-} from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/application/public-api'
 
 type Props = Readonly<{
   payload: NotificationPayload

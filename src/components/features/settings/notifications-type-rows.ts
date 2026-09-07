@@ -3,7 +3,7 @@
 // copy so historical rows remain readable, even when they are absent from
 // settings and filters. Category ordering and exposure live in the domain;
 // only wording lives here.
-import type { NotificationCategory } from '#/contexts/notification/application/public-api'
+import type { NotificationCategory } from '#/contexts/feed/application/public-api'
 
 export type NotificationCategoryCopy = Readonly<{
   label: string

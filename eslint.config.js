@@ -183,9 +183,9 @@ export default tseslint.config(
           type: 'server',
           pattern: 'src/contexts/*/server/**',
         },
-        // BQC-5.1: the activity context keeps root-level ports/ and queries/
-        // dirs — they ARE application concerns; classifying them enforces the
-        // rules. BQC-5.2 owns the physical layout alignment.
+        // BQC-5.1: the feed context keeps root-level ports/ and queries/ dirs —
+        // they ARE application concerns; classifying them enforces the rules.
+        // BQC-5.2 owns the physical layout alignment.
         {
           type: 'application',
           pattern: 'src/contexts/*/ports/**',
@@ -1660,8 +1660,6 @@ export default tseslint.config(
       'src/components/ui/**',
       'src/components/features/identity/member-directory/invite-member-form.tsx',
       'src/components/features/identity/member-directory/member-table.tsx',
-      'src/components/features/organization/organization-settings-form.tsx',
-      'src/components/features/portal/portal-form/edit-portal-form.tsx',
       'src/components/features/portal/link-tree/link-tree.tsx',
       'src/components/features/portal/link-tree/sortable-category.tsx',
       'src/components/layout/manager-sidebar.tsx',

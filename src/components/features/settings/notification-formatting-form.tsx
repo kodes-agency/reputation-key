@@ -4,11 +4,11 @@ import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
-import type { NotificationUserSettings } from '#/contexts/notification/application/public-api'
+import type { NotificationUserSettings } from '#/contexts/feed/application/public-api'
 import {
   notificationUserSettingsDto,
   type NotificationUserSettingsInput,
-} from '#/contexts/notification/application/dto/notification-user-settings.dto'
+} from '#/contexts/feed/application/dto/notification-user-settings.dto'
 
 export type NotificationSettingsUpdate = Readonly<{
   data: NotificationUserSettingsInput

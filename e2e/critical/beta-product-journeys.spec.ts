@@ -398,7 +398,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     }
 
     const emailDenial = await callServerFnExpectError(page, {
-      file: 'src/contexts/notification/server/notifications.ts',
+      file: 'src/contexts/feed/server/notifications.ts',
       exportName: 'updateNotificationPreferenceFn',
       data: {
         propertyId: seed.p3PropertyId,
@@ -460,7 +460,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     for (const propertyId of [seed.p3PropertyId]) {
       const emailPreferenceDenial = await callServerFnExpectError(page, {
-        file: 'src/contexts/notification/server/notifications.ts',
+        file: 'src/contexts/feed/server/notifications.ts',
         exportName: 'updateNotificationPreferenceFn',
         data: {
           propertyId,

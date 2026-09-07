@@ -50,7 +50,7 @@
   ],
   "ignoreExports": [
     {
-      "file": "src/contexts/activity/domain/recent-activity-replay-fact.ts",
+      "file": "src/contexts/feed/domain/recent-activity-replay-fact.ts",
       "exports": ["RECENT_ACTIVITY_REPLAY_SOURCE_KINDS"]
     },
     {
@@ -105,11 +105,11 @@
       ]
     },
     {
-      "file": "src/contexts/notification/application/portal-health-notification.ts",
+      "file": "src/contexts/feed/application/portal-health-notification.ts",
       "exports": ["isPortalHealthReason", "isPortalHealthStatus"]
     },
     {
-      "file": "src/contexts/activity/infrastructure/outbox-consumers.ts",
+      "file": "src/contexts/feed/infrastructure/activity-outbox-consumers.ts",
       "exports": [
         "DURABLE_OPERATIONAL_ACTION_HISTORY_EVENT_TYPES",
         "DURABLE_RECENT_ACTIVITY_EVENT_TYPES"
@@ -120,7 +120,7 @@
       "exports": ["PARTIAL_OFFBOARDING_FINDINGS"]
     },
     {
-      "file": "src/contexts/activity/server/activity.ts",
+      "file": "src/contexts/feed/server/activity.ts",
       "exports": [
         "exportOperationalActionHistoryFn",
         "listOperationalActionHistoryFn",
@@ -204,7 +204,7 @@
       ]
     },
     {
-      "file": "src/contexts/notification/application/public-api.ts",
+      "file": "src/contexts/feed/application/public-api.ts",
       "exports": ["NOTIFICATION_CATEGORIES", "notificationScopeForType"]
     },
     {
@@ -275,11 +275,11 @@
       "exports": ["member", "organization", "session", "account", "verification"]
     },
     {
-      "file": "src/contexts/*/domain/{errors,*-errors}.ts",
+      "file": "src/contexts/*/domain/*errors.ts",
       "exports": ["isActivityError", "isLeaderboardError", "isMetricError"]
     },
     {
-      "file": "src/contexts/activity/server/activity.ts",
+      "file": "src/contexts/feed/server/activity.ts",
       "exports": ["getOrgActivityFn"]
     },
     {
@@ -472,7 +472,7 @@
         "reason": "This is the exhaustive-switch-over-a-closed-union archetype: eight sibling arms, each a guard plus an object literal, maximum nesting depth 2. I measured where the 38 cognitive points come from \u2014 33 of them are the +2/+3 nesting penalty applied to the single `if` inside each arm, not genuine interle"
       },
       {
-        "files": ["src/contexts/activity/infrastructure/outbox-consumers.ts"],
+        "files": ["src/contexts/feed/infrastructure/activity-outbox-consumers.ts"],
         "functions": ["mapRecentActivityFact"],
         "maxCyclomatic": 45,
         "reason": "cyclomatic=41 comes entirely from 40 sibling `case` arms of an exhaustive switch over the closed set of durable source-event types; cognitive=5 proves it is flat, not nested \u2014 each arm is an independent, trivially readable object literal, and the `default` arm throws on anything unregistered. Extrac"

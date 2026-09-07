@@ -55,13 +55,12 @@ export type ResourceScope =
 export type BetaPosture = 'core' | 'non_core' | 'blocked'
 
 export type EntryPointOwner =
-  | 'activity'
   | 'ai'
+  | 'feed'
   | 'guest'
   | 'identity'
   | 'inbox'
   | 'integration'
-  | 'notification'
   | 'portal'
   | 'property'
   | 'reporting'
@@ -430,8 +429,8 @@ const INTEGRATION = 'src/contexts/integration/server'
 const REVIEW = 'src/contexts/review/server'
 const INBOX = 'src/contexts/inbox/server'
 const REPORTING = 'src/contexts/reporting/server'
-const NOTIFICATION = 'src/contexts/notification/server'
-const ACTIVITY = 'src/contexts/activity/server'
+const NOTIFICATION = 'src/contexts/feed/server'
+const ACTIVITY = 'src/contexts/feed/server'
 const STAFF = 'src/contexts/staff/server'
 const PORTAL = 'src/contexts/portal/server'
 const GUEST = 'src/contexts/guest/server'
@@ -2690,7 +2689,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'reconcile-missing-notifications',
-    'src/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job.ts',
+    'src/contexts/feed/infrastructure/jobs/reconcile-missing-notifications.job.ts',
     'system:notification.reconcile',
     'none',
     'tenant_cross',
@@ -2902,7 +2901,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'project-recent-activity',
-    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
+    'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
     'system:activity.record',
     'none',
     'organization',
@@ -2910,7 +2909,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'insert-activity-log',
-    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
+    'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
     'system:activity.record',
     'none',
     'organization',
@@ -2921,7 +2920,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'insert-notification',
-    'src/contexts/notification/infrastructure/jobs/insert-notification.job.ts',
+    'src/contexts/feed/infrastructure/jobs/insert-notification.job.ts',
     'system:notification.insert',
     'none',
     'property',
@@ -2929,7 +2928,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'urgent-email',
-    'src/contexts/notification/infrastructure/jobs/urgent-email.job.ts',
+    'src/contexts/feed/infrastructure/jobs/urgent-email.job.ts',
     'system:notification.email_urgent',
     'notification.send_email',
     'property',
@@ -2941,7 +2940,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'digest-notification',
-    'src/contexts/notification/infrastructure/jobs/digest-notification.job.ts',
+    'src/contexts/feed/infrastructure/jobs/digest-notification.job.ts',
     'system:notification.email_digest',
     'notification.send_email',
     'tenant_cross',
@@ -3031,7 +3030,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.outbox-consumers',
-    'src/contexts/notification/infrastructure/outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/notification-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3043,7 +3042,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.identity-account-outbox-consumers',
-    'src/contexts/notification/infrastructure/identity-account-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3060,7 +3059,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.workflow-outbox-consumers',
-    'src/contexts/notification/infrastructure/workflow-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/workflow-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3081,7 +3080,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.bulk-assignment-outbox-consumers',
-    'src/contexts/notification/infrastructure/bulk-assignment-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/bulk-assignment-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3093,7 +3092,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.escalation-resolution-outbox-consumers',
-    'src/contexts/notification/infrastructure/escalation-resolution-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/escalation-resolution-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3105,7 +3104,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.handling-cycle-outbox-consumers',
-    'src/contexts/notification/infrastructure/handling-cycle-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/handling-cycle-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3117,7 +3116,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.response-target-outbox-consumers',
-    'src/contexts/notification/infrastructure/response-target-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/response-target-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3129,7 +3128,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.goal-outbox-consumers',
-    'src/contexts/notification/infrastructure/goal-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/goal-outbox-consumers.ts',
     'system:notification.insert_goal',
     'goal.use',
     'property',
@@ -3141,7 +3140,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.on-google-reauthorization-required',
-    'src/contexts/notification/infrastructure/integration-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/integration-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3153,7 +3152,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.portal-outbox-consumers',
-    'src/contexts/notification/infrastructure/portal-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/portal-outbox-consumers.ts',
     'system:notification.insert_portal',
     'portal.write',
     'property',
@@ -3165,7 +3164,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.portal-health-outbox-consumers',
-    'src/contexts/notification/infrastructure/portal-health-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/portal-health-outbox-consumers.ts',
     'system:notification.insert_portal',
     'portal.write',
     'property',
@@ -3177,7 +3176,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.property-outbox-consumers',
-    'src/contexts/notification/infrastructure/property-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/property-outbox-consumers.ts',
     'system:notification.insert_property_responsibility',
     'property.create',
     'property',
@@ -3245,7 +3244,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'activity.outbox-consumers',
-    'src/contexts/activity/infrastructure/outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/activity-outbox-consumers.ts',
     'system:activity.record',
     'none',
     'organization',

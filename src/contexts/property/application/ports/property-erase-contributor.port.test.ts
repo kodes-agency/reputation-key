@@ -28,6 +28,7 @@ const boundedContextDirectories = (): readonly string[] =>
  * now contains; an unmerged context keeps its directory name as its sole slot.
  */
 const MERGED_CONTEXT_ERASE_OWNERS: Readonly<Record<string, readonly string[]>> = {
+  feed: ['activity', 'notification'],
   reporting: ['dashboard', 'goal', 'metric'],
 }
 
@@ -67,13 +68,14 @@ describe('PROPERTY_ERASE_CONTEXTS', () => {
     expect(registered.filter((context) => !canonical.includes(context))).toEqual([])
   })
 
-  it('is distinct and canonically ordered', () => {
+  it('keeps lifecycle receipt keys distinct and canonically ordered', () => {
     // The preview digest sorts `context:table:rowCount` lines and receipts are
     // keyed on (authority, context, phase); a duplicate would double-count a
     // context in the total the AccountAdmin agrees to destroy.
     expect(registered).toEqual([...new Set(registered)])
     expect(registered).toEqual([...registered].sort())
     expect(registered).toHaveLength(14)
+    expect(registeredPackages).toHaveLength(13)
   })
 
   it('uses stable context keys in lifecycle events', () => {

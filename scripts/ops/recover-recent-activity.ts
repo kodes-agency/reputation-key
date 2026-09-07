@@ -7,8 +7,8 @@
 //   pnpm ops:recover-recent-activity --operator <id> --batch-size 100
 //     --apply --reason <text> <observed-at> [<after-occurred-at> <after-replay-key>]
 
-import { parseRecentActivityRecoveryInvocation } from '../../src/contexts/activity/application/recent-activity-recovery-invocation'
-import { createRecentActivityRecoveryRuntime } from '../../src/contexts/activity/infrastructure/recent-activity-recovery-runtime'
+import { parseRecentActivityRecoveryInvocation } from '../../src/contexts/feed/application/recent-activity-recovery-invocation'
+import { createRecentActivityRecoveryRuntime } from '../../src/contexts/feed/infrastructure/recent-activity-recovery-runtime'
 import { getDb } from '../../src/shared/db'
 import { getLogger } from '../../src/shared/observability/logger'
 import { runOperatorCommand } from './operator-command'

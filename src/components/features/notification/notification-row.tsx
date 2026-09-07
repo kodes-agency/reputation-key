@@ -20,7 +20,7 @@ import {
   notificationLink,
   renderNotification,
   type Notification,
-} from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/application/public-api'
 import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
 import {
   DEFAULT_NOTIFICATION_FORMAT,

@@ -41,8 +41,8 @@ import type {
   getNotificationFeedHeadFn,
   getNotificationsFn,
   getNotificationUserSettingsFn,
-} from '#/contexts/notification/server/notifications'
-import type { NotificationListFilter } from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/server/notifications'
+import type { NotificationListFilter } from '#/contexts/feed/application/public-api'
 
 export function useNotifications(
   getFeedHead: typeof getNotificationFeedHeadFn,

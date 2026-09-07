@@ -541,12 +541,12 @@ export async function bootstrap(
 
   // ── Recent Activity projection job ────────────────────────────────
   const { PROJECT_RECENT_ACTIVITY_JOB_NAME, LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME } =
-    await import('#/contexts/activity/infrastructure/jobs/project-recent-activity.job')
+    await import('#/contexts/feed/infrastructure/jobs/project-recent-activity.job')
   // ARC-03-T12: Activity owns the projection. The worker's job is transport
   // only — it unwraps the BullMQ envelope and calls the context capability.
   const projectRecentActivityHandler = async (
     job: import('bullmq').Job<
-      import('#/contexts/activity/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
+      import('#/contexts/feed/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
     >,
   ): Promise<void> => {
     await container.activityWorkerRuntime.projectRecentActivity(job.data)
@@ -556,7 +556,7 @@ export async function bootstrap(
     async (job): Promise<void> => {
       await projectRecentActivityHandler(
         job as import('bullmq').Job<
-          import('#/contexts/activity/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
+          import('#/contexts/feed/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
         >,
       )
     },
@@ -568,7 +568,7 @@ export async function bootstrap(
     async (job): Promise<void> => {
       await projectRecentActivityHandler(
         job as import('bullmq').Job<
-          import('#/contexts/activity/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
+          import('#/contexts/feed/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
         >,
       )
     },
@@ -599,11 +599,11 @@ async function registerNotificationJobs(
 ): Promise<void> {
   const logger = container.logger
   const { createInsertNotificationHandler, INSERT_NOTIFICATION_JOB_NAME } =
-    await import('#/contexts/notification/infrastructure/jobs/insert-notification.job')
-  const { createDbUserLookupAdapter: createNotifUserLookup } =
-    await import('#/contexts/notification/infrastructure/adapters/db-user-lookup.adapter')
+    await import('#/contexts/feed/infrastructure/jobs/insert-notification.job')
+  const { createNotificationDbUserLookupAdapter: createNotifUserLookup } =
+    await import('#/contexts/feed/infrastructure/adapters/notification-db-user-lookup.adapter')
   const { createResendEmailAdapter } =
-    await import('#/contexts/notification/infrastructure/adapters/resend-email.adapter')
+    await import('#/contexts/feed/infrastructure/adapters/resend-email.adapter')
   const { notificationId, notificationEmailId } = await import('#/shared/domain/ids')
   const notifUserLookup = createNotifUserLookup(container.db)
   // Outbound email transport is chosen ONCE, here, and logged loudly. Before
@@ -613,7 +613,7 @@ async function registerNotificationJobs(
   // wiring time. Rules live in shared/email/transport-selection.ts.
   const { decideEmailTransport } = await import('#/shared/email/transport-selection')
   const { createCapturingEmailSender } =
-    await import('#/contexts/notification/infrastructure/adapters/capturing-email-sender.adapter')
+    await import('#/contexts/feed/infrastructure/adapters/capturing-email-sender.adapter')
   const emailTransport = decideEmailTransport({
     NODE_ENV: runtime.notification.nodeEnv,
     RESEND_API_KEY: runtime.notification.resendApiKey,
@@ -657,7 +657,7 @@ async function registerNotificationJobs(
     )
   }
   const { activeOneClickUnsubscribeKeyVersion, oneClickUnsubscribeUrl } =
-    await import('#/contexts/notification/application/one-click-unsubscribe-token')
+    await import('#/contexts/feed/application/one-click-unsubscribe-token')
   const notificationUnsubscribeUrl = (
     target: Parameters<typeof oneClickUnsubscribeUrl>[2],
     keyVersion?: string,
@@ -674,9 +674,9 @@ async function registerNotificationJobs(
     return activeOneClickUnsubscribeKeyVersion(unsubscribeKeys)
   }
   const { createNotificationPropertyScopeResolver } =
-    await import('#/contexts/notification/infrastructure/repositories/notification-property-scope.repository')
+    await import('#/contexts/feed/infrastructure/repositories/notification-property-scope.repository')
   const { createNotificationOrganizationScopeResolver } =
-    await import('#/contexts/notification/infrastructure/repositories/notification-organization-scope.repository')
+    await import('#/contexts/feed/infrastructure/repositories/notification-organization-scope.repository')
   const resolveNotificationProperty = createNotificationPropertyScopeResolver(
     container.pool,
   )
@@ -695,7 +695,7 @@ async function registerNotificationJobs(
   // until a digest sweep. `notification.send_email` is org-gated at execution,
   // so enqueuing here is safe even when a tenant has email disabled.
   const { URGENT_EMAIL_JOB_NAME: URGENT_EMAIL_JOB } =
-    await import('#/contexts/notification/infrastructure/jobs/urgent-email.job')
+    await import('#/contexts/feed/infrastructure/jobs/urgent-email.job')
   const { jobEnqueueOptions: urgentEnqueueOptions } =
     await import('#/shared/jobs/job-policy')
   const insertNotifHandler = createInsertNotificationHandler({
@@ -730,7 +730,7 @@ async function registerNotificationJobs(
   container.jobRegistry.register(INSERT_NOTIFICATION_JOB_NAME, async (job) => {
     await insertNotifHandler(
       job as import('bullmq').Job<
-        import('#/contexts/notification/infrastructure/jobs/insert-notification.job').InsertNotificationJobData
+        import('#/contexts/feed/infrastructure/jobs/insert-notification.job').InsertNotificationJobData
       >,
     )
   })
@@ -744,7 +744,7 @@ async function registerNotificationJobs(
   // at-least-once repair for a committed review whose consumer delivery was
   // exhausted (quarantined) before a notification row existed.
   const { JOB_NAME: RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } =
-    await import('#/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job')
+    await import('#/contexts/feed/infrastructure/jobs/reconcile-missing-notifications.job')
   const reconcileMissingNotifications = container.reconcileMissingNotificationsHandler
   if (reconcileMissingNotifications) {
     container.jobRegistry.register(
@@ -770,7 +770,7 @@ async function registerNotificationJobs(
   // orthogonal: the gate decides whether the JOB may exist at runtime, while
   // the transport decides where an admitted job's mail goes.
   const { createUrgentEmailJobHandler, URGENT_EMAIL_JOB_NAME } =
-    await import('#/contexts/notification/infrastructure/jobs/urgent-email.job')
+    await import('#/contexts/feed/infrastructure/jobs/urgent-email.job')
   const urgentEmailHandler = createUrgentEmailJobHandler({
     emailRepo: container.notificationWorkerRuntime.emailRepo,
     notifRepo: container.notificationWorkerRuntime.notificationRepo,
@@ -791,14 +791,14 @@ async function registerNotificationJobs(
     async (job) => {
       await urgentEmailHandler(
         job as import('bullmq').Job<
-          import('#/contexts/notification/infrastructure/jobs/urgent-email.job').UrgentEmailJobData
+          import('#/contexts/feed/infrastructure/jobs/urgent-email.job').UrgentEmailJobData
         >,
       )
     },
   )
 
   const { createDigestNotificationJobHandler, DIGEST_JOB_NAME } =
-    await import('#/contexts/notification/infrastructure/jobs/digest-notification.job')
+    await import('#/contexts/feed/infrastructure/jobs/digest-notification.job')
   const digestHandler = createDigestNotificationJobHandler({
     pool: container.pool,
     emailRepo: container.notificationWorkerRuntime.emailRepo,

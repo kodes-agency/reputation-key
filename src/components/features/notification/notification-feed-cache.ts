@@ -3,7 +3,7 @@ import type {
   Notification,
   NotificationFeedHead,
   NotificationPage,
-} from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/application/public-api'
 
 type FeedPages = Readonly<{
   pages: ReadonlyArray<NotificationPage>

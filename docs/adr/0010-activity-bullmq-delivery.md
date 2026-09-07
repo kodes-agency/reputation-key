@@ -82,9 +82,9 @@ The metric context remains in-process. Metrics are aggregate counters — losing
 
 ## Related
 
-- Activity context CONTEXT.md: `src/contexts/activity/CONTEXT.md`
+- Feed context guide: `src/contexts/feed/CONTEXT.md`
 - Codebase standards: `docs/standards.md` (event envelope, per-tag handlers, build function shape)
 - Original Q12 decision: session `20260601_173316_58f765`
 - Reporting context CONTEXT.md: `src/contexts/reporting/CONTEXT.md`
-- Outbox consumers: `src/contexts/activity/infrastructure/outbox-consumers.ts`
+- Outbox consumers: `src/contexts/feed/infrastructure/activity-outbox-consumers.ts`
 - BullMQ infrastructure: `src/shared/jobs/queue.ts`, `src/shared/jobs/worker.ts`

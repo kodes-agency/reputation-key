@@ -23,7 +23,7 @@ import {
   Clock,
   type LucideIcon,
 } from 'lucide-react'
-import type { NotificationType } from '#/contexts/notification/application/public-api'
+import type { NotificationType } from '#/contexts/feed/application/public-api'
 
 // ── Locale-aware timestamps ─────────────────────────────────────────
 //

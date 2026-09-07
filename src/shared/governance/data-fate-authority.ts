@@ -17,13 +17,12 @@ export type DataFateDisposition =
   | 'bounded_contraction'
 
 export type DataFateOwner =
-  | 'activity'
   | 'ai'
+  | 'feed'
   | 'guest'
   | 'identity'
   | 'inbox'
   | 'integration'
-  | 'notification'
   | 'platform'
   | 'portal'
   | 'property'
@@ -89,7 +88,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'activity.schema.ts',
     exportNames: ['recentActivityEntries'],
-    owner: 'activity',
+    owner: 'feed',
     disposition: 'recoverable_archive',
     authority: 'ACT-01',
     exitCriteria: RETAINED_HISTORY,
@@ -122,21 +121,21 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'activity.schema.ts',
     exportNames: ['recentActivityActorLabelRedactions', 'recentActivityReplayFacts'],
-    owner: 'activity',
+    owner: 'feed',
     disposition: 'active_authority',
     authority: 'ACT-01/ARC-01',
   }),
   ...rows({
     schemaFile: 'activity.schema.ts',
     exportNames: ['operationalActionHistoryHeads', 'operationalActionHistoryLegalHolds'],
-    owner: 'activity',
+    owner: 'feed',
     disposition: 'active_authority',
     authority: 'ACT-01/ADR-0056',
   }),
   ...rows({
     schemaFile: 'activity.schema.ts',
     exportNames: ['operationalActionHistoryRecords'],
-    owner: 'activity',
+    owner: 'feed',
     disposition: 'recoverable_archive',
     authority: 'ACT-01/ADR-0056',
     exitCriteria:
@@ -175,7 +174,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'audit.ts',
     exportNames: ['auditLogs'],
-    owner: 'activity',
+    owner: 'feed',
     disposition: 'recoverable_archive',
     authority: 'ACT-01',
     exitCriteria: RETAINED_HISTORY,
@@ -366,7 +365,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'notificationUserSettings',
       'notifications',
     ],
-    owner: 'notification',
+    owner: 'feed',
     disposition: 'active_authority',
     authority: 'NTF-01',
   }),

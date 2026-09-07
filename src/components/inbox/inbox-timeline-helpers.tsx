@@ -1,7 +1,7 @@
 // Inbox activity timeline helpers — icon mapping, label formatting, date/time utils.
 // Extracted from inbox-activity-timeline.tsx for max-lines compliance.
 
-import type { RecentActivityEntry } from '#/contexts/activity/application/public-api'
+import type { RecentActivityEntry } from '#/contexts/feed/application/public-api'
 import {
   MessageSquarePlus,
   UserPlus,

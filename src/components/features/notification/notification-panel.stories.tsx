@@ -13,7 +13,7 @@
 // that one factory.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { isPreferenceDisableable } from '#/contexts/notification/application/public-api'
+import { isPreferenceDisableable } from '#/contexts/feed/application/public-api'
 import {
   makeNotificationFns,
   notificationFeedHeadFixture,

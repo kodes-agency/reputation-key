@@ -36,7 +36,6 @@ const dbStub = new Proxy(
 ) as unknown as Database
 
 const EXPECTED_TOP_LEVEL_KEYS = [
-  'activityPublicApi',
   'activityWorkerRuntime',
   'aiPublicApi',
   'aiWorkerRuntime',
@@ -56,6 +55,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'db',
   'delayedExecutionPolicy',
   'executionPolicy',
+  'feedPublicApi',
   'goalPublicApi',
   'goalWorkerRuntime',
   'guestContactRequestRetentionSweep',
@@ -87,7 +87,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'metricPublicApi',
   'notificationAudienceAuthorizer',
   'notificationDeliverySettlement',
-  'notificationPublicApi',
   'notificationWorkerRuntime',
   'operationsSnapshot',
   'opsQueues',

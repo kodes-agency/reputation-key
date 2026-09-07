@@ -579,9 +579,9 @@ function buildContainer(
     }),
   )
 
-  // ARC-03-T10: downstream Reporting, Activity, and Notification are composed
-  // as one named group after their upstream dependencies.
-  const { reporting, goalCorrectionPolicy, activity, notification } =
+  // ARC-03-T10: downstream Reporting and Feed are composed as one named
+  // group after their upstream dependencies.
+  const { reporting, goalCorrectionPolicy, feed } =
     buildReadAndNotifyContexts({
       db,
       clock,
@@ -598,6 +598,7 @@ function buildContainer(
       inbox,
       reviewServingStats: review.lookups.servingStats,
     })
+  const { activity, notification } = feed
 
   // ARC-03-T10/T15: the process's operational readout and release seam.
   const { opsQueues, jobDispatchWorkerRuntime, operationsSnapshot, containerShutdown } =
@@ -722,11 +723,10 @@ function buildContainer(
     dashboardPublicApi: reporting.publicApi,
     goalPublicApi: reporting.publicApi,
     goalWorkerRuntime: reporting.worker,
-    activityPublicApi: activity.publicApi,
+    feedPublicApi: feed.publicApi,
     activityWorkerRuntime: Object.freeze({
       projectRecentActivity: activity.worker.projectRecentActivity,
     }),
-    notificationPublicApi: notification.publicApi,
     identityPort,
     // Request-scoped Identity handlers consume only their parsed, semantic
     // key material. They never re-read process configuration after boot.

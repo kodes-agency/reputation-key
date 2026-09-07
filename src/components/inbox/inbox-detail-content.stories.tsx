@@ -10,7 +10,7 @@ import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { addInboxNoteFn, getInboxItemDetailFn } from '#/contexts/inbox/server/inbox'
-import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
+import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 import type {
   InboxItem,
