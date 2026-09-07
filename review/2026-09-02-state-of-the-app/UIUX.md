@@ -259,4 +259,4 @@ Tenant reality: 1 organization, 6 properties, 2 interactive roles, 1 review plat
 - The Overview page would read as a precision instrument if it were one band of definitions (`dl`), one chart, one list, with one period — the data is right, the chrome is what fights `PRODUCT.md`.
 - I would not build the "Why this suggestion" disclosure or thumbs feedback until someone commits to reading the disposition column; the specific-copy work already bought most of the trust.
 - The Inbox's "Categories" naming collision is small but it is the kind of thing a one-tenant beta _will_ report; fix vocabulary before layout.
-- The local `Result` in dashboard DTO validators (`toDashboardReplyStatus`) is fine; leave it.
+- `neverthrow`-style `Result` in dashboard DTO validators (`toDashboardReplyStatus`) is fine; leave it.
