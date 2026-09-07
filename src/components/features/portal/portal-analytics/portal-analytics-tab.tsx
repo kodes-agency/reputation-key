@@ -49,7 +49,6 @@ function trendHint(trend: number | null): string {
   return `${direction} ${Math.abs(trend)}%`
 }
 
-
 export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }: Props) {
   const [timeRange, setTimeRange] = useState<TimeRangePreset>(readStoredTimeRange)
 
@@ -161,9 +160,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
         <StatCard
           label="Scans"
           value={
-            data.kpis.scans.value === null
-              ? '—'
-              : data.kpis.scans.value.toLocaleString()
+            data.kpis.scans.value === null ? '—' : data.kpis.scans.value.toLocaleString()
           }
           hint={trendHint(data.kpis.scans.trend)}
           availability={{

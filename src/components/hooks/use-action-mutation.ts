@@ -51,7 +51,6 @@ export interface ActionMutationOptions<TInput, TOutput> {
 /** What `onMutate` hands to `onError` so a failed mutation can be undone. */
 type Rollback = Readonly<{ undo: (() => void) | undefined }>
 
-
 export function useActionMutation<TInput, TOutput>(
   fn: (input: TInput) => Promise<TOutput>,
   options?: ActionMutationOptions<TInput, TOutput>,

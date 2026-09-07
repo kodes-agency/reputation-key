@@ -135,9 +135,7 @@ export function ThemePresetSelector({
           type="color"
           aria-label="Primary color"
           value={theme.primaryColor}
-          onChange={(e) =>
-            onThemeChange({ ...theme, primaryColor: e.target.value })
-          }
+          onChange={(e) => onThemeChange({ ...theme, primaryColor: e.target.value })}
           disabled={disabled}
           className="h-9 w-16 rounded border"
         />

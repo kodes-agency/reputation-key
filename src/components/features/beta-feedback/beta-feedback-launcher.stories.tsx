@@ -33,9 +33,7 @@ export const PrivacyAndValidation: Story = {
     expect(view.queryByRole('tab')).toBeNull()
     expect(view.queryByRole('checkbox')).toBeNull()
     await userEvent.click(view.getByRole('button', { name: /send feedback/i }))
-    expect(
-      await view.findByText(/please add at least 3 characters/i),
-    ).toBeInTheDocument()
+    expect(await view.findByText(/please add at least 3 characters/i)).toBeInTheDocument()
   },
 }
 
@@ -56,7 +54,9 @@ export const SuggestionReceipt: Story = {
     const view = within(dialog)
 
     await userEvent.click(view.getByRole('combobox', { name: /feedback type/i }))
-    await userEvent.click(within(document.body).getByRole('option', { name: /suggestion/i }))
+    await userEvent.click(
+      within(document.body).getByRole('option', { name: /suggestion/i }),
+    )
     await userEvent.type(
       view.getByLabelText(/your feedback/i),
       'Keep the inbox filter when I return from a review.',

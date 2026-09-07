@@ -145,7 +145,6 @@ describe('error monitoring runtime', () => {
     )
   })
 
-
   it('binds to a preload-initialized SDK without initializing it twice', () => {
     const sentry = sdk()
     sentry.isInitialized.mockReturnValue(true)

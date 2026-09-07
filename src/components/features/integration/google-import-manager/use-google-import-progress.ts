@@ -27,9 +27,7 @@ type Props = Pick<GoogleImportManagerProps, 'initialProgress'> &
   Readonly<{
     importFns: Pick<
       GoogleImportFns,
-      | 'getPropertyImportV2Status'
-      | 'retryPropertyImportItem'
-      | 'cancelPropertyImportV2'
+      'getPropertyImportV2Status' | 'retryPropertyImportItem' | 'cancelPropertyImportV2'
     >
     step: GoogleImportStep
     setStep: (step: GoogleImportStep) => void

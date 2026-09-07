@@ -11,8 +11,7 @@ export function activeGoogleImportConnectionId(
 ): string | null {
   return (
     connections.find(
-      (connection) =>
-        connection.id === preferredId && connection.status === 'active',
+      (connection) => connection.id === preferredId && connection.status === 'active',
     )?.id ??
     connections.find((connection) => connection.status === 'active')?.id ??
     null

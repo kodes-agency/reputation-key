@@ -180,7 +180,6 @@ describe('submit beta feedback server function', () => {
     expect(result).toEqual({ reference: FEEDBACK_REFERENCE })
   })
 
-
   it('rejects Member before consuming a feedback budget', async () => {
     mocks.resolveTenantContext.mockResolvedValue({ ...actor, role: 'Member' })
 

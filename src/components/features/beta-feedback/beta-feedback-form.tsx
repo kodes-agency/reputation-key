@@ -61,7 +61,9 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
               <FieldLabel htmlFor="beta-feedback-kind">Feedback type</FieldLabel>
               <Select
                 value={field.state.value}
-                onValueChange={(value) => field.handleChange(value as 'bug' | 'suggestion')}
+                onValueChange={(value) =>
+                  field.handleChange(value as 'bug' | 'suggestion')
+                }
                 disabled={submit.isPending}
               >
                 <SelectTrigger id="beta-feedback-kind" className="w-full">

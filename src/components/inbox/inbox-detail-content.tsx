@@ -10,10 +10,7 @@ import { ReplyEditor } from './reply-form'
 import { ReplyToolbarProvider, ReplyToolbarSlot } from './reply-toolbar-slot'
 import { FeedbackHandlingCard } from './feedback-handling-card'
 import { ResponseTargetCard } from './response-target-card'
-import {
-  withFreshCommandRevision,
-  type InboxDetailState,
-} from './use-inbox-detail'
+import { withFreshCommandRevision, type InboxDetailState } from './use-inbox-detail'
 import type { InboxReplyCacheChange } from './inbox-cache-policy'
 import type { InboxDetailFns } from './types'
 import type {

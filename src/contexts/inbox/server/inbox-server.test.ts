@@ -17,11 +17,7 @@ import {
   stampLastInboxViewDto,
   getInboxItemHistoryDto,
 } from '../application/dto/inbox.dto'
-import {
-  inboxError,
-  isInboxError,
-  toInboxRevisionConflictResult,
-} from '../domain/errors'
+import { inboxError, isInboxError, toInboxRevisionConflictResult } from '../domain/errors'
 
 // ── DTO validation ──────────────────────────────────────────────────
 

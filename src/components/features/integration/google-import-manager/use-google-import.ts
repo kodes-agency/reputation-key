@@ -39,7 +39,6 @@ import {
 } from './google-import-selection'
 const EMPTY_REVIEW: GoogleImportReviewDraftInput = { items: [] }
 
-
 export function useGoogleImportReviewForm({
   initialDraft,
   onSubmit,
@@ -104,10 +103,7 @@ function useGoogleImportContent({
   const candidatePages = candidatesQuery.data?.pages ?? []
   const accounts = accountPages.flatMap((page) => page.items)
   const candidates = candidatePages.flatMap((page) => page.items)
-  const contentExpiresAt = googleImportContentExpiry([
-    ...accountPages,
-    ...candidatePages,
-  ])
+  const contentExpiresAt = googleImportContentExpiry([...accountPages, ...candidatePages])
   const authorizationLease = (candidatePages.at(-1) ?? accountPages.at(-1))
     ?.authorizationLease
   const leaseQuery = useQuery(
@@ -145,11 +141,7 @@ function useGoogleImportContent({
   }, [enabled, lifecycle, step])
   useEffect(() => {
     if (!enabled) return
-    return scheduleGoogleImportExpiries(
-      lifecycle,
-      contentExpiresAt,
-      leaseExpiresAt,
-    )
+    return scheduleGoogleImportExpiries(lifecycle, contentExpiresAt, leaseExpiresAt)
   }, [contentExpiresAt, enabled, leaseExpiresAt, lifecycle])
   useEffect(() => {
     if (organizationIdRef.current === organizationId) return
@@ -172,7 +164,10 @@ export function useGoogleImport({
   importFns,
   onClearStartError,
 }: GoogleImportDiscoveryOptions): GoogleImportDiscoveryController {
-  const initialConnection = activeGoogleImportConnectionId(connections, initialConnectionId)
+  const initialConnection = activeGoogleImportConnectionId(
+    connections,
+    initialConnectionId,
+  )
   const [state, dispatch] = useReducer(
     reduceGoogleImportDiscoveryState,
     createGoogleImportDiscoveryState(
@@ -206,7 +201,8 @@ export function useGoogleImport({
         (connection) =>
           connection.id === state.connectionId && connection.status === 'active',
       )
-    ) return
+    )
+      return
     void (async () => {
       await content.lifecycle.clear('authorization_revoked')
       dispatch({
@@ -222,10 +218,10 @@ export function useGoogleImport({
     if (
       connectionId === state.connectionId ||
       !connections.some(
-        (connection) =>
-          connection.id === connectionId && connection.status === 'active',
+        (connection) => connection.id === connectionId && connection.status === 'active',
       )
-    ) return
+    )
+      return
     await content.lifecycle.clear('connection_changed')
     dispatch({ type: 'set_connection', connectionId, active: true })
   }
@@ -236,11 +232,7 @@ export function useGoogleImport({
     }
   }
   const toggleLoaded = (checked: boolean) => {
-    const result = toggleLoadedCandidates(
-      state.selectedIds,
-      visibleCandidates,
-      checked,
-    )
+    const result = toggleLoadedCandidates(state.selectedIds, visibleCandidates, checked)
     if (result.changed) {
       dispatch({ type: 'set_selection', selectedIds: new Set(result.selectedIds) })
     }
@@ -289,8 +281,7 @@ export function useGoogleImport({
     visibleCandidates,
     changeConnection,
     resumeDiscovery: () => dispatch({ type: 'resume' }),
-    selectAccount: (accountRef) =>
-      dispatch({ type: 'select_account', accountRef }),
+    selectAccount: (accountRef) => dispatch({ type: 'select_account', accountRef }),
     toggleCandidate,
     toggleLoaded,
     selectAllEligible,

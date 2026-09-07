@@ -122,8 +122,7 @@ export function PropertyDashboard({
           label="Scans"
           value={kpis.scans.value === null ? '—' : String(kpis.scans.value)}
           hint={
-            kpis.scans.evidence.current.state === 'ready' &&
-            kpis.scans.value !== null ? (
+            kpis.scans.evidence.current.state === 'ready' && kpis.scans.value !== null ? (
               <span className="flex items-center gap-0.5">
                 <TrendIndicator trend={kpis.scans.trend} />
                 {formatTrend(kpis.scans.trend)}

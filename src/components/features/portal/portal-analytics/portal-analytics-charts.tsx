@@ -33,7 +33,6 @@ export function ChartCard({
   )
 }
 
-
 const trendConfig = {
   avgRating: { label: 'Avg Rating', color: 'var(--chart-2)' },
 } satisfies ChartConfig

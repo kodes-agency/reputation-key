@@ -55,9 +55,7 @@ export function googleImportContentExpiry(
 }
 
 type ContentLifecycle = Readonly<{
-  clear: (
-    reason: 'content_expired' | 'lease_expired' | 'page_hidden',
-  ) => Promise<void>
+  clear: (reason: 'content_expired' | 'lease_expired' | 'page_hidden') => Promise<void>
 }>
 
 export function subscribeToGoogleImportVisibility(
@@ -175,8 +173,7 @@ export function googleImportCandidatesQuery(input: {
         ? (completion.value.nextCursor ?? undefined)
         : undefined,
     select: currentViewInfiniteData<CandidatesPage, string | undefined>,
-    enabled:
-      input.enabled && input.connectionId !== null && input.accountRef !== null,
+    enabled: input.enabled && input.connectionId !== null && input.accountRef !== null,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
     retry: false,

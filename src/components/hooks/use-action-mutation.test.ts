@@ -88,11 +88,9 @@ describe('useActionMutation recovery', () => {
     const input = (revision: number): MutationInput => ({
       data: { inboxItemId: 'item-1', expectedCommandRevision: revision },
     })
-    const fn = vi.fn(
-      async (_input: MutationInput): Promise<MutationOutput> => {
-        throw rejection
-      },
-    )
+    const fn = vi.fn(async (_input: MutationInput): Promise<MutationOutput> => {
+      throw rejection
+    })
     const recover = vi.fn(async (): Promise<MutationInput | null> => input(2))
 
     await expect(renderAction(fn, { recover })(input(1))).rejects.toBe(rejection)
@@ -140,13 +138,10 @@ describe('useActionMutation recovery', () => {
 describe('Inbox revision conflict recovery', () => {
   it('patches the authoritative revision and resubmits immediately once', async () => {
     const queryClient = new QueryClient()
-    queryClient.setQueryData(
-      inboxKeys.detail('item-1'),
-      {
-        item: { id: 'item-1', commandRevision: 1, status: 'open' },
-        reply: null,
-      } as unknown as InboxItemDetailResult,
-    )
+    queryClient.setQueryData(inboxKeys.detail('item-1'), {
+      item: { id: 'item-1', commandRevision: 1, status: 'open' },
+      reply: null,
+    } as unknown as InboxItemDetailResult)
     const conflict: InboxRevisionConflictResult = {
       ok: false,
       code: 'revision_conflict',
@@ -156,9 +151,7 @@ describe('Inbox revision conflict recovery', () => {
     const output: MutationOutput = { commandRevision: 3 }
     const command = vi
       .fn<
-        (
-          input: MutationInput,
-        ) => Promise<MutationOutput | InboxRevisionConflictResult>
+        (input: MutationInput) => Promise<MutationOutput | InboxRevisionConflictResult>
       >()
       .mockResolvedValueOnce(conflict)
       .mockResolvedValueOnce(output)
@@ -173,8 +166,7 @@ describe('Inbox revision conflict recovery', () => {
     expect(command).toHaveBeenCalledTimes(2)
     expect(command.mock.calls[1]?.[0].data.expectedCommandRevision).toBe(2)
     expect(
-      queryClient.getQueryData<InboxItemDetailResult>(inboxKeys.detail('item-1'))
-        ?.item,
+      queryClient.getQueryData<InboxItemDetailResult>(inboxKeys.detail('item-1'))?.item,
     ).toMatchObject({ commandRevision: 2, status: 'closed' })
   })
 })

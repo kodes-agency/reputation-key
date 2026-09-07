@@ -40,10 +40,7 @@ type RevisionedCommandInput = Readonly<{
   data: Readonly<{ expectedCommandRevision: number }>
 }>
 
-type SuccessfulCommandResult<T> = Exclude<
-  Awaited<T>,
-  InboxRevisionConflictResult
->
+type SuccessfulCommandResult<T> = Exclude<Awaited<T>, InboxRevisionConflictResult>
 
 const inboxDetailQueryOptions = (
   id: string,
@@ -79,10 +76,7 @@ function applyRevisionConflict(
  * by the command store. A second conflict is surfaced; this never polls or
  * retries more than once.
  */
-export function withFreshCommandRevision<
-  TInput extends RevisionedCommandInput,
-  TResult,
->(
+export function withFreshCommandRevision<TInput extends RevisionedCommandInput, TResult>(
   qc: QueryClient,
   id: string,
   command: (input: TInput) => Promise<TResult>,

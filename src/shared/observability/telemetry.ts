@@ -182,7 +182,6 @@ function machineTag(value: string | undefined): string | undefined {
   return MACHINE_TAG_VALUE.test(value) ? value : 'unknown'
 }
 
-
 export function createErrorMonitor(deps: {
   readonly sentry: ErrorMonitoringSdk
   readonly logger: ErrorMonitoringLogger | (() => ErrorMonitoringLogger)
