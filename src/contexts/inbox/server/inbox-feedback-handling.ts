@@ -15,6 +15,7 @@ import {
   inboxErrorStatus,
   inboxItemId,
   isInboxError,
+  toInboxRevisionConflictResult,
 } from './inbox-shared'
 
 export const markFeedbackHandledFn = createServerFn({ method: 'POST' })
@@ -43,6 +44,8 @@ export const markFeedbackHandledFn = createServerFn({ method: 'POST' })
           )
         } catch (error) {
           if (isInboxError(error)) {
+            const conflict = toInboxRevisionConflictResult(error)
+            if (conflict) return conflict
             throwContextError('InboxError', error, inboxErrorStatus(error.code))
           }
           throw catchUntagged(error)
@@ -81,6 +84,8 @@ export const correctFeedbackHandlingOutcomeFn = createServerFn({ method: 'POST' 
           )
         } catch (error) {
           if (isInboxError(error)) {
+            const conflict = toInboxRevisionConflictResult(error)
+            if (conflict) return conflict
             throwContextError('InboxError', error, inboxErrorStatus(error.code))
           }
           throw catchUntagged(error)

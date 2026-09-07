@@ -157,18 +157,19 @@ describe('private-feedback handling server functions', () => {
     )
   })
 
-  it('surfaces a stale fence as a 409 InboxError rather than a generic failure', async () => {
+  it('returns an authoritative revision conflict instead of throwing it', async () => {
     mocks.markFeedbackHandled.mockRejectedValue(
-      inboxError('revision_conflict', 'This item changed while you were working on it'),
+      inboxError('revision_conflict', 'stale command revision', {
+        currentCommandRevision: 3,
+        currentStatus: 'closed',
+      }),
     )
 
+    // The out-of-runtime createServerFn harness hides successful return values,
+    // but a returned conflict resolves while the previous transport path rejected.
     await expect(
       withStartContext(() => markFeedbackHandledFn({ data: command })),
-    ).rejects.toMatchObject({
-      _tag: 'InboxError',
-      code: 'revision_conflict',
-      status: 409,
-    })
+    ).resolves.toBeUndefined()
   })
 
   it('masks an untagged store failure and keeps its detail off the wire', async () => {

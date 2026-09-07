@@ -30,10 +30,10 @@ export {
   PRIVATE_FEEDBACK_HANDLING_OUTCOMES,
   type PrivateFeedbackHandlingOutcome,
 } from '../domain/feedback-handling'
-// The manager-facing conflict message. Components match rejected mutations on
-// it because the client cannot read `code` off a deserialized server-function
-// error; keeping the literal here gives it one authority.
-export { REVISION_CONFLICT_MESSAGE } from '../domain/errors'
+export {
+  isInboxRevisionConflictResult,
+  type InboxRevisionConflictResult,
+} from '../domain/errors'
 
 // IBX-01 cutover classification. Pure and read-only: it reports what the legacy
 // rows prove and never infers an outcome or an on-time result from `closedAt`.

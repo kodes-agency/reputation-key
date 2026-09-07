@@ -178,8 +178,8 @@ Exported from `application/public-api.ts`:
 - Types: `InboxItem`, `InboxNote`, `InboxItemDetail`, `InboxStatus`, `SourceType`, `InboxSort`
 - Error type: `InboxError`
 - Port type: `Cursor` and paginated results with `totalCount`
-- Constants: `INBOX_BULK_LIMIT` (100 item IDs per bulk status command), `PRIVATE_FEEDBACK_HANDLING_OUTCOMES`, `REVISION_CONFLICT_MESSAGE` (the manager-facing optimistic-concurrency refusal; components match rejected mutations on this message because a deserialized server-function error no longer carries the error code)
-- Feedback handling exposes only the controlled outcome, state, and command-result vocabulary.
+- Constants: `INBOX_BULK_LIMIT` (100 item IDs per bulk status command), `PRIVATE_FEEDBACK_HANDLING_OUTCOMES`
+- Revision-fenced command server functions return `InboxRevisionConflictResult` with the authoritative command revision and status; clients may retry once without polling the read model.
 - Event types: `InboxItemCreated`, `InboxItemStatusChanged`, `InboxItemAssigned`, `InboxItemUnassigned`, `InboxItemEscalated`, `InboxNoteAdded`, `InboxItemBulkStatusChanged`, `InboxEvent`
 - Read-model view type: `InboxNoteView`
 

@@ -20,7 +20,7 @@ import type { InboxReplyCacheChange } from './inbox-cache-policy'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 export type { ReplyData } from './reply-status-view'
 
-type InnerProps = Readonly<{
+type ReplyEditorProps = Readonly<{
   propertyId: string
   reviewId: string
   reply: ReplyData | null
@@ -32,7 +32,7 @@ type InnerProps = Readonly<{
   generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 
-export function ReplyEditorInner({
+export function ReplyEditor({
   propertyId,
   reviewId,
   reply,
@@ -42,7 +42,7 @@ export function ReplyEditorInner({
   canDetectReviewLanguage,
   onReplyChanged,
   generateReplySuggestion,
-}: InnerProps) {
+}: ReplyEditorProps) {
   const draft = useActionMutation(draftReplyFn, {
     onSuccess: (reply) => onReplyChanged({ kind: 'draft_saved', reply }),
   })

@@ -17,7 +17,11 @@ import {
   stampLastInboxViewDto,
   getInboxItemHistoryDto,
 } from '../application/dto/inbox.dto'
-import { inboxError, isInboxError } from '../domain/errors'
+import {
+  inboxError,
+  isInboxError,
+  toInboxRevisionConflictResult,
+} from '../domain/errors'
 
 // ── DTO validation ──────────────────────────────────────────────────
 
@@ -435,6 +439,20 @@ describe('inboxError and isInboxError', () => {
     const err = inboxError('not_found', 'Item not found')
     expect(err._tag).toBe('InboxError')
     expect(err.code).toBe('not_found')
+  })
+
+  it('turns a stale command fence into the client recovery contract', () => {
+    const error = inboxError('revision_conflict', 'stale command revision', {
+      currentCommandRevision: 4,
+      currentStatus: 'closed',
+    })
+
+    expect(toInboxRevisionConflictResult(error)).toEqual({
+      ok: false,
+      code: 'revision_conflict',
+      currentCommandRevision: 4,
+      currentStatus: 'closed',
+    })
   })
 
   it('isInboxError returns true for inbox errors', () => {

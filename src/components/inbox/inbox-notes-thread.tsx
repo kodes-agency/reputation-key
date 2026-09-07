@@ -14,11 +14,6 @@ type Props = Readonly<{
   notes: ReadonlyArray<InboxNoteView>
   inboxItemId: string
   expectedCommandRevision: number
-  /** Domain-owned mutation recovery; see withFreshCommandRevision. */
-  recoverConflict: <TInput extends { data: { expectedCommandRevision: number } }>(
-    input: TInput,
-    error: unknown,
-  ) => Promise<TInput | null>
   currentUserId?: string
   onNoteAdded: (resultingCommandRevision: number) => void
   addInboxNote: typeof addInboxNoteFn
@@ -59,20 +54,16 @@ export function InboxNotesThread({
   notes,
   inboxItemId,
   expectedCommandRevision,
-  recoverConflict,
   currentUserId,
   onNoteAdded,
   addInboxNote,
   canAdd = true,
 }: Props) {
-  // The success callback advances the cached command fence synchronously and
-  // refreshes notes/activity through the Inbox cache policy.
   const addNote = useActionMutation(addInboxNote, {
     successMessage: 'Note added',
     onSuccess: (_note, input) => {
       onNoteAdded(input.data.expectedCommandRevision + 1)
     },
-    recover: recoverConflict,
   })
 
   const form = useForm({
