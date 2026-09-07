@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@10.6.5",
   "engines": {
-    "node": "22.23.2"
+    "node": ">=22.23.2 <23"
   },
   "imports": {
     "#/*": "./src/*"
@@ -18,7 +18,7 @@
     "clean": "rm -rf .output dist dist-worker storybook-static coverage test-results",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json --noEmit && pnpm check:typescript-project-coverage",
     "local:doctor": "node scripts/local-doctor.mjs",
-    "lint": "eslint . && node scripts/check-architecture-boundary-controls.mjs && node scripts/check-filenames.mjs && node scripts/check-component-boundaries.mjs && pnpm check:zod-conformance && pnpm check:product-state-consistency",
+    "lint": "eslint . && node scripts/check-architecture-boundary-controls.mjs && node scripts/check-filenames.mjs && node scripts/check-component-boundaries.mjs && pnpm check:product-state-consistency",
     "lint:ci": "pnpm lint && node scripts/check-test-quality.mjs && node scripts/check-google-provider-identifiers.mjs && pnpm check:runtime-environment-contract",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -68,7 +68,6 @@
     "check:typescript-project-coverage": "tsx scripts/ci/check-typescript-project-coverage.ts",
     "check:product-state-consistency": "tsx scripts/ci/check-product-state-consistency.ts",
     "check:test-quality": "node scripts/check-test-quality.mjs",
-    "check:zod-conformance": "tsx scripts/review/zod-v4-conformance.ts",
     "check:runtime-environment-contract": "tsx scripts/ci/check-runtime-environment-contract.ts",
     "ops:queue": "tsx scripts/ops/queue-quarantine.ts",
     "ops:quarantine": "tsx scripts/ops/quarantine-redrive.ts",

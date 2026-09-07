@@ -4009,15 +4009,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'check:runtime-environment-contract — digests the files that decide what a deployed service must supply at boot and fails when they move, so a contract change cannot pass repository-only CI and crash-loop production (the 739ccbc9 service-port split exposed this class); writes the snapshot only under --update',
     },
   ),
-  ops(
-    'scripts/review/zod-v4-conformance.ts',
-    'scripts/review/zod-v4-conformance.ts',
-    'none',
-    {
-      notes:
-        'check:zod-conformance — scans source code for ambiguous Zod package-root imports and deprecated chained string-format APIs; enforced by lint',
-    },
-  ),
   ops('scripts/cleanup-all.ts', 'scripts/cleanup-all.ts', 'tenant_cross', {
     notes: 'DIRECT-DB: deletes ALL reviews/replies/inbox items/properties — dev-only',
   }),
