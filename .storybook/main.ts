@@ -1,12 +1,10 @@
 // Storybook main config.
 //
 // ── Component-test runner decision (BQC-6.3) ─────────────────────────────
-// Two story runners exist with green parity (74 files / 379 tests each):
-//
-// ONE runner: the Vitest browser project (`pnpm test:storybook`), which the
-// `storybook-test` CI job runs. It renders every story in headless Chromium,
-// runs its play function, and enforces the a11y `test: 'error'` config from
-// ./preview.tsx — an axe violation fails the story.
+// `pnpm test:storybook` is the sole component-test runner. The
+// `storybook-test` CI job runs its Vitest browser project, which renders every
+// story in headless Chromium, runs its play function, and enforces the a11y
+// `test: 'error'` config from ./preview.tsx — an axe violation fails the story.
 //
 // @storybook/test-runner used to be the gate. It is a Storybook 8/9 tool: under
 // Storybook 10 its jest runtime cannot even load the config
@@ -21,9 +19,6 @@
 // only force-names it when VITEST_STORYBOOK is set. Setting VITEST_STORYBOOK
 // would silently turn a11y back into report-only.
 //
-// Known gap: the old runner also failed a story on any console.error, using an
-// allowlist in the deleted ./test-runner.ts. The Vitest path filters console
-// output reporter-side only, so console errors no longer fail a story.
 // ─────────────────────────────────────────────────────────────────────────
 import type { StorybookConfig } from '@storybook/react-vite'
 import { fileURLToPath } from 'node:url'
