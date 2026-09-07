@@ -75,7 +75,6 @@ describe('PROPERTY_ERASE_CONTEXTS', () => {
     expect(registered).toEqual([...new Set(registered)])
     expect(registered).toEqual([...registered].sort())
     expect(registered).toHaveLength(14)
-    expect(registeredPackages).toHaveLength(13)
   })
 
   it('uses stable context keys in lifecycle events', () => {

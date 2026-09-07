@@ -581,23 +581,22 @@ function buildContainer(
 
   // ARC-03-T10: downstream Reporting and Feed are composed as one named
   // group after their upstream dependencies.
-  const { reporting, goalCorrectionPolicy, feed } =
-    buildReadAndNotifyContexts({
-      db,
-      clock,
-      idGen: randomUUID,
-      logger,
-      outboxRepo,
-      jobQueue: infra.jobQueue,
-      staff,
-      property,
-      portal,
-      guest,
-      review,
-      identity,
-      inbox,
-      reviewServingStats: review.lookups.servingStats,
-    })
+  const { reporting, goalCorrectionPolicy, feed } = buildReadAndNotifyContexts({
+    db,
+    clock,
+    idGen: randomUUID,
+    logger,
+    outboxRepo,
+    jobQueue: infra.jobQueue,
+    staff,
+    property,
+    portal,
+    guest,
+    review,
+    identity,
+    inbox,
+    reviewServingStats: review.lookups.servingStats,
+  })
   const { activity, notification } = feed
 
   // ARC-03-T10/T15: the process's operational readout and release seam.
