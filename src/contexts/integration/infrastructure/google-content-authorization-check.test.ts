@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
+import { resetEnv } from '#/shared/config/env'
 import { createGoogleContentAuthorizationCheck } from './google-content-authorization-check'
 import {
   createEnvCapabilityPolicyStore,
@@ -35,7 +36,10 @@ function checkWithRows(rows: readonly (readonly Record<string, unknown>[])[]) {
 
 const member = [{ role: 'owner', permission_version: 7 }]
 const policy = [{ version: 11, emergency_kill_version: 3 }]
+const originalCustomRoles = process.env.ENABLE_CUSTOM_ROLES
 beforeEach(() => {
+  process.env.ENABLE_CUSTOM_ROLES = 'false'
+  resetEnv()
   resetCapabilityPolicyStore()
   initCapabilityPolicyStore(
     createEnvCapabilityPolicyStore({
@@ -44,7 +48,12 @@ beforeEach(() => {
   )
 })
 
-afterEach(() => resetCapabilityPolicyStore())
+afterEach(() => {
+  if (originalCustomRoles === undefined) delete process.env.ENABLE_CUSTOM_ROLES
+  else process.env.ENABLE_CUSTOM_ROLES = originalCustomRoles
+  resetEnv()
+  resetCapabilityPolicyStore()
+})
 
 describe('Google OAuth content authorization', () => {
   it('authorizes a connectionless first exchange on this deployment', async () => {

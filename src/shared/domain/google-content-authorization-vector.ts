@@ -1,7 +1,58 @@
+import type { GoogleContentCapability } from './google-content-capability'
 import type { AuthContext } from './auth-context'
 import { sha256Hex } from './sha256'
 
-type AuthorizationVector = Readonly<Record<string, string | number | boolean | null>>
+export type GoogleContentAuthorizationVector = Readonly<
+  Record<string, string | number | boolean | null>
+>
+type AuthorizationVector = GoogleContentAuthorizationVector
+
+export type GoogleContentAuthorizationScope = Readonly<{
+  organizationId: string
+  propertyId: string | null
+  connectionId: string | null
+  initiatorUserId: string | null
+  publication?: Readonly<{
+    reviewId: string
+    replyId: string
+    publicationCycle: number
+    attemptNumber: number
+    sourceEpoch: number
+    materialReviewRevision: number
+  }>
+}>
+
+export type GoogleContentAuthorizationDecision =
+  | Readonly<{
+      allowed: true
+      vector: GoogleContentAuthorizationVector
+    }>
+  | Readonly<{ allowed: false; code: string }>
+
+export type GoogleContentAuthorizationCheck<Tx> = (
+  tx: Tx,
+  input: Readonly<{
+    capability: GoogleContentCapability
+    scope: GoogleContentAuthorizationScope
+    operationKey: string
+  }>,
+) => Promise<GoogleContentAuthorizationDecision>
+
+const GOOGLE_PROVIDER_REQUEST_BINDING_KEYS: Readonly<Record<string, true>> = {
+  requestBindingSha256: true,
+  credentialBinding: true,
+  projectFingerprint: true,
+  requestBodySha256: true,
+  requestBodyBytes: true,
+}
+
+export function hasGoogleProviderRequestBindingKeys(
+  vector: GoogleContentAuthorizationVector,
+): boolean {
+  return Object.keys(vector).some(
+    (key) => GOOGLE_PROVIDER_REQUEST_BINDING_KEYS[key] === true,
+  )
+}
 
 /** Version of the cross-layer authorization vector contract. */
 export const GOOGLE_CONTENT_EXECUTION_POLICY_VERSION = 'beta-local-2' as const

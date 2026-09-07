@@ -20,31 +20,25 @@ export type GoogleProviderGatewayAdmissionCode =
   | 'grant_unavailable'
 
 /**
- * The app-side content authority's denial reasons that this seam forwards.
- * Declared here rather than imported: `shared/auth` is outside the application
- * layer's dependency zone. The adapter maps the authority's own closed union
- * onto this set exhaustively, so adding an authority code without deciding how
- * it surfaces is a type error rather than a silent `upstream_error`.
+ * The app-side permit issuer's denial reasons that this seam forwards. Declared
+ * here rather than imported: `shared/auth` is outside the application layer's
+ * dependency zone. The adapter maps the issuer's own closed union onto this
+ * set exhaustively, so adding an issuer code without deciding how it surfaces
+ * is a type error rather than a silent `upstream_error`.
  */
-export type GoogleProviderAuthorityAdmissionCode =
-  | 'runtime_binding_mismatch'
+export type GoogleProviderPermitAdmissionCode =
   | 'capability_killed'
   | 'authorization_denied'
   | 'authorization_changed'
-  | 'operation_deadline_elapsed'
-  | 'permit_unavailable'
-  | 'permit_state_changed'
-  | 'start_deadline_elapsed'
-  | 'state_not_admitted'
 
 /**
  * Every content-free admission denial reason, from either admission side: the
- * gateway's own permit checks above or the app-side content authority. Codes
- * only — never a provider identifier or payload.
+ * gateway's own permit checks above or the app-side permit issuer. Codes only
+ * — never a provider identifier or payload.
  */
 export type GoogleProviderAdmissionCode =
   | GoogleProviderGatewayAdmissionCode
-  | GoogleProviderAuthorityAdmissionCode
+  | GoogleProviderPermitAdmissionCode
   | 'credential_unavailable'
   | 'runtime_unavailable'
 
