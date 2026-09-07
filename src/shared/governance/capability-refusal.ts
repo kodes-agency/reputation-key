@@ -6,9 +6,8 @@
 // can distinguish an absent control row from a deliberate kill.
 //
 // This module reuses the real pure capability validator and reads persisted
-// state through injected readers. It stops before the ExecutionPolicy
-// authorization check, which writes a `policy_decision_audit` row; callers may
-// supply that verdict instead.
+// state through injected readers. Callers supply the permission and scope
+// verdict so this diagnostic remains read-only.
 //
 // The Postgres start authority is never called here. Its transition performs
 // an UPDATE ... RETURNING, so asking it what it would say would start or fence
@@ -123,8 +122,8 @@ export type CapabilityRefusalInput = Readonly<{
   userId?: string
   /**
    * Supplied by a caller that already ran the ExecutionPolicy permission and
-   * scope checks. Absent means those authorities are `not_applicable` — this
-   * module never runs them itself, because that check writes an audit row.
+   * scope checks. Absent means those authorities are `not_applicable`; the
+   * complete authorization stays at the execution boundary.
    */
   permissionScope?: Readonly<{ allowed: boolean; scopeOutcome: string }>
 }>
@@ -322,7 +321,7 @@ export function createCapabilityRefusalExplainer(deps: CapabilityRefusalDeps) {
           {
             name: 'why',
             observed:
-              'not evaluated here: the ExecutionPolicy check writes a policy_decision_audit row, so the caller supplies this verdict',
+              'not evaluated here: the caller supplies the permission and scope verdict so this diagnostic remains read-only',
           },
         ]),
       )

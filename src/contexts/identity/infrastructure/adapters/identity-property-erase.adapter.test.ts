@@ -13,19 +13,10 @@ import type { Tx } from '#/shared/outbox/commit'
 const ORG = 'org-identity-erase'
 const PROPERTY = '60000000-0000-4000-8000-000000000001'
 
-/** The four tables the adapter must cover, and the three it must not touch. */
-const ERASED_TABLES = [
-  'property_access_grants',
-  'property_access_grant',
-  'property_capability',
-  'property_policy',
-] as const
+/** The two live authority tables the adapter must cover. */
+const ERASED_TABLES = ['property_access_grants', 'property_access_grant'] as const
 
-const EXCLUDED_TABLES = [
-  'backup_erasure_ledger',
-  'privacy_requests',
-  'policy_decision_audit',
-] as const
+const EXCLUDED_TABLES = ['backup_erasure_ledger', 'privacy_requests'] as const
 
 type Rendered = Readonly<{ sql: string; params: readonly unknown[] }>
 
@@ -112,7 +103,7 @@ describe('identity property-erase contributor', () => {
     expect(createIdentityPropertyEraseContributor().context).toBe('identity')
   })
 
-  it('inventories exactly the four erasable Identity tables, and no archive table', async () => {
+  it('inventories exactly the two erasable Identity tables, and no archive table', async () => {
     const { tx, executed } = harness(3)
 
     const entries = await createIdentityPropertyEraseContributor().inventory(tx, {
@@ -153,7 +144,7 @@ describe('identity property-erase contributor', () => {
 
     // Every statement must narrow on property_id. Without this, an erase
     // preview would count a sibling Property's rows.
-    expect(executed).toHaveLength(4)
+    expect(executed).toHaveLength(2)
     for (const query of executed) {
       expect(query.sql).toContain('property_id =')
       expect(query.params).toContain(PROPERTY)
@@ -169,14 +160,11 @@ describe('identity property-erase contributor', () => {
     })
 
     const orgScoped = executed.filter((q) => q.sql.includes('organization_id ='))
-    // property_access_grants and property_access_grant have organization_id;
-    // property_capability and property_policy do not carry the column at all,
-    // so requiring it on all four would be asserting a schema that is not real.
     expect(orgScoped).toHaveLength(2)
     for (const query of orgScoped) expect(query.params).toContain(ORG)
   })
 
-  it('deletes from all four tables and returns the total row count', async () => {
+  it('deletes from both tables and returns the total row count', async () => {
     const { tx, deleted } = harness(2)
 
     const erased = await createIdentityPropertyEraseContributor().erase(tx, {
@@ -184,8 +172,8 @@ describe('identity property-erase contributor', () => {
       propertyId: PROPERTY,
     })
 
-    expect(deleted).toHaveLength(4)
-    expect(erased).toBe(8)
+    expect(deleted).toHaveLength(2)
+    expect(erased).toBe(4)
   })
 
   it('binds every delete to this Property, so a sibling Property is untouched', async () => {

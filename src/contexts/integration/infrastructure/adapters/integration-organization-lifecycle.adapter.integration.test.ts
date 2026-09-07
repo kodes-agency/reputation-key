@@ -35,15 +35,14 @@ const OWNED_TABLES = [
   'gbp_import_sagas',
   'gbp_import_requests',
   'gbp_import_request_items',
-  'google_oauth_exchange_attempts',
-  'google_disconnect_revoke_attempts',
+  'idempotency_receipts',
   'authorization_execution_permits',
 ] as const
 
 /** Rows this context keeps after purge, scrubbed to content-free facts. */
 const RETAINED_TABLES = [
   'google_connections',
-  'google_disconnect_revoke_attempts',
+  'idempotency_receipts',
   'authorization_execution_permits',
 ] as const
 
@@ -235,13 +234,23 @@ async function seedFixture(): Promise<Fixture> {
     )
   }
   await lease.pool.query(
-    `INSERT INTO google_disconnect_revoke_attempts (
-       id, organization_id, connection_id, initiator_user_id, state,
-       expected_lifecycle_version, expected_access_version,
-       expected_credential_generation, credential_binding, cleanup_deadline_at,
-       activated_at, terminal_at, outcome_code, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'confirmed_revoked', 1, 1, 1, NULL, $5, $6, $6,
-               'google_revoke_confirmed', $6, $6)`,
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('google_disconnect_revoke', $1, jsonb_build_object(
+       'id', $1::text,
+       'organizationId', $2::text,
+       'connectionId', $3::text,
+       'initiatorUserId', $4::text,
+       'state', 'confirmed_revoked',
+       'expectedLifecycleVersion', 1,
+       'expectedAccessVersion', 1,
+       'expectedCredentialGeneration', 1,
+       'credentialBinding', NULL,
+       'cleanupDeadlineAt', $5::timestamptz,
+       'activatedAt', $6::timestamptz,
+       'terminalAt', $6::timestamptz,
+       'outcomeCode', 'google_revoke_confirmed',
+       'updatedAt', $6::timestamptz
+     ), $6)`,
     [
       randomUUID(),
       fixture.organizationId,
@@ -252,12 +261,17 @@ async function seedFixture(): Promise<Fixture> {
     ],
   )
   await lease.pool.query(
-    `INSERT INTO google_oauth_exchange_attempts (
-       id, organization_id, initiator_user_id, connection_id, connection_mode,
-       state, expected_lifecycle_version, expected_access_version,
-       expected_credential_generation, terminal_at, outcome_code, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'new', 'completed', 1, 1, 1, $5,
-               'connected', $5, $5)`,
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('google_oauth_exchange', $1, jsonb_build_object(
+       'id', $1::text,
+       'organizationId', $2::text,
+       'initiatorUserId', $3::text,
+       'connectionId', $4::text,
+       'state', 'completed',
+       'terminalAt', $5::timestamptz,
+       'outcomeCode', 'connected',
+       'updatedAt', $5::timestamptz
+     ), $5)`,
     [randomUUID(), fixture.organizationId, fixture.userId, randomUUID(), CREATED_AT],
   )
   await lease.pool.query(
@@ -354,11 +368,19 @@ async function tableCounts(
   const counts: Record<string, number> = {}
   for (const table of OWNED_TABLES) {
     // Table names come from the frozen list above, never from a caller.
-    const result = await lease.pool.query(
-      `SELECT count(*)::int AS count FROM ${table} WHERE organization_id = $1`,
-      [organizationId],
-    )
-    counts[table] = (result.rows[0] as { count: number }).count
+    const result =
+      table === 'idempotency_receipts'
+        ? await lease.pool.query(
+            `SELECT count(*)::int AS count FROM idempotency_receipts
+             WHERE scope IN ('google_oauth_exchange', 'google_disconnect_revoke')
+               AND payload->>'organizationId' = $1`,
+            [organizationId],
+          )
+        : await lease.pool.query(
+            `SELECT count(*)::int AS count FROM ${table} WHERE organization_id = $1`,
+            [organizationId],
+          )
+    counts[table] = Number(result.rows[0]?.count ?? 0)
   }
   return counts
 }
@@ -370,14 +392,20 @@ async function tableSnapshot(
 ): Promise<string> {
   const parts: string[] = []
   for (const table of tables) {
-    const result = await lease.pool.query(
-      `SELECT to_jsonb(t.*)::text AS row FROM ${table} AS t
-       WHERE organization_id = $1 ORDER BY to_jsonb(t.*)::text`,
-      [organizationId],
-    )
-    parts.push(
-      `${table}:${(result.rows as { row: string }[]).map((row) => row.row).join('|')}`,
-    )
+    const result =
+      table === 'idempotency_receipts'
+        ? await lease.pool.query(
+            `SELECT to_jsonb(t.*)::text AS row FROM idempotency_receipts AS t
+             WHERE scope IN ('google_oauth_exchange', 'google_disconnect_revoke')
+               AND payload->>'organizationId' = $1 ORDER BY to_jsonb(t.*)::text`,
+            [organizationId],
+          )
+        : await lease.pool.query(
+            `SELECT to_jsonb(t.*)::text AS row FROM ${table} AS t
+             WHERE organization_id = $1 ORDER BY to_jsonb(t.*)::text`,
+            [organizationId],
+          )
+    parts.push(`${table}:${result.rows.map((row) => String(row.row)).join('|')}`)
   }
   return parts.join('\n')
 }
@@ -388,17 +416,17 @@ async function deleteReceipts(organizationIds: readonly string[]): Promise<void>
   try {
     await client.query('BEGIN')
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       DISABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query(
-      `DELETE FROM context_organization_lifecycle_receipts
+      `DELETE FROM organization_lifecycle_events
        WHERE organization_id = ANY($1::text[])`,
       [organizationIds],
     )
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {
@@ -410,7 +438,14 @@ async function deleteReceipts(organizationIds: readonly string[]): Promise<void>
 }
 
 async function cleanupFixture(fixture: Fixture): Promise<void> {
+  await lease.pool.query(
+    `DELETE FROM idempotency_receipts
+     WHERE scope IN ('google_oauth_exchange', 'google_disconnect_revoke')
+       AND payload->>'organizationId' = $1`,
+    [fixture.organizationId],
+  )
   for (const table of [...OWNED_TABLES].reverse()) {
+    if (table === 'idempotency_receipts') continue
     await lease.pool.query(`DELETE FROM ${table} WHERE organization_id = $1`, [
       fixture.organizationId,
     ])
@@ -502,9 +537,11 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
     })
 
     const receipt = await lease.pool.query(
-      `SELECT context, phase, outcome, evidence_ref
-       FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1`,
+      `SELECT context, phase, payload->>'outcome' AS outcome,
+              payload->>'evidenceRef' AS evidence_ref
+       FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(receipt.rows[0]).toMatchObject({
@@ -542,8 +579,9 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
     expect(provider.revokeCredentials).toHaveBeenCalledTimes(1)
     expect(provider.stopNotificationSubscriptions).toHaveBeenCalledTimes(1)
     const receipts = await lease.pool.query(
-      `SELECT count(*)::int AS count FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND phase = 'closing'`,
+      `SELECT count(*)::int AS count FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND phase = 'closing'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(receipts.rows[0]).toEqual({ count: 1 })
@@ -565,8 +603,9 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
     expect(result.outcome).toBe('no_data')
     expect(provider.revokeCredentials).not.toHaveBeenCalled()
     const receipt = await lease.pool.query(
-      `SELECT outcome FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND context = 'integration'`,
+      `SELECT payload->>'outcome' AS outcome FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND context = 'integration'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [organizationId],
     )
     // Affirmative absence is recorded; an omitted contributor would make a
@@ -597,8 +636,9 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
     // Read only: the full contents of every owned table are unchanged.
     expect(await tableSnapshot(fixture.organizationId)).toEqual(before)
     const receipts = await lease.pool.query(
-      `SELECT count(*)::int AS count FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1`,
+      `SELECT count(*)::int AS count FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(receipts.rows[0]).toEqual({ count: 0 })
@@ -679,8 +719,12 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
       last_successful_sync_at: null,
     })
     const attempt = await lease.pool.query(
-      `SELECT credential_binding, initiator_user_id
-       FROM google_disconnect_revoke_attempts WHERE organization_id = $1`,
+      `SELECT
+         payload->>'credentialBinding' AS credential_binding,
+         payload->>'initiatorUserId' AS initiator_user_id
+       FROM idempotency_receipts
+       WHERE scope = 'google_disconnect_revoke'
+         AND payload->>'organizationId' = $1`,
       [fixture.organizationId],
     )
     expect(attempt.rows[0]).toEqual({
@@ -703,8 +747,9 @@ describe.sequential('Integration Organization lifecycle contributor', () => {
     expect(await contributor.purge(request)).toEqual(result)
     expect(await tableCounts(fixture.organizationId)).toEqual(counts)
     const receipts = await lease.pool.query(
-      `SELECT count(*)::int AS count FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND phase = 'purge'`,
+      `SELECT count(*)::int AS count FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND phase = 'purge'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(receipts.rows[0]).toEqual({ count: 1 })

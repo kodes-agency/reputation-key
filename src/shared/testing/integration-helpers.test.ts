@@ -12,11 +12,17 @@ describe('integration Organization fixture cleanup', () => {
 
     expect(query.mock.calls).toEqual([
       [
-        'DELETE FROM organization_exports WHERE organization_id = ANY($1::text[])',
+        'ALTER TABLE organization_lifecycle_events DISABLE TRIGGER organization_lifecycle_events_append_only',
+      ],
+      [
+        'DELETE FROM organization_lifecycle_events WHERE organization_id = ANY($1::text[])',
         [['org-b', 'org-a']],
       ],
       [
-        'DELETE FROM organization_lifecycle_command_receipts WHERE organization_id = ANY($1::text[])',
+        'ALTER TABLE organization_lifecycle_events ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only',
+      ],
+      [
+        'DELETE FROM organization_exports WHERE organization_id = ANY($1::text[])',
         [['org-b', 'org-a']],
       ],
       [

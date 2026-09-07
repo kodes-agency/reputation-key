@@ -60,9 +60,9 @@
 //
 // ── Mutation-sample evidence (BQC-6.9 §4, run 2026-07-29) ──
 //
-// N=5 manual mutants seeded one at a time in critical decision code; EVERY
+// N=4 manual mutants seeded one at a time in critical decision code; EVERY
 // mutant was caught by the existing suite (suite + assertion below), then
-// reverted (git checkout). See the slice report for the full log.
+// reverted. See the slice report for the full log.
 //
 //   #  mutant (file — change)                                          caught by (suite › assertion)
 //   —  ——————————————————————————————————————————————————————————————  ————————————————————————————————————————————————————
@@ -72,16 +72,8 @@
 //      `outcome_unknown → reconciling` transition-map entry            'allows outcome_unknown → reconciling'
 //   3  permissions.ts — canForContext: `has(permission)` →             auth-context-helpers.test.ts ›
 //      `!has(permission)` (inverted permission check)                  'uses effectivePermissions when present (ignores the role table)'
-//   4  goal-type-rules.ts — rolling-window boundary:                   goal-type-rules.test.ts ›
-//      `rollingWindowDays <= 0` → `< 0` (off-by-one)                   'rolling: zero window rejected'
-//   5  processing-routing.ts — assertRegionResolved fail-closed        processing-routing.test.ts ›
+//   4  processing-routing.ts — assertRegionResolved fail-closed        processing-routing.test.ts ›
 //      throw removed (region guard open)                               'throws region_unresolved for unresolved/europe/global' + null (4 tests)
-//
-// Exploratory 6th mutant (NOT in the sample): an off-by-one INSIDE
-// goal/ui/helpers.ts computeElapsedFraction's millisecond math escapes —
-// its only pin is `toBeCloseTo(0.5, 1)` (±0.05 tolerance). Recommendation:
-// pin exact fractions (or day-granularity inputs) in helpers.test.ts.
-// Mutant 4 above covers the goal decision-boundary off-by-one instead.
 
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, dirname, relative } from 'node:path'

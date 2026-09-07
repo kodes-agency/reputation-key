@@ -48,7 +48,6 @@ export type E2eSeedState = Readonly<{
   portalLinkId: string
   managerParticipationId: string
   staffParticipationId: string
-  goalId: string
   reviewCount: 100
 }>
 
@@ -97,7 +96,6 @@ export function readE2eSeedState(): E2eSeedState | null {
       'portalLinkId',
       'managerParticipationId',
       'staffParticipationId',
-      'goalId',
     ] as const
     if (
       raw.version !== 'beta-local-1' ||

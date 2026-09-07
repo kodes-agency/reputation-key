@@ -7,7 +7,11 @@ import * as schema from '#/shared/db/schema'
 import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { PropertyId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
+import {
+  METRIC_DEFINITION_IDS,
+  METRIC_VERSION_IDS,
+  findMetricVersionById,
+} from '#/contexts/metric/application/public-api'
 import { getFleetOverview } from '../../application/use-cases/get-fleet-overview'
 import { createFleetOverviewProjectionAdapter } from './fleet-overview-projection.adapter'
 
@@ -136,21 +140,6 @@ beforeAll(async () => {
     )
   }
   await pool.query(
-    `INSERT INTO organization_capability (organization_id, capability)
-     VALUES ($1, 'portal.read')`,
-    [ORG],
-  )
-  await pool.query(
-    `INSERT INTO property_capability (property_id, capability)
-     VALUES ($1, 'portal.read')`,
-    [first.propertyId],
-  )
-  await pool.query(
-    `INSERT INTO property_capability (property_id, capability)
-     VALUES ($1, 'goal.use')`,
-    [first.propertyId],
-  )
-  await pool.query(
     `INSERT INTO goal_programs
        (id, organization_id, property_id, name, status, current_version,
         created_by, created_at, updated_at)
@@ -164,16 +153,15 @@ beforeAll(async () => {
         metric_definition_id, metric_definition_version_id, metric_key,
         metric_minimum_sample, target_value, property_timezone, effective_from,
         change_reason, created_by, created_at)
-     SELECT $1, $2, $3, $4, 1, definition_id, id, 'portal_rating_count',
+     VALUES ($1, $2, $3, $4, 1, $5, $6, 'portal_rating_count',
        0, 100, 'UTC', '2026-08-01T00:00:00Z', 'created', 'manager-1',
-       '2026-08-01T00:00:00Z'
-     FROM metric_definition_versions
-     WHERE id = $5`,
+       '2026-08-01T00:00:00Z')`,
     [
       GOAL_PROGRAM_VERSION,
       GOAL_PROGRAM,
       ORG,
       first.propertyId,
+      METRIC_DEFINITION_IDS.portalRatingCount,
       METRIC_VERSION_IDS.portalRatingCountGoal,
     ],
   )
@@ -263,6 +251,11 @@ beforeAll(async () => {
       '2026-02-18T18:00:00Z',
     ],
   ] as const) {
+    const metric = findMetricVersionById(versionId)
+    const sourcePolicy = metric?.version.sourcePolicyAllowlist[0]
+    if (!metric || !sourcePolicy) {
+      throw new Error(`Fleet fixture metric is unavailable: ${versionId}`)
+    }
     await pool.query(
       `INSERT INTO metric_readings (
          organization_id, property_id, metric_key, value, definition_version_id,
@@ -270,17 +263,19 @@ beforeAll(async () => {
          attribution_quality, recorded_at, event_at, property_local_date,
          data_quality, retention_class
        )
-       SELECT $1, $2, metric_definitions.metric_key, $3::real, $4, $5,
-         CASE WHEN metric_definitions.metric_key = 'property.review'
-           THEN 'google_property_derivative'
-           ELSE 'review_solicitation_analytics_only'
-         END,
-         $3::numeric, 1, 'exact', $6, $6,
-         to_char($6::timestamptz, 'YYYY-MM-DD'), 'exact', 'standard'
-       FROM metric_definition_versions
-       JOIN metric_definitions ON metric_definitions.id = metric_definition_versions.definition_id
-       WHERE metric_definition_versions.id = $4`,
-      [ORG, property, value, versionId, `${METRIC_SOURCE_PREFIX}-${ordinal}`, eventAt],
+       VALUES ($1, $2, $3, $4::real, $5, $6, $7,
+         $4::numeric, 1, 'exact', $8, $8,
+         to_char($8::timestamptz, 'YYYY-MM-DD'), 'exact', 'standard')`,
+      [
+        ORG,
+        property,
+        metric.definition.key,
+        value,
+        versionId,
+        `${METRIC_SOURCE_PREFIX}-${ordinal}`,
+        sourcePolicy,
+        eventAt,
+      ],
     )
   }
   await pool.query(
@@ -391,11 +386,18 @@ describe('fleet overview projection integration', () => {
       },
       totalAttention: 4,
     })
+    // Portal read is an organization-wide capability (WP3.3-C): the second
+    // property's scans are visible, its unseeded feedback stays empty.
     expect(firstPage.entries[1]).toMatchObject({
-      scanCount: 0,
+      scanCount: 9,
       feedbackCount: 0,
-      scanEvidence: null,
-      feedbackEvidence: null,
+      scanEvidence: expect.objectContaining({
+        definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
+      }),
+      feedbackEvidence: expect.objectContaining({
+        freshness: 'insufficient_data',
+        completeness: 0,
+      }),
     })
   }, 30_000)
 

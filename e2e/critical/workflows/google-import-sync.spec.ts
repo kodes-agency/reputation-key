@@ -25,7 +25,6 @@ import {
   getInboxItemForReview,
   callServerFn,
   callServerFnGet,
-  dbQuery,
   waitFor,
   bailWait,
 } from '../../helpers/fixtures'
@@ -129,51 +128,12 @@ function assertProviderIdentifiersAbsent(value: unknown): void {
   expect(serialized).not.toContain('loc-b')
 }
 
-// Set only when THIS spec's organization_capability insert actually took
-// effect. 'property.import_gbp_v2' is part of LOCAL_BETA_CAPABILITIES and is
-// normally already granted by the seed, so an unconditional DELETE in cleanup
-// would strip SEEDED state rather than restore it — the insert reports whether
-// it inserted, and cleanup is gated on that.
-let insertedOrgImportCapability = false
-
 test.describe('Critical workflow: Google import + initial sync', () => {
   test.beforeEach(async () => {
     // Stale provider syncs from an earlier spec retry against a stub scope that
     // has moved on, and burn the shared reviews quota this one needs.
     await drainFixtureQueue()
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
-  })
-
-  // Symmetry with google-performance.spec.ts: whatever a spec grants, it
-  // revokes, and every capability mutation commits its global policy_version
-  // bump in the SAME statement — the invariant every production writer honours
-  // via BUMP_POLICY_VERSION_SQL (policy-version-sql.ts) and the one that makes
-  // the snapshot store's version-gated refresh a correct cache-invalidation
-  // contract. Bumping separately lets a reader cache a snapshot labelled with
-  // the new version but missing the row, and the version gate then refuses to
-  // reload it until some later bump. The property_capability row below needs
-  // no explicit delete — it cascades with the prefix-scoped property. Placed
-  // in afterEach so a failing test cannot leak the capability into the next
-  // spec.
-  test.afterEach(async () => {
-    if (!insertedOrgImportCapability) return
-    insertedOrgImportCapability = false
-    await dbQuery(
-      `WITH bump AS (
-         INSERT INTO policy_version (scope, version, updated_at)
-         VALUES ('global', 1, now())
-         ON CONFLICT (scope) DO UPDATE
-           SET version = policy_version.version + 1, updated_at = now()
-         RETURNING version
-       ),
-       del AS (
-         DELETE FROM organization_capability
-         WHERE organization_id = $1 AND capability = 'property.import_gbp_v2'
-         RETURNING capability
-       )
-       SELECT capability FROM del`,
-      [seed.organizationId],
-    )
   })
 
   test('pages discovery, imports create + relink, replays exactly, and syncs reviews', async ({
@@ -204,41 +164,6 @@ test.describe('Critical workflow: Google import + initial sync', () => {
         state: 'disconnected',
       },
     })
-    const insertedOrgCapability = await dbQuery(
-      `WITH bump AS (
-         INSERT INTO policy_version (scope, version, updated_at)
-         VALUES ('global', 1, now())
-         ON CONFLICT (scope) DO UPDATE
-           SET version = policy_version.version + 1, updated_at = now()
-         RETURNING version
-       ),
-       ins AS (
-         INSERT INTO organization_capability (organization_id, capability, created_by)
-         VALUES ($1, 'property.import_gbp_v2', $2)
-         ON CONFLICT (organization_id, capability) DO NOTHING
-         RETURNING capability
-       )
-       SELECT capability FROM ins`,
-      [seed.organizationId, admin!.id],
-    )
-    insertedOrgImportCapability = insertedOrgCapability.length > 0
-    await dbQuery(
-      `WITH bump AS (
-         INSERT INTO policy_version (scope, version, updated_at)
-         VALUES ('global', 1, now())
-         ON CONFLICT (scope) DO UPDATE
-           SET version = policy_version.version + 1, updated_at = now()
-         RETURNING version
-       ),
-       ins AS (
-         INSERT INTO property_capability (property_id, capability, created_by)
-         VALUES ($1, 'property.import_gbp_v2', $2)
-         ON CONFLICT (property_id, capability) DO NOTHING
-         RETURNING capability
-       )
-       SELECT capability FROM ins`,
-      [existingPropertyId, admin!.id],
-    )
 
     await signIn(page)
 

@@ -32,8 +32,7 @@ async function main(): Promise<void> {
     openHandleNames: openHandleNames(container),
   })
 
-  // Release the container's background work (the identity policy poller keeps
-  // the event loop alive) and exit deliberately.
+  // Release the container's background work and exit deliberately.
   await container.shutdown.run()
   process.exit(0)
 }

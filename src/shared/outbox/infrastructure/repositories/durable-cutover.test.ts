@@ -57,7 +57,7 @@ import {
   bindProcessPolicies,
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
-import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
+import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
 import type { PolicyStoreHandle } from '#/contexts/identity/infrastructure/policy-store-init'
 import { reviewCreated } from '#/contexts/review/domain/events'
 import type { Review } from '#/contexts/review/domain/types'
@@ -384,7 +384,6 @@ beforeAll(async () => {
   await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM policy_decision_audit WHERE organization_id = $1', [ORG])
 
   // The production relay claims globally. Remove pending facts before creating
   // this suite's closed-world backlog, without touching published history.
@@ -409,7 +408,7 @@ beforeAll(async () => {
 
   resetCapabilityPolicyStore()
   resetDelayedExecutionPolicy()
-  policyHandle = initPersistedCapabilityPolicyStore({
+  policyHandle = buildCapabilityPolicyHandle({
     db,
     env: {} as CapabilityPolicyEnv,
     clock: () => new Date(),
@@ -487,7 +486,6 @@ afterAll(async () => {
   }
   await eventsQueue?.close()
   redisLease?.release()
-  policyHandle?.stopPolling()
   releaseProcessPolicies()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
@@ -517,9 +515,6 @@ afterAll(async () => {
     await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
     // Consumer receipts cascade from their source rows.
     await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
-    await pool.query('DELETE FROM policy_decision_audit WHERE organization_id = $1', [
-      ORG,
-    ])
     await pool.query('DELETE FROM properties WHERE id = $1', [PROP])
     await deleteTestOrganizations(pool, [ORG])
     await pool.end()

@@ -14,7 +14,6 @@
 
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
 import { extractAggregateId, withoutEnvelopeIdentifiers } from './event-adapter'
-import { sanitizeIdentityInvitationQueuePayload } from './identity-invitation-fact-contract'
 
 const DURABLE_COMMAND_CLASSIFICATION = 'durable_domain_fact_required' as const
 const IDENTIFIER_ONLY_CONTENT_CLASSIFICATION = 'identifier_only' as const
@@ -88,12 +87,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 export function buildConsumerEvent(event: UnpublishedEvent): ConsumerEvent {
   const payload = isRecord(event.payload) ? event.payload : {}
-  const durablePayload = sanitizeIdentityInvitationQueuePayload(
-    event.eventType,
-    event.eventVersion,
-    event.payload,
-  )
-  const consumerPayload = withoutEnvelopeIdentifiers(durablePayload)
+  const consumerPayload = withoutEnvelopeIdentifiers(event.payload)
   const { type: aggregateType } = extractAggregateId(payload, event.id)
   // Rows committed before ARC-01 carry neither identifier. Their durable event
   // id is the stable compatibility fallback; new writes supply execution

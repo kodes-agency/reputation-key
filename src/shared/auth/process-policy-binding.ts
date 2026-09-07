@@ -5,14 +5,14 @@
 // that owner is named at a call site rather than acquired as a side effect of
 // constructing something else.
 //
-// WHY: these three were installed from inside initPersistedCapabilityPolicyStore,
-// which runs while a container is being BUILT. Any second container in the
+// WHY: these three were once installed as a side effect of policy-store
+// construction while a container was being built. Any second container in the
 // same process — a simulation, an operator command that calls getContainer()
 // after booting its own policy runtime, a test fixture — silently re-pointed
 // the process singletons at its own objects. The last builder won, invisibly,
-// and the audit sink/consent reader a decision used no longer had to belong to
-// the container that made it. Making the install explicit means a competing
-// bind FAILS LOUDLY instead of quietly winning.
+// and the policy state or consent reader a decision used no longer had to
+// belong to the container that made it. Making the install explicit means a
+// competing bind FAILS LOUDLY instead of quietly winning.
 //
 // The bound objects still come from a container (or from the operator
 // harness's minimal policy boot): this module owns WHEN they become the

@@ -17,6 +17,7 @@ import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
 import { getLogger } from '#/shared/observability/logger'
 import { getRedis } from '#/shared/cache/redis'
+import { createRateLimiter } from '#/shared/rate-limit/middleware'
 import { closeJobQueueConnections } from '#/shared/jobs/queue'
 import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
@@ -79,7 +80,6 @@ import { reportAlertToObservability } from './composition/alert-reporter'
 import { composeOrganizationLifecycle } from '#/composition/organization-export-contributors'
 import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
 import { buildIdentityPolicyDeps } from './composition/identity-policy'
-import { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
 import {
   createDeferredMemberAuthorityLifecycle,
   createMemberAuthorityLifecycle,
@@ -96,7 +96,6 @@ export {
   GOOGLE_PROVIDER_ENDPOINTS,
   type ProviderOverrides,
 } from './composition/provider-runtime'
-export { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
 
 // fallow-ignore-next-line complexity
 function buildContainer(
@@ -310,16 +309,6 @@ function buildContainer(
   // Property lifecycle; Integration still uses it for governed disconnect.
   const sourceContentPurge = createSourceContentPurge({ db, clock })
 
-  // BQC-2.7: every path that creates a property grants it the capability
-  // allowlist its organization already holds — without it a freshly created
-  // property denies every non-core capability (`property_not_allowlisted`)
-  // until an operator repairs it. Shared by the manual creation path
-  // (property context) and the Google import (integration context).
-  const propertyCapabilityProvisioning = bindPropertyCapabilityProvisioning(
-    db,
-    identity.policy.refresh,
-  )
-
   const property = buildPropertyContext({
     db,
     repo: createPropertyRepository(db),
@@ -327,8 +316,6 @@ function buildContainer(
     idGen: randomUUID,
     staffPublicApi: staff.publicApi,
     identityManagerFacts: identity.publicApi.managerFacts,
-    provisionPropertyCapabilities:
-      propertyCapabilityProvisioning.provisionCreatedProperty,
     logger: getLogger(),
   })
 
@@ -366,7 +353,6 @@ function buildContainer(
     identityAccountAdminAuthority: identity.publicApi.accountAdminAuthority,
     staffApi: staff.publicApi,
     logger,
-    storage: portal.uploads.storage,
     sessionSecret: env.GUEST_SESSION_SALT,
     publicOrigin: new URL(env.BETTER_AUTH_URL).origin,
     secureCookies: env.NODE_ENV === 'production',
@@ -394,8 +380,6 @@ function buildContainer(
     jobQueue: infra.jobQueue,
     propertyApi: property.publicApi,
     propertyBindingApi: property.publicApi,
-    provisionPropertyCapabilities:
-      propertyCapabilityProvisioning.provisionCreatedProperty,
     enqueueReviewSync: (data, options) =>
       review.publicApi.syncAdmission.addSyncJob(data, options),
     enqueueTargetedReviewFetch: (data, options) =>
@@ -443,6 +427,13 @@ function buildContainer(
     runtimeEnvironment: options?.runtimeEnvironment ?? process.env,
     enableJobs,
     pool,
+    admissionRateLimiter: createRateLimiter(redis, {
+      keyPrefix: 'ai',
+      maxRequests: 16,
+      windowSeconds: 60,
+      failClosed: true,
+    }),
+    clock,
     inferenceOverride: options?.providers?.aiInference,
     subjectHmacOverride: options?.providers?.aiSubjectHmac,
   })
@@ -620,7 +611,6 @@ function buildContainer(
       enableJobs,
       infra,
       identity: {
-        stopPolicyPolling: identity.policy.stopPolling,
         policyStoreVersion: identity.policy.currentVersion,
       },
       notification: {

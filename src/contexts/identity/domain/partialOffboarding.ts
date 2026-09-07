@@ -29,7 +29,6 @@ export type PartialOffboardingObservation = Readonly<{
   memberId: string | null
   activeGrantCount: number
   offboardedGrantCount: number
-  bindingState: 'active' | 'released' | 'absent'
 }>
 
 export function classifyPartialOffboarding(

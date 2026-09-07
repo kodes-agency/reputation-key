@@ -54,7 +54,6 @@ const REVIEW_ORG_TABLES = Object.freeze([
   'replies',
   'review_source_observations',
   'review_source_contents',
-  'review_source_provenance_quarantine',
   'review_ai_analysis_heads',
   'review_google_reputation_snapshot_facts',
   'review_provider_subjects',
@@ -143,13 +142,13 @@ async function withGuardsDisabled(work: () => Promise<void>): Promise<void> {
     'ALTER TABLE reply_publication_authorizations DISABLE TRIGGER reply_publication_authorizations_immutable',
   )
   await pool.query(
-    'ALTER TABLE context_organization_lifecycle_receipts DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard',
+    'ALTER TABLE organization_lifecycle_events DISABLE TRIGGER organization_lifecycle_events_append_only',
   )
   try {
     await work()
   } finally {
     await pool.query(
-      'ALTER TABLE context_organization_lifecycle_receipts ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard',
+      'ALTER TABLE organization_lifecycle_events ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only',
     )
     await pool.query(
       'ALTER TABLE reply_publication_authorizations ENABLE ALWAYS TRIGGER reply_publication_authorizations_immutable',
@@ -161,7 +160,7 @@ async function clean(): Promise<void> {
   await withGuardsDisabled(async () => {
     for (const org of [ORG_ID, OTHER_ORG_ID]) {
       await pool.query(
-        'DELETE FROM context_organization_lifecycle_receipts WHERE organization_id = $1',
+        'DELETE FROM organization_lifecycle_events WHERE organization_id = $1',
         [org],
       )
       // Break the attempt <-> observation confirmation cycle before deleting
@@ -186,8 +185,9 @@ async function clean(): Promise<void> {
         [org],
       )
       await pool.query(
-        `DELETE FROM inbound_webhook_receipts WHERE resolved_property_id IN
-           (SELECT id::text FROM properties WHERE organization_id = $1)`,
+        `DELETE FROM idempotency_receipts WHERE scope = 'gbp_webhook'
+           AND payload->>'resolvedPropertyId' IN
+             (SELECT id::text FROM properties WHERE organization_id = $1)`,
         [org],
       )
       await pool.query('DELETE FROM properties WHERE organization_id = $1', [org])
@@ -449,10 +449,15 @@ async function seedReviewWork(): Promise<void> {
     )
   }
   await pool.query(
-    `INSERT INTO inbound_webhook_receipts (
-       provider, topic, message_id, received_at, resolved_property_id, outcome
-     ) VALUES ('google', 'reviews', $1, $2, $3, 'accepted')`,
-    [PROVIDER_MESSAGE_ID, AT, PROPERTY_ID],
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('gbp_webhook', $1, jsonb_build_object(
+       'provider', 'google',
+       'topic', 'reviews',
+       'messageId', $1::text,
+       'resolvedPropertyId', $2::text,
+       'outcome', 'accepted'
+     ), $3)`,
+    [PROVIDER_MESSAGE_ID, PROPERTY_ID, AT],
   )
 }
 
@@ -511,15 +516,16 @@ async function armedSyncSchedules(organizationId: string): Promise<number> {
 }
 
 /**
- * Drops this context's receipt so the SAME phase re-executes its SQL instead
- * of replaying the recorded outcome. Production cannot do this, which is
- * exactly why it is the only way to prove the statements are idempotent.
+ * Drops this context's event so the SAME phase re-executes its SQL instead of
+ * replaying the recorded outcome. Production cannot do this, which is exactly
+ * why it is the only way to prove the statements are idempotent.
  */
 async function forgetReviewReceipt(): Promise<void> {
   await withGuardsDisabled(async () => {
     await pool.query(
-      `DELETE FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND context = 'review'`,
+      `DELETE FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND context = 'review'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [ORG_ID],
     )
   })
@@ -582,9 +588,12 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
     await createReviewOrganizationLifecycleContributor(db).prepareClosing(request)
 
     const receipts = await pool.query(
-      `SELECT context, phase, outcome, evidence_ref, lifecycle_revision
-       FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND closure_lineage_id = $2`,
+      `SELECT context, phase, payload->>'outcome' AS outcome,
+              payload->>'evidenceRef' AS evidence_ref,
+              (payload->>'lifecycleRevision')::integer AS lifecycle_revision
+       FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND payload->>'closureLineageId' = $2
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [ORG_ID, request.closureLineageId],
     )
     expect(receipts.rows).toEqual([
@@ -635,8 +644,9 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
       createReviewOrganizationLifecycleContributor(db).verifyPurgeReadiness(readiness),
     ).rejects.toThrow('active_reply_publications=1')
     const receipts = await pool.query(
-      `SELECT 1 FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND context = 'review' AND phase = 'purge_readiness'`,
+      `SELECT 1 FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND context = 'review' AND phase = 'purge_readiness'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [ORG_ID],
     )
     expect(receipts.rowCount).toBe(0)
@@ -722,7 +732,8 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
          + (SELECT count(*) FROM material_review_revisions
              WHERE organization_id = $5 AND normalized_text = $1)
          + (SELECT count(*) FROM replies WHERE organization_id = $5 AND text = $3)
-         + (SELECT count(*) FROM inbound_webhook_receipts WHERE message_id = $4)
+         + (SELECT count(*) FROM idempotency_receipts
+            WHERE scope = 'gbp_webhook' AND payload->>'messageId' = $4)
        )::text AS total`,
       [GUEST_TEXT, GUEST_NAME, REPLY_TEXT, PROVIDER_MESSAGE_ID, ORG_ID],
     )
@@ -758,8 +769,9 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
 
     expect(result.outcome).toBe('no_data')
     const receipts = await pool.query(
-      `SELECT outcome FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND context = 'review'`,
+      `SELECT payload->>'outcome' AS outcome FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND context = 'review'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [ORG_ID],
     )
     // Affirmative absence, never an omitted contributor.

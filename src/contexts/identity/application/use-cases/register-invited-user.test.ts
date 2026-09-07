@@ -39,7 +39,7 @@ function setup(clock: () => Date = () => NOW) {
       now: command.now,
     })
     return {
-      id: command.proposedAttemptId,
+      verificationId: command.proposedVerificationId,
       invitationId: command.invitationId,
       organizationId: 'org-manager' as never,
       authIds: command.proposedAuthIds,
@@ -47,9 +47,10 @@ function setup(clock: () => Date = () => NOW) {
   })
   const reconcile = vi.fn().mockResolvedValue({ kind: 'awaiting_provider' })
   const claimDue = vi.fn().mockResolvedValue([])
+  const complete = vi.fn().mockResolvedValue(undefined)
   const useCase = registerInvitedUser({
     commandStore: { ...commandStore, acceptInvitation },
-    registrationStore: { prepare, claimDue, reconcile },
+    registrationStore: { prepare, claimDue, complete, reconcile },
     signUp,
     idGen: () => generatedIds.shift()!,
     runOnAccepted,
@@ -73,6 +74,7 @@ function setup(clock: () => Date = () => NOW) {
     acceptInvitation,
     prepare,
     reconcile,
+    complete,
   }
 }
 
@@ -94,7 +96,7 @@ describe('registerInvitedUser', () => {
       },
     )
     expect(fixture.prepare).toHaveBeenCalledWith({
-      proposedAttemptId: '10000000-0000-4000-8000-000000000001',
+      proposedVerificationId: '10000000-0000-4000-8000-000000000001',
       invitationId: INVITATION_ID,
       email: 'manager@example.com',
       proposedAuthIds: {
@@ -105,11 +107,6 @@ describe('registerInvitedUser', () => {
       now: NOW,
       nextRecoveryAt: new Date('2026-08-25T12:05:00.000Z'),
     })
-    expect(fixture.acceptInvitation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        registrationAttemptId: '10000000-0000-4000-8000-000000000001',
-      }),
-    )
     expect(fixture.commandStore.invitationById(INVITATION_ID)?.status).toBe('accepted')
     expect(fixture.commandStore.allMembers).toEqual([
       expect.objectContaining({
@@ -119,6 +116,7 @@ describe('registerInvitedUser', () => {
       }),
     ])
     expect(fixture.outbox.byTag('identity.invitation.accepted')).toHaveLength(1)
+    expect(fixture.complete).toHaveBeenCalledWith('10000000-0000-4000-8000-000000000001')
     expect(fixture.runOnAccepted).toHaveBeenCalledWith({
       userId: 'user-preallocated-manager',
       organizationId: 'org-manager',
@@ -144,7 +142,7 @@ describe('registerInvitedUser', () => {
     fixture.reconcile.mockResolvedValueOnce({
       kind: 'ready_to_accept',
       registration: {
-        id: '10000000-0000-4000-8000-000000000001',
+        verificationId: '10000000-0000-4000-8000-000000000001',
         invitationId: INVITATION_ID,
         organizationId: 'org-manager',
         authIds: {
@@ -161,7 +159,6 @@ describe('registerInvitedUser', () => {
     })
     expect(fixture.acceptInvitation).toHaveBeenCalledWith(
       expect.objectContaining({
-        registrationAttemptId: '10000000-0000-4000-8000-000000000001',
         acceptorUserId: 'user-preallocated-manager',
       }),
     )
@@ -197,7 +194,7 @@ describe('registerInvitedUser', () => {
       (error: unknown) => isIdentityError(error) && error.code === 'invitation_not_found',
     )
     expect(fixture.reconcile).toHaveBeenCalledWith({
-      attemptId: '10000000-0000-4000-8000-000000000001',
+      verificationId: '10000000-0000-4000-8000-000000000001',
       now: NOW,
       nextRecoveryAt: new Date('2026-08-25T12:05:00.000Z'),
     })
@@ -233,7 +230,7 @@ describe('registerInvitedUser', () => {
     )
     expect(fixture.logger.error).toHaveBeenCalledWith(
       expect.objectContaining({
-        registrationAttemptId: '10000000-0000-4000-8000-000000000001',
+        registrationVerificationId: '10000000-0000-4000-8000-000000000001',
       }),
       '[identity] invited registration reconciliation failed',
     )

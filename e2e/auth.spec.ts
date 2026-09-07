@@ -49,17 +49,14 @@ test.describe('Authentication', () => {
     const authority = await dbQuery<{
       invitation_status: string
       member_role: string
-      binding_organization_id: string
-      binding_state: string
+      organization_id: string
     }>(
       `SELECT i.status AS invitation_status,
               m.role AS member_role,
-              b.organization_id AS binding_organization_id,
-              b.state AS binding_state
+              m."organizationId" AS organization_id
          FROM invitation i
          JOIN "user" u ON LOWER(u.email) = LOWER(i.email)
          JOIN member m ON m."userId" = u.id AND m."organizationId" = i."organizationId"
-         JOIN user_organization_bindings b ON b.user_id = u.id
         WHERE i.id = $1`,
       [invitationId],
     )
@@ -67,8 +64,7 @@ test.describe('Authentication', () => {
       {
         invitation_status: 'accepted',
         member_role: 'admin',
-        binding_organization_id: seed.organizationId,
-        binding_state: 'active',
+        organization_id: seed.organizationId,
       },
     ])
 

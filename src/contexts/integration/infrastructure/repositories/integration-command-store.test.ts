@@ -70,9 +70,11 @@ const connectedEvent = () =>
   })
 
 async function truncateAll(p: Pool) {
-  await p.query('DELETE FROM google_oauth_exchange_attempts WHERE organization_id = $1', [
-    ORG_ID,
-  ])
+  await p.query(
+    `DELETE FROM idempotency_receipts
+     WHERE scope = 'google_oauth_exchange' AND payload->>'organizationId' = $1`,
+    [ORG_ID],
+  )
   await p.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG_ID])
   await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
 }
@@ -172,9 +174,14 @@ describe.sequential('integrationCommandStore (integration)', () => {
     })
 
     const attempt = await pool.query(
-      `SELECT state, encrypted_result, response_expires_at, apply_lease_expires_at,
-              outcome_code
-       FROM google_oauth_exchange_attempts WHERE id = $1`,
+      `SELECT
+         payload->>'state' AS state,
+         payload->>'encryptedResult' AS encrypted_result,
+         payload->>'responseExpiresAt' AS response_expires_at,
+         payload->>'applyLeaseExpiresAt' AS apply_lease_expires_at,
+         payload->>'outcomeCode' AS outcome_code
+       FROM idempotency_receipts
+       WHERE scope = 'google_oauth_exchange' AND key = $1`,
       [EXCHANGE_ATTEMPT_ID],
     )
     expect(attempt.rows[0]).toMatchObject({
@@ -214,8 +221,11 @@ describe.sequential('integrationCommandStore (integration)', () => {
       [ORG_ID],
     )
     const attempt = await pool.query(
-      `SELECT state, encrypted_result
-       FROM google_oauth_exchange_attempts WHERE id = $1`,
+      `SELECT
+         payload->>'state' AS state,
+         payload->>'encryptedResult' AS encrypted_result
+       FROM idempotency_receipts
+       WHERE scope = 'google_oauth_exchange' AND key = $1`,
       [EXCHANGE_ATTEMPT_ID],
     )
     expect(connections.rows).toHaveLength(0)

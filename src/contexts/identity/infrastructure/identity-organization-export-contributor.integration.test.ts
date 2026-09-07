@@ -63,12 +63,6 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.memberId, fixture.userId, fixture.organizationId, createdAt],
   )
   await lease.pool.query(
-    `INSERT INTO user_organization_bindings (
-       user_id, organization_id, state, source, version, created_at, updated_at
-     ) VALUES ($1, $2, 'active', 'operator', 1, $3, $3)`,
-    [fixture.userId, fixture.organizationId, createdAt],
-  )
-  await lease.pool.query(
     `INSERT INTO invitation (
        id, "organizationId", email, role, status, "expiresAt", "propertyIds",
        "inviterId", "createdAt"
@@ -93,12 +87,6 @@ async function seedFixture(): Promise<Fixture> {
        organization_id, role, data_scope, created_at, updated_at
      ) VALUES ($1, 'auditor', 'assigned-properties', $2, $2)`,
     [fixture.organizationId, createdAt],
-  )
-  await lease.pool.query(
-    `INSERT INTO organization_capability (
-       organization_id, capability, created_by, created_at
-     ) VALUES ($1, 'portal.read', $2, $3)`,
-    [fixture.organizationId, fixture.userId, createdAt],
   )
 
   // These rows carry material that Organization Export must never query.
@@ -163,10 +151,6 @@ describe.sequential('Identity Organization Export contributor', () => {
       )
       await lease.pool.query(
         'DELETE FROM "organizationRole" WHERE "organizationId" = $1',
-        [organizationId],
-      )
-      await lease.pool.query(
-        'DELETE FROM user_organization_bindings WHERE organization_id = $1',
         [organizationId],
       )
       await executeWithLastOwnerGuardDisabled(db, [
@@ -234,7 +218,6 @@ describe.sequential('Identity Organization Export contributor', () => {
       ],
       customRoles: [{ id: fixture.roleId, role: 'auditor' }],
       rolePolicies: [{ role: 'auditor', data_scope: 'assigned-properties' }],
-      organizationCapabilities: [{ capability: 'portal.read' }],
     })
     const archiveText = first.entries
       .map(({ bytes }) => Buffer.from(bytes).toString('utf8'))

@@ -59,7 +59,6 @@ function evidence(
     fence: FENCE,
     state: 'queued',
     triggerEventEnvelopeId: '280931cc-b4dd-42d5-9659-988405b80faa',
-    activeRunId: null,
     snapshotRevisionCount: 1,
     snapshotRevisionSetDigest: 'b'.repeat(64),
     snapshotCapturedAtEpochMillis: 5,
@@ -131,7 +130,6 @@ function read(
     applyAuthorizationLifecycle: async () => {
       throw new Error('not used')
     },
-    readCurrentLifecycle: async () => null,
     listActionable: async () => [],
     reconcile: async () => {
       throw new Error('not used')
@@ -287,12 +285,6 @@ describe('Review Analysis enrollment readiness', () => {
       override: {
         caughtUpEligibleRevisionCount: 1,
         caughtUpRevisionSetDigest: EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST,
-      },
-    },
-    {
-      label: 'a caught-up row with an active replay',
-      override: {
-        activeRunId: '92000000-0000-4000-8000-000000000001',
       },
     },
     {

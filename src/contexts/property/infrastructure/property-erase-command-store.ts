@@ -8,6 +8,10 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import {
+  appendPropertyEraseContextEvent,
+  readPropertyEraseContextEvents,
+} from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
 import type { Tx } from '#/shared/outbox/commit'
 import {
   propertyEraseError,
@@ -235,49 +239,37 @@ function build(
   const recordContextReceipt = async (
     receipt: PropertyEraseContextReceipt,
   ): Promise<void> => {
-    await runner.execute(sql`
-      INSERT INTO property_erase_context_receipts (
-        authority_id, context, phase, outcome, erased_row_count, evidence_ref, occurred_at
-      ) VALUES (
-        ${receipt.authorityId}::uuid, ${receipt.context}, ${receipt.phase},
-        ${receipt.outcome}, ${receipt.erasedRowCount}, ${receipt.evidenceRef},
-        ${receipt.occurredAt.toISOString()}::timestamptz
-      )
-      ON CONFLICT (authority_id, context, phase) DO NOTHING
-    `)
+    await appendPropertyEraseContextEvent(runner, {
+      organizationId: receipt.organizationId,
+      authorityId: receipt.authorityId,
+      context: receipt.context,
+      phase: receipt.phase,
+      outcome: receipt.outcome,
+      erasedRowCount: receipt.erasedRowCount,
+      evidenceRef: receipt.evidenceRef,
+      recordedAt: receipt.occurredAt,
+    })
   }
 
   const completedContexts = async (
     authorityId: string,
     phase: 'inventory' | 'purge',
   ): Promise<readonly PropertyEraseContext[]> => {
-    const result = await runner.execute(sql`
-      SELECT context FROM property_erase_context_receipts
-      WHERE authority_id = ${authorityId}::uuid AND phase = ${phase}
-      ORDER BY context
-    `)
-    return (result.rows as unknown as readonly { context: PropertyEraseContext }[]).map(
-      (row) => row.context,
-    )
+    const events = await readPropertyEraseContextEvents(runner, { authorityId, phase })
+    return events.map((event) => event.context as PropertyEraseContext)
   }
 
   const readInventory = async (
     authorityId: string,
   ): Promise<readonly PropertyEraseInventoryEntry[]> => {
-    const result = await runner.execute(sql`
-      SELECT context, erased_row_count FROM property_erase_context_receipts
-      WHERE authority_id = ${authorityId}::uuid AND phase = 'inventory'
-      ORDER BY context
-    `)
-    return (
-      result.rows as unknown as readonly {
-        context: PropertyEraseContext
-        erased_row_count: number
-      }[]
-    ).map((row) => ({
-      context: row.context,
-      table: `${row.context}:*`,
-      rowCount: Number(row.erased_row_count),
+    const events = await readPropertyEraseContextEvents(runner, {
+      authorityId,
+      phase: 'inventory',
+    })
+    return events.map((event) => ({
+      context: event.context as PropertyEraseContext,
+      table: `${event.context}:*`,
+      rowCount: event.erasedRowCount,
     }))
   }
 

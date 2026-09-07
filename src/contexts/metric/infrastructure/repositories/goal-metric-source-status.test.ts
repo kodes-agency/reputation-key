@@ -136,9 +136,6 @@ async function clean(): Promise<void> {
     )
   `)
   await db.execute(sql`
-    DELETE FROM metric_quarantine WHERE organization_id = ${ORG}
-  `)
-  await db.execute(sql`
     DELETE FROM metric_readings WHERE organization_id = ${ORG}
   `)
   await db.execute(sql`
@@ -206,7 +203,7 @@ describe.sequential('Goal metric durable source status (integration)', () => {
     await insertSource(SUBMITTED_EVENT, 'guest.rating.submitted', DELIVERY_AT)
     const project = recordMetrics({
       commandStore: createAtomicMetricCommandStore(db, randomUUID),
-      registry: createMetricRegistryRepository(db),
+      registry: createMetricRegistryRepository(),
       clock: () => DELIVERY_AT,
       idGen: () => metricReadingId(randomUUID()),
       resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
@@ -274,24 +271,6 @@ describe.sequential('Goal metric durable source status (integration)', () => {
       UPDATE event_consumer_receipts SET status = 'applied'
       WHERE event_id = ${SUBMITTED_EVENT}::uuid
         AND consumer_name = 'metric.guest-analytics'
-    `)
-    await db.execute(sql`
-      INSERT INTO metric_quarantine (
-        source_event_id, organization_id, property_id, definition_version_id,
-        source_policy, reason, payload_hash, event_at
-      ) VALUES (
-        ${SUBMITTED_EVENT}, ${ORG}, ${PROPERTY}::uuid, ${VERSION}::uuid,
-        'first_party_guest_gateway_metric', 'test_quarantine', ${'0'.repeat(64)},
-        ${OCCURRED}
-      )
-    `)
-    await expect(
-      status.inspect(query({ kind: 'portal', portalId: PORTAL }), [
-        'guest.rating.submitted',
-      ]),
-    ).resolves.toMatchObject({ state: 'quarantined', reason: 'source_fact_quarantined' })
-    await db.execute(sql`
-      DELETE FROM metric_quarantine WHERE organization_id = ${ORG}
     `)
     await insertReading()
     await expect(

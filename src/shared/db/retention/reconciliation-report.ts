@@ -2,8 +2,8 @@
  * LIF-01 program bullet 12 — the shared envelope for the read-only legacy
  * reconciliation reports.
  *
- * Bullet 12 asks for existing billing, custom-role, multi-organization, Team
- * and legacy-Guest data to be reconciled or archived before migration WITHOUT
+ * Bullet 12 asks for existing custom-role, multi-organization, Team and
+ * legacy-Guest data to be reconciled or archived before migration WITHOUT
  * erasing the evidence needed to fix the conflicts. That second half is the
  * hard part, and it is why every report in this family is read-only: the rows
  * that make a conflict fixable are the same rows an eager cleanup would

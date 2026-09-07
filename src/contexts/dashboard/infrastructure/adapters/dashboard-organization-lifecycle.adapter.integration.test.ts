@@ -94,9 +94,11 @@ async function milestoneCount(organizationId: string): Promise<number> {
 
 async function receipts(organizationId: string) {
   const result = await lease.pool.query(
-    `SELECT phase, outcome, evidence_ref
-     FROM context_organization_lifecycle_receipts
+    `SELECT phase, payload->>'outcome' AS outcome,
+            payload->>'evidenceRef' AS evidence_ref
+     FROM organization_lifecycle_events
      WHERE organization_id = $1 AND context = 'dashboard'
+       AND kind LIKE 'organization_lifecycle_contribution:%'
      ORDER BY phase`,
     [organizationId],
   )
@@ -113,17 +115,17 @@ async function deleteReceiptFixtures(organizationIds: readonly string[]): Promis
   try {
     await client.query('BEGIN')
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       DISABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query(
-      `DELETE FROM context_organization_lifecycle_receipts
+      `DELETE FROM organization_lifecycle_events
        WHERE organization_id = ANY($1::text[])`,
       [organizationIds],
     )
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {

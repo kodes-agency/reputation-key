@@ -30,10 +30,6 @@ import {
   jobEnqueueOptions,
   jobFamilyRow,
 } from './job-policy'
-import {
-  sanitizeIdentityInvitationQuarantineFields,
-  sanitizeIdentityInvitationRedriveData,
-} from '#/shared/outbox/identity-invitation-fact-contract'
 
 /** The dead-letter queue name. Created in the worker; never processed. */
 export const QUARANTINE_QUEUE_NAME = 'quarantine'
@@ -142,9 +138,8 @@ function isAttemptsExhausted(job: Job): boolean {
 /**
  * True while the handler is executing the attempt that would spend the
  * remaining retry budget. Quarantining before that handler rejects keeps the
- * normally live attempt unsettled until the dead-letter write has completed or
- * failed. Invitation privacy is independently enforced before the add because
- * a suspended process can outlive its BullMQ lock.
+ * normally live attempt unsettled until the dead-letter write completes or
+ * fails. Catalogue work is identifier-only by construction.
  */
 function isFinalAttempt(job: Job): boolean {
   const configured = job.opts?.attempts
@@ -246,18 +241,13 @@ function buildQuarantineEnvelope(
     publicationState?: QuarantineEnvelope['publicationState']
   }>,
 ): QuarantineEnvelope {
-  const rawData = isCatalogueKnownWork(job.name) ? job.data : { redacted: true }
-  const safe = sanitizeIdentityInvitationQuarantineFields(
-    job.name,
-    rawData,
-    fields.failedReason,
-  )
+  const data = isCatalogueKnownWork(job.name) ? job.data : { redacted: true }
   return {
     originalQueue: job.queueName ?? 'unknown',
     originalJobId: job.id ?? 'unknown',
     jobName: job.name,
-    data: safe.data,
-    failedReason: safe.failedReason.slice(0, 200),
+    data,
+    failedReason: fields.failedReason.slice(0, 200),
     attemptsMade: fields.attemptsMade ?? job.attemptsMade,
     policyReason: fields.policyReason,
     quarantinedAt: new Date().toISOString(),
@@ -392,11 +382,10 @@ export function createRedriveJob(
       redrivenFrom: QUARANTINE_QUEUE_NAME,
       originalQuarantineId: quarantined.id ?? quarantineJobId,
     }
-    const safeData = sanitizeIdentityInvitationRedriveData(
-      envelope.jobName,
-      envelope.data,
-    )
-    const data = { ...(safeData as Record<string, unknown>), redriveMetadata }
+    const data = {
+      ...(envelope.data as Record<string, unknown>),
+      redriveMetadata,
+    }
     // Fresh attempt budget from the catalogue policy; unknown jobs fall back
     // to the queue defaults (their handler must exist post-redeploy anyway).
     const opts = jobFamilyRow(envelope.jobName) ? jobEnqueueOptions(envelope.jobName) : {}

@@ -96,8 +96,7 @@ describe('capability refusal explainer', () => {
     }
   })
 
-  // This module never runs the ExecutionPolicy check because that check writes
-  // a policy_decision_audit row.
+  // This diagnostic receives the permission and scope verdict from its caller.
   it('never evaluates permission and scope itself, and says why', async () => {
     const report = await createCapabilityRefusalExplainer(deps())({
       capability: 'review.use',
@@ -105,7 +104,7 @@ describe('capability refusal explainer', () => {
 
     const entry = at(report, 'permission_scope')
     expect(entry.outcome).toBe('not_applicable')
-    expect(entry.facts[0]?.observed).toContain('policy_decision_audit')
+    expect(entry.facts[0]?.observed).toContain('caller supplies')
   })
 
   // Absence and a deliberate kill are distinct operator facts even though both

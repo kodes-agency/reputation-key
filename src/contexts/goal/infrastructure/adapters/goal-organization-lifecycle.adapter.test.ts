@@ -73,10 +73,9 @@ function createFakeTx(options: FakeOptions) {
       if (recorded.text.includes('count(*)')) {
         return { rows: [{ rows: options.tenantRows }], rowCount: 1 }
       }
-      const chain =
-        /DELETE FROM (goal_result_revisions|goal_evaluations) AS target/i.exec(
-          recorded.text,
-        )?.[1]
+      const chain = /DELETE FROM (goal_result_revisions) AS target/i.exec(
+        recorded.text,
+      )?.[1]
       if (chain) {
         const seen = (chainPasses.get(chain) ?? 0) + 1
         chainPasses.set(chain, seen)
@@ -193,12 +192,6 @@ describe('goal organization lifecycle phases', () => {
       ['goal_monthly_results', 'goal_subject_assignments'],
       ['goal_subject_assignments', 'goal_program_versions'],
       ['goal_program_versions', 'goal_programs'],
-      ['goal_refresh_receipts', 'goal_evaluations'],
-      ['goal_evaluations', 'goal_periods'],
-      ['goal_timezone_event_receipts', 'goal_definitions'],
-      ['goal_periods', 'goal_definition_versions'],
-      ['goal_definition_versions', 'goal_definitions'],
-      ['goal_progress', 'goals'],
     ] as const) {
       expect(firstIndex(child)).toBeLessThan(firstIndex(parent))
     }

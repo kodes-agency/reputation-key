@@ -40,8 +40,8 @@
 // saw it, which capped a 102,045-row drain at 200 rows per invocation on
 // 2026-09-01 and made it ~510 separate runs.
 //
-// Requires DATABASE_URL. The invocation is audited by the harness
-// (policy_decision_audit, actorType/executionKind 'operator').
+// Requires DATABASE_URL. The harness returns and prints the authorization
+// decision with the command outcome.
 
 import { getDb } from '../../src/shared/db'
 import { createGoogleContentAuthorityRepository } from '../../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
@@ -118,9 +118,7 @@ async function main(): Promise<void> {
       if (outcome.batchFull) {
         io.out('batchFull=true — more candidates remain; re-run until batchFull=false')
       }
-      io.out(
-        'evidence: the decision row in policy_decision_audit plus this outcome — attach to the ticket',
-      )
+      io.out('evidence: this command outcome — attach to the ticket')
     },
   )
   process.exit(result.exitCode)

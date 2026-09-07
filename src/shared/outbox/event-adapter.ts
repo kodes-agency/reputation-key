@@ -32,6 +32,7 @@ const eventVersionFor = (event: DomainEvent): number => {
     return 3
   }
   if (event._tag === 'integration.google_account.connected') return 3
+  if (event._tag === 'identity.member.invited') return 2
   return (PRIMARY_STAFF_ATTRIBUTED_EVENT_TYPES.has(event._tag) &&
     'staffAttribution' in event) ||
     event._tag === 'portal.responsibility_became_needed' ||

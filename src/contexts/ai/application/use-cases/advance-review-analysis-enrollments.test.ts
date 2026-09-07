@@ -124,7 +124,6 @@ function harness(
     applyAuthorizationLifecycle: async () => {
       throw new Error('not used')
     },
-    readCurrentLifecycle: async () => null,
     listActionable: async () => [HEAD],
     reconcile,
     approveAssistedReplay: async () => {

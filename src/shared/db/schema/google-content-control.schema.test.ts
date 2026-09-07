@@ -9,7 +9,6 @@ import {
   googleSubjectAuthorityGuards,
 } from './google-content-control.schema'
 import { googleConnections } from './google-connection.schema'
-import { policyVersion } from './policy.schema'
 
 const columnNames = (table: Parameters<typeof getTableConfig>[0]) =>
   getTableConfig(table).columns.map((column) => column.name)
@@ -32,7 +31,6 @@ describe('Google Content control schema', () => {
       'property.connect_gbp',
       'property.publish_reply',
     ])
-    expect(columnNames(policyVersion)).toContain('emergency_kill_version')
     expect(columnNames(capabilityExecutionControl)).toEqual(
       expect.arrayContaining([
         'capability',

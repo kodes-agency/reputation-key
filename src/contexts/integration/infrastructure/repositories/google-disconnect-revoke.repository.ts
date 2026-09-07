@@ -1,9 +1,9 @@
-import { and, asc, eq, inArray, lte } from 'drizzle-orm'
+import { and, asc, eq, not, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   authorizationExecutionPermits,
   googleConnections,
-  googleDisconnectRevokeAttempts,
+  idempotencyReceipts,
 } from '#/shared/db/schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { googleConnectionFromRow } from '../mappers/google-connection.mapper'
@@ -18,9 +18,52 @@ import type { GoogleConnection } from '../../domain/types'
 import { integrationGoogleAccountDisconnected } from '../../domain/events'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 
+const RECEIPT_SCOPE = 'google_disconnect_revoke'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const SHA256 = /^[a-f0-9]{64}$/u
 const OUTCOME_CODE = /^[a-z0-9_.-]{1,100}$/u
+
+type AttemptState = 'active' | 'dispatching' | GoogleDisconnectRevokeOutcome
+
+type AttemptRow = Readonly<{
+  id: string
+  organizationId: string
+  connectionId: string
+  initiatorUserId: string
+  cleanupWorkPermitId: string | null
+  state: AttemptState
+  expectedLifecycleVersion: number
+  expectedAccessVersion: number
+  expectedCredentialGeneration: number
+  credentialBinding: string | null
+  cleanupDeadlineAt: Date
+  activatedAt: Date
+  dispatchingAt: Date | null
+  terminalAt: Date | null
+  outcomeCode: string | null
+  createdAt: Date
+  updatedAt: Date
+}>
+
+type AttemptPayload = Readonly<{
+  id: string
+  organizationId: string
+  connectionId: string
+  initiatorUserId: string
+  cleanupWorkPermitId: string | null
+  state: AttemptState
+  expectedLifecycleVersion: number
+  expectedAccessVersion: number
+  expectedCredentialGeneration: number
+  credentialBinding: string | null
+  cleanupDeadlineAt: string
+  activatedAt: string
+  dispatchingAt: string | null
+  terminalAt: string | null
+  outcomeCode: string | null
+  createdAt: string
+  updatedAt: string
+}>
 
 const fail = <T>(
   code: Exclude<GoogleDisconnectRevokeResult<T>, { ok: true }>['code'],
@@ -29,6 +72,128 @@ const success = <T>(value: T): GoogleDisconnectRevokeResult<T> => ({
   ok: true,
   value,
 })
+
+function requiredString(
+  payload: Readonly<Record<string, unknown>>,
+  field: string,
+): string {
+  const value = payload[field]
+  if (typeof value !== 'string')
+    throw new Error('google_disconnect_revoke_receipt_invalid')
+  return value
+}
+
+function nullableString(
+  payload: Readonly<Record<string, unknown>>,
+  field: string,
+): string | null {
+  const value = payload[field]
+  if (value === null) return null
+  if (typeof value !== 'string')
+    throw new Error('google_disconnect_revoke_receipt_invalid')
+  return value
+}
+
+function requiredInteger(
+  payload: Readonly<Record<string, unknown>>,
+  field: string,
+): number {
+  const value = payload[field]
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
+    throw new Error('google_disconnect_revoke_receipt_invalid')
+  }
+  return value
+}
+
+function requiredDate(payload: Readonly<Record<string, unknown>>, field: string): Date {
+  const parsed = new Date(requiredString(payload, field))
+  if (Number.isNaN(parsed.getTime()))
+    throw new Error('google_disconnect_revoke_receipt_invalid')
+  return parsed
+}
+
+function nullableDate(
+  payload: Readonly<Record<string, unknown>>,
+  field: string,
+): Date | null {
+  const value = nullableString(payload, field)
+  if (value === null) return null
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime()))
+    throw new Error('google_disconnect_revoke_receipt_invalid')
+  return parsed
+}
+
+function attemptFromPayload(payload: Readonly<Record<string, unknown>>): AttemptRow {
+  const state = requiredString(payload, 'state')
+  if (
+    state !== 'active' &&
+    state !== 'dispatching' &&
+    state !== 'confirmed_not_sent' &&
+    state !== 'confirmed_revoked' &&
+    state !== 'cleanup_ambiguous'
+  ) {
+    throw new Error('google_disconnect_revoke_receipt_invalid')
+  }
+  return {
+    id: requiredString(payload, 'id'),
+    organizationId: requiredString(payload, 'organizationId'),
+    connectionId: requiredString(payload, 'connectionId'),
+    initiatorUserId: requiredString(payload, 'initiatorUserId'),
+    cleanupWorkPermitId: nullableString(payload, 'cleanupWorkPermitId'),
+    state,
+    expectedLifecycleVersion: requiredInteger(payload, 'expectedLifecycleVersion'),
+    expectedAccessVersion: requiredInteger(payload, 'expectedAccessVersion'),
+    expectedCredentialGeneration: requiredInteger(
+      payload,
+      'expectedCredentialGeneration',
+    ),
+    credentialBinding: nullableString(payload, 'credentialBinding'),
+    cleanupDeadlineAt: requiredDate(payload, 'cleanupDeadlineAt'),
+    activatedAt: requiredDate(payload, 'activatedAt'),
+    dispatchingAt: nullableDate(payload, 'dispatchingAt'),
+    terminalAt: nullableDate(payload, 'terminalAt'),
+    outcomeCode: nullableString(payload, 'outcomeCode'),
+    createdAt: requiredDate(payload, 'createdAt'),
+    updatedAt: requiredDate(payload, 'updatedAt'),
+  }
+}
+
+const attemptPayload = (attempt: AttemptRow): AttemptPayload => ({
+  ...attempt,
+  cleanupDeadlineAt: attempt.cleanupDeadlineAt.toISOString(),
+  activatedAt: attempt.activatedAt.toISOString(),
+  dispatchingAt: attempt.dispatchingAt?.toISOString() ?? null,
+  terminalAt: attempt.terminalAt?.toISOString() ?? null,
+  createdAt: attempt.createdAt.toISOString(),
+  updatedAt: attempt.updatedAt.toISOString(),
+})
+
+async function readAttemptForUpdate(tx: Tx, id: string): Promise<AttemptRow | null> {
+  const [receipt] = await tx
+    .select({ payload: idempotencyReceipts.payload })
+    .from(idempotencyReceipts)
+    .where(
+      and(eq(idempotencyReceipts.scope, RECEIPT_SCOPE), eq(idempotencyReceipts.key, id)),
+    )
+    .for('update')
+    .limit(1)
+  return receipt ? attemptFromPayload(receipt.payload) : null
+}
+
+async function updateAttempt(tx: Tx, attempt: AttemptRow): Promise<boolean> {
+  const updated = await tx
+    .update(idempotencyReceipts)
+    .set({ payload: attemptPayload(attempt) })
+    .where(
+      and(
+        eq(idempotencyReceipts.scope, RECEIPT_SCOPE),
+        eq(idempotencyReceipts.key, attempt.id),
+      ),
+    )
+    .returning({ key: idempotencyReceipts.key })
+  return updated.length === 1
+}
 
 type FrozenVersions = Readonly<{
   lifecycleVersion: number
@@ -59,7 +224,7 @@ function frozenVersions(
 }
 
 function exactScope(
-  attempt: typeof googleDisconnectRevokeAttempts.$inferSelect,
+  attempt: AttemptRow,
   input: Readonly<{
     organizationId: string
     connectionId: string
@@ -73,13 +238,11 @@ function exactScope(
   )
 }
 
-type AttemptRow = typeof googleDisconnectRevokeAttempts.$inferSelect
 type ConnectionRow = typeof googleConnections.$inferSelect
 type PermitRow = typeof authorizationExecutionPermits.$inferSelect
 type PrepareInput = Parameters<GoogleDisconnectRevokeStore['prepare']>[0]
 type AcquireDispatchInput = Parameters<GoogleDisconnectRevokeStore['acquireDispatch']>[0]
 
-/** The request must be well formed and identical to the authorization it carries. */
 function isWellFormedPrepareRequest(input: PrepareInput): boolean {
   const disconnectRevoke = input.authorization.disconnectRevoke
   return (
@@ -108,7 +271,6 @@ function connectionMatchesFrozenVersions(
   )
 }
 
-/** The row that survived the insert race must be exactly the one this call asked for. */
 function attemptMatchesPrepare(
   attempt: AttemptRow,
   input: PrepareInput,
@@ -153,7 +315,6 @@ function attemptIsDispatchable(
   )
 }
 
-/** The cleanup permit must be admitted for exactly this route, scope and credential. */
 function permitBindsCleanupWork(
   permit: PermitRow | undefined,
   attempt: AttemptRow,
@@ -178,7 +339,7 @@ function permitBindsCleanupWork(
 
 async function redactConnection(
   tx: Tx,
-  attempt: typeof googleDisconnectRevokeAttempts.$inferSelect,
+  attempt: AttemptRow,
   outcome: GoogleDisconnectRevokeOutcome,
   now: Date,
 ) {
@@ -233,18 +394,13 @@ export const createGoogleDisconnectRevokeRepository = (
     if (!OUTCOME_CODE.test(input.outcomeCode)) return fail('invalid_transition')
     return db.transaction(
       async (tx): Promise<GoogleDisconnectRevokeResult<GoogleConnection>> => {
-        const [attempt] = await tx
-          .select()
-          .from(googleDisconnectRevokeAttempts)
-          .where(eq(googleDisconnectRevokeAttempts.id, input.attemptId))
-          .for('update')
-          .limit(1)
+        const attempt = await readAttemptForUpdate(tx, input.attemptId)
         if (!attempt) return fail('not_found')
         if (!exactScope(attempt, input)) return fail('scope_mismatch')
         if (
-          ['confirmed_not_sent', 'confirmed_revoked', 'cleanup_ambiguous'].includes(
-            attempt.state,
-          )
+          attempt.state === 'confirmed_not_sent' ||
+          attempt.state === 'confirmed_revoked' ||
+          attempt.state === 'cleanup_ambiguous'
         ) {
           if (attempt.state !== input.outcome) return fail('invalid_transition')
           const [connection] = await tx
@@ -271,23 +427,15 @@ export const createGoogleDisconnectRevokeRepository = (
         }
         const connection = await redactConnection(tx, attempt, input.outcome, input.now)
         if (!connection) return fail('invalid_transition')
-        const updated = await tx
-          .update(googleDisconnectRevokeAttempts)
-          .set({
-            state: input.outcome,
-            credentialBinding: null,
-            terminalAt: input.now,
-            outcomeCode: input.outcomeCode,
-            updatedAt: input.now,
-          })
-          .where(
-            and(
-              eq(googleDisconnectRevokeAttempts.id, attempt.id),
-              eq(googleDisconnectRevokeAttempts.state, attempt.state),
-            ),
-          )
-          .returning({ id: googleDisconnectRevokeAttempts.id })
-        if (!updated[0]) return fail('invalid_transition')
+        const updated = await updateAttempt(tx, {
+          ...attempt,
+          state: input.outcome,
+          credentialBinding: null,
+          terminalAt: input.now,
+          outcomeCode: input.outcomeCode,
+          updatedAt: input.now,
+        })
+        if (!updated) return fail('invalid_transition')
         await insertOutboxRow(tx, input.event)
         return success(googleConnectionFromRow(connection))
       },
@@ -316,32 +464,51 @@ export const createGoogleDisconnectRevokeRepository = (
         if (!connectionMatchesFrozenVersions(connection, versions)) {
           return fail('scope_mismatch')
         }
+        const [concurrent] = await tx
+          .select({ key: idempotencyReceipts.key })
+          .from(idempotencyReceipts)
+          .where(
+            and(
+              eq(idempotencyReceipts.scope, RECEIPT_SCOPE),
+              not(eq(idempotencyReceipts.key, input.attemptId)),
+              sql`${idempotencyReceipts.payload}->>'organizationId' = ${input.authorization.organizationId}`,
+              sql`${idempotencyReceipts.payload}->>'connectionId' = ${input.authorization.connectionId}`,
+              sql`${idempotencyReceipts.payload}->>'state' IN ('active', 'dispatching')`,
+            ),
+          )
+          .limit(1)
+        if (concurrent) return fail('concurrent_attempt')
+        const attempt: AttemptRow = {
+          id: input.attemptId,
+          organizationId: input.authorization.organizationId,
+          connectionId: input.authorization.connectionId,
+          initiatorUserId: input.authorization.initiatorUserId,
+          cleanupWorkPermitId: null,
+          state: 'active',
+          expectedLifecycleVersion: versions.lifecycleVersion,
+          expectedAccessVersion: versions.accessVersion,
+          expectedCredentialGeneration: versions.credentialGeneration,
+          credentialBinding: input.credentialBinding,
+          cleanupDeadlineAt: input.cleanupDeadlineAt,
+          activatedAt: input.now,
+          dispatchingAt: null,
+          terminalAt: null,
+          outcomeCode: null,
+          createdAt: input.now,
+          updatedAt: input.now,
+        }
         await tx
-          .insert(googleDisconnectRevokeAttempts)
+          .insert(idempotencyReceipts)
           .values({
-            id: input.attemptId,
-            organizationId: input.authorization.organizationId,
-            connectionId: input.authorization.connectionId,
-            initiatorUserId: input.authorization.initiatorUserId,
-            state: 'active',
-            expectedLifecycleVersion: versions.lifecycleVersion,
-            expectedAccessVersion: versions.accessVersion,
-            expectedCredentialGeneration: versions.credentialGeneration,
-            credentialBinding: input.credentialBinding,
-            cleanupDeadlineAt: input.cleanupDeadlineAt,
-            activatedAt: input.now,
-            createdAt: input.now,
-            updatedAt: input.now,
+            scope: RECEIPT_SCOPE,
+            key: input.attemptId,
+            payload: attemptPayload(attempt),
+            recordedAt: input.now,
           })
           .onConflictDoNothing()
-        const [attempt] = await tx
-          .select()
-          .from(googleDisconnectRevokeAttempts)
-          .where(eq(googleDisconnectRevokeAttempts.id, input.attemptId))
-          .for('update')
-          .limit(1)
-        if (!attempt) return fail('concurrent_attempt')
-        return attemptMatchesPrepare(attempt, input, versions)
+        const persisted = await readAttemptForUpdate(tx, input.attemptId)
+        if (!persisted) return fail('concurrent_attempt')
+        return attemptMatchesPrepare(persisted, input, versions)
           ? success({ prepared: true as const })
           : fail('concurrent_attempt')
       }),
@@ -352,12 +519,7 @@ export const createGoogleDisconnectRevokeRepository = (
         if (!versions || !isWellFormedDispatchRequest(input)) {
           return fail('invalid_transition')
         }
-        const [attempt] = await tx
-          .select()
-          .from(googleDisconnectRevokeAttempts)
-          .where(eq(googleDisconnectRevokeAttempts.id, input.attemptId))
-          .for('update')
-          .limit(1)
+        const attempt = await readAttemptForUpdate(tx, input.attemptId)
         if (!attempt) return fail('not_found')
         if (
           !exactScope(attempt, {
@@ -381,6 +543,18 @@ export const createGoogleDisconnectRevokeRepository = (
         if (!permitBindsCleanupWork(permit, attempt, input.credentialBinding, versions)) {
           return fail('scope_mismatch')
         }
+        const [permitConflict] = await tx
+          .select({ key: idempotencyReceipts.key })
+          .from(idempotencyReceipts)
+          .where(
+            and(
+              eq(idempotencyReceipts.scope, RECEIPT_SCOPE),
+              not(eq(idempotencyReceipts.key, attempt.id)),
+              sql`${idempotencyReceipts.payload}->>'cleanupWorkPermitId' = ${input.cleanupWorkPermitId}`,
+            ),
+          )
+          .limit(1)
+        if (permitConflict) return fail('scope_mismatch')
         const connections = await tx
           .update(googleConnections)
           .set({
@@ -408,16 +582,14 @@ export const createGoogleDisconnectRevokeRepository = (
           )
           .returning({ id: googleConnections.id })
         if (!connections[0]) return fail('scope_mismatch')
-        await tx
-          .update(googleDisconnectRevokeAttempts)
-          .set({
-            state: 'dispatching',
-            cleanupWorkPermitId: input.cleanupWorkPermitId,
-            credentialBinding: null,
-            dispatchingAt: input.now,
-            updatedAt: input.now,
-          })
-          .where(eq(googleDisconnectRevokeAttempts.id, attempt.id))
+        await updateAttempt(tx, {
+          ...attempt,
+          state: 'dispatching',
+          cleanupWorkPermitId: input.cleanupWorkPermitId,
+          credentialBinding: null,
+          dispatchingAt: input.now,
+          updatedAt: input.now,
+        })
         return success({ dispatching: true as const })
       }),
 
@@ -428,18 +600,22 @@ export const createGoogleDisconnectRevokeRepository = (
         return { visited: 0, confirmedNotSent: 0, cleanupAmbiguous: 0 }
       }
       return db.transaction(async (tx) => {
-        const attempts = await tx
-          .select()
-          .from(googleDisconnectRevokeAttempts)
+        const receipts = await tx
+          .select({ payload: idempotencyReceipts.payload })
+          .from(idempotencyReceipts)
           .where(
             and(
-              inArray(googleDisconnectRevokeAttempts.state, ['active', 'dispatching']),
-              lte(googleDisconnectRevokeAttempts.cleanupDeadlineAt, input.now),
+              eq(idempotencyReceipts.scope, RECEIPT_SCOPE),
+              sql`${idempotencyReceipts.payload}->>'state' IN ('active', 'dispatching')`,
+              sql`(${idempotencyReceipts.payload}->>'cleanupDeadlineAt')::timestamptz <= ${input.now}`,
             ),
           )
-          .orderBy(asc(googleDisconnectRevokeAttempts.cleanupDeadlineAt))
+          .orderBy(
+            asc(sql`(${idempotencyReceipts.payload}->>'cleanupDeadlineAt')::timestamptz`),
+          )
           .limit(input.limit)
           .for('update', { skipLocked: true })
+        const attempts = receipts.map(({ payload }) => attemptFromPayload(payload))
         let confirmedNotSent = 0
         let cleanupAmbiguous = 0
         for (const attempt of attempts) {
@@ -469,19 +645,17 @@ export const createGoogleDisconnectRevokeRepository = (
             organizationId: organizationId(attempt.organizationId),
             occurredAt: input.now,
           })
-          await tx
-            .update(googleDisconnectRevokeAttempts)
-            .set({
-              state: outcome,
-              credentialBinding: null,
-              terminalAt: input.now,
-              outcomeCode:
-                outcome === 'confirmed_not_sent'
-                  ? 'reconciled_permit_not_started'
-                  : 'reconciled_provider_state_ambiguous',
-              updatedAt: input.now,
-            })
-            .where(eq(googleDisconnectRevokeAttempts.id, attempt.id))
+          await updateAttempt(tx, {
+            ...attempt,
+            state: outcome,
+            credentialBinding: null,
+            terminalAt: input.now,
+            outcomeCode:
+              outcome === 'confirmed_not_sent'
+                ? 'reconciled_permit_not_started'
+                : 'reconciled_provider_state_ambiguous',
+            updatedAt: input.now,
+          })
           await insertOutboxRow(tx, event)
           if (outcome === 'confirmed_not_sent') confirmedNotSent += 1
           else cleanupAmbiguous += 1

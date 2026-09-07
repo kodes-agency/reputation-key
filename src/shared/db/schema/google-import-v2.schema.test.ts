@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import {
-  gbpImportItemRetryReceipts,
   gbpImportRequestItems,
   gbpImportRequests,
   gbpImportSagas,
@@ -126,27 +125,5 @@ describe('Google import v2 durable schema', () => {
       'organization_id',
       'import_job_id',
     ])
-  })
-
-  it('tenant-keys retry idempotency receipts and cascades them from their item', () => {
-    expect(columnNames(gbpImportItemRetryReceipts)).toEqual(
-      expect.arrayContaining([
-        'organization_id',
-        'initiating_user_id',
-        'item_id',
-        'retry_request_id',
-        'request_digest_key_version',
-        'request_digest',
-        'accepted_retry_revision',
-      ]),
-    )
-    expect(indexNames(gbpImportItemRetryReceipts)).toContain(
-      'gbp_import_item_retry_receipts_request_unique',
-    )
-    const itemFk = getTableConfig(gbpImportItemRetryReceipts).foreignKeys.find(
-      (candidate) =>
-        candidate.getName() === 'gbp_import_item_retry_receipts_item_tenant_fk',
-    )
-    expect(itemFk?.onDelete).toBe('cascade')
   })
 })

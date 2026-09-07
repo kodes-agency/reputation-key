@@ -294,12 +294,6 @@ beforeAll(async () => {
     [MEMBER_ID, USER_ID, ORGANIZATION_ID],
   )
   await pool.query(
-    `INSERT INTO organization_capability (organization_id, capability)
-     VALUES ($1, 'property.import_gbp_v2')
-     ON CONFLICT DO NOTHING`,
-    [ORGANIZATION_ID],
-  )
-  await pool.query(
     `INSERT INTO google_connections (
        id, organization_id, google_subject, encrypted_access_token,
        encrypted_refresh_token, token_expires_at, scopes, connected_by,
@@ -323,18 +317,14 @@ beforeAll(async () => {
 beforeEach(async () => {
   await clearCredentialLifecycle()
   await pool.query(
-    'DELETE FROM google_disconnect_revoke_attempts WHERE organization_id = $1',
+    `DELETE FROM idempotency_receipts
+     WHERE scope = 'google_disconnect_revoke'
+       AND payload->>'organizationId' = $1`,
     [ORGANIZATION_ID],
   )
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [
     ORGANIZATION_ID,
   ])
-  await pool.query(
-    `INSERT INTO organization_capability (organization_id, capability)
-     VALUES ($1, 'property.import_gbp_v2')
-     ON CONFLICT DO NOTHING`,
-    [ORGANIZATION_ID],
-  )
   await pool.query(
     `UPDATE google_connections
         SET status = 'active', credential_use_state = 'active',
@@ -353,9 +343,6 @@ beforeEach(async () => {
   await pool.query(
     `UPDATE capability_execution_control
         SET denied = false,
-            emergency_kill_version = (
-              SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'
-            ),
             denied_at = NULL,
             drained_at = NULL,
             cleanup_drained_at = NULL
@@ -371,7 +358,9 @@ beforeEach(async () => {
 afterAll(async () => {
   await clearCredentialLifecycle()
   await pool.query(
-    'DELETE FROM google_disconnect_revoke_attempts WHERE organization_id = $1',
+    `DELETE FROM idempotency_receipts
+     WHERE scope = 'google_disconnect_revoke'
+       AND payload->>'organizationId' = $1`,
     [ORGANIZATION_ID],
   )
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [
@@ -400,9 +389,6 @@ afterAll(async () => {
     )
   }
   await pool.query('DELETE FROM google_connections WHERE id = $1', [CONNECTION_ID])
-  await pool.query('DELETE FROM organization_capability WHERE organization_id = $1', [
-    ORGANIZATION_ID,
-  ])
   await withLastOwnerGuardDisabled(pool, async (client) => {
     await client.query('DELETE FROM member WHERE id = $1', [MEMBER_ID])
     await client.query('DELETE FROM "user" WHERE id = $1', [USER_ID])
@@ -556,27 +542,6 @@ describe('Postgres Google admission permit authority', () => {
     }
   })
 
-  it('fences a permit when its live organization capability is revoked after load', async () => {
-    const adapter = authority()
-    const snapshot = await adapter.load(PERMIT_ID)
-    if (!snapshot) throw new Error('expected permit snapshot')
-    await pool.query(
-      `DELETE FROM organization_capability
-        WHERE organization_id = $1 AND capability = 'property.import_gbp_v2'`,
-      [ORGANIZATION_ID],
-    )
-
-    await expect(adapter.start(snapshot)).resolves.toBe('changed')
-    const result = await pool.query(
-      'SELECT state, correlation_id FROM authorization_execution_permits WHERE id = $1',
-      [PERMIT_ID],
-    )
-    expect(result.rows[0]).toEqual({
-      state: 'fenced',
-      correlation_id: 'authorization_changed',
-    })
-  })
-
   it('fences a human permit when the permission generation advances', async () => {
     const adapter = authority()
     const snapshot = await adapter.load(PERMIT_ID)
@@ -622,21 +587,8 @@ describe('Postgres Google admission permit authority', () => {
         [property, ORGANIZATION_ID, CONNECTION_ID, USER_ID],
       )
       await pool.query(
-        `INSERT INTO organization_capability (organization_id, capability)
-         VALUES ($1, 'property.connect_gbp') ON CONFLICT DO NOTHING`,
-        [ORGANIZATION_ID],
-      )
-      await pool.query(
-        `INSERT INTO property_capability (property_id, capability)
-         VALUES ($1, 'property.connect_gbp')`,
-        [property],
-      )
-      await pool.query(
         `UPDATE capability_execution_control
             SET denied = false,
-                emergency_kill_version = (
-                  SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'
-                ),
                 denied_at = NULL, drained_at = NULL, cleanup_drained_at = NULL
           WHERE capability = 'property.connect_gbp'`,
       )
@@ -697,11 +649,6 @@ describe('Postgres Google admission permit authority', () => {
         permitId,
       ])
       await pool.query('DELETE FROM properties WHERE id = $1', [property])
-      await pool.query(
-        `DELETE FROM organization_capability
-          WHERE organization_id = $1 AND capability = 'property.connect_gbp'`,
-        [ORGANIZATION_ID],
-      )
       const prior = original.rows[0]
       if (prior) {
         await pool.query(
@@ -841,21 +788,8 @@ describe('Postgres Google admission permit authority', () => {
         [ORGANIZATION_ID, property, managerUser, USER_ID],
       )
       await pool.query(
-        `INSERT INTO organization_capability (organization_id, capability)
-         VALUES ($1, 'property.publish_reply') ON CONFLICT DO NOTHING`,
-        [ORGANIZATION_ID],
-      )
-      await pool.query(
-        `INSERT INTO property_capability (property_id, capability)
-         VALUES ($1, 'property.publish_reply')`,
-        [property],
-      )
-      await pool.query(
         `UPDATE capability_execution_control
             SET denied = false,
-                emergency_kill_version = (
-                  SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'
-                ),
                 denied_at = NULL, drained_at = NULL, cleanup_drained_at = NULL
           WHERE capability = 'property.publish_reply'`,
       )
@@ -991,11 +925,6 @@ describe('Postgres Google admission permit authority', () => {
         ORGANIZATION_ID,
       ])
       await pool.query('DELETE FROM properties WHERE id = $1', [property])
-      await pool.query(
-        `DELETE FROM organization_capability
-          WHERE organization_id = $1 AND capability = 'property.publish_reply'`,
-        [ORGANIZATION_ID],
-      )
       await pool.query('DELETE FROM member WHERE id = $1', [managerMember])
       await pool.query('DELETE FROM "user" WHERE id = $1', [managerUser])
       const prior = original.rows[0]
@@ -1108,16 +1037,6 @@ describe('Postgres Google admission permit authority', () => {
         )`,
         [property, ORGANIZATION_ID, CONNECTION_ID, managerUser],
       )
-      await pool.query(
-        `INSERT INTO organization_capability (organization_id, capability)
-         VALUES ($1, 'property.read_gbp_performance') ON CONFLICT DO NOTHING`,
-        [ORGANIZATION_ID],
-      )
-      await pool.query(
-        `INSERT INTO property_capability (property_id, capability)
-         VALUES ($1, 'property.read_gbp_performance')`,
-        [property],
-      )
       const grant = await pool.query<{ id: string }>(
         `INSERT INTO property_access_grant (
           organization_id, property_id, user_id, source, created_by
@@ -1127,9 +1046,6 @@ describe('Postgres Google admission permit authority', () => {
       await pool.query(
         `UPDATE capability_execution_control
             SET denied = false,
-                emergency_kill_version = (
-                  SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'
-                ),
                 denied_at = NULL, drained_at = NULL, cleanup_drained_at = NULL
           WHERE capability = 'property.read_gbp_performance'`,
       )
@@ -1154,11 +1070,6 @@ describe('Postgres Google admission permit authority', () => {
         [allowedPermitId, deniedPermitId],
       )
       await pool.query('DELETE FROM properties WHERE id = $1', [property])
-      await pool.query(
-        `DELETE FROM organization_capability
-          WHERE organization_id = $1 AND capability = 'property.read_gbp_performance'`,
-        [ORGANIZATION_ID],
-      )
       await pool.query('DELETE FROM member WHERE id = $1', [managerMember])
       await pool.query('DELETE FROM "user" WHERE id = $1', [managerUser])
       const prior = original.rows[0]
@@ -1411,12 +1322,14 @@ describe('Postgres Google admission permit authority', () => {
     const result = await pool.query(
       `SELECT connection.status, connection.credential_use_state,
               connection.google_subject, connection.encrypted_refresh_token,
-              attempt.state, attempt.credential_binding
+              receipt.payload->>'state' AS state,
+              receipt.payload->>'credentialBinding' AS credential_binding
          FROM google_connections AS connection
-         JOIN google_disconnect_revoke_attempts AS attempt
-           ON attempt.organization_id = connection.organization_id
-          AND attempt.connection_id = connection.id
-        WHERE attempt.id = $1`,
+         JOIN idempotency_receipts AS receipt
+           ON receipt.scope = 'google_disconnect_revoke'
+          AND receipt.payload->>'organizationId' = connection.organization_id
+          AND receipt.payload->>'connectionId' = connection.id::text
+        WHERE receipt.key = $1`,
       [DISCONNECT_ATTEMPT_ID],
     )
     expect(result.rows[0]).toEqual({

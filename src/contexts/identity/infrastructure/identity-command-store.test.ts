@@ -233,7 +233,7 @@ describe('createAtomicIdentityCommandStore', () => {
       const executedRows: Array<{ text: string; params: unknown[] }> = []
       const { db } = createMockDb({
         order,
-        selectQueue: [[], [], []],
+        selectQueue: [[], []],
         outboxRows,
         executedRows,
       })
@@ -246,7 +246,6 @@ describe('createAtomicIdentityCommandStore', () => {
       expect(order).toEqual([
         'tx.start',
         'tx.lock',
-        'tx.read',
         'tx.read',
         'tx.read',
         'tx.state',
@@ -327,29 +326,6 @@ describe('createAtomicIdentityCommandStore', () => {
         expect(outboxRows).toHaveLength(0)
       }
     })
-
-    it('rejects an existing user binding to another Organization', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({
-        order,
-        selectQueue: [
-          [],
-          [],
-          [{ id: 'user-existing' }],
-          [{ organizationId: 'org-other-beta', state: 'active' }],
-        ],
-        outboxRows,
-      })
-
-      const store = createAtomicIdentityCommandStore(db)
-
-      await expect(store.inviteMember(command())).rejects.toSatisfy(
-        (error: unknown) =>
-          isIdentityError(error) && error.code === 'organization_conflict',
-      )
-      expect(outboxRows).toHaveLength(0)
-    })
   })
 
   describe('acceptInvitation', () => {
@@ -393,15 +369,8 @@ describe('createAtomicIdentityCommandStore', () => {
         organizationId: ORG_ID,
         propertyIds: ['prop-a', 'prop-b'],
       })
-      expect(insertedRows).toHaveLength(2)
+      expect(insertedRows).toHaveLength(1)
       expect(insertedRows[0]).toMatchObject({
-        userId: 'user-acceptor-00000000000001',
-        organizationId: ORG_ID as string,
-        state: 'active',
-        source: 'invitation',
-        invitationId: INV_ID as string,
-      })
-      expect(insertedRows[1]).toMatchObject({
         organizationId: ORG_ID as string,
         userId: 'user-acceptor-00000000000001',
         role: 'admin',
@@ -414,8 +383,6 @@ describe('createAtomicIdentityCommandStore', () => {
         'tx.read',
         'tx.lock',
         'tx.read',
-        'tx.read',
-        'tx.state',
         'tx.state',
         'tx.state',
         'tx.outbox',
@@ -465,46 +432,6 @@ describe('createAtomicIdentityCommandStore', () => {
       expect(updateSets).toEqual([])
       expect(outboxRows).toEqual([])
       expect(order).toEqual(['tx.start', 'tx.read', 'tx.lock', 'tx.read', 'tx.rollback'])
-    })
-
-    it('rejects a conflicting binding even when no membership row remains', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const insertedRows: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({
-        order,
-        selectQueue: [
-          [pendingInvitationRow()],
-          [],
-          [
-            {
-              userId: 'user-acceptor-00000000000001',
-              organizationId: 'org-other',
-              state: 'active',
-              version: 1,
-            },
-          ],
-        ],
-        outboxRows,
-        insertedRows,
-      })
-      const store = createAtomicIdentityCommandStore(db)
-
-      await expect(store.acceptInvitation(command())).rejects.toSatisfy(
-        (error: unknown) =>
-          isIdentityError(error) && error.code === 'organization_conflict',
-      )
-
-      expect(insertedRows).toEqual([])
-      expect(outboxRows).toEqual([])
-      expect(order).toEqual([
-        'tx.start',
-        'tx.read',
-        'tx.lock',
-        'tx.read',
-        'tx.read',
-        'tx.rollback',
-      ])
     })
 
     it('rejects an expired invitation — no fact', async () => {
@@ -620,10 +547,9 @@ describe('createAtomicIdentityCommandStore', () => {
       }),
     })
 
-    it('atomically releases the binding, revokes sessions and grants, deletes the member, and records the fact', async () => {
+    it('atomically revokes sessions and grants, deletes the member, and records the fact', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
-      const updateSets: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
         order,
         selectQueue: [
@@ -637,7 +563,6 @@ describe('createAtomicIdentityCommandStore', () => {
           ],
         ],
         outboxRows,
-        updateSets,
       })
 
       const store = createAtomicIdentityCommandStore(db)
@@ -646,9 +571,8 @@ describe('createAtomicIdentityCommandStore', () => {
 
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.eventType).toBe('identity.member.removed')
-      // sessions delete, binding release, LIF-01-T21 grant revocation and the
-      // member delete are four state writes in the ONE transaction that also
-      // records the fact.
+      // Session deletion, grant revocation, and member deletion commit in the
+      // same transaction as the durable fact.
       expect(order).toEqual([
         'tx.start',
         'tx.lock',
@@ -656,16 +580,8 @@ describe('createAtomicIdentityCommandStore', () => {
         'tx.state',
         'tx.state',
         'tx.state',
-        'tx.state',
         'tx.outbox',
         'tx.commit',
-      ])
-      expect(updateSets).toEqual([
-        expect.objectContaining({
-          state: 'released',
-          resolutionReason: 'member_removed',
-          releasedAt: NOW,
-        }),
       ])
     })
 
@@ -823,7 +739,7 @@ describe('createAtomicIdentityCommandStore', () => {
       }),
     })
 
-    it('commits organization, owner, binding, and created fact in one transaction', async () => {
+    it('commits organization, owner membership, and created fact in one transaction', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const insertedRows: Array<Record<string, unknown>> = []
@@ -833,7 +749,7 @@ describe('createAtomicIdentityCommandStore', () => {
 
       await store.registerOrganization(command())
 
-      expect(insertedRows).toHaveLength(3)
+      expect(insertedRows).toHaveLength(2)
       expect(insertedRows[0]).toMatchObject({
         id: 'org-new-00000000-0000-0000-000000000001',
         name: 'Test Org',
@@ -844,22 +760,14 @@ describe('createAtomicIdentityCommandStore', () => {
         userId: 'user-owner-000000000000000001',
         role: 'owner',
       })
-      expect(insertedRows[2]).toMatchObject({
-        userId: 'user-owner-000000000000000001',
-        organizationId: 'org-new-00000000-0000-0000-000000000001',
-        state: 'active',
-        source: 'operator',
-      })
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.eventType).toBe('identity.organization.created')
       expect(order).toEqual([
         'tx.start',
         'tx.read',
-        'tx.state',
-        'tx.state',
         'tx.lock',
         'tx.read',
-        'tx.read',
+        'tx.state',
         'tx.state',
         'tx.outbox',
         'tx.commit',
@@ -948,7 +856,9 @@ describe('createAtomicIdentityCommandStore', () => {
       for (const { tag, make } of cases) {
         const row = toOutboxEvent(make())
         expect(row.eventType, tag).toBe(tag)
-        expect(() => validateEventPayload(tag, 1, row.payload), tag).not.toThrow()
+        expect(row.eventVersion, tag).toBeTypeOf('number')
+        const version = row.eventVersion as number
+        expect(() => validateEventPayload(tag, version, row.payload), tag).not.toThrow()
       }
     })
 

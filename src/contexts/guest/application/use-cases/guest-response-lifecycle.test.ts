@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
-import type { GuestMedia } from '../../domain/guest-media'
 import type { GuestResponse } from '../../domain/guest-response'
 import type {
   GuestResponseRepository,
@@ -40,17 +38,14 @@ const experience = (privateFeedbackThreshold = 3) => ({
 
 function memoryRepo(): GuestResponseRepository & {
   responses: GuestResponse[]
-  media: GuestMedia[]
 } {
   const responses: GuestResponse[] = []
-  const media: GuestMedia[] = []
-  const sameScope = (candidate: GuestResponseScope, row: GuestResponse | GuestMedia) =>
+  const sameScope = (candidate: GuestResponseScope, row: GuestResponse) =>
     candidate.organizationId === row.organizationId &&
     candidate.propertyId === row.propertyId &&
     candidate.portalId === row.portalId
   return {
     responses,
-    media,
     findForSession: async (candidate, sessionId) =>
       responses.find((row) => sameScope(candidate, row) && row.sessionId === sessionId) ??
       null,
@@ -79,85 +74,7 @@ function memoryRepo(): GuestResponseRepository & {
       const index = responses.findIndex((row) => row.id === response.id)
       if (index < 0) return false
       responses[index] = response
-      for (let mediaIndex = 0; mediaIndex < media.length; mediaIndex += 1) {
-        if (media[mediaIndex].responseId === response.id) {
-          media[mediaIndex] = {
-            ...media[mediaIndex],
-            status: 'quarantined',
-            processingLease: null,
-            publicUrl: null,
-          }
-        }
-      }
       return true
-    },
-    insertMedia: async (item) => {
-      media.push(item)
-      return true
-    },
-    findMediaForSession: async (candidate, sessionId, mediaId) =>
-      media.find(
-        (row) =>
-          sameScope(candidate, row) && row.sessionId === sessionId && row.id === mediaId,
-      ) ?? null,
-    claimMedia: async (item, lease, now) => {
-      const index = media.findIndex(
-        (row) => row.id === item.id && row.status === 'issued',
-      )
-      const response = responses.find((row) => row.id === item.responseId)
-      if (
-        index < 0 ||
-        !response ||
-        response.status === 'deleted' ||
-        !response.mediaConsent
-      ) {
-        return false
-      }
-      media[index] = {
-        ...media[index],
-        status: 'processing',
-        processingLease: lease,
-        processingStartedAt: now,
-        confirmedAt: now,
-      }
-      return true
-    },
-    completeMedia: async (item, lease, publicUrl, now) => {
-      const index = media.findIndex(
-        (row) =>
-          row.id === item.id &&
-          row.status === 'processing' &&
-          row.processingLease === lease,
-      )
-      const response = responses.find((row) => row.id === item.responseId)
-      if (index < 0 || !response || response.status === 'deleted') return false
-      media[index] = {
-        ...media[index],
-        status: 'ready',
-        processingLease: null,
-        publicUrl,
-        readyAt: now,
-      }
-      return true
-    },
-    queueMediaPurge: async (item, now) => {
-      const index = media.findIndex((row) => row.id === item.id)
-      if (index >= 0) {
-        media[index] = {
-          ...media[index],
-          status: 'purge_pending',
-          processingLease: null,
-          publicUrl: null,
-          deletedAt: now,
-        }
-      }
-    },
-    markMediaDeleted: async (candidate, objectKey, now) => {
-      const index = media.findIndex(
-        (row) => sameScope(candidate, row) && row.objectKey === objectKey,
-      )
-      if (index >= 0)
-        media[index] = { ...media[index], status: 'deleted', deletedAt: now }
     },
   }
 }
@@ -165,27 +82,6 @@ function memoryRepo(): GuestResponseRepository & {
 function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
   const repo = memoryRepo()
   let sequence = 10
-  let confirm: (() => Promise<string>) | undefined
-  let inspect:
-    (() => Promise<{ contentType: string | null; sizeBytes: number | null }>) | undefined
-  const storage: StoragePort = {
-    createPresignedUploadUrl: async (key) => ({
-      uploadUrl: `https://upload.invalid/${key}`,
-      key,
-    }),
-    confirmUpload: async () =>
-      confirm ? confirm() : 'https://objects.invalid/guest-response.webp',
-    inspectObject: async () =>
-      inspect
-        ? inspect()
-        : {
-            contentType: repo.media[0]?.contentType ?? null,
-            sizeBytes: repo.media[0]?.declaredSizeBytes ?? null,
-          },
-    deleteObject: async () => {},
-    getPublicUrl: (key) => `https://objects.invalid/${key}`,
-    putObject: async () => {},
-  }
   const outbox = createRecordedOutbox()
   let resolvedStaffAttribution: PrimaryStaffAttributionSnapshot | null = STAFF_ATTRIBUTION
   let staffAttributionResolutionCount = 0
@@ -343,34 +239,18 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
       >[1],
     ) => {
       const index = repo.responses.findIndex((row) => row.id === response.id)
-      if (index < 0) {
-        return { outcome: 'conflict' as const, objectKeys: [] as const }
-      }
+      if (index < 0) return 'conflict' as const
       repo.responses[index] = {
         ...response,
         ratingSourceEventId: null,
         feedbackSourceEventId: null,
       }
-      const objectKeys = repo.media
-        .filter((item) => item.responseId === response.id && item.status !== 'deleted')
-        .map((item) => {
-          const mediaIndex = repo.media.indexOf(item)
-          repo.media[mediaIndex] = {
-            ...item,
-            status: 'purge_pending',
-            processingLease: null,
-            publicUrl: null,
-            deletedAt: response.deletedAt,
-          }
-          return item.objectKey
-        })
       for (const fact of facts) await outbox.record(fact)
-      return { outcome: 'applied' as const, objectKeys }
+      return 'applied' as const
     },
   }
   const rawLifecycle = guestResponseLifecycle({
     repo,
-    storage,
     clock,
     idGen: () => `00000000-0000-4000-8000-${String(sequence++).padStart(12, '0')}`,
     commandStore,
@@ -408,10 +288,6 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
       resolvedStaffAttribution = value
     },
     staffAttributionResolutionCount: () => staffAttributionResolutionCount,
-    setConfirm: (value: () => Promise<string>) => (confirm = value),
-    setInspect: (
-      value: () => Promise<{ contentType: string | null; sizeBytes: number | null }>,
-    ) => (inspect = value),
   }
 }
 
@@ -599,67 +475,6 @@ describe('guest response lifecycle', () => {
     ).rejects.toMatchObject({ code: 'response_not_found' })
   })
 
-  it('persists terminal purge when withdrawal wins object confirmation', async () => {
-    const { lifecycle, repo, setConfirm } = harness()
-    const sessionId = '00000000-0000-4000-8000-000000000003'
-    await lifecycle.submit(scope, sessionId, {
-      rating: 5,
-      responseConsent: true,
-      mediaConsent: true,
-    })
-    const issuance = await lifecycle.issueMedia(scope, sessionId, {
-      contentType: 'image/webp',
-      sizeBytes: 1024,
-    })
-    const gate = Promise.withResolvers<string>()
-    setConfirm(() => gate.promise)
-    const confirming = lifecycle.confirmMedia(scope, sessionId, issuance)
-    await Promise.resolve()
-    await lifecycle.withdraw(scope, sessionId)
-    gate.resolve('https://objects.invalid/final.webp')
-    await expect(confirming).rejects.toMatchObject({ code: 'media_not_processable' })
-    expect(repo.media[0]).toMatchObject({ status: 'deleted', publicUrl: null })
-  })
-
-  it('purges an object whose observed MIME differs from its issuance', async () => {
-    const { lifecycle, repo, setInspect } = harness()
-    const sessionId = '00000000-0000-4000-8000-000000000003'
-    await lifecycle.submit(scope, sessionId, {
-      rating: 5,
-      responseConsent: true,
-      mediaConsent: true,
-    })
-    const issuance = await lifecycle.issueMedia(scope, sessionId, {
-      contentType: 'image/png',
-      sizeBytes: 1024,
-    })
-    setInspect(async () => ({ contentType: 'image/jpeg', sizeBytes: 1024 }))
-    await expect(
-      lifecycle.confirmMedia(scope, sessionId, issuance),
-    ).rejects.toMatchObject({ code: 'media_validation_failed' })
-    expect(repo.media[0]).toMatchObject({ status: 'deleted', publicUrl: null })
-  })
-
-  it('quarantines manager-moderated media without exposing its object URL', async () => {
-    const { lifecycle, repo } = harness()
-    const sessionId = '00000000-0000-4000-8000-000000000003'
-    await lifecycle.submit(scope, sessionId, {
-      rating: 5,
-      responseConsent: true,
-      mediaConsent: true,
-    })
-    await lifecycle.issueMedia(scope, sessionId, {
-      contentType: 'image/webp',
-      sizeBytes: 1024,
-    })
-    const moderated = await lifecycle.moderate(scope, repo.responses[0]!.id, 'quarantine')
-    expect(moderated.status).toBe('moderated')
-    expect(repo.media[0]).toMatchObject({
-      status: 'quarantined',
-      publicUrl: null,
-    })
-  })
-
   it('treats legacy manager delete as moderation and preserves the numeric rating', async () => {
     const { lifecycle, repo, outbox } = harness()
     await lifecycle.submit(scope, '00000000-0000-4000-8000-000000000003', {
@@ -739,56 +554,6 @@ describe('guest response lifecycle', () => {
       supersedesSourceEventId: null,
       occurredAt: new Date('2026-08-09T12:20:00.000Z'),
     })
-  })
-
-  // The domain rejection short-circuits the repo compare-and-set, so a replayed
-  // confirmation reports WHY it was refused instead of the generic lost-race
-  // code — and must leave the already-published object alone rather than purge
-  // it down the failure path.
-  it('refuses a replayed confirmation with the domain code and keeps the ready object', async () => {
-    const { lifecycle, repo } = harness()
-    const sessionId = '00000000-0000-4000-8000-000000000003'
-    await lifecycle.submit(scope, sessionId, {
-      rating: 5,
-      responseConsent: true,
-      mediaConsent: true,
-    })
-    const issuance = await lifecycle.issueMedia(scope, sessionId, {
-      contentType: 'image/webp',
-      sizeBytes: 1024,
-    })
-    await expect(lifecycle.confirmMedia(scope, sessionId, issuance)).resolves.toEqual({
-      mediaId: issuance.mediaId,
-      status: 'ready',
-    })
-    const published = repo.media[0]?.publicUrl
-
-    await expect(
-      lifecycle.confirmMedia(scope, sessionId, issuance),
-    ).rejects.toMatchObject({ code: 'media_not_issued' })
-    expect(repo.media[0]).toMatchObject({ status: 'ready', publicUrl: published })
-  })
-
-  it('refuses a confirmation naming an object key its issuance never minted', async () => {
-    const { lifecycle, repo } = harness()
-    const sessionId = '00000000-0000-4000-8000-000000000003'
-    await lifecycle.submit(scope, sessionId, {
-      rating: 5,
-      responseConsent: true,
-      mediaConsent: true,
-    })
-    const issuance = await lifecycle.issueMedia(scope, sessionId, {
-      contentType: 'image/webp',
-      sizeBytes: 1024,
-    })
-
-    await expect(
-      lifecycle.confirmMedia(scope, sessionId, {
-        mediaId: issuance.mediaId,
-        objectKey: `${issuance.objectKey}x`,
-      }),
-    ).rejects.toMatchObject({ code: 'media_not_found' })
-    expect(repo.media[0]).toMatchObject({ status: 'issued', publicUrl: null })
   })
 })
 

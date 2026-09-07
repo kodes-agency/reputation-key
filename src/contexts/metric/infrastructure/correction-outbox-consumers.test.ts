@@ -38,8 +38,7 @@ function registrationWithDatabase(receiptReserved = true) {
     receiptReserved ? [{ eventId: 'metric-corrected-event' }] : [],
   )
   const onConflictDoNothing = vi.fn(() => ({ returning }))
-  const onConflictDoUpdate = vi.fn(async () => undefined)
-  const values = vi.fn(() => ({ onConflictDoNothing, onConflictDoUpdate }))
+  const values = vi.fn(() => ({ onConflictDoNothing }))
   const insert = vi.fn(() => ({ values }))
   const transaction = vi.fn(async (work: (tx: { insert: typeof insert }) => unknown) =>
     work({ insert }),
@@ -63,7 +62,6 @@ function registrationWithDatabase(receiptReserved = true) {
     insert,
     values,
     onConflictDoNothing,
-    onConflictDoUpdate,
     transaction,
   }
 }
@@ -85,9 +83,8 @@ describe('registerMetricCorrectionConsumer', () => {
     })
   })
 
-  it('validates attribution and advances the scoped source watermark monotonically', async () => {
-    const { registration, insert, values, onConflictDoUpdate, transaction } =
-      registrationWithDatabase()
+  it('validates attribution and records one shared consumer receipt', async () => {
+    const { registration, insert, values, transaction } = registrationWithDatabase()
 
     await expect(
       registration.handler({
@@ -104,28 +101,12 @@ describe('registerMetricCorrectionConsumer', () => {
       payload,
     )
     expect(transaction).toHaveBeenCalledOnce()
-    expect(insert).toHaveBeenCalledTimes(2)
+    expect(insert).toHaveBeenCalledOnce()
     expect(values).toHaveBeenCalledWith({
       eventId: 'metric-corrected-event',
       consumerName: 'metric.correction-reconciliation',
       status: 'applied',
     })
-    expect(values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        consumerName: 'metric.correction-reconciliation',
-        organizationId: 'org-1',
-        propertyId: 'property-1',
-        definitionVersionId: 'definition-version-1',
-        lastSourceEventId: 'source-event-2',
-        lastEventAt: new Date(payload.occurredAt),
-      }),
-    )
-    expect(onConflictDoUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        set: expect.objectContaining({ lastSourceEventId: 'source-event-2' }),
-        setWhere: expect.anything(),
-      }),
-    )
   })
 
   it('rejects envelope attribution mismatch before persistence', async () => {
@@ -143,22 +124,7 @@ describe('registerMetricCorrectionConsumer', () => {
     expect(insert).not.toHaveBeenCalled()
   })
 
-  it('rejects an invalid occurrence timestamp before persistence', async () => {
-    const { registration, insert } = registrationWithDatabase()
-
-    await expect(
-      registration.handler({
-        eventId: 'metric-corrected-event',
-        eventVersion: 1,
-        organizationId: 'org-1',
-        propertyId: 'property-1',
-        payload: { ...payload, occurredAt: 'not-a-date' },
-      }),
-    ).rejects.toThrow('metric correction occurredAt is invalid')
-    expect(insert).not.toHaveBeenCalled()
-  })
-
-  it('does not advance the watermark when its receipt already exists', async () => {
+  it('reports a duplicate when its shared consumer receipt already exists', async () => {
     const { registration, insert } = registrationWithDatabase(false)
 
     await expect(

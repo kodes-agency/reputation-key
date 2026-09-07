@@ -1,18 +1,63 @@
-import { and, asc, eq, gt, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNotNull, isNull, lte } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  guestContactRequestPurgeCheckpoints,
   guestContactRequestRevealAudits,
   guestContactRequests,
   guestResponseExperienceSnapshots,
   guestResponsePrivateFeedback,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { portalPublicationSnapshots } from '#/shared/db/schema/portal.schema'
 import type { ContactRequestEncryptionPort } from '../../application/ports/contact-request-encryption.port'
 import type { ContactRequestRepository } from '../../application/ports/contact-request.repository'
 
 const PURGE_AUTHORITY = 'guest-contact-30d-v1'
+const PURGE_RECEIPT_SCOPE = 'guest_contact_purge'
+
+type PurgeCheckpointPayload = Readonly<{
+  cursorExpiresAt: string | null
+  cursorId: string | null
+  completedThrough: string | null
+  processedCount: number
+}>
+type PurgeCheckpoint = Readonly<{
+  cursorExpiresAt: Date | null
+  cursorId: string | null
+  completedThrough: Date | null
+  processedCount: number
+}>
+
+const parseCheckpoint = (payload: Readonly<Record<string, unknown>>): PurgeCheckpoint => {
+  const cursorExpiresAt =
+    typeof payload.cursorExpiresAt === 'string' ? new Date(payload.cursorExpiresAt) : null
+  const completedThrough =
+    typeof payload.completedThrough === 'string'
+      ? new Date(payload.completedThrough)
+      : null
+  const cursorId = typeof payload.cursorId === 'string' ? payload.cursorId : null
+  const processedCount =
+    typeof payload.processedCount === 'number' &&
+    Number.isSafeInteger(payload.processedCount)
+      ? payload.processedCount
+      : 0
+  if (
+    (cursorExpiresAt !== null && Number.isNaN(cursorExpiresAt.getTime())) ||
+    (completedThrough !== null && Number.isNaN(completedThrough.getTime())) ||
+    (cursorExpiresAt === null) !== (cursorId === null) ||
+    processedCount < 0
+  ) {
+    throw new Error('Contact Request purge checkpoint is invalid')
+  }
+  return { cursorExpiresAt, cursorId, completedThrough, processedCount }
+}
+
+const checkpointPayload = (checkpoint: PurgeCheckpoint): PurgeCheckpointPayload => ({
+  cursorExpiresAt: checkpoint.cursorExpiresAt?.toISOString() ?? null,
+  cursorId: checkpoint.cursorId,
+  completedThrough: checkpoint.completedThrough?.toISOString() ?? null,
+  processedCount: checkpoint.processedCount,
+})
 
 const purgeExpiredContactRequests = (
   db: Database,
@@ -20,16 +65,34 @@ const purgeExpiredContactRequests = (
 ) =>
   db.transaction(async (tx) => {
     await tx
-      .insert(guestContactRequestPurgeCheckpoints)
-      .values({ authority: PURGE_AUTHORITY })
+      .insert(idempotencyReceipts)
+      .values({
+        scope: PURGE_RECEIPT_SCOPE,
+        key: PURGE_AUTHORITY,
+        payload: checkpointPayload({
+          cursorExpiresAt: null,
+          cursorId: null,
+          completedThrough: null,
+          processedCount: 0,
+        }),
+        recordedAt: input.through,
+      })
       .onConflictDoNothing()
-    const [checkpoint] = await tx
-      .select()
-      .from(guestContactRequestPurgeCheckpoints)
-      .where(eq(guestContactRequestPurgeCheckpoints.authority, PURGE_AUTHORITY))
+    const [checkpointReceipt] = await tx
+      .select({ payload: idempotencyReceipts.payload })
+      .from(idempotencyReceipts)
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, PURGE_RECEIPT_SCOPE),
+          eq(idempotencyReceipts.key, PURGE_AUTHORITY),
+        ),
+      )
       .for('update')
       .limit(1)
-    if (!checkpoint) throw new Error('Contact Request purge authority unavailable')
+    if (!checkpointReceipt) {
+      throw new Error('Contact Request purge authority unavailable')
+    }
+    const checkpoint = parseCheckpoint(checkpointReceipt.payload)
 
     const expired = await tx
       .select({
@@ -48,6 +111,7 @@ const purgeExpiredContactRequests = (
       .for('update')
 
     if (expired.length > 0) {
+      const last = expired[expired.length - 1]!
       await tx
         .update(guestContactRequests)
         .set({
@@ -67,16 +131,24 @@ const purgeExpiredContactRequests = (
             eq(guestContactRequests.status, 'active'),
           ),
         )
-      const last = expired.at(-1)!
+      const nextCheckpoint = {
+        cursorExpiresAt: last.expiresAt,
+        cursorId: last.id,
+        completedThrough: checkpoint.completedThrough,
+        processedCount: checkpoint.processedCount + expired.length,
+      }
       await tx
-        .update(guestContactRequestPurgeCheckpoints)
+        .update(idempotencyReceipts)
         .set({
-          cursorExpiresAt: last.expiresAt,
-          cursorId: last.id,
-          processedCount: sql`${guestContactRequestPurgeCheckpoints.processedCount} + ${expired.length}`,
-          updatedAt: input.through,
+          payload: checkpointPayload(nextCheckpoint),
+          recordedAt: input.through,
         })
-        .where(eq(guestContactRequestPurgeCheckpoints.authority, PURGE_AUTHORITY))
+        .where(
+          and(
+            eq(idempotencyReceipts.scope, PURGE_RECEIPT_SCOPE),
+            eq(idempotencyReceipts.key, PURGE_AUTHORITY),
+          ),
+        )
       return {
         processed: expired.length,
         checkpoint: { expiresAt: last.expiresAt, id: last.id },
@@ -89,9 +161,17 @@ const purgeExpiredContactRequests = (
         ? checkpoint.completedThrough
         : input.through
     await tx
-      .update(guestContactRequestPurgeCheckpoints)
-      .set({ completedThrough, updatedAt: input.through })
-      .where(eq(guestContactRequestPurgeCheckpoints.authority, PURGE_AUTHORITY))
+      .update(idempotencyReceipts)
+      .set({
+        payload: checkpointPayload({ ...checkpoint, completedThrough }),
+        recordedAt: input.through,
+      })
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, PURGE_RECEIPT_SCOPE),
+          eq(idempotencyReceipts.key, PURGE_AUTHORITY),
+        ),
+      )
     return {
       processed: 0,
       checkpoint:

@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
+import {
+  METRIC_DEFINITION_IDS,
+  METRIC_VERSION_IDS,
+} from '#/contexts/metric/application/public-api'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -22,12 +25,7 @@ describe.sequential('Goal Program result CAS and outbox (integration)', () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL, 8)
     organizationId = `goal-result-atomicity-${randomUUID()}`
     propertyId = randomUUID()
-    const metric = await lease.pool.query<{ definition_id: string }>(
-      `SELECT definition_id FROM metric_definition_versions WHERE id = $1`,
-      [METRIC_VERSION_IDS.portalRatingCountGoal],
-    )
-    metricDefinitionId = metric.rows[0]?.definition_id ?? ''
-    if (!metricDefinitionId) throw new Error('seeded Goal metric version is missing')
+    metricDefinitionId = METRIC_DEFINITION_IDS.portalRatingCount
     await lease.pool.query(
       `INSERT INTO properties
          (id, organization_id, name, slug, timezone)

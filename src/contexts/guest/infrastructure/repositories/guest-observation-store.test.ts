@@ -76,17 +76,19 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  await db.execute(
-    sql`DELETE FROM guest_destination_action_receipts WHERE organization_id = ${ORG}`,
-  )
+  await db.execute(sql`
+    DELETE FROM idempotency_receipts
+    WHERE scope = 'guest_destination_action' AND payload->>'organizationId' = ${ORG}
+  `)
   await db.execute(sql`DELETE FROM scan_events WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
 })
 
 afterAll(async () => {
-  await db.execute(
-    sql`DELETE FROM guest_destination_action_receipts WHERE organization_id = ${ORG}`,
-  )
+  await db.execute(sql`
+    DELETE FROM idempotency_receipts
+    WHERE scope = 'guest_destination_action' AND payload->>'organizationId' = ${ORG}
+  `)
   await db.execute(sql`DELETE FROM scan_events WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM portals WHERE organization_id = ${ORG}`)
@@ -244,14 +246,14 @@ describe.sequential('atomic Guest observations', () => {
       WHERE organization_id = ${ORG} AND event_type = 'guest.review_link.clicked'
     `)
     const receipts = await db.execute(sql`
-      SELECT id FROM guest_destination_action_receipts
-      WHERE organization_id = ${ORG}
+      SELECT key FROM idempotency_receipts
+      WHERE scope = 'guest_destination_action' AND payload->>'organizationId' = ${ORG}
     `)
     expect(outbox.rows).toHaveLength(1)
     expect(receipts.rows).toHaveLength(1)
   })
 
-  it('purges the expired session receipt without deleting the action fact', async () => {
+  it('sweeps the shared receipt after its 30-day retention window', async () => {
     const store = createAtomicGuestObservationStore(db)
     const fact = guestReviewLinkClicked({
       linkId: portalLinkId('52000000-0000-4000-8000-000000000031'),
@@ -275,15 +277,20 @@ describe.sequential('atomic Guest observations', () => {
       fact,
     )
     const rule = RETENTION_RULES.find(
-      (candidate) => candidate.subject === 'guest_destination_action_receipts.expired',
+      (candidate) => candidate.subject === 'idempotency_receipts',
     )!
 
-    await expect(
-      executeRetentionRule(db, rule, {
-        cutoff: new Date('2026-08-26T12:00:00.001Z'),
-        batchSize: 10,
-      }),
-    ).resolves.toMatchObject({ rowsDeleted: 1 })
+    await executeRetentionRule(db, rule, {
+      cutoff: new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000 + 1),
+      batchSize: 10,
+    })
+    const receipts = await db.execute(sql`
+      SELECT key FROM idempotency_receipts
+      WHERE scope = 'guest_destination_action'
+        AND payload->>'organizationId' = ${ORG}
+        AND payload->>'destinationId' = ${fact.linkId}
+    `)
+    expect(receipts.rows).toEqual([])
 
     const facts = await db.execute(sql`
       SELECT id FROM outbox_events
@@ -324,8 +331,8 @@ describe.sequential('atomic Guest observations', () => {
     ).rejects.toThrow('is not registered for the outbox')
 
     const receipts = await db.execute(sql`
-      SELECT id FROM guest_destination_action_receipts
-      WHERE organization_id = ${ORG}
+      SELECT key FROM idempotency_receipts
+      WHERE scope = 'guest_destination_action' AND payload->>'organizationId' = ${ORG}
     `)
     expect(receipts.rows).toHaveLength(0)
   })

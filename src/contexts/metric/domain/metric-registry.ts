@@ -22,7 +22,14 @@ export type SourcePolicyClass =
   | 'manager_confirmed_recognition'
 export type MetricScope = 'property' | 'portal_group' | 'portal'
 export type PermittedConsumer =
-  'dashboard' | 'goal' | 'recognition' | 'notification' | 'export' | 'portal_analytics'
+  | 'dashboard'
+  | 'goal'
+  | 'badge'
+  | 'leaderboard'
+  | 'recognition'
+  | 'notification'
+  | 'export'
+  | 'portal_analytics'
 
 export type InsufficientDataBehavior = 'unavailable' | 'quarantine'
 
@@ -37,6 +44,11 @@ export interface MetricDefinition {
   readonly retentionClass: string
   readonly lifecycleStatus: MetricLifecycleStatus
   readonly approvalOwner: string
+}
+export interface SeededMetricDefinition extends MetricDefinition {
+  readonly entityLevel: 'property' | 'portal'
+  readonly valueType: MetricValueKind
+  readonly createdAt: string
 }
 
 export type GovernedMetricVersion = Readonly<{
@@ -65,6 +77,14 @@ export interface MetricDefinitionVersion {
   readonly employmentDecisionEligible: false
   readonly correctionBehavior: string
   readonly fairnessReviewStatus: string
+}
+export interface SeededMetricDefinitionVersion extends MetricDefinitionVersion {
+  readonly createdAt: string
+}
+
+export interface SeededMetricRegistryEntry {
+  readonly definition: SeededMetricDefinition
+  readonly versions: readonly SeededMetricDefinitionVersion[]
 }
 
 export interface MetricRegistryEntry {
@@ -167,7 +187,7 @@ export function isGamificationViolation(version: MetricDefinitionVersion): boole
   return version.sourcePolicyAllowlist.some((s) => GAMIFICATION_BLOCKED_SOURCES.has(s))
 }
 
-/** Immutable IDs seeded by migration 0018; producers never select by a mutable key. */
+/** Stable IDs in the code-reviewed catalogue; producers never select by mutable key. */
 export const METRIC_VERSION_IDS = {
   contentReviewCompleted: '11111111-1111-4111-8111-111111111101',
   configurationCompleteness: '11111111-1111-4111-8111-111111111102',
@@ -181,6 +201,622 @@ export const METRIC_VERSION_IDS = {
   portalRatingCountGoal: '11111111-1111-4111-8111-111111111302',
   portalRatingAverageGoal: '11111111-1111-4111-8111-111111111303',
 } as const
+export const METRIC_DEFINITION_IDS = {
+  contentReviewCompleted: '11111111-1111-4111-8111-111111110101',
+  configurationCompleteness: '11111111-1111-4111-8111-111111110102',
+  approvedDestinationRatio: '11111111-1111-4111-8111-111111110103',
+  portalScan: '11111111-1111-4111-8111-111111110201',
+  portalRating: '11111111-1111-4111-8111-111111110202',
+  portalFeedback: '11111111-1111-4111-8111-111111110203',
+  portalDestinationClick: '11111111-1111-4111-8111-111111110204',
+  propertyReview: '11111111-1111-4111-8111-111111110205',
+  qualifiedScan: '11111111-1111-4111-8111-111111110301',
+  portalRatingCount: '11111111-1111-4111-8111-111111110302',
+  portalRatingAverage: '11111111-1111-4111-8111-111111110303',
+} as const
+
+function seededEntry(
+  definition: SeededMetricDefinition,
+  versions: readonly SeededMetricDefinitionVersion[],
+): SeededMetricRegistryEntry {
+  const frozenVersions = versions.map((version) =>
+    Object.freeze({
+      ...version,
+      allowedScopes: Object.freeze([...version.allowedScopes]),
+      sourcePolicyAllowlist: Object.freeze([...version.sourcePolicyAllowlist]),
+      permittedConsumers: Object.freeze([...version.permittedConsumers]),
+    }),
+  )
+
+  return Object.freeze({
+    definition: Object.freeze({ ...definition }),
+    versions: Object.freeze(frozenVersions),
+  })
+}
+
+/** Code-reviewed catalogue replacing the former database registry. */
+export const METRIC_DEFINITIONS = Object.freeze([
+  seededEntry(
+    {
+      id: '11111111-1111-4111-8111-111111110101',
+      key: 'portal.content_review.completed',
+      name: 'Portal content reviews completed',
+      entityLevel: 'property',
+      valueType: 'counter',
+      description:
+        'Explicit manager confirmation that published Portal content was reviewed.',
+      valueKind: 'counter',
+      workerDataFlag: false,
+      privacyClass: 'operational',
+      retentionClass: 'standard',
+      lifecycleStatus: 'approved',
+      approvalOwner: 'product-governance',
+      createdAt: '2026-09-05 23:07:05.116845+03',
+    },
+    [
+      {
+        id: '11111111-1111-4111-8111-111111111101',
+        definitionId: '11111111-1111-4111-8111-111111110101',
+        version: 1,
+        effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Explicit manager content-reviewed action',
+        denominatorDescription: null,
+        unit: 'review',
+        precision: 0,
+        aggregationRule: 'sum',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['property', 'portal_group'],
+        attributionRule: 'property and effective Portal group at event time',
+        minimumSample: 1,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_workflow'],
+        permittedConsumers: ['dashboard', 'goal', 'badge', 'leaderboard', 'notification'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+      {
+        id: '11111111-1111-4111-8111-111111112101',
+        definitionId: '11111111-1111-4111-8111-111111110101',
+        version: 2,
+        effectiveFrom: new Date('2026-08-09T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Explicit manager content-reviewed action',
+        denominatorDescription: null,
+        unit: 'review',
+        precision: 0,
+        aggregationRule: 'sum',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['property', 'portal_group'],
+        attributionRule: 'property and effective Portal group at event time',
+        minimumSample: 1,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_workflow'],
+        permittedConsumers: ['dashboard', 'goal', 'recognition', 'notification'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+    ],
+  ),
+  seededEntry(
+    {
+      id: '11111111-1111-4111-8111-111111110102',
+      key: 'portal.configuration_completeness',
+      name: 'Portal configuration completeness',
+      entityLevel: 'property',
+      valueType: 'level',
+      description: 'Published required configuration fields completed as a percentage.',
+      valueKind: 'level',
+      workerDataFlag: false,
+      privacyClass: 'operational',
+      retentionClass: 'standard',
+      lifecycleStatus: 'approved',
+      approvalOwner: 'product-governance',
+      createdAt: '2026-09-05 23:07:05.116845+03',
+    },
+    [
+      {
+        id: '11111111-1111-4111-8111-111111111102',
+        definitionId: '11111111-1111-4111-8111-111111110102',
+        version: 1,
+        effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Published required fields present',
+        denominatorDescription: 'Published required fields configured',
+        unit: 'percent',
+        precision: 2,
+        aggregationRule: 'latest',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['property', 'portal_group'],
+        attributionRule: 'property and effective Portal group at event time',
+        minimumSample: 1,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_workflow'],
+        permittedConsumers: ['dashboard', 'goal', 'badge', 'leaderboard', 'notification'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+      {
+        id: '11111111-1111-4111-8111-111111112102',
+        definitionId: '11111111-1111-4111-8111-111111110102',
+        version: 2,
+        effectiveFrom: new Date('2026-08-09T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Published required fields present',
+        denominatorDescription: 'Published required fields configured',
+        unit: 'percent',
+        precision: 2,
+        aggregationRule: 'latest',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['property', 'portal_group'],
+        attributionRule: 'property and effective Portal group at event time',
+        minimumSample: 1,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_workflow'],
+        permittedConsumers: ['dashboard', 'goal', 'recognition', 'notification'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+    ],
+  ),
+  seededEntry(
+    {
+      id: '11111111-1111-4111-8111-111111110103',
+      key: 'portal.approved_destination_ratio',
+      name: 'Approved Portal destination ratio',
+      entityLevel: 'property',
+      valueType: 'ratio',
+      description: 'Approved destinations divided by configured destinations.',
+      valueKind: 'ratio',
+      workerDataFlag: false,
+      privacyClass: 'operational',
+      retentionClass: 'standard',
+      lifecycleStatus: 'approved',
+      approvalOwner: 'product-governance',
+      createdAt: '2026-09-05 23:07:05.116845+03',
+    },
+    [
+      {
+        id: '11111111-1111-4111-8111-111111111103',
+        definitionId: '11111111-1111-4111-8111-111111110103',
+        version: 1,
+        effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Approved published destinations',
+        denominatorDescription: 'Configured published destinations',
+        unit: 'ratio',
+        precision: 4,
+        aggregationRule: 'latest',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['property', 'portal_group'],
+        attributionRule: 'property and effective Portal group at event time',
+        minimumSample: 5,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_workflow'],
+        permittedConsumers: ['dashboard', 'goal', 'badge', 'leaderboard', 'notification'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+      {
+        id: '11111111-1111-4111-8111-111111112103',
+        definitionId: '11111111-1111-4111-8111-111111110103',
+        version: 2,
+        effectiveFrom: new Date('2026-08-09T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Approved published destinations',
+        denominatorDescription: 'Configured published destinations',
+        unit: 'ratio',
+        precision: 4,
+        aggregationRule: 'ratio',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['property', 'portal_group'],
+        attributionRule: 'property and effective Portal group at event time',
+        minimumSample: 5,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_workflow'],
+        permittedConsumers: ['dashboard', 'goal', 'recognition', 'notification'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+    ],
+  ),
+  seededEntry(
+    {
+      id: '11111111-1111-4111-8111-111111110201',
+      key: 'portal.scan',
+      name: 'Portal scans',
+      entityLevel: 'portal',
+      valueType: 'counter',
+      description: 'Portal scan operational analytics only.',
+      valueKind: 'counter',
+      workerDataFlag: false,
+      privacyClass: 'solicitation_analytics',
+      retentionClass: 'short',
+      lifecycleStatus: 'approved',
+      approvalOwner: 'product-governance',
+      createdAt: '2026-09-05 23:07:05.116845+03',
+    },
+    [
+      {
+        id: '11111111-1111-4111-8111-111111111201',
+        definitionId: '11111111-1111-4111-8111-111111110201',
+        version: 1,
+        effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Portal scans',
+        denominatorDescription: null,
+        unit: 'scan',
+        precision: 0,
+        aggregationRule: 'sum',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['property', 'portal', 'portal_group'],
+        attributionRule: 'portal and property at event time',
+        minimumSample: 1,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['review_solicitation_analytics_only'],
+        permittedConsumers: ['portal_analytics'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+    ],
+  ),
+  seededEntry(
+    {
+      id: '11111111-1111-4111-8111-111111110202',
+      key: 'portal.rating',
+      name: 'Private Portal ratings',
+      entityLevel: 'portal',
+      valueType: 'average',
+      description: 'Private guest rating aggregate for Portal analytics only.',
+      valueKind: 'average',
+      workerDataFlag: false,
+      privacyClass: 'private_response',
+      retentionClass: 'short',
+      lifecycleStatus: 'approved',
+      approvalOwner: 'privacy',
+      createdAt: '2026-09-05 23:07:05.116845+03',
+    },
+    [
+      {
+        id: '11111111-1111-4111-8111-111111111202',
+        definitionId: '11111111-1111-4111-8111-111111110202',
+        version: 1,
+        effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Private rating total',
+        denominatorDescription: 'Private rating response count',
+        unit: 'rating',
+        precision: 2,
+        aggregationRule: 'average',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['portal'],
+        attributionRule: 'portal at response time',
+        minimumSample: 5,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_guest_private'],
+        permittedConsumers: ['portal_analytics'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+    ],
+  ),
+  seededEntry(
+    {
+      id: '11111111-1111-4111-8111-111111110203',
+      key: 'portal.feedback',
+      name: 'Private Portal feedback count',
+      entityLevel: 'portal',
+      valueType: 'counter',
+      description:
+        'Private guest response count for Portal analytics only; no response content.',
+      valueKind: 'counter',
+      workerDataFlag: false,
+      privacyClass: 'private_response',
+      retentionClass: 'short',
+      lifecycleStatus: 'approved',
+      approvalOwner: 'privacy',
+      createdAt: '2026-09-05 23:07:05.116845+03',
+    },
+    [
+      {
+        id: '11111111-1111-4111-8111-111111111203',
+        definitionId: '11111111-1111-4111-8111-111111110203',
+        version: 1,
+        effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Private responses received',
+        denominatorDescription: null,
+        unit: 'response',
+        precision: 0,
+        aggregationRule: 'sum',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['portal'],
+        attributionRule: 'portal at response time',
+        minimumSample: 5,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_guest_private'],
+        permittedConsumers: ['portal_analytics'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+    ],
+  ),
+  seededEntry(
+    {
+      id: '11111111-1111-4111-8111-111111110204',
+      key: 'portal.review_link_click',
+      name: 'Portal destination clicks',
+      entityLevel: 'portal',
+      valueType: 'counter',
+      description: 'Portal destination click operational analytics only.',
+      valueKind: 'counter',
+      workerDataFlag: false,
+      privacyClass: 'solicitation_analytics',
+      retentionClass: 'short',
+      lifecycleStatus: 'approved',
+      approvalOwner: 'product-governance',
+      createdAt: '2026-09-05 23:07:05.116845+03',
+    },
+    [
+      {
+        id: '11111111-1111-4111-8111-111111111204',
+        definitionId: '11111111-1111-4111-8111-111111110204',
+        version: 1,
+        effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Published destination clicks',
+        denominatorDescription: null,
+        unit: 'click',
+        precision: 0,
+        aggregationRule: 'sum',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['portal'],
+        attributionRule: 'portal at click time',
+        minimumSample: 1,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['review_solicitation_analytics_only'],
+        permittedConsumers: ['portal_analytics'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+    ],
+  ),
+  seededEntry(
+    {
+      id: '11111111-1111-4111-8111-111111110205',
+      key: 'property.review',
+      name: 'Imported property reviews',
+      entityLevel: 'property',
+      valueType: 'average',
+      description:
+        'Imported Google review aggregate for governed property Dashboard use only.',
+      valueKind: 'average',
+      workerDataFlag: false,
+      privacyClass: 'google_restricted',
+      retentionClass: 'provider-aligned',
+      lifecycleStatus: 'approved',
+      approvalOwner: 'privacy',
+      createdAt: '2026-09-05 23:07:05.116845+03',
+    },
+    [
+      {
+        id: '11111111-1111-4111-8111-111111111205',
+        definitionId: '11111111-1111-4111-8111-111111110205',
+        version: 1,
+        effectiveFrom: new Date('2026-08-08T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Imported review rating total',
+        denominatorDescription: 'Imported review count',
+        unit: 'rating',
+        precision: 2,
+        aggregationRule: 'average',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['property'],
+        attributionRule: 'source property identity',
+        minimumSample: 1,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['google_property_derivative'],
+        permittedConsumers: ['dashboard'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+    ],
+  ),
+  seededEntry(
+    {
+      id: '11111111-1111-4111-8111-111111110301',
+      key: 'portal.qualified_scan',
+      name: 'Qualified scans',
+      entityLevel: 'portal',
+      valueType: 'counter',
+      description:
+        'Server-verified QR or NFC Access Artifact arrivals, deduplicated per response session and Portal over 24 hours.',
+      valueKind: 'counter',
+      workerDataFlag: false,
+      privacyClass: 'deidentified_guest_gateway_numeric',
+      retentionClass: 'guest_gateway_24_month',
+      lifecycleStatus: 'approved',
+      approvalOwner: 'product-governance',
+      createdAt: '2026-09-05 23:07:05.351486+03',
+    },
+    [
+      {
+        id: '11111111-1111-4111-8111-111111111301',
+        definitionId: '11111111-1111-4111-8111-111111110301',
+        version: 1,
+        effectiveFrom: new Date('2026-08-01T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription:
+          'Eligible server-verified and session-deduplicated Access Artifact arrivals',
+        denominatorDescription: null,
+        unit: 'scan',
+        precision: 0,
+        aggregationRule: 'sum',
+        lateArrivalRule: 'append_by_source_event_time_reconcile_24h_after_month_end',
+        allowedScopes: ['property', 'portal_group', 'portal'],
+        attributionRule:
+          'property, Portal, and effective Portal Group at source-event time',
+        minimumSample: 0,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_guest_gateway_metric'],
+        permittedConsumers: [
+          'dashboard',
+          'goal',
+          'notification',
+          'export',
+          'portal_analytics',
+        ],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_manager_context',
+        createdAt: '2026-09-05 23:07:05.351486+03',
+      },
+    ],
+  ),
+  seededEntry(
+    {
+      id: '11111111-1111-4111-8111-111111110302',
+      key: 'portal.rating_count',
+      name: 'Portal rating count',
+      entityLevel: 'portal',
+      valueType: 'counter',
+      description:
+        'Count of eligible first-party private numeric Portal ratings from every arrival channel.',
+      valueKind: 'counter',
+      workerDataFlag: false,
+      privacyClass: 'deidentified_guest_gateway_numeric',
+      retentionClass: 'guest_gateway_24_month',
+      lifecycleStatus: 'approved',
+      approvalOwner: 'product-governance',
+      createdAt: '2026-09-05 23:07:05.351486+03',
+    },
+    [
+      {
+        id: '11111111-1111-4111-8111-111111111302',
+        definitionId: '11111111-1111-4111-8111-111111110302',
+        version: 1,
+        effectiveFrom: new Date('2026-08-01T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Eligible private numeric Portal ratings',
+        denominatorDescription: null,
+        unit: 'rating',
+        precision: 0,
+        aggregationRule: 'sum',
+        lateArrivalRule: 'append_by_source_event_time_reconcile_24h_after_month_end',
+        allowedScopes: ['property', 'portal_group', 'portal'],
+        attributionRule:
+          'property, Portal, and effective Portal Group at source-event time',
+        minimumSample: 0,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_guest_gateway_metric'],
+        permittedConsumers: [
+          'dashboard',
+          'goal',
+          'notification',
+          'export',
+          'portal_analytics',
+        ],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_manager_context',
+        createdAt: '2026-09-05 23:07:05.351486+03',
+      },
+    ],
+  ),
+  seededEntry(
+    {
+      id: '11111111-1111-4111-8111-111111110303',
+      key: 'portal.rating_average',
+      name: 'Portal rating average',
+      entityLevel: 'portal',
+      valueType: 'average',
+      description:
+        'Rating-weighted average of eligible first-party private numeric Portal ratings from every arrival channel.',
+      valueKind: 'average',
+      workerDataFlag: false,
+      privacyClass: 'deidentified_guest_gateway_numeric',
+      retentionClass: 'guest_gateway_24_month',
+      lifecycleStatus: 'approved',
+      approvalOwner: 'product-governance',
+      createdAt: '2026-09-05 23:07:05.351486+03',
+    },
+    [
+      {
+        id: '11111111-1111-4111-8111-111111111303',
+        definitionId: '11111111-1111-4111-8111-111111110303',
+        version: 1,
+        effectiveFrom: new Date('2026-08-01T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Sum of eligible private numeric Portal rating values',
+        denominatorDescription: 'Count of eligible private numeric Portal ratings',
+        unit: 'star',
+        precision: 1,
+        aggregationRule: 'weighted_average',
+        lateArrivalRule: 'append_by_source_event_time_reconcile_24h_after_month_end',
+        allowedScopes: ['property', 'portal_group', 'portal'],
+        attributionRule:
+          'property, Portal, and effective Portal Group at source-event time',
+        minimumSample: 10,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_guest_gateway_metric'],
+        permittedConsumers: [
+          'dashboard',
+          'goal',
+          'notification',
+          'export',
+          'portal_analytics',
+        ],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_manager_context',
+        createdAt: '2026-09-05 23:07:05.351486+03',
+      },
+    ],
+  ),
+])
+
+const metricVersionsById: Record<string, GovernedMetricVersion> = {}
+for (const entry of METRIC_DEFINITIONS) {
+  for (const version of entry.versions) {
+    metricVersionsById[version.id] = Object.freeze({
+      definition: entry.definition,
+      version,
+    })
+  }
+}
+const METRIC_VERSIONS_BY_ID = Object.freeze(metricVersionsById)
+
+export function findMetricDefinition(
+  metricKey: MetricKey,
+): SeededMetricRegistryEntry | null {
+  return METRIC_DEFINITIONS.find(({ definition }) => definition.key === metricKey) ?? null
+}
+
+export function findMetricVersionById(versionId: string): GovernedMetricVersion | null {
+  return METRIC_VERSIONS_BY_ID[versionId] ?? null
+}
 
 export const BETA_SAFE_METRIC_VERSION_IDS = [
   METRIC_VERSION_IDS.qualifiedScanGoal,

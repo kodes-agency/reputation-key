@@ -32,11 +32,9 @@ const GOOGLE_IMPORT_LIFECYCLE_BATCH_SIZE = 100
 const DAY_MS = 24 * 60 * 60 * 1000
 
 /**
- * BQC-7.8: audit-evidence retention horizon — 365 days. The beta audit
- * trail (operator/policy decisions in policy_decision_audit, significant
- * actions in audit_logs) is compliance-adjacent evidence: long enough to
- * cover the beta audit window plus investigation lag, bounded so the tables
- * do not grow forever. Distinct from retention_runs, which is
+ * BQC-7.8: significant actions in audit_logs retain a 365-day horizon:
+ * long enough for the beta audit window plus investigation lag and bounded
+ * so the table does not grow forever. retention_runs remains
  * indefinite-by-design (see the registry comment below).
  */
 const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
@@ -75,24 +73,6 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     table: 'guest_responses',
     keyColumns: ['id'],
     tsColumn: 'retention_deadline',
-    olderThanMs: 0,
-  },
-  {
-    // The content-free destination fact survives, but the signed-session
-    // pseudonym used to enforce first-action semantics does not.
-    subject: 'guest_destination_action_receipts.expired',
-    table: 'guest_destination_action_receipts',
-    keyColumns: ['id'],
-    tsColumn: 'expires_at',
-    olderThanMs: 0,
-  },
-  {
-    // The identifier-only Qualified Scan survives independently of the
-    // signed-session pseudonym used to enforce the rolling 24-hour window.
-    subject: 'guest_qualified_scan_receipts.expired',
-    table: 'guest_qualified_scan_receipts',
-    keyColumns: ['id'],
-    tsColumn: 'expires_at',
     olderThanMs: 0,
   },
   {
@@ -159,10 +139,10 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMs: 30 * DAY_MS,
   },
   {
-    subject: 'inbound_webhook_receipts',
-    table: 'inbound_webhook_receipts',
-    keyColumns: ['provider', 'topic', 'message_id'],
-    tsColumn: 'received_at',
+    subject: 'idempotency_receipts',
+    table: 'idempotency_receipts',
+    keyColumns: ['scope', 'key'],
+    tsColumn: 'recorded_at',
     olderThanMs: 30 * DAY_MS,
   },
   {
@@ -171,23 +151,6 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     keyColumns: ['reference_key'],
     tsColumn: 'expires_at',
     olderThanMs: 0,
-  },
-  {
-    subject: 'google_import_discovery_invalidations.expired',
-    table: 'google_import_discovery_invalidations',
-    keyColumns: ['invalidation_key'],
-    tsColumn: 'expires_at',
-    olderThanMs: 0,
-  },
-  {
-    // Prepared rows remain recoverable and manual-review rows remain visible
-    // to support. Only settled, content-free saga fences age out.
-    subject: 'invited_registration_attempts.settled',
-    table: 'invited_registration_attempts',
-    keyColumns: ['id'],
-    tsColumn: 'updated_at',
-    olderThanMs: 90 * DAY_MS,
-    extraWhere: "state IN ('accepted', 'compensated')",
   },
   {
     subject: 'notifications',
@@ -233,15 +196,6 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     keyColumns: ['id'],
     tsColumn: 'created_at',
     olderThanMs: 90 * DAY_MS,
-  },
-  {
-    // BQC-7.8: operator/policy decision records — a 365d retention horizon,
-    // not a completeness or cryptographic-integrity claim.
-    subject: 'policy_decision_audit',
-    table: 'policy_decision_audit',
-    keyColumns: ['id'],
-    tsColumn: 'occurred_at',
-    olderThanMs: AUDIT_EVIDENCE_RETENTION_MS,
   },
   {
     // BQC-7.8: significant-action operational records — same 365d horizon.

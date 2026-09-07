@@ -4,12 +4,10 @@ import {
   PRIVACY_CONTENT_CLASSIFICATIONS,
   PRIVACY_REQUEST_KINDS,
   PRIVACY_SUBJECT_TYPES,
-  privacyRequestTransitions,
   privacyRequests,
 } from './privacy-request.schema'
 
 const config = getTableConfig(privacyRequests)
-const transitions = getTableConfig(privacyRequestTransitions)
 
 function checkExpression(name: string): string {
   const found = config.checks.find((candidate) => candidate.name === name)
@@ -85,15 +83,5 @@ describe('privacy request schema (LIF-01-T20)', () => {
     for (const kind of PRIVACY_REQUEST_KINDS) {
       expect(checkExpression('privacy_requests_kind_valid')).toContain(`'${kind}'`)
     }
-  })
-
-  it('keeps transition evidence append-only-shaped and content-free', () => {
-    expect(transitions.name).toBe('privacy_request_transitions')
-    expect(transitions.primaryKeys[0]?.columns.map((column) => column.name)).toEqual([
-      'request_id',
-      'to_state',
-    ])
-    expect(transitions.columns.map((column) => column.name)).not.toContain('note')
-    expect(transitions.columns.map((column) => column.name)).not.toContain('subject_ref')
   })
 })

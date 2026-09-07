@@ -109,9 +109,8 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'registerReviewWorkerJobs',
   'reviewMaintenanceRuntime',
   'reviewPublicApi',
-  // ARC-03-T6: the container's owned release seam — building a container
-  // starts the identity policy poller, so stopping it must be reachable from
-  // the container itself rather than from a dropped return value.
+  // Container-owned release seam. Static policy starts no background work,
+  // while queues and future process resources still share one shutdown path.
   'shutdown',
   'staffPublicApi',
 ]
@@ -146,13 +145,8 @@ const EXPECTED_INBOX_PUBLIC_API_KEYS = [
 const EXPECTED_POLICY_ADMIN_OPS = [
   'explainCapabilityRefusal',
   'explainPolicyDecision',
-  'getOrgPolicyState',
   'grantPropertyAccessOp',
   'revokePropertyAccessOp',
-  'setOrgCapability',
-  'setOrgSuspension',
-  'setPropertyCapability',
-  'setPropertySuspension',
 ]
 
 describe('composition characterization (BQC-5.2 parity baseline)', () => {

@@ -154,12 +154,12 @@ describe('Public Reputation metric durable consumer', () => {
     ).rejects.toThrow('occurredAt')
   })
 
-  it('propagates transient persistence failures and rejects quarantined results', async () => {
+  it('propagates transient persistence failures and explicit rejections', async () => {
     const recordMetric = vi
       .fn()
       .mockRejectedValueOnce(new Error('database unavailable'))
       .mockResolvedValueOnce({
-        status: 'quarantined',
+        status: 'rejected',
         reason: 'definition_not_approved',
         sourceEventId: 'event-review-created',
       })

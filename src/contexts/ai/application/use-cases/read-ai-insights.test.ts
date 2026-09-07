@@ -10,11 +10,7 @@ import {
 } from '#/shared/ai-property-trend-contract'
 import type { AiMerchantAuthorizationSnapshot } from '../ports/ai-authorization.port'
 import type { AiOutputStorePort, AiTrendReportRead } from '../ports/ai-output-store.port'
-import type {
-  AiPropertyProfileResult,
-  AiReadDeliveryLease,
-  ReviewAnalysisReadV1,
-} from '../../domain/types'
+import type { AiPropertyProfileResult, ReviewAnalysisReadV1 } from '../../domain/types'
 import type { ReadAiInsightsDependencies } from './read-ai-insights'
 import { createReadPropertyTrend, createReadReviewAnalysis } from './read-ai-insights'
 
@@ -213,19 +209,10 @@ const TREND_READY: AiTrendReportRead = Object.freeze({
   generatedAtEpochMillis: NOW - 3_600_000,
 } as const)
 
-/** The store owns the delivery lease; the read must not inspect or leak it. */
-const LEASE = { deliveryLease: 'ai-read-delivery' } as unknown as AiReadDeliveryLease
-
 type AnalysisReadRequest = Parameters<AiOutputStorePort['readAnalysisForDelivery']>[0]
 type TrendReadRequest = Parameters<AiOutputStorePort['readTrendReportForDelivery']>[0]
-type AnalysisDeliver = (
-  lease: AiReadDeliveryLease,
-  result: ReviewAnalysisReadV1,
-) => Promise<ReviewAnalysisReadV1>
-type TrendDeliver = (
-  lease: AiReadDeliveryLease,
-  result: AiTrendReportRead,
-) => Promise<AiTrendReportRead>
+type AnalysisDeliver = (result: ReviewAnalysisReadV1) => Promise<ReviewAnalysisReadV1>
+type TrendDeliver = (result: AiTrendReportRead) => Promise<AiTrendReportRead>
 
 function createHarness(
   options: Readonly<{
@@ -241,20 +228,20 @@ function createHarness(
     options.authorization === undefined ? ENABLED_AUTHORIZATION : options.authorization
   const readMerchantAuthorization = vi.fn(async () => authorization)
   const readForAi = vi.fn(async () => options.runtime ?? AVAILABLE_RUNTIME)
-  const deliveredLeases: AiReadDeliveryLease[] = []
+  let deliveries = 0
 
   const readAnalysisForDelivery = vi.fn(
     async (_request: AnalysisReadRequest, deliver: AnalysisDeliver) => {
       if (options.storeFailure) throw options.storeFailure
-      deliveredLeases.push(LEASE)
-      return deliver(LEASE, options.analysisRead ?? ANALYSIS_READY)
+      deliveries += 1
+      return deliver(options.analysisRead ?? ANALYSIS_READY)
     },
   )
   const readTrendReportForDelivery = vi.fn(
     async (_request: TrendReadRequest, deliver: TrendDeliver) => {
       if (options.storeFailure) throw options.storeFailure
-      deliveredLeases.push(LEASE)
-      return deliver(LEASE, options.trendRead ?? TREND_READY)
+      deliveries += 1
+      return deliver(options.trendRead ?? TREND_READY)
     },
   )
 
@@ -275,7 +262,7 @@ function createHarness(
   return {
     readReviewAnalysis: createReadReviewAnalysis(dependencies),
     readPropertyTrend: createReadPropertyTrend(dependencies),
-    deliveredLeases,
+    deliveryCount: () => deliveries,
     mocks: {
       readAnalysisForDelivery,
       readTrendReportForDelivery,
@@ -321,7 +308,7 @@ describe('read review analysis', () => {
       analysisProfileVersion: REVIEW_ANALYSIS_PROFILE.profileVersion,
       nowEpochMillis: NOW,
     })
-    expect(harness.deliveredLeases).toEqual([LEASE])
+    expect(harness.deliveryCount()).toBe(1)
   })
 
   it('returns the store view model unchanged when the review has no analysis row', async () => {

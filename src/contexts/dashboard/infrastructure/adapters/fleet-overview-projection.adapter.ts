@@ -1,7 +1,11 @@
-import { sql } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { propertyId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
+import {
+  METRIC_VERSION_IDS,
+  findMetricVersionById,
+  type GovernedMetricVersion,
+} from '#/contexts/metric/application/public-api'
 import type { FleetMetricEvidence, FleetMetricFreshness } from '../../domain/types'
 import type {
   FleetOverviewProjectionPort,
@@ -12,6 +16,40 @@ import { RATING_DROP_THRESHOLD } from '../../application/utils'
 import { DASHBOARD_READ_BUDGET_MS, withStatementTimeout } from '../read-facade'
 
 const FRESHNESS_WINDOW_MS = 48 * 60 * 60 * 1_000
+type FleetMetricPolicy = Readonly<{
+  metric: GovernedMetricVersion
+  sourcePolicies: SQL
+}>
+
+function fleetMetricPolicy(
+  versionId: string,
+  consumer: 'dashboard' | 'portal_analytics',
+): FleetMetricPolicy {
+  const metric = findMetricVersionById(versionId)
+  if (!metric || !metric.version.permittedConsumers.includes(consumer)) {
+    throw new Error(`Fleet metric catalogue entry is unavailable: ${versionId}`)
+  }
+  return Object.freeze({
+    metric,
+    sourcePolicies: sql.join(
+      metric.version.sourcePolicyAllowlist.map((policy) => sql`${policy}`),
+      sql`, `,
+    ),
+  })
+}
+
+const PROPERTY_REVIEW_POLICY = fleetMetricPolicy(
+  METRIC_VERSION_IDS.propertyReviewDashboard,
+  'dashboard',
+)
+const PORTAL_SCAN_POLICY = fleetMetricPolicy(
+  METRIC_VERSION_IDS.portalScanAnalytics,
+  'portal_analytics',
+)
+const PORTAL_FEEDBACK_POLICY = fleetMetricPolicy(
+  METRIC_VERSION_IDS.portalFeedbackAnalytics,
+  'portal_analytics',
+)
 
 export type FleetOverviewProjectionInstrumentation = Readonly<{
   onRead(
@@ -173,61 +211,37 @@ export const createFleetOverviewProjectionAdapter = (
             FROM scoped_properties
           ), policy AS MATERIALIZED (
             SELECT scoped.property_id,
-              ${input.portalReadEnabled}
-                AND EXISTS (
-                  SELECT 1 FROM property_capability
-                  WHERE property_capability.property_id = scoped.property_id
-                    AND property_capability.capability = 'portal.read'
-                )
-                AND NOT EXISTS (
-                  SELECT 1 FROM property_policy
-                  WHERE property_policy.property_id = scoped.property_id
-                    AND property_policy.suspended_at IS NOT NULL
-                ) AS portal_enabled,
-              ${input.goalReadEnabled}
-                AND EXISTS (
-                  SELECT 1 FROM property_capability
-                  WHERE property_capability.property_id = scoped.property_id
-                    AND property_capability.capability = 'goal.use'
-                )
-                AND NOT EXISTS (
-                  SELECT 1 FROM property_policy
-                  WHERE property_policy.property_id = scoped.property_id
-                    AND property_policy.suspended_at IS NOT NULL
-                ) AS goal_enabled
+              ${input.portalReadEnabled}::boolean AS portal_enabled,
+              ${input.goalReadEnabled}::boolean AS goal_enabled
             FROM scoped
           ), candidate_readings AS MATERIALIZED (
             SELECT metric_readings.*
             FROM metric_readings
             JOIN scoped
               ON scoped.property_id = metric_readings.property_id
-            JOIN metric_definition_versions
-              ON metric_definition_versions.id = metric_readings.definition_version_id
+            WHERE metric_readings.organization_id = ${input.organizationId}
               AND (
                 (
-                  metric_readings.definition_version_id = ${METRIC_VERSION_IDS.propertyReviewDashboard}
-                  AND metric_definition_versions.permitted_consumers @> '["dashboard"]'::jsonb
+                  metric_readings.definition_version_id =
+                    ${PROPERTY_REVIEW_POLICY.metric.version.id}
+                  AND metric_readings.source_policy IN (
+                    ${PROPERTY_REVIEW_POLICY.sourcePolicies}
+                  )
                 )
                 OR (
-                  metric_readings.definition_version_id IN (
-                    ${METRIC_VERSION_IDS.portalScanAnalytics},
-                    ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
+                  metric_readings.definition_version_id =
+                    ${PORTAL_SCAN_POLICY.metric.version.id}
+                  AND metric_readings.source_policy IN (
+                    ${PORTAL_SCAN_POLICY.sourcePolicies}
                   )
-                  AND metric_definition_versions.permitted_consumers @> '["portal_analytics"]'::jsonb
                 )
-              )
-              AND EXISTS (
-                SELECT 1
-                FROM jsonb_array_elements_text(
-                  metric_definition_versions.source_policy_allowlist
-                ) AS allowed_policy(value)
-                WHERE allowed_policy.value = metric_readings.source_policy
-              )
-            WHERE metric_readings.organization_id = ${input.organizationId}
-              AND metric_readings.definition_version_id IN (
-                ${METRIC_VERSION_IDS.propertyReviewDashboard},
-                ${METRIC_VERSION_IDS.portalScanAnalytics},
-                ${METRIC_VERSION_IDS.portalFeedbackAnalytics}
+                OR (
+                  metric_readings.definition_version_id =
+                    ${PORTAL_FEEDBACK_POLICY.metric.version.id}
+                  AND metric_readings.source_policy IN (
+                    ${PORTAL_FEEDBACK_POLICY.sourcePolicies}
+                  )
+                )
               )
               AND metric_readings.event_at >= scoped.prior_start
               AND metric_readings.event_at < scoped.period_end

@@ -1,10 +1,11 @@
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiPropertyProcessingProfiles, properties } from '#/shared/db/schema'
+import { deleteAiDraftsForProfile } from '#/shared/db/ai/ai-draft-purge'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import type { AiPropertyProfileResult } from '../../domain/types'
 import { resolveAiProcessingCell } from '../../domain/rules'
 import type { PropertyProcessingProfilePort } from '../../application/ports/property-processing-profile.port'
-import type { AiRuntimeCataloguePort } from '../../application/ports/ai-runtime-catalogue.port'
 
 function compareExpected(
   result: Extract<AiPropertyProfileResult, Readonly<{ status: 'available' }>>,
@@ -31,12 +32,9 @@ function compareExpected(
 
 export const createPropertyProcessingProfileAdapter = (
   db: Database,
-  runtimeCatalogue: AiRuntimeCataloguePort,
   clock: () => Date,
 ): PropertyProcessingProfilePort => {
   const readForAi: PropertyProcessingProfilePort['readForAi'] = async (input) => {
-    if (!(await runtimeCatalogue.assertComplete()))
-      return { status: 'policy_unavailable' }
     const [row] = await db
       .select({
         propertyOrganizationId: properties.organizationId,
@@ -50,7 +48,7 @@ export const createPropertyProcessingProfileAdapter = (
         profileTimezone: aiPropertyProcessingProfiles.timezone,
         profileProcessingRegion: aiPropertyProcessingProfiles.processingRegion,
         profileRoutingPolicyVersion: aiPropertyProcessingProfiles.routingPolicyVersion,
-        profileProviderVersion:
+        profileProviderDeploymentProfileVersion:
           aiPropertyProcessingProfiles.providerDeploymentProfileVersion,
         profileSourceEpoch: aiPropertyProcessingProfiles.sourceEpoch,
         profileVersion: aiPropertyProcessingProfiles.profileVersion,
@@ -75,59 +73,42 @@ export const createPropertyProcessingProfileAdapter = (
 
     if (!row) return { status: 'not_found' }
     if (row.propertyLifecycleState !== 'active') return { status: 'deleting' }
-    // 0-based source epoch (drizzle/0060). Only a missing country blocks profile
-    // resolution; the sibling guard in `refreshForAi` says the same.
-    if (row.propertyCountryCode === null) {
-      return { status: 'policy_unavailable' }
-    }
+    if (row.propertyCountryCode === null) return { status: 'policy_unavailable' }
     const cell = resolveAiProcessingCell({
       countryCode: row.propertyCountryCode,
       timezone: row.propertyTimezone,
     })
-    if (cell.status === 'policy_unavailable') return { status: 'policy_unavailable' }
+    if (cell.status === 'policy_unavailable') return cell
 
     const drifted =
       row.profileVersion === null ||
       row.profileSourceEpoch !== row.propertySourceEpoch ||
-      row.profileRoutingPolicyVersion !== cell.routingPolicyVersion ||
       row.profileOrganizationId !== row.propertyOrganizationId ||
       row.profileCountryCode !== row.propertyCountryCode ||
       row.profileTimezone !== row.propertyTimezone ||
       row.profileProcessingRegion !== cell.processingRegion ||
-      row.profileProviderVersion !== cell.providerDeploymentProfileVersion ||
+      row.profileRoutingPolicyVersion !== cell.routingPolicyVersion ||
+      row.profileProviderDeploymentProfileVersion !==
+        AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
       row.profileLifecycleState !== 'active'
-
-    // Self-healing read. An unfenced read asks for the property's CURRENT AI
-    // profile, and this adapter is the only writer of the row, so materialize
-    // it here: otherwise a property that never had a row (or whose country,
-    // timezone, source epoch or routing policy changed) resolves
-    // `policy_unavailable` forever and every AI operation terminal-skips.
-    // A FENCED read (expected supplied) must never self-heal — the caller is
-    // checking for drift mid-operation and has to observe it.
     if (drifted && !input.expected) {
       return refreshForAi({
         organizationId: input.organizationId,
         propertyId: input.propertyId,
       })
     }
-
     if (row.profileVersion === null) return { status: 'policy_unavailable' }
     if (row.profileSourceEpoch !== row.propertySourceEpoch) {
       return { status: 'source_epoch_changed' }
-    }
-    // Against the AI ROUTING policy the cell resolver applied, not against the
-    // Property's data-cell CATALOGUE version. They are independent sequences —
-    // the catalogue is at 3, the AI routing policy at 1 — and this column is a
-    // foreign key into ai_routing_policies.
-    if (row.profileRoutingPolicyVersion !== cell.routingPolicyVersion) {
-      return { status: 'routing_policy_changed' }
     }
     if (
       row.profileOrganizationId !== row.propertyOrganizationId ||
       row.profileCountryCode !== row.propertyCountryCode ||
       row.profileTimezone !== row.propertyTimezone ||
       row.profileProcessingRegion !== cell.processingRegion ||
-      row.profileProviderVersion !== cell.providerDeploymentProfileVersion ||
+      row.profileRoutingPolicyVersion !== cell.routingPolicyVersion ||
+      row.profileProviderDeploymentProfileVersion !==
+        AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
       row.profileLifecycleState !== 'active'
     ) {
       return { status: 'property_profile_changed' }
@@ -140,8 +121,8 @@ export const createPropertyProcessingProfileAdapter = (
           propertyId: input.propertyId,
           countryCode: row.profileCountryCode,
           timezone: row.profileTimezone,
-          processingRegion: 'global',
-          routingPolicyVersion: row.profileRoutingPolicyVersion,
+          processingRegion: cell.processingRegion,
+          routingPolicyVersion: cell.routingPolicyVersion,
           sourceEpoch: row.profileSourceEpoch,
           profileVersion: row.profileVersion,
           lifecycleState: 'active',
@@ -152,8 +133,6 @@ export const createPropertyProcessingProfileAdapter = (
   }
 
   const refreshForAi: PropertyProcessingProfilePort['refreshForAi'] = async (input) => {
-    if (!(await runtimeCatalogue.assertComplete()))
-      return { status: 'policy_unavailable' }
     return db.transaction(async (tx) => {
       const [property] = await tx
         .select({
@@ -174,15 +153,9 @@ export const createPropertyProcessingProfileAdapter = (
         )
         .limit(1)
         .for('update')
-
       if (!property) return { status: 'not_found' }
       if (property.lifecycleState !== 'active') return { status: 'deleting' }
-      // Source epoch is a 0-based generation tag (see drizzle/0060): a property
-      // that has never been edited sits at 0 and is perfectly eligible. Only a
-      // missing country blocks profile resolution.
-      if (property.countryCode === null) {
-        return { status: 'policy_unavailable' }
-      }
+      if (property.countryCode === null) return { status: 'policy_unavailable' }
       const cell = resolveAiProcessingCell({
         countryCode: property.countryCode,
         timezone: property.timezone,
@@ -195,7 +168,6 @@ export const createPropertyProcessingProfileAdapter = (
         .where(eq(aiPropertyProcessingProfiles.propertyId, input.propertyId))
         .limit(1)
         .for('update')
-
       const unchanged =
         existing !== undefined &&
         existing.organizationId === property.organizationId &&
@@ -204,7 +176,7 @@ export const createPropertyProcessingProfileAdapter = (
         existing.processingRegion === cell.processingRegion &&
         existing.routingPolicyVersion === cell.routingPolicyVersion &&
         existing.providerDeploymentProfileVersion ===
-          cell.providerDeploymentProfileVersion &&
+          AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion &&
         existing.sourceEpoch === property.sourceEpoch &&
         existing.lifecycleState === 'active'
       const profileVersion = unchanged
@@ -222,7 +194,8 @@ export const createPropertyProcessingProfileAdapter = (
             timezone: property.timezone,
             processingRegion: cell.processingRegion,
             routingPolicyVersion: cell.routingPolicyVersion,
-            providerDeploymentProfileVersion: cell.providerDeploymentProfileVersion,
+            providerDeploymentProfileVersion:
+              AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
             sourceEpoch: property.sourceEpoch,
             profileVersion,
             lifecycleState: 'active',
@@ -236,13 +209,18 @@ export const createPropertyProcessingProfileAdapter = (
               timezone: property.timezone,
               processingRegion: cell.processingRegion,
               routingPolicyVersion: cell.routingPolicyVersion,
-              providerDeploymentProfileVersion: cell.providerDeploymentProfileVersion,
+              providerDeploymentProfileVersion:
+                AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
               sourceEpoch: property.sourceEpoch,
               profileVersion,
               lifecycleState: 'active',
               updatedAt,
             },
           })
+        await deleteAiDraftsForProfile(tx, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+        })
       }
 
       return {
@@ -252,7 +230,7 @@ export const createPropertyProcessingProfileAdapter = (
           propertyId: input.propertyId,
           countryCode: property.countryCode,
           timezone: property.timezone,
-          processingRegion: 'global',
+          processingRegion: cell.processingRegion,
           routingPolicyVersion: cell.routingPolicyVersion,
           sourceEpoch: property.sourceEpoch,
           profileVersion,

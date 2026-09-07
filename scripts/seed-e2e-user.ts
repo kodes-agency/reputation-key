@@ -17,11 +17,7 @@ import { hashPassword } from 'better-auth/crypto'
 import { getAuth } from '../src/shared/auth/auth'
 import { getDb } from '../src/shared/db'
 import { account, user, member, organization } from '../src/shared/db/schema/auth'
-import {
-  organizationCapability,
-  propertyCapability,
-} from '../src/shared/db/schema/policy.schema'
-import { userOrganizationBindings } from '../src/shared/db/schema/identity-governance.schema'
+
 import { properties } from '../src/shared/db/schema/property.schema'
 import {
   portals,
@@ -47,29 +43,16 @@ import {
   portalResponsibilities,
   portalGroupMemberships,
 } from '../src/shared/db/schema/people-access.schema'
-import {
-  goalDefinitions,
-  goalDefinitionVersions,
-  goalPeriods,
-  goalEvaluations,
-} from '../src/shared/db/schema/goal.schema'
 import { metricReadings } from '../src/shared/db/schema/metric.schema'
 import {
   notifications,
   notificationEmailQueue,
   notificationPreferences,
 } from '../src/shared/db/schema/notification.schema'
-import { LOCAL_BETA_CAPABILITIES } from '../src/shared/config/local-stack-contract'
 import {
   grantPropertyAccess,
   hasActiveGrant,
 } from '../src/contexts/identity/infrastructure/repositories/property-access-grant.repository'
-import {
-  addOrganizationCapability,
-  addPropertyCapability,
-  setOrganizationPolicy,
-  setPropertyPolicy,
-} from '../src/contexts/identity/infrastructure/repositories/policy-state.repository'
 import {
   betterAuthOrganizationSchema,
   parseBetterAuthResponse,
@@ -116,7 +99,6 @@ const GOOGLE_REVIEW_DESTINATION = {
 
 const LOCKED_ORG_ID = 'e2e-locked-org-b'
 const FIXTURE_AT = new Date('2026-08-01T12:00:00.000Z')
-const GOAL_FIXTURE_AT = new Date('2026-08-08T12:00:00.000Z')
 const FAR_FUTURE = new Date('2030-01-01T00:00:00.000Z')
 
 const IDS = {
@@ -144,13 +126,8 @@ const IDS = {
   candidateAParticipant: '11111111-1111-4111-8111-111111111152',
   candidateBParticipant: '11111111-1111-4111-8111-111111111153',
   portalResponsibility: '11111111-1111-4111-8111-111111111116',
-  goal: '11111111-1111-4111-8111-111111111118',
-  goalDefinitionVersion: '11111111-1111-4111-8111-111111111142',
-  goalPeriod: '11111111-1111-4111-8111-111111111143',
-  goalEvaluation: '11111111-1111-4111-8111-111111111144',
   notificationPreference: '11111111-1111-4111-8111-111111111125',
   notificationPreferenceInApp: '11111111-1111-4111-8111-111111111126',
-  goalReading: '11111111-1111-4111-8111-111111111145',
   p1Notification: '11111111-1111-4111-8111-111111111130',
   p2Notification: '22222222-2222-4222-8222-222222222131',
   p3Notification: '33333333-3333-4333-8333-333333333132',
@@ -294,57 +271,6 @@ async function ensureMembership(input: {
     .insert(member)
     .values({ ...input, createdAt: FIXTURE_AT })
     .onConflictDoUpdate({ target: member.id, set: { role: input.role } })
-}
-
-/**
- * Give every seeded member the Organization binding the tenant resolver
- * requires.
- *
- * `c2477288 fix(identity): enforce one beta organization binding` made
- * `user_organization_bindings` a precondition for resolving tenant context:
- * with no row, `checkUserOrganizationBinding` denies with
- * `organization_binding_missing` and every authenticated request 500s. The
- * seed predates that commit and was never updated, which is why the whole
- * critical e2e suite failed on "This account needs Organization access
- * assistance" while the stack itself was healthy.
- *
- * Derived from `member` rather than written at each ensureMembership call
- * site, so a membership added later cannot silently skip its binding. The
- * table holds ONE row per user by primary key — two simultaneous active
- * bindings are deliberately unrepresentable — so a user who is a member of
- * two Organizations keeps the first binding written and the seed says so
- * rather than failing the insert.
- *
- * `source: 'backfill'` is the honest classification of the three the schema
- * permits: these memberships already exist and the binding is being
- * reconstructed for them, which is what backfill means.
- */
-async function ensureOrganizationBindings(): Promise<void> {
-  const db = getDb()
-  const memberships = await db
-    .select({ userId: member.userId, organizationId: member.organizationId })
-    .from(member)
-  const firstByUser = new Map<string, string>()
-  for (const row of memberships) {
-    if (!firstByUser.has(row.userId)) firstByUser.set(row.userId, row.organizationId)
-  }
-  for (const [userId, organizationId] of firstByUser) {
-    await db
-      .insert(userOrganizationBindings)
-      .values({
-        userId,
-        organizationId,
-        state: 'active',
-        source: 'backfill',
-        version: 1,
-        createdAt: FIXTURE_AT,
-        updatedAt: FIXTURE_AT,
-      })
-      .onConflictDoUpdate({
-        target: userOrganizationBindings.userId,
-        set: { organizationId, state: 'active', updatedAt: FIXTURE_AT },
-      })
-  }
 }
 
 async function ensureProperty(
@@ -890,65 +816,6 @@ async function grantAccess(
   }
 }
 
-async function ensurePolicyLandscape(input: {
-  orgAId: string
-  managerUserId: string
-  p1Id: string
-  offPropertyIds: readonly string[]
-}): Promise<void> {
-  const db = getDb()
-  await setOrganizationPolicy(db, {
-    organizationId: input.orgAId,
-    cohort: 'beta-local',
-    suspendedAt: null,
-    suspendedReason: null,
-  })
-  await setPropertyPolicy(db, {
-    propertyId: input.p1Id,
-    suspendedAt: null,
-    suspendedReason: null,
-  })
-
-  const orgRows = await db
-    .select({ capability: organizationCapability.capability })
-    .from(organizationCapability)
-    .where(eq(organizationCapability.organizationId, input.orgAId))
-  const propertyRows = await db
-    .select({ capability: propertyCapability.capability })
-    .from(propertyCapability)
-    .where(eq(propertyCapability.propertyId, input.p1Id))
-  const orgCapabilities = new Set(orgRows.map((row) => row.capability))
-  const p1Capabilities = new Set(propertyRows.map((row) => row.capability))
-  for (const capability of LOCAL_BETA_CAPABILITIES) {
-    if (!orgCapabilities.has(capability)) {
-      await addOrganizationCapability(db, input.orgAId, capability, input.managerUserId)
-    }
-    if (!p1Capabilities.has(capability)) {
-      await addPropertyCapability(db, input.p1Id, capability, input.managerUserId)
-    }
-  }
-
-  for (const propertyId of input.offPropertyIds) {
-    await setPropertyPolicy(db, {
-      propertyId,
-      suspendedAt: null,
-      suspendedReason: null,
-    })
-    await db
-      .delete(propertyCapability)
-      .where(eq(propertyCapability.propertyId, propertyId))
-  }
-  await setOrganizationPolicy(db, {
-    organizationId: LOCKED_ORG_ID,
-    cohort: 'locked',
-    suspendedAt: null,
-    suspendedReason: null,
-  })
-  await db
-    .delete(organizationCapability)
-    .where(eq(organizationCapability.organizationId, LOCKED_ORG_ID))
-}
-
 async function ensurePortalFixtures(
   organizationId: string,
   propertyId: string,
@@ -1172,144 +1039,12 @@ async function ensurePeopleFixtures(input: {
     .onConflictDoNothing()
 }
 
-async function ensureGoalFixtures(input: {
+async function ensureNotificationPreferences(input: {
   organizationId: string
   propertyId: string
   managerUserId: string
 }): Promise<void> {
   const db = getDb()
-  await db
-    .insert(metricReadings)
-    .values({
-      id: IDS.goalReading,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      groupId: IDS.p1Group,
-      metricKey: 'portal.content_review.completed',
-      value: 8,
-      definitionVersionId: '11111111-1111-4111-8111-111111111101',
-      sourceEventId: 'e2e-goal-content-reviewed-1',
-      sourcePolicy: 'first_party_workflow',
-      exactValue: 8,
-      sampleCount: 8,
-      attributionQuality: 'exact',
-      occurredAt: GOAL_FIXTURE_AT,
-      eventAt: GOAL_FIXTURE_AT,
-      propertyLocalDate: '2026-08-08',
-      dataQuality: 'accepted',
-      retentionClass: 'standard',
-    })
-    .onConflictDoUpdate({
-      target: metricReadings.id,
-      set: {
-        exactValue: 8,
-        value: 8,
-        sampleCount: 8,
-        eventAt: GOAL_FIXTURE_AT,
-      },
-    })
-  await db
-    .insert(goalDefinitions)
-    .values({
-      id: IDS.goal,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      scopeKind: 'portal_group',
-      portalGroupId: IDS.p1Group,
-      name: 'Complete 20 portal content reviews',
-      description: 'Stable governed group Goal for local beta acceptance.',
-      status: 'active',
-      statusReason: null,
-      currentVersion: 1,
-      createdBy: input.managerUserId,
-    })
-    .onConflictDoUpdate({
-      target: goalDefinitions.id,
-      set: {
-        status: 'active',
-        statusReason: null,
-        currentVersion: 1,
-        updatedAt: new Date(),
-      },
-    })
-  await db
-    .insert(goalDefinitionVersions)
-    .values({
-      id: IDS.goalDefinitionVersion,
-      definitionId: IDS.goal,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      version: 1,
-      metricDefinitionId: '11111111-1111-4111-8111-111111110101',
-      metricDefinitionVersionId: '11111111-1111-4111-8111-111111111101',
-      metricKey: 'portal.content_review.completed',
-      metricValueKind: 'counter',
-      metricMinimumSample: 1,
-      metricAllowedScopes: ['property', 'portal_group'],
-      metricPermittedConsumers: ['dashboard', 'goal', 'notification'],
-      metricEmploymentDecisionEligible: false,
-      measureKind: 'progress',
-      targetValue: 20,
-      sourcePolicy: 'first_party_workflow',
-      propertyTimezone: 'America/New_York',
-      recurrenceRule: { frequency: 'monthly', interval: 1 },
-      effectiveFrom: new Date('2026-08-01T04:00:00.000Z'),
-      effectiveTo: null,
-      changeReason: 'seeded',
-      createdBy: input.managerUserId,
-    })
-    .onConflictDoNothing()
-  await db
-    .insert(goalPeriods)
-    .values({
-      id: IDS.goalPeriod,
-      definitionId: IDS.goal,
-      definitionVersionId: IDS.goalDefinitionVersion,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      periodStart: new Date('2026-08-01T04:00:00.000Z'),
-      periodEnd: new Date('2026-09-01T04:00:00.000Z'),
-      propertyTimezone: 'America/New_York',
-      status: 'open',
-      statusReason: null,
-      evaluationWatermark: GOAL_FIXTURE_AT,
-      closedAt: null,
-    })
-    .onConflictDoUpdate({
-      target: goalPeriods.id,
-      set: {
-        status: 'open',
-        statusReason: null,
-        evaluationWatermark: GOAL_FIXTURE_AT,
-        closedAt: null,
-        updatedAt: new Date(),
-      },
-    })
-  await db
-    .insert(goalEvaluations)
-    .values({
-      id: IDS.goalEvaluation,
-      periodId: IDS.goalPeriod,
-      definitionId: IDS.goal,
-      definitionVersionId: IDS.goalDefinitionVersion,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      metricReadingId: IDS.goalReading,
-      sourceEventId: 'e2e-goal-content-reviewed-1',
-      idempotencyKey: 'e2e-goal-evaluation-v1',
-      state: 'eligible',
-      reason: 'governed_reading',
-      value: 8,
-      numerator: null,
-      denominator: null,
-      sampleCount: 8,
-      achieved: false,
-      evaluationWatermark: GOAL_FIXTURE_AT,
-      supersedesEvaluationId: null,
-      correctionReadingId: null,
-      createdBy: 'system:e2e-seed',
-    })
-    .onConflictDoNothing()
   await db
     .insert(notificationPreferences)
     .values([
@@ -1623,8 +1358,6 @@ async function main(): Promise<void> {
     organizationId: LOCKED_ORG_ID,
     role: 'owner',
   })
-  // Bindings AFTER every membership exists, so the derivation sees them all.
-  await ensureOrganizationBindings()
 
   const p1Id = await ensureProperty(orgAId, {
     id: IDS.p1,
@@ -1653,12 +1386,6 @@ async function main(): Promise<void> {
   await grantAccess(orgAId, p1Id, candidateAUserId)
   await grantAccess(orgAId, p1Id, candidateBUserId)
   await grantAccess(orgAId, p1Id, onePropertyManagerUserId)
-  await ensurePolicyLandscape({
-    orgAId,
-    managerUserId,
-    p1Id,
-    offPropertyIds: [p2Id, p3Id, ...boundedIds],
-  })
 
   const p1Portal = await ensurePortal(orgAId, p1Id, P1_PORTAL_FIXTURE)
   const p2Portal = await ensurePortal(orgAId, p2Id, P2_PORTAL_FIXTURE)
@@ -1704,7 +1431,7 @@ async function main(): Promise<void> {
     candidateAUserId,
     candidateBUserId,
   })
-  await ensureGoalFixtures({
+  await ensureNotificationPreferences({
     organizationId: orgAId,
     propertyId: p1Id,
     managerUserId,
@@ -1773,7 +1500,6 @@ async function main(): Promise<void> {
     portalLinkId: IDS.p1Link,
     managerParticipationId: IDS.managerParticipation,
     staffParticipationId: IDS.staffParticipation,
-    goalId: IDS.goal,
     emailQueueFixtureIds: [IDS.p1EmailQueue, IDS.p2EmailQueue, IDS.p3EmailQueue],
     reviewCount: 100,
   })

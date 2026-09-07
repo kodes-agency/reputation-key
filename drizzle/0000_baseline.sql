@@ -22,10 +22,6 @@ CREATE TYPE "public"."google_credential_source_kind" AS ENUM('refresh', 'reauth'
 --> statement-breakpoint
 CREATE TYPE "public"."google_credential_source_state" AS ENUM('registered', 'provider_started', 'terminal', 'provider_outcome_ambiguous', 'provider_reset_terminal');
 --> statement-breakpoint
-CREATE TYPE "public"."google_disconnect_revoke_attempt_state" AS ENUM('active', 'dispatching', 'confirmed_not_sent', 'confirmed_revoked', 'cleanup_ambiguous');
---> statement-breakpoint
-CREATE TYPE "public"."google_oauth_exchange_attempt_state" AS ENUM('prepared', 'provider_started', 'response_preserved', 'applying', 'completed', 'failed', 'provider_outcome_ambiguous', 'expired');
---> statement-breakpoint
 CREATE TYPE "public"."google_subject_authority_guard_state" AS ENUM('open', 'source_active', 'cleanup_pending', 'drained', 'provider_reset_required', 'ambiguous', 'provider_reset_terminal');
 --> statement-breakpoint
 CREATE TYPE "public"."inbox_assignment_reason" AS ENUM('claim', 'assign', 'reassign', 'release', 'eligibility_lost', 'reopen_restore');
@@ -53,241 +49,6 @@ CREATE TYPE "public"."reply_status" AS ENUM('draft', 'pending_approval', 'approv
 CREATE TYPE "public"."review_platform" AS ENUM('google');
 --> statement-breakpoint
 CREATE SEQUENCE "public"."google_reply_observation_read_generation_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9007199254740991 START WITH 1 CACHE 1;
---> statement-breakpoint
-CREATE TABLE "ai_admission_cost_reservations" (
-	"permit_id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255),
-	"property_id" uuid,
-	"property_window_generation" integer,
-	"organization_utc_date" date,
-	"release_sha" varchar(40),
-	"maximum_cost_micros" bigint NOT NULL,
-	"actual_cost_micros" bigint,
-	"state" varchar(20) NOT NULL,
-	"created_at" timestamp with time zone NOT NULL,
-	"settled_at" timestamp with time zone,
-	CONSTRAINT "ai_admission_cost_reservations_branch_valid" CHECK ((
-        ("ai_admission_cost_reservations"."organization_id" IS NOT NULL AND "ai_admission_cost_reservations"."property_id" IS NOT NULL AND "ai_admission_cost_reservations"."property_window_generation" >= 1 AND "ai_admission_cost_reservations"."organization_utc_date" IS NOT NULL AND "ai_admission_cost_reservations"."release_sha" IS NULL)
-        OR ("ai_admission_cost_reservations"."organization_id" IS NULL AND "ai_admission_cost_reservations"."property_id" IS NULL AND "ai_admission_cost_reservations"."property_window_generation" IS NULL AND "ai_admission_cost_reservations"."organization_utc_date" IS NULL AND "ai_admission_cost_reservations"."release_sha" ~ '^[0-9a-f]{40}$')
-      )),
-	CONSTRAINT "ai_admission_cost_reservations_state_valid" CHECK ("ai_admission_cost_reservations"."state" IN ('reserved', 'released', 'charged')
-        AND "ai_admission_cost_reservations"."maximum_cost_micros" BETWEEN 0 AND '9007199254740991'::bigint
-        AND ("ai_admission_cost_reservations"."actual_cost_micros" IS NULL OR "ai_admission_cost_reservations"."actual_cost_micros" BETWEEN 0 AND "ai_admission_cost_reservations"."maximum_cost_micros")
-        AND (("ai_admission_cost_reservations"."state" = 'reserved' AND "ai_admission_cost_reservations"."actual_cost_micros" IS NULL AND "ai_admission_cost_reservations"."settled_at" IS NULL)
-          OR ("ai_admission_cost_reservations"."state" <> 'reserved' AND "ai_admission_cost_reservations"."actual_cost_micros" IS NOT NULL AND "ai_admission_cost_reservations"."settled_at" IS NOT NULL)))
-);
---> statement-breakpoint
-CREATE TABLE "ai_admission_product_consumptions" (
-	"operation_id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"capability" varchar(40) NOT NULL,
-	"property_window_generation" integer NOT NULL,
-	"accounted_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_admission_product_consumptions_valid" CHECK ("ai_admission_product_consumptions"."capability" IN ('review_analysis', 'reply_drafting') AND "ai_admission_product_consumptions"."property_window_generation" >= 1)
-);
---> statement-breakpoint
-CREATE TABLE "ai_admission_rate_windows" (
-	"scope_key" varchar(200) PRIMARY KEY NOT NULL,
-	"window_started_at" timestamp with time zone NOT NULL,
-	"consumed_count" integer NOT NULL,
-	"updated_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_admission_rate_windows_valid" CHECK (length("ai_admission_rate_windows"."scope_key") BETWEEN 1 AND 200 AND "ai_admission_rate_windows"."consumed_count" >= 0)
-);
---> statement-breakpoint
-CREATE TABLE "ai_authorization_lifecycle_records" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"event_envelope_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"authorization_lineage_id" uuid NOT NULL,
-	"authorization_state_version" integer NOT NULL,
-	"transition_kind" varchar(24) NOT NULL,
-	"authorization_state" varchar(16) NOT NULL,
-	"authorized_capabilities" text[] NOT NULL,
-	"source_epoch" integer NOT NULL,
-	"review_analysis_epoch" integer NOT NULL,
-	"reply_drafting_epoch" integer NOT NULL,
-	"property_trends_epoch" integer NOT NULL,
-	"analysis_start_sequence" bigint NOT NULL,
-	"visible_data_classes" text[] NOT NULL,
-	"retired_data_classes" text[] NOT NULL,
-	"previous_authorization_lineage_id" uuid,
-	"previous_authorization_state_version" integer,
-	"previous_source_epoch" integer,
-	"previous_review_analysis_epoch" integer,
-	"previous_reply_drafting_epoch" integer,
-	"previous_property_trends_epoch" integer,
-	"erasure_status" varchar(16) NOT NULL,
-	"erasure_deadline" timestamp with time zone,
-	"erasure_completed_at" timestamp with time zone,
-	"erasure_failure_code" varchar(64),
-	"erasure_attempt_count" integer DEFAULT 0 NOT NULL,
-	"erasure_next_attempt_at" timestamp with time zone,
-	"erasure_claimed_at" timestamp with time zone,
-	"erasure_lease_owner" uuid,
-	"erasure_lease_expires_at" timestamp with time zone,
-	"erasure_last_failure_at" timestamp with time zone,
-	"erased_review_analysis_count" bigint DEFAULT 0 NOT NULL,
-	"erased_property_aggregate_count" bigint DEFAULT 0 NOT NULL,
-	"erased_property_trend_count" bigint DEFAULT 0 NOT NULL,
-	"applied_at" timestamp with time zone NOT NULL,
-	"updated_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_authorization_lifecycle_transition_valid" CHECK ("ai_authorization_lifecycle_records"."transition_kind" IN ('enable', 'change', 'revoke', 'restore_reset', 'analysis_backfill')),
-	CONSTRAINT "ai_authorization_lifecycle_authorization_valid" CHECK ((
-        ("ai_authorization_lifecycle_records"."authorization_state" = 'enabled' AND (
-          "ai_authorization_lifecycle_records"."authorized_capabilities" = ARRAY['review_analysis']::text[]
-          OR "ai_authorization_lifecycle_records"."authorized_capabilities" = ARRAY['reply_drafting']::text[]
-          OR "ai_authorization_lifecycle_records"."authorized_capabilities" = ARRAY['review_analysis', 'reply_drafting']::text[]
-          OR "ai_authorization_lifecycle_records"."authorized_capabilities" = ARRAY['review_analysis', 'property_trends']::text[]
-          OR "ai_authorization_lifecycle_records"."authorized_capabilities" = ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[]
-        ))
-        OR ("ai_authorization_lifecycle_records"."authorization_state" IN ('disabled', 'revoked') AND "ai_authorization_lifecycle_records"."authorized_capabilities" = ARRAY[]::text[])
-      )),
-	CONSTRAINT "ai_authorization_lifecycle_fence_valid" CHECK ("ai_authorization_lifecycle_records"."authorization_state_version" BETWEEN 1 AND 2147483647
-        AND "ai_authorization_lifecycle_records"."source_epoch" BETWEEN 0 AND 2147483647
-        AND "ai_authorization_lifecycle_records"."review_analysis_epoch" BETWEEN 1 AND 2147483647
-        AND "ai_authorization_lifecycle_records"."reply_drafting_epoch" BETWEEN 1 AND 2147483647
-        AND "ai_authorization_lifecycle_records"."property_trends_epoch" BETWEEN 1 AND 2147483647
-        AND "ai_authorization_lifecycle_records"."analysis_start_sequence" BETWEEN 0 AND '9007199254740991'::bigint),
-	CONSTRAINT "ai_authorization_lifecycle_visibility_valid" CHECK ("ai_authorization_lifecycle_records"."visible_data_classes" = CASE
-        WHEN "ai_authorization_lifecycle_records"."authorization_state" <> 'enabled' THEN ARRAY[]::text[]
-        WHEN "ai_authorization_lifecycle_records"."authorized_capabilities" @> ARRAY['property_trends']::text[]
-          THEN ARRAY['review_analysis', 'property_aggregate', 'property_trend']::text[]
-        WHEN "ai_authorization_lifecycle_records"."authorized_capabilities" @> ARRAY['review_analysis']::text[]
-          THEN ARRAY['review_analysis', 'property_aggregate']::text[]
-        ELSE ARRAY[]::text[]
-      END),
-	CONSTRAINT "ai_authorization_lifecycle_retired_classes_valid" CHECK ("ai_authorization_lifecycle_records"."retired_data_classes" = ARRAY[]::text[]
-        OR "ai_authorization_lifecycle_records"."retired_data_classes" = ARRAY['review_analysis', 'property_aggregate']::text[]
-        OR "ai_authorization_lifecycle_records"."retired_data_classes" = ARRAY['property_trend']::text[]
-        OR "ai_authorization_lifecycle_records"."retired_data_classes" = ARRAY['review_analysis', 'property_aggregate', 'property_trend']::text[]),
-	CONSTRAINT "ai_authorization_lifecycle_previous_fence_valid" CHECK ((
-        "ai_authorization_lifecycle_records"."retired_data_classes" = ARRAY[]::text[]
-        AND "ai_authorization_lifecycle_records"."previous_authorization_lineage_id" IS NULL
-        AND "ai_authorization_lifecycle_records"."previous_authorization_state_version" IS NULL
-        AND "ai_authorization_lifecycle_records"."previous_source_epoch" IS NULL
-        AND "ai_authorization_lifecycle_records"."previous_review_analysis_epoch" IS NULL
-        AND "ai_authorization_lifecycle_records"."previous_reply_drafting_epoch" IS NULL
-        AND "ai_authorization_lifecycle_records"."previous_property_trends_epoch" IS NULL
-      ) OR (
-        cardinality("ai_authorization_lifecycle_records"."retired_data_classes") > 0
-        AND "ai_authorization_lifecycle_records"."previous_authorization_lineage_id" IS NOT NULL
-        AND "ai_authorization_lifecycle_records"."previous_authorization_state_version" >= 1
-        AND "ai_authorization_lifecycle_records"."previous_source_epoch" >= 0
-        AND "ai_authorization_lifecycle_records"."previous_review_analysis_epoch" >= 1
-        AND "ai_authorization_lifecycle_records"."previous_reply_drafting_epoch" >= 1
-        AND "ai_authorization_lifecycle_records"."previous_property_trends_epoch" >= 1
-      )),
-	CONSTRAINT "ai_authorization_lifecycle_erasure_valid" CHECK ((
-        ("ai_authorization_lifecycle_records"."erasure_failure_code" IS NULL) = ("ai_authorization_lifecycle_records"."erasure_last_failure_at" IS NULL)
-        AND "ai_authorization_lifecycle_records"."erasure_attempt_count" BETWEEN 0 AND 8
-        AND "ai_authorization_lifecycle_records"."erased_review_analysis_count" BETWEEN 0 AND '9007199254740991'::bigint
-        AND "ai_authorization_lifecycle_records"."erased_property_aggregate_count" BETWEEN 0 AND '9007199254740991'::bigint
-        AND "ai_authorization_lifecycle_records"."erased_property_trend_count" BETWEEN 0 AND '9007199254740991'::bigint
-        AND (
-        "ai_authorization_lifecycle_records"."retired_data_classes" = ARRAY[]::text[]
-        AND "ai_authorization_lifecycle_records"."erasure_status" = 'not_required'
-        AND "ai_authorization_lifecycle_records"."erasure_deadline" IS NULL
-        AND "ai_authorization_lifecycle_records"."erasure_completed_at" IS NULL
-        AND "ai_authorization_lifecycle_records"."erasure_failure_code" IS NULL
-        AND "ai_authorization_lifecycle_records"."erasure_attempt_count" = 0
-        AND "ai_authorization_lifecycle_records"."erasure_next_attempt_at" IS NULL
-        AND "ai_authorization_lifecycle_records"."erasure_claimed_at" IS NULL
-        AND "ai_authorization_lifecycle_records"."erasure_lease_owner" IS NULL
-        AND "ai_authorization_lifecycle_records"."erasure_lease_expires_at" IS NULL
-        AND "ai_authorization_lifecycle_records"."erased_review_analysis_count" = 0
-        AND "ai_authorization_lifecycle_records"."erased_property_aggregate_count" = 0
-        AND "ai_authorization_lifecycle_records"."erased_property_trend_count" = 0
-      ) OR (
-        cardinality("ai_authorization_lifecycle_records"."retired_data_classes") > 0
-        AND "ai_authorization_lifecycle_records"."erasure_deadline" = "ai_authorization_lifecycle_records"."applied_at" + interval '24 hours'
-        AND (
-          ("ai_authorization_lifecycle_records"."erasure_status" = 'pending'
-            AND "ai_authorization_lifecycle_records"."erasure_completed_at" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_attempt_count" BETWEEN 0 AND 7
-            AND "ai_authorization_lifecycle_records"."erasure_next_attempt_at" IS NOT NULL
-            AND "ai_authorization_lifecycle_records"."erasure_next_attempt_at" >= "ai_authorization_lifecycle_records"."applied_at"
-            AND "ai_authorization_lifecycle_records"."erasure_claimed_at" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_lease_owner" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_lease_expires_at" IS NULL
-            AND "ai_authorization_lifecycle_records"."erased_review_analysis_count" = 0
-            AND "ai_authorization_lifecycle_records"."erased_property_aggregate_count" = 0
-            AND "ai_authorization_lifecycle_records"."erased_property_trend_count" = 0)
-          OR ("ai_authorization_lifecycle_records"."erasure_status" = 'in_progress'
-            AND "ai_authorization_lifecycle_records"."erasure_completed_at" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_attempt_count" BETWEEN 1 AND 8
-            AND "ai_authorization_lifecycle_records"."erasure_next_attempt_at" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_claimed_at" IS NOT NULL
-            AND "ai_authorization_lifecycle_records"."erasure_lease_owner" IS NOT NULL
-            AND "ai_authorization_lifecycle_records"."erasure_lease_expires_at" > "ai_authorization_lifecycle_records"."erasure_claimed_at"
-            AND "ai_authorization_lifecycle_records"."erased_review_analysis_count" = 0
-            AND "ai_authorization_lifecycle_records"."erased_property_aggregate_count" = 0
-            AND "ai_authorization_lifecycle_records"."erased_property_trend_count" = 0)
-          OR ("ai_authorization_lifecycle_records"."erasure_status" = 'completed'
-            AND "ai_authorization_lifecycle_records"."erasure_completed_at" >= "ai_authorization_lifecycle_records"."applied_at"
-            AND "ai_authorization_lifecycle_records"."erasure_attempt_count" BETWEEN 1 AND 8
-            AND "ai_authorization_lifecycle_records"."erasure_next_attempt_at" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_claimed_at" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_lease_owner" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_lease_expires_at" IS NULL)
-          OR ("ai_authorization_lifecycle_records"."erasure_status" = 'failed'
-            AND "ai_authorization_lifecycle_records"."erasure_completed_at" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_failure_code" ~ '^[a-z][a-z0-9_]{2,63}$'
-            AND "ai_authorization_lifecycle_records"."erasure_attempt_count" BETWEEN 1 AND 8
-            AND "ai_authorization_lifecycle_records"."erasure_next_attempt_at" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_claimed_at" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_lease_owner" IS NULL
-            AND "ai_authorization_lifecycle_records"."erasure_lease_expires_at" IS NULL
-            AND "ai_authorization_lifecycle_records"."erased_review_analysis_count" = 0
-            AND "ai_authorization_lifecycle_records"."erased_property_aggregate_count" = 0
-            AND "ai_authorization_lifecycle_records"."erased_property_trend_count" = 0)
-        )
-      ))),
-	CONSTRAINT "ai_authorization_lifecycle_time_valid" CHECK ("ai_authorization_lifecycle_records"."updated_at" >= "ai_authorization_lifecycle_records"."applied_at")
-);
---> statement-breakpoint
-CREATE TABLE "ai_canary_authorization_heads" (
-	"release_sha" varchar(40) NOT NULL,
-	"canary_profile_version" varchar(100) NOT NULL,
-	"head_id" uuid NOT NULL,
-	"transition_generation" integer NOT NULL,
-	"next_authorization_generation" integer NOT NULL,
-	"current_authorization_id" uuid,
-	"current_operation_id" uuid,
-	"current_permit_id" uuid,
-	"state" varchar(30) NOT NULL,
-	"updated_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_canary_authorization_heads_pk" PRIMARY KEY("release_sha","canary_profile_version"),
-	CONSTRAINT "ai_canary_authorization_heads_generation_valid" CHECK ("ai_canary_authorization_heads"."transition_generation" >= 1 AND "ai_canary_authorization_heads"."next_authorization_generation" BETWEEN 1 AND 4),
-	CONSTRAINT "ai_canary_authorization_heads_release_valid" CHECK ("ai_canary_authorization_heads"."release_sha" ~ '^[0-9a-f]{40}$'),
-	CONSTRAINT "ai_canary_authorization_heads_state_valid" CHECK ((
-        ("ai_canary_authorization_heads"."state" = 'eligible' AND "ai_canary_authorization_heads"."current_authorization_id" IS NULL AND "ai_canary_authorization_heads"."current_operation_id" IS NULL AND "ai_canary_authorization_heads"."current_permit_id" IS NULL)
-        OR ("ai_canary_authorization_heads"."state" = 'issued' AND "ai_canary_authorization_heads"."current_authorization_id" IS NOT NULL AND "ai_canary_authorization_heads"."current_operation_id" IS NOT NULL AND "ai_canary_authorization_heads"."current_permit_id" IS NOT NULL)
-        OR ("ai_canary_authorization_heads"."state" = 'in_flight' AND "ai_canary_authorization_heads"."current_authorization_id" IS NOT NULL AND "ai_canary_authorization_heads"."current_operation_id" IS NOT NULL AND "ai_canary_authorization_heads"."current_permit_id" IS NOT NULL)
-        OR ("ai_canary_authorization_heads"."state" IN ('passed', 'terminal_failed') AND "ai_canary_authorization_heads"."current_authorization_id" IS NOT NULL AND "ai_canary_authorization_heads"."current_operation_id" IS NOT NULL)
-      ))
-);
---> statement-breakpoint
-CREATE TABLE "ai_canary_authorizations" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"release_sha" varchar(40) NOT NULL,
-	"canary_profile_version" varchar(100) NOT NULL,
-	"authorization_generation" integer NOT NULL,
-	"predecessor_authorization_id" uuid,
-	"nonce" varchar(64) NOT NULL,
-	"operator_user_id" varchar(255) NOT NULL,
-	"state" varchar(30) NOT NULL,
-	"issued_at" timestamp with time zone NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"settled_at" timestamp with time zone,
-	CONSTRAINT "ai_canary_authorizations_release_valid" CHECK ("ai_canary_authorizations"."release_sha" ~ '^[0-9a-f]{40}$'),
-	CONSTRAINT "ai_canary_authorizations_generation_valid" CHECK ("ai_canary_authorizations"."authorization_generation" BETWEEN 1 AND 3 AND (("ai_canary_authorizations"."authorization_generation" = 1 AND "ai_canary_authorizations"."predecessor_authorization_id" IS NULL) OR ("ai_canary_authorizations"."authorization_generation" > 1 AND "ai_canary_authorizations"."predecessor_authorization_id" IS NOT NULL))),
-	CONSTRAINT "ai_canary_authorizations_nonce_valid" CHECK ("ai_canary_authorizations"."nonce" ~ '^[0-9a-f]{64}$'),
-	CONSTRAINT "ai_canary_authorizations_operator_valid" CHECK ("ai_canary_authorizations"."operator_user_id" ~ '^[A-Za-z0-9][-A-Za-z0-9._@:/+]{0,254}$'),
-	CONSTRAINT "ai_canary_authorizations_state_valid" CHECK ("ai_canary_authorizations"."state" IN ('issued', 'consumed', 'revoked', 'expired', 'released_no_dispatch', 'passed', 'terminal_failed')),
-	CONSTRAINT "ai_canary_authorizations_time_valid" CHECK ("ai_canary_authorizations"."expires_at" > "ai_canary_authorizations"."issued_at" AND "ai_canary_authorizations"."expires_at" <= "ai_canary_authorizations"."issued_at" + interval '5 minutes' AND (("ai_canary_authorizations"."state" IN ('issued', 'consumed') AND "ai_canary_authorizations"."settled_at" IS NULL) OR ("ai_canary_authorizations"."state" NOT IN ('issued', 'consumed') AND "ai_canary_authorizations"."settled_at" IS NOT NULL AND "ai_canary_authorizations"."settled_at" >= "ai_canary_authorizations"."issued_at")))
-);
 --> statement-breakpoint
 CREATE TABLE "ai_execution_control_heads" (
 	"scope_key" varchar(150) PRIMARY KEY NOT NULL,
@@ -333,176 +94,17 @@ CREATE TABLE "ai_execution_control_transitions" (
 	CONSTRAINT "ai_execution_control_transitions_release_valid" CHECK ("ai_execution_control_transitions"."candidate_release_sha" IS NULL OR "ai_execution_control_transitions"."candidate_release_sha" ~ '^[0-9a-f]{40}$')
 );
 --> statement-breakpoint
-CREATE TABLE "ai_execution_permit_settlements" (
-	"permit_id" uuid PRIMARY KEY NOT NULL,
-	"terminal_state" varchar(20) NOT NULL,
-	"grant_kid" varchar(32) NOT NULL,
-	"request_binding_hmac" varchar(43) NOT NULL,
-	"nonce" varchar(128) NOT NULL,
-	"disposition" varchar(40) NOT NULL,
-	"reported_disposition" varchar(40) NOT NULL,
-	"usage_known" boolean NOT NULL,
-	"provider_retryable" boolean NOT NULL,
-	"input_tokens" integer NOT NULL,
-	"cached_input_tokens" integer NOT NULL,
-	"output_tokens" integer NOT NULL,
-	"reasoning_tokens" integer NOT NULL,
-	"retry_after_seconds" integer,
-	"cost_micros" bigint NOT NULL,
-	"settlement_state" varchar(20) NOT NULL,
-	"settled_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_execution_permit_settlements_state_valid" CHECK ("ai_execution_permit_settlements"."terminal_state" IN ('completed', 'failed', 'cancelled')
-        AND "ai_execution_permit_settlements"."settlement_state" IN ('settled', 'released', 'ambiguous')
-        AND "ai_execution_permit_settlements"."disposition" IN ('success', 'no_dispatch', 'provider_refused', 'output_invalid', 'output_truncated', 'rate_limited', 'provider_unavailable', 'caller_aborted', 'deadline_exceeded', 'transport_ambiguous', 'source_stale', 'policy_denied')
-        AND "ai_execution_permit_settlements"."reported_disposition" IN ('success', 'no_dispatch', 'provider_refused', 'output_invalid', 'output_truncated', 'rate_limited', 'provider_unavailable', 'caller_aborted', 'deadline_exceeded', 'transport_ambiguous', 'source_stale', 'policy_denied')),
-	CONSTRAINT "ai_execution_permit_settlements_usage_valid" CHECK ("ai_execution_permit_settlements"."grant_kid" ~ '^[a-z][a-z0-9_-]{0,31}$'
-        AND "ai_execution_permit_settlements"."request_binding_hmac" ~ '^[A-Za-z0-9_-]{43}$'
-        AND length("ai_execution_permit_settlements"."nonce") BETWEEN 1 AND 128
-        AND "ai_execution_permit_settlements"."input_tokens" >= 0 AND "ai_execution_permit_settlements"."cached_input_tokens" BETWEEN 0 AND "ai_execution_permit_settlements"."input_tokens"
-        AND "ai_execution_permit_settlements"."output_tokens" >= 0 AND "ai_execution_permit_settlements"."reasoning_tokens" BETWEEN 0 AND "ai_execution_permit_settlements"."output_tokens"
-        AND ("ai_execution_permit_settlements"."usage_known" OR ("ai_execution_permit_settlements"."input_tokens" = 0 AND "ai_execution_permit_settlements"."cached_input_tokens" = 0
-          AND "ai_execution_permit_settlements"."output_tokens" = 0 AND "ai_execution_permit_settlements"."reasoning_tokens" = 0))
-        AND ("ai_execution_permit_settlements"."disposition" <> 'success' OR "ai_execution_permit_settlements"."usage_known")
-        AND ("ai_execution_permit_settlements"."disposition" <> 'no_dispatch' OR (NOT "ai_execution_permit_settlements"."usage_known"
-          AND "ai_execution_permit_settlements"."cost_micros" = 0 AND "ai_execution_permit_settlements"."settlement_state" = 'released'))
-        AND ("ai_execution_permit_settlements"."disposition" <> 'transport_ambiguous' OR (NOT "ai_execution_permit_settlements"."usage_known"
-          AND "ai_execution_permit_settlements"."settlement_state" = 'ambiguous'))
-        AND "ai_execution_permit_settlements"."cost_micros" BETWEEN 0 AND '9007199254740991'::bigint
-        AND (NOT "ai_execution_permit_settlements"."provider_retryable"
-          OR "ai_execution_permit_settlements"."reported_disposition" IN ('rate_limited', 'provider_unavailable'))
-        AND ("ai_execution_permit_settlements"."reported_disposition" <> 'rate_limited' OR "ai_execution_permit_settlements"."provider_retryable")
-        AND ("ai_execution_permit_settlements"."retry_after_seconds" IS NULL
-          OR ("ai_execution_permit_settlements"."provider_retryable" AND "ai_execution_permit_settlements"."retry_after_seconds" BETWEEN 1 AND 300)))
-);
---> statement-breakpoint
-CREATE TABLE "ai_execution_permits" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"operation_id" uuid NOT NULL,
-	"execution_attempt" integer NOT NULL,
-	"global_control_id" uuid NOT NULL,
-	"global_control_generation" integer NOT NULL,
-	"provider_control_id" uuid NOT NULL,
-	"provider_control_generation" integer NOT NULL,
-	"capability_control_id" uuid,
-	"capability_control_generation" integer,
-	"route" varchar(40) NOT NULL,
-	"request_binding_key_id" varchar(32),
-	"request_binding_hmac" varchar(43),
-	"grant_kid" varchar(32),
-	"nonce" varchar(128),
-	"state" varchar(20) DEFAULT 'issued' NOT NULL,
-	"admitted_at" timestamp with time zone NOT NULL,
-	"consumed_at" timestamp with time zone,
-	"concurrency_expires_at" timestamp with time zone,
-	"expires_at" timestamp with time zone NOT NULL,
-	"maximum_cost_micros" bigint,
-	CONSTRAINT "ai_execution_permits_valid" CHECK ("ai_execution_permits"."execution_attempt" >= 1 AND "ai_execution_permits"."global_control_generation" >= 1 AND "ai_execution_permits"."provider_control_generation" >= 1 AND COALESCE("ai_execution_permits"."capability_control_generation", 1) >= 1 AND "ai_execution_permits"."expires_at" > "ai_execution_permits"."admitted_at"),
-	CONSTRAINT "ai_execution_permits_admission_valid" CHECK ("ai_execution_permits"."route" IN ('review-analysis', 'reply-suggestion', 'property-trend', 'synthetic-canary')
-        AND "ai_execution_permits"."state" IN ('issued', 'consumed', 'settled', 'released', 'ambiguous')
-        AND (
-          ("ai_execution_permits"."state" IN ('issued', 'released') AND "ai_execution_permits"."request_binding_key_id" IS NULL AND "ai_execution_permits"."request_binding_hmac" IS NULL AND "ai_execution_permits"."grant_kid" IS NULL AND "ai_execution_permits"."nonce" IS NULL AND "ai_execution_permits"."consumed_at" IS NULL AND "ai_execution_permits"."concurrency_expires_at" IS NULL AND "ai_execution_permits"."maximum_cost_micros" IS NULL)
-          OR ("ai_execution_permits"."state" IN ('consumed', 'settled', 'released', 'ambiguous') AND "ai_execution_permits"."request_binding_key_id" ~ '^[a-z][a-z0-9_-]{0,31}$' AND "ai_execution_permits"."request_binding_hmac" ~ '^[A-Za-z0-9_-]{43}$' AND "ai_execution_permits"."grant_kid" ~ '^[a-z][a-z0-9_-]{0,31}$' AND length("ai_execution_permits"."nonce") BETWEEN 1 AND 128 AND "ai_execution_permits"."consumed_at" IS NOT NULL AND "ai_execution_permits"."concurrency_expires_at" IS NOT NULL AND "ai_execution_permits"."maximum_cost_micros" BETWEEN 0 AND '9007199254740991'::bigint)
-        ))
-);
---> statement-breakpoint
-CREATE TABLE "ai_governance_policies" (
-	"version" varchar(100) PRIMARY KEY NOT NULL,
-	"region" varchar(20) NOT NULL,
-	"manual_publication_required" boolean NOT NULL,
-	"policy_digest" varchar(64) NOT NULL,
-	"canonical_policy" jsonb NOT NULL,
-	"created_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_governance_policies_version_valid" CHECK ("ai_governance_policies"."version" = 'ai-private-beta-policy-v1'),
-	CONSTRAINT "ai_governance_policies_region_valid" CHECK ("ai_governance_policies"."region" = 'global'),
-	CONSTRAINT "ai_governance_policies_manual_valid" CHECK ("ai_governance_policies"."manual_publication_required" = true),
-	CONSTRAINT "ai_governance_policies_digest_valid" CHECK ("ai_governance_policies"."policy_digest" ~ '^[0-9a-f]{64}$'),
-	CONSTRAINT "ai_governance_policies_document_valid" CHECK (jsonb_typeof("ai_governance_policies"."canonical_policy") = 'object')
-);
---> statement-breakpoint
-CREATE TABLE "ai_operation_attempts" (
-	"operation_id" uuid NOT NULL,
-	"attempt" integer NOT NULL,
-	"state" varchar(32) NOT NULL,
-	"model_snapshot" varchar(100),
-	"input_tokens" integer,
-	"output_tokens" integer,
-	"failure_code" varchar(64),
-	"started_at" timestamp with time zone NOT NULL,
-	"settled_at" timestamp with time zone,
-	CONSTRAINT "ai_operation_attempts_pk" PRIMARY KEY("operation_id","attempt"),
-	CONSTRAINT "ai_operation_attempts_number_valid" CHECK ("ai_operation_attempts"."attempt" >= 1),
-	CONSTRAINT "ai_operation_attempts_state_valid" CHECK ("ai_operation_attempts"."state" IN ('executing', 'completed', 'failed', 'cancelled')),
-	CONSTRAINT "ai_operation_attempts_terminal_valid" CHECK ((
-        ("ai_operation_attempts"."state" = 'executing' AND "ai_operation_attempts"."settled_at" IS NULL AND "ai_operation_attempts"."failure_code" IS NULL AND "ai_operation_attempts"."model_snapshot" IS NULL AND "ai_operation_attempts"."input_tokens" IS NULL AND "ai_operation_attempts"."output_tokens" IS NULL)
-        OR ("ai_operation_attempts"."state" = 'completed' AND "ai_operation_attempts"."settled_at" IS NOT NULL AND "ai_operation_attempts"."failure_code" IS NULL AND "ai_operation_attempts"."model_snapshot" IS NOT NULL AND "ai_operation_attempts"."input_tokens" >= 0 AND "ai_operation_attempts"."output_tokens" >= 0)
-        OR ("ai_operation_attempts"."state" IN ('failed', 'cancelled') AND "ai_operation_attempts"."settled_at" IS NOT NULL AND "ai_operation_attempts"."model_snapshot" IS NULL AND "ai_operation_attempts"."input_tokens" IS NULL AND "ai_operation_attempts"."output_tokens" IS NULL)
-      ) AND ("ai_operation_attempts"."settled_at" IS NULL OR "ai_operation_attempts"."settled_at" >= "ai_operation_attempts"."started_at"))
-);
---> statement-breakpoint
-CREATE TABLE "ai_operation_profiles" (
-	"profile_version" varchar(100) PRIMARY KEY NOT NULL,
-	"command" varchar(32) NOT NULL,
-	"capability" varchar(40),
-	"purpose" varchar(40) NOT NULL,
-	"source_route" varchar(80) NOT NULL,
-	"gateway_path" varchar(80) NOT NULL,
-	"caller_role" varchar(40) NOT NULL,
-	"capability_runtime_profile_version" varchar(100),
-	"provider_deployment_profile_version" varchar(100) NOT NULL,
-	"output_schema_name" varchar(100) NOT NULL,
-	"output_schema_digest" varchar(64) NOT NULL,
-	"prompt_digest" varchar(64) NOT NULL,
-	"artifact_attestations" jsonb NOT NULL,
-	"artifact_attestations_digest" varchar(64) NOT NULL,
-	"sdk_request_shape_digest" varchar(64) NOT NULL,
-	"static_token_bearing_bytes" integer NOT NULL,
-	"static_token_bearing_digest" varchar(64) NOT NULL,
-	"source_byte_limit" integer NOT NULL,
-	"provider_payload_byte_limit" integer NOT NULL,
-	"prepared_request_byte_limit" integer NOT NULL,
-	"response_byte_limit" integer NOT NULL,
-	"max_output_tokens" integer NOT NULL,
-	"reasoning_effort" varchar(16) NOT NULL,
-	"provider_deadline_ms" integer NOT NULL,
-	"request_deadline_ms" integer NOT NULL,
-	"execution_lease_ms" integer NOT NULL,
-	"profile_digest" varchar(64) NOT NULL,
-	"created_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_operation_profiles_branch_valid" CHECK ((
-        ("ai_operation_profiles"."command" = 'analysis' AND "ai_operation_profiles"."capability" = 'review_analysis' AND "ai_operation_profiles"."profile_version" = 'review-analysis-v1' AND "ai_operation_profiles"."purpose" = 'ai.analyze' AND "ai_operation_profiles"."source_route" = 'review-analysis' AND "ai_operation_profiles"."gateway_path" = '/v1/review-analysis' AND "ai_operation_profiles"."caller_role" = 'worker' AND "ai_operation_profiles"."capability_runtime_profile_version" = 'review-analysis-runtime-v1')
-        OR ("ai_operation_profiles"."command" = 'reply' AND "ai_operation_profiles"."capability" = 'reply_drafting' AND "ai_operation_profiles"."profile_version" = 'reply-suggestion-v1' AND "ai_operation_profiles"."purpose" = 'ai.generate_reply' AND "ai_operation_profiles"."source_route" = 'reply-suggestion' AND "ai_operation_profiles"."gateway_path" = '/v1/reply-suggestion' AND "ai_operation_profiles"."caller_role" = 'web' AND "ai_operation_profiles"."capability_runtime_profile_version" = 'reply-drafting-runtime-v1')
-        OR ("ai_operation_profiles"."command" = 'trend' AND "ai_operation_profiles"."capability" = 'property_trends' AND "ai_operation_profiles"."profile_version" = 'property-trend-v1' AND "ai_operation_profiles"."purpose" = 'ai.detect_trends' AND "ai_operation_profiles"."source_route" = 'property-trend' AND "ai_operation_profiles"."gateway_path" = '/v1/property-trend' AND "ai_operation_profiles"."caller_role" = 'worker' AND "ai_operation_profiles"."capability_runtime_profile_version" = 'property-trends-runtime-v1')
-        OR ("ai_operation_profiles"."command" = 'synthetic_canary' AND "ai_operation_profiles"."capability" IS NULL AND "ai_operation_profiles"."profile_version" = 'synthetic-canary-v1' AND "ai_operation_profiles"."purpose" = 'ai.synthetic_canary' AND "ai_operation_profiles"."source_route" = 'synthetic-canary' AND "ai_operation_profiles"."gateway_path" = 'internal:synthetic-canary' AND "ai_operation_profiles"."caller_role" = 'release_canary' AND "ai_operation_profiles"."capability_runtime_profile_version" IS NULL)
-      )),
-	CONSTRAINT "ai_operation_profiles_digests_valid" CHECK ("ai_operation_profiles"."output_schema_digest" ~ '^[0-9a-f]{64}$'
-        AND "ai_operation_profiles"."prompt_digest" ~ '^[0-9a-f]{64}$'
-        AND "ai_operation_profiles"."artifact_attestations_digest" ~ '^[0-9a-f]{64}$'
-        AND "ai_operation_profiles"."sdk_request_shape_digest" ~ '^[0-9a-f]{64}$'
-        AND "ai_operation_profiles"."static_token_bearing_digest" ~ '^[0-9a-f]{64}$'
-        AND "ai_operation_profiles"."profile_digest" ~ '^[0-9a-f]{64}$'),
-	CONSTRAINT "ai_operation_profiles_limits_valid" CHECK ("ai_operation_profiles"."max_output_tokens" BETWEEN 1 AND 8192
-        AND "ai_operation_profiles"."source_byte_limit" BETWEEN 1 AND 65536
-        AND "ai_operation_profiles"."provider_payload_byte_limit" BETWEEN 1 AND 65536
-        AND "ai_operation_profiles"."prepared_request_byte_limit" BETWEEN 1 AND 131072
-        AND "ai_operation_profiles"."response_byte_limit" = 131072
-        AND "ai_operation_profiles"."static_token_bearing_bytes" BETWEEN 1 AND "ai_operation_profiles"."prepared_request_byte_limit"
-        AND "ai_operation_profiles"."provider_deadline_ms" IN (60000, 90000)
-        AND "ai_operation_profiles"."request_deadline_ms" = "ai_operation_profiles"."provider_deadline_ms" + 10000
-        AND "ai_operation_profiles"."execution_lease_ms" BETWEEN "ai_operation_profiles"."request_deadline_ms" AND 300000),
-	CONSTRAINT "ai_operation_profiles_reasoning_effort_valid" CHECK ("ai_operation_profiles"."reasoning_effort" IN ('none', 'low', 'medium', 'high'))
-);
---> statement-breakpoint
 CREATE TABLE "ai_operations" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"idempotency_scope" varchar(255) NOT NULL,
 	"idempotency_key" varchar(128) NOT NULL,
 	"request_fingerprint" varchar(64) NOT NULL,
-	"source_digest" varchar(64),
-	"source_byte_count" integer,
+	"source_digest" varchar(64) NOT NULL,
+	"source_byte_count" integer NOT NULL,
 	"command" varchar(32) NOT NULL,
-	"capability" varchar(40),
-	"organization_id" varchar(255),
-	"property_id" uuid,
+	"capability" varchar(40) NOT NULL,
+	"organization_id" varchar(255) NOT NULL,
+	"property_id" uuid NOT NULL,
 	"actor_user_id" varchar(255),
 	"system_principal" varchar(64),
 	"review_id" uuid,
@@ -518,10 +120,6 @@ CREATE TABLE "ai_operations" (
 	"due_local_date" date,
 	"terminal_analysis_sequence" bigint,
 	"aggregate_revision" bigint,
-	"release_sha" varchar(40),
-	"canary_authorization_id" uuid,
-	"canary_authorization_generation" integer,
-	"canary_profile_version" varchar(100),
 	"authorization_lineage_id" uuid,
 	"notice_version" varchar(100),
 	"notice_digest" varchar(64),
@@ -536,6 +134,9 @@ CREATE TABLE "ai_operations" (
 	"reply_brand_profile_version" integer,
 	"reply_brand_display_name_digest" varchar(64),
 	"routing_policy_version" integer,
+	"provider_deployment_profile_version" varchar(100) NOT NULL,
+	"operation_profile_version" varchar(100) NOT NULL,
+	"capability_runtime_profile_version" varchar(100),
 	"source_policy_id" varchar(150),
 	"source_canonicalizer_digest" varchar(64),
 	"redaction_profile_version" varchar(100),
@@ -543,16 +144,24 @@ CREATE TABLE "ai_operations" (
 	"output_leakage_profile_digest" varchar(64),
 	"reply_template_catalogue_version" varchar(100),
 	"reply_template_catalogue_digest" varchar(64),
-	"provider_deployment_profile_version" varchar(100) NOT NULL,
-	"operation_profile_version" varchar(100) NOT NULL,
-	"capability_runtime_profile_version" varchar(100),
 	"global_control_id" uuid NOT NULL,
 	"global_control_generation" integer NOT NULL,
 	"provider_control_id" uuid NOT NULL,
 	"provider_control_generation" integer NOT NULL,
-	"capability_control_id" uuid,
-	"capability_control_generation" integer,
-	"capability_fences" jsonb,
+	"capability_control_id" uuid NOT NULL,
+	"capability_control_generation" integer NOT NULL,
+	"capability_fences" jsonb NOT NULL,
+	"route_key" varchar(64),
+	"execution_permit_id" uuid,
+	"admission_nonce" varchar(64),
+	"request_binding_key_id" varchar(64),
+	"request_binding_hmac" varchar(43),
+	"grant_kid" varchar(32),
+	"cost_window_id" uuid,
+	"reserved_micros" bigint DEFAULT 0 NOT NULL,
+	"actual_micros" bigint,
+	"budget_reserved_at" timestamp with time zone,
+	"budget_settled_at" timestamp with time zone,
 	"state" varchar(40) NOT NULL,
 	"execution_attempt" integer NOT NULL,
 	"next_attempt_at" timestamp with time zone,
@@ -565,28 +174,15 @@ CREATE TABLE "ai_operations" (
 	"adopted_reply_revision" bigint,
 	"adopted_review_reply_state_revision" bigint,
 	CONSTRAINT "ai_operations_fingerprint_valid" CHECK ("ai_operations"."request_fingerprint" ~ '^[0-9a-f]{64}$'),
-	CONSTRAINT "ai_operations_reply_brand_binding_valid" CHECK ((
-        (
-          "ai_operations"."command" = 'reply'
-          AND (
-            ("ai_operations"."reply_brand_profile_version" IS NULL
-              AND "ai_operations"."reply_brand_display_name_digest" IS NULL)
-            OR ("ai_operations"."reply_brand_profile_version" >= 1
-              AND "ai_operations"."reply_brand_display_name_digest" ~ '^[0-9a-f]{64}$')
-          )
-        )
-        OR (
-          "ai_operations"."command" <> 'reply'
-          AND "ai_operations"."reply_brand_profile_version" IS NULL
-          AND "ai_operations"."reply_brand_display_name_digest" IS NULL
-        )
-      )),
-	CONSTRAINT "ai_operations_source_provenance_valid" CHECK ((
-        ("ai_operations"."command" = 'synthetic_canary' AND "ai_operations"."source_digest" IS NULL AND "ai_operations"."source_byte_count" IS NULL)
-        OR ("ai_operations"."command" <> 'synthetic_canary' AND "ai_operations"."source_digest" ~ '^[0-9a-f]{64}$' AND "ai_operations"."source_byte_count" BETWEEN 1 AND 131072)
-      )),
+	CONSTRAINT "ai_operations_source_provenance_valid" CHECK ("ai_operations"."source_digest" ~ '^[0-9a-f]{64}$' AND "ai_operations"."source_byte_count" BETWEEN 1 AND 131072),
 	CONSTRAINT "ai_operations_state_valid" CHECK ("ai_operations"."state" IN ('pending', 'executing', 'succeeded_pending_delivery', 'succeeded', 'failed', 'cancelled')),
 	CONSTRAINT "ai_operations_attempt_valid" CHECK ("ai_operations"."execution_attempt" >= 0 AND "ai_operations"."expires_at" > "ai_operations"."created_at" AND "ai_operations"."updated_at" >= "ai_operations"."created_at" AND ("ai_operations"."next_attempt_at" IS NULL OR "ai_operations"."next_attempt_at" >= "ai_operations"."updated_at")),
+	CONSTRAINT "ai_operations_budget_valid" CHECK ("ai_operations"."reserved_micros" BETWEEN 0 AND '9007199254740991'::bigint
+        AND ("ai_operations"."actual_micros" IS NULL OR "ai_operations"."actual_micros" BETWEEN 0 AND "ai_operations"."reserved_micros")
+        AND (("ai_operations"."cost_window_id" IS NULL AND "ai_operations"."reserved_micros" = 0 AND "ai_operations"."budget_reserved_at" IS NULL)
+          OR ("ai_operations"."cost_window_id" IS NOT NULL AND "ai_operations"."reserved_micros" > 0 AND "ai_operations"."budget_reserved_at" IS NOT NULL))
+        AND (("ai_operations"."budget_settled_at" IS NULL AND "ai_operations"."actual_micros" IS NULL)
+          OR ("ai_operations"."budget_settled_at" IS NOT NULL AND "ai_operations"."actual_micros" IS NOT NULL AND "ai_operations"."budget_settled_at" >= "ai_operations"."budget_reserved_at"))),
 	CONSTRAINT "ai_operations_safe_integers" CHECK (COALESCE("ai_operations"."source_revision", 0) BETWEEN 0 AND '9007199254740991'::bigint
         AND COALESCE("ai_operations"."reviewed_at_epoch_millis", 0) BETWEEN 0 AND '9007199254740991'::bigint
         AND COALESCE("ai_operations"."analysis_sequence", 0) BETWEEN 0 AND '9007199254740991'::bigint
@@ -596,84 +192,34 @@ CREATE TABLE "ai_operations" (
         AND COALESCE("ai_operations"."adopted_reply_revision", 0) BETWEEN 0 AND '9007199254740991'::bigint
         AND COALESCE("ai_operations"."adopted_review_reply_state_revision", 0) BETWEEN 0 AND '9007199254740991'::bigint),
 	CONSTRAINT "ai_operations_branch_valid" CHECK ((
-        ("ai_operations"."command" = 'analysis' AND "ai_operations"."capability" = 'review_analysis' AND "ai_operations"."organization_id" IS NOT NULL AND "ai_operations"."property_id" IS NOT NULL AND "ai_operations"."actor_user_id" IS NULL AND "ai_operations"."system_principal" = 'review_event_consumer' AND "ai_operations"."review_id" IS NOT NULL AND "ai_operations"."origin_event_id" IS NOT NULL AND "ai_operations"."subject_hmac" ~ '^[0-9a-f]{64}$' AND "ai_operations"."subject_hmac_key_version" IS NOT NULL AND "ai_operations"."source_epoch" >= 0 AND "ai_operations"."source_revision" >= 1 AND "ai_operations"."analysis_sequence" >= 1 AND "ai_operations"."operation_profile_version" = 'review-analysis-v1' AND "ai_operations"."capability_runtime_profile_version" = 'review-analysis-runtime-v1')
-        OR ("ai_operations"."command" = 'reply' AND "ai_operations"."capability" = 'reply_drafting' AND "ai_operations"."organization_id" IS NOT NULL AND "ai_operations"."property_id" IS NOT NULL AND "ai_operations"."actor_user_id" IS NOT NULL AND "ai_operations"."system_principal" IS NULL AND "ai_operations"."review_id" IS NOT NULL AND "ai_operations"."source_epoch" >= 0 AND "ai_operations"."source_revision" >= 1 AND "ai_operations"."tone" IN ('professional', 'friendly', 'casual') AND "ai_operations"."base_reply_state_revision" >= 0 AND "ai_operations"."operation_profile_version" = 'reply-suggestion-v1' AND "ai_operations"."capability_runtime_profile_version" = 'reply-drafting-runtime-v1')
-        OR ("ai_operations"."command" = 'trend' AND "ai_operations"."capability" = 'property_trends' AND "ai_operations"."organization_id" IS NOT NULL AND "ai_operations"."property_id" IS NOT NULL AND "ai_operations"."actor_user_id" IS NULL AND "ai_operations"."system_principal" = 'property_trend_coordinator' AND "ai_operations"."source_epoch" >= 0 AND "ai_operations"."due_local_date" IS NOT NULL AND "ai_operations"."terminal_analysis_sequence" >= 0 AND "ai_operations"."aggregate_revision" >= 0 AND "ai_operations"."operation_profile_version" = 'property-trend-v1' AND "ai_operations"."capability_runtime_profile_version" = 'property-trends-runtime-v1')
-        OR ("ai_operations"."command" = 'synthetic_canary' AND "ai_operations"."capability" IS NULL AND "ai_operations"."organization_id" IS NULL AND "ai_operations"."property_id" IS NULL AND "ai_operations"."actor_user_id" IS NULL AND "ai_operations"."system_principal" = 'release_canary' AND "ai_operations"."release_sha" ~ '^[0-9a-f]{40}$' AND "ai_operations"."canary_authorization_id" IS NOT NULL AND "ai_operations"."canary_authorization_generation" BETWEEN 1 AND 3 AND "ai_operations"."canary_profile_version" IS NOT NULL AND "ai_operations"."operation_profile_version" = 'synthetic-canary-v1' AND "ai_operations"."capability_runtime_profile_version" IS NULL)
+        ("ai_operations"."command" = 'analysis' AND "ai_operations"."capability" = 'review_analysis' AND "ai_operations"."actor_user_id" IS NULL AND "ai_operations"."system_principal" = 'review_event_consumer' AND "ai_operations"."review_id" IS NOT NULL AND "ai_operations"."origin_event_id" IS NOT NULL AND "ai_operations"."subject_hmac" ~ '^[0-9a-f]{64}$' AND "ai_operations"."subject_hmac_key_version" IS NOT NULL AND "ai_operations"."source_epoch" >= 0 AND "ai_operations"."source_revision" >= 1 AND "ai_operations"."analysis_sequence" >= 1)
+        OR ("ai_operations"."command" = 'reply' AND "ai_operations"."capability" = 'reply_drafting' AND "ai_operations"."actor_user_id" IS NOT NULL AND "ai_operations"."system_principal" IS NULL AND "ai_operations"."review_id" IS NOT NULL AND "ai_operations"."source_epoch" >= 0 AND "ai_operations"."source_revision" >= 1 AND "ai_operations"."tone" IN ('professional', 'friendly', 'casual') AND "ai_operations"."base_reply_state_revision" >= 0)
+        OR ("ai_operations"."command" = 'trend' AND "ai_operations"."capability" = 'property_trends' AND "ai_operations"."actor_user_id" IS NULL AND "ai_operations"."system_principal" = 'property_trend_coordinator' AND "ai_operations"."source_epoch" >= 0 AND "ai_operations"."due_local_date" IS NOT NULL AND "ai_operations"."terminal_analysis_sequence" >= 0 AND "ai_operations"."aggregate_revision" >= 0)
       )),
-	CONSTRAINT "ai_operations_reply_adoption_valid" CHECK ((
-        (
-          "ai_operations"."command" = 'reply'
-          AND "ai_operations"."reply_adoption_disposition" IN ('none', 'adopted', 'invalidated')
-          AND (
-            ("ai_operations"."reply_adoption_disposition" = 'none'
-              AND "ai_operations"."adopted_reply_revision" IS NULL
-              AND "ai_operations"."adopted_review_reply_state_revision" IS NULL)
-            OR ("ai_operations"."reply_adoption_disposition" = 'adopted'
-              AND "ai_operations"."adopted_reply_revision" >= 1
-              AND "ai_operations"."adopted_review_reply_state_revision" >= 1)
-            OR ("ai_operations"."reply_adoption_disposition" = 'invalidated'
-              AND (
-                ("ai_operations"."adopted_reply_revision" IS NULL
-                  AND "ai_operations"."adopted_review_reply_state_revision" IS NULL)
-                OR ("ai_operations"."adopted_reply_revision" >= 1
-                  AND "ai_operations"."adopted_review_reply_state_revision" >= 1)
-              ))
-          )
-        )
-        OR (
-          "ai_operations"."command" <> 'reply'
-          AND "ai_operations"."reply_adoption_disposition" = 'none'
-          AND "ai_operations"."adopted_reply_revision" IS NULL
-          AND "ai_operations"."adopted_review_reply_state_revision" IS NULL
-        )
-      )),
-	CONSTRAINT "ai_operations_control_fence_valid" CHECK ("ai_operations"."global_control_generation" >= 1
-        AND "ai_operations"."provider_control_generation" >= 1
-        AND (
-          (
-            "ai_operations"."command" = 'synthetic_canary'
-            AND "ai_operations"."capability_control_id" IS NULL
-            AND "ai_operations"."capability_control_generation" IS NULL
-            AND jsonb_typeof("ai_operations"."capability_fences") = 'array'
-            AND jsonb_array_length("ai_operations"."capability_fences") = 3
-          )
-          OR (
-            "ai_operations"."command" <> 'synthetic_canary'
-            AND "ai_operations"."capability_control_id" IS NOT NULL
-            AND "ai_operations"."capability_control_generation" >= 1
-            AND jsonb_typeof("ai_operations"."capability_fences") = 'object'
-            AND (
-              ("ai_operations"."command" = 'analysis' AND jsonb_array_length(jsonb_path_query_array("ai_operations"."capability_fences", '$.keyvalue()'::jsonpath)) = 2 AND "ai_operations"."capability_fences"->>'capability' = 'review_analysis' AND ("ai_operations"."capability_fences"->>'reviewAnalysisEpoch') ~ '^[1-9][0-9]*$')
-              OR ("ai_operations"."command" = 'reply' AND jsonb_array_length(jsonb_path_query_array("ai_operations"."capability_fences", '$.keyvalue()'::jsonpath)) = 3 AND "ai_operations"."capability_fences"->>'capability' = 'reply_drafting' AND ("ai_operations"."capability_fences"->>'replyDraftingEpoch') ~ '^[1-9][0-9]*$' AND ("ai_operations"."capability_fences"->>'baseReplyStateRevision') ~ '^(0|[1-9][0-9]*)$')
-              OR ("ai_operations"."command" = 'trend' AND jsonb_array_length(jsonb_path_query_array("ai_operations"."capability_fences", '$.keyvalue()'::jsonpath)) = 3 AND "ai_operations"."capability_fences"->>'capability' = 'property_trends' AND ("ai_operations"."capability_fences"->>'reviewAnalysisEpoch') ~ '^[1-9][0-9]*$' AND ("ai_operations"."capability_fences"->>'propertyTrendsEpoch') ~ '^[1-9][0-9]*$')
-            )
-          )
-        ))
+	CONSTRAINT "ai_operations_reply_brand_binding_valid" CHECK ((("ai_operations"."command" = 'reply' AND (("ai_operations"."reply_brand_profile_version" IS NULL AND "ai_operations"."reply_brand_display_name_digest" IS NULL) OR ("ai_operations"."reply_brand_profile_version" >= 1 AND "ai_operations"."reply_brand_display_name_digest" ~ '^[0-9a-f]{64}$')))
+        OR ("ai_operations"."command" <> 'reply' AND "ai_operations"."reply_brand_profile_version" IS NULL AND "ai_operations"."reply_brand_display_name_digest" IS NULL))),
+	CONSTRAINT "ai_operations_reply_adoption_valid" CHECK ((("ai_operations"."command" = 'reply' AND "ai_operations"."reply_adoption_disposition" IN ('none', 'adopted', 'invalidated')
+          AND (("ai_operations"."reply_adoption_disposition" = 'none' AND "ai_operations"."adopted_reply_revision" IS NULL AND "ai_operations"."adopted_review_reply_state_revision" IS NULL)
+            OR ("ai_operations"."reply_adoption_disposition" = 'adopted' AND "ai_operations"."adopted_reply_revision" >= 1 AND "ai_operations"."adopted_review_reply_state_revision" >= 1)
+            OR ("ai_operations"."reply_adoption_disposition" = 'invalidated' AND (("ai_operations"."adopted_reply_revision" IS NULL AND "ai_operations"."adopted_review_reply_state_revision" IS NULL) OR ("ai_operations"."adopted_reply_revision" >= 1 AND "ai_operations"."adopted_review_reply_state_revision" >= 1)))))
+        OR ("ai_operations"."command" <> 'reply' AND "ai_operations"."reply_adoption_disposition" = 'none' AND "ai_operations"."adopted_reply_revision" IS NULL AND "ai_operations"."adopted_review_reply_state_revision" IS NULL))),
+	CONSTRAINT "ai_operations_control_fence_valid" CHECK ("ai_operations"."global_control_generation" >= 1 AND "ai_operations"."provider_control_generation" >= 1
+        AND "ai_operations"."capability_control_generation" >= 1 AND jsonb_typeof("ai_operations"."capability_fences") = 'object')
 );
 --> statement-breakpoint
 CREATE TABLE "ai_organization_cost_windows" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" varchar(255) NOT NULL,
-	"utc_date" date NOT NULL,
-	"reserved_cost_micros" bigint DEFAULT 0 NOT NULL,
-	"settled_cost_micros" bigint DEFAULT 0 NOT NULL,
-	"updated_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_organization_cost_windows_pk" PRIMARY KEY("organization_id","utc_date"),
-	CONSTRAINT "ai_organization_cost_windows_valid" CHECK ("ai_organization_cost_windows"."reserved_cost_micros" BETWEEN 0 AND '9007199254740991'::bigint AND "ai_organization_cost_windows"."settled_cost_micros" BETWEEN 0 AND '9007199254740991'::bigint)
-);
---> statement-breakpoint
-CREATE TABLE "ai_product_volume_consumptions" (
-	"operation_id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"capability" varchar(40) NOT NULL,
-	"provider_deployment_profile_version" varchar(100) NOT NULL,
-	"model_snapshot" varchar(100) NOT NULL,
-	"input_tokens" integer NOT NULL,
-	"output_tokens" integer NOT NULL,
-	"total_tokens" integer NOT NULL,
-	"completed_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_product_volume_consumptions_valid" CHECK ("ai_product_volume_consumptions"."capability" IN ('review_analysis', 'reply_drafting', 'property_trends') AND "ai_product_volume_consumptions"."input_tokens" >= 0 AND "ai_product_volume_consumptions"."output_tokens" >= 0 AND "ai_product_volume_consumptions"."total_tokens" = "ai_product_volume_consumptions"."input_tokens" + "ai_product_volume_consumptions"."output_tokens")
+	"window_start" timestamp with time zone NOT NULL,
+	"reserved_micros" bigint DEFAULT 0 NOT NULL,
+	"settled_micros" bigint DEFAULT 0 NOT NULL,
+	"cap_micros" bigint DEFAULT 50000000 NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "ai_organization_cost_windows_valid" CHECK ("ai_organization_cost_windows"."reserved_micros" BETWEEN 0 AND "ai_organization_cost_windows"."cap_micros"
+        AND "ai_organization_cost_windows"."settled_micros" BETWEEN 0 AND "ai_organization_cost_windows"."cap_micros"
+        AND "ai_organization_cost_windows"."reserved_micros" + "ai_organization_cost_windows"."settled_micros" <= "ai_organization_cost_windows"."cap_micros"
+        AND "ai_organization_cost_windows"."cap_micros" BETWEEN 1 AND '9007199254740991'::bigint
+        AND "ai_organization_cost_windows"."window_start" = date_trunc('month', "ai_organization_cost_windows"."window_start"))
 );
 --> statement-breakpoint
 CREATE TABLE "ai_property_aggregate_contributions" (
@@ -713,28 +259,6 @@ CREATE TABLE "ai_property_aggregate_heads" (
 	"updated_at" timestamp with time zone NOT NULL,
 	CONSTRAINT "ai_property_aggregate_heads_pk" PRIMARY KEY("organization_id","property_id","source_epoch","review_analysis_epoch","property_profile_version"),
 	CONSTRAINT "ai_property_aggregate_heads_versions_valid" CHECK ("ai_property_aggregate_heads"."source_epoch" >= 0 AND "ai_property_aggregate_heads"."review_analysis_epoch" >= 1 AND "ai_property_aggregate_heads"."property_profile_version" >= 1 AND "ai_property_aggregate_heads"."aggregate_revision" BETWEEN 0 AND '9007199254740991'::bigint AND "ai_property_aggregate_heads"."terminal_analysis_sequence" BETWEEN 0 AND '9007199254740991'::bigint)
-);
---> statement-breakpoint
-CREATE TABLE "ai_property_calendar_authorities" (
-	"profile_version" varchar(100) PRIMARY KEY NOT NULL,
-	"epoch_millis_function_name" varchar(100) NOT NULL,
-	"epoch_millis_function_digest" varchar(64) NOT NULL,
-	"local_date_function_name" varchar(100) NOT NULL,
-	"local_date_function_digest" varchar(64) NOT NULL,
-	"local_midnight_function_name" varchar(100) NOT NULL,
-	"local_midnight_function_digest" varchar(64) NOT NULL,
-	"image_digest" varchar(64) NOT NULL,
-	"vector_digest" varchar(64) NOT NULL,
-	"vector_count" integer NOT NULL,
-	"minimum_year" integer NOT NULL,
-	"maximum_year" integer NOT NULL,
-	"tested_postgres_major_versions" integer[] NOT NULL,
-	"test_vectors" jsonb NOT NULL,
-	"created_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_property_calendar_authorities_profile_valid" CHECK ("ai_property_calendar_authorities"."profile_version" = 'property-calendar-v1'),
-	CONSTRAINT "ai_property_calendar_authorities_function_valid" CHECK ("ai_property_calendar_authorities"."epoch_millis_function_name" = 'ai_epoch_millis_v1' AND "ai_property_calendar_authorities"."local_date_function_name" = 'ai_property_local_date_v1' AND "ai_property_calendar_authorities"."local_midnight_function_name" = 'ai_property_local_midnight_v1'),
-	CONSTRAINT "ai_property_calendar_authorities_digests_valid" CHECK ("ai_property_calendar_authorities"."epoch_millis_function_digest" = '9367a74304ab003cf57e2aa988883d72b4b9782a9cc9e7e639033c4b1604fa35' AND "ai_property_calendar_authorities"."local_date_function_digest" = '6521dba5d8bc579bf55f8bf47d5db5c642032795949af54cb370189cac0d61a0' AND "ai_property_calendar_authorities"."local_midnight_function_digest" = 'ab121d8706ff847aea69b565d9571b3561e8289f0a417b8a35f13abb20edcbe1' AND "ai_property_calendar_authorities"."image_digest" = '33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20' AND "ai_property_calendar_authorities"."vector_digest" = '0108713532775ad86be18c94c69eed42c9f2dfd24766608ff3592d87e7739545'),
-	CONSTRAINT "ai_property_calendar_authorities_range_valid" CHECK ("ai_property_calendar_authorities"."vector_count" = 10 AND "ai_property_calendar_authorities"."minimum_year" = 1970 AND "ai_property_calendar_authorities"."maximum_year" = 2100 AND "ai_property_calendar_authorities"."tested_postgres_major_versions" = ARRAY[16,17]::integer[] AND jsonb_typeof("ai_property_calendar_authorities"."test_vectors") = 'array' AND jsonb_array_length("ai_property_calendar_authorities"."test_vectors") = "ai_property_calendar_authorities"."vector_count")
 );
 --> statement-breakpoint
 CREATE TABLE "ai_property_daily_aggregates" (
@@ -791,42 +315,6 @@ CREATE TABLE "ai_property_processing_profiles" (
 	CONSTRAINT "ai_property_profiles_region_valid" CHECK ("ai_property_processing_profiles"."processing_region" = 'global'),
 	CONSTRAINT "ai_property_profiles_versions_valid" CHECK ("ai_property_processing_profiles"."source_epoch" >= 0 AND "ai_property_processing_profiles"."profile_version" >= 1),
 	CONSTRAINT "ai_property_profiles_lifecycle_valid" CHECK ("ai_property_processing_profiles"."lifecycle_state" IN ('active', 'deleting'))
-);
---> statement-breakpoint
-CREATE TABLE "ai_property_quota_windows" (
-	"property_id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"generation" integer NOT NULL,
-	"property_profile_version" integer NOT NULL,
-	"timezone" varchar(64) NOT NULL,
-	"local_date" date NOT NULL,
-	"starts_at" timestamp with time zone NOT NULL,
-	"ends_at" timestamp with time zone NOT NULL,
-	"transition_anchor" timestamp with time zone,
-	"adoption_at" timestamp with time zone,
-	"pending_timezone" varchar(64),
-	"pending_property_profile_version" integer,
-	"analysis_count" integer DEFAULT 0 NOT NULL,
-	"reply_count" integer DEFAULT 0 NOT NULL,
-	"reserved_cost_micros" bigint DEFAULT 0 NOT NULL,
-	"settled_cost_micros" bigint DEFAULT 0 NOT NULL,
-	"updated_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_property_quota_windows_valid" CHECK ("ai_property_quota_windows"."generation" >= 1 AND "ai_property_quota_windows"."property_profile_version" >= 1
-        AND length("ai_property_quota_windows"."timezone") BETWEEN 1 AND 64
-        AND "ai_property_quota_windows"."ends_at" > "ai_property_quota_windows"."starts_at"
-        AND "ai_property_quota_windows"."analysis_count" BETWEEN 0 AND 500
-        AND "ai_property_quota_windows"."reply_count" BETWEEN 0 AND 100
-        AND "ai_property_quota_windows"."reserved_cost_micros" BETWEEN 0 AND '9007199254740991'::bigint
-        AND "ai_property_quota_windows"."settled_cost_micros" BETWEEN 0 AND '9007199254740991'::bigint
-        AND (
-          ("ai_property_quota_windows"."transition_anchor" IS NULL AND "ai_property_quota_windows"."adoption_at" IS NULL
-            AND "ai_property_quota_windows"."pending_timezone" IS NULL
-            AND "ai_property_quota_windows"."pending_property_profile_version" IS NULL)
-          OR ("ai_property_quota_windows"."transition_anchor" IS NOT NULL AND "ai_property_quota_windows"."adoption_at" = "ai_property_quota_windows"."ends_at"
-            AND "ai_property_quota_windows"."adoption_at" >= "ai_property_quota_windows"."transition_anchor" + interval '24 hours'
-            AND length("ai_property_quota_windows"."pending_timezone") BETWEEN 1 AND 64
-            AND "ai_property_quota_windows"."pending_property_profile_version" >= 1)
-        ))
 );
 --> statement-breakpoint
 CREATE TABLE "ai_property_trend_outcomes" (
@@ -941,70 +429,6 @@ CREATE TABLE "ai_property_trend_schedules" (
         AND "ai_property_trend_schedules"."timezone" ~ '^(UTC|[A-Za-z_]+(/[A-Za-z0-9_+-]+)+)$')
 );
 --> statement-breakpoint
-CREATE TABLE "ai_provider_circuit_states" (
-	"provider_deployment_profile_version" varchar(100) PRIMARY KEY NOT NULL,
-	"state" varchar(20) NOT NULL,
-	"consecutive_failures" integer NOT NULL,
-	"opened_until" timestamp with time zone,
-	"updated_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_provider_circuit_states_valid" CHECK ("ai_provider_circuit_states"."state" IN ('closed', 'open', 'half_open')
-        AND "ai_provider_circuit_states"."consecutive_failures" BETWEEN 0 AND 1000000
-        AND (("ai_provider_circuit_states"."state" = 'closed' AND "ai_provider_circuit_states"."opened_until" IS NULL)
-          OR ("ai_provider_circuit_states"."state" <> 'closed' AND "ai_provider_circuit_states"."opened_until" IS NOT NULL)))
-);
---> statement-breakpoint
-CREATE TABLE "ai_provider_deployment_capabilities" (
-	"provider_deployment_profile_version" varchar(100) NOT NULL,
-	"capability" varchar(40) NOT NULL,
-	"runtime_profile_version" varchar(100) NOT NULL,
-	"catalogue_digest" varchar(64) NOT NULL,
-	"created_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_provider_deployment_capabilities_pk" PRIMARY KEY("provider_deployment_profile_version","capability"),
-	CONSTRAINT "ai_provider_deployment_capabilities_provider_valid" CHECK ("ai_provider_deployment_capabilities"."provider_deployment_profile_version" = 'private-beta-global-v1'),
-	CONSTRAINT "ai_provider_deployment_capabilities_digest_valid" CHECK ("ai_provider_deployment_capabilities"."catalogue_digest" ~ '^[0-9a-f]{64}$')
-);
---> statement-breakpoint
-CREATE TABLE "ai_provider_deployment_profiles" (
-	"profile_version" varchar(100) PRIMARY KEY NOT NULL,
-	"region" varchar(20) NOT NULL,
-	"provider" varchar(40) NOT NULL,
-	"model_snapshot" varchar(100) NOT NULL,
-	"reasoning_effort" varchar(20) NOT NULL,
-	"service_tier" varchar(20) NOT NULL,
-	"store" boolean NOT NULL,
-	"response_api_version" varchar(40) NOT NULL,
-	"deployment_contract" jsonb NOT NULL,
-	"profile_digest" varchar(64) NOT NULL,
-	"created_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_provider_profiles_version_valid" CHECK ("ai_provider_deployment_profiles"."profile_version" = 'private-beta-global-v1'),
-	CONSTRAINT "ai_provider_profiles_region_valid" CHECK ("ai_provider_deployment_profiles"."region" = 'global'),
-	CONSTRAINT "ai_provider_profiles_provider_valid" CHECK ("ai_provider_deployment_profiles"."provider" = 'openai'),
-	CONSTRAINT "ai_provider_profiles_model_valid" CHECK ("ai_provider_deployment_profiles"."model_snapshot" = 'gpt-5.6-luna'),
-	CONSTRAINT "ai_provider_profiles_reasoning_valid" CHECK ("ai_provider_deployment_profiles"."reasoning_effort" = 'route-profile-effort'),
-	CONSTRAINT "ai_provider_profiles_tier_valid" CHECK ("ai_provider_deployment_profiles"."service_tier" = 'default'),
-	CONSTRAINT "ai_provider_profiles_store_false" CHECK ("ai_provider_deployment_profiles"."store" = false),
-	CONSTRAINT "ai_provider_profiles_api_valid" CHECK ("ai_provider_deployment_profiles"."response_api_version" = 'responses-v1'),
-	CONSTRAINT "ai_provider_profiles_contract_valid" CHECK (jsonb_typeof("ai_provider_deployment_profiles"."deployment_contract") = 'object'
-        AND "ai_provider_deployment_profiles"."deployment_contract" = '{"tools": "empty_array","stream": false,"pricing": {"sourceUrl": "https://developers.openai.com/api/docs/pricing","unitTokens": 1000000,"catalogueId": "openai-gpt-5.6-luna-standard-2026-08-19","serviceTier": "default","outputMicros": 1200000,"modelSnapshot": "gpt-5.6-luna","retrievalDate": "2026-08-19","cachedInputMicros": 20000,"uncachedInputMicros": 200000},"runtime": {"nodeImage": "node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5","icuVersion": "78.2","nodeVersion": "22.23.2","unicodeVersion": "17.0"},"endpoint": "https://api.openai.com/v1/responses","evidence": {"retrievalDate": "2026-08-19","primarySources": {"sdk": "https://github.com/openai/openai-node/tree/v7.4.0","model": "https://developers.openai.com/api/docs/models/gpt-5.6-luna","pricing": "https://developers.openai.com/api/docs/pricing","responses": "https://developers.openai.com/api/reference/resources/responses","apiOverview": "https://developers.openai.com/api/reference/overview#supplying-your-own-request-id-with-x-client-request-id","dataControls": "https://developers.openai.com/api/docs/guides/your-data","promptCaching": "https://developers.openai.com/api/docs/guides/prompt-caching","safetyIdentifiers": "https://developers.openai.com/api/docs/guides/safety-best-practices","structuredOutputs": "https://developers.openai.com/api/docs/guides/structured-outputs"},"normalizedClaimsDigest": "a6c41316f725644be569c2797f20941d2d04e39996b6a0d69d835d5e93f0b2c9"},"metadata": "absent","background": false,"sdkVersion": "7.4.0","truncation": "disabled","conversation": "absent","keyInventory": {"provenance": {"activeKid": "provenance-v1","publicKeyDigest": "dbc930d7982f42eeae818aff4d8a8096fcc4aa7f51ed32e18cc7d8b8834e6842","keyringGeneration": 1,"maximumPrivateKeysPerProcess": 1},"requestBinding": {"activeVersion": "request-v1","retainedVersions": [],"keyringGeneration": 1,"maximumConfiguredKeys": 2},"admissionSigning": {"activeKid": "admission-v1","retainedKids": [],"publicKeyDigests": {"admission-v1": "a57e62482c9eb0e88df509cd9dddbd5f520ae85f77214d919878e3cdb531de5f"},"keyringGeneration": 1,"maximumConfiguredKeys": 2},"safetyIdentifier": {"activeVersion": "safety-v1","keyringGeneration": 1,"maximumConfiguredKeys": 1}},"redirectMode": "manual_no_follow","sdkMaxRetries": 0,"successStatus": 200,"promptCacheMode": "automatic_prefix_16_shards","providerFallback": "none","dispatcherVersion": "undici@8.10.0","retryAfterProfile": "delta-seconds-1-to-300-v1","previousResponseId": "absent","promptCacheOptions": "absent","requestShapeDigest": "69d4c82156308030119f7c5a7ce31d201dbfbbc68e0bc7b568f585e4ff1d09fd","serviceDrainSeconds": 130,"promptCacheRetention": "24h","promptCacheBreakpoint": "absent","clientRequestIdProfile": "openai-client-request-id-v1","providerIdempotencyMode": "none","successMediaTypeProfile": "application-json-utf8-v1","maxHttpRequestsPerPermit": 1,"possibleDispatchBoundary": "outbound_fetch_invocation","statusDispositionProfile": "openai-status-disposition-v1","handlerDrainTimeoutMillis": 115000,"retryableCompleteStatuses": [429,500,502,503,504],"gatewayRequestTimeoutMillis": 115000}'::jsonb),
-	CONSTRAINT "ai_provider_profiles_digest_valid" CHECK ("ai_provider_deployment_profiles"."profile_digest" ~ '^[0-9a-f]{64}$')
-);
---> statement-breakpoint
-CREATE TABLE "ai_read_barrier_heads" (
-	"scope_kind" varchar(20) NOT NULL,
-	"scope_id" varchar(255) NOT NULL,
-	"domain_version" varchar(100) NOT NULL,
-	"generation" integer NOT NULL,
-	"state" varchar(20) NOT NULL,
-	"created_at" timestamp with time zone NOT NULL,
-	"updated_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_read_barrier_heads_pk" PRIMARY KEY("scope_kind","scope_id"),
-	CONSTRAINT "ai_read_barrier_heads_scope_valid" CHECK ("ai_read_barrier_heads"."scope_kind" IN ('organization', 'property', 'actor') AND length("ai_read_barrier_heads"."scope_id") BETWEEN 1 AND 255),
-	CONSTRAINT "ai_read_barrier_heads_domain_valid" CHECK ("ai_read_barrier_heads"."domain_version" = 'ai-read-barrier-v1'),
-	CONSTRAINT "ai_read_barrier_heads_generation_valid" CHECK ("ai_read_barrier_heads"."generation" >= 1),
-	CONSTRAINT "ai_read_barrier_heads_state_valid" CHECK ("ai_read_barrier_heads"."state" IN ('open', 'closing')),
-	CONSTRAINT "ai_read_barrier_heads_time_valid" CHECK ("ai_read_barrier_heads"."updated_at" >= "ai_read_barrier_heads"."created_at")
-);
---> statement-breakpoint
 CREATE TABLE "ai_review_analyses" (
 	"organization_id" varchar(255) NOT NULL,
 	"property_id" uuid NOT NULL,
@@ -1031,95 +455,6 @@ CREATE TABLE "ai_review_analyses" (
         OR ("ai_review_analyses"."status" = 'unavailable' AND "ai_review_analyses"."unavailable_reason" = 'language_not_supported' AND "ai_review_analyses"."sentiment" IS NULL AND "ai_review_analyses"."primary_category" IS NULL AND "ai_review_analyses"."attention" IS NULL)
       )),
 	CONSTRAINT "ai_review_analyses_retention_valid" CHECK ("ai_review_analyses"."expires_at" > "ai_review_analyses"."generated_at")
-);
---> statement-breakpoint
-CREATE TABLE "ai_review_analysis_backfill_run_memberships" (
-	"run_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"ordinal" bigint NOT NULL,
-	"review_id" uuid NOT NULL,
-	"source_revision" bigint,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "ai_review_backfill_memberships_pk" PRIMARY KEY("run_id","ordinal"),
-	CONSTRAINT "ai_review_backfill_memberships_ordinal_safe" CHECK ("ai_review_analysis_backfill_run_memberships"."ordinal" BETWEEN 0 AND '9007199254740991'::bigint),
-	CONSTRAINT "ai_review_backfill_memberships_revision_safe" CHECK ("ai_review_analysis_backfill_run_memberships"."source_revision" IS NULL OR "ai_review_analysis_backfill_run_memberships"."source_revision" BETWEEN 1 AND '9007199254740991'::bigint)
-);
---> statement-breakpoint
-CREATE TABLE "ai_review_analysis_backfill_runs" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"source_epoch" integer NOT NULL,
-	"review_analysis_epoch" integer NOT NULL,
-	"analysis_start_sequence" bigint NOT NULL,
-	"review_ids" uuid[] NOT NULL,
-	"requested_review_count" integer NOT NULL,
-	"emitted_review_count" integer DEFAULT 0 NOT NULL,
-	"skipped_review_count" integer DEFAULT 0 NOT NULL,
-	"recovered_review_count" integer DEFAULT 0 NOT NULL,
-	"current_analysis_sequence" bigint,
-	"current_review_id" uuid,
-	"current_emitted_at" timestamp with time zone,
-	"state" varchar(16) NOT NULL,
-	"terminal_reason" varchar(64),
-	"terminal_at" timestamp with time zone,
-	"reason_code" varchar(64) NOT NULL,
-	"correlation_id" uuid NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "ai_review_analysis_backfill_runs_state_valid" CHECK ("ai_review_analysis_backfill_runs"."state" IN ('running', 'completed', 'superseded', 'stalled')),
-	CONSTRAINT "ai_review_analysis_backfill_runs_terminal_valid" CHECK ((
-        ("ai_review_analysis_backfill_runs"."state" = 'running' AND "ai_review_analysis_backfill_runs"."terminal_at" IS NULL AND "ai_review_analysis_backfill_runs"."terminal_reason" IS NULL)
-        OR ("ai_review_analysis_backfill_runs"."state" <> 'running' AND "ai_review_analysis_backfill_runs"."terminal_at" IS NOT NULL)
-      )),
-	CONSTRAINT "ai_review_analysis_backfill_runs_cursor_valid" CHECK ((
-        ("ai_review_analysis_backfill_runs"."current_analysis_sequence" IS NULL) = ("ai_review_analysis_backfill_runs"."current_review_id" IS NULL)
-        AND ("ai_review_analysis_backfill_runs"."current_analysis_sequence" IS NULL) = ("ai_review_analysis_backfill_runs"."current_emitted_at" IS NULL)
-      )),
-	CONSTRAINT "ai_review_analysis_backfill_runs_counts_valid" CHECK ("ai_review_analysis_backfill_runs"."requested_review_count" BETWEEN 1 AND 2147483647
-        AND (cardinality("ai_review_analysis_backfill_runs"."review_ids") = 0
-          OR cardinality("ai_review_analysis_backfill_runs"."review_ids") = "ai_review_analysis_backfill_runs"."requested_review_count")
-        AND "ai_review_analysis_backfill_runs"."emitted_review_count" >= 0
-        AND "ai_review_analysis_backfill_runs"."skipped_review_count" >= 0
-        AND "ai_review_analysis_backfill_runs"."emitted_review_count" + "ai_review_analysis_backfill_runs"."skipped_review_count" <= "ai_review_analysis_backfill_runs"."requested_review_count"
-        AND "ai_review_analysis_backfill_runs"."recovered_review_count" BETWEEN 0 AND "ai_review_analysis_backfill_runs"."emitted_review_count"),
-	CONSTRAINT "ai_review_analysis_backfill_runs_sequences_safe" CHECK ("ai_review_analysis_backfill_runs"."source_epoch" BETWEEN 0 AND 2147483647
-        AND "ai_review_analysis_backfill_runs"."review_analysis_epoch" BETWEEN 1 AND 2147483647
-        AND "ai_review_analysis_backfill_runs"."analysis_start_sequence" BETWEEN 0 AND '9007199254740991'::bigint
-        AND (
-          "ai_review_analysis_backfill_runs"."current_analysis_sequence" IS NULL
-          OR (
-            "ai_review_analysis_backfill_runs"."current_analysis_sequence" >= "ai_review_analysis_backfill_runs"."analysis_start_sequence" + 1
-            AND "ai_review_analysis_backfill_runs"."current_analysis_sequence" <= '9007199254740991'::bigint
-          )
-        ))
-);
---> statement-breakpoint
-CREATE TABLE "ai_review_analysis_enrollment_memberships" (
-	"enrollment_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"ordinal" bigint NOT NULL,
-	"review_id" uuid NOT NULL,
-	"source_epoch" integer NOT NULL,
-	"source_revision" bigint NOT NULL,
-	"analysis_sequence" bigint NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "ai_review_enrollment_memberships_pk" PRIMARY KEY("enrollment_id","ordinal"),
-	CONSTRAINT "ai_review_enrollment_memberships_fence_safe" CHECK ("ai_review_analysis_enrollment_memberships"."ordinal" BETWEEN 0 AND '9007199254740991'::bigint
-        AND "ai_review_analysis_enrollment_memberships"."source_epoch" BETWEEN 0 AND 2147483647
-        AND "ai_review_analysis_enrollment_memberships"."source_revision" BETWEEN 1 AND '9007199254740991'::bigint
-        AND "ai_review_analysis_enrollment_memberships"."analysis_sequence" BETWEEN 1 AND '9007199254740991'::bigint)
-);
---> statement-breakpoint
-CREATE TABLE "ai_review_analysis_enrollment_replays" (
-	"enrollment_id" uuid NOT NULL,
-	"run_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "ai_review_analysis_enrollment_replays_pk" PRIMARY KEY("enrollment_id","run_id")
 );
 --> statement-breakpoint
 CREATE TABLE "ai_review_analysis_enrollments" (
@@ -1220,116 +555,6 @@ CREATE TABLE "ai_review_analysis_enrollments" (
         AND ("ai_review_analysis_enrollments"."caught_up_at" IS NULL OR "ai_review_analysis_enrollments"."caught_up_at" >= "ai_review_analysis_enrollments"."snapshot_captured_at")
         AND ("ai_review_analysis_enrollments"."assisted_approved_at" IS NULL OR "ai_review_analysis_enrollments"."assisted_approved_at" >= "ai_review_analysis_enrollments"."snapshot_captured_at")
         AND ("ai_review_analysis_enrollments"."terminal_at" IS NULL OR "ai_review_analysis_enrollments"."terminal_at" >= "ai_review_analysis_enrollments"."snapshot_captured_at"))
-);
---> statement-breakpoint
-CREATE TABLE "ai_review_analysis_outcomes" (
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"source_epoch" integer NOT NULL,
-	"review_analysis_epoch" integer NOT NULL,
-	"analysis_sequence" bigint NOT NULL,
-	"event_envelope_id" uuid NOT NULL,
-	"operation_id" uuid,
-	"state" varchar(30) NOT NULL,
-	"disposition_code" varchar(64),
-	"applied_aggregate_revision" bigint,
-	"applied_at" timestamp with time zone,
-	"created_at" timestamp with time zone NOT NULL,
-	"updated_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_review_analysis_outcomes_pk" PRIMARY KEY("organization_id","property_id","source_epoch","review_analysis_epoch","analysis_sequence"),
-	CONSTRAINT "ai_review_analysis_outcomes_sequence_valid" CHECK ("ai_review_analysis_outcomes"."analysis_sequence" BETWEEN 0 AND '9007199254740991'::bigint),
-	CONSTRAINT "ai_review_analysis_outcomes_state_valid" CHECK ((
-        (
-          "ai_review_analysis_outcomes"."state" = 'pending'
-          AND "ai_review_analysis_outcomes"."disposition_code" IS NULL
-          AND "ai_review_analysis_outcomes"."applied_aggregate_revision" IS NULL
-          AND "ai_review_analysis_outcomes"."applied_at" IS NULL
-        )
-        OR (
-          "ai_review_analysis_outcomes"."state" = 'ready'
-          AND "ai_review_analysis_outcomes"."operation_id" IS NOT NULL
-          AND "ai_review_analysis_outcomes"."disposition_code" IS NULL
-          AND (
-            ("ai_review_analysis_outcomes"."applied_aggregate_revision" IS NULL AND "ai_review_analysis_outcomes"."applied_at" IS NULL)
-            OR (
-              "ai_review_analysis_outcomes"."applied_aggregate_revision" BETWEEN 1 AND '9007199254740991'::bigint
-              AND "ai_review_analysis_outcomes"."applied_at" IS NOT NULL
-            )
-          )
-        )
-        OR (
-          "ai_review_analysis_outcomes"."state" = 'terminal_no_result'
-          AND "ai_review_analysis_outcomes"."disposition_code" IN (
-            'source_expired',
-            'provider_deleted',
-            'policy_disabled',
-            'language_not_supported'
-          )
-          AND (
-            ("ai_review_analysis_outcomes"."applied_aggregate_revision" IS NULL AND "ai_review_analysis_outcomes"."applied_at" IS NULL)
-            OR (
-              "ai_review_analysis_outcomes"."applied_aggregate_revision" BETWEEN 1 AND '9007199254740991'::bigint
-              AND "ai_review_analysis_outcomes"."applied_at" IS NOT NULL
-            )
-          )
-        )
-      )),
-	CONSTRAINT "ai_review_analysis_outcomes_time_valid" CHECK ("ai_review_analysis_outcomes"."updated_at" >= "ai_review_analysis_outcomes"."created_at")
-);
---> statement-breakpoint
-CREATE TABLE "ai_review_event_cursors" (
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"source_epoch" integer NOT NULL,
-	"review_analysis_epoch" integer NOT NULL,
-	"analysis_start_sequence" bigint NOT NULL,
-	"consumed_sequence" bigint NOT NULL,
-	"terminal_analysis_sequence" bigint NOT NULL,
-	"aggregate_revision" bigint NOT NULL,
-	"last_consumed_event_id" uuid,
-	"created_at" timestamp with time zone NOT NULL,
-	"updated_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_review_event_cursors_pk" PRIMARY KEY("organization_id","property_id","source_epoch","review_analysis_epoch"),
-	CONSTRAINT "ai_review_event_cursors_sequences_valid" CHECK ("ai_review_event_cursors"."source_epoch" >= 0 AND "ai_review_event_cursors"."review_analysis_epoch" >= 1
-        AND "ai_review_event_cursors"."analysis_start_sequence" BETWEEN 0 AND '9007199254740991'::bigint
-        AND "ai_review_event_cursors"."consumed_sequence" BETWEEN "ai_review_event_cursors"."analysis_start_sequence" AND '9007199254740991'::bigint
-        AND "ai_review_event_cursors"."terminal_analysis_sequence" BETWEEN "ai_review_event_cursors"."analysis_start_sequence" AND "ai_review_event_cursors"."consumed_sequence"
-        AND "ai_review_event_cursors"."aggregate_revision" BETWEEN 0 AND '9007199254740991'::bigint),
-	CONSTRAINT "ai_review_event_cursors_time_valid" CHECK ("ai_review_event_cursors"."updated_at" >= "ai_review_event_cursors"."created_at")
-);
---> statement-breakpoint
-CREATE TABLE "ai_routing_policies" (
-	"version" integer PRIMARY KEY NOT NULL,
-	"region" varchar(20) NOT NULL,
-	"provider_deployment_profile_version" varchar(100) NOT NULL,
-	"policy_digest" varchar(64) NOT NULL,
-	"created_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_routing_policies_version_valid" CHECK ("ai_routing_policies"."version" = 1),
-	CONSTRAINT "ai_routing_policies_region_valid" CHECK ("ai_routing_policies"."region" = 'global'),
-	CONSTRAINT "ai_routing_policies_digest_valid" CHECK ("ai_routing_policies"."policy_digest" ~ '^[0-9a-f]{64}$')
-);
---> statement-breakpoint
-CREATE TABLE "ai_runtime_capability_profiles" (
-	"runtime_profile_version" varchar(100) PRIMARY KEY NOT NULL,
-	"capability" varchar(40) NOT NULL,
-	"purpose" varchar(40) NOT NULL,
-	"source_route" varchar(80) NOT NULL,
-	"gateway_path" varchar(80) NOT NULL,
-	"gateway_profile_version" varchar(100) NOT NULL,
-	"caller" varchar(20) NOT NULL,
-	"operation_profile_version" varchar(100) NOT NULL,
-	"provider_deployment_profile_version" varchar(100) NOT NULL,
-	"notice_version" varchar(100) NOT NULL,
-	"notice_digest" varchar(64) NOT NULL,
-	"catalogue_digest" varchar(64) NOT NULL,
-	"created_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "ai_runtime_capability_profiles_branch_valid" CHECK ((
-        ("ai_runtime_capability_profiles"."capability" = 'review_analysis' AND "ai_runtime_capability_profiles"."runtime_profile_version" = 'review-analysis-runtime-v1' AND "ai_runtime_capability_profiles"."purpose" = 'ai.analyze' AND "ai_runtime_capability_profiles"."source_route" = 'review-analysis' AND "ai_runtime_capability_profiles"."gateway_path" = '/v1/review-analysis' AND "ai_runtime_capability_profiles"."gateway_profile_version" = 'review-analysis-gateway-v1' AND "ai_runtime_capability_profiles"."caller" = 'worker' AND "ai_runtime_capability_profiles"."operation_profile_version" = 'review-analysis-v1')
-        OR ("ai_runtime_capability_profiles"."capability" = 'reply_drafting' AND "ai_runtime_capability_profiles"."runtime_profile_version" = 'reply-drafting-runtime-v1' AND "ai_runtime_capability_profiles"."purpose" = 'ai.generate_reply' AND "ai_runtime_capability_profiles"."source_route" = 'reply-suggestion' AND "ai_runtime_capability_profiles"."gateway_path" = '/v1/reply-suggestion' AND "ai_runtime_capability_profiles"."gateway_profile_version" = 'reply-suggestion-gateway-v1' AND "ai_runtime_capability_profiles"."caller" = 'web' AND "ai_runtime_capability_profiles"."operation_profile_version" = 'reply-suggestion-v1')
-        OR ("ai_runtime_capability_profiles"."capability" = 'property_trends' AND "ai_runtime_capability_profiles"."runtime_profile_version" = 'property-trends-runtime-v1' AND "ai_runtime_capability_profiles"."purpose" = 'ai.detect_trends' AND "ai_runtime_capability_profiles"."source_route" = 'property-trend' AND "ai_runtime_capability_profiles"."gateway_path" = '/v1/property-trend' AND "ai_runtime_capability_profiles"."gateway_profile_version" = 'property-trend-gateway-v1' AND "ai_runtime_capability_profiles"."caller" = 'worker' AND "ai_runtime_capability_profiles"."operation_profile_version" = 'property-trend-v1')
-      )),
-	CONSTRAINT "ai_runtime_capability_profiles_provider_valid" CHECK ("ai_runtime_capability_profiles"."provider_deployment_profile_version" = 'private-beta-global-v1'),
-	CONSTRAINT "ai_runtime_capability_profiles_digests_valid" CHECK ("ai_runtime_capability_profiles"."notice_digest" ~ '^[0-9a-f]{64}$' AND "ai_runtime_capability_profiles"."catalogue_digest" ~ '^[0-9a-f]{64}$')
 );
 --> statement-breakpoint
 CREATE TABLE "operational_action_history_heads" (
@@ -1439,26 +664,6 @@ CREATE TABLE "recent_activity_replay_facts" (
 	CONSTRAINT "recent_activity_replay_disposition_check" CHECK ("recent_activity_replay_facts"."disposition" IN ('projectable', 'obsolete')),
 	CONSTRAINT "recent_activity_replay_durable_source_check" CHECK (("recent_activity_replay_facts"."source_kind" = 'durable_fact' AND "recent_activity_replay_facts"."source_event_id" IS NOT NULL AND "recent_activity_replay_facts"."source_event_type" IS NOT NULL AND "recent_activity_replay_facts"."source_event_version" >= 1 AND "recent_activity_replay_facts"."source_context" IS NOT NULL AND "recent_activity_replay_facts"."source_aggregate_id" IS NOT NULL) OR ("recent_activity_replay_facts"."source_kind" = 'legacy_projection_snapshot' AND "recent_activity_replay_facts"."disposition" = 'projectable' AND "recent_activity_replay_facts"."source_event_type" IS NULL AND "recent_activity_replay_facts"."source_event_version" IS NULL AND "recent_activity_replay_facts"."source_context" IS NULL AND "recent_activity_replay_facts"."source_aggregate_id" IS NULL)),
 	CONSTRAINT "recent_activity_replay_projection_check" CHECK (("recent_activity_replay_facts"."disposition" = 'projectable' AND "recent_activity_replay_facts"."projection_id" IS NOT NULL AND "recent_activity_replay_facts"."action" IS NOT NULL AND "recent_activity_replay_facts"."resource_type" IS NOT NULL AND "recent_activity_replay_facts"."resource_id" IS NOT NULL AND "recent_activity_replay_facts"."transition_payload" IS NOT NULL AND "recent_activity_replay_facts"."source" IN ('web', 'import')) OR ("recent_activity_replay_facts"."disposition" = 'obsolete' AND "recent_activity_replay_facts"."projection_id" IS NULL AND "recent_activity_replay_facts"."actor_subject_id" IS NULL AND "recent_activity_replay_facts"."action" IS NULL AND "recent_activity_replay_facts"."resource_type" IS NULL AND "recent_activity_replay_facts"."resource_id" IS NULL AND "recent_activity_replay_facts"."transition_payload" IS NULL AND "recent_activity_replay_facts"."source" IS NULL))
-);
---> statement-breakpoint
-CREATE TABLE "recent_activity_vocabulary_reconciliations" (
-	"operation_id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"source_action" varchar(50) NOT NULL,
-	"source_resource_type" varchar(50) NOT NULL,
-	"target_action" varchar(50) NOT NULL,
-	"target_resource_type" varchar(50) NOT NULL,
-	"target_fingerprint_sha256" varchar(64) NOT NULL,
-	"target_count" integer NOT NULL,
-	"updated_count" integer NOT NULL,
-	"authorized_by" varchar(255) NOT NULL,
-	"authorization_evidence_ref" varchar(200) NOT NULL,
-	"applied_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "recent_activity_vocabulary_reconciliations_codes_valid" CHECK ("recent_activity_vocabulary_reconciliations"."source_action" ~ '^[a-z][a-z0-9_]{0,49}$' AND "recent_activity_vocabulary_reconciliations"."source_resource_type" ~ '^[a-z][a-z0-9_]{0,49}$' AND "recent_activity_vocabulary_reconciliations"."target_action" ~ '^[a-z][a-z0-9_]{0,49}$' AND "recent_activity_vocabulary_reconciliations"."target_resource_type" ~ '^[a-z][a-z0-9_]{0,49}$'),
-	CONSTRAINT "recent_activity_vocabulary_reconciliations_fingerprint_valid" CHECK ("recent_activity_vocabulary_reconciliations"."target_fingerprint_sha256" ~ '^[0-9a-f]{64}$'),
-	CONSTRAINT "recent_activity_vocabulary_reconciliations_counts_valid" CHECK ("recent_activity_vocabulary_reconciliations"."target_count" >= 1 AND "recent_activity_vocabulary_reconciliations"."updated_count" = "recent_activity_vocabulary_reconciliations"."target_count"),
-	CONSTRAINT "recent_activity_vocabulary_reconciliations_evidence_ref_valid" CHECK ("recent_activity_vocabulary_reconciliations"."authorization_evidence_ref" ~ '^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,199}$'),
-	CONSTRAINT "recent_activity_vocabulary_reconciliations_changes_kind" CHECK ("recent_activity_vocabulary_reconciliations"."source_action" <> "recent_activity_vocabulary_reconciliations"."target_action" OR "recent_activity_vocabulary_reconciliations"."source_resource_type" <> "recent_activity_vocabulary_reconciliations"."target_resource_type")
 );
 --> statement-breakpoint
 CREATE TABLE "audit_logs" (
@@ -1589,91 +794,6 @@ CREATE TABLE "permission_version" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "goal_definition_versions" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"definition_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"version" integer NOT NULL,
-	"metric_definition_id" uuid NOT NULL,
-	"metric_definition_version_id" uuid NOT NULL,
-	"metric_key" varchar(100) NOT NULL,
-	"metric_value_kind" varchar(20) NOT NULL,
-	"metric_minimum_sample" integer NOT NULL,
-	"metric_allowed_scopes" jsonb NOT NULL,
-	"metric_permitted_consumers" jsonb NOT NULL,
-	"metric_employment_decision_eligible" boolean DEFAULT false NOT NULL,
-	"measure_kind" varchar(20) NOT NULL,
-	"target_value" numeric(30, 10) NOT NULL,
-	"source_policy" varchar(80) NOT NULL,
-	"property_timezone" varchar(64) NOT NULL,
-	"recurrence_rule" jsonb NOT NULL,
-	"effective_from" timestamp with time zone NOT NULL,
-	"effective_to" timestamp with time zone,
-	"change_reason" text NOT NULL,
-	"created_by" varchar(255) NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_definition_versions_definition_version_key" UNIQUE("definition_id","version"),
-	CONSTRAINT "goal_definition_versions_org_property_id_key" UNIQUE("organization_id","property_id","id"),
-	CONSTRAINT "goal_definition_versions_org_property_definition_id_key" UNIQUE("organization_id","property_id","definition_id","id"),
-	CONSTRAINT "goal_definition_versions_kind_check" CHECK ("goal_definition_versions"."measure_kind" IN ('progress', 'level', 'ratio')),
-	CONSTRAINT "goal_definition_versions_target_check" CHECK ("goal_definition_versions"."target_value" > 0),
-	CONSTRAINT "goal_definition_versions_metric_sample_check" CHECK ("goal_definition_versions"."metric_minimum_sample" >= 1),
-	CONSTRAINT "goal_definition_versions_employment_check" CHECK ("goal_definition_versions"."metric_employment_decision_eligible" = false),
-	CONSTRAINT "goal_definition_versions_effective_check" CHECK ("goal_definition_versions"."effective_to" IS NULL OR "goal_definition_versions"."effective_to" > "goal_definition_versions"."effective_from")
-);
---> statement-breakpoint
-CREATE TABLE "goal_definitions" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"scope_kind" varchar(30) NOT NULL,
-	"portal_group_id" uuid,
-	"name" varchar(200) NOT NULL,
-	"description" text,
-	"status" varchar(20) DEFAULT 'active' NOT NULL,
-	"status_reason" text,
-	"current_version" integer DEFAULT 1 NOT NULL,
-	"created_by" varchar(255) NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_definitions_org_property_id_key" UNIQUE("organization_id","property_id","id"),
-	CONSTRAINT "goal_definitions_scope_check" CHECK (("goal_definitions"."scope_kind" = 'property' AND "goal_definitions"."portal_group_id" IS NULL) OR ("goal_definitions"."scope_kind" = 'portal_group' AND "goal_definitions"."portal_group_id" IS NOT NULL)),
-	CONSTRAINT "goal_definitions_status_check" CHECK ("goal_definitions"."status" IN ('active', 'paused', 'cancelled')),
-	CONSTRAINT "goal_definitions_version_check" CHECK ("goal_definitions"."current_version" >= 1),
-	CONSTRAINT "goal_definitions_name_check" CHECK (length(btrim("goal_definitions"."name")) > 0)
-);
---> statement-breakpoint
-CREATE TABLE "goal_evaluations" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"period_id" uuid NOT NULL,
-	"definition_id" uuid NOT NULL,
-	"definition_version_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"metric_reading_id" uuid,
-	"source_event_id" varchar(255),
-	"idempotency_key" varchar(255) NOT NULL,
-	"state" varchar(30) NOT NULL,
-	"reason" text,
-	"value" numeric(30, 10),
-	"numerator" numeric(30, 10),
-	"denominator" numeric(30, 10),
-	"sample_count" integer,
-	"achieved" boolean DEFAULT false NOT NULL,
-	"evaluation_watermark" timestamp with time zone NOT NULL,
-	"supersedes_evaluation_id" uuid,
-	"correction_reading_id" uuid,
-	"created_by" varchar(255) NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_evaluations_idempotency_key" UNIQUE("organization_id","property_id","idempotency_key"),
-	CONSTRAINT "goal_evaluations_org_property_period_id_key" UNIQUE("organization_id","property_id","period_id","id"),
-	CONSTRAINT "goal_evaluations_state_check" CHECK ("goal_evaluations"."state" IN ('eligible', 'insufficient_data', 'unavailable', 'quarantined')),
-	CONSTRAINT "goal_evaluations_ratio_check" CHECK (("goal_evaluations"."numerator" IS NULL AND "goal_evaluations"."denominator" IS NULL) OR ("goal_evaluations"."numerator" IS NOT NULL AND "goal_evaluations"."denominator" IS NOT NULL AND "goal_evaluations"."denominator" > 0)),
-	CONSTRAINT "goal_evaluations_sample_check" CHECK ("goal_evaluations"."sample_count" IS NULL OR "goal_evaluations"."sample_count" >= 0),
-	CONSTRAINT "goal_evaluations_value_state_check" CHECK (("goal_evaluations"."state" = 'eligible' AND "goal_evaluations"."value" IS NOT NULL) OR ("goal_evaluations"."state" <> 'eligible' AND "goal_evaluations"."value" IS NULL AND "goal_evaluations"."achieved" = false))
-);
---> statement-breakpoint
 CREATE TABLE "goal_monthly_results" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"assignment_id" uuid NOT NULL,
@@ -1710,28 +830,6 @@ CREATE TABLE "goal_monthly_results" (
         OR "goal_monthly_results"."evaluation_state" NOT IN ('eligible', 'insufficient_data')
         OR "goal_monthly_results"."source_complete_through" = "goal_monthly_results"."period_end"
       ))
-);
---> statement-breakpoint
-CREATE TABLE "goal_periods" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"definition_id" uuid NOT NULL,
-	"definition_version_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"period_start" timestamp with time zone NOT NULL,
-	"period_end" timestamp with time zone NOT NULL,
-	"property_timezone" varchar(64) NOT NULL,
-	"status" varchar(24) DEFAULT 'open' NOT NULL,
-	"status_reason" text,
-	"evaluation_watermark" timestamp with time zone,
-	"closed_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_periods_identity_key" UNIQUE("definition_id","definition_version_id","period_start","period_end"),
-	CONSTRAINT "goal_periods_org_property_id_key" UNIQUE("organization_id","property_id","id"),
-	CONSTRAINT "goal_periods_org_property_definition_version_id_key" UNIQUE("organization_id","property_id","definition_id","definition_version_id","id"),
-	CONSTRAINT "goal_periods_bounds_check" CHECK ("goal_periods"."period_end" > "goal_periods"."period_start"),
-	CONSTRAINT "goal_periods_status_check" CHECK ("goal_periods"."status" IN ('scheduled', 'open', 'closed', 'cancelled'))
 );
 --> statement-breakpoint
 CREATE TABLE "goal_program_versions" (
@@ -1786,27 +884,6 @@ CREATE TABLE "goal_programs" (
 	CONSTRAINT "goal_programs_status_check" CHECK ("goal_programs"."status" IN ('scheduled', 'active', 'paused', 'ended'))
 );
 --> statement-breakpoint
-CREATE TABLE "goal_progress" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"goal_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"current_value" real DEFAULT 0 NOT NULL,
-	"current_sum" real,
-	"current_count" integer,
-	"last_computed_at" timestamp with time zone NOT NULL,
-	"computed_source" varchar(20) NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "goal_refresh_receipts" (
-	"source_event_id" varchar(255) NOT NULL,
-	"period_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"evaluation_id" uuid NOT NULL,
-	"processed_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_refresh_receipts_source_event_id_period_id_pk" PRIMARY KEY("source_event_id","period_id")
-);
---> statement-breakpoint
 CREATE TABLE "goal_result_revisions" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"monthly_result_id" uuid NOT NULL,
@@ -1859,42 +936,6 @@ CREATE TABLE "goal_subject_assignments" (
 	CONSTRAINT "goal_subject_assignments_effective_check" CHECK ("goal_subject_assignments"."effective_to" IS NULL OR "goal_subject_assignments"."effective_to" >= "goal_subject_assignments"."effective_from")
 );
 --> statement-breakpoint
-CREATE TABLE "goal_timezone_event_receipts" (
-	"source_event_id" varchar(255) NOT NULL,
-	"definition_id" uuid NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"property_version" integer NOT NULL,
-	"new_definition_version_id" uuid NOT NULL,
-	"new_period_id" uuid NOT NULL,
-	"processed_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "goal_timezone_event_receipts_source_event_id_definition_id_pk" PRIMARY KEY("source_event_id","definition_id")
-);
---> statement-breakpoint
-CREATE TABLE "goals" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"portal_id" uuid,
-	"portal_group_id" uuid,
-	"name" varchar(200) NOT NULL,
-	"description" text,
-	"created_by" varchar(255) NOT NULL,
-	"goal_type" varchar(20) NOT NULL,
-	"aggregation_function" varchar(20) NOT NULL,
-	"metric_key" varchar(100) NOT NULL,
-	"target_value" real NOT NULL,
-	"status" varchar(20) DEFAULT 'active' NOT NULL,
-	"period_start" timestamp with time zone,
-	"period_end" timestamp with time zone,
-	"recurrence_rule" jsonb,
-	"rolling_window_days" integer,
-	"parent_goal_id" uuid,
-	"completed_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "google_connections" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" varchar(255) NOT NULL,
@@ -1922,17 +963,6 @@ CREATE TABLE "google_connections" (
 	CONSTRAINT "google_connections_identity_check" CHECK ("google_connections"."google_subject" IS NOT NULL OR "google_connections"."status" = 'disconnected'),
 	CONSTRAINT "google_connections_versions_check" CHECK ("google_connections"."lifecycle_version" >= 1 AND "google_connections"."access_version" >= 1 AND "google_connections"."credential_generation" >= 1),
 	CONSTRAINT "google_connections_organization_owned_check" CHECK ("google_connections"."visibility" = 'organization')
-);
---> statement-breakpoint
-CREATE TABLE "google_import_discovery_invalidations" (
-	"invalidation_key" varchar(43) PRIMARY KEY NOT NULL,
-	"key_version" varchar(32) NOT NULL,
-	"scope_kind" varchar(32) NOT NULL,
-	"invalidated_at" timestamp with time zone NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "google_import_discovery_invalidations_key_valid" CHECK ("google_import_discovery_invalidations"."invalidation_key" ~ '^[A-Za-z0-9_-]{43}$' AND "google_import_discovery_invalidations"."key_version" ~ '^[a-z][a-z0-9_-]{0,31}$'),
-	CONSTRAINT "google_import_discovery_invalidations_scope_valid" CHECK ("google_import_discovery_invalidations"."scope_kind" IN ('organization', 'user', 'user_connection', 'connection', 'property')),
-	CONSTRAINT "google_import_discovery_invalidations_window_valid" CHECK ("google_import_discovery_invalidations"."expires_at" > "google_import_discovery_invalidations"."invalidated_at" AND "google_import_discovery_invalidations"."expires_at" <= "google_import_discovery_invalidations"."invalidated_at" + interval '00:00:30')
 );
 --> statement-breakpoint
 CREATE TABLE "google_import_discovery_records" (
@@ -1964,23 +994,6 @@ CREATE TABLE "google_import_discovery_records" (
         OR ("google_import_discovery_records"."audience" NOT IN ('accounts_cursor', 'locations_cursor') AND "google_import_discovery_records"."remaining_redemptions" IS NULL)
       )),
 	CONSTRAINT "google_import_discovery_records_claim_valid" CHECK (("google_import_discovery_records"."claim_request_id" IS NULL AND "google_import_discovery_records"."claimed_at" IS NULL) OR ("google_import_discovery_records"."audience" = 'import_candidate' AND "google_import_discovery_records"."claim_request_id" IS NOT NULL AND "google_import_discovery_records"."claimed_at" IS NOT NULL))
-);
---> statement-breakpoint
-CREATE TABLE "gbp_import_item_retry_receipts" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"initiating_user_id" varchar(255) NOT NULL,
-	"item_id" uuid NOT NULL,
-	"retry_request_id" uuid NOT NULL,
-	"request_digest_key_version" varchar(32) NOT NULL,
-	"request_digest" varchar(43) NOT NULL,
-	"accepted_retry_revision" integer NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "gbp_import_item_retry_receipts_values_valid" CHECK ((
-        "gbp_import_item_retry_receipts"."request_digest_key_version" ~ '^[a-z][a-z0-9_-]{0,31}$'
-        AND "gbp_import_item_retry_receipts"."request_digest" ~ '^[A-Za-z0-9_-]{43}$'
-        AND "gbp_import_item_retry_receipts"."accepted_retry_revision" >= 1
-      ))
 );
 --> statement-breakpoint
 CREATE TABLE "gbp_import_request_items" (
@@ -2282,54 +1295,6 @@ CREATE TABLE "google_credential_source_operations" (
 	CONSTRAINT "google_credential_source_operations_state_check" CHECK (("google_credential_source_operations"."state" = 'registered' AND "google_credential_source_operations"."provider_started_at" IS NULL AND "google_credential_source_operations"."terminal_at" IS NULL) OR ("google_credential_source_operations"."state" IN ('provider_started', 'provider_outcome_ambiguous') AND "google_credential_source_operations"."provider_started_at" IS NOT NULL AND "google_credential_source_operations"."terminal_at" IS NULL) OR ("google_credential_source_operations"."state" IN ('terminal', 'provider_reset_terminal') AND "google_credential_source_operations"."terminal_at" IS NOT NULL))
 );
 --> statement-breakpoint
-CREATE TABLE "google_disconnect_revoke_attempts" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"connection_id" uuid NOT NULL,
-	"initiator_user_id" varchar(255) NOT NULL,
-	"cleanup_work_permit_id" uuid,
-	"state" "google_disconnect_revoke_attempt_state" NOT NULL,
-	"expected_lifecycle_version" bigint NOT NULL,
-	"expected_access_version" bigint NOT NULL,
-	"expected_credential_generation" bigint NOT NULL,
-	"credential_binding" varchar(64),
-	"cleanup_deadline_at" timestamp with time zone NOT NULL,
-	"activated_at" timestamp with time zone NOT NULL,
-	"dispatching_at" timestamp with time zone,
-	"terminal_at" timestamp with time zone,
-	"outcome_code" varchar(100),
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "google_disconnect_revoke_attempts_versions_check" CHECK ("google_disconnect_revoke_attempts"."expected_lifecycle_version" >= 1 AND "google_disconnect_revoke_attempts"."expected_access_version" >= 1 AND "google_disconnect_revoke_attempts"."expected_credential_generation" >= 1),
-	CONSTRAINT "google_disconnect_revoke_attempts_window_check" CHECK ("google_disconnect_revoke_attempts"."cleanup_deadline_at" > "google_disconnect_revoke_attempts"."activated_at" AND "google_disconnect_revoke_attempts"."cleanup_deadline_at" <= "google_disconnect_revoke_attempts"."activated_at" + interval '00:01:00'),
-	CONSTRAINT "google_disconnect_revoke_attempts_state_check" CHECK (("google_disconnect_revoke_attempts"."state" = 'active' AND "google_disconnect_revoke_attempts"."cleanup_work_permit_id" IS NULL AND "google_disconnect_revoke_attempts"."credential_binding" ~ '^[a-f0-9]{64}$' AND "google_disconnect_revoke_attempts"."dispatching_at" IS NULL AND "google_disconnect_revoke_attempts"."terminal_at" IS NULL) OR ("google_disconnect_revoke_attempts"."state" = 'dispatching' AND "google_disconnect_revoke_attempts"."cleanup_work_permit_id" IS NOT NULL AND "google_disconnect_revoke_attempts"."credential_binding" IS NULL AND "google_disconnect_revoke_attempts"."dispatching_at" IS NOT NULL AND "google_disconnect_revoke_attempts"."terminal_at" IS NULL) OR ("google_disconnect_revoke_attempts"."state" IN ('confirmed_not_sent', 'confirmed_revoked', 'cleanup_ambiguous') AND "google_disconnect_revoke_attempts"."credential_binding" IS NULL AND "google_disconnect_revoke_attempts"."terminal_at" IS NOT NULL))
-);
---> statement-breakpoint
-CREATE TABLE "google_oauth_exchange_attempts" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"initiator_user_id" varchar(255) NOT NULL,
-	"connection_id" uuid NOT NULL,
-	"connection_mode" varchar(16) NOT NULL,
-	"target_connection_id" uuid,
-	"state" "google_oauth_exchange_attempt_state" NOT NULL,
-	"expected_lifecycle_version" bigint NOT NULL,
-	"expected_access_version" bigint NOT NULL,
-	"expected_credential_generation" bigint NOT NULL,
-	"encrypted_result" text,
-	"provider_started_at" timestamp with time zone,
-	"preserved_at" timestamp with time zone,
-	"response_expires_at" timestamp with time zone,
-	"apply_lease_expires_at" timestamp with time zone,
-	"terminal_at" timestamp with time zone,
-	"outcome_code" varchar(100),
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "google_oauth_exchange_attempts_target_check" CHECK (("google_oauth_exchange_attempts"."connection_mode" = 'new' AND "google_oauth_exchange_attempts"."target_connection_id" IS NULL) OR ("google_oauth_exchange_attempts"."connection_mode" IN ('reauth', 'reconnect') AND "google_oauth_exchange_attempts"."target_connection_id" = "google_oauth_exchange_attempts"."connection_id")),
-	CONSTRAINT "google_oauth_exchange_attempts_versions_check" CHECK ("google_oauth_exchange_attempts"."expected_lifecycle_version" >= 0 AND "google_oauth_exchange_attempts"."expected_access_version" >= 0 AND "google_oauth_exchange_attempts"."expected_credential_generation" >= 0),
-	CONSTRAINT "google_oauth_exchange_attempts_state_check" CHECK (("google_oauth_exchange_attempts"."state" = 'prepared' AND "google_oauth_exchange_attempts"."provider_started_at" IS NULL AND "google_oauth_exchange_attempts"."encrypted_result" IS NULL AND "google_oauth_exchange_attempts"."preserved_at" IS NULL AND "google_oauth_exchange_attempts"."response_expires_at" IS NULL AND "google_oauth_exchange_attempts"."apply_lease_expires_at" IS NULL AND "google_oauth_exchange_attempts"."terminal_at" IS NULL) OR ("google_oauth_exchange_attempts"."state" = 'provider_started' AND "google_oauth_exchange_attempts"."provider_started_at" IS NOT NULL AND "google_oauth_exchange_attempts"."encrypted_result" IS NULL AND "google_oauth_exchange_attempts"."preserved_at" IS NULL AND "google_oauth_exchange_attempts"."response_expires_at" IS NULL AND "google_oauth_exchange_attempts"."apply_lease_expires_at" IS NULL AND "google_oauth_exchange_attempts"."terminal_at" IS NULL) OR ("google_oauth_exchange_attempts"."state" = 'response_preserved' AND "google_oauth_exchange_attempts"."provider_started_at" IS NOT NULL AND "google_oauth_exchange_attempts"."encrypted_result" IS NOT NULL AND "google_oauth_exchange_attempts"."preserved_at" IS NOT NULL AND "google_oauth_exchange_attempts"."response_expires_at" > "google_oauth_exchange_attempts"."preserved_at" AND "google_oauth_exchange_attempts"."apply_lease_expires_at" IS NULL AND "google_oauth_exchange_attempts"."terminal_at" IS NULL) OR ("google_oauth_exchange_attempts"."state" = 'applying' AND "google_oauth_exchange_attempts"."provider_started_at" IS NOT NULL AND "google_oauth_exchange_attempts"."encrypted_result" IS NOT NULL AND "google_oauth_exchange_attempts"."preserved_at" IS NOT NULL AND "google_oauth_exchange_attempts"."response_expires_at" > "google_oauth_exchange_attempts"."preserved_at" AND "google_oauth_exchange_attempts"."apply_lease_expires_at" IS NOT NULL AND "google_oauth_exchange_attempts"."apply_lease_expires_at" <= "google_oauth_exchange_attempts"."response_expires_at" AND "google_oauth_exchange_attempts"."terminal_at" IS NULL) OR ("google_oauth_exchange_attempts"."state" IN ('completed', 'failed', 'provider_outcome_ambiguous', 'expired') AND "google_oauth_exchange_attempts"."encrypted_result" IS NULL AND "google_oauth_exchange_attempts"."response_expires_at" IS NULL AND "google_oauth_exchange_attempts"."apply_lease_expires_at" IS NULL AND "google_oauth_exchange_attempts"."terminal_at" IS NOT NULL))
-);
---> statement-breakpoint
 CREATE TABLE "google_subject_authority_guards" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"project_client_hmac_key_version" varchar(50) NOT NULL,
@@ -2358,18 +1323,6 @@ CREATE TABLE "feedback" (
 	"source" varchar(10) NOT NULL,
 	"ip_hash" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "guest_contact_request_purge_checkpoints" (
-	"authority" varchar(64) PRIMARY KEY NOT NULL,
-	"cursor_expires_at" timestamp with time zone,
-	"cursor_id" uuid,
-	"completed_through" timestamp with time zone,
-	"processed_count" integer DEFAULT 0 NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "guest_contact_purge_checkpoint_authority_valid" CHECK ("guest_contact_request_purge_checkpoints"."authority" = 'guest-contact-30d-v1'),
-	CONSTRAINT "guest_contact_purge_checkpoint_cursor_pair" CHECK (("guest_contact_request_purge_checkpoints"."cursor_expires_at" IS NULL) = ("guest_contact_request_purge_checkpoints"."cursor_id" IS NULL)),
-	CONSTRAINT "guest_contact_purge_checkpoint_count_valid" CHECK ("guest_contact_request_purge_checkpoints"."processed_count" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "guest_contact_request_reveal_audits" (
@@ -2446,20 +1399,6 @@ CREATE TABLE "guest_contact_requests" (
       ))
 );
 --> statement-breakpoint
-CREATE TABLE "guest_destination_action_receipts" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"portal_id" uuid NOT NULL,
-	"session_id" uuid NOT NULL,
-	"destination_id" varchar(255) NOT NULL,
-	"destination_kind" varchar(24) NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "guest_destination_action_receipts_kind_valid" CHECK ("guest_destination_action_receipts"."destination_kind" IN ('google_review', 'secondary_link')),
-	CONSTRAINT "guest_destination_action_receipts_live_window" CHECK ("guest_destination_action_receipts"."expires_at" > "guest_destination_action_receipts"."created_at")
-);
---> statement-breakpoint
 CREATE TABLE "guest_network_pressure_records" (
 	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" varchar(255) NOT NULL,
@@ -2472,18 +1411,6 @@ CREATE TABLE "guest_network_pressure_records" (
 	CONSTRAINT "guest_network_pressure_pseudonym_valid" CHECK ("guest_network_pressure_records"."pseudonym" ~ '^[a-f0-9]{64}$'),
 	CONSTRAINT "guest_network_pressure_action_valid" CHECK ("guest_network_pressure_records"."action" IN ('rating', 'private_feedback', 'destination_action', 'qualified_scan')),
 	CONSTRAINT "guest_network_pressure_retention_valid" CHECK ("guest_network_pressure_records"."expires_at" = "guest_network_pressure_records"."observed_at" + interval '7 days')
-);
---> statement-breakpoint
-CREATE TABLE "guest_qualified_scan_receipts" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"portal_id" uuid NOT NULL,
-	"session_id" uuid NOT NULL,
-	"qualified_scan_id" uuid NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "guest_qualified_scan_receipts_window_valid" CHECK ("guest_qualified_scan_receipts"."expires_at" = "guest_qualified_scan_receipts"."created_at" + interval '24 hours')
 );
 --> statement-breakpoint
 CREATE TABLE "guest_qualified_scans" (
@@ -2546,30 +1473,6 @@ CREATE TABLE "guest_response_integrity_decisions" (
 	CONSTRAINT "guest_response_integrity_decisions_outcome_valid" CHECK ("guest_response_integrity_decisions"."outcome" IN ('accepted', 'filtered_automatically', 'under_review')),
 	CONSTRAINT "guest_response_integrity_decisions_reason_valid" CHECK ("guest_response_integrity_decisions"."reason_code" ~ '^[a-z0-9]+(_[a-z0-9]+)*$'),
 	CONSTRAINT "guest_response_integrity_decisions_source_valid" CHECK ("guest_response_integrity_decisions"."source" IN ('system', 'automatic', 'reviewer', 'migration'))
-);
---> statement-breakpoint
-CREATE TABLE "guest_response_media" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"portal_id" uuid NOT NULL,
-	"response_id" uuid NOT NULL,
-	"session_id" uuid NOT NULL,
-	"object_key" varchar(700) NOT NULL,
-	"content_type" varchar(40) NOT NULL,
-	"declared_size_bytes" integer NOT NULL,
-	"status" varchar(24) DEFAULT 'issued' NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"confirmed_at" timestamp with time zone,
-	"processing_lease" uuid,
-	"processing_started_at" timestamp with time zone,
-	"public_url" varchar(1000),
-	"ready_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"deleted_at" timestamp with time zone,
-	CONSTRAINT "guest_response_media_status_valid" CHECK ("guest_response_media"."status" IN ('issued', 'processing', 'ready', 'purge_pending', 'deleted', 'quarantined', 'expired')),
-	CONSTRAINT "guest_response_media_size_valid" CHECK ("guest_response_media"."declared_size_bytes" > 0 AND "guest_response_media"."declared_size_bytes" <= 10485760)
 );
 --> statement-breakpoint
 CREATE TABLE "guest_response_private_feedback" (
@@ -3059,64 +1962,6 @@ CREATE TABLE "inbox_user_views" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "identity_invitation_fact_contract" (
-	"singleton" boolean PRIMARY KEY DEFAULT true NOT NULL,
-	"issuance_version" smallint DEFAULT 1 NOT NULL,
-	"generation" bigint DEFAULT 1 NOT NULL,
-	"switched_at" timestamp with time zone,
-	"verified_at" timestamp with time zone,
-	"operator_id" varchar(255),
-	"reason" varchar(500),
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "identity_invitation_fact_contract_singleton" CHECK ("identity_invitation_fact_contract"."singleton" = true),
-	CONSTRAINT "identity_invitation_fact_contract_version_valid" CHECK ("identity_invitation_fact_contract"."issuance_version" IN (1, 2)),
-	CONSTRAINT "identity_invitation_fact_contract_generation_positive" CHECK ("identity_invitation_fact_contract"."generation" >= 1),
-	CONSTRAINT "identity_invitation_fact_contract_switch_shape" CHECK (("identity_invitation_fact_contract"."issuance_version" = 1 AND "identity_invitation_fact_contract"."switched_at" IS NULL AND "identity_invitation_fact_contract"."verified_at" IS NULL)
-          OR ("identity_invitation_fact_contract"."issuance_version" = 2 AND "identity_invitation_fact_contract"."switched_at" IS NOT NULL)),
-	CONSTRAINT "identity_invitation_fact_contract_operator_shape" CHECK (("identity_invitation_fact_contract"."operator_id" IS NULL) = ("identity_invitation_fact_contract"."reason" IS NULL))
-);
---> statement-breakpoint
-CREATE TABLE "user_organization_bindings" (
-	"user_id" text PRIMARY KEY NOT NULL,
-	"organization_id" text,
-	"state" text DEFAULT 'active' NOT NULL,
-	"source" text NOT NULL,
-	"invitation_id" text,
-	"version" integer DEFAULT 1 NOT NULL,
-	"resolution_reason" text,
-	"released_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "user_organization_bindings_state_valid" CHECK ("user_organization_bindings"."state" IN ('active', 'support_resolution', 'released')),
-	CONSTRAINT "user_organization_bindings_source_valid" CHECK ("user_organization_bindings"."source" IN ('invitation', 'operator', 'backfill')),
-	CONSTRAINT "user_organization_bindings_version_positive" CHECK ("user_organization_bindings"."version" > 0),
-	CONSTRAINT "user_organization_bindings_state_shape" CHECK ((
-        ("user_organization_bindings"."state" = 'active' AND "user_organization_bindings"."organization_id" IS NOT NULL AND "user_organization_bindings"."released_at" IS NULL)
-        OR ("user_organization_bindings"."state" = 'support_resolution' AND "user_organization_bindings"."released_at" IS NULL)
-        OR ("user_organization_bindings"."state" = 'released' AND "user_organization_bindings"."released_at" IS NOT NULL)
-      ))
-);
---> statement-breakpoint
-CREATE TABLE "identity_organization_lifecycle_receipts" (
-	"organization_id" text NOT NULL,
-	"closure_lineage_id" uuid NOT NULL,
-	"lifecycle_revision" integer NOT NULL,
-	"phase" text NOT NULL,
-	"request_fingerprint" char(64) NOT NULL,
-	"outcome" text NOT NULL,
-	"evidence_ref" varchar(200) NOT NULL,
-	"recoverable_until" timestamp with time zone NOT NULL,
-	"occurred_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "identity_organization_lifecycle_receipts_pk" PRIMARY KEY("closure_lineage_id","lifecycle_revision","phase"),
-	CONSTRAINT "identity_organization_lifecycle_receipts_revision_positive" CHECK ("identity_organization_lifecycle_receipts"."lifecycle_revision" > 0),
-	CONSTRAINT "identity_organization_lifecycle_receipts_phase_valid" CHECK ("identity_organization_lifecycle_receipts"."phase" IN ('closing', 'purge_readiness', 'purge')),
-	CONSTRAINT "identity_organization_lifecycle_receipts_outcome_valid" CHECK ("identity_organization_lifecycle_receipts"."outcome" IN ('complete', 'no_data')),
-	CONSTRAINT "identity_organization_lifecycle_receipts_fingerprint_valid" CHECK ("identity_organization_lifecycle_receipts"."request_fingerprint" ~ '^[a-f0-9]{64}$'),
-	CONSTRAINT "identity_organization_lifecycle_receipts_evidence_valid" CHECK ("identity_organization_lifecycle_receipts"."evidence_ref" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$')
-);
---> statement-breakpoint
 CREATE TABLE "organization_export_retrieval_issuances" (
 	"export_id" uuid NOT NULL,
 	"organization_id" text NOT NULL,
@@ -3334,56 +2179,18 @@ CREATE TABLE "organization_lifecycle_authority" (
       ))
 );
 --> statement-breakpoint
-CREATE TABLE "organization_lifecycle_command_receipts" (
-	"operation_id" uuid PRIMARY KEY NOT NULL,
+CREATE TABLE "organization_lifecycle_events" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" text NOT NULL,
-	"operation" text NOT NULL,
-	"result_state" text NOT NULL,
-	"result_revision" integer NOT NULL,
-	"closure_lineage_id" uuid,
-	"closure_requested_at" timestamp with time zone,
-	"recoverable_until" timestamp with time zone,
-	"irreversible_at" timestamp with time zone,
-	"closed_at" timestamp with time zone,
-	"reactivation_required" boolean NOT NULL,
-	"last_transition_at" timestamp with time zone NOT NULL,
-	"last_actor_id" varchar(255) NOT NULL,
-	"last_reason_code" varchar(64) NOT NULL,
-	"last_support_evidence_ref" varchar(200) NOT NULL,
-	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "organization_lifecycle_receipt_operation_valid" CHECK ("organization_lifecycle_command_receipts"."operation" IN ('request', 'cancel')),
-	CONSTRAINT "organization_lifecycle_receipt_state_valid" CHECK ("organization_lifecycle_command_receipts"."result_state" IN ('active', 'closure_requested', 'closing', 'purge_pending', 'purging', 'closed')),
-	CONSTRAINT "organization_lifecycle_receipt_revision_positive" CHECK ("organization_lifecycle_command_receipts"."result_revision" > 0)
-);
---> statement-breakpoint
-CREATE TABLE "context_organization_lifecycle_receipts" (
 	"context" text NOT NULL,
-	"organization_id" text NOT NULL,
-	"closure_lineage_id" uuid NOT NULL,
-	"lifecycle_revision" integer NOT NULL,
 	"phase" text NOT NULL,
-	"request_fingerprint" char(64) NOT NULL,
-	"outcome" text NOT NULL,
-	"evidence_ref" varchar(200) NOT NULL,
-	"recoverable_until" timestamp with time zone NOT NULL,
-	"occurred_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "context_organization_lifecycle_receipts_pk" PRIMARY KEY("context","closure_lineage_id","lifecycle_revision","phase"),
-	CONSTRAINT "context_organization_lifecycle_receipts_revision_positive" CHECK ("context_organization_lifecycle_receipts"."lifecycle_revision" > 0),
-	CONSTRAINT "context_organization_lifecycle_receipts_context_valid" CHECK ("context_organization_lifecycle_receipts"."context" IN ('activity', 'ai', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'metric', 'notification', 'portal', 'property', 'review', 'staff')),
-	CONSTRAINT "context_organization_lifecycle_receipts_phase_valid" CHECK ("context_organization_lifecycle_receipts"."phase" IN ('closing', 'purge_readiness', 'purge')),
-	CONSTRAINT "context_organization_lifecycle_receipts_outcome_valid" CHECK ("context_organization_lifecycle_receipts"."outcome" IN ('complete', 'no_data')),
-	CONSTRAINT "context_organization_lifecycle_receipts_fingerprint_valid" CHECK ("context_organization_lifecycle_receipts"."request_fingerprint" ~ '^[a-f0-9]{64}$'),
-	CONSTRAINT "context_organization_lifecycle_receipts_evidence_valid" CHECK ("context_organization_lifecycle_receipts"."evidence_ref" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$')
-);
---> statement-breakpoint
-CREATE TABLE "backup_erasure_hold_releases" (
-	"ledger_entry_id" uuid PRIMARY KEY NOT NULL,
-	"hold_reference" varchar(200) NOT NULL,
-	"authority_ref" varchar(200) NOT NULL,
-	"released_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "backup_erasure_hold_releases_refs_valid" CHECK ("backup_erasure_hold_releases"."hold_reference" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$' AND "backup_erasure_hold_releases"."authority_ref" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$')
+	"kind" text NOT NULL,
+	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "organization_lifecycle_events_identity_valid" CHECK ("organization_lifecycle_events"."context" IN ('activity', 'ai', 'dashboard', 'goal', 'guest', 'identity', 'inbox', 'integration', 'metric', 'notification', 'portal', 'property', 'review', 'staff')
+          AND length("organization_lifecycle_events"."phase") BETWEEN 1 AND 32
+          AND length("organization_lifecycle_events"."kind") BETWEEN 1 AND 160),
+	CONSTRAINT "organization_lifecycle_events_payload_object" CHECK (jsonb_typeof("organization_lifecycle_events"."payload") = 'object')
 );
 --> statement-breakpoint
 CREATE TABLE "backup_erasure_ledger" (
@@ -3456,37 +2263,6 @@ CREATE TABLE "property_erase_authorities" (
         AND ("property_erase_authorities"."state" NOT IN ('purging', 'purged') OR "property_erase_authorities"."purge_started_at" IS NOT NULL))
 );
 --> statement-breakpoint
-CREATE TABLE "property_erase_context_receipts" (
-	"authority_id" uuid NOT NULL,
-	"context" varchar(32) NOT NULL,
-	"phase" varchar(24) NOT NULL,
-	"outcome" varchar(16) NOT NULL,
-	"erased_row_count" integer NOT NULL,
-	"evidence_ref" varchar(200) NOT NULL,
-	"occurred_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "property_erase_context_receipts_pk" PRIMARY KEY("authority_id","context","phase"),
-	CONSTRAINT "property_erase_context_receipts_phase_valid" CHECK ("property_erase_context_receipts"."phase" IN ('inventory', 'purge')),
-	CONSTRAINT "property_erase_context_receipts_outcome_valid" CHECK ("property_erase_context_receipts"."outcome" IN ('complete', 'no_data')),
-	CONSTRAINT "property_erase_context_receipts_count_valid" CHECK ("property_erase_context_receipts"."erased_row_count" >= 0),
-	CONSTRAINT "property_erase_context_receipts_evidence_valid" CHECK ("property_erase_context_receipts"."evidence_ref" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$')
-);
---> statement-breakpoint
-CREATE TABLE "privacy_request_transitions" (
-	"request_id" uuid NOT NULL,
-	"to_state" varchar(24) NOT NULL,
-	"from_state" varchar(24) NOT NULL,
-	"actor_type" varchar(24) NOT NULL,
-	"actor_ref" varchar(255) NOT NULL,
-	"evidence_ref" varchar(200) NOT NULL,
-	"occurred_at" timestamp with time zone NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "privacy_request_transitions_pk" PRIMARY KEY("request_id","to_state"),
-	CONSTRAINT "privacy_request_transitions_states_valid" CHECK ("privacy_request_transitions"."to_state" IN ('received', 'verified', 'in_progress', 'fulfilled', 'refused') AND "privacy_request_transitions"."from_state" IN ('received', 'verified', 'in_progress', 'fulfilled', 'refused')),
-	CONSTRAINT "privacy_request_transitions_actor_valid" CHECK ("privacy_request_transitions"."actor_type" IN ('subject', 'operator', 'system')),
-	CONSTRAINT "privacy_request_transitions_evidence_valid" CHECK ("privacy_request_transitions"."evidence_ref" ~ '^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$')
-);
---> statement-breakpoint
 CREATE TABLE "privacy_requests" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" varchar(255) NOT NULL,
@@ -3527,60 +2303,6 @@ CREATE TABLE "privacy_requests" (
         OR ("privacy_requests"."request_kind" = 'access' AND "privacy_requests"."package_expires_at" IS NOT NULL
           AND "privacy_requests"."package_expires_at" > "privacy_requests"."received_at")),
 	CONSTRAINT "privacy_requests_target_field_valid" CHECK ("privacy_requests"."target_field" IS NULL OR "privacy_requests"."request_kind" IN ('correction', 'withdrawal'))
-);
---> statement-breakpoint
-CREATE TABLE "invited_registration_attempts" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"invitation_id" text NOT NULL,
-	"organization_id" text NOT NULL,
-	"expected_user_id" text NOT NULL,
-	"expected_credential_account_id" text NOT NULL,
-	"expected_initial_session_id" text NOT NULL,
-	"attempt_ordinal" integer NOT NULL,
-	"state" text DEFAULT 'prepared' NOT NULL,
-	"request_count" integer DEFAULT 1 NOT NULL,
-	"provider_observed_at" timestamp with time zone,
-	"accepted_at" timestamp with time zone,
-	"compensated_at" timestamp with time zone,
-	"manual_review_at" timestamp with time zone,
-	"next_recovery_at" timestamp with time zone,
-	"lease_owner" varchar(128),
-	"lease_expires_at" timestamp with time zone,
-	"last_failure_code" varchar(64),
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "invited_registration_state_valid" CHECK ("invited_registration_attempts"."state" IN ('prepared', 'accepted', 'compensated', 'manual_review')),
-	CONSTRAINT "invited_registration_attempt_ordinal_positive" CHECK ("invited_registration_attempts"."attempt_ordinal" > 0),
-	CONSTRAINT "invited_registration_request_count_positive" CHECK ("invited_registration_attempts"."request_count" > 0),
-	CONSTRAINT "invited_registration_lease_pair" CHECK (("invited_registration_attempts"."lease_owner" IS NULL) = ("invited_registration_attempts"."lease_expires_at" IS NULL)),
-	CONSTRAINT "invited_registration_terminal_shape" CHECK ((
-        "invited_registration_attempts"."state" = 'prepared'
-        AND "invited_registration_attempts"."accepted_at" IS NULL
-        AND "invited_registration_attempts"."compensated_at" IS NULL
-        AND "invited_registration_attempts"."manual_review_at" IS NULL
-        AND "invited_registration_attempts"."next_recovery_at" IS NOT NULL
-      ) OR (
-        "invited_registration_attempts"."state" = 'accepted'
-        AND "invited_registration_attempts"."accepted_at" IS NOT NULL
-        AND "invited_registration_attempts"."compensated_at" IS NULL
-        AND "invited_registration_attempts"."manual_review_at" IS NULL
-        AND "invited_registration_attempts"."next_recovery_at" IS NULL
-        AND "invited_registration_attempts"."lease_owner" IS NULL
-      ) OR (
-        "invited_registration_attempts"."state" = 'compensated'
-        AND "invited_registration_attempts"."accepted_at" IS NULL
-        AND "invited_registration_attempts"."compensated_at" IS NOT NULL
-        AND "invited_registration_attempts"."manual_review_at" IS NULL
-        AND "invited_registration_attempts"."next_recovery_at" IS NULL
-        AND "invited_registration_attempts"."lease_owner" IS NULL
-      ) OR (
-        "invited_registration_attempts"."state" = 'manual_review'
-        AND "invited_registration_attempts"."accepted_at" IS NULL
-        AND "invited_registration_attempts"."compensated_at" IS NULL
-        AND "invited_registration_attempts"."manual_review_at" IS NOT NULL
-        AND "invited_registration_attempts"."next_recovery_at" IS NULL
-        AND "invited_registration_attempts"."lease_owner" IS NULL
-      ))
 );
 --> statement-breakpoint
 CREATE TABLE "metric_corrections" (
@@ -3624,67 +2346,6 @@ CREATE TABLE "metric_current_google_reputation_snapshots" (
           AND "metric_current_google_reputation_snapshots"."average_rating" BETWEEN 0 AND 5))
 );
 --> statement-breakpoint
-CREATE TABLE "metric_definition_versions" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"definition_id" uuid NOT NULL,
-	"version" integer NOT NULL,
-	"effective_from" timestamp with time zone NOT NULL,
-	"effective_to" timestamp with time zone,
-	"numerator_description" text NOT NULL,
-	"denominator_description" text,
-	"unit" varchar(50) NOT NULL,
-	"precision" integer DEFAULT 0 NOT NULL,
-	"aggregation_rule" text NOT NULL,
-	"late_arrival_rule" text NOT NULL,
-	"allowed_scopes" jsonb NOT NULL,
-	"attribution_rule" text NOT NULL,
-	"minimum_sample" integer DEFAULT 1 NOT NULL,
-	"insufficient_data_behavior" varchar(20) DEFAULT 'unavailable' NOT NULL,
-	"source_policy_allowlist" jsonb NOT NULL,
-	"permitted_consumers" jsonb NOT NULL,
-	"employment_decision_eligible" boolean DEFAULT false NOT NULL,
-	"correction_behavior" varchar(30) DEFAULT 'append_delta' NOT NULL,
-	"fairness_review_status" varchar(30) DEFAULT 'not_required' NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "metric_definition_versions_sample_check" CHECK ("metric_definition_versions"."minimum_sample" >= 0),
-	CONSTRAINT "metric_definition_versions_precision_check" CHECK ("metric_definition_versions"."precision" >= 0),
-	CONSTRAINT "metric_definition_versions_insufficient_check" CHECK ("metric_definition_versions"."insufficient_data_behavior" IN ('unavailable', 'quarantine')),
-	CONSTRAINT "metric_definition_versions_employment_check" CHECK ("metric_definition_versions"."employment_decision_eligible" = false)
-);
---> statement-breakpoint
-CREATE TABLE "metric_definitions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"metric_key" varchar(100) NOT NULL,
-	"display_name" varchar(200) NOT NULL,
-	"entity_level" varchar(20) NOT NULL,
-	"value_type" varchar(20) NOT NULL,
-	"description" text,
-	"value_kind" varchar(20) DEFAULT 'counter' NOT NULL,
-	"worker_data_flag" boolean DEFAULT false NOT NULL,
-	"privacy_class" varchar(50) DEFAULT 'operational' NOT NULL,
-	"retention_class" varchar(50) DEFAULT 'standard' NOT NULL,
-	"lifecycle_status" varchar(20) DEFAULT 'draft' NOT NULL,
-	"approval_owner" varchar(255) DEFAULT 'migration-pending' NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "metric_definitions_value_kind_check" CHECK ("metric_definitions"."value_kind" IN ('counter', 'duration', 'level', 'ratio', 'average')),
-	CONSTRAINT "metric_definitions_lifecycle_check" CHECK ("metric_definitions"."lifecycle_status" IN ('draft', 'approved', 'retired'))
-);
---> statement-breakpoint
-CREATE TABLE "metric_quarantine" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"source_event_id" varchar(255) NOT NULL,
-	"organization_id" varchar(255),
-	"property_id" uuid,
-	"definition_version_id" uuid,
-	"source_policy" varchar(80),
-	"reason" varchar(80) NOT NULL,
-	"payload_hash" varchar(64) NOT NULL,
-	"event_at" timestamp with time zone,
-	"quarantined_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"resolved_at" timestamp with time zone,
-	"resolution" text
-);
---> statement-breakpoint
 CREATE TABLE "metric_readings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" varchar(255) NOT NULL,
@@ -3717,18 +2378,6 @@ CREATE TABLE "metric_readings" (
 	CONSTRAINT "metric_readings_governed_provenance_check" CHECK ("metric_readings"."definition_version_id" IS NULL OR ("metric_readings"."source_event_id" IS NOT NULL AND "metric_readings"."source_policy" IS NOT NULL AND "metric_readings"."exact_value" IS NOT NULL AND "metric_readings"."sample_count" IS NOT NULL AND "metric_readings"."attribution_quality" IS NOT NULL AND "metric_readings"."event_at" IS NOT NULL AND "metric_readings"."property_local_date" IS NOT NULL AND "metric_readings"."data_quality" IS NOT NULL AND "metric_readings"."retention_class" IS NOT NULL)),
 	CONSTRAINT "metric_readings_staff_attribution_complete" CHECK (("metric_readings"."attributed_staff_participant_id" IS NULL AND "metric_readings"."attributed_staff_participation_id" IS NULL AND "metric_readings"."attribution_responsibility_id" IS NULL AND "metric_readings"."staff_attribution_effective_from" IS NULL AND "metric_readings"."staff_attribution_effective_to" IS NULL) OR ("metric_readings"."portal_id" IS NOT NULL AND "metric_readings"."attributed_staff_participant_id" IS NOT NULL AND "metric_readings"."attributed_staff_participation_id" IS NOT NULL AND "metric_readings"."attribution_responsibility_id" IS NOT NULL AND "metric_readings"."staff_attribution_effective_from" IS NOT NULL AND ("metric_readings"."staff_attribution_effective_to" IS NULL OR "metric_readings"."staff_attribution_effective_to" > "metric_readings"."staff_attribution_effective_from"))),
 	CONSTRAINT "metric_readings_portal_destination_kind_check" CHECK ("metric_readings"."portal_destination_kind" IS NULL OR ("metric_readings"."metric_key" = 'portal.review_link_click' AND "metric_readings"."portal_destination_kind" IN ('google_review', 'secondary_link')))
-);
---> statement-breakpoint
-CREATE TABLE "metric_source_watermarks" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"consumer_name" varchar(120) NOT NULL,
-	"source_name" varchar(120) NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid,
-	"definition_version_id" uuid,
-	"last_source_event_id" varchar(255) NOT NULL,
-	"last_event_at" timestamp with time zone NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "portal_metric_lifetime_aggregates" (
@@ -3844,20 +2493,6 @@ CREATE TABLE "notification_email_queue" (
       ))
 );
 --> statement-breakpoint
-CREATE TABLE "notification_governance_quarantine" (
-	"notification_id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"reason" varchar(64) NOT NULL,
-	"quarantined_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "notification_preference_governance_quarantine" (
-	"legacy_preference_id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"reason" varchar(64) NOT NULL,
-	"quarantined_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "notification_preferences" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" varchar(255) NOT NULL,
@@ -3933,6 +2568,14 @@ CREATE TABLE "event_consumer_receipts" (
 	CONSTRAINT "event_consumer_receipts_status_check" CHECK ("event_consumer_receipts"."status" IN ('applied', 'duplicate', 'obsolete'))
 );
 --> statement-breakpoint
+CREATE TABLE "idempotency_receipts" (
+	"scope" text NOT NULL,
+	"key" text NOT NULL,
+	"payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"recorded_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "idempotency_receipts_scope_key_pk" PRIMARY KEY("scope","key")
+);
+--> statement-breakpoint
 CREATE TABLE "outbox_events" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"event_type" text NOT NULL,
@@ -3949,7 +2592,13 @@ CREATE TABLE "outbox_events" (
 	"lease_expires_at" timestamp with time zone,
 	"recovery_fence_run_id" uuid,
 	"recovery_fenced_at" timestamp with time zone,
-	CONSTRAINT "outbox_events_recovery_fence_pair_check" CHECK (("outbox_events"."recovery_fence_run_id" IS NULL) = ("outbox_events"."recovery_fenced_at" IS NULL))
+	CONSTRAINT "outbox_events_recovery_fence_pair_check" CHECK (("outbox_events"."recovery_fence_run_id" IS NULL) = ("outbox_events"."recovery_fenced_at" IS NULL)),
+	CONSTRAINT "outbox_events_identity_member_invited_v2_check" CHECK ("outbox_events"."event_type" <> 'identity.member.invited'
+        OR (
+          "outbox_events"."event_version" = 2
+          AND jsonb_typeof("outbox_events"."payload") = 'object'
+          AND NOT ("outbox_events"."payload" ? 'email')
+        ))
 );
 --> statement-breakpoint
 CREATE TABLE "portal_group_memberships" (
@@ -4039,22 +2688,6 @@ CREATE TABLE "staff_user_links" (
 	CONSTRAINT "staff_user_links_interval_valid" CHECK ("staff_user_links"."effective_to" IS NULL OR "staff_user_links"."effective_to" > "staff_user_links"."effective_from")
 );
 --> statement-breakpoint
-CREATE TABLE "organization_capability" (
-	"organization_id" text NOT NULL,
-	"capability" text NOT NULL,
-	"created_by" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "organization_capability_organization_id_capability_pk" PRIMARY KEY("organization_id","capability")
-);
---> statement-breakpoint
-CREATE TABLE "organization_policy" (
-	"organization_id" text PRIMARY KEY NOT NULL,
-	"cohort" text DEFAULT 'beta' NOT NULL,
-	"suspended_at" timestamp with time zone,
-	"suspended_reason" text,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "policy_consent" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" text NOT NULL,
@@ -4070,32 +2703,6 @@ CREATE TABLE "policy_consent" (
 	CONSTRAINT "policy_consent_state_check" CHECK ("policy_consent"."state" IN ('granted', 'revoked'))
 );
 --> statement-breakpoint
-CREATE TABLE "policy_decision_audit" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"actor_type" text NOT NULL,
-	"actor_id" text,
-	"organization_id" text,
-	"property_id" uuid,
-	"action" text NOT NULL,
-	"capability" text,
-	"execution_kind" text NOT NULL,
-	"decision" text NOT NULL,
-	"reason" text NOT NULL,
-	"policy_version" text NOT NULL,
-	"correlation_id" text,
-	CONSTRAINT "policy_decision_audit_actor_check" CHECK ("policy_decision_audit"."actor_type" IN ('user', 'system', 'operator', 'public')),
-	CONSTRAINT "policy_decision_audit_execution_check" CHECK ("policy_decision_audit"."execution_kind" IN ('interactive', 'worker', 'consumer', 'schedule', 'operator', 'public')),
-	CONSTRAINT "policy_decision_audit_decision_check" CHECK ("policy_decision_audit"."decision" IN ('allow', 'deny'))
-);
---> statement-breakpoint
-CREATE TABLE "policy_version" (
-	"scope" text PRIMARY KEY NOT NULL,
-	"version" bigint DEFAULT 0 NOT NULL,
-	"emergency_kill_version" bigint DEFAULT 0 NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE "property_access_grant" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" text NOT NULL,
@@ -4108,21 +2715,6 @@ CREATE TABLE "property_access_grant" (
 	"revoked_at" timestamp with time zone,
 	"revoke_reason" text,
 	CONSTRAINT "property_access_grant_source_check" CHECK ("property_access_grant"."source" IN ('operator', 'migration', 'invitation'))
-);
---> statement-breakpoint
-CREATE TABLE "property_capability" (
-	"property_id" uuid NOT NULL,
-	"capability" text NOT NULL,
-	"created_by" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "property_capability_property_id_capability_pk" PRIMARY KEY("property_id","capability")
-);
---> statement-breakpoint
-CREATE TABLE "property_policy" (
-	"property_id" uuid PRIMARY KEY NOT NULL,
-	"suspended_at" timestamp with time zone,
-	"suspended_reason" text,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "merchant_ai_consent_evidence" (
@@ -4696,29 +3288,6 @@ CREATE TABLE "property_responsible_managers" (
 	"created_by" varchar(255) NOT NULL,
 	"end_reason" varchar(500),
 	CONSTRAINT "property_rm_interval_valid" CHECK ("property_responsible_managers"."effective_to" IS NULL OR "property_responsible_managers"."effective_to" > "property_responsible_managers"."effective_from")
-);
---> statement-breakpoint
-CREATE TABLE "property_operation_receipts" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"idempotency_key" uuid NOT NULL,
-	"destination_property_id" uuid,
-	"outcome" varchar(32) NOT NULL,
-	"destination_source_epoch" integer NOT NULL,
-	"destination_profile_version" integer NOT NULL,
-	"tombstone" boolean DEFAULT false NOT NULL,
-	"expires_at" timestamp with time zone NOT NULL,
-	"retention_released_at" timestamp with time zone,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "property_operation_receipts_outcome_valid" CHECK ("property_operation_receipts"."outcome" IN ('imported', 'relinked', 'property_deleted')),
-	CONSTRAINT "property_operation_receipts_destination_valid" CHECK ((
-        ("property_operation_receipts"."tombstone" = false AND "property_operation_receipts"."outcome" IN ('imported', 'relinked') AND "property_operation_receipts"."destination_property_id" IS NOT NULL)
-        OR ("property_operation_receipts"."tombstone" = true AND "property_operation_receipts"."outcome" = 'property_deleted' AND "property_operation_receipts"."destination_property_id" IS NULL)
-      )),
-	CONSTRAINT "property_operation_receipts_generations_valid" CHECK ("property_operation_receipts"."destination_source_epoch" >= 0 AND "property_operation_receipts"."destination_profile_version" >= 1),
-	CONSTRAINT "property_operation_receipts_expiry_valid" CHECK ("property_operation_receipts"."expires_at" > "property_operation_receipts"."created_at"),
-	CONSTRAINT "property_operation_receipts_release_valid" CHECK ("property_operation_receipts"."retention_released_at" IS NULL OR "property_operation_receipts"."retention_released_at" >= "property_operation_receipts"."created_at")
 );
 --> statement-breakpoint
 CREATE TABLE "recovery_runs" (
@@ -5411,15 +3980,6 @@ CREATE TABLE "review_source_observations" (
       ))
 );
 --> statement-breakpoint
-CREATE TABLE "review_source_provenance_quarantine" (
-	"review_id" uuid PRIMARY KEY NOT NULL,
-	"organization_id" varchar(255) NOT NULL,
-	"property_id" uuid NOT NULL,
-	"reason" text NOT NULL,
-	"quarantined_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "review_source_provenance_quarantine_reason_valid" CHECK ("review_source_provenance_quarantine"."reason" IN ('missing_property', 'cross_tenant_property'))
-);
---> statement-breakpoint
 CREATE TABLE "reviews" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" varchar(255) NOT NULL,
@@ -5505,18 +4065,6 @@ CREATE TABLE "reviews" (
       ))
 );
 --> statement-breakpoint
-CREATE TABLE "inbound_webhook_receipts" (
-	"provider" text DEFAULT 'google' NOT NULL,
-	"topic" text NOT NULL,
-	"message_id" text NOT NULL,
-	"received_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"accepted_at" timestamp with time zone,
-	"notification_kind" text,
-	"resolved_property_id" varchar(255),
-	"outcome" text,
-	CONSTRAINT "inbound_webhook_receipts_provider_topic_message_id_pk" PRIMARY KEY("provider","topic","message_id")
-);
---> statement-breakpoint
 CREATE TABLE "retention_runs" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"subject" text NOT NULL,
@@ -5595,25 +4143,13 @@ CREATE TABLE "review_sync_state" (
 	CONSTRAINT "review_sync_state_property_id_source_pk" PRIMARY KEY("property_id","source")
 );
 --> statement-breakpoint
-CREATE INDEX "ai_admission_cost_reservations_release_idx" ON "ai_admission_cost_reservations" USING btree ("release_sha","state");
---> statement-breakpoint
-CREATE INDEX "ai_admission_product_consumptions_reply_hour_idx" ON "ai_admission_product_consumptions" USING btree ("property_id","capability","accounted_at");
---> statement-breakpoint
-CREATE INDEX "ai_authorization_lifecycle_property_idx" ON "ai_authorization_lifecycle_records" USING btree ("organization_id","property_id","applied_at" DESC NULLS LAST);
---> statement-breakpoint
-CREATE INDEX "ai_authorization_lifecycle_erasure_due_idx" ON "ai_authorization_lifecycle_records" USING btree ("erasure_next_attempt_at","erasure_deadline","id") WHERE "ai_authorization_lifecycle_records"."erasure_status" = 'pending';
---> statement-breakpoint
-CREATE INDEX "ai_authorization_lifecycle_erasure_lease_idx" ON "ai_authorization_lifecycle_records" USING btree ("erasure_lease_expires_at","erasure_deadline","id") WHERE "ai_authorization_lifecycle_records"."erasure_status" = 'in_progress';
---> statement-breakpoint
-CREATE INDEX "ai_execution_permits_expiry_idx" ON "ai_execution_permits" USING btree ("expires_at");
---> statement-breakpoint
 CREATE INDEX "ai_operations_due_idx" ON "ai_operations" USING btree ("state","next_attempt_at");
 --> statement-breakpoint
 CREATE INDEX "ai_operations_property_idx" ON "ai_operations" USING btree ("organization_id","property_id","created_at" DESC NULLS LAST);
 --> statement-breakpoint
 CREATE INDEX "ai_operations_expiry_idx" ON "ai_operations" USING btree ("expires_at");
 --> statement-breakpoint
-CREATE INDEX "ai_product_volume_consumptions_org_time_idx" ON "ai_product_volume_consumptions" USING btree ("organization_id","completed_at" DESC NULLS LAST);
+CREATE INDEX "ai_operations_stale_reservation_idx" ON "ai_operations" USING btree ("budget_reserved_at") WHERE "ai_operations"."budget_settled_at" IS NULL AND "ai_operations"."reserved_micros" > 0;
 --> statement-breakpoint
 CREATE INDEX "ai_property_aggregate_contributions_date_idx" ON "ai_property_aggregate_contributions" USING btree ("organization_id","property_id","local_date","source_epoch","review_analysis_epoch");
 --> statement-breakpoint
@@ -5633,23 +4169,9 @@ CREATE INDEX "ai_review_analyses_current_idx" ON "ai_review_analyses" USING btre
 --> statement-breakpoint
 CREATE INDEX "ai_review_analyses_expiry_idx" ON "ai_review_analyses" USING btree ("expires_at");
 --> statement-breakpoint
-CREATE INDEX "ai_review_backfill_memberships_scope_idx" ON "ai_review_analysis_backfill_run_memberships" USING btree ("organization_id","property_id","run_id","ordinal");
---> statement-breakpoint
-CREATE INDEX "ai_review_analysis_backfill_runs_running_idx" ON "ai_review_analysis_backfill_runs" USING btree ("created_at") WHERE "ai_review_analysis_backfill_runs"."state" = 'running';
---> statement-breakpoint
-CREATE INDEX "ai_review_enrollment_memberships_scope_idx" ON "ai_review_analysis_enrollment_memberships" USING btree ("organization_id","property_id","enrollment_id","ordinal");
---> statement-breakpoint
-CREATE INDEX "ai_review_enrollment_memberships_review_idx" ON "ai_review_analysis_enrollment_memberships" USING btree ("organization_id","property_id","review_id","source_revision");
---> statement-breakpoint
-CREATE INDEX "ai_review_analysis_enrollment_replays_scope_idx" ON "ai_review_analysis_enrollment_replays" USING btree ("organization_id","property_id","enrollment_id","created_at" DESC NULLS LAST);
---> statement-breakpoint
 CREATE INDEX "ai_review_analysis_enrollments_actionable_idx" ON "ai_review_analysis_enrollments" USING btree ("created_at","id") WHERE "ai_review_analysis_enrollments"."state" IN ('queued', 'running');
 --> statement-breakpoint
 CREATE INDEX "ai_review_analysis_enrollments_property_idx" ON "ai_review_analysis_enrollments" USING btree ("organization_id","property_id","created_at" DESC NULLS LAST);
---> statement-breakpoint
-CREATE INDEX "ai_review_analysis_outcomes_terminal_idx" ON "ai_review_analysis_outcomes" USING btree ("organization_id","property_id","source_epoch","review_analysis_epoch","analysis_sequence","state");
---> statement-breakpoint
-CREATE INDEX "ai_review_event_cursors_property_idx" ON "ai_review_event_cursors" USING btree ("organization_id","property_id");
 --> statement-breakpoint
 CREATE INDEX "operational_action_history_hold_org_idx" ON "operational_action_history_legal_holds" USING btree ("organization_id","released_at","protects_from");
 --> statement-breakpoint
@@ -5677,8 +4199,6 @@ CREATE INDEX "recent_activity_replay_source_event_idx" ON "recent_activity_repla
 --> statement-breakpoint
 CREATE INDEX "recent_activity_replay_actor_idx" ON "recent_activity_replay_facts" USING btree ("organization_id","actor_subject_id","replay_key");
 --> statement-breakpoint
-CREATE INDEX "recent_activity_vocabulary_reconciliations_org_time_idx" ON "recent_activity_vocabulary_reconciliations" USING btree ("organization_id","applied_at" DESC NULLS LAST,"operation_id");
---> statement-breakpoint
 CREATE INDEX "audit_logs_org_idx" ON "audit_logs" USING btree ("organization_id");
 --> statement-breakpoint
 CREATE INDEX "audit_logs_user_idx" ON "audit_logs" USING btree ("user_id");
@@ -5691,21 +4211,11 @@ CREATE INDEX "beta_feedback_triage_attachment_expiry_idx" ON "beta_feedback_tria
 --> statement-breakpoint
 CREATE INDEX "beta_feedback_triage_transition_reference_idx" ON "beta_feedback_triage_transitions" USING btree ("feedback_reference","occurred_at" desc);
 --> statement-breakpoint
-CREATE INDEX "goal_definition_versions_effective_idx" ON "goal_definition_versions" USING btree ("organization_id","property_id","definition_id","effective_from");
---> statement-breakpoint
-CREATE INDEX "goal_definitions_scope_status_idx" ON "goal_definitions" USING btree ("organization_id","property_id","status","scope_kind");
---> statement-breakpoint
-CREATE INDEX "goal_evaluations_history_idx" ON "goal_evaluations" USING btree ("organization_id","property_id","period_id","created_at");
---> statement-breakpoint
 CREATE INDEX "goal_monthly_results_due_idx" ON "goal_monthly_results" USING btree ("status","period_end","organization_id","property_id");
---> statement-breakpoint
-CREATE INDEX "goal_periods_due_idx" ON "goal_periods" USING btree ("status","period_end","organization_id","property_id") WHERE "goal_periods"."status" IN ('scheduled', 'open');
 --> statement-breakpoint
 CREATE INDEX "goal_program_versions_effective_idx" ON "goal_program_versions" USING btree ("organization_id","property_id","program_id","effective_from");
 --> statement-breakpoint
 CREATE INDEX "goal_programs_property_status_idx" ON "goal_programs" USING btree ("organization_id","property_id","status");
---> statement-breakpoint
-CREATE INDEX "goal_progress_org_idx" ON "goal_progress" USING btree ("organization_id");
 --> statement-breakpoint
 CREATE INDEX "goal_result_revisions_history_idx" ON "goal_result_revisions" USING btree ("organization_id","property_id","monthly_result_id","revision");
 --> statement-breakpoint
@@ -5713,21 +4223,7 @@ CREATE INDEX "goal_subject_assignments_program_idx" ON "goal_subject_assignments
 --> statement-breakpoint
 CREATE INDEX "goal_subject_assignments_subject_idx" ON "goal_subject_assignments" USING btree ("organization_id","property_id","subject_kind","property_subject_id","portal_group_id","portal_id");
 --> statement-breakpoint
-CREATE INDEX "goals_org_idx" ON "goals" USING btree ("organization_id");
---> statement-breakpoint
-CREATE INDEX "goals_org_property_idx" ON "goals" USING btree ("organization_id","property_id");
---> statement-breakpoint
-CREATE INDEX "goals_org_status_idx" ON "goals" USING btree ("organization_id","status");
---> statement-breakpoint
-CREATE INDEX "goals_parent_idx" ON "goals" USING btree ("parent_goal_id");
---> statement-breakpoint
-CREATE INDEX "goals_portal_group_idx" ON "goals" USING btree ("portal_group_id");
---> statement-breakpoint
-CREATE INDEX "goals_org_portal_idx" ON "goals" USING btree ("organization_id","portal_id");
---> statement-breakpoint
 CREATE INDEX "google_connections_status_idx" ON "google_connections" USING btree ("status") WHERE "google_connections"."status" NOT IN ('active', 'disconnected');
---> statement-breakpoint
-CREATE INDEX "google_import_discovery_invalidations_expiry_idx" ON "google_import_discovery_invalidations" USING btree ("expires_at","invalidation_key");
 --> statement-breakpoint
 CREATE INDEX "google_import_discovery_records_scope_idx" ON "google_import_discovery_records" USING btree ("organization_id","user_id","connection_id");
 --> statement-breakpoint
@@ -5755,12 +4251,6 @@ CREATE INDEX "credential_revoke_permits_active_idx" ON "credential_revoke_permit
 --> statement-breakpoint
 CREATE INDEX "google_credential_source_operations_active_idx" ON "google_credential_source_operations" USING btree ("guard_id","state","operation_deadline_at");
 --> statement-breakpoint
-CREATE INDEX "google_disconnect_revoke_attempts_recovery_idx" ON "google_disconnect_revoke_attempts" USING btree ("state","cleanup_deadline_at");
---> statement-breakpoint
-CREATE INDEX "google_oauth_exchange_attempts_recovery_idx" ON "google_oauth_exchange_attempts" USING btree ("state","response_expires_at","apply_lease_expires_at");
---> statement-breakpoint
-CREATE INDEX "google_oauth_exchange_attempts_scope_idx" ON "google_oauth_exchange_attempts" USING btree ("organization_id","initiator_user_id","created_at");
---> statement-breakpoint
 CREATE INDEX "google_subject_authority_guards_active_idx" ON "google_subject_authority_guards" USING btree ("state","cleanup_deadline_at");
 --> statement-breakpoint
 CREATE INDEX "feedback_portal_idx" ON "feedback" USING btree ("portal_id");
@@ -5769,21 +4259,13 @@ CREATE INDEX "guest_contact_reveal_audits_request_idx" ON "guest_contact_request
 --> statement-breakpoint
 CREATE INDEX "guest_contact_requests_expiry_idx" ON "guest_contact_requests" USING btree ("status","expires_at","id");
 --> statement-breakpoint
-CREATE INDEX "guest_destination_action_receipts_expiry_idx" ON "guest_destination_action_receipts" USING btree ("expires_at");
---> statement-breakpoint
 CREATE INDEX "guest_network_pressure_lookup_idx" ON "guest_network_pressure_records" USING btree ("organization_id","property_id","portal_id","pseudonym","action","observed_at");
 --> statement-breakpoint
 CREATE INDEX "guest_network_pressure_expiry_idx" ON "guest_network_pressure_records" USING btree ("expires_at");
 --> statement-breakpoint
-CREATE INDEX "guest_qualified_scan_receipts_lookup_idx" ON "guest_qualified_scan_receipts" USING btree ("organization_id","portal_id","session_id","expires_at");
---> statement-breakpoint
-CREATE INDEX "guest_qualified_scan_receipts_expiry_idx" ON "guest_qualified_scan_receipts" USING btree ("expires_at");
---> statement-breakpoint
 CREATE INDEX "guest_qualified_scans_scope_time_idx" ON "guest_qualified_scans" USING btree ("organization_id","property_id","portal_id","occurred_at");
 --> statement-breakpoint
 CREATE INDEX "guest_response_integrity_decisions_scope_outcome_idx" ON "guest_response_integrity_decisions" USING btree ("organization_id","property_id","portal_id","outcome","decided_at");
---> statement-breakpoint
-CREATE INDEX "guest_response_media_response_status_idx" ON "guest_response_media" USING btree ("organization_id","response_id","status");
 --> statement-breakpoint
 CREATE INDEX "guest_response_private_feedback_expiry_idx" ON "guest_response_private_feedback" USING btree ("expires_at");
 --> statement-breakpoint
@@ -5843,10 +4325,6 @@ CREATE INDEX "inbox_notes_item_idx" ON "inbox_notes" USING btree ("inbox_item_id
 --> statement-breakpoint
 CREATE INDEX "inbox_response_target_reminders_due_idx" ON "inbox_response_target_reminders" USING btree ("scheduled_for","inbox_item_id","cycle_number","reminder_kind") WHERE "inbox_response_target_reminders"."delivered_at" IS NULL AND "inbox_response_target_reminders"."cancelled_at" IS NULL;
 --> statement-breakpoint
-CREATE INDEX "user_organization_bindings_org_state_idx" ON "user_organization_bindings" USING btree ("organization_id","state");
---> statement-breakpoint
-CREATE INDEX "identity_organization_lifecycle_receipts_org_time_idx" ON "identity_organization_lifecycle_receipts" USING btree ("organization_id","occurred_at" desc);
---> statement-breakpoint
 CREATE INDEX "organization_export_retrieval_issuances_org_time_idx" ON "organization_export_retrieval_issuances" USING btree ("organization_id","issued_at" desc);
 --> statement-breakpoint
 CREATE INDEX "organization_exports_generation_idx" ON "organization_exports" USING btree ("state","generation_lease_expires_at","created_at");
@@ -5859,11 +4337,7 @@ CREATE INDEX "organization_lifecycle_state_deadline_idx" ON "organization_lifecy
 --> statement-breakpoint
 CREATE INDEX "organization_lifecycle_transition_idx" ON "organization_lifecycle_authority" USING btree ("last_transition_at" desc);
 --> statement-breakpoint
-CREATE INDEX "organization_lifecycle_receipt_org_time_idx" ON "organization_lifecycle_command_receipts" USING btree ("organization_id","occurred_at" desc);
---> statement-breakpoint
-CREATE INDEX "context_organization_lifecycle_receipts_org_time_idx" ON "context_organization_lifecycle_receipts" USING btree ("organization_id","occurred_at" desc);
---> statement-breakpoint
-CREATE INDEX "context_organization_lifecycle_receipts_lineage_idx" ON "context_organization_lifecycle_receipts" USING btree ("closure_lineage_id","lifecycle_revision","phase");
+CREATE INDEX "organization_lifecycle_events_org_time_idx" ON "organization_lifecycle_events" USING btree ("organization_id","recorded_at" desc);
 --> statement-breakpoint
 CREATE INDEX "backup_erasure_ledger_replay_idx" ON "backup_erasure_ledger" USING btree ("effective_erasure_at");
 --> statement-breakpoint
@@ -5873,23 +4347,13 @@ CREATE INDEX "property_erase_authorities_state_idx" ON "property_erase_authoriti
 --> statement-breakpoint
 CREATE INDEX "property_erase_authorities_org_idx" ON "property_erase_authorities" USING btree ("organization_id","property_id");
 --> statement-breakpoint
-CREATE INDEX "property_erase_context_receipts_authority_idx" ON "property_erase_context_receipts" USING btree ("authority_id","phase");
---> statement-breakpoint
-CREATE INDEX "privacy_request_transitions_request_idx" ON "privacy_request_transitions" USING btree ("request_id","occurred_at");
---> statement-breakpoint
 CREATE INDEX "privacy_requests_scope_idx" ON "privacy_requests" USING btree ("organization_id","property_id","state");
 --> statement-breakpoint
 CREATE INDEX "privacy_requests_subject_idx" ON "privacy_requests" USING btree ("subject_ref","received_at");
 --> statement-breakpoint
-CREATE INDEX "invited_registration_recovery_due_idx" ON "invited_registration_attempts" USING btree ("next_recovery_at","created_at") WHERE "invited_registration_attempts"."state" = 'prepared';
---> statement-breakpoint
 CREATE INDEX "metric_corrections_reading_idx" ON "metric_corrections" USING btree ("reading_id","recorded_at");
 --> statement-breakpoint
 CREATE INDEX "metric_current_google_reputation_scope_idx" ON "metric_current_google_reputation_snapshots" USING btree ("organization_id","property_id");
---> statement-breakpoint
-CREATE INDEX "metric_definition_versions_effective_idx" ON "metric_definition_versions" USING btree ("definition_id","effective_from");
---> statement-breakpoint
-CREATE INDEX "metric_quarantine_scope_idx" ON "metric_quarantine" USING btree ("organization_id","property_id");
 --> statement-breakpoint
 CREATE INDEX "metric_readings_org_idx" ON "metric_readings" USING btree ("organization_id");
 --> statement-breakpoint
@@ -5921,6 +4385,8 @@ CREATE INDEX "notifications_user_status_idx" ON "notifications" USING btree ("us
 --> statement-breakpoint
 CREATE INDEX "notifications_org_idx" ON "notifications" USING btree ("organization_id","created_at");
 --> statement-breakpoint
+CREATE INDEX "idempotency_receipts_recorded_at_idx" ON "idempotency_receipts" USING btree ("recorded_at","scope","key");
+--> statement-breakpoint
 CREATE INDEX "outbox_events_unpublished_idx" ON "outbox_events" USING btree ("created_at") WHERE "outbox_events"."published_at" IS NULL AND "outbox_events"."lease_expires_at" IS NULL AND "outbox_events"."recovery_fenced_at" IS NULL;
 --> statement-breakpoint
 CREATE INDEX "outbox_events_lease_expires_idx" ON "outbox_events" USING btree ("lease_expires_at") WHERE "outbox_events"."published_at" IS NULL AND "outbox_events"."lease_expires_at" IS NOT NULL AND "outbox_events"."recovery_fenced_at" IS NULL;
@@ -5942,8 +4408,6 @@ CREATE INDEX "sp_org_prop_user_idx" ON "staff_participations" USING btree ("orga
 CREATE INDEX "staff_user_links_org_participant_idx" ON "staff_user_links" USING btree ("organization_id","staff_participant_id");
 --> statement-breakpoint
 CREATE INDEX "staff_user_links_org_user_idx" ON "staff_user_links" USING btree ("organization_id","user_id");
---> statement-breakpoint
-CREATE INDEX "policy_decision_audit_org_time_idx" ON "policy_decision_audit" USING btree ("organization_id","occurred_at" DESC NULLS LAST);
 --> statement-breakpoint
 CREATE INDEX "property_access_grant_user_idx" ON "property_access_grant" USING btree ("organization_id","user_id") WHERE "property_access_grant"."revoked_at" IS NULL;
 --> statement-breakpoint
@@ -5993,10 +4457,6 @@ CREATE INDEX "property_rm_org_property_idx" ON "property_responsible_managers" U
 --> statement-breakpoint
 CREATE INDEX "property_rm_org_user_idx" ON "property_responsible_managers" USING btree ("organization_id","user_id");
 --> statement-breakpoint
-CREATE INDEX "property_operation_receipts_releasable_expiry_idx" ON "property_operation_receipts" USING btree ("expires_at","id") WHERE "property_operation_receipts"."retention_released_at" IS NOT NULL;
---> statement-breakpoint
-CREATE INDEX "property_operation_receipts_unreleased_expiry_idx" ON "property_operation_receipts" USING btree ("expires_at","id") WHERE "property_operation_receipts"."retention_released_at" IS NULL;
---> statement-breakpoint
 CREATE INDEX "recovery_runs_completed_idx" ON "recovery_runs" USING btree ("completed_at" DESC NULLS LAST);
 --> statement-breakpoint
 CREATE INDEX "review_lifecycle_recovery_state_idx" ON "review_lifecycle_recovery_executions" USING btree ("state");
@@ -6027,8 +4487,6 @@ CREATE INDEX "review_source_observations_digest_idx" ON "review_source_observati
 --> statement-breakpoint
 CREATE INDEX "review_source_observations_expiry_idx" ON "review_source_observations" USING btree ("content_state","content_expires_at","review_id","observation_sequence");
 --> statement-breakpoint
-CREATE INDEX "review_source_provenance_quarantine_org_idx" ON "review_source_provenance_quarantine" USING btree ("organization_id","quarantined_at");
---> statement-breakpoint
 CREATE INDEX "reviews_property_idx" ON "reviews" USING btree ("property_id");
 --> statement-breakpoint
 CREATE INDEX "reviews_org_idx" ON "reviews" USING btree ("organization_id");
@@ -6057,41 +4515,23 @@ CREATE INDEX "review_sync_state_due_incremental_idx" ON "review_sync_state" USIN
 --> statement-breakpoint
 CREATE INDEX "review_sync_state_lease_expired_idx" ON "review_sync_state" USING btree ("lease_until") WHERE lease_until IS NOT NULL;
 --> statement-breakpoint
-CREATE UNIQUE INDEX "ai_authorization_lifecycle_event_unique" ON "ai_authorization_lifecycle_records" USING btree ("event_envelope_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "ai_authorization_lifecycle_authorization_unique" ON "ai_authorization_lifecycle_records" USING btree ("authorization_lineage_id","authorization_state_version","organization_id","property_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "ai_canary_authorization_heads_id_unique" ON "ai_canary_authorization_heads" USING btree ("head_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "ai_canary_authorizations_generation_unique" ON "ai_canary_authorizations" USING btree ("release_sha","canary_profile_version","authorization_generation");
---> statement-breakpoint
-CREATE UNIQUE INDEX "ai_canary_authorizations_active_unique" ON "ai_canary_authorizations" USING btree ("release_sha","canary_profile_version") WHERE "ai_canary_authorizations"."state" IN ('issued', 'consumed');
---> statement-breakpoint
 CREATE UNIQUE INDEX "ai_execution_control_heads_control_unique" ON "ai_execution_control_heads" USING btree ("control_id","generation");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "ai_execution_control_transitions_scope_generation_unique" ON "ai_execution_control_transitions" USING btree ("scope_key","generation");
 --> statement-breakpoint
-CREATE UNIQUE INDEX "ai_execution_permits_operation_attempt_unique" ON "ai_execution_permits" USING btree ("operation_id","execution_attempt");
---> statement-breakpoint
 CREATE UNIQUE INDEX "ai_operations_idempotency_unique" ON "ai_operations" USING btree ("idempotency_scope","idempotency_key");
+--> statement-breakpoint
+CREATE UNIQUE INDEX "ai_operations_execution_permit_unique" ON "ai_operations" USING btree ("execution_permit_id") WHERE "ai_operations"."execution_permit_id" IS NOT NULL;
+--> statement-breakpoint
+CREATE UNIQUE INDEX "ai_organization_cost_windows_month_unique" ON "ai_organization_cost_windows" USING btree ("organization_id","window_start");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "ai_property_trend_outcomes_operation_unique" ON "ai_property_trend_outcomes" USING btree ("operation_id") WHERE "ai_property_trend_outcomes"."operation_id" IS NOT NULL;
 --> statement-breakpoint
 CREATE UNIQUE INDEX "ai_property_trend_schedules_outbox_unique" ON "ai_property_trend_schedules" USING btree ("outbox_event_id");
 --> statement-breakpoint
-CREATE UNIQUE INDEX "ai_property_trend_schedules_generation_unique" ON "ai_property_trend_schedules" USING btree ("organization_id","property_id","due_local_date","source_epoch","review_analysis_epoch","property_trends_epoch","property_profile_version","report_profile_version","terminal_analysis_sequence","aggregate_revision");
+CREATE UNIQUE INDEX "ai_property_trend_schedules_generation_unique" ON "ai_property_trend_schedules" USING btree ("organization_id","property_id","due_local_date","source_epoch","review_analysis_epoch","property_trends_epoch","property_profile_version","terminal_analysis_sequence","aggregate_revision");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "ai_review_analyses_operation_unique" ON "ai_review_analyses" USING btree ("operation_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "ai_review_backfill_memberships_review_idx" ON "ai_review_analysis_backfill_run_memberships" USING btree ("run_id","review_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "ai_review_analysis_backfill_runs_one_active_idx" ON "ai_review_analysis_backfill_runs" USING btree ("organization_id","property_id") WHERE "ai_review_analysis_backfill_runs"."state" = 'running';
---> statement-breakpoint
-CREATE UNIQUE INDEX "ai_review_analysis_backfill_runs_scope_idx" ON "ai_review_analysis_backfill_runs" USING btree ("id","organization_id","property_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "ai_review_enrollment_memberships_review_unique" ON "ai_review_analysis_enrollment_memberships" USING btree ("enrollment_id","review_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "ai_review_analysis_enrollment_replays_run_unique" ON "ai_review_analysis_enrollment_replays" USING btree ("run_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "ai_review_analysis_enrollments_scope_unique" ON "ai_review_analysis_enrollments" USING btree ("id","organization_id","property_id");
 --> statement-breakpoint
@@ -6100,10 +4540,6 @@ CREATE UNIQUE INDEX "ai_review_analysis_enrollments_fence_unique" ON "ai_review_
 CREATE UNIQUE INDEX "ai_review_analysis_enrollments_trigger_unique" ON "ai_review_analysis_enrollments" USING btree ("trigger_event_envelope_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "ai_review_analysis_enrollments_one_active" ON "ai_review_analysis_enrollments" USING btree ("organization_id","property_id") WHERE "ai_review_analysis_enrollments"."state" IN ('awaiting_assisted_approval', 'queued', 'running');
---> statement-breakpoint
-CREATE UNIQUE INDEX "ai_review_analysis_outcomes_event_unique" ON "ai_review_analysis_outcomes" USING btree ("event_envelope_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "ai_runtime_capability_profiles_complete_unique" ON "ai_runtime_capability_profiles" USING btree ("provider_deployment_profile_version","capability","runtime_profile_version");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "operational_action_history_org_sequence_uniq" ON "operational_action_history_records" USING btree ("organization_id","sequence");
 --> statement-breakpoint
@@ -6117,13 +4553,9 @@ CREATE UNIQUE INDEX "beta_feedback_triage_transition_revision_unique" ON "beta_f
 --> statement-breakpoint
 CREATE UNIQUE INDEX "organization_role_policy_org_role_unique" ON "organization_role_policy" USING btree ("organization_id","role");
 --> statement-breakpoint
-CREATE UNIQUE INDEX "goal_progress_goal_uniq" ON "goal_progress" USING btree ("goal_id");
---> statement-breakpoint
 CREATE UNIQUE INDEX "google_connections_org_id_key" ON "google_connections" USING btree ("organization_id","id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "google_connections_google_subject_idx" ON "google_connections" USING btree ("google_subject") WHERE "google_connections"."google_subject" IS NOT NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "gbp_import_item_retry_receipts_request_unique" ON "gbp_import_item_retry_receipts" USING btree ("organization_id","initiating_user_id","item_id","retry_request_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "gbp_import_request_items_org_id_key" ON "gbp_import_request_items" USING btree ("organization_id","id");
 --> statement-breakpoint
@@ -6141,10 +4573,6 @@ CREATE UNIQUE INDEX "google_credential_source_operations_guard_sequence_key" ON 
 --> statement-breakpoint
 CREATE UNIQUE INDEX "google_credential_source_operations_one_active_idx" ON "google_credential_source_operations" USING btree ("guard_id") WHERE "google_credential_source_operations"."state" IN ('registered', 'provider_started', 'provider_outcome_ambiguous');
 --> statement-breakpoint
-CREATE UNIQUE INDEX "google_disconnect_revoke_attempts_permit_key" ON "google_disconnect_revoke_attempts" USING btree ("cleanup_work_permit_id") WHERE "google_disconnect_revoke_attempts"."cleanup_work_permit_id" IS NOT NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "google_disconnect_revoke_attempts_one_active_idx" ON "google_disconnect_revoke_attempts" USING btree ("organization_id","connection_id") WHERE "google_disconnect_revoke_attempts"."state" IN ('active', 'dispatching');
---> statement-breakpoint
 CREATE UNIQUE INDEX "google_subject_authority_guards_subject_key" ON "google_subject_authority_guards" USING btree ("project_client_hmac_key_version","project_client_hmac","subject_hmac_key_version","subject_hmac");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "feedback_session_portal_unique" ON "feedback" USING btree ("session_id","portal_id");
@@ -6155,10 +4583,6 @@ CREATE UNIQUE INDEX "guest_contact_requests_scope_id_key" ON "guest_contact_requ
 --> statement-breakpoint
 CREATE UNIQUE INDEX "guest_contact_requests_response_key" ON "guest_contact_requests" USING btree ("organization_id","response_id");
 --> statement-breakpoint
-CREATE UNIQUE INDEX "guest_destination_action_receipts_dedupe" ON "guest_destination_action_receipts" USING btree ("organization_id","portal_id","session_id","destination_kind","destination_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "guest_qualified_scan_receipts_anchor_key" ON "guest_qualified_scan_receipts" USING btree ("organization_id","portal_id","session_id");
---> statement-breakpoint
 CREATE UNIQUE INDEX "guest_qualified_scans_source_event_key" ON "guest_qualified_scans" USING btree ("source_event_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "guest_qualified_scans_scope_id_key" ON "guest_qualified_scans" USING btree ("organization_id","property_id","portal_id","id");
@@ -6166,8 +4590,6 @@ CREATE UNIQUE INDEX "guest_qualified_scans_scope_id_key" ON "guest_qualified_sca
 CREATE UNIQUE INDEX "guest_response_experience_snapshots_org_key" ON "guest_response_experience_snapshots" USING btree ("organization_id","response_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "guest_response_integrity_decisions_response_revision_key" ON "guest_response_integrity_decisions" USING btree ("response_id","revision");
---> statement-breakpoint
-CREATE UNIQUE INDEX "guest_response_media_object_key_unique" ON "guest_response_media" USING btree ("object_key");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "guest_response_session_bindings_dedupe" ON "guest_response_session_bindings" USING btree ("organization_id","portal_id","session_id");
 --> statement-breakpoint
@@ -6201,19 +4623,11 @@ CREATE UNIQUE INDEX "organization_export_retrieval_issuances_digest_idx" ON "org
 --> statement-breakpoint
 CREATE UNIQUE INDEX "organization_exports_one_open_per_org_idx" ON "organization_exports" USING btree ("organization_id") WHERE "organization_exports"."state" IN ('requested', 'generating', 'egress_pending', 'ready', 'retrieval_issued');
 --> statement-breakpoint
+CREATE UNIQUE INDEX "organization_lifecycle_events_idempotency_unique" ON "organization_lifecycle_events" USING btree ("context","phase","kind");
+--> statement-breakpoint
 CREATE UNIQUE INDEX "backup_erasure_ledger_lineage_unique" ON "backup_erasure_ledger" USING btree ("subject_class","closure_lineage_id","lifecycle_revision","context");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "property_erase_authorities_live_unique" ON "property_erase_authorities" USING btree ("property_id") WHERE state NOT IN ('purged', 'cancelled');
---> statement-breakpoint
-CREATE UNIQUE INDEX "invited_registration_expected_user_unique" ON "invited_registration_attempts" USING btree ("expected_user_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "invited_registration_expected_account_unique" ON "invited_registration_attempts" USING btree ("expected_credential_account_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "invited_registration_expected_session_unique" ON "invited_registration_attempts" USING btree ("expected_initial_session_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "invited_registration_invitation_ordinal_unique" ON "invited_registration_attempts" USING btree ("invitation_id","attempt_ordinal");
---> statement-breakpoint
-CREATE UNIQUE INDEX "invited_registration_one_unresolved_per_invitation" ON "invited_registration_attempts" USING btree ("invitation_id") WHERE "invited_registration_attempts"."state" IN ('prepared', 'manual_review');
 --> statement-breakpoint
 CREATE UNIQUE INDEX "metric_corrections_source_unique" ON "metric_corrections" USING btree ("source_event_id");
 --> statement-breakpoint
@@ -6225,17 +4639,7 @@ CREATE UNIQUE INDEX "metric_current_google_reputation_source_run_unique" ON "met
 --> statement-breakpoint
 CREATE UNIQUE INDEX "metric_current_google_reputation_source_event_unique" ON "metric_current_google_reputation_snapshots" USING btree ("source_event_id");
 --> statement-breakpoint
-CREATE UNIQUE INDEX "metric_definition_versions_number_unique" ON "metric_definition_versions" USING btree ("definition_id","version");
---> statement-breakpoint
-CREATE UNIQUE INDEX "metric_definition_versions_definition_id_id_key" ON "metric_definition_versions" USING btree ("definition_id","id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "metric_definitions_key_unique" ON "metric_definitions" USING btree ("metric_key");
---> statement-breakpoint
-CREATE UNIQUE INDEX "metric_quarantine_source_reason_unique" ON "metric_quarantine" USING btree ("source_event_id","reason");
---> statement-breakpoint
 CREATE UNIQUE INDEX "metric_readings_version_source_unique" ON "metric_readings" USING btree ("definition_version_id","source_event_id") WHERE "metric_readings"."definition_version_id" IS NOT NULL AND "metric_readings"."source_event_id" IS NOT NULL;
---> statement-breakpoint
-CREATE UNIQUE INDEX "metric_source_watermarks_scope_unique" ON "metric_source_watermarks" USING btree ("consumer_name","source_name","organization_id","property_id","definition_version_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "portal_metric_lifetime_scope_unique" ON "portal_metric_lifetime_aggregates" USING btree ("organization_id","property_id","portal_id");
 --> statement-breakpoint
@@ -6365,8 +4769,6 @@ CREATE UNIQUE INDEX "properties_org_gbp_location_id_unique" ON "properties" USIN
 --> statement-breakpoint
 CREATE UNIQUE INDEX "property_rm_unique_active_manager" ON "property_responsible_managers" USING btree ("organization_id","property_id","user_id") WHERE effective_to IS NULL;
 --> statement-breakpoint
-CREATE UNIQUE INDEX "property_operation_receipts_org_idempotency_unique" ON "property_operation_receipts" USING btree ("organization_id","idempotency_key");
---> statement-breakpoint
 CREATE UNIQUE INDEX "recovery_runs_generation_unique" ON "recovery_runs" USING btree ("generation");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "recovery_runs_source_unique" ON "recovery_runs" USING btree ("source_manifest_sha256","restore_point_at");
@@ -6419,49 +4821,7 @@ CREATE UNIQUE INDEX "reviews_tenant_identity_unique" ON "reviews" USING btree ("
 --> statement-breakpoint
 CREATE UNIQUE INDEX "reviews_org_id_key" ON "reviews" USING btree ("organization_id","id");
 --> statement-breakpoint
-ALTER TABLE "ai_admission_cost_reservations" ADD CONSTRAINT "ai_admission_cost_reservations_permit_id_ai_execution_permits_id_fk" FOREIGN KEY ("permit_id") REFERENCES "public"."ai_execution_permits"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_admission_cost_reservations" ADD CONSTRAINT "ai_admission_cost_reservations_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_admission_product_consumptions" ADD CONSTRAINT "ai_admission_product_consumptions_operation_id_ai_operations_id_fk" FOREIGN KEY ("operation_id") REFERENCES "public"."ai_operations"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_admission_product_consumptions" ADD CONSTRAINT "ai_admission_product_consumptions_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_authorization_lifecycle_records" ADD CONSTRAINT "ai_authorization_lifecycle_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_authorization_lifecycle_records" ADD CONSTRAINT "ai_authorization_lifecycle_evidence_fk" FOREIGN KEY ("authorization_lineage_id","authorization_state_version","organization_id","property_id") REFERENCES "public"."merchant_ai_consent_evidence"("authorization_lineage_id","state_version","organization_id","property_id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_canary_authorization_heads" ADD CONSTRAINT "ai_canary_authorization_heads_current_authorization_id_ai_canary_authorizations_id_fk" FOREIGN KEY ("current_authorization_id") REFERENCES "public"."ai_canary_authorizations"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_canary_authorization_heads" ADD CONSTRAINT "ai_canary_authorization_heads_current_operation_id_ai_operations_id_fk" FOREIGN KEY ("current_operation_id") REFERENCES "public"."ai_operations"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_canary_authorization_heads" ADD CONSTRAINT "ai_canary_authorization_heads_current_permit_id_ai_execution_permits_id_fk" FOREIGN KEY ("current_permit_id") REFERENCES "public"."ai_execution_permits"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_canary_authorizations" ADD CONSTRAINT "ai_canary_authorizations_predecessor_authorization_id_ai_canary_authorizations_id_fk" FOREIGN KEY ("predecessor_authorization_id") REFERENCES "public"."ai_canary_authorizations"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "ai_execution_control_heads" ADD CONSTRAINT "ai_execution_control_heads_transition_fk" FOREIGN KEY ("control_id","generation") REFERENCES "public"."ai_execution_control_transitions"("control_id","generation") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_execution_permit_settlements" ADD CONSTRAINT "ai_execution_permit_settlements_permit_id_ai_execution_permits_id_fk" FOREIGN KEY ("permit_id") REFERENCES "public"."ai_execution_permits"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_execution_permits" ADD CONSTRAINT "ai_execution_permits_operation_id_ai_operations_id_fk" FOREIGN KEY ("operation_id") REFERENCES "public"."ai_operations"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_execution_permits" ADD CONSTRAINT "ai_execution_permits_attempt_fk" FOREIGN KEY ("operation_id","execution_attempt") REFERENCES "public"."ai_operation_attempts"("operation_id","attempt") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_execution_permits" ADD CONSTRAINT "ai_execution_permits_global_control_fk" FOREIGN KEY ("global_control_id","global_control_generation") REFERENCES "public"."ai_execution_control_transitions"("control_id","generation") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_execution_permits" ADD CONSTRAINT "ai_execution_permits_provider_control_fk" FOREIGN KEY ("provider_control_id","provider_control_generation") REFERENCES "public"."ai_execution_control_transitions"("control_id","generation") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_execution_permits" ADD CONSTRAINT "ai_execution_permits_capability_control_fk" FOREIGN KEY ("capability_control_id","capability_control_generation") REFERENCES "public"."ai_execution_control_transitions"("control_id","generation") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_operation_attempts" ADD CONSTRAINT "ai_operation_attempts_operation_id_ai_operations_id_fk" FOREIGN KEY ("operation_id") REFERENCES "public"."ai_operations"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_operation_profiles" ADD CONSTRAINT "ai_operation_profiles_provider_deployment_profile_version_ai_provider_deployment_profiles_profile_version_fk" FOREIGN KEY ("provider_deployment_profile_version") REFERENCES "public"."ai_provider_deployment_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_operations" ADD CONSTRAINT "ai_operations_canary_authorization_id_ai_canary_authorizations_id_fk" FOREIGN KEY ("canary_authorization_id") REFERENCES "public"."ai_canary_authorizations"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_operations" ADD CONSTRAINT "ai_operations_provider_deployment_profile_version_ai_provider_deployment_profiles_profile_version_fk" FOREIGN KEY ("provider_deployment_profile_version") REFERENCES "public"."ai_provider_deployment_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_operations" ADD CONSTRAINT "ai_operations_operation_profile_version_ai_operation_profiles_profile_version_fk" FOREIGN KEY ("operation_profile_version") REFERENCES "public"."ai_operation_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "ai_operations" ADD CONSTRAINT "ai_operations_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
@@ -6471,27 +4831,13 @@ ALTER TABLE "ai_operations" ADD CONSTRAINT "ai_operations_provider_control_fk" F
 --> statement-breakpoint
 ALTER TABLE "ai_operations" ADD CONSTRAINT "ai_operations_capability_control_fk" FOREIGN KEY ("capability_control_id","capability_control_generation") REFERENCES "public"."ai_execution_control_transitions"("control_id","generation") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "ai_product_volume_consumptions" ADD CONSTRAINT "ai_product_volume_consumptions_operation_id_ai_operations_id_fk" FOREIGN KEY ("operation_id") REFERENCES "public"."ai_operations"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_product_volume_consumptions" ADD CONSTRAINT "ai_product_volume_consumptions_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_property_aggregate_contributions" ADD CONSTRAINT "ai_property_aggregate_contributions_calendar_profile_version_ai_property_calendar_authorities_profile_version_fk" FOREIGN KEY ("calendar_profile_version") REFERENCES "public"."ai_property_calendar_authorities"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "ai_property_aggregate_contributions" ADD CONSTRAINT "ai_property_aggregate_contributions_analysis_fk" FOREIGN KEY ("organization_id","property_id","review_id","source_epoch","source_revision","analysis_sequence") REFERENCES "public"."ai_review_analyses"("organization_id","property_id","review_id","source_epoch","source_revision","analysis_sequence") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "ai_property_aggregate_heads" ADD CONSTRAINT "ai_property_aggregate_heads_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "ai_property_daily_aggregates" ADD CONSTRAINT "ai_property_daily_aggregates_calendar_profile_version_ai_property_calendar_authorities_profile_version_fk" FOREIGN KEY ("calendar_profile_version") REFERENCES "public"."ai_property_calendar_authorities"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "ai_property_daily_aggregates" ADD CONSTRAINT "ai_property_daily_aggregates_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "ai_property_processing_profiles" ADD CONSTRAINT "ai_property_processing_profiles_routing_policy_version_ai_routing_policies_version_fk" FOREIGN KEY ("routing_policy_version") REFERENCES "public"."ai_routing_policies"("version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_property_processing_profiles" ADD CONSTRAINT "ai_property_processing_profiles_provider_deployment_profile_version_ai_provider_deployment_profiles_profile_version_fk" FOREIGN KEY ("provider_deployment_profile_version") REFERENCES "public"."ai_provider_deployment_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "ai_property_processing_profiles" ADD CONSTRAINT "ai_property_profiles_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_property_quota_windows" ADD CONSTRAINT "ai_property_quota_windows_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "ai_property_trend_outcomes" ADD CONSTRAINT "ai_property_trend_outcomes_schedule_id_ai_property_trend_schedules_id_fk" FOREIGN KEY ("schedule_id") REFERENCES "public"."ai_property_trend_schedules"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
@@ -6499,21 +4845,9 @@ ALTER TABLE "ai_property_trend_outcomes" ADD CONSTRAINT "ai_property_trend_outco
 --> statement-breakpoint
 ALTER TABLE "ai_property_trend_outcomes" ADD CONSTRAINT "ai_property_trend_outcomes_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "ai_property_trend_schedules" ADD CONSTRAINT "ai_property_trend_schedules_calendar_profile_version_ai_property_calendar_authorities_profile_version_fk" FOREIGN KEY ("calendar_profile_version") REFERENCES "public"."ai_property_calendar_authorities"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_property_trend_schedules" ADD CONSTRAINT "ai_property_trend_schedules_report_profile_version_ai_operation_profiles_profile_version_fk" FOREIGN KEY ("report_profile_version") REFERENCES "public"."ai_operation_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "ai_property_trend_schedules" ADD CONSTRAINT "ai_property_trend_schedules_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "ai_provider_circuit_states" ADD CONSTRAINT "ai_provider_circuit_states_provider_deployment_profile_version_ai_provider_deployment_profiles_profile_version_fk" FOREIGN KEY ("provider_deployment_profile_version") REFERENCES "public"."ai_provider_deployment_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_provider_deployment_capabilities" ADD CONSTRAINT "ai_provider_deployment_capabilities_provider_deployment_profile_version_ai_provider_deployment_profiles_profile_version_fk" FOREIGN KEY ("provider_deployment_profile_version") REFERENCES "public"."ai_provider_deployment_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_provider_deployment_capabilities" ADD CONSTRAINT "ai_provider_deployment_capabilities_runtime_fk" FOREIGN KEY ("provider_deployment_profile_version","capability","runtime_profile_version") REFERENCES "public"."ai_runtime_capability_profiles"("provider_deployment_profile_version","capability","runtime_profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "ai_review_analyses" ADD CONSTRAINT "ai_review_analyses_operation_id_ai_operations_id_fk" FOREIGN KEY ("operation_id") REFERENCES "public"."ai_operations"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_review_analyses" ADD CONSTRAINT "ai_review_analyses_analysis_profile_version_ai_operation_profiles_profile_version_fk" FOREIGN KEY ("analysis_profile_version") REFERENCES "public"."ai_operation_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "ai_review_analyses" ADD CONSTRAINT "ai_review_analyses_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
@@ -6521,33 +4855,9 @@ ALTER TABLE "ai_review_analyses" ADD CONSTRAINT "ai_review_analyses_review_fk" F
 --> statement-breakpoint
 ALTER TABLE "ai_review_analyses" ADD CONSTRAINT "ai_review_analyses_material_review_revision_fk" FOREIGN KEY ("organization_id","property_id","review_id","source_epoch","source_revision") REFERENCES "public"."material_review_revisions"("organization_id","property_id","review_id","source_epoch","revision") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "ai_review_analysis_backfill_run_memberships" ADD CONSTRAINT "ai_review_backfill_memberships_run_scope_fk" FOREIGN KEY ("run_id","organization_id","property_id") REFERENCES "public"."ai_review_analysis_backfill_runs"("id","organization_id","property_id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_review_analysis_backfill_runs" ADD CONSTRAINT "ai_review_analysis_backfill_runs_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_review_analysis_enrollment_memberships" ADD CONSTRAINT "ai_review_enrollment_memberships_scope_fk" FOREIGN KEY ("enrollment_id","organization_id","property_id") REFERENCES "public"."ai_review_analysis_enrollments"("id","organization_id","property_id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_review_analysis_enrollment_replays" ADD CONSTRAINT "ai_review_analysis_enrollment_replays_enrollment_fk" FOREIGN KEY ("enrollment_id","organization_id","property_id") REFERENCES "public"."ai_review_analysis_enrollments"("id","organization_id","property_id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_review_analysis_enrollment_replays" ADD CONSTRAINT "ai_review_analysis_enrollment_replays_run_fk" FOREIGN KEY ("run_id","organization_id","property_id") REFERENCES "public"."ai_review_analysis_backfill_runs"("id","organization_id","property_id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "ai_review_analysis_enrollments" ADD CONSTRAINT "ai_review_analysis_enrollments_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "ai_review_analysis_enrollments" ADD CONSTRAINT "ai_review_analysis_enrollments_authorization_fk" FOREIGN KEY ("authorization_lineage_id","authorization_state_version","organization_id","property_id") REFERENCES "public"."merchant_ai_consent_evidence"("authorization_lineage_id","state_version","organization_id","property_id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_review_analysis_enrollments" ADD CONSTRAINT "ai_review_analysis_enrollments_provider_profile_fk" FOREIGN KEY ("provider_deployment_profile_version") REFERENCES "public"."ai_provider_deployment_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_review_analysis_outcomes" ADD CONSTRAINT "ai_review_analysis_outcomes_operation_id_ai_operations_id_fk" FOREIGN KEY ("operation_id") REFERENCES "public"."ai_operations"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_review_analysis_outcomes" ADD CONSTRAINT "ai_review_analysis_outcomes_cursor_fk" FOREIGN KEY ("organization_id","property_id","source_epoch","review_analysis_epoch") REFERENCES "public"."ai_review_event_cursors"("organization_id","property_id","source_epoch","review_analysis_epoch") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_review_event_cursors" ADD CONSTRAINT "ai_review_event_cursors_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_routing_policies" ADD CONSTRAINT "ai_routing_policies_provider_deployment_profile_version_ai_provider_deployment_profiles_profile_version_fk" FOREIGN KEY ("provider_deployment_profile_version") REFERENCES "public"."ai_provider_deployment_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_runtime_capability_profiles" ADD CONSTRAINT "ai_runtime_capability_profiles_operation_profile_version_ai_operation_profiles_profile_version_fk" FOREIGN KEY ("operation_profile_version") REFERENCES "public"."ai_operation_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "ai_runtime_capability_profiles" ADD CONSTRAINT "ai_runtime_capability_profiles_provider_deployment_profile_version_ai_provider_deployment_profiles_profile_version_fk" FOREIGN KEY ("provider_deployment_profile_version") REFERENCES "public"."ai_provider_deployment_profiles"("profile_version") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "beta_feedback_triage" ADD CONSTRAINT "beta_feedback_triage_duplicate_reference_fk" FOREIGN KEY ("duplicate_of_reference") REFERENCES "public"."beta_feedback_triage"("reference") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
@@ -6555,39 +4865,11 @@ ALTER TABLE "beta_feedback_triage_transitions" ADD CONSTRAINT "beta_feedback_tri
 --> statement-breakpoint
 ALTER TABLE "beta_feedback_triage_transitions" ADD CONSTRAINT "beta_feedback_triage_transition_duplicate_reference_fk" FOREIGN KEY ("duplicate_of_reference") REFERENCES "public"."beta_feedback_triage"("reference") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "goal_definition_versions" ADD CONSTRAINT "goal_definition_versions_definition_fk" FOREIGN KEY ("organization_id","property_id","definition_id") REFERENCES "public"."goal_definitions"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_definition_versions" ADD CONSTRAINT "goal_definition_versions_metric_version_fk" FOREIGN KEY ("metric_definition_id","metric_definition_version_id") REFERENCES "public"."metric_definition_versions"("definition_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_definitions" ADD CONSTRAINT "goal_definitions_org_property_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_definitions" ADD CONSTRAINT "goal_definitions_portal_group_fk" FOREIGN KEY ("organization_id","property_id","portal_group_id") REFERENCES "public"."portal_groups"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_evaluations" ADD CONSTRAINT "goal_evaluations_metric_reading_id_metric_readings_id_fk" FOREIGN KEY ("metric_reading_id") REFERENCES "public"."metric_readings"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_evaluations" ADD CONSTRAINT "goal_evaluations_supersedes_evaluation_id_goal_evaluations_id_fk" FOREIGN KEY ("supersedes_evaluation_id") REFERENCES "public"."goal_evaluations"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_evaluations" ADD CONSTRAINT "goal_evaluations_correction_reading_id_metric_readings_id_fk" FOREIGN KEY ("correction_reading_id") REFERENCES "public"."metric_readings"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_evaluations" ADD CONSTRAINT "goal_evaluations_period_fk" FOREIGN KEY ("organization_id","property_id","definition_id","definition_version_id","period_id") REFERENCES "public"."goal_periods"("organization_id","property_id","definition_id","definition_version_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "goal_monthly_results" ADD CONSTRAINT "goal_monthly_results_assignment_fk" FOREIGN KEY ("organization_id","property_id","program_id","program_version_id","assignment_id") REFERENCES "public"."goal_subject_assignments"("organization_id","property_id","program_id","program_version_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_periods" ADD CONSTRAINT "goal_periods_definition_fk" FOREIGN KEY ("organization_id","property_id","definition_id") REFERENCES "public"."goal_definitions"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_periods" ADD CONSTRAINT "goal_periods_version_fk" FOREIGN KEY ("organization_id","property_id","definition_id","definition_version_id") REFERENCES "public"."goal_definition_versions"("organization_id","property_id","definition_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "goal_program_versions" ADD CONSTRAINT "goal_program_versions_program_fk" FOREIGN KEY ("organization_id","property_id","program_id") REFERENCES "public"."goal_programs"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "goal_program_versions" ADD CONSTRAINT "goal_program_versions_metric_version_fk" FOREIGN KEY ("metric_definition_id","metric_definition_version_id") REFERENCES "public"."metric_definition_versions"("definition_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "goal_programs" ADD CONSTRAINT "goal_programs_property_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_progress" ADD CONSTRAINT "goal_progress_goal_id_goals_id_fk" FOREIGN KEY ("goal_id") REFERENCES "public"."goals"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_refresh_receipts" ADD CONSTRAINT "goal_refresh_receipts_period_fk" FOREIGN KEY ("organization_id","property_id","period_id") REFERENCES "public"."goal_periods"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goal_refresh_receipts" ADD CONSTRAINT "goal_refresh_receipts_evaluation_fk" FOREIGN KEY ("organization_id","property_id","period_id","evaluation_id") REFERENCES "public"."goal_evaluations"("organization_id","property_id","period_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "goal_result_revisions" ADD CONSTRAINT "goal_result_revisions_supersedes_revision_id_goal_result_revisions_id_fk" FOREIGN KEY ("supersedes_revision_id") REFERENCES "public"."goal_result_revisions"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
@@ -6601,21 +4883,9 @@ ALTER TABLE "goal_subject_assignments" ADD CONSTRAINT "goal_subject_assignments_
 --> statement-breakpoint
 ALTER TABLE "goal_subject_assignments" ADD CONSTRAINT "goal_subject_assignments_portal_fk" FOREIGN KEY ("organization_id","property_id","portal_id") REFERENCES "public"."portals"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "goal_timezone_event_receipts" ADD CONSTRAINT "goal_timezone_receipts_definition_fk" FOREIGN KEY ("organization_id","property_id","definition_id") REFERENCES "public"."goal_definitions"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goals" ADD CONSTRAINT "goals_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goals" ADD CONSTRAINT "goals_portal_id_portals_id_fk" FOREIGN KEY ("portal_id") REFERENCES "public"."portals"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goals" ADD CONSTRAINT "goals_portal_group_id_portal_groups_id_fk" FOREIGN KEY ("portal_group_id") REFERENCES "public"."portal_groups"("id") ON DELETE set null ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "goals" ADD CONSTRAINT "goals_parent_goal_id_goals_id_fk" FOREIGN KEY ("parent_goal_id") REFERENCES "public"."goals"("id") ON DELETE set null ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "google_import_discovery_records" ADD CONSTRAINT "google_import_discovery_records_connection_tenant_fk" FOREIGN KEY ("organization_id","connection_id") REFERENCES "public"."google_connections"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "google_import_discovery_records" ADD CONSTRAINT "google_import_discovery_records_property_tenant_fk" FOREIGN KEY ("organization_id","affected_property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "gbp_import_item_retry_receipts" ADD CONSTRAINT "gbp_import_item_retry_receipts_item_tenant_fk" FOREIGN KEY ("organization_id","item_id") REFERENCES "public"."gbp_import_request_items"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "gbp_import_request_items" ADD CONSTRAINT "gbp_import_request_items_parent_tenant_fk" FOREIGN KEY ("organization_id","import_job_id") REFERENCES "public"."gbp_import_requests"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
@@ -6635,10 +4905,6 @@ ALTER TABLE "google_credential_source_operations" ADD CONSTRAINT "google_credent
 --> statement-breakpoint
 ALTER TABLE "google_credential_source_operations" ADD CONSTRAINT "google_credential_source_operations_source_work_permit_id_authorization_execution_permits_id_fk" FOREIGN KEY ("source_work_permit_id") REFERENCES "public"."authorization_execution_permits"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "google_disconnect_revoke_attempts" ADD CONSTRAINT "google_disconnect_revoke_attempts_cleanup_work_permit_id_authorization_execution_permits_id_fk" FOREIGN KEY ("cleanup_work_permit_id") REFERENCES "public"."authorization_execution_permits"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "google_disconnect_revoke_attempts" ADD CONSTRAINT "google_disconnect_revoke_attempts_connection_fk" FOREIGN KEY ("organization_id","connection_id") REFERENCES "public"."google_connections"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "feedback" ADD CONSTRAINT "feedback_portal_id_portals_id_fk" FOREIGN KEY ("portal_id") REFERENCES "public"."portals"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "feedback" ADD CONSTRAINT "feedback_rating_id_ratings_id_fk" FOREIGN KEY ("rating_id") REFERENCES "public"."ratings"("id") ON DELETE set null ON UPDATE no action;
@@ -6651,13 +4917,7 @@ ALTER TABLE "guest_contact_requests" ADD CONSTRAINT "guest_contact_requests_port
 --> statement-breakpoint
 ALTER TABLE "guest_contact_requests" ADD CONSTRAINT "guest_contact_requests_publication_evidence_fk" FOREIGN KEY ("organization_id","property_id","portal_id","publication_snapshot_id","publication_version","publication_digest","contact_request_enabled","notice_id","notice_version","notice_digest","notice_locale","purpose","retention_policy_version") REFERENCES "public"."portal_publication_snapshots"("organization_id","property_id","portal_id","id","version","configuration_digest","contact_request_enabled","contact_notice_id","contact_notice_version","contact_notice_digest","contact_notice_locale","contact_request_purpose","contact_retention_policy_version") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "guest_destination_action_receipts" ADD CONSTRAINT "guest_destination_action_receipts_portal_fk" FOREIGN KEY ("organization_id","property_id","portal_id") REFERENCES "public"."portals"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "guest_network_pressure_records" ADD CONSTRAINT "guest_network_pressure_portal_fk" FOREIGN KEY ("organization_id","property_id","portal_id") REFERENCES "public"."portals"("organization_id","property_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "guest_qualified_scan_receipts" ADD CONSTRAINT "guest_qualified_scan_receipts_qualified_scan_scope_fk" FOREIGN KEY ("organization_id","property_id","portal_id","qualified_scan_id") REFERENCES "public"."guest_qualified_scans"("organization_id","property_id","portal_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "guest_qualified_scan_receipts" ADD CONSTRAINT "guest_qualified_scan_receipts_portal_fk" FOREIGN KEY ("organization_id","property_id","portal_id") REFERENCES "public"."portals"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "guest_qualified_scans" ADD CONSTRAINT "guest_qualified_scans_participant_scope_fk" FOREIGN KEY ("organization_id","property_id","attributed_staff_participation_id","attributed_staff_participant_id") REFERENCES "public"."staff_participations"("organization_id","property_id","id","staff_participant_id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
@@ -6674,14 +4934,6 @@ ALTER TABLE "guest_response_experience_snapshots" ADD CONSTRAINT "guest_response
 ALTER TABLE "guest_response_experience_snapshots" ADD CONSTRAINT "guest_response_experience_snapshots_publication_scope_fk" FOREIGN KEY ("organization_id","property_id","portal_id","publication_snapshot_id","publication_version","publication_digest") REFERENCES "public"."portal_publication_snapshots"("organization_id","property_id","portal_id","id","version","configuration_digest") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "guest_response_integrity_decisions" ADD CONSTRAINT "guest_response_integrity_decisions_response_scope_fk" FOREIGN KEY ("organization_id","property_id","portal_id","response_id") REFERENCES "public"."guest_responses"("organization_id","property_id","portal_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "guest_response_media" ADD CONSTRAINT "guest_response_media_response_tenant_fk" FOREIGN KEY ("organization_id","response_id") REFERENCES "public"."guest_responses"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "guest_response_media" ADD CONSTRAINT "guest_response_media_response_property_tenant_fk" FOREIGN KEY ("organization_id","property_id","portal_id","response_id") REFERENCES "public"."guest_responses"("organization_id","property_id","portal_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "guest_response_media" ADD CONSTRAINT "guest_response_media_portal_tenant_fk" FOREIGN KEY ("organization_id","portal_id") REFERENCES "public"."portals"("organization_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "guest_response_media" ADD CONSTRAINT "guest_response_media_portal_property_tenant_fk" FOREIGN KEY ("organization_id","property_id","portal_id") REFERENCES "public"."portals"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "guest_response_private_feedback" ADD CONSTRAINT "guest_response_private_feedback_response_tenant_fk" FOREIGN KEY ("organization_id","response_id") REFERENCES "public"."guest_responses"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
@@ -6741,23 +4993,11 @@ ALTER TABLE "inbox_response_target_reminders" ADD CONSTRAINT "inbox_response_tar
 --> statement-breakpoint
 ALTER TABLE "organization_export_retrieval_issuances" ADD CONSTRAINT "organization_export_retrieval_issuances_export_id_organization_exports_id_fk" FOREIGN KEY ("export_id") REFERENCES "public"."organization_exports"("id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "backup_erasure_hold_releases" ADD CONSTRAINT "backup_erasure_hold_releases_ledger_entry_id_backup_erasure_ledger_id_fk" FOREIGN KEY ("ledger_entry_id") REFERENCES "public"."backup_erasure_ledger"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "property_erase_context_receipts" ADD CONSTRAINT "property_erase_context_receipts_authority_id_property_erase_authorities_id_fk" FOREIGN KEY ("authority_id") REFERENCES "public"."property_erase_authorities"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "privacy_request_transitions" ADD CONSTRAINT "privacy_request_transitions_request_id_privacy_requests_id_fk" FOREIGN KEY ("request_id") REFERENCES "public"."privacy_requests"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "metric_corrections" ADD CONSTRAINT "metric_corrections_reading_id_metric_readings_id_fk" FOREIGN KEY ("reading_id") REFERENCES "public"."metric_readings"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "metric_corrections" ADD CONSTRAINT "metric_corrections_supersedes_correction_id_metric_corrections_id_fk" FOREIGN KEY ("supersedes_correction_id") REFERENCES "public"."metric_corrections"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "metric_current_google_reputation_snapshots" ADD CONSTRAINT "metric_current_google_reputation_property_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "metric_definition_versions" ADD CONSTRAINT "metric_definition_versions_definition_id_metric_definitions_id_fk" FOREIGN KEY ("definition_id") REFERENCES "public"."metric_definitions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "metric_quarantine" ADD CONSTRAINT "metric_quarantine_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE set null ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "metric_quarantine" ADD CONSTRAINT "metric_quarantine_definition_version_id_metric_definition_versions_id_fk" FOREIGN KEY ("definition_version_id") REFERENCES "public"."metric_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
@@ -6765,17 +5005,11 @@ ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_portal_id_portals_
 --> statement-breakpoint
 ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_group_id_portal_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."portal_groups"("id") ON DELETE set null ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_definition_version_id_metric_definition_versions_id_fk" FOREIGN KEY ("definition_version_id") REFERENCES "public"."metric_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_property_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_staff_participant_scope_fk" FOREIGN KEY ("organization_id","property_id","attributed_staff_participation_id","attributed_staff_participant_id") REFERENCES "public"."staff_participations"("organization_id","property_id","id","staff_participant_id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_staff_responsibility_scope_fk" FOREIGN KEY ("organization_id","property_id","portal_id","attribution_responsibility_id","attributed_staff_participation_id") REFERENCES "public"."portal_responsibilities"("organization_id","property_id","portal_id","id","staff_participation_id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "metric_source_watermarks" ADD CONSTRAINT "metric_source_watermarks_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "metric_source_watermarks" ADD CONSTRAINT "metric_source_watermarks_definition_version_id_metric_definition_versions_id_fk" FOREIGN KEY ("definition_version_id") REFERENCES "public"."metric_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "portal_metric_lifetime_aggregates" ADD CONSTRAINT "portal_metric_lifetime_portal_fk" FOREIGN KEY ("organization_id","property_id","portal_id") REFERENCES "public"."portals"("organization_id","property_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
@@ -6821,19 +5055,11 @@ ALTER TABLE "staff_participations" ADD CONSTRAINT "sp_participant_tenant_fk" FOR
 --> statement-breakpoint
 ALTER TABLE "staff_user_links" ADD CONSTRAINT "staff_user_links_participant_tenant_fk" FOREIGN KEY ("organization_id","staff_participant_id") REFERENCES "public"."staff_participants"("organization_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "organization_capability" ADD CONSTRAINT "organization_capability_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "organization_policy" ADD CONSTRAINT "organization_policy_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "policy_consent" ADD CONSTRAINT "policy_consent_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "property_access_grant" ADD CONSTRAINT "property_access_grant_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "property_access_grant" ADD CONSTRAINT "property_access_grant_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "property_capability" ADD CONSTRAINT "property_capability_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "property_policy" ADD CONSTRAINT "property_policy_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "merchant_ai_consent_evidence" ADD CONSTRAINT "merchant_ai_consent_evidence_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
@@ -6906,8 +5132,6 @@ ALTER TABLE "property_portal_brand_profiles" ADD CONSTRAINT "property_portal_bra
 ALTER TABLE "properties" ADD CONSTRAINT "properties_google_connection_id_google_connections_id_fk" FOREIGN KEY ("google_connection_id") REFERENCES "public"."google_connections"("id") ON DELETE set null ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "property_responsible_managers" ADD CONSTRAINT "property_rm_property_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "property_operation_receipts" ADD CONSTRAINT "property_operation_receipts_destination_tenant_fk" FOREIGN KEY ("organization_id","destination_property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "google_reply_observation_heads" ADD CONSTRAINT "google_reply_observation_heads_exact_observation_fk" FOREIGN KEY ("organization_id","property_id","review_id","observation_id","observation_revision","source_epoch","material_review_revision","state","provenance") REFERENCES "public"."google_reply_observations"("organization_id","property_id","review_id","id","observation_revision","source_epoch","material_review_revision","state","provenance") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint

@@ -27,12 +27,11 @@ import {
   session,
   user as userTable,
 } from '#/shared/db/schema/auth'
-import { userOrganizationBindings } from '#/shared/db/schema/identity-governance.schema'
-import { invitedRegistrationAttempts } from '#/shared/db/schema/invited-registration.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { isOwnerToken } from '#/shared/domain/roles'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
+import { decideUserOrganizationMembership } from '#/shared/auth/user-organization-membership'
 import { identityError } from '../domain/errors'
 import { revokeAllPropertyAccessForUser } from './repositories/property-access-grant.repository'
 import type {
@@ -87,60 +86,32 @@ async function lockOrg(tx: Tx, orgId: string): Promise<void> {
   await tx.execute(sql`SELECT pg_advisory_xact_lock(${hashStringToInteger(orgId)})`)
 }
 
-async function claimUserOrganizationBinding(
+async function checkSingleOrganizationMembership(
   tx: Tx,
-  input: Readonly<{
-    userId: string
-    organizationId: string
-    source: 'invitation' | 'operator'
-    invitationId: string | null
-    now: Date
-  }>,
+  input: Readonly<{ userId: string; organizationId: string }>,
 ): Promise<Readonly<{ hasCurrentMembership: boolean }>> {
-  // A row cannot be locked before it exists, so the user-scoped advisory lock
-  // serializes the absent-row race as well as changes to an existing binding.
+  // Serialize membership creation for this user so two invitations cannot
+  // simultaneously place one closed-beta account in different Organizations.
   await tx.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user-organization-binding:${input.userId}`}, 0))`,
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user-organization-membership:${input.userId}`}, 0))`,
   )
   const memberships = await tx
     .select({ organizationId: member.organizationId })
     .from(member)
     .where(eq(member.userId, input.userId))
-  if (memberships.some((row) => row.organizationId !== input.organizationId)) {
-    throw identityError(
-      'organization_conflict',
-      'This account already belongs to another Organization',
-    )
-  }
-  const hasCurrentMembership = memberships.some(
-    (row) => row.organizationId === input.organizationId,
+  const decision = decideUserOrganizationMembership(
+    memberships.map((row) => row.organizationId),
+    input.organizationId,
   )
-  const rows = await tx
-    .select()
-    .from(userOrganizationBindings)
-    .where(eq(userOrganizationBindings.userId, input.userId))
-    .limit(1)
-    .for('update')
-  const binding = rows[0]
-  if (!binding) {
-    await tx.insert(userOrganizationBindings).values({
-      userId: input.userId,
-      organizationId: input.organizationId,
-      state: 'active',
-      source: input.source,
-      invitationId: input.invitationId,
-      version: 1,
-      createdAt: input.now,
-      updatedAt: input.now,
-    })
-    return { hasCurrentMembership }
+  if (decision.kind === 'allow') {
+    return { hasCurrentMembership: true }
   }
-  if (binding.state === 'active' && binding.organizationId === input.organizationId) {
-    return { hasCurrentMembership }
+  if (decision.reason === 'organization_membership_missing') {
+    return { hasCurrentMembership: false }
   }
   throw identityError(
     'organization_conflict',
-    'This account already has an Organization binding that requires support review',
+    'This account already belongs to another Organization',
   )
 }
 
@@ -304,37 +275,6 @@ export const createAtomicIdentityCommandStore = (
             )
           }
 
-          // Guard 3 — legacy or operator-created bindings may exist without a
-          // membership. A same-org active binding is safe to complete; every
-          // other state needs support resolution before another invite.
-          const users = await tx
-            .select({ id: userTable.id })
-            .from(userTable)
-            .where(sql`LOWER(${userTable.email}) = ${email}`)
-            .limit(1)
-          if (users[0]) {
-            const bindings = await tx
-              .select({
-                organizationId: userOrganizationBindings.organizationId,
-                state: userOrganizationBindings.state,
-              })
-              .from(userOrganizationBindings)
-              .where(eq(userOrganizationBindings.userId, users[0].id))
-              .limit(1)
-            const binding = bindings[0]
-            if (
-              binding &&
-              !(
-                binding.state === 'active' &&
-                binding.organizationId === (command.organizationId as string)
-              )
-            ) {
-              throw identityError(
-                'organization_conflict',
-                'This account has an Organization binding that requires support review',
-              )
-            }
-          }
           await insertInvitationRow(tx, {
             id: command.invitationId as string,
             organizationId: command.organizationId as string,
@@ -389,32 +329,6 @@ export const createAtomicIdentityCommandStore = (
           if (inv.expiresAt <= command.now) {
             throw identityError('invitation_not_found', 'Invitation has expired')
           }
-          if (command.registrationAttemptId) {
-            const registrationRows = await tx
-              .select({
-                id: invitedRegistrationAttempts.id,
-                invitationId: invitedRegistrationAttempts.invitationId,
-                organizationId: invitedRegistrationAttempts.organizationId,
-                expectedUserId: invitedRegistrationAttempts.expectedUserId,
-                state: invitedRegistrationAttempts.state,
-              })
-              .from(invitedRegistrationAttempts)
-              .where(eq(invitedRegistrationAttempts.id, command.registrationAttemptId))
-              .for('update')
-            const registration = registrationRows[0]
-            if (
-              !registration ||
-              registration.state !== 'prepared' ||
-              registration.invitationId !== inv.id ||
-              registration.organizationId !== inv.organizationId ||
-              registration.expectedUserId !== (command.acceptorUserId as string)
-            ) {
-              throw identityError(
-                'registration_failed',
-                'Registration recovery fence does not match this invitation',
-              )
-            }
-          }
           // 4. Re-validate the role at acceptance. Staff users and custom
           //    roles are retained as data but cannot become beta logins.
           const role = (inv.role ?? 'member').trim().toLowerCase()
@@ -428,17 +342,14 @@ export const createAtomicIdentityCommandStore = (
               message: 'This invitation is not eligible for beta manager access',
             }
           }
-          // 5. Claim the beta Organization binding while the invitation is
-          //    still locked. An incompatible binding aborts membership,
-          //    invitation consumption, and the fact together.
-          const bindingClaim = await claimUserOrganizationBinding(tx, {
+          // 5. Re-check Better Auth membership while the invitation is locked.
+          //    An incompatible membership aborts invitation consumption and
+          //    fact recording in the same transaction.
+          const membership = await checkSingleOrganizationMembership(tx, {
             userId: command.acceptorUserId as string,
             organizationId: inv.organizationId,
-            source: 'invitation',
-            invitationId: inv.id,
-            now: command.now,
           })
-          if (bindingClaim.hasCurrentMembership) {
+          if (membership.hasCurrentMembership) {
             throw identityError(
               'already_exists',
               'User is already a member of this Organization',
@@ -464,21 +375,6 @@ export const createAtomicIdentityCommandStore = (
           }
           const fact = command.buildEvent(accepted)
           await insertOutboxRow(tx, fact)
-          if (command.registrationAttemptId) {
-            await tx
-              .update(invitedRegistrationAttempts)
-              .set({
-                state: 'accepted',
-                providerObservedAt: command.now,
-                acceptedAt: command.now,
-                nextRecoveryAt: null,
-                leaseOwner: null,
-                leaseExpiresAt: null,
-                lastFailureCode: null,
-                updatedAt: command.now,
-              })
-              .where(eq(invitedRegistrationAttempts.id, command.registrationAttemptId))
-          }
           return { kind: 'accepted' as const, result: accepted }
         })
         if (outcome.kind === 'rejected') {
@@ -524,30 +420,10 @@ export const createAtomicIdentityCommandStore = (
             )
           }
           // Membership removal is also login offboarding. Revoke every
-          // current Better Auth session and release the singular beta
-          // Organization binding in the same transaction as the membership
-          // deletion and durable fact. A stale cookie or binding therefore
-          // cannot survive a committed removal.
+          // current Better Auth session in the same transaction as the
+          // membership deletion and durable fact, so a stale cookie cannot
+          // survive a committed removal.
           await tx.delete(session).where(eq(session.userId, target.userId))
-          await tx
-            .update(userOrganizationBindings)
-            .set({
-              state: 'released',
-              version: sql`${userOrganizationBindings.version} + 1`,
-              resolutionReason: 'member_removed',
-              releasedAt: command.event.occurredAt,
-              updatedAt: command.event.occurredAt,
-            })
-            .where(
-              and(
-                eq(userOrganizationBindings.userId, target.userId),
-                eq(
-                  userOrganizationBindings.organizationId,
-                  command.organizationId as string,
-                ),
-                eq(userOrganizationBindings.state, 'active'),
-              ),
-            )
           // LIF-01-T21: Identity owns `property_access_grant`, so revoking it
           // belongs in this transaction rather than in a preceding one. A
           // grant that survived a committed membership deletion would be
@@ -616,6 +492,16 @@ export const createAtomicIdentityCommandStore = (
               'An organization with this slug already exists',
             )
           }
+          const membership = await checkSingleOrganizationMembership(tx, {
+            userId: command.ownerId as string,
+            organizationId: command.organizationId as string,
+          })
+          if (membership.hasCurrentMembership) {
+            throw identityError(
+              'already_exists',
+              'User is already a member of this Organization',
+            )
+          }
           await tx.insert(organization).values({
             id: command.organizationId as string,
             name: command.organizationName,
@@ -632,13 +518,6 @@ export const createAtomicIdentityCommandStore = (
           // Migration 0159 owns lifecycle provisioning with an AFTER INSERT
           // trigger on Better Auth's Organization table. Writing a second row
           // here would race that database authority and fail the whole command.
-          await claimUserOrganizationBinding(tx, {
-            userId: command.ownerId as string,
-            organizationId: command.organizationId as string,
-            source: 'operator',
-            invitationId: null,
-            now: command.now,
-          })
           await insertOutboxRow(tx, command.event)
         })
       })

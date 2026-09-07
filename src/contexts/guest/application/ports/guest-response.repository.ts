@@ -1,4 +1,3 @@
-import type { GuestMedia } from '../../domain/guest-media'
 import type { GuestResponse } from '../../domain/guest-response'
 
 export type GuestResponseScope = Readonly<{
@@ -73,19 +72,4 @@ export type GuestResponseRepository = Readonly<{
     endAt: Date,
   ): Promise<PortalResponseIntegritySummary>
   saveModeration(response: GuestResponse): Promise<boolean>
-  insertMedia(media: GuestMedia): Promise<boolean>
-  findMediaForSession(
-    scope: GuestResponseScope,
-    sessionId: string,
-    mediaId: string,
-  ): Promise<GuestMedia | null>
-  claimMedia(media: GuestMedia, lease: string, now: Date): Promise<boolean>
-  completeMedia(
-    media: GuestMedia,
-    lease: string,
-    publicUrl: string,
-    now: Date,
-  ): Promise<boolean>
-  queueMediaPurge(media: GuestMedia, now: Date): Promise<void>
-  markMediaDeleted(scope: GuestResponseScope, objectKey: string, now: Date): Promise<void>
 }>

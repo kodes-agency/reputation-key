@@ -9,8 +9,8 @@ runtime**, not by hand-written SQL. The
 `scripts/better-auth-schema.ts` runner applies pending auth-table changes as
 `pnpm auth:migrate`. Manual `ALTER TABLE` / `CREATE TABLE` against auth tables is
 a **STRICT NO** — it silently drifts the live DB. (This exact drift once left
-`invitation.propertyIds` and 7 `organization` billing/SLA columns missing → every
-invite 500'd.)
+`invitation.propertyIds` and Organization custom columns missing, so every
+invite returned a 500.)
 
 **Auth-managed tables (Better Auth schema API):** `user`, `session`, `account`,
 `verification`, `organization`, `member`, `invitation`, and ALL

@@ -3,13 +3,12 @@ import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
-  gbpImportItemRetryReceipts,
   gbpImportRequestItems,
   gbpImportRequests,
   gbpImportSagas,
 } from '#/shared/db/schema/google-import-v2.schema'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
-import { outboxEvents } from '#/shared/db/schema/outbox.schema'
+import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type {
   GoogleImportV2Intent,
   GoogleImportV2SagaIntent,
@@ -92,7 +91,18 @@ function intent(now = NOW): GoogleImportV2Intent {
 describe('Google import v2 fenced store (real PostgreSQL)', () => {
   const db = getDb()
   const store = createGoogleImportV2Store(db, () => NOW)
+  const clearRetryReceipts = async () => {
+    await db
+      .delete(idempotencyReceipts)
+      .where(
+        and(
+          eq(idempotencyReceipts.scope, 'gbp_import_item_retry'),
+          sql`${idempotencyReceipts.payload}->>'organizationId' = ${ORG_ID}`,
+        ),
+      )
+  }
   const clear = async () => {
+    await clearRetryReceipts()
     await db.delete(gbpImportRequests).where(eq(gbpImportRequests.organizationId, ORG_ID))
     await db.delete(gbpImportSagas).where(eq(gbpImportSagas.organizationId, ORG_ID))
     await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG_ID))
@@ -100,6 +110,7 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     await deleteTestOrganizations(db, [ORG_ID])
   }
   const resetStorage = async () => {
+    await clearRetryReceipts()
     await db.delete(gbpImportRequests).where(eq(gbpImportRequests.organizationId, ORG_ID))
     await db.delete(gbpImportSagas).where(eq(gbpImportSagas.organizationId, ORG_ID))
     await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG_ID))
@@ -465,8 +476,16 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     await expect(
       db
         .select()
-        .from(gbpImportItemRetryReceipts)
-        .where(eq(gbpImportItemRetryReceipts.retryRequestId, RETRY_REQUEST_ID)),
+        .from(idempotencyReceipts)
+        .where(
+          and(
+            eq(idempotencyReceipts.scope, 'gbp_import_item_retry'),
+            eq(
+              idempotencyReceipts.key,
+              JSON.stringify([ORG_ID, USER_ID, ITEM_ID, RETRY_REQUEST_ID]),
+            ),
+          ),
+        ),
     ).resolves.toHaveLength(1)
     await expect(
       db.select().from(outboxEvents).where(eq(outboxEvents.id, RETRY_OUTBOX_ID)),
@@ -661,15 +680,19 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
       },
     ])
 
-    await db.insert(gbpImportItemRetryReceipts).values({
-      organizationId: ORG_ID,
-      initiatingUserId: USER_ID,
-      itemId: ITEM_ID,
-      retryRequestId: RETRY_REQUEST_ID,
-      requestDigestKeyVersion: 'v1',
-      requestDigest: 'C'.repeat(43),
-      acceptedRetryRevision: 1,
-      createdAt: effectDeadline,
+    await db.insert(idempotencyReceipts).values({
+      scope: 'gbp_import_item_retry',
+      key: JSON.stringify([ORG_ID, USER_ID, ITEM_ID, RETRY_REQUEST_ID]),
+      payload: {
+        organizationId: ORG_ID,
+        initiatingUserId: USER_ID,
+        itemId: ITEM_ID,
+        retryRequestId: RETRY_REQUEST_ID,
+        requestDigestKeyVersion: 'v1',
+        requestDigest: 'C'.repeat(43),
+        acceptedRetryRevision: 1,
+      },
+      recordedAt: effectDeadline,
     })
     const releaseEventId = '10000000-0000-4000-8000-000000000014'
     await expect(
@@ -694,8 +717,13 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
     await expect(
       db
         .select()
-        .from(gbpImportItemRetryReceipts)
-        .where(eq(gbpImportItemRetryReceipts.itemId, ITEM_ID)),
+        .from(idempotencyReceipts)
+        .where(
+          and(
+            eq(idempotencyReceipts.scope, 'gbp_import_item_retry'),
+            sql`${idempotencyReceipts.payload}->>'itemId' = ${ITEM_ID}`,
+          ),
+        ),
     ).resolves.toEqual([])
     const [releaseEvent] = await db
       .select()

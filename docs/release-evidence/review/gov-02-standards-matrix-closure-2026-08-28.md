@@ -75,8 +75,9 @@ tables. GOV-02 also records the new lifecycle and Recent Activity authorities:
   content-free Identity recovery archive (`LIF-01`).
 - `activity.schema.ts#recentActivityEntries` — renamed canonical Activity
   authority (`ACT-01`).
-- `activity.schema.ts#recentActivityVocabularyReconciliations` — content-minimal
-  Activity reconciliation receipts retained through retry/recovery and the
+- `outbox.schema.ts#idempotencyReceipts` with scope
+  `activity_vocabulary_reconciliation` — content-minimal Activity
+  reconciliation receipts retained through retry/recovery and the
   compatibility audit window (`ACT-01`).
 
 No retention, erasure, export, or restore capability is inferred merely from a

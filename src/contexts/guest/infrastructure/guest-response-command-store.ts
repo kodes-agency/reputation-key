@@ -1,9 +1,8 @@
 import type { Database } from '#/shared/db'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   guestResponseExperienceSnapshots,
   guestResponseIntegrityDecisions,
-  guestResponseMedia,
   guestResponsePrivateFeedback,
   guestResponseSessionBindings,
   guestResponses,
@@ -643,9 +642,7 @@ export const createAtomicGuestResponseCommandStore = (
               ),
             )
             .returning({ id: guestResponses.id })
-          if (!deleted[0]) {
-            return { outcome: 'conflict' as const, objectKeys: [] as const }
-          }
+          if (!deleted[0]) return 'conflict' as const
           await tx
             .delete(guestResponsePrivateFeedback)
             .where(
@@ -654,29 +651,8 @@ export const createAtomicGuestResponseCommandStore = (
                 eq(guestResponsePrivateFeedback.organizationId, response.organizationId),
               ),
             )
-          const media = await tx
-            .update(guestResponseMedia)
-            .set({
-              status: 'purge_pending',
-              processingLease: null,
-              publicUrl: null,
-              readyAt: null,
-              deletedAt: response.deletedAt,
-              updatedAt: deletedAt,
-            })
-            .where(
-              and(
-                eq(guestResponseMedia.organizationId, response.organizationId),
-                eq(guestResponseMedia.responseId, response.id),
-                inArray(guestResponseMedia.status, ['issued', 'processing', 'ready']),
-              ),
-            )
-            .returning({ objectKey: guestResponseMedia.objectKey })
           for (const fact of facts) await insertOutboxRow(tx, fact)
-          return {
-            outcome: 'applied' as const,
-            objectKeys: media.map((item) => item.objectKey),
-          }
+          return 'applied' as const
         })
         return committed
       }),

@@ -18,19 +18,15 @@ async function requireCurrentAccountAdmin(
   input: Readonly<{ organizationId: string; actorUserId: string }>,
 ): Promise<void> {
   // The authorization check and export control-plane mutation share one
-  // transaction and lock the concrete membership/binding authorities. A
+  // transaction and lock the concrete Better Auth membership authority. A
   // service-layer check remains useful for early denial, but cannot by itself
   // close the revocation race.
   const rows = await tx.execute(sql`
     SELECT m.role
     FROM member AS m
-    INNER JOIN user_organization_bindings AS binding
-      ON binding.user_id = m."userId"
-     AND binding.organization_id = m."organizationId"
-     AND binding.state = 'active'
     WHERE m."organizationId" = ${input.organizationId}
       AND m."userId" = ${input.actorUserId}
-    FOR UPDATE OF m, binding
+    FOR UPDATE OF m
   `)
   const row = rows.rows[0] as { role: string } | undefined
   if (!row || row.role !== 'owner') {

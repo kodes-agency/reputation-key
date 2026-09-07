@@ -1,6 +1,4 @@
 import type { Database } from '#/shared/db'
-import { lte } from 'drizzle-orm'
-import { metricSourceWatermarks } from '#/shared/db/schema/metric.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type { ConsumerRegistry } from '#/shared/outbox'
@@ -44,10 +42,7 @@ export function registerMetricCorrectionConsumer(
       ) {
         throw new Error('metric correction envelope attribution mismatch')
       }
-      const occurredAt = new Date(payload.occurredAt)
-      if (Number.isNaN(occurredAt.getTime())) {
-        throw new Error('metric correction occurredAt is invalid')
-      }
+
       const status = await db.transaction(async (tx) => {
         const reserved = await tx
           .insert(eventConsumerReceipts)
@@ -60,33 +55,6 @@ export function registerMetricCorrectionConsumer(
           .returning({ eventId: eventConsumerReceipts.eventId })
         if (reserved.length === 0) return 'duplicate' as const
 
-        await tx
-          .insert(metricSourceWatermarks)
-          .values({
-            consumerName: CORRECTION_RECONCILIATION_CONSUMER,
-            sourceName: 'portal.workflow',
-            organizationId: payload.organizationId,
-            propertyId: payload.propertyId,
-            definitionVersionId: payload.definitionVersionId,
-            lastSourceEventId: payload.sourceEventId,
-            lastEventAt: occurredAt,
-            updatedAt: occurredAt,
-          })
-          .onConflictDoUpdate({
-            target: [
-              metricSourceWatermarks.consumerName,
-              metricSourceWatermarks.sourceName,
-              metricSourceWatermarks.organizationId,
-              metricSourceWatermarks.propertyId,
-              metricSourceWatermarks.definitionVersionId,
-            ],
-            set: {
-              lastSourceEventId: payload.sourceEventId,
-              lastEventAt: occurredAt,
-              updatedAt: occurredAt,
-            },
-            setWhere: lte(metricSourceWatermarks.lastEventAt, occurredAt),
-          })
         return 'applied' as const
       })
       return { status }

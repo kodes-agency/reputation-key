@@ -145,8 +145,6 @@ export type SystemAction =
   | 'system:retention.sweep'
   | 'system:quarantine.ttl'
   | 'system:ai.execution_reap'
-  | 'system:ai.authorization_erasure'
-  | 'system:ai.review_analysis_backfill_advance'
   | 'system:ai.review_analysis_enrollment_sweep'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
@@ -734,47 +732,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
       { externalEffect: true, notes: 'policy-wired in BQC-2.4; S3 verify' },
     ),
-    // ── policy administration (BQC-2.7; owner-only policy.admin gate) ──
-    sf(
-      'getPolicyStateFn',
-      `${IDENTITY}/policy-admin.ts`,
-      'policy.admin',
-      'identity.invite',
-      'organization',
-      { notes: 'read-only org policy state (content-free)' },
-    ),
-    sf(
-      'setOrgCapabilityFn',
-      `${IDENTITY}/policy-admin.ts`,
-      'policy.admin',
-      'identity.invite',
-      'organization',
-      { notes: 'allowlist non-core capability; reason required' },
-    ),
-    sf(
-      'setPropertyCapabilityFn',
-      `${IDENTITY}/policy-admin.ts`,
-      'policy.admin',
-      'identity.invite',
-      'property',
-      { notes: 'allowlist non-core capability for one tenant Property; reason required' },
-    ),
-    sf(
-      'setOrgSuspensionFn',
-      `${IDENTITY}/policy-admin.ts`,
-      'policy.admin',
-      'identity.invite',
-      'organization',
-      { notes: 'org suspension; reason + ticket required' },
-    ),
-    sf(
-      'setPropertySuspensionFn',
-      `${IDENTITY}/policy-admin.ts`,
-      'policy.admin',
-      'identity.invite',
-      'property',
-      { notes: 'property suspension; reason + ticket required' },
-    ),
+    // ── Property access administration (owner-only policy.admin gate) ──
     sf(
       'grantPropertyAccessFn',
       `${IDENTITY}/policy-admin.ts`,
@@ -1674,10 +1632,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         notes: 'canonical Property-scoped Goal Program aggregate list',
       },
     ),
-    sf('listStaffGoals', `${GOAL}/staff-goals.ts`, 'goal.read', 'goal.use', 'property', {
-      notes:
-        'retained compatibility declaration fails closed with HTTP 410 before container or historical-row access; no Staff Home consumer is routed',
-    }),
   ],
 
   // ── staff ─────────────────────────────────────────────────────────
@@ -2871,28 +2825,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
-    'ai-authorization-derivative-erasure',
-    'src/shared/jobs/ai-authorization-erasure.job.ts',
-    'system:ai.authorization_erasure',
-    'none',
-    'tenant_cross',
-    {
-      notes:
-        'Immediately eligible, PostgreSQL-leased exact retired-generation deletion for Review Analysis, Property aggregate, and Property Trend rows; eight persisted attempts, current-Identity safety fence, class-separated content-free evidence, no provider effect; remains active while AI is dark.',
-    },
-  ),
-  job(
-    'ai-review-analysis-backfill-advance',
-    'src/shared/jobs/ai-review-analysis-backfill-advance.job.ts',
-    'system:ai.review_analysis_backfill_advance',
-    'none',
-    'tenant_cross',
-    {
-      notes:
-        'Drives an open ops:ai-reanalyze run one review further: allocates and emits the next item only once its predecessor settled, terminal-settles an item whose redelivery has stopped, and closes a run whose epoch/watermark fence moved',
-    },
-  ),
-  job(
     'ai-review-analysis-enrollment-sweep',
     'src/shared/jobs/ai-review-analysis-enrollment-sweep.job.ts',
     'system:ai.review_analysis_enrollment_sweep',
@@ -2957,7 +2889,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'bounded recovery of content-free invitation registration fences; exact preallocated provider identities only, with safe compensation or manual-review terminal state',
+        'bounded recovery of Better Auth verification records; exact preallocated provider identities only, with safe compensation or fail-closed manual review',
     },
   ),
   job(
@@ -3543,26 +3475,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   schedule(
-    'ai-authorization-derivative-erasure-recurring',
-    'system:ai.authorization_erasure',
-    'none',
-    'tenant_cross',
-    {
-      notes:
-        'every 5 min; deletion starts immediately after containment and the lifecycle deadline is an exact 24-hour maximum, not a wait-until time',
-    },
-  ),
-  schedule(
-    'ai-review-analysis-backfill-advance-recurring',
-    'system:ai.review_analysis_backfill_advance',
-    'none',
-    'tenant_cross',
-    {
-      notes:
-        'every 5 min; the normal hand-off is the outbox consumer, so this cadence only bounds how long a BROKEN backfill chain sits idle',
-    },
-  ),
-  schedule(
     'ai-review-analysis-enrollment-sweep-recurring',
     'system:ai.review_analysis_enrollment_sweep',
     'none',
@@ -3618,7 +3530,7 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'every 60s; the database lease prevents duplicate workers and the five-minute due time avoids racing an active foreground provider request',
+        'every 60s; atomic updatedAt claims prevent duplicate workers and the five-minute due time avoids racing an active foreground provider request',
     },
   ),
   schedule(
@@ -3655,9 +3567,8 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   // BQC-7.5: every ops:* command runs through the operator-command harness
   // (scripts/ops/operator-command.ts) — named operator (--operator, matched
   // against OPS_OPERATOR_IDENTITIES) + target scope evaluated through the
-  // ExecutionPolicy operator branch, content-free decision audit for allow
-  // AND deny, dry-run default for mutations, typed --yes confirmation for
-  // destructive commands.
+  // ExecutionPolicy operator branch, dry-run default for mutations, and typed
+  // --yes confirmation for destructive commands.
   ops('scripts/ops/operator-command.ts', 'scripts/ops/operator-command.ts', 'none', {
     notes:
       'BQC-7.5: operator-command harness wiring (boots the policy store + ExecutionPolicy, binds OPS_OPERATOR_IDENTITIES) — the module every ops:* command imports; contract + tests in src/shared/ops/operator-command.ts; not a command itself',
@@ -3669,15 +3580,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:queue — pause/resume/status BullMQ queues; jobs preserved (BQC-0.5); pause/resume report-first + --reason/--apply (BQC-7.5)',
-    },
-  ),
-  ops(
-    'scripts/ops/manage-dormant-billing-data.ts',
-    'scripts/ops/manage-dormant-billing-data.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:manage-dormant-billing-data — EXP-01 content-free report plus destructive exact-fingerprint apply for all five dormant Better Auth Billing compatibility fields; serializable row locks, typed confirmation, ticket/reason audit, atomic nulling, and empty-state verification; columns remain intact',
     },
   ),
   ops(
@@ -3759,15 +3661,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:reconcile-recent-activity-vocabulary — Organization-scoped content-free report and one-pair exact-fingerprint compatibility repair; apply is ticketed, operation-idempotent, typed-confirmed, transactionally receipted, and never infers unmappable vocabulary',
-    },
-  ),
-  ops(
-    'scripts/ops/report-legacy-goals.ts',
-    'scripts/ops/report-legacy-goals.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:report-legacy-goals — read-only, explicit-time GOA-01/CNV-01 inventory of the two retained pre-beta Goal tables, exact row counts, all-schema foreign-key dependencies, fixed data-fate classifications, and a content-free fingerprint; no record identifiers or apply path',
     },
   ),
   ops('scripts/ops/property-erase.ts', 'scripts/ops/property-erase.ts', 'property', {
@@ -3883,24 +3776,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       'ops:purge — content-free static retention-rule report by default; retention apply is destructive and typed-confirmed; Review apply reaches the SAFE-03 no-mutation quarantine handler until REV-01 (BQC-7.5/GST-01)',
   }),
   ops(
-    'scripts/ops/property-suspension.ts',
-    'scripts/ops/property-suspension.ts',
-    'property',
-    {
-      notes:
-        'ops:suspend-property / ops:restore-property — property processing suspension via policyAdmin.setPropertySuspension (reason+ticket; own audit row + harness row) (BQC-7.5)',
-    },
-  ),
-  ops(
-    'scripts/ops/property-capabilities.ts',
-    'scripts/ops/property-capabilities.ts',
-    'property',
-    {
-      notes:
-        'ops:property-capabilities — reports and repairs a property capability allowlist against its organization (list/sync, --all for the whole org); the import provisions created properties, this repairs drift; mutation is dry-run by default, harness audit row per invocation (BQC-7.5)',
-    },
-  ),
-  ops(
     'scripts/ops/reparse-review-translations.ts',
     'scripts/ops/reparse-review-translations.ts',
     'property',
@@ -3938,15 +3813,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ops('scripts/audit-member-roles.ts', 'scripts/audit-member-roles.ts', 'tenant_cross', {
     notes: 'audit:member-roles — read-only role audit (raw pg)',
   }),
-  ops(
-    'scripts/audit-user-organization-bindings.ts',
-    'scripts/audit-user-organization-bindings.ts',
-    'tenant_cross',
-    {
-      notes:
-        'audit:user-organization-bindings — read-only SAFE-02 reconciliation report; classifies exact/mappable/conflict/orphan without guessing or mutation',
-    },
-  ),
   ops('scripts/check-db.ts', 'scripts/check-db.ts', 'tenant_cross', {
     notes: 'read-only diagnostics; identifiers + clocks only (BQC-1.6)',
   }),
@@ -4240,15 +4106,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/ops/ai-canary-authorization.ts',
-    'scripts/ops/ai-canary-authorization.ts',
-    'tenant_cross',
-    {
-      notes:
-        'ops:ai-canary — ticketed inspect/issue/revoke lifecycle for one release-bound synthetic canary authorization generation',
-    },
-  ),
-  ops(
     'scripts/ops/ai-execution-control.ts',
     'scripts/ops/ai-execution-control.ts',
     'tenant_cross',
@@ -4256,16 +4113,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       notes:
         'ops:ai-control — ticketed hierarchical global/provider/capability kill, drain, and canary-gated restore controls',
     },
-  ),
-  ops(
-    'scripts/ops/ai-reanalyze-reviews.ts',
-    'scripts/ops/ai-reanalyze-reviews.ts',
-    'property',
-    {
-      notes:
-        'ops:ai-reanalyze — ticketed, typed-confirmation replay of already-authorized reviews through review analysis; bumps review_analysis_epoch and repositions analysis_start_sequence to the current head, then emits ai.review_analysis.backfill_requested on freshly allocated contiguous sequences. Refuses unless the merchant is already enabled for review_analysis on the property current source epoch — it can never grant consent',
-    },
-    'ai.analyze',
   ),
   ops(
     'scripts/ops/ai-approve-enrollment.ts',
@@ -4321,18 +4168,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'DIRECT-DB (psql): marks all existing users email-verified' },
   ),
   ops(
-    'scripts/migrations/add-org-id-to-goal-progress.sql',
-    'scripts/migrations/add-org-id-to-goal-progress.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): goal_progress org column + backfill' },
-  ),
-  ops(
-    'scripts/migrations/fix-goal-progress-org-id-notnull.sql',
-    'scripts/migrations/fix-goal-progress-org-id-notnull.sql',
-    'tenant_cross',
-    { notes: 'DIRECT-DB (psql): NOT NULL constraint after backfill' },
-  ),
-  ops(
     'scripts/migrations/denormalize-inbox-reviewer-name.sql',
     'scripts/migrations/denormalize-inbox-reviewer-name.sql',
     'tenant_cross',
@@ -4345,15 +4180,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'scripts/migrations/fix-portal-schema-sync.sql',
     'tenant_cross',
     { notes: 'DIRECT-DB (psql): portal sort_key + group-members table' },
-  ),
-  ops(
-    'scripts/migrations/add-goals-parent-period-uniq.sql',
-    'scripts/migrations/add-goals-parent-period-uniq.sql',
-    'tenant_cross',
-    {
-      notes:
-        'DIRECT-DB (psql): unique partial index preventing duplicate recurring goals',
-    },
   ),
   ops(
     'scripts/migrations/add-reply-unique-index.sql',

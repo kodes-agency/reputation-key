@@ -144,6 +144,11 @@ describe('restore resurrection fence (LIF-01-T15)', () => {
           hold_released_at: candidate.holdReleasedAt?.toISOString() ?? null,
         })),
       }),
+      select: () => ({
+        from: () => ({
+          where: async () => [],
+        }),
+      }),
     }) as unknown as Tx
 
   it('re-applies a resurrected erasure and reports the re-erased rows', async () => {

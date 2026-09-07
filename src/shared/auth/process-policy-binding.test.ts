@@ -54,7 +54,7 @@ vi.mock('#/shared/auth/beta-capabilities', async (importOriginal) => {
 import { getExecutionPolicy } from '#/shared/auth/execution-policy'
 import { getDelayedExecutionPolicy } from '#/shared/auth/system-execution-policy'
 import { checkGlobalCapability } from '#/shared/auth/beta-capabilities'
-import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
+import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
 import { createContainer } from '#/composition'
 import {
   bindProcessPolicies,
@@ -81,7 +81,6 @@ function bundle(label: string): ProcessPolicyBundle {
   return Object.freeze({
     executionPolicy: Object.freeze({
       decide: vi.fn(async () => ({ label }) as never),
-      flushAudits: vi.fn(async () => {}),
     }),
     delayedExecutionPolicy: Object.freeze({ decide: vi.fn(async () => ({}) as never) }),
     capabilityPolicyStore: Object.freeze({
@@ -199,7 +198,7 @@ describe('building a container installs nothing (ARC-03-T8)', () => {
   })
 })
 
-describe('initPersistedCapabilityPolicyStore returns instead of installing', () => {
+describe('buildCapabilityPolicyHandle returns instead of installing', () => {
   beforeEach(() => {
     releaseProcessPolicies()
     initExecutionPolicySpy.mockClear()
@@ -212,23 +211,20 @@ describe('initPersistedCapabilityPolicyStore returns instead of installing', () 
   })
 
   it('hands back the trio plus the refresh contract and installs none of it', () => {
-    const handle = initPersistedCapabilityPolicyStore({
+    const handle = buildCapabilityPolicyHandle({
       db: dbStub,
       env: {},
       clock,
       logger: { warn: () => {} },
     })
-    handle.stopPolling()
 
     expect(Object.keys(handle).sort()).toEqual([
       'capabilityPolicyStore',
-      'currentEmergencyKillVersion',
       'currentVersion',
       'delayedExecutionPolicy',
       'executionPolicy',
       'refresh',
       'refreshRequired',
-      'stopPolling',
     ])
     expect(initExecutionPolicySpy).toHaveBeenCalledTimes(0)
     expect(initDelayedExecutionPolicySpy).toHaveBeenCalledTimes(0)

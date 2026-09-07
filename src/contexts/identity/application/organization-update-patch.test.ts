@@ -56,37 +56,14 @@ describe('buildOrganizationUpdatePatch', () => {
   })
 
   it('passes the supported contact string through unchanged', () => {
-    const patch = buildOrganizationUpdatePatch({ contactEmail: 'billing@test.com' })
+    const patch = buildOrganizationUpdatePatch({ contactEmail: 'contact@test.com' })
 
-    expect(patch.contactEmail).toBe('billing@test.com')
+    expect(patch.contactEmail).toBe('contact@test.com')
   })
 
-  it('does not forward dormant billing keys from an untyped caller', () => {
-    const patch = buildOrganizationUpdatePatch({
-      contactEmail: 'billing@test.com',
-      billingCompanyName: 'Test Corp',
-      billingAddress: '123 Billing St',
-      billingCity: 'Hong Kong',
-      billingPostalCode: '00000',
-      billingCountry: 'HK',
-    } as Parameters<typeof buildOrganizationUpdatePatch>[0])
-
-    expect(patch.contactEmail).toBe('billing@test.com')
-    expect(patch).not.toHaveProperty('billingCompanyName')
-    expect(patch).not.toHaveProperty('billingAddress')
-    expect(patch).not.toHaveProperty('billingCity')
-    expect(patch).not.toHaveProperty('billingPostalCode')
-    expect(patch).not.toHaveProperty('billingCountry')
-  })
-
-  it('omits contact and billing fields when they were never provided', () => {
+  it('omits contact when it was never provided', () => {
     const patch = buildOrganizationUpdatePatch({ name: 'Org' })
 
     expect(patch).not.toHaveProperty('contactEmail')
-    expect(patch).not.toHaveProperty('billingCompanyName')
-    expect(patch).not.toHaveProperty('billingAddress')
-    expect(patch).not.toHaveProperty('billingCity')
-    expect(patch).not.toHaveProperty('billingPostalCode')
-    expect(patch).not.toHaveProperty('billingCountry')
   })
 })

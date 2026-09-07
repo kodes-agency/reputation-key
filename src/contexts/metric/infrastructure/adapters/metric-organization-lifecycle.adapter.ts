@@ -19,10 +19,6 @@
 //     with respect to the TENANT: every row is keyed by organization/property/
 //     portal and carries that tenant's counts, so an Organization purge must
 //     delete it.
-//   * `metric_definitions` / `metric_definition_versions` have no
-//     organization column at all. They are the platform governance catalogue
-//     seeded by migration and shared by every tenant, so purging one tenant
-//     must not touch them.
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -46,22 +42,8 @@ const CONTEXT = 'metric' as const
 export const METRIC_PURGE_TABLES = Object.freeze([
   'metric_corrections',
   'metric_readings',
-  'metric_quarantine',
-  'metric_source_watermarks',
   'metric_current_google_reputation_snapshots',
   'portal_metric_lifetime_aggregates',
-] as const)
-
-/**
- * Metric-owned tables a tenant purge deliberately leaves alone, each with the
- * reason a reviewer can check without re-deriving it from the schema.
- */
-export const METRIC_RETAINED_TABLES = Object.freeze([
-  // Platform governance catalogue: no organization column, shared by every
-  // tenant, seeded by migration. Deleting it would erase other tenants' pins.
-  'metric_definitions',
-  // Immutable governed versions that Badge, Leaderboard and Goal pin by id.
-  'metric_definition_versions',
 ] as const)
 
 /** A correction chain is short; the guard turns a cycle into a loud failure. */
@@ -96,11 +78,6 @@ async function countTenantRows(tx: Tx, organization: string): Promise<number> {
         FROM metric_corrections AS correction
         JOIN metric_readings AS reading ON reading.id = correction.reading_id
         WHERE reading.organization_id = ${organization}
-      )
-      + (SELECT count(*) FROM metric_quarantine WHERE organization_id = ${organization})
-      + (
-        SELECT count(*) FROM metric_source_watermarks
-        WHERE organization_id = ${organization}
       )
       + (
         SELECT count(*) FROM metric_current_google_reputation_snapshots
@@ -245,16 +222,13 @@ async function purgeCorrections(tx: Tx, organization: string): Promise<number> {
 /**
  * Purge — IRREVERSIBLE, idempotent, content-free.
  *
- * Every statement is bound to one organization id. Nothing is dropped, no
- * compatibility mirror is removed, and the platform catalogue in
- * METRIC_RETAINED_TABLES is deliberately untouched.
+ * Every statement is bound to one organization id. Nothing is dropped and no
+ * compatibility mirror is removed.
  *
- * `metric_readings` is referenced with ON DELETE RESTRICT by Goal's
- * `goal_evaluations`. Both contributors run concurrently in their own
- * transactions, so a first pass may find the readings still pinned; this phase
- * then fails closed, its receipt is rolled back with it, Goal's already
- * committed receipt replays, and the next pass converges. That is the intended
- * retry behaviour, not a missed dependency.
+ * Goal Program versions pin code-reviewed metric definition IDs, while their
+ * monthly results consume readings only through Metric's public read contract.
+ * The surviving Goal tables therefore do not pin `metric_readings` during
+ * tenant purge.
  */
 const purge = async (
   tx: Tx,
@@ -272,12 +246,6 @@ const purge = async (
   await purgeCorrections(tx, organization)
   await tx.execute(
     sql`DELETE FROM metric_readings WHERE organization_id = ${organization}`,
-  )
-  await tx.execute(
-    sql`DELETE FROM metric_quarantine WHERE organization_id = ${organization}`,
-  )
-  await tx.execute(
-    sql`DELETE FROM metric_source_watermarks WHERE organization_id = ${organization}`,
   )
   await tx.execute(sql`
     DELETE FROM metric_current_google_reputation_snapshots

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
 import {
   createAiOperationIdentity,
-  parseAiCanaryExecutionBinding,
   parseAiExecutionBinding,
   parseAiPrivateBetaPolicy,
   resolveAiProcessingCell,
@@ -106,39 +105,6 @@ const makeTrendBinding = (): Record<string, unknown> => ({
   operationProfileVersion: 'property-trend-v1',
   capabilityRuntimeProfileVersion: 'property-trends-runtime-v1',
   aiSubjectHmacKeyVersion: null,
-})
-
-const makeCanaryBinding = (): Record<string, unknown> => ({
-  canaryAuthorizationId: UUID_A,
-  canaryAuthorizationGeneration: 1,
-  releaseSha: 'b'.repeat(40),
-  canaryProfileVersion: 'synthetic-canary-v1',
-  safetyIdentifierProfileVersion: 'synthetic-canary-safety-v1',
-  providerDeploymentProfileVersion: 'private-beta-global-v1',
-  operationProfileVersion: 'synthetic-canary-v1',
-  stopFence: {
-    globalControlId: UUID_A,
-    globalGeneration: 1,
-    providerControlId: UUID_B,
-    providerGeneration: 1,
-    allCapabilityStopFences: [
-      {
-        capability: 'review_analysis',
-        capabilityControlId: UUID_A,
-        capabilityGeneration: 1,
-      },
-      {
-        capability: 'reply_drafting',
-        capabilityControlId: UUID_B,
-        capabilityGeneration: 1,
-      },
-      {
-        capability: 'property_trends',
-        capabilityControlId: UUID_C,
-        capabilityGeneration: 1,
-      },
-    ],
-  },
 })
 
 const recordAt = (value: Record<string, unknown>, key: string): Record<string, unknown> =>
@@ -302,18 +268,6 @@ describe('AI execution binding and operation identity', () => {
       command: 'trend',
     } as never)
     expect(crossWired.isErr() && crossWired.error.message).toMatch(/trend identity/i)
-
-    const canary = createAiOperationIdentity({
-      command: 'synthetic_canary',
-      actorId: null,
-      systemPrincipal: 'release_canary',
-      releaseSha: 'b'.repeat(40),
-      canaryAuthorizationId: UUID_A,
-      canaryAuthorizationGeneration: 1,
-      canaryProfileVersion: 'synthetic-canary-v1',
-    })
-    expect(canary.isOk() && canary.value.subjectKind).toBe('synthetic_canary')
-    expect(canary.isOk() && canary.value.capability).toBeNull()
   })
 })
 
@@ -923,167 +877,6 @@ describe('AI execution binding fail-closed validation', () => {
   })
 })
 
-describe('AI canary binding validation', () => {
-  it('accepts the exact ordered three-capability fence', () => {
-    expect(parseAiCanaryExecutionBinding(makeCanaryBinding()).isOk()).toBe(true)
-  })
-
-  it.each([
-    [
-      'root shape',
-      (value: Record<string, unknown>) => {
-        value.extra = true
-      },
-    ],
-    [
-      'authorization ID',
-      (value: Record<string, unknown>) => {
-        value.canaryAuthorizationId = 'bad'
-      },
-    ],
-    [
-      'authorization generation floor',
-      (value: Record<string, unknown>) => {
-        value.canaryAuthorizationGeneration = 0
-      },
-    ],
-    [
-      'authorization generation ceiling',
-      (value: Record<string, unknown>) => {
-        value.canaryAuthorizationGeneration = 4
-      },
-    ],
-    [
-      'release SHA type',
-      (value: Record<string, unknown>) => {
-        value.releaseSha = 1
-      },
-    ],
-    [
-      'release SHA format',
-      (value: Record<string, unknown>) => {
-        value.releaseSha = 'bad'
-      },
-    ],
-    [
-      'canary profile',
-      (value: Record<string, unknown>) => {
-        value.canaryProfileVersion = 'wrong'
-      },
-    ],
-    [
-      'safety profile',
-      (value: Record<string, unknown>) => {
-        value.safetyIdentifierProfileVersion = 'wrong'
-      },
-    ],
-    [
-      'provider profile',
-      (value: Record<string, unknown>) => {
-        value.providerDeploymentProfileVersion = 'wrong'
-      },
-    ],
-    [
-      'operation profile',
-      (value: Record<string, unknown>) => {
-        value.operationProfileVersion = 'wrong'
-      },
-    ],
-    [
-      'stop fence object',
-      (value: Record<string, unknown>) => {
-        value.stopFence = null
-      },
-    ],
-    [
-      'stop fence shape',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').extra = true
-      },
-    ],
-    [
-      'global stop ID',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').globalControlId = 'bad'
-      },
-    ],
-    [
-      'global stop generation',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').globalGeneration = 0
-      },
-    ],
-    [
-      'provider stop ID',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').providerControlId = 'bad'
-      },
-    ],
-    [
-      'provider stop generation',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').providerGeneration = 0
-      },
-    ],
-    [
-      'capability fence list',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').allCapabilityStopFences = null
-      },
-    ],
-    [
-      'capability fence count',
-      (value: Record<string, unknown>) => {
-        recordAt(value, 'stopFence').allCapabilityStopFences = []
-      },
-    ],
-  ])('rejects an invalid %s', (_label, mutate) => {
-    const value = makeCanaryBinding()
-    mutate(value)
-    expect(parseAiCanaryExecutionBinding(value).isErr()).toBe(true)
-  })
-
-  it.each([
-    [
-      'non-object fence',
-      (_fence: Record<string, unknown>, fences: Array<Record<string, unknown>>) => {
-        fences[0] = [] as unknown as Record<string, unknown>
-      },
-    ],
-    [
-      'unknown fence field',
-      (fence: Record<string, unknown>) => {
-        fence.extra = true
-      },
-    ],
-    [
-      'reordered capability',
-      (fence: Record<string, unknown>) => {
-        fence.capability = 'reply_drafting'
-      },
-    ],
-    [
-      'capability control ID',
-      (fence: Record<string, unknown>) => {
-        fence.capabilityControlId = 'bad'
-      },
-    ],
-    [
-      'capability generation',
-      (fence: Record<string, unknown>) => {
-        fence.capabilityGeneration = 0
-      },
-    ],
-  ])('rejects a capability fence with %s', (_label, mutate) => {
-    const value = makeCanaryBinding()
-    const fences = recordAt(value, 'stopFence').allCapabilityStopFences as Array<
-      Record<string, unknown>
-    >
-    mutate(fences[0]!, fences)
-    expect(parseAiCanaryExecutionBinding(value).isErr()).toBe(true)
-  })
-})
-
 describe('AI operation identity fail-closed validation', () => {
   const makeAnalysisIdentity = (): Record<string, unknown> => ({
     command: 'analysis',
@@ -1127,21 +920,10 @@ describe('AI operation identity fail-closed validation', () => {
     aggregateRevision: 0,
   })
 
-  const makeCanaryIdentity = (): Record<string, unknown> => ({
-    command: 'synthetic_canary',
-    actorId: null,
-    systemPrincipal: 'release_canary',
-    releaseSha: 'b'.repeat(40),
-    canaryAuthorizationId: UUID_A,
-    canaryAuthorizationGeneration: 1,
-    canaryProfileVersion: 'synthetic-canary-v1',
-  })
-
   it.each([
     ['analysis', makeAnalysisIdentity, 'review_analysis'],
     ['reply', makeReplyIdentity, 'reply_drafting'],
     ['trend', makeTrendIdentity, 'property_trends'],
-    ['synthetic canary', makeCanaryIdentity, null],
   ])('creates the exact %s operation identity', (_label, createIdentity, capability) => {
     const result = createAiOperationIdentity(createIdentity())
     expect(result.isOk()).toBe(true)
@@ -1420,62 +1202,6 @@ describe('AI operation identity fail-closed validation', () => {
       makeTrendIdentity,
       (value: Record<string, unknown>) => {
         value.aggregateRevision = -1
-      },
-    ],
-    [
-      'canary actor',
-      makeCanaryIdentity,
-      (value: Record<string, unknown>) => {
-        value.actorId = 'user-1'
-      },
-    ],
-    [
-      'canary principal',
-      makeCanaryIdentity,
-      (value: Record<string, unknown>) => {
-        value.systemPrincipal = null
-      },
-    ],
-    [
-      'canary release SHA type',
-      makeCanaryIdentity,
-      (value: Record<string, unknown>) => {
-        value.releaseSha = 1
-      },
-    ],
-    [
-      'canary release SHA format',
-      makeCanaryIdentity,
-      (value: Record<string, unknown>) => {
-        value.releaseSha = 'bad'
-      },
-    ],
-    [
-      'canary authorization ID',
-      makeCanaryIdentity,
-      (value: Record<string, unknown>) => {
-        value.canaryAuthorizationId = 'bad'
-      },
-    ],
-    [
-      'canary authorization generation floor',
-      makeCanaryIdentity,
-      (value: Record<string, unknown>) => {
-        value.canaryAuthorizationGeneration = 0
-      },
-    ],
-    [
-      'canary authorization generation ceiling',
-      makeCanaryIdentity,
-      (value: Record<string, unknown>) => {
-        value.canaryAuthorizationGeneration = 4
-      },
-    ],
-    [
-      'canary profile',
-      makeCanaryIdentity,
-      (value: Record<string, unknown>) => {
-        value.canaryProfileVersion = ''
       },
     ],
   ])('rejects an invalid %s identity', (_label, createIdentity, mutate) => {

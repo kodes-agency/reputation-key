@@ -629,19 +629,6 @@ export async function seedStaffUserWithGrant(input: {
     'INSERT INTO member (id, "organizationId", "userId", role, "createdAt") VALUES ($1, $2, $3, $4, now())',
     [`e2e-${randomUUID()}`, input.organizationId, userId, input.role ?? 'member'],
   )
-  // A membership alone is not enough to resolve tenant context. The tenant
-  // resolver requires a user_organization_bindings row and denies with
-  // organization_binding_missing without one, so a fixture user created here
-  // could sign in and then 500 on every authenticated request. The seed does
-  // the same for its own members; this is the runtime half of it.
-  await dbQuery(
-    `INSERT INTO user_organization_bindings
-       (user_id, organization_id, state, source, version, created_at, updated_at)
-     VALUES ($1, $2, 'active', 'backfill', 1, now(), now())
-     ON CONFLICT (user_id) DO UPDATE
-       SET organization_id = EXCLUDED.organization_id, state = 'active', updated_at = now()`,
-    [userId, input.organizationId],
-  )
   await dbQuery(
     `INSERT INTO property_access_grant (organization_id, property_id, user_id, source, created_by)
      VALUES ($1, $2, $3, 'operator', 'e2e-fixture')`,
@@ -691,12 +678,7 @@ export async function seedGoogleConnection(input: {
 
 // ── Property / review fixtures ────────────────────────────────────────
 
-/**
- * Mirror of scripts/seed-e2e-user.ts's grantAccess (→ grantPropertyAccess):
- * idempotent over the ACTIVE grant, and it commits the global policy_version
- * bump in the SAME statement as the insert, so a snapshot reader can never
- * observe the grant without its version.
- */
+/** Idempotent mirror of the surviving PropertyAccessGrant authority. */
 async function grantPropertyAccessFixture(input: {
   organizationId: string
   propertyId: string
@@ -712,20 +694,9 @@ async function grantPropertyAccessFixture(input: {
   )
   if (active.length > 0) return
   await dbQuery(
-    `WITH bump AS (
-       INSERT INTO policy_version (scope, version, updated_at)
-       VALUES ('global', 1, now())
-       ON CONFLICT (scope) DO UPDATE
-         SET version = policy_version.version + 1, updated_at = now()
-       RETURNING version
-     ),
-     ins AS (
-       INSERT INTO property_access_grant
-         (organization_id, property_id, user_id, source, created_by)
-       VALUES ($1, $2, $3, 'operator', $3)
-       RETURNING id
-     )
-     SELECT id FROM ins`,
+    `INSERT INTO property_access_grant
+       (organization_id, property_id, user_id, source, created_by)
+     VALUES ($1, $2, $3, 'operator', $3)`,
     [input.organizationId, input.propertyId, input.userId],
   )
 }
@@ -1685,20 +1656,17 @@ export async function cleanupE2eData(input: {
     'DELETE FROM notifications WHERE user_id IN (SELECT id FROM "user" WHERE email LIKE $1)',
     [like],
   )
-  await dbQuery(
-    `DELETE FROM user_organization_bindings
-      WHERE user_id IN (SELECT id FROM "user" WHERE email LIKE $1)`,
-    [like],
-  )
   await dbQuery('DELETE FROM invitation WHERE email LIKE $1', [like])
   await dbQuery(
-    `DELETE FROM property_operation_receipts
-     WHERE organization_id = $1 AND destination_property_id IN (
-       SELECT p.id
-       FROM properties p
-       LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
-       WHERE p.organization_id = $1
-         AND (p.slug LIKE $2 OR gc.google_subject LIKE $2))`,
+    `DELETE FROM idempotency_receipts
+     WHERE scope = 'property_operation'
+       AND payload->>'organizationId' = $1
+       AND payload->>'destinationPropertyId' IN (
+         SELECT p.id::text
+         FROM properties p
+         LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
+         WHERE p.organization_id = $1
+           AND (p.slug LIKE $2 OR gc.google_subject LIKE $2))`,
     [input.organizationId, like],
   )
   await dbQuery(

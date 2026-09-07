@@ -1,10 +1,9 @@
 // LIF-01-T21 — contract tests for the read behind `repairPartialOffboarding`.
 //
 // The lookup is the only place the crash signature is turned into a domain
-// observation, so two things are tested here: the row mapping (a driver that
-// hands back strings, nulls or an unexpected enum must still produce a
-// classifiable observation) and the statement shape (tenant identifiers bound
-// as parameters, and no name/email column in the projection).
+// observation, so two things are tested here: row mapping (driver strings and
+// nulls must still produce a classifiable observation) and statement shape
+// (tenant identifiers are parameters, with no name/email projection).
 
 import { describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
@@ -65,7 +64,6 @@ const observationRow = (overrides: Record<string, unknown> = {}) => ({
   member_id: 'member-partial-offboarding-01',
   active_grants: 0,
   offboarded_grants: 3,
-  binding_state: 'released',
   ...overrides,
 })
 
@@ -85,7 +83,6 @@ describe('partial offboarding lookup — observe', () => {
       memberId: 'member-partial-offboarding-01',
       activeGrantCount: 0,
       offboardedGrantCount: 3,
-      bindingState: 'released',
     } satisfies PartialOffboardingObservation)
     expect(classifyPartialOffboarding(observation)).toBe('partial_offboarding')
   })
@@ -96,7 +93,7 @@ describe('partial offboarding lookup — observe', () => {
    * domain uses to decide the offboarding already completed.
    */
   it('reads an absent membership as a null member id, not an empty string', async () => {
-    const fake = database([[observationRow({ member_id: null, binding_state: null })]])
+    const fake = database([[observationRow({ member_id: null })]])
     const lookup = createPartialOffboardingLookup(fake.db)
 
     const observation = await lookup.observe({
@@ -105,7 +102,6 @@ describe('partial offboarding lookup — observe', () => {
     })
 
     expect(observation.memberId).toBeNull()
-    expect(observation.bindingState).toBe('absent')
     expect(classifyPartialOffboarding(observation)).toBe('already_offboarded')
   })
 
@@ -121,7 +117,6 @@ describe('partial offboarding lookup — observe', () => {
       memberId: null,
       activeGrantCount: 0,
       offboardedGrantCount: 0,
-      bindingState: 'absent',
     })
   })
 
@@ -149,27 +144,9 @@ describe('partial offboarding lookup — observe', () => {
     ).resolves.toMatchObject({ activeGrantCount: 0, offboardedGrantCount: 0 })
   })
 
-  it.each([
-    ['active', 'active'],
-    ['released', 'released'],
-    ['some_future_state', 'absent'],
-    [42, 'absent'],
-  ])('narrows binding state %o to %s', async (stored, expected) => {
-    const fake = database([[observationRow({ binding_state: stored })]])
-    const lookup = createPartialOffboardingLookup(fake.db)
-
-    const observation = await lookup.observe({
-      organizationId: ORG_ID,
-      userId: USER_ID,
-    })
-
-    expect(observation.bindingState).toBe(expected)
-  })
-
   /**
-   * The report is handed to an operator, so it must stay identifiers, counts
-   * and one enum. A column the driver adds to the result set must not ride
-   * along into the observation.
+   * The report is handed to an operator, so it must stay identifiers and
+   * counts. A column the driver adds to the result set must not ride along.
    */
   it('projects only the content-free observation fields', async () => {
     const fake = database([
@@ -184,7 +161,6 @@ describe('partial offboarding lookup — observe', () => {
 
     expect(Object.keys(observation).sort()).toEqual([
       'activeGrantCount',
-      'bindingState',
       'memberId',
       'offboardedGrantCount',
       'organizationId',
@@ -211,8 +187,6 @@ describe('partial offboarding lookup — observe', () => {
       ORG_ID,
       USER_ID,
       PARTIAL_OFFBOARDING_GRANT_REASON,
-      ORG_ID,
-      USER_ID,
     ])
   })
 })

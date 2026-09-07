@@ -5,7 +5,6 @@ const NOW = new Date('2026-08-27T10:00:00.000Z')
 
 const baseInput = () => ({
   expected: {
-    attemptId: '10000000-0000-4000-8000-000000000001',
     invitationId: 'invitation-1',
     organizationId: 'org-1',
     userId: 'user-1',
@@ -24,7 +23,6 @@ const baseInput = () => ({
   accounts: [],
   sessions: [],
   memberships: [],
-  binding: null,
 })
 
 describe('invited registration recovery classification', () => {
@@ -106,7 +104,6 @@ describe('invited registration recovery classification', () => {
           },
         ],
         memberships: [{ organizationId: 'org-1' }],
-        binding: { organizationId: 'org-1', state: 'active' },
       }),
     ).toEqual({ kind: 'already_accepted' })
   })

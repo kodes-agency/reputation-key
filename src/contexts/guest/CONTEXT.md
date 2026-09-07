@@ -58,10 +58,10 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - “Start a new response” is available only after this signed session has a durable rating. It rotates the cookie/CSRF recovery identity and cached receipt without correcting, withdrawing, or deleting the earlier response; both session and rotating-network/Portal rate limits bound shared-device abuse.
 - Every new rating has an append-only initial integrity decision. A valid, rate-limited honeypot submission is retained as `Filtered automatically` and records no rating fact; invalid traffic still receives the indistinguishable decoy. No rating value, feedback text, or guest identity participates in that decision.
 - Integrity decisions use reasoned compare-and-set revisions. Exclusion atomically retracts the currently effective rating fact; restoration records the current corrected value at its original/corrected business time, so review timing cannot shift a monthly metric period.
-- Manager moderation may hide abusive text/media but never changes the integrity outcome, retracts the rating fact, or deletes the numeric star value. Integrity review remains an internal control with no manager exclusion endpoint.
+- Manager moderation may hide abusive text but never changes the integrity outcome, retracts the rating fact, or deletes the numeric star value. Integrity review remains an internal control with no manager exclusion endpoint.
 - The receipt advertises rating correction only through the exact one-hour domain deadline. The server remains authoritative and permits at most one correction.
 - The first action per signed session, Portal, kind, and destination commits a 24-hour dedupe receipt and content-free durable fact atomically. Duplicate/replayed actions create no second fact; Redis is abuse control, not correctness authority.
-- Guest media is hard-blocked for the first beta cohort and has no public issuance or confirmation entry point. Existing rows remain available only for audit/purge compatibility.
+- Guest media is hard-blocked for the first beta cohort and has no public issuance, confirmation entry point, or persistence model.
 - Public rating, private-feedback, destination-action, and qualified-scan pressure checks use one canonical PostgreSQL authority after signed-session/CSRF and Redis checks. Each admitted action records only its Organization/Property/Portal scope, daily-rotating HMAC-SHA256 pseudonym, action class, observation time, and database-enforced expiry exactly seven days later. The record contains no session, destination, source, content, rating, staff, or analytics identity; it never feeds staff attribution or metrics.
 - Raw Guest IP addresses are never persisted. Network pseudonyms are separated by Organization, Portal, action class, UTC day, and derivation version so they cannot become a cross-purpose, global, or durable Guest identity. Shared-device session rotation remains available and is bounded independently by the Portal-scoped network layer.
 - Signed-session correctness is never replaced by network pressure: session bindings and destination/Qualified Scan receipts remain the dedupe and mutation authorities. Rating and private-feedback admission fail closed when either pressure store is unavailable; qualified-scan observation reports a retryable failure; an approved destination URL remains available when observation fails, without recording analytics.
@@ -197,9 +197,10 @@ feedback was received — never as empty text.
 Not exported, and not queried: `guest_contact_requests` and its reveal audits
 (`portal.guest_contact` is safety-blocked, so exporting them would be an
 activation by the back door), `guest_response_session_bindings`,
-`guest_qualified_scan_receipts`, `guest_destination_action_receipts`,
-`guest_network_pressure_records`, `guest_response_media`, legacy
-`session_id`/`ip_hash` columns, and the rating/feedback source event ids. Each
+the `guest_qualified_scan` and `guest_destination_action` scopes in
+`idempotency_receipts`,
+`guest_network_pressure_records`, legacy `session_id`/`ip_hash` columns, and
+the rating/feedback source event ids. Each
 reason is recorded in the payload's `excludedRecordClasses`.
 
 ## Organization lifecycle contribution (LIF-01)
@@ -228,9 +229,9 @@ Deliberately retained:
 - `portal_metric_lifetime_aggregates` — the anonymous lifetime aggregate the
   metrics depend on. It is Metric's row and Metric's receipt; Guest never edits
   or deletes it, and the readiness gate above is what keeps it correct.
-- `guest_contact_request_purge_checkpoints` — a single global cursor for the
-  serialized 30-day retention authority. It has no `organization_id` and no
-  tenant content; deleting it would corrupt an unrelated running sweep.
+- the `guest_contact_purge` scope in `idempotency_receipts` — a single global
+  cursor for the serialized 30-day retention authority. It has no tenant
+  content; deleting it would corrupt an unrelated running sweep.
 - `user` rows and other owners' rows. A person who is a member of another
   Organization keeps their identity; Identity owns identities.
 

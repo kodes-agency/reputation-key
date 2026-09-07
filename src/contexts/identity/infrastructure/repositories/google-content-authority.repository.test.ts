@@ -9,6 +9,11 @@ import { closePool } from '#/shared/db/pool'
 import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
+import {
+  createEnvCapabilityPolicyStore,
+  initCapabilityPolicyStore,
+  resetCapabilityPolicyStore,
+} from '#/shared/auth/beta-capabilities'
 
 const db = getDb()
 const now = new Date('2026-08-10T10:00:00.000Z')
@@ -20,7 +25,14 @@ let dynamicAuthorizationFixture:
     }>
   | undefined
 
+const GOOGLE_POLICY_ENV = {
+  NODE_ENV: 'test',
+  BETA_E2E_GLOBAL_CAPABILITIES: 'property.import_gbp_v2,property.read_gbp_performance',
+} as const
+
 beforeEach(async () => {
+  resetCapabilityPolicyStore()
+  initCapabilityPolicyStore(createEnvCapabilityPolicyStore(GOOGLE_POLICY_ENV))
   await db.transaction(async (tx) => {
     await tx.execute(sql`DELETE FROM credential_revoke_permits`)
     await tx.execute(sql`DELETE FROM google_credential_source_operations`)
@@ -35,11 +47,6 @@ beforeEach(async () => {
           cleanup_drained_at = NULL,
           operator_id = NULL,
           reason = 'test_reset'
-    `)
-    await tx.execute(sql`
-      UPDATE policy_version
-      SET emergency_kill_version = 1
-      WHERE scope = 'global'
     `)
   })
 })
@@ -91,19 +98,11 @@ afterEach(async () => {
         WHERE organization_id = ${fixture.organization}
       `)
       await tx.execute(sql`
-        DELETE FROM property_capability
-        WHERE property_id = ${fixture.property}::uuid
-      `)
-      await tx.execute(sql`
         DELETE FROM properties
         WHERE organization_id = ${fixture.organization}
       `)
       await tx.execute(sql`
         DELETE FROM google_connections
-        WHERE organization_id = ${fixture.organization}
-      `)
-      await tx.execute(sql`
-        DELETE FROM organization_capability
         WHERE organization_id = ${fixture.organization}
       `)
       await tx.execute(sql`
@@ -115,6 +114,7 @@ afterEach(async () => {
 })
 
 afterAll(async () => {
+  resetCapabilityPolicyStore()
   await closePool()
 })
 
@@ -299,10 +299,6 @@ describe('Google Content authority repository', () => {
         (${randomUUID()}, ${staff}, ${organization}, 'member', ${now})
     `)
     await db.execute(sql`
-      INSERT INTO organization_capability (organization_id, capability)
-      VALUES (${organization}, 'property.import_gbp_v2')
-    `)
-    await db.execute(sql`
       INSERT INTO google_connections (
         id, organization_id, google_subject, encrypted_access_token,
         encrypted_refresh_token, token_expires_at, scopes, connected_by,
@@ -326,10 +322,6 @@ describe('Google Content authority repository', () => {
         5,
         'v1'
       )
-    `)
-    await db.execute(sql`
-      INSERT INTO organization_capability (organization_id, capability)
-      VALUES (${organization}, 'property.read_gbp_performance')
     `)
     await db.execute(sql`
       INSERT INTO properties (
@@ -367,32 +359,19 @@ describe('Google Content authority repository', () => {
         7
       )
     `)
-    await db.execute(sql`
-      INSERT INTO property_capability (property_id, capability)
-      VALUES (${property}::uuid, 'property.read_gbp_performance')
-    `)
-    await db.execute(sql`
-      UPDATE capability_execution_control
-      SET denied = false,
-          emergency_kill_version = (
-            SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'
-          ),
-          denied_at = NULL,
-          drained_at = NULL,
-          cleanup_drained_at = NULL
-      WHERE capability = 'property.import_gbp_v2'
-    `)
-    await db.execute(sql`
-      UPDATE capability_execution_control
-      SET denied = false,
-          emergency_kill_version = (
-            SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'
-          ),
-          denied_at = NULL,
-          drained_at = NULL,
-          cleanup_drained_at = NULL
-      WHERE capability = 'property.read_gbp_performance'
-    `)
+    const controlStore = createGoogleContentAuthorityRepository(db)
+    await controlStore.transaction(async (tx) => {
+      await controlStore.allowCapability(tx, 'property.import_gbp_v2', {
+        operatorId: 'operator-test',
+        reason: 'authorize import vector',
+        changedAt: now,
+      })
+      await controlStore.allowCapability(tx, 'property.read_gbp_performance', {
+        operatorId: 'operator-test',
+        reason: 'authorize performance vector',
+        changedAt: now,
+      })
+    })
 
     const authorize = createGoogleContentAuthorizationCheck({
       clock: () => now,
@@ -520,25 +499,13 @@ describe('Google Content authority repository', () => {
       ),
     ).resolves.toEqual({ allowed: false, code: 'authorization_denied' })
 
-    await db.execute(sql`
-      INSERT INTO organization_capability (organization_id, capability)
-      VALUES (${organization}, 'property.connect_gbp')
-    `)
-    await db.execute(sql`
-      INSERT INTO property_capability (property_id, capability)
-      VALUES (${property}::uuid, 'property.connect_gbp')
-    `)
-    await db.execute(sql`
-      UPDATE capability_execution_control
-      SET denied = false,
-          emergency_kill_version = (
-            SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'
-          ),
-          denied_at = NULL,
-          drained_at = NULL,
-          cleanup_drained_at = NULL
-      WHERE capability = 'property.connect_gbp'
-    `)
+    await controlStore.transaction((tx) =>
+      controlStore.allowCapability(tx, 'property.connect_gbp', {
+        operatorId: 'operator-test',
+        reason: 'authorize review sync vector',
+        changedAt: now,
+      }),
+    )
     await expect(
       db.transaction((tx) =>
         authorize(tx as unknown as Database, {
@@ -595,25 +562,13 @@ describe('Google Content authority repository', () => {
     const publicationReview = randomUUID()
     const publicationReply = randomUUID()
     const publicationDigest = googleReplyTextDigest('Approved reply text')
-    await db.execute(sql`
-      INSERT INTO organization_capability (organization_id, capability)
-      VALUES (${organization}, 'property.publish_reply')
-    `)
-    await db.execute(sql`
-      INSERT INTO property_capability (property_id, capability)
-      VALUES (${property}::uuid, 'property.publish_reply')
-    `)
-    await db.execute(sql`
-      UPDATE capability_execution_control
-      SET denied = false,
-          emergency_kill_version = (
-            SELECT emergency_kill_version FROM policy_version WHERE scope = 'global'
-          ),
-          denied_at = NULL,
-          drained_at = NULL,
-          cleanup_drained_at = NULL
-      WHERE capability = 'property.publish_reply'
-    `)
+    await controlStore.transaction((tx) =>
+      controlStore.allowCapability(tx, 'property.publish_reply', {
+        operatorId: 'operator-test',
+        reason: 'authorize publication vector',
+        changedAt: now,
+      }),
+    )
     await db.execute(sql`
       INSERT INTO reviews (
         id, organization_id, property_id, platform, external_id,
@@ -762,11 +717,13 @@ describe('Google Content authority repository', () => {
       vector: { propertySourceEpoch: 8 },
     })
 
-    await db.execute(sql`
-      DELETE FROM organization_capability
-      WHERE organization_id = ${organization}
-        AND capability = 'property.import_gbp_v2'
-    `)
+    await controlStore.transaction((tx) =>
+      controlStore.denyCapability(tx, 'property.import_gbp_v2', {
+        operatorId: 'operator-test',
+        reason: 'exercise live kill switch',
+        deniedAt: now,
+      }),
+    )
     await expect(
       db.transaction((tx) =>
         authorize(tx as unknown as Database, {

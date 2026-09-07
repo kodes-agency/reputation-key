@@ -100,33 +100,3 @@ export const googleImportDiscoveryRecords = pgTable(
     ),
   ],
 )
-
-/** Short-lived serialization fence for authorization invalidation races. */
-export const googleImportDiscoveryInvalidations = pgTable(
-  'google_import_discovery_invalidations',
-  {
-    invalidationKey: varchar('invalidation_key', { length: 43 }).primaryKey(),
-    keyVersion: varchar('key_version', { length: 32 }).notNull(),
-    scopeKind: varchar('scope_kind', { length: 32 }).notNull(),
-    invalidatedAt: timestamp('invalidated_at', { withTimezone: true }).notNull(),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-  },
-  (t) => [
-    index('google_import_discovery_invalidations_expiry_idx').on(
-      t.expiresAt,
-      t.invalidationKey,
-    ),
-    check(
-      'google_import_discovery_invalidations_key_valid',
-      sql`${t.invalidationKey} ~ '^[A-Za-z0-9_-]{43}$' AND ${t.keyVersion} ~ '^[a-z][a-z0-9_-]{0,31}$'`,
-    ),
-    check(
-      'google_import_discovery_invalidations_scope_valid',
-      sql`${t.scopeKind} IN ('organization', 'user', 'user_connection', 'connection', 'property')`,
-    ),
-    check(
-      'google_import_discovery_invalidations_window_valid',
-      sql`${t.expiresAt} > ${t.invalidatedAt} AND ${t.expiresAt} <= ${t.invalidatedAt} + interval '00:00:30'`,
-    ),
-  ],
-)

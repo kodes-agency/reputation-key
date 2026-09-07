@@ -48,7 +48,7 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
     reasonCode: 'google_controlled_identifier',
   },
   {
-    recordClass: 'property_operation_receipts',
+    recordClass: 'property_operation_idempotency_receipts',
     reasonCode: 'content_free_control_plane',
   },
   {

@@ -102,8 +102,8 @@ export const reactivateOrganization =
     if (!OPERATION_ID_PATTERN.test(input.operationId)) {
       throw identityError('validation_error', 'operationId must be a UUID')
     }
-    // The store's own read authorizes: a current AccountAdmin with an active
-    // Organization binding, locked for the duration of the read.
+    // The store authorizes from the current AccountAdmin membership while it
+    // remains locked for the duration of the read.
     const current = await deps.store.getStatus({
       organizationId: input.organizationId,
       actorUserId: input.actorUserId,

@@ -48,7 +48,9 @@ const { getPool } = setupIntegrationDb({
 })
 
 beforeEach(async () => {
-  await getPool().query('DELETE FROM guest_contact_request_purge_checkpoints')
+  await getPool().query(
+    "DELETE FROM idempotency_receipts WHERE scope = 'guest_contact_purge'",
+  )
   await getPool().query('DELETE FROM retention_runs WHERE subject = $1', [
     GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
   ])
@@ -142,7 +144,9 @@ afterEach(async () => {
   )
   await getPool().query(`DELETE FROM portals WHERE organization_id = $1`, [ORG_A])
   await getPool().query(`DELETE FROM properties WHERE organization_id = $1`, [ORG_A])
-  await getPool().query('DELETE FROM guest_contact_request_purge_checkpoints')
+  await getPool().query(
+    "DELETE FROM idempotency_receipts WHERE scope = 'guest_contact_purge'",
+  )
   await getPool().query('DELETE FROM retention_runs WHERE subject = $1', [
     GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
   ])
@@ -638,9 +642,11 @@ describe('Contact Request repository', () => {
       processed_count: number
       completed_through: Date
     }>(
-      `SELECT processed_count, completed_through
-       FROM guest_contact_request_purge_checkpoints
-       WHERE authority = 'guest-contact-30d-v1'`,
+      `SELECT
+         (payload->>'processedCount')::int AS processed_count,
+         (payload->>'completedThrough')::timestamptz AS completed_through
+       FROM idempotency_receipts
+       WHERE scope = 'guest_contact_purge' AND key = 'guest-contact-30d-v1'`,
     )
     expect(checkpoint.rows[0]).toEqual({
       processed_count: 2,

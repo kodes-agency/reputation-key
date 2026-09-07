@@ -1,17 +1,8 @@
-// BQC-3.2 — delayed runtime gate integration tests (real PostgreSQL).
+// Delayed runtime gate integration tests against process-static policy.
 //
-// Proves the dispatch gate against the composition-installed persisted policy:
-//   (a) revocation-while-queued — an allow at enqueue time is re-decided at
-//       dispatch; a suspension written after enqueue denies NOW (strong read),
-//       with a terminal typed outcome;
-//   (b) unavailable policy — a strong-read failure maps to deny_retry so the
-//       worker throws and BullMQ retries (protected work never runs without a
-//       decision);
-//   (c) manual-enqueue initiator — a stamped content-free policy envelope
-//       flows into the decision and the audit row records the named system
-//       principal + correlation.
-//
-// Setup pattern mirrors delayed-policy-init.test.ts (BQC-2.5 wiring proof).
+// A refresh failure remains retryable and a manual-enqueue principal produces
+// content-free decision evidence. Static policy eliminates the mutable
+// suspension snapshot and its dispatch-time database refresh.
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
@@ -30,8 +21,7 @@ import {
   bindProcessPolicies,
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
-import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
-import { setOrganizationPolicy } from './policy-state.repository'
+import { buildCapabilityPolicyHandle } from '../policy-store-init'
 
 const db = getDb()
 const ORG = 'org-delayed-gate'
@@ -45,8 +35,6 @@ const EMAIL_DATA = {
 }
 
 beforeAll(async () => {
-  await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
   await deleteTestOrganizations(db, [ORG])
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Delayed Gate Org', ${ORG}, now())`,
@@ -56,7 +44,7 @@ beforeAll(async () => {
   // ARC-03-T8: the handle no longer installs itself — the dispatch gate reads
   // the process-bound delayed policy, so bind explicitly.
   bindProcessPolicies(
-    initPersistedCapabilityPolicyStore({
+    buildCapabilityPolicyHandle({
       db,
       env: POLICY_ENV,
       clock: () => new Date(),
@@ -69,60 +57,11 @@ afterAll(async () => {
   releaseProcessPolicies()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
-  await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
+
   await deleteTestOrganizations(db, [ORG])
 })
 
-async function auditRowsFor(
-  correlationId: string,
-): Promise<Array<Record<string, unknown>>> {
-  let rows: Array<Record<string, unknown>> = []
-  for (let i = 0; i < 20 && rows.length === 0; i++) {
-    const result = await db.execute(
-      sql`SELECT actor_type, actor_id, action, execution_kind, decision, reason, correlation_id
-          FROM policy_decision_audit WHERE correlation_id = ${correlationId}`,
-    )
-    rows = result.rows as Array<Record<string, unknown>>
-    if (rows.length > 0) break
-    await new Promise((r) => setTimeout(r, 50))
-  }
-  return rows
-}
-
 describe('delayed runtime gate (BQC-3.2, real PG)', () => {
-  it('(a) revocation-while-queued: allow at enqueue, deny_terminal at dispatch after suspension', async () => {
-    // The job "queued" while policy allowed (the allow decision here proves
-    // the pre-mutation posture — the queued envelope itself carries no
-    // decision, only content-free context).
-    const before = await gateJob(
-      'digest-notification',
-      EMAIL_DATA,
-      'worker:default',
-      'worker',
-    )
-    expect(before.kind).toBe('allow')
-    expect(before.decision.freshRead).toBe(true)
-
-    // Operator suspends the org while the job sits in the queue.
-    await setOrganizationPolicy(db, { organizationId: ORG, suspendedAt: new Date() })
-
-    // Dispatch-time re-authorization sees the CURRENT policy and denies with
-    // a typed terminal outcome — the stale allow never executes.
-    const after = await gateJob(
-      'digest-notification',
-      EMAIL_DATA,
-      'worker:default',
-      'worker',
-    )
-    expect(after.kind).toBe('deny_terminal')
-    expect(after.decision.allowed).toBe(false)
-    expect(after.decision.reason).toBe('org_suspended')
-
-    // Restore for later tests.
-    await setOrganizationPolicy(db, { organizationId: ORG, suspendedAt: null })
-  })
-
   it('(b) unavailable policy: strong-read failure maps to deny_retry', async () => {
     initDelayedExecutionPolicy(
       createDelayedExecutionPolicy({
@@ -143,10 +82,10 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     expect(outcome.decision.reason).toBe('policy_unavailable')
     expect(outcome.decision.allowed).toBe(false)
 
-    // Restore the process-bound persisted policy for later tests.
+    // Restore the process-bound static policy for later tests.
     releaseProcessPolicies()
     bindProcessPolicies(
-      initPersistedCapabilityPolicyStore({
+      buildCapabilityPolicyHandle({
         db,
         env: POLICY_ENV,
         clock: () => new Date(),
@@ -155,7 +94,7 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     )
   })
 
-  it('(c) manual-enqueue initiator: stamped envelope decides; audit records principal + correlation', async () => {
+  it('(c) manual-enqueue initiator: stamped envelope returns its decision', async () => {
     const outcome = await gateJob(
       'digest-notification',
       {
@@ -170,26 +109,11 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     )
 
     expect(outcome.kind).toBe('allow')
-
-    const rows = await auditRowsFor('corr-manual-enqueue-1')
-    expect(rows.length).toBeGreaterThanOrEqual(1)
-    expect(rows[0]).toMatchObject({
-      actor_type: 'system',
-      actor_id: 'worker:default',
+    expect(outcome.decision).toMatchObject({
+      allowed: true,
+      reason: 'allowed',
       action: 'system:notification.email_digest',
-      execution_kind: 'worker',
-      decision: 'allow',
-      correlation_id: 'corr-manual-enqueue-1',
+      policyVersionAtEnqueue: EXECUTION_POLICY_VERSION,
     })
-    // Content-free: no reply text or reviewer identity in the audit row.
-    expect(Object.keys(rows[0]).sort()).toEqual([
-      'action',
-      'actor_id',
-      'actor_type',
-      'correlation_id',
-      'decision',
-      'execution_kind',
-      'reason',
-    ])
   })
 })

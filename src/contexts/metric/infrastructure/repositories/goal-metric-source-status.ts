@@ -13,7 +13,6 @@ type SourceRow = Readonly<{
   event_type: unknown
   payload: unknown
   receipt_status: unknown
-  quarantined: unknown
   reading_portal_id: unknown
   reading_group_id: unknown
   correction_present: unknown
@@ -28,7 +27,6 @@ type ParsedSourceRow = Readonly<{
   hasCapturedPortalGroup: boolean
   occurredAt: Date
   receiptStatus: string | null
-  quarantined: boolean
   readingPortalId: string | null
   readingGroupId: string | null
   correctionPresent: boolean
@@ -74,7 +72,6 @@ function parseRow(row: SourceRow): ParsedSourceRow | null {
     hasCapturedPortalGroup: Object.hasOwn(payloadRecord, 'portalGroupId'),
     occurredAt,
     receiptStatus: typeof row.receipt_status === 'string' ? row.receipt_status : null,
-    quarantined: row.quarantined === true,
     readingPortalId:
       typeof row.reading_portal_id === 'string' ? row.reading_portal_id : null,
     readingGroupId:
@@ -174,7 +171,6 @@ function factFailureReason(
   row: RelevantSourceRow,
   subjectIsPortalGroup: boolean,
 ): string | null {
-  if (row.quarantined) return 'source_fact_quarantined'
   const isRetraction = row.eventType.endsWith('.retracted')
   if (isRetraction) return row.correctionPresent ? null : 'projection_missing'
   if (row.readingPortalId !== row.portalId) return 'portal_attribution_mismatch'
@@ -227,13 +223,6 @@ export const createGoalMetricSourceStatus = (
           source.event_type,
           source.payload,
           receipt.status AS receipt_status,
-          EXISTS (
-            SELECT 1
-            FROM metric_quarantine AS quarantine
-            WHERE quarantine.source_event_id = source.id::text
-              AND quarantine.definition_version_id = ${query.definitionVersionId}::uuid
-              AND quarantine.resolved_at IS NULL
-          ) AS quarantined,
           (
             SELECT reading.portal_id::text
             FROM metric_readings AS reading

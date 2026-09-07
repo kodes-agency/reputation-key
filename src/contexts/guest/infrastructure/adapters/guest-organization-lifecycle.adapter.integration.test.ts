@@ -6,9 +6,9 @@
 //   * purge readiness MUTATES NOTHING and fails closed while a Guest
 //     correction is still undelivered, so corrections reach the anonymous
 //     lifetime aggregate BEFORE the source facts are scrubbed;
-//   * purge leaves no recoverable guest text, permitted contact, media key or
-//     session pseudonym anywhere, while the anonymous lifetime aggregate, the
-//     global retention cursor and a second Organization survive untouched.
+//   * purge leaves no recoverable guest text, permitted contact or session
+//     pseudonym anywhere, while the anonymous lifetime aggregate, the global
+//     retention cursor and a second Organization survive untouched.
 
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -38,7 +38,6 @@ const RECOVERABLE_UNTIL = new Date('2027-02-14T00:00:00.000Z')
 const PRIVATE_TEXT = 'NEVER_SURVIVE_PRIVATE_FEEDBACK_BODY'
 const LEGACY_COMMENT = 'NEVER_SURVIVE_LEGACY_FEEDBACK_COMMENT'
 const CONTACT_CIPHERTEXT = 'NEVER_SURVIVE_CONTACT_CIPHERTEXT'
-const MEDIA_KEY_MARKER = 'NEVER_SURVIVE_MEDIA_KEY'
 const IP_HASH = 'NEVER_SURVIVE_IP_HASH'
 
 const OBSERVED_TABLES = [...GUEST_PURGE_PLAN] as const
@@ -55,10 +54,18 @@ type Fixture = Readonly<{
 async function counts(organizationId: string): Promise<Record<string, number>> {
   const entries = await Promise.all(
     OBSERVED_TABLES.map(async (table) => {
-      const result = await lease.pool.query(
-        `SELECT COUNT(*)::int AS count FROM ${table} WHERE organization_id = $1`,
-        [organizationId],
-      )
+      const result =
+        table === 'idempotency_receipts'
+          ? await lease.pool.query(
+              `SELECT COUNT(*)::int AS count FROM idempotency_receipts
+               WHERE scope IN ('guest_qualified_scan', 'guest_destination_action')
+                 AND payload->>'organizationId' = $1`,
+              [organizationId],
+            )
+          : await lease.pool.query(
+              `SELECT COUNT(*)::int AS count FROM ${table} WHERE organization_id = $1`,
+              [organizationId],
+            )
       return [table, Number(result.rows[0]?.count ?? 0)] as const
     }),
   )
@@ -97,7 +104,6 @@ async function seedFixture(): Promise<Fixture> {
   const scanEventId = randomUUID()
   const qualifiedScanId = randomUUID()
   const ratingId = randomUUID()
-  const mediaId = randomUUID()
 
   await q(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
@@ -210,26 +216,11 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.responseId, ...scope, fixture.sessionId],
   )
   await q(
-    `INSERT INTO guest_response_media (
-       id, organization_id, property_id, portal_id, response_id, session_id,
-       object_key, content_type, declared_size_bytes, status, expires_at,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'image/jpeg', 1024, 'issued',
-               now() + interval '1 day', now(), now())`,
-    [
-      mediaId,
-      ...scope,
-      fixture.responseId,
-      fixture.sessionId,
-      `${MEDIA_KEY_MARKER}/${mediaId}`,
-    ],
-  )
-  await q(
-    `INSERT INTO guest_destination_action_receipts (
-       id, organization_id, property_id, portal_id, session_id, destination_id,
-       destination_kind, expires_at, created_at
-     ) VALUES ($1, $2, $3, $4, $5, 'google-review', 'google_review',
-               now() + interval '1 day', now())`,
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('guest_destination_action', $1, jsonb_build_object(
+       'organizationId', $2::text, 'propertyId', $3::text, 'portalId', $4::text,
+       'sessionId', $5::text, 'destinationId', 'google-review'
+     ), now())`,
     [randomUUID(), ...scope, randomUUID()],
   )
   await q(
@@ -253,10 +244,11 @@ async function seedFixture(): Promise<Fixture> {
     [qualifiedScanId, ...scope, artifactId, scanEventId],
   )
   await q(
-    `INSERT INTO guest_qualified_scan_receipts (
-       id, organization_id, property_id, portal_id, session_id, qualified_scan_id,
-       created_at, expires_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, now(), now() + interval '24 hours')`,
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('guest_qualified_scan', $1, jsonb_build_object(
+       'organizationId', $2::text, 'propertyId', $3::text, 'portalId', $4::text,
+       'sessionId', $5::text, 'qualifiedScanId', $6::text
+     ), now())`,
     [randomUUID(), ...scope, fixture.sessionId, qualifiedScanId],
   )
   await q(
@@ -401,17 +393,17 @@ async function deleteReceiptFixtures(organizationIds: readonly string[]): Promis
   try {
     await client.query('BEGIN')
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       DISABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query(
-      `DELETE FROM context_organization_lifecycle_receipts
+      `DELETE FROM organization_lifecycle_events
        WHERE organization_id = ANY($1::text[])`,
       [organizationIds],
     )
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {
@@ -426,13 +418,10 @@ const CLEANUP_ORDER = [
   'guest_contact_request_reveal_audits',
   'guest_contact_requests',
   'guest_response_private_feedback',
-  'guest_response_media',
   'guest_response_session_bindings',
   'guest_response_experience_snapshots',
   'guest_response_integrity_decisions',
-  'guest_destination_action_receipts',
   'guest_responses',
-  'guest_qualified_scan_receipts',
   'guest_qualified_scans',
   'guest_network_pressure_records',
   'feedback',
@@ -453,7 +442,6 @@ async function recoverableSecrets(organizationId: string): Promise<readonly stri
     ['guest_response_private_feedback', 'body'],
     ['feedback', 'comment'],
     ['guest_contact_requests', 'encrypted_contact'],
-    ['guest_response_media', 'object_key'],
     ['ratings', 'ip_hash'],
     ['scan_events', 'ip_hash'],
     ['guest_network_pressure_records', 'pseudonym'],
@@ -482,6 +470,12 @@ describe.sequential('Guest Organization lifecycle contributor', () => {
 
   afterEach(async () => {
     const ids = [...organizations]
+    await lease.pool.query(
+      `DELETE FROM idempotency_receipts
+       WHERE scope IN ('guest_qualified_scan', 'guest_destination_action')
+         AND payload->>'organizationId' = ANY($1::text[])`,
+      [ids],
+    )
     for (const table of CLEANUP_ORDER) {
       await lease.pool.query(
         `DELETE FROM ${table} WHERE organization_id = ANY($1::text[])`,
@@ -517,8 +511,11 @@ describe.sequential('Guest Organization lifecycle contributor', () => {
     expect(await recoverableSecrets(fixture.organizationId)).toEqual(beforeSecrets)
 
     const receipt = await lease.pool.query(
-      `SELECT context, phase, outcome, evidence_ref
-       FROM context_organization_lifecycle_receipts WHERE organization_id = $1`,
+      `SELECT context, phase, payload->>'outcome' AS outcome,
+              payload->>'evidenceRef' AS evidence_ref
+       FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(receipt.rows).toEqual([
@@ -569,8 +566,9 @@ describe.sequential('Guest Organization lifecycle contributor', () => {
     // Scrubbing now would strand the correction forever, so nothing moved.
     expect(await counts(fixture.organizationId)).toEqual(before)
     const receipts = await lease.pool.query(
-      `SELECT COUNT(*)::int AS count FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1`,
+      `SELECT COUNT(*)::int AS count FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(Number(receipts.rows[0]?.count)).toBe(0)
@@ -619,26 +617,17 @@ describe.sequential('Guest Organization lifecycle contributor', () => {
     const literals = await lease.pool.query(
       `SELECT
          (SELECT COUNT(*)::int FROM guest_response_private_feedback
-          WHERE organization_id = $5 AND body = $1) AS private_text,
+          WHERE organization_id = $4 AND body = $1) AS private_text,
          (SELECT COUNT(*)::int FROM feedback
-          WHERE organization_id = $5 AND comment = $2) AS legacy_comment,
+          WHERE organization_id = $4 AND comment = $2) AS legacy_comment,
          (SELECT COUNT(*)::int FROM guest_contact_requests
-          WHERE organization_id = $5 AND encrypted_contact = $3) AS contact,
-         (SELECT COUNT(*)::int FROM guest_response_media
-          WHERE organization_id = $5 AND object_key LIKE $4) AS media`,
-      [
-        PRIVATE_TEXT,
-        LEGACY_COMMENT,
-        CONTACT_CIPHERTEXT,
-        `${MEDIA_KEY_MARKER}%`,
-        fixture.organizationId,
-      ],
+          WHERE organization_id = $4 AND encrypted_contact = $3) AS contact`,
+      [PRIVATE_TEXT, LEGACY_COMMENT, CONTACT_CIPHERTEXT, fixture.organizationId],
     )
     expect(literals.rows[0]).toEqual({
       private_text: 0,
       legacy_comment: 0,
       contact: 0,
-      media: 0,
     })
 
     // The anonymous lifetime aggregate the metrics depend on is Metric's row
@@ -654,7 +643,8 @@ describe.sequential('Guest Organization lifecycle contributor', () => {
 
     // The global 30-day retention cursor has no tenant scope and is untouched.
     const checkpoints = await lease.pool.query(
-      `SELECT COUNT(*)::int AS count FROM guest_contact_request_purge_checkpoints`,
+      `SELECT COUNT(*)::int AS count FROM idempotency_receipts
+       WHERE scope = 'guest_contact_purge'`,
     )
     expect(Number(checkpoints.rows[0]?.count)).toBeGreaterThanOrEqual(0)
 
@@ -677,8 +667,9 @@ describe.sequential('Guest Organization lifecycle contributor', () => {
     expect(replay).toEqual(first)
     expect(await counts(fixture.organizationId)).toEqual(after)
     const receipts = await lease.pool.query(
-      `SELECT COUNT(*)::int AS count FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1 AND phase = 'purge'`,
+      `SELECT COUNT(*)::int AS count FROM organization_lifecycle_events
+       WHERE organization_id = $1 AND phase = 'purge'
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(Number(receipts.rows[0]?.count)).toBe(1)

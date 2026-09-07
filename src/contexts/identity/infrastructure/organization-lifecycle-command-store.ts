@@ -8,9 +8,11 @@
 import { and, asc, eq, inArray, lte, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  organizationLifecycleAuthority,
-  organizationLifecycleCommandReceipts,
-} from '#/shared/db/schema/organization-lifecycle.schema'
+  appendOrganizationLifecycleCommandEvent,
+  readOrganizationLifecycleCommandEvent,
+  type OrganizationLifecycleCommandEventStatus,
+} from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
+import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import type {
   CancelOrganizationClosureCommand,
@@ -31,7 +33,6 @@ import {
 import { identityOrganizationLifecycleChanged } from '../domain/events'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
-import { setOrganizationPolicy } from './repositories/policy-state.repository'
 
 type ReceiptOperation = 'request' | 'cancel' | 'reactivate'
 type Operation = ReceiptOperation | 'transition'
@@ -42,7 +43,7 @@ export type OrganizationLifecycleCommandStoreOptions = Readonly<{
   interrupt?: (stage: FaultStage, operation: Operation) => Promise<void>
 }>
 
-type Receipt = typeof organizationLifecycleCommandReceipts.$inferSelect
+type ReceiptStatus = OrganizationLifecycleCommandEventStatus
 type Authority = typeof organizationLifecycleAuthority.$inferSelect
 
 function authorityStatus(row: Authority): OrganizationLifecycleStatus {
@@ -63,11 +64,11 @@ function authorityStatus(row: Authority): OrganizationLifecycleStatus {
   }
 }
 
-function receiptStatus(row: Receipt): OrganizationLifecycleStatus {
+function receiptStatus(row: ReceiptStatus): OrganizationLifecycleStatus {
   return {
     organizationId: row.organizationId,
-    state: row.resultState as OrganizationLifecycleStatus['state'],
-    revision: row.resultRevision,
+    state: row.state as OrganizationLifecycleStatus['state'],
+    revision: row.revision,
     closureLineageId: row.closureLineageId,
     closureRequestedAt: row.closureRequestedAt,
     recoverableUntil: row.recoverableUntil,
@@ -91,19 +92,16 @@ async function requireCurrentAccountAdmin(
   tx: Tx,
   input: Readonly<{ organizationId: string; actorUserId: string }>,
 ): Promise<void> {
-  // Both current membership and the app-owned single-Organization binding are
-  // locked. A concurrent demotion/removal/release therefore linearizes before
-  // or after this command instead of leaving session authority in charge.
+  // The current Better Auth membership is locked in the same transaction as
+  // the lifecycle mutation. A concurrent demotion or removal therefore
+  // linearizes before or after this command instead of leaving session state
+  // in charge.
   const rows = await tx.execute(sql`
     SELECT m.role
     FROM member AS m
-    INNER JOIN user_organization_bindings AS binding
-      ON binding.user_id = m."userId"
-     AND binding.organization_id = m."organizationId"
-     AND binding.state = 'active'
     WHERE m."organizationId" = ${input.organizationId}
       AND m."userId" = ${input.actorUserId}
-    FOR UPDATE OF m, binding
+    FOR UPDATE OF m
   `)
   const row = rows.rows[0] as { role: string } | undefined
   if (!row || row.role !== 'owner') {
@@ -145,26 +143,21 @@ async function replayReceipt(
     supportEvidenceRef: string
   }>,
 ): Promise<OrganizationLifecycleStatus | null> {
-  const rows = await tx
-    .select()
-    .from(organizationLifecycleCommandReceipts)
-    .where(eq(organizationLifecycleCommandReceipts.operationId, input.operationId))
-    .limit(1)
-  const receipt = rows[0]
+  const receipt = await readOrganizationLifecycleCommandEvent(tx, input.operationId)
   if (!receipt) return null
   if (
-    receipt.organizationId !== input.organizationId ||
+    receipt.status.organizationId !== input.organizationId ||
     receipt.operation !== input.operation ||
-    receipt.lastActorId !== input.actorUserId ||
-    receipt.lastReasonCode !== input.reasonCode ||
-    receipt.lastSupportEvidenceRef !== input.supportEvidenceRef
+    receipt.status.lastActorId !== input.actorUserId ||
+    receipt.status.lastReasonCode !== input.reasonCode ||
+    receipt.status.lastSupportEvidenceRef !== input.supportEvidenceRef
   ) {
     throw identityError(
       'organization_conflict',
       'Organization lifecycle operation identifier is already bound',
     )
   }
-  return receiptStatus(receipt)
+  return receiptStatus(receipt.status)
 }
 
 async function writeReceipt(
@@ -173,23 +166,10 @@ async function writeReceipt(
   operation: ReceiptOperation,
   status: OrganizationLifecycleStatus,
 ): Promise<void> {
-  await tx.insert(organizationLifecycleCommandReceipts).values({
+  await appendOrganizationLifecycleCommandEvent(tx, {
     operationId,
-    organizationId: status.organizationId,
     operation,
-    resultState: status.state,
-    resultRevision: status.revision,
-    closureLineageId: status.closureLineageId,
-    closureRequestedAt: status.closureRequestedAt,
-    recoverableUntil: status.recoverableUntil,
-    irreversibleAt: status.irreversibleAt,
-    closedAt: status.closedAt,
-    reactivationRequired: status.reactivationRequired,
-    lastTransitionAt: status.lastTransitionAt,
-    lastActorId: status.lastActorId,
-    lastReasonCode: status.lastReasonCode,
-    lastSupportEvidenceRef: status.lastSupportEvidenceRef,
-    occurredAt: status.lastTransitionAt,
+    status,
   })
 }
 
@@ -237,13 +217,9 @@ export const createOrganizationLifecycleCommandStore = (
         .returning()
       const status = authorityStatus(rows[0]!)
 
-      // Stable machine reason only. This statement also bumps policy_version;
-      // both it and the lifecycle revision remain inside this transaction.
-      await setOrganizationPolicy(tx, {
-        organizationId: command.organizationId,
-        suspendedAt: command.now,
-        suspendedReason: 'lifecycle:closure_requested',
-      })
+      // The lifecycle authority row is the live closure fence. Keep the
+      // interruption point after its durable transition for crash-boundary
+      // verification.
       await options.interrupt?.('after_state_and_fence', 'request')
 
       const event = identityOrganizationLifecycleChanged({
@@ -327,16 +303,9 @@ export const createOrganizationLifecycleCommandStore = (
    * the caller's obligation (see `reactivateOrganization`); the only decisions
    * here are authority, the state precondition and the compare-and-set.
    *
-   * Migration reservation note: migration 0159 shipped BEFORE this command
-   * existed, and two of its constructs still fence it —
-   *   1. `guard_organization_lifecycle_revision_v1` allows no `active ->
-   *      active` edge, and
-   *   2. `organization_lifecycle_receipt_operation_valid` allows only
-   *      'request' and 'cancel'.
-   * Both belong to the migration integrator (see the wiring note in the task
-   * report). Until that migration lands this method fails closed at the
-   * database rather than silently half-lifting the fence, which is the safe
-   * direction: an Organization that cannot prove reactivation stays fenced.
+   * The shared lifecycle event ledger accepts `reactivate` as an explicit
+   * command kind, so the lifted authority, durable fact, and retry result
+   * remain one transaction.
    */
   async function reactivate(
     command: ReactivateOrganizationCommand,
@@ -398,14 +367,8 @@ export const createOrganizationLifecycleCommandStore = (
         .returning()
       const status = authorityStatus(rows[0]!)
 
-      // Same transaction, same generation bump as the request that raised it.
-      // The 0159 policy fence permits this clear only because the authority
-      // row above already left the fenced shape.
-      await setOrganizationPolicy(tx, {
-        organizationId: command.organizationId,
-        suspendedAt: null,
-        suspendedReason: null,
-      })
+      // The authority row above has already lifted the live closure fence.
+      // Keep the interruption point at the same transaction boundary.
       await options.interrupt?.('after_state_and_fence', 'reactivate')
 
       // The lineage and its recovery window describe the closure this

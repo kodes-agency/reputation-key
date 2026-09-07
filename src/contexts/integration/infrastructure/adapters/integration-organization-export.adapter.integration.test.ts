@@ -192,12 +192,24 @@ async function seedFixture(): Promise<Fixture> {
   }
 
   await lease.pool.query(
-    `INSERT INTO google_disconnect_revoke_attempts (
-       id, organization_id, connection_id, initiator_user_id, state,
-       expected_lifecycle_version, expected_access_version,
-       expected_credential_generation, credential_binding, cleanup_deadline_at,
-       activated_at, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'active', 1, 1, 1, $5, $6, $7, $7, $7)`,
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('google_disconnect_revoke', $1, jsonb_build_object(
+       'id', $1::text,
+       'organizationId', $2::text,
+       'connectionId', $3::text,
+       'initiatorUserId', $4::text,
+       'state', 'active',
+       'expectedLifecycleVersion', 1,
+       'expectedAccessVersion', 1,
+       'expectedCredentialGeneration', 1,
+       'credentialBinding', $5::text,
+       'cleanupDeadlineAt', $6::timestamptz,
+       'activatedAt', $7::timestamptz,
+       'dispatchingAt', NULL,
+       'terminalAt', NULL,
+       'outcomeCode', NULL,
+       'updatedAt', $7::timestamptz
+     ), $7)`,
     [
       fixture.revokeAttemptId,
       fixture.organizationId,
@@ -211,13 +223,17 @@ async function seedFixture(): Promise<Fixture> {
 
   // Rows in tables the export must never open at all.
   await lease.pool.query(
-    `INSERT INTO google_oauth_exchange_attempts (
-       id, organization_id, initiator_user_id, connection_id, connection_mode,
-       state, expected_lifecycle_version, expected_access_version,
-       expected_credential_generation, encrypted_result, provider_started_at,
-       preserved_at, response_expires_at, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'new', 'response_preserved', 1, 1, 1,
-               $5, $6, $6, $7, $6, $6)`,
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('google_oauth_exchange', $1, jsonb_build_object(
+       'id', $1::text,
+       'organizationId', $2::text,
+       'initiatorUserId', $3::text,
+       'connectionId', $4::text,
+       'state', 'response_preserved',
+       'encryptedResult', $5::text,
+       'responseExpiresAt', $7::timestamptz,
+       'updatedAt', $6::timestamptz
+     ), $6)`,
     [
       randomUUID(),
       fixture.organizationId,
@@ -287,8 +303,6 @@ async function seedFixture(): Promise<Fixture> {
 }
 
 const ORGANIZATION_SCOPED_TABLES = [
-  'google_oauth_exchange_attempts',
-  'google_disconnect_revoke_attempts',
   'gbp_import_request_items',
   'gbp_import_requests',
   'gbp_import_sagas',
@@ -307,6 +321,12 @@ async function cleanupFixture(fixture: Fixture): Promise<void> {
   await lease.pool.query('DELETE FROM google_subject_authority_guards WHERE id = $1', [
     fixture.guardId,
   ])
+  await lease.pool.query(
+    `DELETE FROM idempotency_receipts
+     WHERE scope IN ('google_oauth_exchange', 'google_disconnect_revoke')
+       AND payload->>'organizationId' = $1`,
+    [fixture.organizationId],
+  )
   for (const table of ORGANIZATION_SCOPED_TABLES) {
     // Table names are hardcoded above, never caller-supplied.
     await lease.pool.query(`DELETE FROM ${table} WHERE organization_id = $1`, [
@@ -471,7 +491,7 @@ describe.sequential('Integration Organization Export contributor', () => {
     expect(payload.excludedRecordClasses.map(({ recordClass }) => recordClass)).toEqual(
       expect.arrayContaining([
         'google_oauth_credentials',
-        'google_oauth_exchange_attempts',
+        'google_oauth_exchange_receipts',
         'provider_execution_and_revoke_permits',
         'google_provider_account_and_location_identifiers',
         'legacy_gbp_provider_cache',

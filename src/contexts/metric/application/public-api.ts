@@ -32,8 +32,16 @@ export type {
  */
 // ── Event re-exports — cross-context consumers must import events from public-api, not domain/events
 export type { MetricRecorded, MetricEvent } from '../domain/events'
-export { METRIC_VERSION_IDS } from '../domain/metric-registry'
-export type { GovernedMetricVersion } from '../domain/metric-registry'
+export {
+  METRIC_DEFINITION_IDS,
+  METRIC_DEFINITIONS,
+  METRIC_VERSION_IDS,
+  findMetricVersionById,
+} from '../domain/metric-registry'
+export type {
+  GovernedMetricVersion,
+  SeededMetricRegistryEntry,
+} from '../domain/metric-registry'
 export type { PortalLifetimeAggregatePort } from './ports/portal-lifetime-aggregate.port'
 
 /** Cross-context lifetime reads. Projection repair and retention sealing stay

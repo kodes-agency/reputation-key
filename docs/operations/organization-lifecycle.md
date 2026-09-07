@@ -119,24 +119,20 @@ Database triggers enforce:
   immutable;
 - transition time cannot move backwards;
 - a recovered Organization cannot begin another closure until explicit
-  reactivation clears its fence; and
-- generic `organization_policy` writes cannot clear/delete the suspension
-  while closure or reactivation work remains.
+  reactivation clears its fence.
 
 ## Request and ordinary cancellation
 
 A closure request locks and rechecks the concrete Better Auth `owner`
-membership and matching active User Organization Binding in the same
-transaction as the command. It requires a caller-provided UUID operation ID,
-closed request reason, bounded content-free support reference, and exact
-30-day deadline.
+membership in the same transaction as the command. It requires a
+caller-provided UUID operation ID, closed request reason, bounded content-free
+support reference, and exact 30-day deadline.
 
 The transaction co-commits:
 
-1. lifecycle revision and closure lineage;
-2. `organization_policy` suspension and global policy generation;
-3. `identity.organization_lifecycle.changed` in the outbox; and
-4. an exact request/cancel retry receipt.
+1. lifecycle revision and closure lineage (the live closure fence);
+2. `identity.organization_lifecycle.changed` in the outbox; and
+3. an exact request/cancel retry receipt.
 
 An interruption before commit rolls back the entire result. Replaying the same
 operation ID with the same binding returns the recorded result; changing its
@@ -331,8 +327,7 @@ Before the Identity command, composition fences Google connector/import work
 and releases current Property/Portal/Inbox manager authorities and Property
 access grants. The Identity transaction then locks the exact membership,
 verifies the durable fact names that same user, deletes all Better Auth sessions
-for the departing user, changes the matching active User Organization Binding
-to `released` with a new version, deletes membership, and appends
+for the departing user, deletes membership, and appends
 `identity.member.removed`.
 
 ### Transfer-first leave (LIF-01-T21)
@@ -420,9 +415,9 @@ pnpm ops:report-organization-lifecycle \
   --org <organization-id>
 ```
 
-The command is read-only apart from the operator harness's content-free policy
-decision audit. It reports state/revision/lineage/deadlines/reactivation fence
-and missing lifecycle/export bindings. It cannot request or cancel closure,
+The command is read-only. It reports state/revision/lineage/deadlines,
+reactivation fence, and missing lifecycle/export bindings. It cannot request
+or cancel closure,
 waive recovery, cross the irreversible boundary, reactivate, generate an
 export, issue a retrieval token, or delete storage.
 
@@ -430,12 +425,11 @@ Use exact tenant/request identifiers and read only:
 
 - `organization_lifecycle_authority` for state, revision, deadline, lineage,
   irreversible time, and reactivation marker;
-- `organization_lifecycle_command_receipts` for request/cancel retry results;
-- `identity_organization_lifecycle_receipts` for co-committed, content-free
-  Identity phase results when reviewed phase work is explicitly bound;
+- `organization_lifecycle_events` for append-only request/cancel retry results,
+  transaction-bound context phase results, Property erase receipts, privacy
+  transitions, and backup legal-hold releases;
 - `organization_export_retrieval_issuances` for append-only, digest-only
   evidence that every old retrieval authority remains dead;
-- `organization_policy` and `policy_version` for the durable suspension fence;
 - `organization_exports` for content-free generation/retrieval/deletion state;
 - `audit_logs` actions `privacy_request.received`,
   `sensitive_data.exported`, and `sensitive_data.accessed`; and

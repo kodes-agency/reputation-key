@@ -3,9 +3,8 @@
  * multi-organization and legacy-Guest data that must be reconciled or archived
  * before migration.
  *
- * Billing is already covered by `ops:manage-dormant-billing-data`; these three
- * had no report at all, which meant the bullet-12 preconditions were being
- * asserted rather than observed.
+ * These three legacy families had no report, which meant the bullet-12
+ * preconditions were being asserted rather than observed.
  *
  * Every query below is a COUNT over a static predicate. There is no delete, no
  * update and no write path in this module, because the rows that make a
@@ -154,12 +153,10 @@ export async function readLegacyCustomRoleInventory(
 // ── Multi-organization membership (spec §3.1.4) ─────────────────────
 
 /**
- * A beta user has one active Organization Membership TOTAL. Multi-Organization
- * records are retained and audited, and a new conflicting invitation pauses for
- * support. The binding table makes a second simultaneous active binding
- * unrepresentable, so the conflicts worth reporting are the ones that live
- * OUTSIDE it: legacy `member` rows the binding never captured, and bindings
- * that disagree with the memberships they are supposed to summarize.
+ * Better Auth membership is the authority for the beta single-Organization
+ * control. This report therefore counts only contradictions in `member` and
+ * pending invitations that would create one; no application-owned mirror is
+ * consulted.
  */
 export async function readLegacyMultiOrganizationInventory(
   db: Database,
@@ -176,86 +173,28 @@ export async function readLegacyMultiOrganizationInventory(
             ) AS multi`,
       ),
       meaning:
-        'A user holds membership in more than one Organization, which beta does not support. Which membership is the active one is a support decision, not a migration default.',
+        'A user holds membership in more than one Organization, which beta does not support. Choosing the surviving membership is a support decision, not a migration default.',
       remediation:
-        'Resolve each user to one active Organization with a recorded reason and release the others through the binding state machine. Retain the released membership rows as the audit trail.',
+        'Resolve each user to one Organization through the supported offboarding flow and preserve the resulting lifecycle and audit evidence.',
     },
     {
-      id: 'binding_disagrees_with_membership',
-      severity: 'blocks_migration',
-      count: await count(
-        db,
-        sql`SELECT count(*)::int AS count FROM user_organization_bindings b
-            WHERE b.state = 'active'
-              AND b.organization_id IS NOT NULL
-              AND NOT EXISTS (
-                SELECT 1 FROM "member" m
-                WHERE m."userId" = b.user_id AND m."organizationId" = b.organization_id
-              )`,
-      ),
-      meaning:
-        'An active binding names an Organization the user is not actually a member of. The binding is the tenant-resolution authority, so this resolves a session into an Organization the membership table does not back.',
-      remediation:
-        'Reconcile the binding against the member rows before migration. Do not delete either side — the disagreement itself is the evidence of what went wrong.',
-    },
-    {
-      id: 'members_without_binding',
+      id: 'pending_invitations_to_members_of_other_organizations',
       severity: 'needs_review',
       count: await count(
         db,
         sql`SELECT count(*)::int AS count FROM (
-              SELECT DISTINCT m."userId" FROM "member" m
-              WHERE NOT EXISTS (
-                SELECT 1 FROM user_organization_bindings b WHERE b.user_id = m."userId"
-              )
-            ) AS unbound`,
+              SELECT DISTINCT i.id
+              FROM invitation i
+              JOIN "user" u ON lower(u.email) = lower(i.email)
+              JOIN member m ON m."userId" = u.id
+              WHERE i.status = 'pending'
+                AND m."organizationId" <> i."organizationId"
+            ) AS conflicting_invitations`,
       ),
       meaning:
-        'A user has membership rows but no binding row at all, so the one-active-membership invariant has never been asserted for them.',
+        'A pending invitation would give an existing member a second Organization if accepted.',
       remediation:
-        'Backfill a binding with source `backfill` after confirming which membership is active. Never infer it from row order.',
-    },
-    {
-      id: 'bindings_awaiting_support_resolution',
-      severity: 'needs_review',
-      count: await count(
-        db,
-        sql`SELECT count(*)::int AS count FROM user_organization_bindings WHERE state = 'support_resolution'`,
-      ),
-      meaning:
-        'A conflicting invitation already paused for support, exactly as §3.1.4 requires. These are known, open cases rather than undiscovered ones.',
-      remediation:
-        'Close each case through support before migration so the migration does not inherit an ambiguous active Organization.',
-    },
-    {
-      id: 'pending_invitations_to_bound_users',
-      severity: 'needs_review',
-      count: await count(
-        db,
-        sql`SELECT count(*)::int AS count FROM invitation i
-            JOIN "user" u ON lower(u.email) = lower(i.email)
-            JOIN user_organization_bindings b ON b.user_id = u.id
-            WHERE i.status = 'pending'
-              AND b.state = 'active'
-              AND b.organization_id IS NOT NULL
-              AND b.organization_id <> i."organizationId"`,
-      ),
-      meaning:
-        'A pending invitation would give an already-bound user a second Organization the moment it is accepted, recreating the conflict after migration.',
-      remediation:
-        'Pause or expire these invitations before migration. §3.1.4 requires them to route to support rather than to auto-accept.',
-    },
-    {
-      id: 'released_bindings',
-      severity: 'informational',
-      count: await count(
-        db,
-        sql`SELECT count(*)::int AS count FROM user_organization_bindings WHERE state = 'released'`,
-      ),
-      meaning:
-        'Bindings already resolved and released. Retained deliberately as the audit trail for a past multi-Organization decision.',
-      remediation:
-        'No action. Do not prune: the released row plus its resolution reason is the record of why a user lost an Organization.',
+        'Cancel or expire these invitations. The invitation command rejects the same conflict from current Better Auth membership.',
     },
   ]
 

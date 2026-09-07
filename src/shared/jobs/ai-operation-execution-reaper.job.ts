@@ -45,6 +45,12 @@ type AiOperationExecutionReaperOutcome = Readonly<{
 
 type AiOperationExecutionReaperDeps = Readonly<{
   reap: () => Promise<AiOperationExecutionReaperOutcome>
+  /**
+   * Release budget reservations whose operation never settled (WP3.3-B): the
+   * same "owner died mid-flight" condition as an abandoned execution, on the
+   * same tick. Returns the number of reservations released.
+   */
+  releaseStaleReservations: () => Promise<number>
 }>
 
 export const createAiOperationExecutionReaperHandler =
@@ -52,6 +58,7 @@ export const createAiOperationExecutionReaperHandler =
   async (_job: Job): Promise<void> =>
     trace(`job.${JOB_NAME}`, async () => {
       const outcome = await deps.reap()
+      const reservationsReleased = await deps.releaseStaleReservations()
       // Counts only — no operation id, organization, property, review, capability
       // or provider identifier reaches a log line.
       getLogger().info(
@@ -61,6 +68,7 @@ export const createAiOperationExecutionReaperHandler =
           operationsFenced: outcome.operationsFenced,
           operationsRaced: outcome.operationsRaced,
           batchFull: outcome.batchFull,
+          reservationsReleased,
         },
         'AI operation abandoned-execution reaper completed',
       )

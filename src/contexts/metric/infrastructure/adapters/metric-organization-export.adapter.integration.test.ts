@@ -159,32 +159,6 @@ async function seedFixture(): Promise<Fixture> {
                TIMESTAMPTZ '2026-08-27T09:00:00Z', NOW())`,
     [fixture.propertyId, organizationId, randomUUID(), randomUUID()],
   )
-  await lease.pool.query(
-    `INSERT INTO metric_source_watermarks (
-       consumer_name, source_name, organization_id, property_id,
-       definition_version_id, last_source_event_id, last_event_at, updated_at
-     ) VALUES ('metric.guest-gateway', 'guest.response.recorded', $1, $2, $3, $4,
-               TIMESTAMPTZ '2026-08-27T10:00:00Z', NOW())`,
-    [
-      organizationId,
-      fixture.propertyId,
-      RATING_COUNT_GOAL_VERSION,
-      `${fixture.sourceEventMarker}-watermark`,
-    ],
-  )
-
-  // Maintenance state the archive must never reach.
-  await lease.pool.query(
-    `INSERT INTO metric_quarantine (
-       source_event_id, organization_id, property_id, reason, payload_hash
-     ) VALUES ($1, $2, $3, 'never_export_quarantine_marker', $4)`,
-    [
-      `${fixture.sourceEventMarker}-quarantine`,
-      organizationId,
-      fixture.propertyId,
-      'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-    ],
-  )
 
   return fixture
 }
@@ -218,8 +192,6 @@ describe.sequential('Metric Organization Export contributor', () => {
     )
     for (const table of [
       'metric_readings',
-      'metric_quarantine',
-      'metric_source_watermarks',
       'portal_metric_lifetime_aggregates',
       'metric_current_google_reputation_snapshots',
       'portals',
@@ -264,8 +236,6 @@ describe.sequential('Metric Organization Export contributor', () => {
       'metric/portal-lifetime.json',
       'metric/readings.csv',
       'metric/readings.json',
-      'metric/watermarks.csv',
-      'metric/watermarks.json',
     ])
     for (const entry of first.entries) {
       expect(CLASSIFICATIONS_BY_CONTEXT.metric).toContain(entry.classification)

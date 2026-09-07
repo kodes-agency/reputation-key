@@ -29,17 +29,23 @@ import {
 import { properties } from '#/shared/db/schema/property.schema'
 import { portals } from '#/shared/db/schema/portal.schema'
 import { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
-import {
-  metricDefinitionVersions,
-  metricReadings,
-} from '#/shared/db/schema/metric.schema'
-import { goals } from '#/shared/db/schema/goal.schema'
+import { metricReadings } from '#/shared/db/schema/metric.schema'
 import { user, member, organization } from '#/shared/db/schema/auth'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import type { DomainEvent } from '#/shared/events/events'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
+import { METRIC_DEFINITIONS } from '#/contexts/metric/application/public-api'
 
 const MS_PER_DAY = 86_400_000
+const METRIC_EFFECTIVE_FLOOR_AT = METRIC_DEFINITIONS.reduce(
+  (latest, entry) =>
+    entry.versions.reduce(
+      (definitionLatest, version) =>
+        Math.max(definitionLatest, version.effectiveFrom.getTime()),
+      latest,
+    ),
+  0,
+)
 
 export type ScenarioReviewSpec = Readonly<{
   rating: 1 | 2 | 3 | 4 | 5
@@ -47,12 +53,6 @@ export type ScenarioReviewSpec = Readonly<{
   reviewerName?: string
   daysAgo: number
   reply?: boolean
-}>
-
-export type ScenarioGoalSpec = Readonly<{
-  name: string
-  metricKey: string
-  targetValue: number
 }>
 
 export type ScenarioGuestSpec = Readonly<{
@@ -69,7 +69,6 @@ export type ScenarioPropertySpec = Readonly<{
   scansPerDay?: number
   scanHistoryDays?: number
   guest?: ScenarioGuestSpec
-  goals?: ReadonlyArray<ScenarioGoalSpec>
 }>
 
 export type ScenarioSpec = Readonly<{
@@ -84,7 +83,6 @@ export type ScenarioResult = Readonly<{
   portalsCreated: number
   guestInteractions: number
   repliesCreated: number
-  goalsCreated: number
 }>
 
 // ── Shared context for all helpers ──────────────────────────────────
@@ -323,13 +321,9 @@ async function createGuestData(
   guestSpec: ScenarioGuestSpec,
 ): Promise<{ interactions: number; events: number }> {
   const overDays = guestSpec.overDays ?? 30
-  // Metric definitions are effective from a seeded date; a reading before it
-  // is quarantined (definition_version_not_effective), so the backdating floor
-  // is the newest effective_from rather than an arbitrary day count.
-  const versions = await ctx.db
-    .select({ effectiveFrom: metricDefinitionVersions.effectiveFrom })
-    .from(metricDefinitionVersions)
-  const floorAt = Math.max(0, ...versions.map((v) => v.effectiveFrom.getTime()))
+  // Readings pre-dating their code-reviewed version are rejected, so
+  // backdating starts no earlier than the newest catalogue effective date.
+  const floorAt = METRIC_EFFECTIVE_FLOOR_AT
   const common = {
     organizationId: unbrand(ctx.orgId),
     portalId: unbrand(pId),
@@ -433,41 +427,6 @@ async function createGuestData(
   return { interactions: created, events: created }
 }
 
-async function createGoals(
-  ctx: Ctx,
-  propId: ReturnType<typeof propertyId>,
-  pId: ReturnType<typeof portalId>,
-  goalSpecs: ReadonlyArray<ScenarioGoalSpec>,
-): Promise<number> {
-  let created = 0
-  for (const spec of goalSpecs) {
-    try {
-      await ctx.db.insert(goals).values({
-        id: crypto.randomUUID(),
-        organizationId: unbrand(ctx.orgId),
-        propertyId: unbrand(propId),
-        portalId: unbrand(pId),
-        name: spec.name,
-        createdBy: unbrand(ctx.simUserId),
-        goalType: 'open',
-        aggregationFunction: 'sum',
-        metricKey: spec.metricKey,
-        targetValue: spec.targetValue,
-        status: 'active',
-        periodStart: new Date(ctx.now.getTime() - 15 * MS_PER_DAY),
-        periodEnd: new Date(ctx.now.getTime() + 15 * MS_PER_DAY),
-      })
-      created++
-    } catch (err) {
-      ctx.container.logger.warn(
-        { err: err instanceof Error ? err.message : String(err) },
-        'Sim goal create failed',
-      )
-    }
-  }
-  return created
-}
-
 async function createMetricHistory(
   ctx: Ctx,
   propId: ReturnType<typeof propertyId>,
@@ -537,8 +496,7 @@ export async function buildScenario(
     propertiesCreated = 0
   let portalsCreated = 0,
     guestInteractions = 0,
-    repliesCreated = 0,
-    goalsCreated = 0
+    repliesCreated = 0
 
   for (const propSpec of spec.properties) {
     const { propId, portalId: pId } = await createPropertyAndPortal(ctx, propSpec)
@@ -555,8 +513,6 @@ export async function buildScenario(
       guestInteractions += g.interactions
       factsRecorded += g.events
     }
-
-    goalsCreated += await createGoals(ctx, propId, pId, propSpec.goals ?? [])
 
     if (propSpec.scansPerDay && propSpec.scanHistoryDays) {
       await createMetricHistory(
@@ -576,6 +532,5 @@ export async function buildScenario(
     portalsCreated,
     guestInteractions,
     repliesCreated,
-    goalsCreated,
   }
 }

@@ -1,18 +1,7 @@
-// PropertyAccessGrant + org policy state contracts (identity-owned).
+// PropertyAccessGrant contracts owned by Identity.
 //
-// Type contracts for the grant repository and the policy-state repository —
-// the application layer imports records from here (boundary rule); the
-// infrastructure repositories implement them.
-//
-// OrgPolicyRecord/PropertyPolicyRecord are imported from
-// shared/domain/policy-records — the single home legal for application,
-// shared/auth, and infrastructure alike (BQC-5.8; previously mirrored here).
-// The policy tables are the single source of truth for both.
-
-import type {
-  OrgPolicyRecord,
-  PropertyPolicyRecord,
-} from '#/shared/domain/policy-records'
+// The application layer owns these record shapes; infrastructure implements
+// them and other contexts consume them through Identity's public seams.
 
 export type GrantSource = 'operator' | 'migration' | 'invitation'
 
@@ -27,12 +16,6 @@ export type PropertyAccessGrantRecord = Readonly<{
   expiresAt: Date | null
   revokedAt: Date | null
   revokeReason: string | null
-}>
-
-export type OrgPolicyState = Readonly<{
-  policy: OrgPolicyRecord | null
-  capabilities: ReadonlyArray<string>
-  propertyPolicies: ReadonlyArray<PropertyPolicyRecord>
 }>
 
 /**

@@ -43,10 +43,18 @@ type Fixture = Readonly<{
 async function counts(organizationId: string): Promise<Record<string, number>> {
   const entries = await Promise.all(
     OBSERVED_TABLES.map(async (table) => {
-      const result = await lease.pool.query(
-        `SELECT COUNT(*)::int AS count FROM ${table} WHERE organization_id = $1`,
-        [organizationId],
-      )
+      const result =
+        table === 'idempotency_receipts'
+          ? await lease.pool.query(
+              `SELECT COUNT(*)::int AS count FROM idempotency_receipts
+               WHERE scope = 'property_operation'
+                 AND payload->>'organizationId' = $1`,
+              [organizationId],
+            )
+          : await lease.pool.query(
+              `SELECT COUNT(*)::int AS count FROM ${table} WHERE organization_id = $1`,
+              [organizationId],
+            )
       return [table, Number(result.rows[0]?.count ?? 0)] as const
     }),
   )
@@ -97,13 +105,14 @@ async function seedFixture(): Promise<Fixture> {
     [randomUUID(), organizationId, fixture.activePropertyId, actor],
   )
   await q(
-    `INSERT INTO property_operation_receipts (
-       id, organization_id, idempotency_key, destination_property_id, outcome,
-       destination_source_epoch, destination_profile_version, tombstone,
-       expires_at, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'imported', 0, 1, false,
-               now() + interval '30 days', now(), now())`,
-    [randomUUID(), organizationId, randomUUID(), fixture.activePropertyId],
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('property_operation', $1, jsonb_build_object(
+       'organizationId', $2::text,
+       'destinationPropertyId', $3::text,
+       'outcome', 'imported',
+       'tombstone', false
+     ), now())`,
+    [randomUUID(), organizationId, fixture.activePropertyId],
   )
   return fixture
 }
@@ -180,17 +189,17 @@ async function deleteReceiptFixtures(organizationIds: readonly string[]): Promis
   try {
     await client.query('BEGIN')
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       DISABLE TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       DISABLE TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query(
-      `DELETE FROM context_organization_lifecycle_receipts
+      `DELETE FROM organization_lifecycle_events
        WHERE organization_id = ANY($1::text[])`,
       [organizationIds],
     )
     await client.query(
-      `ALTER TABLE context_organization_lifecycle_receipts
-       ENABLE ALWAYS TRIGGER context_organization_lifecycle_receipts_update_delete_guard`,
+      `ALTER TABLE organization_lifecycle_events
+       ENABLE ALWAYS TRIGGER organization_lifecycle_events_append_only`,
     )
     await client.query('COMMIT')
   } catch (error) {
@@ -201,12 +210,7 @@ async function deleteReceiptFixtures(organizationIds: readonly string[]): Promis
   }
 }
 
-const CLEANUP_ORDER = [
-  'portals',
-  'property_operation_receipts',
-  'property_responsible_managers',
-  'properties',
-] as const
+const CLEANUP_ORDER = ['portals', 'property_responsible_managers', 'properties'] as const
 
 describe.sequential('Property Organization lifecycle contributor', () => {
   beforeAll(async () => {
@@ -220,6 +224,11 @@ describe.sequential('Property Organization lifecycle contributor', () => {
 
   afterEach(async () => {
     const ids = [...organizations]
+    await lease.pool.query(
+      `DELETE FROM idempotency_receipts
+       WHERE scope = 'property_operation' AND payload->>'organizationId' = ANY($1::text[])`,
+      [ids],
+    )
     for (const table of CLEANUP_ORDER) {
       await lease.pool.query(
         `DELETE FROM ${table} WHERE organization_id = ANY($1::text[])`,
@@ -276,8 +285,11 @@ describe.sequential('Property Organization lifecycle contributor', () => {
     })
 
     const receipt = await lease.pool.query(
-      `SELECT context, phase, outcome, evidence_ref
-       FROM context_organization_lifecycle_receipts WHERE organization_id = $1`,
+      `SELECT context, phase, payload->>'outcome' AS outcome,
+              payload->>'evidenceRef' AS evidence_ref
+       FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(receipt.rows).toEqual([
@@ -318,8 +330,9 @@ describe.sequential('Property Organization lifecycle contributor', () => {
 
     expect(await counts(fixture.organizationId)).toEqual(before)
     const receipts = await lease.pool.query(
-      `SELECT COUNT(*)::int AS count FROM context_organization_lifecycle_receipts
-       WHERE organization_id = $1`,
+      `SELECT COUNT(*)::int AS count FROM organization_lifecycle_events
+       WHERE organization_id = $1
+         AND kind LIKE 'organization_lifecycle_contribution:%'`,
       [fixture.organizationId],
     )
     expect(Number(receipts.rows[0]?.count)).toBe(0)
@@ -425,12 +438,14 @@ describe.sequential('Property Organization lifecycle contributor', () => {
     const state = await lease.pool.query(
       `SELECT
          (SELECT COUNT(*)::int FROM properties WHERE organization_id = $1) AS properties,
-         (SELECT COUNT(*)::int FROM property_operation_receipts
-          WHERE organization_id = $1) AS receipts,
+         (SELECT COUNT(*)::int FROM idempotency_receipts
+          WHERE scope = 'property_operation'
+            AND payload->>'organizationId' = $1) AS receipts,
          (SELECT COUNT(*)::int FROM property_responsible_managers
           WHERE organization_id = $1) AS managers,
-         (SELECT COUNT(*)::int FROM context_organization_lifecycle_receipts
-          WHERE organization_id = $1) AS lifecycle_receipts`,
+         (SELECT COUNT(*)::int FROM organization_lifecycle_events
+          WHERE organization_id = $1
+            AND kind LIKE 'organization_lifecycle_contribution:%') AS lifecycle_receipts`,
       [fixture.organizationId],
     )
     expect(state.rows[0]).toEqual({

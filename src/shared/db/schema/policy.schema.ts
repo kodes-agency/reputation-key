@@ -1,80 +1,25 @@
-// Policy state (BQC-2.2 / ADR 0032/0033) — app-owned authorization-policy tables.
+// App-owned authorization records that survive the static capability cutover.
 //
-// organization_policy / property_policy: cohort + suspension.
-// organization_capability / property_capability: non-core capability allowlists.
 // property_access_grant: user ↔ property access with scope/source/lifecycle —
-//   the authoritative grant model BQC-2.3 wires into decisions. Tenant
-//   consistency is enforced by a composite FK to properties(organization_id, id)
-//   (the first explicit DB-level tenant constraint; see migration 0014).
-// policy_consent: generic governed consent state (future AI opt-in; phase §9).
-// policy_decision_audit: content-free decision records (identifiers/enums only;
-//   no FK — audit evidence survives tenant deletion per BQC-1.7).
-// policy_version: global counter bumped by every policy mutation in the same
-//   statement; the snapshot store polls it for cache invalidation (mirrors the
-//   permission_version pattern in dac.schema.ts).
+//   the authoritative grant model used by execution-policy decisions. Tenant
+//   consistency is enforced by a composite FK to properties(organization_id, id).
+// policy_consent: governed consent state.
 
 import { sql } from 'drizzle-orm'
 import {
   pgTable,
   text,
-  bigint,
   uuid,
   timestamp,
   uniqueIndex,
   index,
   check,
-  primaryKey,
   foreignKey,
 } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth'
 import { properties } from './property.schema'
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
-
-export const organizationPolicy = pgTable('organization_policy', {
-  organizationId: text('organization_id')
-    .primaryKey()
-    .references(() => organization.id, { onDelete: 'cascade' }),
-  cohort: text('cohort').notNull().default('beta'),
-  suspendedAt: timestamptz('suspended_at'),
-  suspendedReason: text('suspended_reason'),
-  updatedAt: timestamptz('updated_at').notNull().defaultNow(),
-})
-
-export const organizationCapability = pgTable(
-  'organization_capability',
-  {
-    organizationId: text('organization_id')
-      .notNull()
-      .references(() => organization.id, { onDelete: 'cascade' }),
-    capability: text('capability').notNull(),
-    createdBy: text('created_by'),
-    createdAt: timestamptz('created_at').notNull().defaultNow(),
-  },
-  (t) => [primaryKey({ columns: [t.organizationId, t.capability] })],
-)
-
-export const propertyPolicy = pgTable('property_policy', {
-  propertyId: uuid('property_id')
-    .primaryKey()
-    .references(() => properties.id, { onDelete: 'cascade' }),
-  suspendedAt: timestamptz('suspended_at'),
-  suspendedReason: text('suspended_reason'),
-  updatedAt: timestamptz('updated_at').notNull().defaultNow(),
-})
-
-export const propertyCapability = pgTable(
-  'property_capability',
-  {
-    propertyId: uuid('property_id')
-      .notNull()
-      .references(() => properties.id, { onDelete: 'cascade' }),
-    capability: text('capability').notNull(),
-    createdBy: text('created_by'),
-    createdAt: timestamptz('created_at').notNull().defaultNow(),
-  },
-  (t) => [primaryKey({ columns: [t.propertyId, t.capability] })],
-)
 
 export const propertyAccessGrant = pgTable(
   'property_access_grant',
@@ -140,46 +85,3 @@ export const policyConsent = pgTable(
       .where(sql`${t.state} = 'granted'`),
   ],
 )
-
-export const policyDecisionAudit = pgTable(
-  'policy_decision_audit',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    occurredAt: timestamptz('occurred_at').notNull().defaultNow(),
-    actorType: text('actor_type').notNull(),
-    actorId: text('actor_id'),
-    organizationId: text('organization_id'),
-    propertyId: uuid('property_id'),
-    action: text('action').notNull(),
-    capability: text('capability'),
-    executionKind: text('execution_kind').notNull(),
-    decision: text('decision').notNull(),
-    reason: text('reason').notNull(),
-    policyVersion: text('policy_version').notNull(),
-    correlationId: text('correlation_id'),
-  },
-  (t) => [
-    check(
-      'policy_decision_audit_actor_check',
-      sql`${t.actorType} IN ('user', 'system', 'operator', 'public')`,
-    ),
-    check(
-      'policy_decision_audit_execution_check',
-      sql`${t.executionKind} IN ('interactive', 'worker', 'consumer', 'schedule', 'operator', 'public')`,
-    ),
-    check(
-      'policy_decision_audit_decision_check',
-      sql`${t.decision} IN ('allow', 'deny')`,
-    ),
-    index('policy_decision_audit_org_time_idx').on(t.organizationId, t.occurredAt.desc()),
-  ],
-)
-
-export const policyVersion = pgTable('policy_version', {
-  scope: text('scope').primaryKey(),
-  version: bigint('version', { mode: 'number' }).notNull().default(0),
-  emergencyKillVersion: bigint('emergency_kill_version', { mode: 'number' })
-    .notNull()
-    .default(0),
-  updatedAt: timestamptz('updated_at').notNull().defaultNow(),
-})

@@ -20,8 +20,6 @@ const APPEND_ONLY_GUARDS = [
   { table: 'goal_result_revisions', name: 'goal_result_revisions_append_only' },
   { table: 'goal_monthly_results', name: 'goal_monthly_results_guard' },
   { table: 'goal_program_versions', name: 'goal_program_versions_append_only' },
-  { table: 'goal_evaluations', name: 'goal_evaluations_immutable' },
-  { table: 'goal_definition_versions', name: 'goal_definition_versions_immutable' },
 ] as const
 
 const organizations = new Set<string>()
@@ -44,12 +42,6 @@ type Fixture = Readonly<{
   ratingAverageProgram: ProgramFixture
   monthlyResultId: string
   revisionId: string
-  legacyGoalId: string
-  definitionId: string
-  definitionVersionId: string
-  periodId: string
-  evaluationId: string
-  receiptMarker: string
 }>
 
 async function seedOrganization(prefix: string): Promise<string> {
@@ -152,12 +144,6 @@ async function seedFixture(): Promise<Fixture> {
     ratingAverageProgram: programFixture(),
     monthlyResultId: randomUUID(),
     revisionId: randomUUID(),
-    legacyGoalId: randomUUID(),
-    definitionId: randomUUID(),
-    definitionVersionId: randomUUID(),
-    periodId: randomUUID(),
-    evaluationId: randomUUID(),
-    receiptMarker: `NEVER-EXPORT-RECEIPT-${randomUUID()}`,
   }
 
   await lease.pool.query(
@@ -249,115 +235,6 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.revisionId, fixture.monthlyResultId, organizationId, fixture.propertyId],
   )
 
-  // Legacy pre-beta family, still tenant-authored configuration.
-  await lease.pool.query(
-    `INSERT INTO goals (
-       id, organization_id, property_id, portal_id, name, created_by, goal_type,
-       aggregation_function, metric_key, target_value, status, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'Legacy Goal', 'user-goal-export', 'target', 'sum',
-               'portal.rating_count', 10, 'active', NOW(), NOW())`,
-    [fixture.legacyGoalId, organizationId, fixture.propertyId, fixture.portalId],
-  )
-  await lease.pool.query(
-    `INSERT INTO goal_progress (
-       goal_id, organization_id, current_value, current_sum, current_count,
-       last_computed_at, computed_source
-     ) VALUES ($1, $2, 4, 4, 4, TIMESTAMPTZ '2026-08-27T00:00:00Z', 'metric')`,
-    [fixture.legacyGoalId, organizationId],
-  )
-
-  // Governed definition family with a Portal Group scope, one period, and one
-  // evaluation bound to it.
-  await lease.pool.query(
-    `INSERT INTO goal_definitions (
-       id, organization_id, property_id, scope_kind, portal_group_id, name,
-       status, current_version, created_by, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'portal_group', $4, 'Group Definition', 'active', 1,
-               'user-goal-export', NOW(), NOW())`,
-    [fixture.definitionId, organizationId, fixture.propertyId, fixture.portalGroupId],
-  )
-  await lease.pool.query(
-    `INSERT INTO goal_definition_versions (
-       id, definition_id, organization_id, property_id, version,
-       metric_definition_id, metric_definition_version_id, metric_key,
-       metric_value_kind, metric_minimum_sample, metric_allowed_scopes,
-       metric_permitted_consumers, measure_kind, target_value, source_policy,
-       property_timezone, recurrence_rule, effective_from, change_reason,
-       created_by, created_at
-     ) VALUES ($1, $2, $3, $4, 1, $5, $6, 'portal.rating_count', 'counter', 1,
-               '["portal_group"]'::jsonb, '["goal"]'::jsonb, 'progress', 25,
-               'first_party_guest_gateway_metric', 'UTC',
-               '{"frequency":"monthly","interval":1}'::jsonb,
-               TIMESTAMPTZ '2026-08-01T00:00:00Z', 'initial', 'user-goal-export', NOW())`,
-    [
-      fixture.definitionVersionId,
-      fixture.definitionId,
-      organizationId,
-      fixture.propertyId,
-      RATING_COUNT_DEFINITION,
-      RATING_COUNT_VERSION,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO goal_periods (
-       id, definition_id, definition_version_id, organization_id, property_id,
-       period_start, period_end, property_timezone, status, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, TIMESTAMPTZ '2026-08-01T00:00:00Z',
-               TIMESTAMPTZ '2026-09-01T00:00:00Z', 'UTC', 'open', NOW(), NOW())`,
-    [
-      fixture.periodId,
-      fixture.definitionId,
-      fixture.definitionVersionId,
-      organizationId,
-      fixture.propertyId,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO goal_evaluations (
-       id, period_id, definition_id, definition_version_id, organization_id,
-       property_id, idempotency_key, state, value, sample_count, achieved,
-       evaluation_watermark, created_by, created_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'eligible', 12, 12, false,
-               TIMESTAMPTZ '2026-08-27T00:00:00Z', 'user-goal-export', NOW())`,
-    [
-      fixture.evaluationId,
-      fixture.periodId,
-      fixture.definitionId,
-      fixture.definitionVersionId,
-      organizationId,
-      fixture.propertyId,
-      `${fixture.receiptMarker}-idempotency`,
-    ],
-  )
-
-  // Idempotency receipts: content-free control plane the archive must not reach.
-  await lease.pool.query(
-    `INSERT INTO goal_refresh_receipts (
-       source_event_id, period_id, organization_id, property_id, evaluation_id
-     ) VALUES ($1, $2, $3, $4, $5)`,
-    [
-      `${fixture.receiptMarker}-refresh`,
-      fixture.periodId,
-      organizationId,
-      fixture.propertyId,
-      fixture.evaluationId,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO goal_timezone_event_receipts (
-       source_event_id, definition_id, organization_id, property_id,
-       property_version, new_definition_version_id, new_period_id
-     ) VALUES ($1, $2, $3, $4, 1, $5, $6)`,
-    [
-      `${fixture.receiptMarker}-timezone`,
-      fixture.definitionId,
-      organizationId,
-      fixture.propertyId,
-      fixture.definitionVersionId,
-      fixture.periodId,
-    ],
-  )
-
   return fixture
 }
 
@@ -394,19 +271,11 @@ describe.sequential('Goal Organization Export contributor', () => {
       await lease.pool.query(`ALTER TABLE ${guard.table} DISABLE TRIGGER ${guard.name}`)
     }
     for (const table of [
-      'goal_refresh_receipts',
-      'goal_timezone_event_receipts',
       'goal_result_revisions',
       'goal_monthly_results',
       'goal_subject_assignments',
       'goal_program_versions',
       'goal_programs',
-      'goal_evaluations',
-      'goal_periods',
-      'goal_definition_versions',
-      'goal_definitions',
-      'goal_progress',
-      'goals',
       'portal_groups',
       'portals',
       'properties',
@@ -422,7 +291,7 @@ describe.sequential('Goal Organization Export contributor', () => {
     organizations.clear()
   })
 
-  it('exports every Goal family deterministically without idempotency receipts', async () => {
+  it('exports every Goal Program family deterministically', async () => {
     const fixture = await seedFixture()
     const asOf = new Date(Date.now() - 1000)
     const contributor = createGoalOrganizationExportAdapter(db)
@@ -445,12 +314,6 @@ describe.sequential('Goal Organization Export contributor', () => {
       omissionCodes: [],
     })
     expect(first.entries.map(({ path }) => path)).toEqual([
-      'goal/definitions.csv',
-      'goal/definitions.json',
-      'goal/goals.csv',
-      'goal/goals.json',
-      'goal/periods.csv',
-      'goal/periods.json',
       'goal/programs.csv',
       'goal/programs.json',
       'goal/results.csv',
@@ -461,9 +324,6 @@ describe.sequential('Goal Organization Export contributor', () => {
     for (const entry of first.entries) {
       expect(CLASSIFICATIONS_BY_CONTEXT.goal).toContain(entry.classification)
     }
-
-    const archiveText = first.entries.map(({ bytes }) => decode(bytes)).join('\n')
-    expect(archiveText).not.toContain('NEVER-EXPORT-RECEIPT-')
   })
 
   it('exports all three measures at Portal, Portal Group and Property scope', async () => {
@@ -531,15 +391,6 @@ describe.sequential('Goal Organization Export contributor', () => {
         ({ id, revision }) => ({ id, revision }),
       ),
     ).toEqual([{ id: fixture.revisionId, revision: 1 }])
-
-    const evaluations = records(
-      contribution.entries,
-      'goal/periods.json',
-      'goal_evaluation',
-    )
-    expect(evaluations[0]).toMatchObject({ id: fixture.evaluationId, state: 'eligible' })
-    expect(Object.keys(evaluations[0]!)).not.toContain('idempotency_key')
-    expect(Object.keys(evaluations[0]!)).not.toContain('source_event_id')
   })
 
   it('answers no_data for an Organization that configured no goal', async () => {

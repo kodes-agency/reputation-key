@@ -51,7 +51,7 @@ export type MetricContextBuildInput = Readonly<{
 
 export const buildMetricContext = (input: MetricContextBuildInput) => {
   const metricRepo = createMetricRepository(input.db, input.clock)
-  const registry = createMetricRegistryRepository(input.db)
+  const registry = createMetricRegistryRepository()
   const portalAnalytics = queryPortalAnalytics(
     createPortalAnalyticsRepository(input.db, input.clock),
   )

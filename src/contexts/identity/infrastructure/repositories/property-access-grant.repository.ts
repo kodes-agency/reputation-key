@@ -5,12 +5,8 @@
 // team membership, or portal participation. Tenant consistency is enforced by
 // the composite FK to properties(organization_id, id); one active grant per
 // (org, property, user) by partial unique index.
-//
-// Every mutation bumps the global policy_version in the same statement.
-
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { BUMP_POLICY_VERSION_SQL } from './policy-version-sql'
 import type {
   GrantSource,
   PropertyAccessGrantRecord,
@@ -57,21 +53,17 @@ export async function grantPropertyAccess(
   input: GrantPropertyAccessInput,
 ): Promise<PropertyAccessGrantRecord> {
   const rows = await db.execute(sql`
-    WITH ${BUMP_POLICY_VERSION_SQL},
-    ins AS (
-      INSERT INTO property_access_grant
-        (organization_id, property_id, user_id, source, created_by, expires_at)
-      VALUES (
-        ${input.organizationId},
-        ${input.propertyId},
-        ${input.userId},
-        ${input.source},
-        ${input.createdBy ?? null},
-        ${input.expiresAt ?? null}
-      )
-      RETURNING *
+    INSERT INTO property_access_grant
+      (organization_id, property_id, user_id, source, created_by, expires_at)
+    VALUES (
+      ${input.organizationId},
+      ${input.propertyId},
+      ${input.userId},
+      ${input.source},
+      ${input.createdBy ?? null},
+      ${input.expiresAt ?? null}
     )
-    SELECT * FROM ins
+    RETURNING *
   `)
   return mapGrant(rows.rows[0] as Record<string, unknown>)
 }
@@ -86,17 +78,13 @@ export async function revokePropertyAccess(
   }>,
 ): Promise<boolean> {
   const rows = await db.execute(sql`
-    WITH ${BUMP_POLICY_VERSION_SQL},
-    upd AS (
-      UPDATE property_access_grant
-      SET revoked_at = now(), revoke_reason = ${input.reason ?? null}
-      WHERE organization_id = ${input.organizationId}
-        AND property_id = ${input.propertyId}
-        AND user_id = ${input.userId}
-        AND revoked_at IS NULL
-      RETURNING id
-    )
-    SELECT id FROM upd
+    UPDATE property_access_grant
+    SET revoked_at = now(), revoke_reason = ${input.reason ?? null}
+    WHERE organization_id = ${input.organizationId}
+      AND property_id = ${input.propertyId}
+      AND user_id = ${input.userId}
+      AND revoked_at IS NULL
+    RETURNING id
   `)
   return rows.rows.length > 0
 }
@@ -117,16 +105,12 @@ export async function revokeAllPropertyAccessForUser(
   }>,
 ): Promise<number> {
   const rows = await db.execute(sql`
-    WITH ${BUMP_POLICY_VERSION_SQL},
-    upd AS (
-      UPDATE property_access_grant
-      SET revoked_at = now(), revoke_reason = ${input.reason}
-      WHERE organization_id = ${input.organizationId}
-        AND user_id = ${input.userId}
-        AND revoked_at IS NULL
-      RETURNING id
-    )
-    SELECT id FROM upd
+    UPDATE property_access_grant
+    SET revoked_at = now(), revoke_reason = ${input.reason}
+    WHERE organization_id = ${input.organizationId}
+      AND user_id = ${input.userId}
+      AND revoked_at IS NULL
+    RETURNING id
   `)
   return rows.rows.length
 }
@@ -187,20 +171,4 @@ export async function hasActiveGrant(
     LIMIT 1
   `)
   return rows.rows.length > 0
-}
-
-/** All active grants in an org — the policy-admin surface read (BQC-2.7). */
-export async function listActiveGrantsForOrg(
-  db: Database,
-  organizationId: string,
-  at: Date,
-): Promise<ReadonlyArray<PropertyAccessGrantRecord>> {
-  const rows = await db.execute(sql`
-    SELECT * FROM property_access_grant
-    WHERE organization_id = ${organizationId}
-      AND revoked_at IS NULL
-      AND (expires_at IS NULL OR expires_at > ${at})
-    ORDER BY property_id, user_id
-  `)
-  return rows.rows.map((r) => mapGrant(r as Record<string, unknown>))
 }

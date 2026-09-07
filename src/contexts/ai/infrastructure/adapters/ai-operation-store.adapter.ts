@@ -1,16 +1,16 @@
 import { createHash } from 'node:crypto'
 import { and, eq, gt, isNull, lte, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { aiExecutionPermits, aiOperationAttempts, aiOperations } from '#/shared/db/schema'
-import type { AiErrorCode } from '../../domain/errors'
+import { aiOperations } from '#/shared/db/schema'
 import {
-  createAiOperationIdentity,
-  parseAiCanaryExecutionBinding,
-  parseAiExecutionBinding,
-} from '../../domain/rules'
+  AI_OPERATION_PROFILES,
+  AI_PROVIDER_DEPLOYMENT_PROFILE,
+  AI_ROUTING_POLICY,
+} from '#/shared/ai-operation-profiles'
+import { getAiRuntimeCapability } from '#/shared/ai-runtime-capability-contract'
+import type { AiErrorCode } from '../../domain/errors'
+import { createAiOperationIdentity, parseAiExecutionBinding } from '../../domain/rules'
 import type {
-  AiCanaryExecutionBinding,
-  AiExecutionBinding,
   AiOperationBinding,
   AiOperationId,
   AiOperationIdentity,
@@ -149,25 +149,6 @@ function parseIdentity(row: OperationRow): AiOperationIdentity {
       ),
       aggregateRevision: requireValue(row.aggregateRevision, 'aggregateRevision'),
     }
-  } else if (row.command === 'synthetic_canary') {
-    source = {
-      command: 'synthetic_canary',
-      actorId: null,
-      systemPrincipal: row.systemPrincipal,
-      releaseSha: requireValue(row.releaseSha, 'releaseSha'),
-      canaryAuthorizationId: requireValue(
-        row.canaryAuthorizationId,
-        'canaryAuthorizationId',
-      ),
-      canaryAuthorizationGeneration: requireValue(
-        row.canaryAuthorizationGeneration,
-        'canaryAuthorizationGeneration',
-      ),
-      canaryProfileVersion: requireValue(
-        row.canaryProfileVersion,
-        'canaryProfileVersion',
-      ),
-    }
   } else {
     failCorrupt('command is unknown')
   }
@@ -176,37 +157,10 @@ function parseIdentity(row: OperationRow): AiOperationIdentity {
   return parsed.value
 }
 
-function parseBinding(row: OperationRow): AiOperationBinding {
-  if (row.command === 'synthetic_canary') {
-    const parsed = parseAiCanaryExecutionBinding({
-      canaryAuthorizationId: requireValue(
-        row.canaryAuthorizationId,
-        'canaryAuthorizationId',
-      ),
-      canaryAuthorizationGeneration: requireValue(
-        row.canaryAuthorizationGeneration,
-        'canaryAuthorizationGeneration',
-      ),
-      releaseSha: requireValue(row.releaseSha, 'releaseSha'),
-      canaryProfileVersion: requireValue(
-        row.canaryProfileVersion,
-        'canaryProfileVersion',
-      ),
-      safetyIdentifierProfileVersion: 'synthetic-canary-safety-v1',
-      providerDeploymentProfileVersion: row.providerDeploymentProfileVersion,
-      operationProfileVersion: row.operationProfileVersion,
-      stopFence: {
-        globalControlId: row.globalControlId,
-        globalGeneration: row.globalControlGeneration,
-        providerControlId: row.providerControlId,
-        providerGeneration: row.providerControlGeneration,
-        allCapabilityStopFences: row.capabilityFences,
-      },
-    })
-    if (parsed.isErr()) failCorrupt(parsed.error.message)
-    return parsed.value
-  }
-
+function parseBinding(
+  row: OperationRow,
+  identity: AiOperationIdentity,
+): AiOperationBinding {
   const concreteReplyLanguage =
     row.concreteReplyLanguageTag === null && row.concreteReplyTemplateGroup === null
       ? null
@@ -240,7 +194,7 @@ function parseBinding(row: OperationRow): AiOperationBinding {
     ),
     replyBrandProfileVersion: row.replyBrandProfileVersion,
     replyBrandDisplayNameDigest: row.replyBrandDisplayNameDigest,
-    routingPolicyVersion: requireValue(row.routingPolicyVersion, 'routingPolicyVersion'),
+    routingPolicyVersion: AI_ROUTING_POLICY.version,
     sourcePolicyId: requireValue(row.sourcePolicyId, 'sourcePolicyId'),
     sourceCanonicalizerDigest: requireValue(
       row.sourceCanonicalizerDigest,
@@ -254,12 +208,10 @@ function parseBinding(row: OperationRow): AiOperationBinding {
     outputLeakageProfileDigest: row.outputLeakageProfileDigest,
     replyTemplateCatalogueVersion: row.replyTemplateCatalogueVersion,
     replyTemplateCatalogueDigest: row.replyTemplateCatalogueDigest,
-    providerDeploymentProfileVersion: row.providerDeploymentProfileVersion,
-    operationProfileVersion: row.operationProfileVersion,
-    capabilityRuntimeProfileVersion: requireValue(
-      row.capabilityRuntimeProfileVersion,
-      'capabilityRuntimeProfileVersion',
-    ),
+    providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
+    operationProfileVersion: operationProfile(identity.command).profileVersion,
+    capabilityRuntimeProfileVersion: getAiRuntimeCapability(identity.capability)
+      .runtimeProfileVersion,
     aiSubjectHmacKeyVersion: row.subjectHmacKeyVersion,
     stopFence: {
       globalControlId: row.globalControlId,
@@ -277,14 +229,12 @@ function parseBinding(row: OperationRow): AiOperationBinding {
   return parsed.value
 }
 
-function mapOperation(
-  row: OperationRow,
-  executionPermitId: string | null = null,
-): AiOperationRecord {
+function mapOperation(row: OperationRow): AiOperationRecord {
+  const identity = parseIdentity(row)
   return {
     id: operationId(row.id),
-    identity: parseIdentity(row),
-    binding: parseBinding(row),
+    identity,
+    binding: parseBinding(row, identity),
     idempotencyKey: row.idempotencyKey,
     requestFingerprint: row.requestFingerprint,
     sourceProvenance:
@@ -296,7 +246,7 @@ function mapOperation(
           },
     state: parseState(row.state),
     executionAttempt: row.executionAttempt,
-    executionPermitId,
+    executionPermitId: row.executionPermitId,
     nextAttemptAtEpochMillis: row.nextAttemptAt?.getTime() ?? null,
     failureCode: parseFailureCode(row.failureCode),
     createdAtEpochMillis: row.createdAt.getTime(),
@@ -305,80 +255,61 @@ function mapOperation(
   }
 }
 
-function isCanaryBinding(
-  binding: AiOperationBinding,
-): binding is AiCanaryExecutionBinding {
-  return 'canaryAuthorizationId' in binding
-}
-
 function assertAligned(identity: AiOperationIdentity, binding: AiOperationBinding): void {
-  const canary = identity.command === 'synthetic_canary'
-  if (canary !== isCanaryBinding(binding)) {
-    throw new Error('AI operation identity and execution binding branches differ')
+  if (
+    identity.sourceEpoch !== binding.sourceEpoch ||
+    ('sourceRevision' in identity &&
+      identity.sourceRevision !== binding.sourceRevision) ||
+    ('reviewedAtEpochMillis' in identity &&
+      identity.reviewedAtEpochMillis !== binding.reviewedAtEpochMillis) ||
+    identity.capability !== binding.capabilityFence.capability
+  ) {
+    throw new Error('AI property identity and binding currentness differ')
   }
-  if (canary && isCanaryBinding(binding)) {
-    if (
-      identity.canaryAuthorizationId !== binding.canaryAuthorizationId ||
-      identity.canaryAuthorizationGeneration !== binding.canaryAuthorizationGeneration ||
-      identity.releaseSha !== binding.releaseSha ||
-      identity.canaryProfileVersion !== binding.canaryProfileVersion
-    ) {
-      throw new Error('Synthetic canary identity and binding differ')
-    }
-    return
+  if (
+    identity.command === 'analysis' &&
+    (identity.subjectHmacKeyVersion !== binding.aiSubjectHmacKeyVersion ||
+      identity.analysisSequence < 1)
+  ) {
+    throw new Error('AI analysis identity and binding differ')
   }
-  if (!canary && !isCanaryBinding(binding)) {
-    if (
-      identity.sourceEpoch !== binding.sourceEpoch ||
-      ('sourceRevision' in identity &&
-        identity.sourceRevision !== binding.sourceRevision) ||
-      ('reviewedAtEpochMillis' in identity &&
-        identity.reviewedAtEpochMillis !== binding.reviewedAtEpochMillis) ||
-      identity.capability !== binding.capabilityFence.capability
-    ) {
-      throw new Error('AI property identity and binding currentness differ')
-    }
-    if (
-      identity.command === 'analysis' &&
-      (identity.subjectHmacKeyVersion !== binding.aiSubjectHmacKeyVersion ||
-        identity.analysisSequence < 1)
-    ) {
-      throw new Error('AI analysis identity and binding differ')
-    }
-    if (
-      identity.command === 'reply' &&
-      binding.capabilityFence.capability === 'reply_drafting' &&
-      identity.baseReplyStateRevision !== binding.capabilityFence.baseReplyStateRevision
-    ) {
-      throw new Error('AI reply revision and binding differ')
-    }
+  if (
+    identity.command === 'reply' &&
+    binding.capabilityFence.capability === 'reply_drafting' &&
+    identity.baseReplyStateRevision !== binding.capabilityFence.baseReplyStateRevision
+  ) {
+    throw new Error('AI reply revision and binding differ')
   }
 }
 
 function assertSourceProvenance(
-  identity: AiOperationIdentity,
   source: Readonly<{ digest: string; byteCount: number }> | null,
-): void {
-  const valid =
-    source !== null &&
-    /^[0-9a-f]{64}$/.test(source.digest) &&
-    Number.isSafeInteger(source.byteCount) &&
-    source.byteCount >= 1 &&
-    source.byteCount <= 131_072
+): asserts source is Readonly<{ digest: string; byteCount: number }> {
   if (
-    (identity.command === 'synthetic_canary' && source !== null) ||
-    (identity.command !== 'synthetic_canary' && !valid)
+    source === null ||
+    !/^[0-9a-f]{64}$/.test(source.digest) ||
+    !Number.isSafeInteger(source.byteCount) ||
+    source.byteCount < 1 ||
+    source.byteCount > 131_072
   ) {
     throw new Error('AI operation source provenance is invalid')
   }
 }
 
+function operationProfile(command: AiOperationIdentity['command']) {
+  const profile = AI_OPERATION_PROFILES.find((candidate) => candidate.command === command)
+  if (!profile || profile.capability === null)
+    failCorrupt('operation profile is unavailable')
+  return profile
+}
+
 function scopeDigest(identity: AiOperationIdentity): string {
-  const scope =
-    identity.command === 'synthetic_canary'
-      ? ['synthetic_canary', identity.releaseSha]
-      : [identity.organizationId, identity.propertyId, identity.command]
-  return createHash('sha256').update(scope.join('\0'), 'utf8').digest('hex')
+  return createHash('sha256')
+    .update(
+      [identity.organizationId, identity.propertyId, identity.command].join('\0'),
+      'utf8',
+    )
+    .digest('hex')
 }
 
 function insertionValues(
@@ -386,37 +317,32 @@ function insertionValues(
   idGen: () => string,
 ) {
   assertAligned(input.identity, input.binding)
-  assertSourceProvenance(input.identity, input.sourceProvenance)
+  assertSourceProvenance(input.sourceProvenance)
   const identity = input.identity
-  const canaryBinding = isCanaryBinding(input.binding) ? input.binding : null
-  const propertyBinding: AiExecutionBinding | null = isCanaryBinding(input.binding)
-    ? null
-    : input.binding
+  const binding = input.binding
   const createdAt = new Date(input.nowEpochMillis)
   const isAnalysis = identity.command === 'analysis'
   const isReply = identity.command === 'reply'
   const isTrend = identity.command === 'trend'
-  const isCanary = identity.command === 'synthetic_canary'
-  const stopFence = input.binding.stopFence
-
+  const profile = operationProfile(identity.command)
   return {
     id: idGen(),
     idempotencyScope: scopeDigest(identity),
     idempotencyKey: input.idempotencyKey,
     requestFingerprint: input.requestFingerprint,
-    sourceDigest: input.sourceProvenance?.digest ?? null,
-    sourceByteCount: input.sourceProvenance?.byteCount ?? null,
+    sourceDigest: input.sourceProvenance.digest,
+    sourceByteCount: input.sourceProvenance.byteCount,
     command: identity.command,
     capability: identity.capability,
-    organizationId: isCanary ? null : identity.organizationId,
-    propertyId: isCanary ? null : identity.propertyId,
+    organizationId: identity.organizationId,
+    propertyId: identity.propertyId,
     actorUserId: identity.actorId,
     systemPrincipal: identity.systemPrincipal,
     reviewId: isAnalysis || isReply ? identity.reviewId : null,
     originEventId: isAnalysis ? identity.originEventId : null,
     subjectHmac: isAnalysis ? identity.subjectHmac : null,
     subjectHmacKeyVersion: isAnalysis ? identity.subjectHmacKeyVersion : null,
-    sourceEpoch: isCanary ? null : identity.sourceEpoch,
+    sourceEpoch: identity.sourceEpoch,
     sourceRevision: isAnalysis || isReply ? identity.sourceRevision : null,
     reviewedAtEpochMillis: isAnalysis || isReply ? identity.reviewedAtEpochMillis : null,
     analysisSequence: isAnalysis ? identity.analysisSequence : null,
@@ -425,49 +351,38 @@ function insertionValues(
     dueLocalDate: isTrend ? identity.dueLocalDate : null,
     terminalAnalysisSequence: isTrend ? identity.terminalAnalysisSequence : null,
     aggregateRevision: isTrend ? identity.aggregateRevision : null,
-    releaseSha: isCanary ? identity.releaseSha : null,
-    canaryAuthorizationId: isCanary ? identity.canaryAuthorizationId : null,
-    canaryAuthorizationGeneration: isCanary
-      ? identity.canaryAuthorizationGeneration
-      : null,
-    canaryProfileVersion: isCanary ? identity.canaryProfileVersion : null,
-    authorizationLineageId: propertyBinding?.authorizationLineageId ?? null,
-    noticeVersion: propertyBinding?.noticeVersion ?? null,
-    noticeDigest: propertyBinding?.noticeDigest ?? null,
-    evaluatedLanguage: propertyBinding?.evaluatedLanguage ?? null,
-    concreteReplyLanguageTag: propertyBinding?.concreteReplyLanguage?.tag ?? null,
-    concreteReplyTemplateGroup:
-      propertyBinding?.concreteReplyLanguage?.templateGroup ?? null,
-    languageCatalogueDigest: propertyBinding?.languageCatalogueDigest ?? null,
-    replyLanguageVerifierDigest: propertyBinding?.replyLanguageVerifierDigest ?? null,
-    languageScriptConsistencyDigest:
-      propertyBinding?.languageScriptConsistencyDigest ?? null,
-    zhOrthographyVerifierDigest: propertyBinding?.zhOrthographyVerifierDigest ?? null,
-    propertyProfileVersion: propertyBinding?.propertyProfileVersion ?? null,
-    replyBrandProfileVersion: propertyBinding?.replyBrandProfileVersion ?? null,
-    replyBrandDisplayNameDigest: propertyBinding?.replyBrandDisplayNameDigest ?? null,
-    routingPolicyVersion: propertyBinding?.routingPolicyVersion ?? null,
-    sourcePolicyId: propertyBinding?.sourcePolicyId ?? null,
-    sourceCanonicalizerDigest: propertyBinding?.sourceCanonicalizerDigest ?? null,
-    redactionProfileVersion: propertyBinding?.redactionProfileVersion ?? null,
-    outputLeakageProfileVersion: propertyBinding?.outputLeakageProfileVersion ?? null,
-    outputLeakageProfileDigest: propertyBinding?.outputLeakageProfileDigest ?? null,
-    replyTemplateCatalogueVersion: propertyBinding?.replyTemplateCatalogueVersion ?? null,
-    replyTemplateCatalogueDigest: propertyBinding?.replyTemplateCatalogueDigest ?? null,
-    providerDeploymentProfileVersion: input.binding.providerDeploymentProfileVersion,
-    operationProfileVersion: input.binding.operationProfileVersion,
-    capabilityRuntimeProfileVersion:
-      propertyBinding?.capabilityRuntimeProfileVersion ?? null,
-    globalControlId: stopFence.globalControlId,
-    globalControlGeneration: stopFence.globalGeneration,
-    providerControlId: stopFence.providerControlId,
-    providerControlGeneration: stopFence.providerGeneration,
-    capabilityControlId: propertyBinding?.stopFence.capabilityControlId ?? null,
-    capabilityControlGeneration: propertyBinding?.stopFence.capabilityGeneration ?? null,
-    capabilityFences:
-      canaryBinding?.stopFence.allCapabilityStopFences ??
-      propertyBinding?.capabilityFence ??
-      null,
+    authorizationLineageId: binding.authorizationLineageId,
+    noticeVersion: binding.noticeVersion,
+    noticeDigest: binding.noticeDigest,
+    evaluatedLanguage: binding.evaluatedLanguage,
+    concreteReplyLanguageTag: binding.concreteReplyLanguage?.tag ?? null,
+    concreteReplyTemplateGroup: binding.concreteReplyLanguage?.templateGroup ?? null,
+    languageCatalogueDigest: binding.languageCatalogueDigest,
+    replyLanguageVerifierDigest: binding.replyLanguageVerifierDigest,
+    languageScriptConsistencyDigest: binding.languageScriptConsistencyDigest,
+    zhOrthographyVerifierDigest: binding.zhOrthographyVerifierDigest,
+    propertyProfileVersion: binding.propertyProfileVersion,
+    replyBrandProfileVersion: binding.replyBrandProfileVersion,
+    replyBrandDisplayNameDigest: binding.replyBrandDisplayNameDigest,
+    routingPolicyVersion: AI_ROUTING_POLICY.version,
+    providerDeploymentProfileVersion: profile.providerDeploymentProfileVersion,
+    operationProfileVersion: profile.profileVersion,
+    capabilityRuntimeProfileVersion: profile.capabilityRuntimeProfileVersion,
+    sourcePolicyId: binding.sourcePolicyId,
+    sourceCanonicalizerDigest: binding.sourceCanonicalizerDigest,
+    redactionProfileVersion: binding.redactionProfileVersion,
+    outputLeakageProfileVersion: binding.outputLeakageProfileVersion,
+    outputLeakageProfileDigest: binding.outputLeakageProfileDigest,
+    replyTemplateCatalogueVersion: binding.replyTemplateCatalogueVersion,
+    replyTemplateCatalogueDigest: binding.replyTemplateCatalogueDigest,
+    globalControlId: binding.stopFence.globalControlId,
+    globalControlGeneration: binding.stopFence.globalGeneration,
+    providerControlId: binding.stopFence.providerControlId,
+    providerControlGeneration: binding.stopFence.providerGeneration,
+    capabilityControlId: binding.stopFence.capabilityControlId,
+    capabilityControlGeneration: binding.stopFence.capabilityGeneration,
+    capabilityFences: binding.capabilityFence,
+    routeKey: profile.sourceRoute,
     state: 'pending',
     executionAttempt: 0,
     nextAttemptAt: createdAt,
@@ -516,6 +431,7 @@ export const createAiOperationStoreAdapter = (
     async claimExecution(input) {
       return db.transaction(async (tx) => {
         const now = new Date(input.nowEpochMillis)
+        const permitId = idGen()
         const [claimed] = await tx
           .update(aiOperations)
           .set({
@@ -523,6 +439,7 @@ export const createAiOperationStoreAdapter = (
             executionAttempt: input.expectedAttempt,
             nextAttemptAt: null,
             failureCode: null,
+            executionPermitId: permitId,
             updatedAt: now,
           })
           .where(
@@ -542,44 +459,7 @@ export const createAiOperationStoreAdapter = (
           )
           .returning()
         if (!claimed) return null
-        await tx.insert(aiOperationAttempts).values({
-          operationId: claimed.id,
-          attempt: input.expectedAttempt,
-          state: 'executing',
-          modelSnapshot: null,
-          inputTokens: null,
-          outputTokens: null,
-          failureCode: null,
-          startedAt: now,
-          settledAt: null,
-        })
-        const permitId = idGen()
-        const stopFence = parseBinding(claimed).stopFence
-        await tx.insert(aiExecutionPermits).values({
-          id: permitId,
-          operationId: claimed.id,
-          executionAttempt: input.expectedAttempt,
-          globalControlId: stopFence.globalControlId,
-          globalControlGeneration: stopFence.globalGeneration,
-          providerControlId: stopFence.providerControlId,
-          providerControlGeneration: stopFence.providerGeneration,
-          capabilityControlId:
-            'capabilityControlId' in stopFence ? stopFence.capabilityControlId : null,
-          capabilityControlGeneration:
-            'capabilityGeneration' in stopFence ? stopFence.capabilityGeneration : null,
-          route:
-            claimed.command === 'analysis'
-              ? 'review-analysis'
-              : claimed.command === 'reply'
-                ? 'reply-suggestion'
-                : claimed.command === 'trend'
-                  ? 'property-trend'
-                  : 'synthetic-canary',
-          state: 'issued',
-          admittedAt: now,
-          expiresAt: claimed.expiresAt,
-        })
-        return mapOperation(claimed, permitId)
+        return mapOperation(claimed)
       })
     },
 
@@ -602,24 +482,6 @@ export const createAiOperationStoreAdapter = (
           .for('update')
         if (!operation) return false
         const failedAt = new Date(input.failedAtEpochMillis)
-        const settledAttempts = await tx
-          .update(aiOperationAttempts)
-          .set({
-            state: 'failed',
-            failureCode: input.failureCode,
-            settledAt: failedAt,
-          })
-          .where(
-            and(
-              eq(aiOperationAttempts.operationId, input.operationId),
-              eq(aiOperationAttempts.attempt, input.expectedAttempt),
-              eq(aiOperationAttempts.state, 'executing'),
-            ),
-          )
-          .returning({ attempt: aiOperationAttempts.attempt })
-        if (settledAttempts.length !== 1) {
-          failCorrupt('executing AI operation attempt is missing')
-        }
         await tx
           .update(aiOperations)
           .set({
@@ -668,20 +530,12 @@ export const createAiOperationStoreAdapter = (
           organizationId: aiOperations.organizationId,
         })
         .from(aiOperations)
-        .leftJoin(
-          aiOperationAttempts,
-          and(
-            eq(aiOperationAttempts.operationId, aiOperations.id),
-            eq(aiOperationAttempts.attempt, aiOperations.executionAttempt),
-            eq(aiOperationAttempts.state, 'executing'),
-          ),
-        )
         .where(
           and(
             eq(aiOperations.state, 'executing'),
             or(
               lte(aiOperations.expiresAt, now),
-              lte(aiOperationAttempts.startedAt, attemptDeadline),
+              lte(aiOperations.updatedAt, attemptDeadline),
             ),
           ),
         )
