@@ -54,7 +54,7 @@ The frozen source contracts are:
 - `src/contexts/integration/application/google-provider-contract.ts`
 - `src/contexts/integration/application/google-import-v2-contract.ts`
 - `src/contexts/property/application/google-binding-contract.ts`
-- `src/contexts/dashboard/application/dto/google-performance-contract.ts`
+- `src/contexts/reporting/application/dto/google-performance-contract.ts`
 - `src/shared/architecture/google-performance-live-boundary.ts`
 
 ### 2. Version and capability contract

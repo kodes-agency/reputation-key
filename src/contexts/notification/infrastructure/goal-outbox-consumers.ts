@@ -3,7 +3,7 @@ import { validateEventPayload } from '#/shared/events/schema-registry'
 import type {
   GoalSubject,
   MonthlyResultNotificationFactsLookup,
-} from '#/contexts/goal/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 import { organizationId, propertyId, unbrand } from '#/shared/domain/ids'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import type { UserLookupPort } from '../application/ports/user-lookup.port'

@@ -13,7 +13,7 @@ A centralized **governed metric registry** is the only route from source facts t
 
 ### Structure
 
-`METRIC_DEFINITIONS` in `src/contexts/metric/domain/metric-registry.ts` is the frozen, code-reviewed catalogue. Each entry carries its stable ID/key, name, entity/value kind, privacy and retention classes, lifecycle/approval facts, plus immutable versions with exact formula, effective dates, scopes, attribution, minimum-sample behavior, source-policy allowlist, permitted consumers, correction behavior, and `employmentDecisionEligible = false`.
+`METRIC_DEFINITIONS` in `src/contexts/reporting/domain/metric-registry.ts` is the frozen, code-reviewed catalogue. Each entry carries its stable ID/key, name, entity/value kind, privacy and retention classes, lifecycle/approval facts, plus immutable versions with exact formula, effective dates, scopes, attribution, minimum-sample behavior, source-policy allowlist, permitted consumers, correction behavior, and `employmentDecisionEligible = false`.
 
 ### Rules
 

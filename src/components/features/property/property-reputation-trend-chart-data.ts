@@ -1,7 +1,7 @@
 import type {
   RatingTrendPoint,
   ReviewVolumePoint,
-} from '#/contexts/dashboard/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 
 export type PropertyReputationTrendDatum = Readonly<{
   avgRating?: number

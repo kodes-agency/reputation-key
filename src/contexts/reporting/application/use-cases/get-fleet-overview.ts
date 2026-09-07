@@ -1,0 +1,139 @@
+import type {
+  FleetCursorAnchor,
+  FleetOverviewProjectionPort,
+  FleetProjectionScope,
+} from '../ports/fleet-overview-projection.port'
+import type {
+  AttentionSignals,
+  FleetEntry,
+  FleetOverviewData,
+} from '../../domain/dashboard-types'
+import type { OrganizationId } from '#/shared/domain/ids'
+import { propertyId } from '#/shared/domain/ids'
+import type { TimeRangePreset } from '../dto/dashboard.dto'
+import type { InboxPublicApi } from '#/contexts/inbox/application/public-api'
+import { ratingComparison, RATING_DROP_THRESHOLD, timeRangeDays } from '../utils'
+import { dashboardError } from '../../domain/dashboard-errors'
+
+export type GetFleetOverviewInput = Readonly<{
+  organizationId: OrganizationId
+  scope: FleetProjectionScope
+  portalReadEnabled: boolean
+  goalReadEnabled: boolean
+  timeRange: TimeRangePreset
+  cursor?: string
+}>
+
+export type GetFleetOverviewDeps = Readonly<{
+  projection: FleetOverviewProjectionPort
+  resolveAccessiblePropertyIds(
+    organizationId: OrganizationId,
+    scope: FleetProjectionScope,
+  ): Promise<readonly import('#/shared/domain/ids').PropertyId[] | null>
+  clock: () => Date
+  inboxTargets: Pick<InboxPublicApi, 'getGoogleReviewTargetCountsByProperty'>
+}>
+
+export type GetFleetOverview = (
+  input: GetFleetOverviewInput,
+) => Promise<FleetOverviewData>
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+export function encodeFleetCursor(anchor: FleetCursorAnchor): string {
+  return Buffer.from(
+    JSON.stringify({ n: anchor.lowerName, i: anchor.propertyId }),
+    'utf8',
+  ).toString('base64url')
+}
+
+export function decodeFleetCursor(cursor: string | undefined): FleetCursorAnchor | null {
+  if (!cursor) return null
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as {
+      n?: unknown
+      i?: unknown
+    }
+    if (
+      typeof value.n !== 'string' ||
+      value.n.length > 100 ||
+      typeof value.i !== 'string' ||
+      !UUID.test(value.i)
+    ) {
+      throw new Error('invalid shape')
+    }
+    return { lowerName: value.n, propertyId: propertyId(value.i) }
+  } catch {
+    throw dashboardError('invalid_input', 'Invalid fleet cursor')
+  }
+}
+
+export const getFleetOverview =
+  (deps: GetFleetOverviewDeps): GetFleetOverview =>
+  async (input) => {
+    const { organizationId, scope, portalReadEnabled, goalReadEnabled, timeRange } = input
+    const now = deps.clock()
+    const periodDays = timeRangeDays(timeRange)
+    const accessiblePropertyIds = await deps.resolveAccessiblePropertyIds(
+      organizationId,
+      scope,
+    )
+    const projection = await deps.projection.read({
+      organizationId,
+      accessiblePropertyIds,
+      portalReadEnabled,
+      goalReadEnabled,
+      cursor: decodeFleetCursor(input.cursor),
+      periodDays,
+      now,
+    })
+    const targetCounts = await deps.inboxTargets.getGoogleReviewTargetCountsByProperty({
+      organizationId,
+      propertyIds: projection.rows.map((row) => row.propertyId),
+      now,
+    })
+
+    const entries: FleetEntry[] = projection.rows.map((row) => {
+      const avgRatingComparison =
+        periodDays === null
+          ? null
+          : ratingComparison(
+              row.avgRating,
+              row.reviewCount,
+              row.priorAvgRating,
+              row.priorReviewCount,
+            )
+      const ratingDrop =
+        avgRatingComparison !== null && avgRatingComparison <= -RATING_DROP_THRESHOLD
+      const attentionSignals: AttentionSignals = {
+        overdue: targetCounts.get(row.propertyId)?.overdueCount ?? 0,
+        itemsToTriage: row.itemsToTriage,
+        goalsBehindPace: row.goalsBehindPace,
+        ratingDrop,
+        escalated: row.escalated,
+        needsAttention: row.needsAttention + (ratingDrop ? 1 : 0),
+      }
+      return {
+        propertyId: row.propertyId,
+        name: row.name,
+        slug: row.slug,
+        timezone: row.timezone,
+        avgRating: row.avgRating,
+        avgRatingComparison,
+        reviewCount: row.reviewCount,
+        feedbackCount: row.feedbackCount,
+        scanCount: row.scanCount,
+        reviewEvidence: row.reviewEvidence,
+        scanEvidence: row.scanEvidence,
+        feedbackEvidence: row.feedbackEvidence,
+        attentionSignals,
+        totalAttention: row.needsAttention + (ratingDrop ? 1 : 0),
+      }
+    })
+
+    return {
+      entries,
+      totals: projection.summary,
+      nextCursor: projection.nextAnchor ? encodeFleetCursor(projection.nextAnchor) : null,
+    }
+  }

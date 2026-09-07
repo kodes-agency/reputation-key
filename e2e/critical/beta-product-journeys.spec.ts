@@ -59,7 +59,7 @@ async function endOpenGoalPrograms(page: Page, propertyId: string) {
   const listed = await callServerFnGet<{
     programs: ReadonlyArray<{ program: { id: string; status: string } }>
   }>(page, {
-    file: 'src/contexts/goal/server/goal-programs.ts',
+    file: 'src/contexts/reporting/server/goal-programs.ts',
     exportName: 'listGoalPrograms',
     data: { propertyId },
   })
@@ -68,7 +68,7 @@ async function endOpenGoalPrograms(page: Page, propertyId: string) {
     .filter((program) => program.status !== 'ended')
   for (const program of open) {
     await callServerFn(page, {
-      file: 'src/contexts/goal/server/goal-programs.ts',
+      file: 'src/contexts/reporting/server/goal-programs.ts',
       exportName: 'changeGoalProgramStatus',
       data: {
         propertyId,
@@ -645,7 +645,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const created = await callServerFn<{ program: { id: string; status: string } }>(
       page,
       {
-        file: 'src/contexts/goal/server/goal-programs.ts',
+        file: 'src/contexts/reporting/server/goal-programs.ts',
         exportName: 'createGoalProgram',
         data: {
           propertyId: seed.p1PropertyId,
@@ -840,7 +840,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const created = await callServerFn<{ program: { id: string; status: string } }>(
       page,
       {
-        file: 'src/contexts/goal/server/goal-programs.ts',
+        file: 'src/contexts/reporting/server/goal-programs.ts',
         exportName: 'createGoalProgram',
         data: {
           propertyId: seed.p1PropertyId,
@@ -867,7 +867,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // because a status machine that silently accepts a repeat would let an
     // ended program be resurrected.
     await callServerFn(page, {
-      file: 'src/contexts/goal/server/goal-programs.ts',
+      file: 'src/contexts/reporting/server/goal-programs.ts',
       exportName: 'changeGoalProgramStatus',
       data: {
         propertyId: seed.p1PropertyId,
@@ -877,7 +877,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       },
     })
     const reEnd = await callServerFnExpectError(page, {
-      file: 'src/contexts/goal/server/goal-programs.ts',
+      file: 'src/contexts/reporting/server/goal-programs.ts',
       exportName: 'changeGoalProgramStatus',
       data: {
         propertyId: seed.p1PropertyId,
@@ -891,7 +891,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const listed = await callServerFnGet<{
       programs: ReadonlyArray<{ program: { id: string; status: string } }>
     }>(page, {
-      file: 'src/contexts/goal/server/goal-programs.ts',
+      file: 'src/contexts/reporting/server/goal-programs.ts',
       exportName: 'listGoalPrograms',
       data: { propertyId: seed.p1PropertyId },
     })
@@ -904,7 +904,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // P3 belongs to locked Org B, so the same command is refused across the
     // tenant boundary (P2 is in-org since capability policy is organization-wide).
     const denied = await callServerFnExpectError(page, {
-      file: 'src/contexts/goal/server/goal-programs.ts',
+      file: 'src/contexts/reporting/server/goal-programs.ts',
       exportName: 'createGoalProgram',
       data: {
         propertyId: seed.p3PropertyId,
@@ -920,7 +920,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     // A target the metric's own rule refuses: counts must be positive integers.
     const invalidTarget = await callServerFnExpectError(page, {
-      file: 'src/contexts/goal/server/goal-programs.ts',
+      file: 'src/contexts/reporting/server/goal-programs.ts',
       exportName: 'createGoalProgram',
       data: {
         propertyId: seed.p1PropertyId,

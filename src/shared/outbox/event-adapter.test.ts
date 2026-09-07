@@ -18,7 +18,7 @@ import {
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { reviewReplyPublicationRequested } from '#/contexts/review/domain/events'
 import { inboxBulkAssignmentCompleted } from '#/contexts/inbox/domain/events'
-import { goalMonthlyResultClosed } from '#/contexts/goal/domain/events'
+import { goalMonthlyResultClosed } from '#/contexts/reporting/domain/goal-events'
 import { EVENT_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 import { z, ZodError } from 'zod/v4'
 import type { DomainEvent } from '#/shared/events/events'

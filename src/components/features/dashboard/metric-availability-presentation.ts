@@ -1,5 +1,5 @@
 import { match } from 'ts-pattern'
-import type { MetricAvailabilityState } from '#/contexts/dashboard/application/public-api'
+import type { MetricAvailabilityState } from '#/contexts/reporting/application/public-api'
 
 export type MetricEvidenceLineInput = Readonly<{
   basis?: 'governed_period' | 'anonymous_lifetime'

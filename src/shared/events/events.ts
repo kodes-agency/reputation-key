@@ -3,8 +3,8 @@
 // "Cross-context type imports are allowed for events."
 //
 // This file imports ONLY types from context domains (no runtime values).
-// Event constructors are imported by infrastructure event-handlers directly
-// from the context's domain/events.ts — not through this barrel.
+// Event constructors are imported by infrastructure consumers directly from
+// the context's domain event module — not through this barrel.
 
 // Identity context events
 export type {
@@ -104,19 +104,19 @@ export type {
   InboxResponseTargetPolicyChanged,
 } from '#/contexts/inbox/domain/events'
 
-// Goal context events
+// Reporting Goal events
 export type {
   GoalEvent,
   GoalMonthlyResultClosed,
   GoalMonthlyResultReconciled,
-} from '#/contexts/goal/domain/events'
+} from '#/contexts/reporting/domain/goal-events'
 
-// Metric context events
+// Reporting metric events
 export type {
   MetricEvent,
   MetricRecorded,
   MetricCorrected,
-} from '#/contexts/metric/domain/events'
+} from '#/contexts/reporting/domain/metric-events'
 
 // AI context events
 export type {
@@ -133,8 +133,8 @@ import type { GuestEvent } from '#/contexts/guest/domain/events'
 import type { IntegrationEvent } from '#/contexts/integration/domain/events'
 import type { ReviewEvent } from '#/contexts/review/domain/events'
 import type { InboxEvent } from '#/contexts/inbox/domain/events'
-import type { GoalEvent } from '#/contexts/goal/domain/events'
-import type { MetricEvent } from '#/contexts/metric/domain/events'
+import type { GoalEvent } from '#/contexts/reporting/domain/goal-events'
+import type { MetricEvent } from '#/contexts/reporting/domain/metric-events'
 import type { AiEvent } from '#/contexts/ai/domain/events'
 
 export type DomainEvent =

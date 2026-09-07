@@ -70,7 +70,7 @@ import {
 import {
   GoalProgramError,
   type GoalExecutionPolicy,
-} from '#/contexts/goal/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 import {
   createRevalidateApprovedDestinationsHandler,
   JOB_NAME as PORTAL_DESTINATION_REVALIDATION_JOB,

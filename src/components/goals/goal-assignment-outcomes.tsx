@@ -1,7 +1,7 @@
 import type {
   GoalAssignmentChangeOutcome,
   GoalSubject,
-} from '#/contexts/goal/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 import { goalSubjectKey } from './goal-subject-picker'
 
 export function GoalAssignmentOutcomes({

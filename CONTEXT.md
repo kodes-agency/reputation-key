@@ -43,11 +43,9 @@ the presence of a route, table, or retained legacy module.
 |     | Review       | Stable Reviews, source observations/lifecycle, and RepKey-owned Reply workflow           | Review, ReviewSourceObservation, Reply              |
 |     | AI           | Governed review analysis, reply drafting, and Property trends                            | AiOperation, AiReviewAnalysis                       |
 |     | Inbox        | Stable Inbox Items with numbered Handling Cycles for Google and private feedback work    | InboxItem, HandlingCycle, InboxNote                 |
-|     | Metric       | Governed, versioned readings and availability evidence for managerial reporting          | MetricDefinition, MetricReading                     |
-|     | Goal         | Property, Portal Group, and individual Portal goals over the three approved measures     | GoalDefinition, GoalEvaluation                      |
+|     | Reporting    | Governed metrics, monthly Goal Programs, and dashboard read models                       | MetricReading, GoalProgram, GoalMonthlyResult       |
 |     | Badge        | Inert legacy recognition inventory; no beta product behavior                             | Historical BadgeAward envelope                      |
 |     | Leaderboard  | Legacy ranking data retained for controlled contraction; not a beta product authority    | LeaderboardEntry, LeaderboardSnapshot               |
-|     | Dashboard    | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts  | —                                                   |
 |     | Notification | User-facing in-app/email notifications                                                   | —                                                   |
 |     | Activity     | Recent Activity plus restricted Operational Action History                               | RecentActivityEntry, OperationalActionHistoryRecord |
 
@@ -214,7 +212,7 @@ supersession authority. Key active/superseding ADRs:
 | 0004 | Inbox as a Separate Bounded Context                                   | Unified Inbox, Reviews, Feedback             |
 | 0005 | GBP Review API Path and Error Model Fix                               | Google Integration, Error Model              |
 | 0006 | Staff as a Separate Bounded Context                                   | Identity, Staff Management                   |
-| 0007 | Dashboard as a Read-Only Aggregation                                  | Dashboard, Read Models                       |
+| 0007 | Dashboard as a Read-Only Aggregation                                  | Reporting, Dashboard Read Models             |
 | 0008 | Cross-Context Data Access Rules                                       | Architecture, Bounded Context Boundaries     |
 | 0009 | Permission Model                                                      | Architecture, Authorization                  |
 | 0010 | Activity Context: BullMQ Event Delivery                               | Activity Context, Event Delivery             |

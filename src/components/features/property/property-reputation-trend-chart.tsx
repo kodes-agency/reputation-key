@@ -10,7 +10,7 @@ import {
 import type {
   RatingTrendPoint,
   ReviewVolumePoint,
-} from '#/contexts/dashboard/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 import { buildPropertyReputationTrendData } from './property-reputation-trend-chart-data'
 
 const config = {

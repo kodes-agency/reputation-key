@@ -1,4 +1,4 @@
-import type { MetricAvailabilityState } from '#/contexts/dashboard/application/public-api'
+import type { MetricAvailabilityState } from '#/contexts/reporting/application/public-api'
 import {
   metricAvailabilityDetail,
   metricEvidenceLine,

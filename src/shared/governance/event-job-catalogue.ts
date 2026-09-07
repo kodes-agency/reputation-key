@@ -275,12 +275,13 @@ function job(
 // ── Consumer modules ────────────────────────────────────────────────
 
 const ACTIVITY_OUTBOX = 'src/contexts/activity/infrastructure/outbox-consumers.ts'
-const METRIC_OUTBOX = 'src/contexts/metric/infrastructure/outbox-consumers.ts'
-const METRIC_GUEST_OUTBOX = 'src/contexts/metric/infrastructure/guest-outbox-consumers.ts'
+const METRIC_OUTBOX = 'src/contexts/reporting/infrastructure/outbox-consumers.ts'
+const METRIC_GUEST_OUTBOX =
+  'src/contexts/reporting/infrastructure/guest-outbox-consumers.ts'
 const METRIC_CORRECTION_OUTBOX =
-  'src/contexts/metric/infrastructure/correction-outbox-consumers.ts'
+  'src/contexts/reporting/infrastructure/correction-outbox-consumers.ts'
 const GOAL_METRIC_CORRECTION_OUTBOX =
-  'src/contexts/goal/infrastructure/metric-correction-outbox-consumers.ts'
+  'src/contexts/reporting/infrastructure/metric-correction-outbox-consumers.ts'
 const REVIEW_OUTBOX = 'src/contexts/review/infrastructure/outbox-consumers.ts'
 const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
 const INBOX_GUEST_FEEDBACK_OUTBOX =
@@ -316,9 +317,9 @@ const NOTIFICATION_GOAL_OUTBOX =
 const NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX =
   'src/contexts/notification/infrastructure/identity-account-outbox-consumers.ts'
 const METRIC_PUBLIC_REPUTATION_OUTBOX =
-  'src/contexts/metric/infrastructure/public-reputation-outbox-consumers.ts'
+  'src/contexts/reporting/infrastructure/public-reputation-outbox-consumers.ts'
 const METRIC_CURRENT_GOOGLE_REPUTATION_OUTBOX =
-  'src/contexts/metric/infrastructure/current-google-reputation-outbox-consumers.ts'
+  'src/contexts/reporting/infrastructure/current-google-reputation-outbox-consumers.ts'
 
 // ── Event families ──────────────────────────────────────────────────
 
@@ -332,8 +333,8 @@ const PORTAL_HEALTH_OUTBOX =
   'src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts'
 const GUEST_EVENTS = 'src/contexts/guest/domain/events.ts'
 const INTEGRATION_EVENTS = 'src/contexts/integration/domain/events.ts'
-const METRIC_EVENTS = 'src/contexts/metric/domain/events.ts'
-const GOAL_EVENTS = 'src/contexts/goal/domain/events.ts'
+const METRIC_EVENTS = 'src/contexts/reporting/domain/metric-events.ts'
+const GOAL_EVENTS = 'src/contexts/reporting/domain/goal-events.ts'
 const AI_EVENTS = 'src/contexts/ai/domain/events.ts'
 
 const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -420,7 +421,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'enabled',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'content-minimal total/average fact emitted only when Review atomically completes a double-scan-verified provider snapshot; Metric owns the distinct Current on Google projection and fences source epoch, evaluated time, and run id without writing bounded metric readings',
     },
@@ -1772,7 +1773,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier-only v1 schema; session-deduplicated scan row and fact commit atomically through GuestObservationStore; durable metric consumer is recovery authority',
     },
@@ -1790,7 +1791,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier-only Access Artifact provenance with event-time Portal Group attribution; durable Metric consumer is replay authority',
     },
@@ -1808,7 +1809,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier-only append-only correction targeting the original Qualified Scan source fact',
     },
@@ -1826,7 +1827,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier/numeric-only v1 schema; canonical Guest response and fact commit atomically through GuestResponseCommandStore; durable metric consumer is recovery authority',
     },
@@ -1844,7 +1845,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier-only retraction committed atomically with correction/withdrawal; Metric appends correction facts and never converts retraction to zero',
     },
@@ -1904,7 +1905,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier-only v1 schema with Google-versus-secondary destination kind; legacy missing kinds decode as secondary; the outbox row is canonical and commits before best-effort bus acceleration',
     },
@@ -2059,7 +2060,7 @@ const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
     'metric.recorded',
     METRIC_EVENTS,
     {
-      stateOwner: 'metric',
+      stateOwner: 'reporting',
       capability: 'metric.internal',
       action: 'system:metric.record',
       schemaRegistered: true,
@@ -2076,7 +2077,7 @@ const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
     'metric.corrected',
     METRIC_EVENTS,
     {
-      stateOwner: 'metric',
+      stateOwner: 'reporting',
       capability: 'metric.internal',
       action: 'system:metric.record',
       schemaRegistered: true,
@@ -2099,7 +2100,7 @@ const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     'goal.monthly_result.closed',
     GOAL_EVENTS,
     {
-      stateOwner: 'goal',
+      stateOwner: 'reporting',
       capability: 'goal.use',
       action: 'system:goal.maintain',
       schemaRegistered: true,
@@ -2119,7 +2120,7 @@ const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     'goal.monthly_result.reconciled',
     GOAL_EVENTS,
     {
-      stateOwner: 'goal',
+      stateOwner: 'reporting',
       capability: 'goal.use',
       action: 'system:goal.maintain',
       schemaRegistered: true,
@@ -2137,7 +2138,7 @@ const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     'goal.monthly_result.revised',
     GOAL_EVENTS,
     {
-      stateOwner: 'goal',
+      stateOwner: 'reporting',
       capability: 'goal.use',
       action: 'system:goal.maintain',
       schemaRegistered: true,
@@ -2503,7 +2504,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   ),
   job(
     'goal-program.maintain',
-    'src/contexts/goal/infrastructure/jobs/goal-program-maintenance.job.ts',
+    'src/contexts/reporting/infrastructure/jobs/goal-program-maintenance.job.ts',
     {
       queue: 'background',
       capability: 'goal.use',

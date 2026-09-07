@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useForm, useStore } from '@tanstack/react-form'
-import type { changeGoalProgramAssignments } from '#/contexts/goal/server/goal-programs'
-import type { GoalSubjectAssignment } from '#/contexts/goal/application/public-api'
+import type { changeGoalProgramAssignments } from '#/contexts/reporting/server/goal-programs'
+import type { GoalSubjectAssignment } from '#/contexts/reporting/application/public-api'
 import {
   goalProgramAssignmentEditorSchema,
   type GoalProgramAssignmentEditorInput,
-} from '#/contexts/goal/application/dto/goal-program.dto'
+} from '#/contexts/reporting/application/dto/goal-program.dto'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { goalKeys } from '#/shared/queries/query-keys'

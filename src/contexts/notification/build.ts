@@ -66,7 +66,7 @@ import type { NotificationListFilter } from './application/notification-list-fil
 import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
 import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
 import { createNotificationDeliveryRuntime } from './application/notification-delivery-runtime'
-import type { MonthlyResultNotificationFactsLookup } from '#/contexts/goal/application/public-api'
+import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import { withBetaOutboxNotificationDelivery } from './infrastructure/outbox-notification-delivery'
 import { createNotificationDeliverySettlement } from './infrastructure/repositories/notification-delivery-settlement.repository'
 import { createNotificationDeliveryLagRepository } from './infrastructure/repositories/notification-delivery-lag.repository'

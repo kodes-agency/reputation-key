@@ -57,16 +57,14 @@ export type BetaPosture = 'core' | 'non_core' | 'blocked'
 export type EntryPointOwner =
   | 'activity'
   | 'ai'
-  | 'dashboard'
-  | 'goal'
   | 'guest'
   | 'identity'
   | 'inbox'
   | 'integration'
-  | 'metric'
   | 'notification'
   | 'portal'
   | 'property'
+  | 'reporting'
   | 'review'
   | 'staff'
   | 'operations'
@@ -431,10 +429,9 @@ const PROPERTY = 'src/contexts/property/server'
 const INTEGRATION = 'src/contexts/integration/server'
 const REVIEW = 'src/contexts/review/server'
 const INBOX = 'src/contexts/inbox/server'
-const DASHBOARD = 'src/contexts/dashboard/server'
+const REPORTING = 'src/contexts/reporting/server'
 const NOTIFICATION = 'src/contexts/notification/server'
 const ACTIVITY = 'src/contexts/activity/server'
-const GOAL = 'src/contexts/goal/server'
 const STAFF = 'src/contexts/staff/server'
 const PORTAL = 'src/contexts/portal/server'
 const GUEST = 'src/contexts/guest/server'
@@ -1362,7 +1359,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   ...[
     sf(
       'getDashboardDataFn',
-      `${DASHBOARD}/dashboard.ts`,
+      `${REPORTING}/dashboard.ts`,
       'dashboard.read',
       'dashboard.use',
       'property',
@@ -1370,7 +1367,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'getPropertyOverviewFn',
-      `${DASHBOARD}/dashboard.ts`,
+      `${REPORTING}/dashboard.ts`,
       'dashboard.read',
       'dashboard.use',
       'property',
@@ -1381,7 +1378,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'getFleetOverviewFn',
-      `${DASHBOARD}/fleet-overview.ts`,
+      `${REPORTING}/fleet-overview.ts`,
       'dashboard.read',
       'dashboard.use',
       'organization',
@@ -1392,7 +1389,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'getSetupChecklistFn',
-      `${DASHBOARD}/setup-checklist.ts`,
+      `${REPORTING}/setup-checklist.ts`,
       'dashboard.read',
       'dashboard.use',
       'organization',
@@ -1404,7 +1401,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'getPortalAnalyticsFn',
-      `${DASHBOARD}/portal-analytics.ts`,
+      `${REPORTING}/portal-analytics.ts`,
       'dashboard.read',
       'dashboard.use',
       'property',
@@ -1563,7 +1560,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   ...[
     sf(
       'createGoalProgram',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.create',
       'goal.use',
       'property',
@@ -1575,7 +1572,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'reviseGoalProgram',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.update',
       'goal.use',
       'property',
@@ -1587,7 +1584,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'changeGoalProgramAssignments',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.update',
       'goal.use',
       'property',
@@ -1599,7 +1596,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'changeGoalProgramStatus',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.update',
       'goal.use',
       'property',
@@ -1612,7 +1609,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'getGoalProgram',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.read',
       'goal.use',
       'property',
@@ -1623,7 +1620,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'listGoalPrograms',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.read',
       'goal.use',
       'property',
@@ -2782,7 +2779,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'goal-program.maintain',
-    'src/contexts/goal/infrastructure/jobs/goal-program-maintenance.job.ts',
+    'src/contexts/reporting/infrastructure/jobs/goal-program-maintenance.job.ts',
     'system:goal.maintain',
     'goal.use',
     'tenant_cross',
@@ -3300,7 +3297,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'goal.metric-correction-reconciliation',
-    'src/contexts/goal/infrastructure/metric-correction-outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/metric-correction-outbox-consumers.ts',
     'system:goal.maintain',
     'goal.use',
     'property',
@@ -3312,7 +3309,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'metric.portal-workflow',
-    'src/contexts/metric/infrastructure/outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/outbox-consumers.ts',
     'system:metric.record_portal_workflow',
     'portal.write',
     'organization',
@@ -3325,7 +3322,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'metric.public-reputation',
-    'src/contexts/metric/infrastructure/public-reputation-outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/public-reputation-outbox-consumers.ts',
     'system:metric.record_public_reputation',
     'none',
     'organization',
@@ -3337,7 +3334,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'metric.current-google-reputation',
-    'src/contexts/metric/infrastructure/current-google-reputation-outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/current-google-reputation-outbox-consumers.ts',
     'system:metric.record_public_reputation',
     'none',
     'organization',
@@ -3349,7 +3346,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'metric.guest-analytics',
-    'src/contexts/metric/infrastructure/guest-outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/guest-outbox-consumers.ts',
     'system:metric.record_guest_analytics',
     'portal.read',
     'organization',
@@ -3367,7 +3364,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'metric.correction-reconciliation',
-    'src/contexts/metric/infrastructure/correction-outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/correction-outbox-consumers.ts',
     'system:metric.record',
     'none',
     'organization',

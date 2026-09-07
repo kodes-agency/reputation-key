@@ -1,4 +1,4 @@
-import type { PortalMetricEvidence } from '#/contexts/dashboard/application/public-api'
+import type { PortalMetricEvidence } from '#/contexts/reporting/application/public-api'
 import {
   formatEvidenceTime,
   metricAvailabilityDetail,

@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import type {
   SetupChecklist,
   SetupChecklistStep,
-} from '#/contexts/dashboard/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { PageHeader } from '#/components/layout/page-header'

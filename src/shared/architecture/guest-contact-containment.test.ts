@@ -64,10 +64,9 @@ describe('Contact Request beta containment', () => {
     const consumers = [
       'src/contexts/activity',
       'src/contexts/ai',
-      'src/contexts/dashboard',
       'src/contexts/inbox',
-      'src/contexts/metric',
       'src/contexts/notification',
+      'src/contexts/reporting',
       'src/contexts/review',
       'src/shared/email',
       'src/shared/events',

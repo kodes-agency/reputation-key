@@ -1,4 +1,4 @@
-import type { PortalLifetimeReconciliationState } from '#/contexts/dashboard/application/public-api'
+import type { PortalLifetimeReconciliationState } from '#/contexts/reporting/application/public-api'
 import { portalLifetimeReconciliationPresentation } from './portal-lifetime-reconciliation-presentation'
 
 type Props = Readonly<{

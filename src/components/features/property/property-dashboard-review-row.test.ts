@@ -15,7 +15,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import type { RecentReview } from '#/contexts/dashboard/application/public-api'
+import type { RecentReview } from '#/contexts/reporting/application/public-api'
 import { ReviewRow } from './property-dashboard-review-row'
 
 const review = (reviewedAt: Date): RecentReview =>

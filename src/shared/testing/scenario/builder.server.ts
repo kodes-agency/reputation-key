@@ -34,7 +34,7 @@ import { user, member, organization } from '#/shared/db/schema/auth'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import type { DomainEvent } from '#/shared/events/events'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
-import { METRIC_DEFINITIONS } from '#/contexts/metric/application/public-api'
+import { METRIC_DEFINITIONS } from '#/contexts/reporting/application/public-api'
 
 const MS_PER_DAY = 86_400_000
 const METRIC_EFFECTIVE_FLOOR_AT = METRIC_DEFINITIONS.reduce(

@@ -47,14 +47,14 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/goal/infrastructure/repositories/goal-program.repository.ts',
+    file: 'src/contexts/reporting/infrastructure/repositories/goal-program.repository.ts',
     symbol: 'hydrateBundles',
     reason:
       'The hydration query receives a finite set of already-authorized or globally scheduled program rows and loads children only through their globally unique parent IDs.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/goal/infrastructure/repositories/goal-program.repository.ts',
+    file: 'src/contexts/reporting/infrastructure/repositories/goal-program.repository.ts',
     symbol: 'listDueResults',
     reason:
       'The bounded goal-maintenance scheduler intentionally enumerates due result records across all tenants before tenant-preserving maintenance work.',

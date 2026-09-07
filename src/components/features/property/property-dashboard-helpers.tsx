@@ -7,8 +7,8 @@ import type {
   MetricAvailabilityState,
   MetricKPIValue,
   RatingKPIValue,
-} from '#/contexts/dashboard/application/public-api'
-import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+} from '#/contexts/reporting/application/public-api'
+import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import { AvailabilityLine } from '#/components/features/dashboard/availability-line'
 import { ratingPresentation } from '#/components/features/dashboard/rating-presentation'
 

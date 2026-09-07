@@ -1,4 +1,4 @@
-import type { GoalSubject } from '#/contexts/goal/application/public-api'
+import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 
 export function goalAssignmentSubjectLabel(
   subject: GoalSubject,

@@ -579,9 +579,9 @@ function buildContainer(
     }),
   )
 
-  // ARC-03-T10: the downstream leaf contexts — read models, projections and
-  // notifications — composed as one named group.
-  const { metricApi, goal, goalCorrectionPolicy, dashboard, activity, notification } =
+  // ARC-03-T10: downstream Reporting, Activity, and Notification are composed
+  // as one named group after their upstream dependencies.
+  const { reporting, goalCorrectionPolicy, activity, notification } =
     buildReadAndNotifyContexts({
       db,
       clock,
@@ -717,11 +717,11 @@ function buildContainer(
     /** Bounded, operator-only Inbox projection repair authority. */
     inboxMaintenanceRuntime: inbox.maintenance,
     inboxRuntime: inbox.runtime,
-    metricPublicApi: metricApi.publicApi,
-    metricMaintenanceRuntime: metricApi.maintenance,
-    dashboardPublicApi: dashboard.publicApi,
-    goalPublicApi: goal.publicApi,
-    goalWorkerRuntime: goal.worker,
+    metricPublicApi: reporting.publicApi,
+    metricMaintenanceRuntime: reporting.maintenance,
+    dashboardPublicApi: reporting.publicApi,
+    goalPublicApi: reporting.publicApi,
+    goalWorkerRuntime: reporting.worker,
     activityPublicApi: activity.publicApi,
     activityWorkerRuntime: Object.freeze({
       projectRecentActivity: activity.worker.projectRecentActivity,
@@ -779,8 +779,7 @@ function buildContainer(
       portal.worker.registerOutboxConsumers(consumerRegistry)
       property.worker.registerOutboxConsumers(consumerRegistry)
       inbox.worker.registerOutboxConsumers(consumerRegistry)
-      metricApi.worker.registerOutboxConsumers(consumerRegistry)
-      goal.worker.registerOutboxConsumers(consumerRegistry, goalCorrectionPolicy)
+      reporting.worker.registerOutboxConsumers(consumerRegistry, goalCorrectionPolicy)
       ai.worker.registerOutboxConsumers(consumerRegistry)
       activity.worker.registerOutboxConsumers(consumerRegistry)
       notification.worker.registerOutboxConsumers(consumerRegistry)

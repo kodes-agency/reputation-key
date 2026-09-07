@@ -19,7 +19,7 @@ import {
 import { resolveEscalationResolutionRecipients } from './escalation-resolution-recipients'
 import { resolveResponseTargetReminderRecipients } from './response-target-reminder-recipients'
 import type { PortalHealthLookupPort } from './ports/portal-health-lookup.port'
-import type { MonthlyResultNotificationFactsLookup } from '#/contexts/goal/application/public-api'
+import type { MonthlyResultNotificationFactsLookup } from '#/contexts/reporting/application/public-api'
 import {
   ORGANIZATION_ACCOUNT_NOTIFICATION_EVENT_TYPES,
   type OrganizationAccountNotificationAuthorityPort,

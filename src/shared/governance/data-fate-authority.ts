@@ -19,17 +19,15 @@ export type DataFateDisposition =
 export type DataFateOwner =
   | 'activity'
   | 'ai'
-  | 'dashboard'
-  | 'goal'
   | 'guest'
   | 'identity'
   | 'inbox'
   | 'integration'
-  | 'metric'
   | 'notification'
   | 'platform'
   | 'portal'
   | 'property'
+  | 'reporting'
   | 'review'
   | 'staff'
 
@@ -208,21 +206,21 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'dashboard.schema.ts',
     exportNames: ['setupChecklistMilestones'],
-    owner: 'dashboard',
+    owner: 'reporting',
     disposition: 'active_authority',
     authority: 'EXP-01',
   }),
   ...rows({
     schemaFile: 'goal.schema.ts',
     exportNames: ['goalMonthlyResults', 'goalPrograms', 'goalSubjectAssignments'],
-    owner: 'goal',
+    owner: 'reporting',
     disposition: 'active_authority',
     authority: 'GOA-01',
   }),
   ...rows({
     schemaFile: 'goal.schema.ts',
     exportNames: ['goalProgramVersions', 'goalResultRevisions'],
-    owner: 'goal',
+    owner: 'reporting',
     disposition: 'recoverable_archive',
     authority: 'GOA-01',
     exitCriteria: RETAINED_HISTORY,
@@ -354,7 +352,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'metricCurrentGoogleReputationSnapshots',
       'portalMetricLifetimeAggregates',
     ],
-    owner: 'metric',
+    owner: 'reporting',
     disposition: 'active_authority',
     authority: 'MET-01',
   }),

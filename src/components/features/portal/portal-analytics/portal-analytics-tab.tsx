@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
+import type { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import { portalKeys } from '#/shared/queries/query-keys'
 import {
   timeRangePreset,
   type TimeRangePreset,
-} from '#/contexts/dashboard/application/dto/dashboard.dto'
+} from '#/contexts/reporting/application/dto/dashboard.dto'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { TimeRangePicker } from '#/components/features/dashboard/time-range-picker'
 import { BarChart3, MessageCircle, MousePointerClick, ScanLine } from 'lucide-react'

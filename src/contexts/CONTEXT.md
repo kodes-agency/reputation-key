@@ -16,12 +16,10 @@
 | Review      | Stable Reviews, source observations/lifecycle, Reply workflow        | Review, ReviewSourceObservation, Reply              | Thick                    |
 | AI          | Property-scoped private-beta review analysis, reply drafting, trends | AiOperation, AiReviewAnalysis                       | Standard                 |
 | Inbox       | Stable Inbox Items and numbered Handling Cycles                      | InboxItem, HandlingCycle, InboxNote                 | Thick                    |
-| Metric      | Governed readings, versions, corrections, availability evidence      | MetricDefinition, MetricReading                     | Standard                 |
-| Goal        | Governed monthly programs over approved versioned metrics            | GoalProgram, GoalMonthlyResult                      | Thick                    |
-| Dashboard   | Read-only aggregation of metrics, reviews, replies                   | —                                                   | Thin (read model)        |
+| Reporting   | Governed metrics, monthly Goal Programs, and dashboard read models   | MetricReading, GoalProgram, GoalMonthlyResult       | Thick                    |
 | Activity    | Recent Activity plus restricted Operational Action History           | RecentActivityEntry, OperationalActionHistoryRecord | Thin (subscriber)        |
 
-**Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected. **Metric context** has no `server/` layer by design — it records readings via event handlers and background jobs, not via server functions called from routes.
+**Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected.
 
 Contexts communicate via domain events. Cross-context type imports allowed for events only. For behavior, subscribe to events, define a port, or import from `application/public-api.ts`.
 
@@ -99,7 +97,7 @@ classification note in its own file header):
 | `shared/db/schema/auth.ts` `session`/`account`/`verification` (+ existing `member`/`organization`) | `ignoreExports`                                    | better-auth managed schema consumed by the CLI/migrations                                            |
 | `shared/bqc/status-schema.ts` exports                                                              | `ignoreExports`                                    | BQC tooling schema consumed by ignored `scripts/bqc/**`                                              |
 | `shared/auth/auth-client.ts` hook re-exports (7 inline `fallow-ignore-next-line unused-export`)    | inline                                             | Owner: Identity; documented convenience surface; review at BQC-6 close                               |
-| `contexts/*/domain/errors.ts` `isActivityError`/`isMetricError` and peer context guards            | `ignoreExports` glob                               | Error-guard convention pinned by `src/shared/architecture/domain-error-convention.test.ts`           |
+| `contexts/*/domain/{errors,*-errors}.ts` context error guards                                      | `ignoreExports` glob                               | Error-guard convention pinned by `src/shared/architecture/domain-error-convention.test.ts`           |
 | `components/ui/**` (shadcn primitives)                                                             | `overrides` → `unused-exports`/`unused-types: off` | Vendored shadcn/ui surface kept whole for upgrade fidelity — see `src/components/CONTEXT.md`         |
 
 **`unused-types` decision:** trialled `warn` on 2026-07-28 (fallow 3.5.0) after
@@ -144,7 +142,7 @@ Contract for the composition root (`src/composition.ts`):
 - It must **not** import individual use cases, event handlers, or business rules — those are constructed inside the owning build module.
 - A build module may import its **own** context's infrastructure, but never a foreign context's — foreign pieces arrive as injected deps typed via the target's `application/public-api.ts` (or a narrow structural port owned by the consuming context).
 - Worker/job/consumer/schedule registration is owned by BQC-3 (`bootstrap.ts` + `worker/`); the composition root supplies the one runtime registry to context-owned registration contributions and never introduces another worker/job registry. Bootstrap invokes those named contributions instead of reaching through to context repositories.
-- Build **order is load-bearing** (TDZ): staff → identity → property → portal/guest → integration → review → inbox → metric → goal → dashboard → activity → notification. Team, Badge, and Leaderboard are not composed. Notification may retain narrowly scoped, neutral historical Badge compatibility without constructing Badge. Where a later context must be reachable from an earlier one, a late-binding closure that resolves at call time is the sanctioned escape hatch, not reordering.
+- Build **order is load-bearing** (TDZ): staff → identity → property → portal/guest → integration → review → inbox → reporting → activity → notification. Team, Badge, and Leaderboard are not composed. Notification may retain narrowly scoped, neutral historical Badge compatibility without constructing Badge. Where a later context must be reachable from an earlier one, a late-binding closure that resolves at call time is the sanctioned escape hatch, not reordering.
 
 ## Use case shape
 

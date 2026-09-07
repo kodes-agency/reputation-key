@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { getPropertyOverviewFn } from '#/contexts/dashboard/server/dashboard'
+import { getPropertyOverviewFn } from '#/contexts/reporting/server/dashboard'
 import {
   getPropertyGooglePerformance,
   renewPropertyGooglePerformanceLease,
@@ -14,7 +14,7 @@ import { propertyQuery } from '#/routes/-queries/route-queries'
 import {
   timeRangePreset,
   type TimeRangePreset,
-} from '#/contexts/dashboard/application/dto/dashboard.dto'
+} from '#/contexts/reporting/application/dto/dashboard.dto'
 import type { PropertyPerformancePreset } from '#/shared/google-performance-report-contract'
 
 const propertyDashboardSearch = z.object({

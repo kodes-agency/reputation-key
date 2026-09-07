@@ -1,15 +1,15 @@
 import { useState } from 'react'
 import { useForm, useStore } from '@tanstack/react-form'
-import type { reviseGoalProgram } from '#/contexts/goal/server/goal-programs'
+import type { reviseGoalProgram } from '#/contexts/reporting/server/goal-programs'
 import type {
   GoalMetric,
   GoalSubject,
   GoalSubjectAssignment,
-} from '#/contexts/goal/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 import {
   reviseGoalProgramFormSchema,
   type ReviseGoalProgramFormInput,
-} from '#/contexts/goal/application/dto/goal-program.dto'
+} from '#/contexts/reporting/application/dto/goal-program.dto'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { goalKeys } from '#/shared/queries/query-keys'
 import { Button } from '#/components/ui/button'

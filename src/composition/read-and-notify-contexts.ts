@@ -1,17 +1,14 @@
 // Composition — the downstream read and notification contexts.
 //
-// ARC-03-T10. Metric, Goal, Dashboard, Activity and Notification are LEAF
-// contexts: each consumes upstream public APIs and produces a read model, a
-// projection or a notification. None of them is depended on by an upstream
-// build, so composing them together is what makes the root's remaining wiring
-// readable as "upstream graph, then leaves".
+// ARC-03-T10. Reporting, Activity, and Notification are downstream contexts:
+// each consumes upstream public interfaces and produces read models,
+// projections, or notifications. Composing them together keeps the root's
+// remaining wiring readable as "upstream graph, then downstream contexts".
 //
-// The Goal correction policy lives here for the same reason: it authorizes the
-// scheduled reconciliation of exactly one leaf and nothing else.
+// The Goal correction policy lives here because it authorizes Reporting's
+// scheduled Goal reconciliation and nothing else.
 
-import { buildMetricContext } from '#/contexts/metric/build'
-import { buildDashboardContext } from '#/contexts/dashboard/build'
-import { buildGoalContext } from '#/contexts/goal/build'
+import { buildReportingContext } from '#/contexts/reporting/build'
 import { buildActivityContext } from '#/contexts/activity/build'
 import { buildNotificationContext } from '#/contexts/notification/build'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
@@ -49,16 +46,6 @@ export type ReadAndNotifyContextsInput = Readonly<{
 }>
 
 export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
-  const metricApi = buildMetricContext({
-    db: input.db,
-    clock: input.clock,
-    idGen: input.idGen,
-    logger: input.logger,
-    portalGroupApi: input.portal.publicApi.portalGroup,
-    portalApi: input.portal.publicApi.portal,
-    reviewRatingLookup: input.review.publicApi,
-  })
-
   const authorizeGoalCorrectionScope =
     createScheduledScopeAuthorizer('system:goal.maintain')
   const goalCorrectionPolicy = {
@@ -78,30 +65,19 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
     },
   } as const
 
-  // Goal context — only canonical GoalProgram/result authority is composed.
-  const goal = buildGoalContext({
+  const reporting = buildReportingContext({
     db: input.db,
-    metricApi: metricApi.publicApi,
     clock: input.clock,
-    propertyApi: input.property.publicApi,
-    idGen: () => crypto.randomUUID(),
+    idGen: input.idGen,
+    logger: input.logger,
     portalGroupApi: input.portal.publicApi.portalGroup,
     portalApi: input.portal.publicApi.portal,
-  })
-
-  // ── Dashboard context (facade ports per ADR-0007) ────────────────
-  // Review content and Portal analytics cross owner-governed serving APIs.
-  // Dashboard retains only the explicitly tracked legacy property/fleet
-  // projection adapters pending the remaining MET-01 cutover.
-  const dashboard = buildDashboardContext({
-    db: input.db,
+    reviewRatingLookup: input.review.publicApi,
+    propertyApi: input.property.publicApi,
     staffPublicApi: input.staff.publicApi,
-    clock: input.clock,
     reviewServingStats: input.reviewServingStats,
     inboxTargets: input.inbox.publicApi,
     guestResponseIntegrity: input.guest.publicApi,
-    portalMetrics: metricApi.publicApi.portalAnalytics,
-    portalLifetime: metricApi.publicApi.portalLifetime,
   })
 
   // ── Activity context ────────────────────────────────────────────
@@ -159,9 +135,9 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
     },
     monthlyResultFacts: {
       findMonthlyResultNotificationFacts:
-        goal.publicApi.findMonthlyResultNotificationFacts,
+        reporting.publicApi.findMonthlyResultNotificationFacts,
       findMonthlyResultRevisionNotificationFacts:
-        goal.publicApi.findMonthlyResultRevisionNotificationFacts,
+        reporting.publicApi.findMonthlyResultRevisionNotificationFacts,
     },
     portalHealthLookup: {
       findPortalHealthNotificationFacts:
@@ -170,10 +146,8 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
   })
 
   return Object.freeze({
-    metricApi,
-    goal,
+    reporting,
     goalCorrectionPolicy,
-    dashboard,
     activity,
     notification,
   } as const)

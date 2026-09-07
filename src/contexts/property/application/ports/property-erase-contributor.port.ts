@@ -17,15 +17,14 @@
 import type { Tx } from '#/shared/outbox/commit'
 
 /**
- * The contexts that can own rows for a single Property.
+ * The stable data-owner slots that can own rows for a single Property.
  *
- * Every bounded context is registered. `identity` was absent until it was
- * checked against `data-fate-authority.ts`, which names it the OWNER of seven
- * Property-scoped tables — so its omission asserted, falsely, that Identity
- * holds no rows for a Property. Four of those seven are erased by
- * `identity-property-erase.adapter.ts`; the other three are
- * `recoverable_archive` and are excluded there, by disposition and with the
- * reason recorded at the exclusion.
+ * A bounded context normally owns the slot with its name. A context merge does
+ * not rewrite persisted receipt keys or combine independently reviewed purge
+ * plans, so Reporting continues to answer through its `dashboard`, `goal`, and
+ * `metric` slots. `identity` was previously absent despite owning
+ * Property-scoped rows; its contributor now erases the disposable rows while
+ * explicitly excluding the three `recoverable_archive` families.
  */
 export const PROPERTY_ERASE_CONTEXTS = [
   'activity',

@@ -54,7 +54,7 @@
       "exports": ["RECENT_ACTIVITY_REPLAY_SOURCE_KINDS"]
     },
     {
-      "file": "src/contexts/goal/application/use-cases/goal-programs.ts",
+      "file": "src/contexts/reporting/application/use-cases/goal-programs.ts",
       "exports": ["GoalProgramMaintenanceError"]
     },
     {
@@ -128,15 +128,20 @@
       ]
     },
     {
-      "file": "src/contexts/dashboard/server/dashboard.ts",
+      "file": "src/contexts/reporting/server/dashboard.ts",
       "exports": ["getDashboardDataFn"]
     },
     {
-      "file": "src/contexts/goal/application/public-api.ts",
+      "file": "src/contexts/reporting/application/public-api.ts",
       "exports": [
+        "findMetricVersionById",
+        "GOOGLE_PERFORMANCE_ERROR_CODES",
+        "PROPERTY_PERFORMANCE_PRESETS",
         "goalMonthlyResultClosed",
         "goalMonthlyResultReconciled",
-        "goalMonthlyResultRevised"
+        "goalMonthlyResultRevised",
+        "isGooglePerformanceErrorCode",
+        "isPropertyPerformancePreset"
       ]
     },
     {
@@ -270,7 +275,7 @@
       "exports": ["member", "organization", "session", "account", "verification"]
     },
     {
-      "file": "src/contexts/*/domain/errors.ts",
+      "file": "src/contexts/*/domain/{errors,*-errors}.ts",
       "exports": ["isActivityError", "isLeaderboardError", "isMetricError"]
     },
     {
@@ -416,7 +421,7 @@
       }
     },
     {
-      "files": ["**/*.dto.ts", "**/domain/events.ts"],
+      "files": ["**/*.dto.ts", "**/domain/{events,*-events}.ts"],
       "rules": {
         "unused-types": "off"
       }
@@ -460,7 +465,7 @@
         "reason": "The function is 26 lines with ZERO control-flow statements \u2014 no if, no loop, no ternary. All 22 counted branches are `??` operators forming five field-precedence lists (`record.name ?? record.email ?? record.role ?? ...`). Cognitive complexity is 7 of a 20 ceiling, i.e. the metric that measures unde"
       },
       {
-        "files": ["src/contexts/metric/infrastructure/guest-outbox-consumers.ts"],
+        "files": ["src/contexts/reporting/infrastructure/guest-outbox-consumers.ts"],
         "functions": ["guestMetricDomainEvent"],
         "maxCyclomatic": 38,
         "maxCognitive": 40,

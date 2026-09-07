@@ -1,4 +1,4 @@
-import type { PortalLifetimeReconciliationState } from '#/contexts/dashboard/application/public-api'
+import type { PortalLifetimeReconciliationState } from '#/contexts/reporting/application/public-api'
 import { formatEvidenceTime } from '#/components/features/dashboard/metric-availability-presentation'
 
 export type PortalLifetimeReconciliationPresentation = Readonly<{

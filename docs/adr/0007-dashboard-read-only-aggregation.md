@@ -1,8 +1,12 @@
 # ADR 0007 — Dashboard as a Read-Only Aggregation Context
 
-**Status:** Implemented
+**Status:** Partially superseded by WP3.4 (Reporting context merge)
 **Date:** 2026-05-22
 **Context:** Dashboard, Read Models, Cross-Context Data Aggregation
+
+WP3.4 moved the Dashboard capability into the Reporting bounded context. Its
+read-only behavior and facade-port decision remain active; only the separate
+bounded-context boundary is superseded.
 
 ## Decision
 

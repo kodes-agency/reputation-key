@@ -10,7 +10,7 @@ import { PortalDetailPage } from './portal-detail-page'
 import type {
   getPortalAnalyticsFn,
   PortalAnalyticsData,
-} from '#/contexts/dashboard/server/portal-analytics'
+} from '#/contexts/reporting/server/portal-analytics'
 import type { Action } from '#/components/hooks/use-action'
 import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
 import type {

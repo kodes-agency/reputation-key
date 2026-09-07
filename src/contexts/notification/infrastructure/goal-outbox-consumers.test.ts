@@ -7,7 +7,7 @@ import {
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { userId } from '#/shared/domain/ids'
-import type { MonthlyResultRevisionNotificationFacts } from '#/contexts/goal/application/public-api'
+import type { MonthlyResultRevisionNotificationFacts } from '#/contexts/reporting/application/public-api'
 import {
   handleNotificationGoalMonthlyResultClosed,
   handleNotificationGoalMonthlyResultRevised,
