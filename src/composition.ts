@@ -82,12 +82,7 @@ import {
   createDeferredMemberAuthorityLifecycle,
   createMemberAuthorityLifecycle,
 } from './composition/member-authority-lifecycle'
-import {
-  claimDeployable,
-  projectContainer,
-  releaseDeployableClaim,
-  type WebContainer,
-} from './composition/container-partition'
+import { projectContainer, type WebContainer } from './composition/container-partition'
 
 export {
   applyProviderEndpointOverrides,
@@ -786,10 +781,42 @@ export type Container = Omit<BuiltContainer, 'simulationRuntime'>
 export type SimulationContainer = BuiltContainer & {
   simulationRuntime: NonNullable<BuiltContainer['simulationRuntime']>
 }
+/**
+ * The process's one complete Application Container claim.
+ *
+ * BQC-7.1 keeps process-scoped resources behind `Symbol.for` because the
+ * production build bundles the composition module twice. The occupancy record
+ * must therefore be process-level rather than module-level too.
+ */
+export type ProcessContainerKind = 'web' | 'worker' | 'operator' | 'simulation'
 
-// BQC-7.1: the production build bundles this module twice, so the singleton is
-// keyed by `Symbol.for` — see `composition/container-partition` for the same
-// reasoning applied to the process claim.
+const PROCESS_CONTAINER_KEY = Symbol.for('repkey.composition.deployable-container')
+type ProcessContainerStore = {
+  [PROCESS_CONTAINER_KEY]?: Readonly<{ kind: ProcessContainerKind }>
+}
+
+function processContainerStore(): ProcessContainerStore {
+  return globalThis as ProcessContainerStore
+}
+
+export const DUPLICATE_CONTAINER_ERROR =
+  '[COMPOSITION] a complete Application Container already exists in this process'
+
+/** Claim this process, refusing a second complete container by name. */
+export function claimProcessContainer(kind: ProcessContainerKind): void {
+  const store = processContainerStore()
+  const existing = store[PROCESS_CONTAINER_KEY]
+  if (existing) throw new Error(`${DUPLICATE_CONTAINER_ERROR} (${existing.kind})`)
+  store[PROCESS_CONTAINER_KEY] = Object.freeze({ kind })
+}
+
+/** Release the process claim so a supervised process may rebuild. */
+export function releaseProcessContainer(): void {
+  processContainerStore()[PROCESS_CONTAINER_KEY] = undefined
+}
+
+// BQC-7.1: the production build bundles this module twice, so the singleton
+// and process claim both use `Symbol.for` to stay visible across the copies.
 const CONTAINER_KEY = Symbol.for('repkey.composition.container')
 type ContainerStore = { [CONTAINER_KEY]?: WebContainer }
 
@@ -801,8 +828,13 @@ function containerStore(): ContainerStore {
 export function getContainer(): WebContainer {
   const store = containerStore()
   if (store[CONTAINER_KEY]) return store[CONTAINER_KEY]
-  claimDeployable('web')
-  return (store[CONTAINER_KEY] = projectContainer(createContainer(), 'web'))
+  claimProcessContainer('web')
+  try {
+    return (store[CONTAINER_KEY] = projectContainer(createContainer(), 'web'))
+  } catch (error) {
+    releaseProcessContainer()
+    throw error
+  }
 }
 
 /**
@@ -820,7 +852,7 @@ export async function closeContainer(): Promise<void> {
   const store = containerStore()
   const container = store[CONTAINER_KEY]
   store[CONTAINER_KEY] = undefined
-  releaseDeployableClaim()
+  releaseProcessContainer()
   if (!container) return
   // ARC-03-T6: release container-owned background work FIRST. The policy
   // poller re-reads the database on every tick, so stopping it before the

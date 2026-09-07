@@ -22,14 +22,14 @@
 //     second consumer registry and a second set of queue connections.
 
 import {
+  claimProcessContainer,
   createContainer,
   createOperatorContainerGraph,
+  releaseProcessContainer,
   type Container,
 } from '#/composition'
 import {
-  claimDeployable,
   projectContainer,
-  releaseDeployableClaim,
   type Deployable,
   type OperatorContainer,
   type WebContainer,
@@ -43,11 +43,9 @@ import { OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE } from './google-provider-auth
 // need the narrowed types do not gain the authority to build a container.
 export {
   deployablesFor,
-  DUPLICATE_CONTAINER_ERROR,
   isOperatorContainerKey,
   isOperatorOnlyKey,
   isWorkerOnlyKey,
-  occupyingDeployable,
   OPERATOR_CONTAINER_KEYS,
   OPERATOR_ONLY_KEYS,
   WORKER_ONLY_KEYS,
@@ -59,6 +57,7 @@ export {
   type WorkerContainer,
   type WorkerOnlyKey,
 } from './container-partition'
+export { DUPLICATE_CONTAINER_ERROR } from '#/composition'
 
 type ContainersByDeployable = Readonly<{
   web: WebContainer
@@ -142,7 +141,7 @@ function claimProcess<D extends Deployable>(
   deployable: D,
   options: DeployableContainerOptions,
 ): ContainersByDeployable[D] {
-  claimDeployable(deployable)
+  claimProcessContainer(deployable)
   let container: Container
   try {
     container =
@@ -150,7 +149,7 @@ function claimProcess<D extends Deployable>(
         ? createOperatorContainerGraph(operatorGraphOptions(options))
         : createContainer(options)
   } catch (error) {
-    releaseDeployableClaim()
+    releaseProcessContainer()
     throw error
   }
   // The shutdown seam releases the process claim as well as the container's own
@@ -168,7 +167,7 @@ function claimProcess<D extends Deployable>(
         try {
           await container.shutdown.run()
         } finally {
-          releaseDeployableClaim()
+          releaseProcessContainer()
         }
       },
     }),

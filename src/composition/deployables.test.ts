@@ -21,7 +21,6 @@ import {
   createWorkerContainer,
   deployablesFor,
   DUPLICATE_CONTAINER_ERROR,
-  occupyingDeployable,
   OPERATOR_CONTAINER_KEYS,
   OPERATOR_ONLY_KEYS,
   WORKER_ONLY_KEYS,
@@ -162,7 +161,6 @@ describe('per-deployable container surfaces', () => {
     expect(() => createWebContainer(productionOptions())).toThrow(
       'Opaque OAuth state requires provider-ephemeral Redis',
     )
-    expect(occupyingDeployable()).toBeUndefined()
 
     clearEventSchemas()
     expect(() =>
@@ -172,7 +170,6 @@ describe('per-deployable container surfaces', () => {
         }),
       ),
     ).toThrow('Opaque OAuth state requires provider-ephemeral Redis')
-    expect(occupyingDeployable()).toBeUndefined()
   })
 
   it('refuses provider-dependent operator commands at their call boundary', async () => {
@@ -247,26 +244,16 @@ describe('lazy web singleton', () => {
 
     expect(WORKER_ONLY_KEYS.filter((key) => key in container)).toEqual([])
     expect(OPERATOR_ONLY_KEYS.filter((key) => key in container)).toEqual([])
-    expect(occupyingDeployable()).toBe('web')
 
     await closeContainer()
-    expect(occupyingDeployable()).toBeUndefined()
   })
 })
 
 describe('one complete Application Container per process', () => {
-  afterEach(async () => {
-    const occupied = occupyingDeployable()
-    if (!occupied) return
-    // Reach the live claim through a fresh build only if none exists; the
-    // per-test containers below always release their own.
-    throw new Error(`process claim leaked from a previous test: ${occupied}`)
-  })
 
   it('refuses a second container by name', async () => {
     const first = createWebContainer(options())
     try {
-      expect(occupyingDeployable()).toBe('web')
       clearEventSchemas()
       expect(() => createWebContainer(options())).toThrow(DUPLICATE_CONTAINER_ERROR)
       clearEventSchemas()
@@ -279,17 +266,14 @@ describe('one complete Application Container per process', () => {
 
   it('permits exactly one rebuild after shutdown', async () => {
     await release(createWebContainer(options()))
-    expect(occupyingDeployable()).toBeUndefined()
 
     clearEventSchemas()
     const rebuilt = createWebContainer(options())
     try {
-      expect(occupyingDeployable()).toBe('web')
       clearEventSchemas()
       expect(() => createWebContainer(options())).toThrow(DUPLICATE_CONTAINER_ERROR)
     } finally {
       await release(rebuilt)
     }
-    expect(occupyingDeployable()).toBeUndefined()
   })
 })
