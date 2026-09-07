@@ -9,7 +9,7 @@ import type { InboxCommandStore } from '../ports/inbox-command-store.port'
 import { reviewId, type InboxItemId } from '#/shared/domain/ids'
 import type { InboxItem, ManualReopenReason } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { validateTransition } from '../../domain/rules'
 import { inboxError } from '../../domain/errors'
 import {

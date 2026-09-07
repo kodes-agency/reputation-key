@@ -203,8 +203,8 @@ describe('listPortals handler (executable)', () => {
     expect(dataArg).toEqual({ propertyId: 'prop-test-1' })
   })
 
-  it('enumerates only P1 properties when Staff scope includes a disabled P2', async () => {
-    mocks.resolveTenantContext.mockResolvedValue({ ...TEST_CTX, role: 'Staff' })
+  it('enumerates only P1 properties when Member scope includes a disabled P2', async () => {
+    mocks.resolveTenantContext.mockResolvedValue({ ...TEST_CTX, role: 'Member' })
     mocks.listPortalManagementPropertyIds.mockResolvedValue([
       'property-p1',
       'property-p2',
@@ -221,7 +221,7 @@ describe('listPortals handler (executable)', () => {
     expect(mocks.listPortals).toHaveBeenCalledTimes(1)
     expect(mocks.listPortals).toHaveBeenCalledWith(
       { propertyId: 'property-p1' },
-      expect.objectContaining({ role: 'Staff' }),
+      expect.objectContaining({ role: 'Member' }),
     )
   })
 

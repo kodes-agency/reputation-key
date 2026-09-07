@@ -10,7 +10,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
@@ -68,9 +68,9 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
   return base
 }
 
-const setup = (staffApi: StaffPublicApi = adminStaffApi) => {
+const setup = (peopleApi: StaffPublicApi = adminStaffApi) => {
   const repo = createInMemoryInboxRepo()
-  const deps = { repo, staffPublicApi: staffApi, clock: () => FIXED_TIME }
+  const deps = { repo, staffPublicApi: peopleApi, clock: () => FIXED_TIME }
   const useCase = getInboxItems(deps)
   return { useCase, repo }
 }
@@ -87,16 +87,16 @@ const pmCtx = {
   role: 'PropertyManager' as const,
 } as AuthContext
 
-const staffCtx = {
+const memberCtx = {
   organizationId: ORG_ID,
   userId: USER_ID,
-  role: 'Staff' as const,
+  role: 'Member' as const,
 } as AuthContext
 
 const dynamicCtx = (...permissions: Permission[]): AuthContext => ({
   organizationId: ORG_ID,
   userId: USER_ID,
-  role: 'Staff',
+  role: 'Member',
   effectivePermissions: new Set(permissions),
   scopeByPermission: new Map(
     permissions.map((permission) => [permission, 'organization' as const]),
@@ -399,44 +399,44 @@ describe('getInboxItems', () => {
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('Staff is property-scoped to accessible properties only', async () => {
+  it('Member is property-scoped to accessible properties only', async () => {
     const scopedApi = createScopedStaffApi(['prop-1'])
     const { useCase, repo } = setup(scopedApi)
     repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
     repo.items.push(seedItem({ id: 'ii-2', propertyId: OTHER_PROP_ID }))
 
-    const result = await useCase({ filters: {} }, staffCtx)
+    const result = await useCase({ filters: {} }, memberCtx)
 
     expect(result.items).toHaveLength(1)
     expect(result.items[0].propertyId).toBe(PROP_ID)
   })
 
-  it('Staff with no accessible properties sees nothing', async () => {
+  it('Member with no accessible properties sees nothing', async () => {
     const scopedApi = createScopedStaffApi([])
     const { useCase, repo } = setup(scopedApi)
     repo.items.push(seedItem({ id: 'ii-1' }))
 
-    const result = await useCase({ filters: {} }, staffCtx)
+    const result = await useCase({ filters: {} }, memberCtx)
 
     expect(result.items).toHaveLength(0)
   })
 
-  it('Staff denied when filtering by inaccessible property', async () => {
+  it('Member is denied when filtering by an inaccessible property', async () => {
     const scopedApi = createScopedStaffApi(['prop-1'])
     const { useCase, repo } = setup(scopedApi)
     repo.items.push(seedItem({ id: 'ii-1' }))
 
     await expect(
-      useCase({ filters: { propertyId: OTHER_PROP_ID } }, staffCtx),
+      useCase({ filters: { propertyId: OTHER_PROP_ID } }, memberCtx),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('Staff can filter by accessible property', async () => {
+  it('Member can filter by an accessible property', async () => {
     const scopedApi = createScopedStaffApi(['prop-1'])
     const { useCase, repo } = setup(scopedApi)
     repo.items.push(seedItem({ id: 'ii-1', propertyId: PROP_ID }))
 
-    const result = await useCase({ filters: { propertyId: PROP_ID } }, staffCtx)
+    const result = await useCase({ filters: { propertyId: PROP_ID } }, memberCtx)
 
     expect(result.items).toHaveLength(1)
     expect(result.items[0].propertyId).toBe(PROP_ID)

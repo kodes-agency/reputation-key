@@ -24,7 +24,7 @@ describe('Dashboard route access', () => {
     if (!beforeLoad) throw new Error('Dashboard route must define beforeLoad')
 
     await expect(
-      Promise.resolve().then(() => beforeLoad({ context: { role: 'Staff' } } as never)),
+      Promise.resolve().then(() => beforeLoad({ context: { role: 'Member' } } as never)),
     ).rejects.toMatchObject({
       options: {
         to: '/unavailable',

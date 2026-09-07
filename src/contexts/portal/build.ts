@@ -8,7 +8,7 @@ import type {
   PropertyLifecyclePublicApi,
   PropertyPublicApi,
 } from '#/contexts/property/application/public-api'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
 import type { Database } from '#/shared/db'
 import {

@@ -21,7 +21,7 @@ import type { ReviewHandlingCycleStore } from '../ports/review-handling-cycle.st
 import type { ReviewSourceLookupPort } from '../ports/review-source-lookup.port'
 import type { ReviewResponseTargetAuthorityPort } from '../ports/review-response-target-authority.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { validateTransition } from '../../domain/rules'
 import { inboxItemStatusChanged } from '../../domain/events'

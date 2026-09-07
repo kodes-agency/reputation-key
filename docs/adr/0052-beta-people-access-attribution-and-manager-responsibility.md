@@ -76,9 +76,9 @@ The canonical beta model has the following independent concepts:
 - Schema contraction waits for a verified release, zero unexplained reconciliation
   rows, retention/export decisions, and restore proof.
 
-### Staff login posture
+### Member login posture
 
-Staff Participant management is a beta manager feature. Staff User login,
+Staff Participant management is a beta manager feature. Member login,
 invitation, and dashboard affordances are deferred. Legitimate existing account
 records are retained and receive an explicit migration/support outcome rather than
 being deleted or silently admitted to an undefined shell.

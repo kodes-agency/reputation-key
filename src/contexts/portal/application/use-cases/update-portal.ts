@@ -24,7 +24,7 @@ import {
 } from '../../domain/events'
 import type { Result } from '#/shared/domain'
 import type { PortalError } from '../../domain/errors'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 import { transitionPortalPublication } from '../../domain/portal-publication'
 import type {

@@ -49,7 +49,7 @@ export const statement = {
   integration: ['manage'],
   // BQC-2.7: policy administration (allowlist/suspension/grants/diagnostic).
   // Granted to AccountAdmin (owner full statement) only — deliberately NOT in
-  // the PropertyManager/Staff role definitions below (least privilege).
+  // the PropertyManager/Member role definitions below (least privilege).
   policy: ['admin'],
   ai: ['reply.generate', 'trends.read', 'manage'],
   identity: [
@@ -66,7 +66,7 @@ export const ac = createAccessControl(statement)
 
 // ── Default roles ──────────────────────────────────────────────────
 // Three roles matching better-auth's organization plugin defaults.
-// owner = AccountAdmin, admin = PropertyManager, member = Staff.
+// owner = AccountAdmin, admin = PropertyManager, member = Member.
 
 export const owner = ac.newRole({ ...statement })
 
@@ -145,7 +145,9 @@ export function initPermissionTable(): void {
     PropertyManager: buildPermissionSet(
       admin.statements as Record<string, readonly string[]>,
     ),
-    Staff: buildPermissionSet(memberRole.statements as Record<string, readonly string[]>),
+    Member: buildPermissionSet(
+      memberRole.statements as Record<string, readonly string[]>,
+    ),
   }
 
   // Inject the lookup into shared/domain so application-layer code

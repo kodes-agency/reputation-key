@@ -4,16 +4,16 @@
 //
 // Verified at the governed read boundary — the server fns the UI is fed by
 // (listProperties is grant-filtered; getProperty denies 403 without an active
-// grant). Staff login is not a beta surface, so the staff-side assertions
+// grant). Member login is not a beta surface, so the Member-side assertions
 // target the access model directly rather than a rendered property surface;
 // the admin control drives the real list UI.
 //
 // Transitions verified:
-//   staff session works (settings surface renders, zero errors)
-//   staff listProperties → ONLY the granted property A (B never listed)
-//   staff getProperty(A) → the granted read succeeds (activation)
-//   staff getProperty(B) → denied (wrong property), and B is absent from
-//     every staff-visible enumeration
+//   Member session works (settings surface renders, zero errors)
+//   Member listProperties → ONLY the granted property A (B never listed)
+//   Member getProperty(A) → the granted read succeeds (activation)
+//   Member getProperty(B) → denied (wrong property), and B is absent from
+//     every Member-visible enumeration
 //   admin control → the properties UI lists both
 
 import { test, expect } from '../../helpers/error-detection'
@@ -23,7 +23,7 @@ import {
   e2eRunId,
   cleanupE2eData,
   seedProperty,
-  seedStaffUserWithGrant,
+  seedMemberUserWithGrant,
   dbQuery,
   callServerFnGet,
   callServerFnGetExpectError,
@@ -43,11 +43,11 @@ test.describe('Critical workflow: property access (operator allowlist)', () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 
-  // SKIPPED for the same reason as dashboard-governance: Staff User login is a
+  // SKIPPED for the same reason as dashboard-governance: Member login is a
   // dark capability in this beta, so this sign-in cannot succeed. The scoping
   // property it checks — a property-scoped user must not see another property —
   // is genuinely worth having and returns with the capability.
-  test.skip('staff is scoped to the granted property; wrong property denies without leaking', async ({
+  test.skip('Member is scoped to the granted property; wrong property denies without leaking', async ({
     page,
   }) => {
     const { propertyId: propertyBId } = await seedProperty({
@@ -55,31 +55,31 @@ test.describe('Critical workflow: property access (operator allowlist)', () => {
       name: PROPERTY_B_NAME,
       slug: `${PREFIX}b-${e2eRunId}`,
     })
-    const staff = await seedStaffUserWithGrant({
+    const member = await seedMemberUserWithGrant({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
-      email: `${PREFIX}staff-${e2eRunId}@example.com`,
-      name: 'E2E Scoped Staff',
+      email: `${PREFIX}member-${e2eRunId}@example.com`,
+      name: 'E2E Scoped Member',
     })
 
     // Operator-allowlist provenance: the active grant row with source 'operator'.
     const grants = await dbQuery(
       `SELECT source, revoked_at FROM property_access_grant
        WHERE organization_id = $1 AND property_id = $2 AND user_id = $3`,
-      [seed.organizationId, seed.propertyId, staff.userId],
+      [seed.organizationId, seed.propertyId, member.userId],
     )
     expect(grants).toHaveLength(1)
     expect(grants[0].source).toBe('operator')
     expect(grants[0].revoked_at).toBeNull()
 
-    // The staff session reaches the authenticated area cleanly.
-    await signIn(page, staff.email, staff.password, undefined, '/settings/profile')
+    // The Member session reaches the authenticated area cleanly.
+    await signIn(page, member.email, member.password, undefined, '/settings/profile')
     await expect(page.getByRole('heading', { name: /profile/i }).first()).toBeVisible({
       timeout: 15_000,
     })
 
-    // The grant-filtered enumeration (what any staff property list is fed
-    // by): ONLY the granted property A — B is never listed.
+    // The grant-filtered enumeration (what any Member property list is fed by):
+    // ONLY the granted property A — B is never listed.
     const listed = await callServerFnGet<PropertyListResult>(page, {
       file: PROPERTY_READ_FILE,
       exportName: 'listProperties',
@@ -102,7 +102,7 @@ test.describe('Critical workflow: property access (operator allowlist)', () => {
     expect(activated.property.name).toBe(seed.propertyName)
 
     // Wrong-property denial: the same read denies for B (no grant), so no
-    // staff surface can ever render B's data.
+    // Member surface can ever render B's data.
     const denial = await callServerFnGetExpectError(page, {
       file: PROPERTY_READ_FILE,
       exportName: 'getProperty',

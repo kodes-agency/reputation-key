@@ -2,7 +2,7 @@ import type {
   IdentityManagerFactsPublicApi,
   ManagerMembership,
 } from '#/contexts/identity/application/public-api'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import {
   isEligibleResponsibleManager,

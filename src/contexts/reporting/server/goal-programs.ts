@@ -28,7 +28,7 @@ import type { GoalProgramRequestApi } from '../application/use-cases/goal-progra
 import type { GoalSubject } from '../domain/goal-program'
 import { canForContext } from '#/shared/domain/permissions'
 
-export function scopeGoalProgramsForStaff<
+export function scopeGoalProgramsForMember<
   Assignment extends Readonly<{ id: string; subject: GoalSubject }>,
   Result extends Readonly<{ assignmentId: string }>,
   Program extends Readonly<{
@@ -75,7 +75,7 @@ async function scopeProgramsForRequest(
 ): Promise<readonly GoalProgramBundle[]> {
   if (canForContext(ctx, 'goal.create')) return programs
   const container = getContainer()
-  const visiblePortalIds = await container.staffPublicApi.getAssignedPortals(
+  const visiblePortalIds = await container.identityPublicApi.people.getAssignedPortals(
     { userId: ctx.userId, propertyId: toPropertyId(propertyId) },
     ctx,
   )
@@ -84,7 +84,7 @@ async function scopeProgramsForRequest(
       ctx.organizationId,
       visiblePortalIds,
     )
-  return scopeGoalProgramsForStaff(programs, visiblePortalIds, visibleGroupIds)
+  return scopeGoalProgramsForMember(programs, visiblePortalIds, visibleGroupIds)
 }
 
 const requestActor = (ctx: Awaited<ReturnType<typeof resolveTenantContext>>): GoalActor =>

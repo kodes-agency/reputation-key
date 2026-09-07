@@ -34,7 +34,7 @@ import {
   nextPublicationState,
 } from '../../domain/reply-publication-workflow'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 import {
   reviewId,
@@ -294,7 +294,7 @@ const ADMIN_CTX = {
   userId: ADMIN_ID,
   organizationId: ORG_ID,
 }
-const STAFF_CTX = { role: 'Staff' as const, userId: USER_ID, organizationId: ORG_ID }
+const MEMBER_CTX = { role: 'Member' as const, userId: USER_ID, organizationId: ORG_ID }
 
 // ── draftReply ──────────────────────────────────────────────────────────
 
@@ -452,7 +452,7 @@ describe('draftReply', () => {
   it('blocks staff role', async () => {
     const deps = makeDeps()
     await expect(
-      draftReply(deps)({ reviewId: REVIEW_ID, text: 'Hi' }, STAFF_CTX),
+      draftReply(deps)({ reviewId: REVIEW_ID, text: 'Hi' }, MEMBER_CTX),
     ).rejects.toMatchObject({ code: 'unauthorized', _tag: 'ReviewError' })
   })
 
@@ -1019,7 +1019,7 @@ describe('getReply', () => {
   it('blocks staff role', async () => {
     const deps = makeDeps()
     await expect(
-      getReply(deps)({ reviewId: REVIEW_ID }, STAFF_CTX),
+      getReply(deps)({ reviewId: REVIEW_ID }, MEMBER_CTX),
     ).rejects.toMatchObject({
       code: 'unauthorized',
       _tag: 'ReviewError',

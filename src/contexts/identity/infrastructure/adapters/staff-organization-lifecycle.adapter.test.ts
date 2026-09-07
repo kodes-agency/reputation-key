@@ -265,7 +265,7 @@ describe('Staff Organization lifecycle contribution', () => {
     ])
   })
 
-  it('binds every phase to the Staff context of the coordinator contract', () => {
+  it('binds every phase to the stable staff receipt context', () => {
     const { db } = createFakeDb({ state: 'closing', counts: [] })
     const contributor = createStaffOrganizationLifecycleContributor(db)
     expect(contributor.context).toBe('staff')

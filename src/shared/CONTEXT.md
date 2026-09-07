@@ -71,7 +71,7 @@ context's public application interface instead.
 | `masked-layout-snapshot.ts`          | Closed geometry-only diagnostic snapshot normalization and server-side wireframe rendering for explicitly consented Bug feedback.                                | Identity owns the feedback attachment contract and Platform Security owns content exclusion; this file must never accept text, values, pixels, URLs, or media.    |
 | `openai-*`                           | Exact OpenAI request-output vocabulary shared by the AI context, trusted UI consumers, and the egress gateway.                                                   | AI owns the semantic schema and the gateway owns wire enforcement; provider-specific behavior may not spread outside this named category.                         |
 | `reply-language-*`                   | Browser-safe product language catalogue shared by Property, Review, Inbox, UI, and the governed AI language profile.                                             | AI owns the versioned language policy while Frontend Platform protects browser reachability; native detection stays in the server-only AI family.                 |
-| `responsible-manager-eligibility.ts` | Cross-context eligibility decision for selecting responsible managers without granting access or creating assignments.                                           | Staff owns the people-policy vocabulary while Portal and Property own their assignment writes; this helper must never become an authorization grant.              |
+| `responsible-manager-eligibility.ts` | Cross-context eligibility decision for selecting responsible managers without granting access or creating assignments.                                           | Identity People owns the people-policy vocabulary while Portal and Property own their assignment writes; this helper must never become an authorization grant.    |
 | `review-provider-*`                  | Opaque provider-subject binding and vectors shared across Review, Integration, webhook delivery, and provider adapters.                                          | Review owns provider-subject identity and Platform Security owns its content-free binding; raw provider or review content is forbidden.                           |
 
 <!-- shared-root-category-ownership:end -->
@@ -97,7 +97,7 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 ## Domain types (`shared/domain/`)
 
 - **`ids.ts`** — branded ID types (`OrganizationId`, `PropertyId`, `PortalId`, etc.) and constructors
-- **`roles.ts`** — `Role` type (`'AccountAdmin' | 'PropertyManager' | 'Staff'`), `toDomainRole()`, `hasRole()` hierarchy check
+- **`roles.ts`** — `Role` type (`'AccountAdmin' | 'PropertyManager' | 'Member'`), `toDomainRole()`, `hasRole()` hierarchy check
 - **`permissions.ts`** — `Permission` type, `can(role, permission)` sync check. Use in server functions and route guards.
 - **`auth-context.ts`** — `AuthContext` type (`{ userId, organizationId, role }`)
 - **`errors.ts`** — base error types

@@ -36,7 +36,7 @@ type IdentitySpec = Readonly<{
 
 function makeCtx(
   label: string,
-  role: 'AccountAdmin' | 'PropertyManager' | 'Staff',
+  role: 'AccountAdmin' | 'PropertyManager' | 'Member',
   scope: 'organization' | 'assigned-properties',
 ): AuthContext {
   return {
@@ -75,7 +75,7 @@ const IDENTITIES: ReadonlyArray<IdentitySpec> = [
   },
   {
     label: 'staff-ungranted',
-    ctx: makeCtx('stfu', 'Staff', 'assigned-properties'),
+    ctx: makeCtx('stfu', 'Member', 'assigned-properties'),
     propertyScoped: true,
     hasGrant: false,
     oldAllowed: true,

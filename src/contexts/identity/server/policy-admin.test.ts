@@ -57,9 +57,9 @@ describe('policy.admin least privilege (BQC-2.7)', () => {
     ).rejects.toMatchObject({ _tag: 'AuthError', code: 'permission_denied', status: 403 })
   })
 
-  it('Staff denies', async () => {
+  it('Member denies', async () => {
     await expect(
-      requireExecutionAllowed({ actor: ctx('Staff'), action: 'policy.admin' }),
+      requireExecutionAllowed({ actor: ctx('Member'), action: 'policy.admin' }),
     ).rejects.toMatchObject({ _tag: 'AuthError', code: 'permission_denied', status: 403 })
   })
 })

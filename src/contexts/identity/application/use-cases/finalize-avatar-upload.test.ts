@@ -9,7 +9,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 const memberCtx: AuthContext = {
   userId: userId('user-1'),
   organizationId: organizationId('org-1'),
-  role: 'Staff',
+  role: 'Member',
 }
 
 const adminCtx: AuthContext = {
@@ -37,7 +37,7 @@ describe('finalizeAvatarUpload', () => {
     setPermissionLookup(() => true)
   })
 
-  it('rejects Staff role with forbidden error', async () => {
+  it('rejects Member role with forbidden error', async () => {
     setPermissionLookup(() => false)
 
     const useCase = finalizeAvatarUpload({ storage: mockStorage })

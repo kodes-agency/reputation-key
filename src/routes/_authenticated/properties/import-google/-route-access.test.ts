@@ -7,7 +7,7 @@ describe('requireGoogleImportRole', () => {
     expect(() => requireGoogleImportRole('AccountAdmin')).not.toThrow()
   })
 
-  it.each<Role>(['PropertyManager', 'Staff'])(
+  it.each<Role>(['PropertyManager', 'Member'])(
     'redirects %s before an import detail route can load',
     (role) => {
       let thrown: unknown

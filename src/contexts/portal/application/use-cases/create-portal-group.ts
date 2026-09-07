@@ -11,7 +11,7 @@ import { buildPortalGroup } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'
 import { portalGroupCreated, portalAddedToGroup } from '../../domain/events'
 import { portalId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
 

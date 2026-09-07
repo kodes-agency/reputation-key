@@ -265,8 +265,8 @@ function FleetGateHarness({ role }: { role: Role }) {
   return <RouterProvider router={router} />
 }
 
-export const DeniedStaffRedirect: Story = {
-  render: () => <FleetGateHarness role="Staff" />,
+export const DeniedMemberRedirect: Story = {
+  render: () => <FleetGateHarness role="Member" />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(

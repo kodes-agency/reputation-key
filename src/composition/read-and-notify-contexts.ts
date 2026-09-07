@@ -18,7 +18,6 @@ import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { OutboxRepository } from '#/shared/outbox'
-import type { buildStaffContext } from '#/contexts/staff/build'
 import type { buildPropertyContext } from '#/contexts/property/build'
 import type { buildPortalContext } from '#/contexts/portal/build'
 import type { buildGuestContext } from '#/contexts/guest/build'
@@ -33,7 +32,6 @@ export type ReadAndNotifyContextsInput = Readonly<{
   logger: LoggerPort
   outboxRepo: OutboxRepository
   jobQueue: Queue | undefined
-  staff: ReturnType<typeof buildStaffContext>
   property: ReturnType<typeof buildPropertyContext>
   portal: ReturnType<typeof buildPortalContext>
   guest: ReturnType<typeof buildGuestContext>
@@ -73,7 +71,7 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
     portalApi: input.portal.publicApi.portal,
     reviewRatingLookup: input.review.publicApi,
     propertyApi: input.property.publicApi,
-    staffPublicApi: input.staff.publicApi,
+    staffPublicApi: input.identity.publicApi.people,
     reviewServingStats: input.reviewServingStats,
     inboxTargets: input.inbox.publicApi,
     guestResponseIntegrity: input.guest.publicApi,
@@ -84,7 +82,7 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
     activity: {
       db: input.db,
       outboxRepo: input.outboxRepo,
-      staffPublicApi: input.staff.publicApi,
+      staffPublicApi: input.identity.publicApi.people,
       clock: input.clock,
       logger: input.logger,
       idGen: () => recentActivityEntryId(crypto.randomUUID()),

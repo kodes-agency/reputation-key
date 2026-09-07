@@ -4,7 +4,7 @@ import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 
 const NOW = new Date('2026-08-26T14:00:00.000Z')
@@ -77,9 +77,7 @@ function publishedSnapshot(version: number, name: string) {
   })
 }
 
-const staffPublicApi = (
-  accessible: readonly PropertyId[] | null = null,
-): StaffPublicApi => ({
+const peopleApi = (accessible: readonly PropertyId[] | null = null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
 })
@@ -162,7 +160,7 @@ function setup(
     useCase: getPortalPublicationHistory({
       portalRepo,
       publicationRepo,
-      staffPublicApi: staffPublicApi(options?.accessible ?? null),
+      staffPublicApi: peopleApi(options?.accessible ?? null),
     }),
     publicationRepo,
     listActivationHistoryPage,
@@ -223,7 +221,7 @@ function setupLocalized(options?: Readonly<{ workingDisplayName?: string }>) {
   return getPortalPublicationHistory({
     portalRepo,
     publicationRepo,
-    staffPublicApi: staffPublicApi(),
+    staffPublicApi: peopleApi(),
   })
 }
 

@@ -5,7 +5,7 @@
 //
 // The `role` in route context defaults to `AccountAdmin` (the owner role, which
 // the permission table grants every statement), so create/update/delete
-// affordances all render. Use `withRole('Staff')` for a read-only member view.
+// affordances all render. Use `withRole('Member')` for a read-only member view.
 //
 // This is a NEW, parallel router provider. The global RouterDecorator from
 // preview.ts still wraps every story (outermost); this decorator nests an
@@ -55,8 +55,8 @@ export function AuthedRouterDecorator(Story: () => ReactNode) {
   return <RouterProvider router={router} />
 }
 
-/** Build a decorator that renders as a specific role (e.g. 'Staff' for a
- *  permission-restricted view). Usage: `decorators: [withRole('Staff')]`. */
+/** Build a decorator that renders as a specific role (e.g. 'Member' for a
+ *  permission-restricted view). Usage: `decorators: [withRole('Member')]`. */
 export function withRole(role: Role) {
   return function AuthedRouterDecoratorForRole(Story: () => ReactNode) {
     const router = useMemo(() => makeAuthedRouter(Story, role), [Story])

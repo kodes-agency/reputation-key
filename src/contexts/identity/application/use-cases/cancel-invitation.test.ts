@@ -50,9 +50,9 @@ describe('cancelInvitation', () => {
     expect(commandStore.invitationById(invId as string)?.status).toBe('canceled')
   })
 
-  it('rejects Staff from canceling invitations', async () => {
+  it('rejects Member from canceling invitations', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(useCase({ invitationId: invitationId('inv-x') }, ctx)).rejects.toSatisfy(
       (e) => isIdentityError(e) && e.code === 'forbidden',

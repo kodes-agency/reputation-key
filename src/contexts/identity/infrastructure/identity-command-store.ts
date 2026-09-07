@@ -329,7 +329,7 @@ export const createAtomicIdentityCommandStore = (
           if (inv.expiresAt <= command.now) {
             throw identityError('invitation_not_found', 'Invitation has expired')
           }
-          // 4. Re-validate the role at acceptance. Staff users and custom
+          // 4. Re-validate the role at acceptance. Member users and custom
           //    roles are retained as data but cannot become beta logins.
           const role = (inv.role ?? 'member').trim().toLowerCase()
           if (!isBetaInteractiveMemberRoleToken(role)) {

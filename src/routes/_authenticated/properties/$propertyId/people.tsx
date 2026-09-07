@@ -9,7 +9,7 @@ import {
   createStaffParticipation,
   listStaffParticipations,
   updatePortalResponsibilities,
-} from '#/contexts/staff/server/staff-participations'
+} from '#/contexts/identity/server/staff-participations'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { listPortals } from '#/contexts/portal/server/portals'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'

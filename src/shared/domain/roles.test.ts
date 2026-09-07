@@ -15,8 +15,8 @@ describe('toDomainRole', () => {
     expect(toDomainRole('admin')).toBe('PropertyManager')
   })
 
-  it('maps better-auth member to Staff', () => {
-    expect(toDomainRole('member')).toBe('Staff')
+  it('maps better-auth member to Member', () => {
+    expect(toDomainRole('member')).toBe('Member')
   })
 
   it('returns null for non-built-in (custom) roles', () => {
@@ -41,7 +41,7 @@ describe('toDomainRoleStrict', () => {
   it('maps built-in roles identically to toDomainRole', () => {
     expect(toDomainRoleStrict('owner')).toBe('AccountAdmin')
     expect(toDomainRoleStrict('admin')).toBe('PropertyManager')
-    expect(toDomainRoleStrict('member')).toBe('Staff')
+    expect(toDomainRoleStrict('member')).toBe('Member')
   })
 
   it('throws a typed unknown_role DomainError for non-built-in roles', () => {
@@ -71,12 +71,12 @@ describe('toBetterAuthRole', () => {
     expect(toBetterAuthRole('PropertyManager')).toBe('admin')
   })
 
-  it('maps Staff to member', () => {
-    expect(toBetterAuthRole('Staff')).toBe('member')
+  it('maps Member to member', () => {
+    expect(toBetterAuthRole('Member')).toBe('member')
   })
 
   it('round-trips correctly', () => {
-    const domainRoles = ['AccountAdmin', 'PropertyManager', 'Staff'] as const
+    const domainRoles = ['AccountAdmin', 'PropertyManager', 'Member'] as const
     for (const role of domainRoles) {
       expect(toDomainRole(toBetterAuthRole(role))).toBe(role)
     }

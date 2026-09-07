@@ -1,8 +1,8 @@
-// Staff context — domain errors tests
+// Identity People — domain error tests.
 // Per architecture: 100% coverage on errors, exhaustive code iteration.
 
 import { describe, it, expect } from 'vitest'
-import { staffError, isStaffError } from './errors'
+import { staffError, isStaffError } from './people-errors'
 
 describe('staffError', () => {
   it('creates a tagged error with _tag, code, and message', () => {

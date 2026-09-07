@@ -26,7 +26,7 @@ import {
   cleanupE2eData,
   seedReview,
   seedReviewInboxItemWithCycle,
-  seedStaffUserWithGrant,
+  seedMemberUserWithGrant,
   closeInboxItemBySourceAuthority,
   getInboxItemById,
   getInboxHandlingCycles,
@@ -62,10 +62,10 @@ test.describe('Critical workflow: inbox triage persists', () => {
     // Assignment target: a manager with a grant to the property (uuid id —
     // assignInboxItemFn validates assignedToUserId as uuid).
     //
-    // role 'owner', not the fixture's default Staff: assignment authorizes the
-    // ASSIGNEE as its own principal now, and Staff is not a beta-interactive
+    // role 'owner', not the fixture's default Member: assignment authorizes the
+    // ASSIGNEE as its own principal now, and Member is not a beta-interactive
     // role, so handing the item to one is refused before any grant is read.
-    const assignee = await seedStaffUserWithGrant({
+    const assignee = await seedMemberUserWithGrant({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       email: `${PREFIX}assignee-${e2eRunId}@example.com`,

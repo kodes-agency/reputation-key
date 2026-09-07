@@ -12,7 +12,7 @@ import type {
 import type { InboxItemId, ReviewId } from '#/shared/domain/ids'
 import type { InboxItemDetail } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type {
   FeedbackHandlingState,
   FeedbackHandlingStore,

@@ -1,6 +1,6 @@
-// Staff's Organization lifecycle contribution (LIF-01-T12/T13/T14).
+// Identity People's Organization lifecycle contribution (LIF-01-T12/T13/T14).
 //
-// Staff owns the people directory: Staff Participants, their optional login
+// Identity People owns the directory: Staff Participants, their optional login
 // link, their per-Property participation, their Portal Responsibility, and the
 // effective-dated Portal Group membership that gives event-time attribution its
 // meaning.
@@ -122,7 +122,7 @@ const countRetainedRows = (tx: Tx, organizationId: string): Promise<number> =>
  *     use cases, and those are already admitted upstream by the Identity-owned
  *     property-access grant authority plus the Organization suspension that the
  *     closure request co-commits. Editing people rows would not add a fence.
- *   * Every remaining Staff surface is effective-dated. Writing `effective_to`
+ *   * Every remaining People surface is effective-dated. Writing `effective_to`
  *     on a login link, a responsibility, or a Portal Group membership — or
  *     archiving a Participant — is a product-meaningful, non-reversible people
  *     fact. Closing is recoverable, and a cancelled closure must not leave a

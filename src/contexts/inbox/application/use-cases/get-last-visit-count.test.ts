@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { getLastVisitCount } from './get-last-visit-count'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import type { InboxViewRepository } from '../ports/inbox-view.repository'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import type { InboxItem } from '../../domain/types'
@@ -23,7 +23,7 @@ const SINCE = new Date('2026-08-26T10:00:00.000Z')
 const ctxWith = (...permissions: Permission[]): AuthContext => ({
   organizationId: ORG_ID,
   userId: USER_ID,
-  role: 'Staff',
+  role: 'Member',
   effectivePermissions: new Set(permissions),
   scopeByPermission: new Map(
     permissions.map((permission) => [permission, 'organization' as const]),

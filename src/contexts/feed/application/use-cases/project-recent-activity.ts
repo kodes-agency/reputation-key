@@ -65,7 +65,7 @@ export const prepareRecentActivityEntry = async (
   // Resolve actor info — fall back to system defaults on lookup failure.
   let actorName = 'System'
   let actorAvatarUrl: string | null = null
-  let actorRole: Role = 'Staff'
+  let actorRole: Role = 'Member'
   // ACT-011: track whether the real user was resolved. When lookup fails,
   // actorId must be SYSTEM_USER_ID (not the real userId) so the record is
   // consistently attributed to 'system' — actorName/actorRole already fall
@@ -80,7 +80,7 @@ export const prepareRecentActivityEntry = async (
       )
       actorName = user.name
       actorAvatarUrl = user.avatarUrl
-      actorRole = user.role ?? 'Staff'
+      actorRole = user.role ?? 'Member'
     } catch (e) {
       deps.logger.warn({ error: e }, 'Activity user lookup failed, using system defaults')
       resolvedUserId = null

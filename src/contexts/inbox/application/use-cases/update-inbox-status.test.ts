@@ -13,7 +13,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
@@ -34,7 +34,7 @@ const ctxFor = (role: Role): AuthContext =>
 const ctxWith = (...permissions: Permission[]): AuthContext => ({
   organizationId: ORG_ID,
   userId: USER_ID,
-  role: 'Staff',
+  role: 'Member',
   effectivePermissions: new Set(permissions),
   scopeByPermission: new Map(
     permissions.map((permission) => [permission, 'organization' as const]),
@@ -76,7 +76,7 @@ const staffApiAllAccess: StaffPublicApi = {
   getAssignedPortals: async () => [],
 }
 
-const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
+const setup = (peopleApi: StaffPublicApi = staffApiAllAccess) => {
   const repo = createInMemoryInboxRepo()
   const events = createRecordedOutbox()
   const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
@@ -156,7 +156,7 @@ const setup = (staffApi: StaffPublicApi = staffApiAllAccess) => {
     repo,
     commandStore,
     clock: () => FIXED_TIME,
-    staffPublicApi: staffApi,
+    staffPublicApi: peopleApi,
     cycleStore,
     reviewSourceLookup,
     responseTargetAuthority,
@@ -349,11 +349,11 @@ describe('updateInboxStatus', () => {
   })
 
   it('intersects feedback.handle scope before changing workflow status', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       ...staffApiAllAccess,
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(
       seedOpen({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
     )
@@ -377,11 +377,11 @@ describe('updateInboxStatus', () => {
   })
 
   it('denies access without inbox.write permission for inaccessible property', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedOpen())
 
     await expect(
@@ -393,11 +393,11 @@ describe('updateInboxStatus', () => {
   })
 
   it('allows update when user has access to the property', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
 
     await expect(
@@ -413,11 +413,11 @@ describe('updateInboxStatus', () => {
   })
 
   it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-assigned')],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedOpen({ propertyId: propertyId('prop-other') }))
 
     await expect(
@@ -428,11 +428,11 @@ describe('updateInboxStatus', () => {
   })
 
   it('allows PropertyManager to update status for an assigned property', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
 
     const updated = await useCase(
@@ -448,13 +448,13 @@ describe('updateInboxStatus', () => {
   })
 
   it('skips property check for AccountAdmin role', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => {
         throw new Error('Should not be called')
       },
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedOpen({ status: 'closed', closedAt: FIXED_TIME }))
 
     await expect(

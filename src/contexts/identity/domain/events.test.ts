@@ -36,7 +36,7 @@ describe('identity events', () => {
     const event = identityMemberInvited({
       organizationId: ORG_ID,
       userId: USER_ID,
-      role: 'Staff' as Role,
+      role: 'Member' as Role,
       invitationId: INV_ID,
       occurredAt: NOW,
     })
@@ -58,7 +58,7 @@ describe('identity events', () => {
       identityMemberInvited({
         organizationId: ORG_ID,
         userId: USER_ID,
-        role: 'Staff',
+        role: 'Member',
         invitationId: INV_ID,
         occurredAt: NOW,
         correlationId,
@@ -87,7 +87,7 @@ describe('identity events', () => {
       identityMemberRoleChanged({
         organizationId: ORG_ID,
         memberUserId: USER_ID,
-        previousRole: 'Staff',
+        previousRole: 'Member',
         newRole: 'PropertyManager',
         userId: userId('manager-1'),
         occurredAt: NOW,

@@ -29,6 +29,7 @@ const boundedContextDirectories = (): readonly string[] =>
  */
 const MERGED_CONTEXT_ERASE_OWNERS: Readonly<Record<string, readonly string[]>> = {
   feed: ['activity', 'notification'],
+  identity: ['identity', 'staff'],
   reporting: ['dashboard', 'goal', 'metric'],
 }
 

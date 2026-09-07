@@ -4,7 +4,7 @@ import { listPortalGroups } from './list-portal-groups'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { organizationId, portalGroupId, propertyId } from '#/shared/domain/ids'
 import type { PortalGroup } from '../../domain/types'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({

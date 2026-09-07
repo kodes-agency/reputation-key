@@ -58,7 +58,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
           return {
             availability: 'disabled' as const,
             organization: null,
-            role: 'Staff' as const,
+            role: 'Member' as const,
             authz: EMPTY_CLIENT_AUTHZ,
           }
         }
@@ -74,7 +74,7 @@ export const getActiveOrganization = createServerFn({ method: 'GET' }).handler(
           return {
             availability: 'available' as const,
             organization: null,
-            role: 'Staff' as const,
+            role: 'Member' as const,
             authz: EMPTY_CLIENT_AUTHZ,
           }
         }

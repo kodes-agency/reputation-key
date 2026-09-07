@@ -98,7 +98,7 @@ afterAll(async () => {
   await deleteTestOrganizations(db, [ORG])
 })
 
-describe.sequential('current Staff user participation authority', () => {
+describe.sequential('current Member Staff Participation authority', () => {
   it('proves the exact current login link and active Property participation', async () => {
     await expect(decide()).resolves.toEqual({
       allowed: true,

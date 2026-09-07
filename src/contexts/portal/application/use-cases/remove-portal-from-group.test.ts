@@ -18,7 +18,7 @@ import {
 } from '#/shared/domain/ids'
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalGroup } from '../../domain/types'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const GROUP_ID = portalGroupId('pg-00000000-0000-0000-0000-000000000001')
@@ -170,9 +170,9 @@ describe('removePortalFromGroup', () => {
     ).rejects.toSatisfy((e: unknown) => isPortalError(e) && e.code === 'forbidden')
   })
 
-  it('rejects forbidden role (Staff lacks portal.update)', async () => {
+  it('rejects forbidden role (Member lacks portal.update)', async () => {
     const { useCase, portalGroupRepo } = setup([])
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
     portalGroupRepo.seed([seedGroup(ctx.organizationId)])
     await portalGroupRepo.addPortal(
       ctx.organizationId,

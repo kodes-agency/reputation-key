@@ -7,7 +7,7 @@ import { createSequentialPropertyCommandStore } from '#/shared/testing/sequentia
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
 import { isPropertyError } from '../../domain/errors'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -114,7 +114,7 @@ describe('updateProperty', () => {
 
   it('rejects users who cannot edit', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(useCase({ propertyId: 'any', name: 'Test' }, ctx)).rejects.toSatisfy(
       (e: unknown) => isPropertyError(e) && (e as { code: string }).code === 'forbidden',

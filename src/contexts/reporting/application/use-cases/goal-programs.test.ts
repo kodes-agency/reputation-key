@@ -361,7 +361,7 @@ describe('canonical Goal Program service', () => {
     expect(bundle.results).toEqual([])
   })
 
-  it('rejects duplicate subjects and policy-denied Staff mutation', async () => {
+  it('rejects duplicate subjects and policy-denied Member mutation', async () => {
     const { service, policy } = setup()
     await expect(
       service.create(
@@ -386,16 +386,16 @@ describe('canonical Goal Program service', () => {
       service.create(
         {
           propertyId: 'property-1',
-          name: 'Staff cannot create',
+          name: 'Member cannot create',
           metric: 'portal_rating_count',
           targetValue: 10,
           subjects: [{ kind: 'property', propertyId: 'property-1' }],
         },
-        { ...actor, role: 'Staff' },
+        { ...actor, role: 'Member' },
       ),
     ).rejects.toMatchObject({ code: 'forbidden' } satisfies Partial<GoalProgramError>)
     expect(policy.authorize).toHaveBeenLastCalledWith({
-      actor: { ...actor, role: 'Staff' },
+      actor: { ...actor, role: 'Member' },
       organizationId: actor.organizationId,
       propertyId: 'property-1',
       action: 'goal.create',
@@ -414,7 +414,7 @@ describe('canonical Goal Program service', () => {
           targetValue: 10,
           subjects: [{ kind: 'property', propertyId: 'property-1' }],
         },
-        { ...actor, role: 'Staff' },
+        { ...actor, role: 'Member' },
       ),
     ).resolves.toMatchObject({ program: { name: 'Policy-authorized program' } })
   })

@@ -3,7 +3,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { propertyId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import {
   assertInboxSourcePropertyAccessible,
@@ -16,7 +16,7 @@ import {
 const contextWith = (...permissions: Permission[]): AuthContext => ({
   organizationId: organizationId('org-1'),
   userId: userId('user-1'),
-  role: 'Staff',
+  role: 'Member',
   effectivePermissions: new Set(permissions),
   scopeByPermission: new Map(
     permissions.map((permission) => [permission, 'assigned-properties' as const]),
@@ -60,7 +60,7 @@ describe('Inbox source-specific access', () => {
   })
 
   it('intersects Inbox and owning-context property scopes per source', async () => {
-    const staffPublicApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('property-1')],
       getAssignedPortals: async () => [],
     }
@@ -74,14 +74,14 @@ describe('Inbox source-specific access', () => {
       ],
     })
 
-    await expect(resolveInboxSourceScopes(staffPublicApi, ctx, 'read')).resolves.toEqual([
+    await expect(resolveInboxSourceScopes(peopleApi, ctx, 'read')).resolves.toEqual([
       { sourceType: 'review' },
       { sourceType: 'feedback', propertyIds: [propertyId('property-1')] },
     ])
   })
 
   it('treats a none-scoped owning permission as no source visibility', async () => {
-    const staffPublicApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('property-1')],
       getAssignedPortals: async () => [],
     }
@@ -94,12 +94,10 @@ describe('Inbox source-specific access', () => {
       ],
     })
 
-    await expect(resolveInboxSourceScopes(staffPublicApi, ctx, 'read')).resolves.toEqual(
-      [],
-    )
+    await expect(resolveInboxSourceScopes(peopleApi, ctx, 'read')).resolves.toEqual([])
     await expect(
       assertInboxSourcePropertyAccessible(
-        staffPublicApi,
+        peopleApi,
         ctx,
         'read',
         'feedback',

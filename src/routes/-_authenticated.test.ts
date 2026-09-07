@@ -38,7 +38,7 @@ const ACTIVE_ORGANIZATION = {
     slug: 'riverside-hotels',
     contactEmail: null,
   },
-  role: 'Staff',
+  role: 'Member',
   authz: {},
 }
 
@@ -53,7 +53,7 @@ describe('authenticated route', () => {
     getActiveOrganization.mockResolvedValue({
       availability: 'disabled',
       organization: null,
-      role: 'Staff',
+      role: 'Member',
       authz: {},
     })
 
@@ -95,7 +95,7 @@ describe('authenticated route', () => {
     getActiveOrganization.mockResolvedValue({
       availability: 'available',
       organization: null,
-      role: 'Staff',
+      role: 'Member',
       authz: {},
     })
 

@@ -65,9 +65,9 @@ describe('inviteMember', () => {
     expect(outbox.facts[0]._tag).toBe('identity.member.invited')
   })
 
-  it('rejects Staff from inviting anyone', async () => {
+  it('rejects Member from inviting anyone', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(
       useCase({ email: 'any@test.com', role: 'PropertyManager', propertyIds: [] }, ctx),

@@ -110,7 +110,7 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
 
   it.each([
     ['the execution policy version', { executionPolicyVersion: 'beta-local-3' }],
-    ['the actor role', { role: 'Staff' }],
+    ['the actor role', { role: 'Member' }],
     ['the permission digest', { permissionDigest: 'b'.repeat(64) }],
     ['the connection lifecycle version', { connectionLifecycleVersion: 4 }],
     ['the connection access version', { connectionAccessVersion: 5 }],
@@ -133,7 +133,7 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
     expect(
       sameFrozenGoogleContentAuthorizationVector(
         withoutGeneration,
-        persisted({ role: 'Staff' }),
+        persisted({ role: 'Member' }),
       ),
     ).toBe(false)
   })
@@ -149,10 +149,10 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
           persisted(),
           persisted({
             credentialGeneration: 6,
-            role: 'Staff',
+            role: 'Member',
           }),
         ),
-      ).toEqual([{ key: 'role', frozen: 'AccountAdmin', recomputed: 'Staff' }])
+      ).toEqual([{ key: 'role', frozen: 'AccountAdmin', recomputed: 'Member' }])
     })
 
     it('is empty exactly when the comparison passes', () => {
@@ -185,8 +185,8 @@ describe('sameFrozenGoogleContentAuthorizationVector', () => {
 
     it('is empty only for identical vectors', () => {
       expect(exactVectorDrift(persisted(), persisted())).toEqual([])
-      expect(exactVectorDrift(persisted(), persisted({ role: 'Staff' }))).toEqual([
-        { key: 'role', frozen: 'AccountAdmin', recomputed: 'Staff' },
+      expect(exactVectorDrift(persisted(), persisted({ role: 'Member' }))).toEqual([
+        { key: 'role', frozen: 'AccountAdmin', recomputed: 'Member' },
       ])
     })
   })

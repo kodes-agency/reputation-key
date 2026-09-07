@@ -1,5 +1,5 @@
 {
-  "id": "182c4354-02bf-4274-915a-64f0fb3fb126",
+  "id": "3c0ef334-bd1a-4e47-a84a-620d3db5bd2e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -4465,7 +4465,7 @@
         },
         "beta_feedback_triage_reporter_role_valid": {
           "name": "beta_feedback_triage_reporter_role_valid",
-          "value": "\"beta_feedback_triage\".\"reporter_role\" IN ('AccountAdmin', 'PropertyManager', 'Staff')"
+          "value": "\"beta_feedback_triage\".\"reporter_role\" IN ('AccountAdmin', 'PropertyManager', 'Member')"
         },
         "beta_feedback_triage_delivery_valid": {
           "name": "beta_feedback_triage_delivery_valid",

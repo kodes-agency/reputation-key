@@ -13,7 +13,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { isPortalError } from '../../domain/errors'
@@ -139,9 +139,9 @@ const withHeroImageUrl = (
   >[0]
 
 describe('getPropertyPortalExperience', () => {
-  it('returns the Property experience with no overrides and no brand authority for Staff', async () => {
+  it('returns the Property experience with no overrides and no brand authority for Member', async () => {
     const { deps, experienceRepo } = setup([PROPERTY])
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     const result = await getPropertyPortalExperience(deps)({ propertyId: PROPERTY }, ctx)
 
@@ -469,11 +469,11 @@ describe('savePortalLocalizedOverride', () => {
     expect(experienceRepo.savePortalOverride).not.toHaveBeenCalled()
   })
 
-  it('refuses Staff — per-Portal guest content needs portal.update', async () => {
+  it('refuses Member — per-Portal guest content needs portal.update', async () => {
     const { deps, experienceRepo, portalRepo } = setup()
     const portal = buildTestPortal({ propertyId: PROPERTY })
     portalRepo.seed([portal])
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(
       savePortalLocalizedOverride(deps)(

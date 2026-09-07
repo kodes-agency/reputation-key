@@ -185,19 +185,19 @@ describe('Auth context and role helpers', () => {
     // Role hierarchy should have all three roles
     expect(ROLE_HIERARCHY.AccountAdmin).toBe(2)
     expect(ROLE_HIERARCHY.PropertyManager).toBe(1)
-    expect(ROLE_HIERARCHY.Staff).toBe(0)
+    expect(ROLE_HIERARCHY.Member).toBe(0)
   })
 
   it('hasRole enforces hierarchy correctly', async () => {
     const { hasRole } = await import('#/shared/domain/roles')
 
-    expect(hasRole('AccountAdmin', 'Staff')).toBe(true)
+    expect(hasRole('AccountAdmin', 'Member')).toBe(true)
     expect(hasRole('AccountAdmin', 'PropertyManager')).toBe(true)
     expect(hasRole('AccountAdmin', 'AccountAdmin')).toBe(true)
-    expect(hasRole('PropertyManager', 'Staff')).toBe(true)
+    expect(hasRole('PropertyManager', 'Member')).toBe(true)
     expect(hasRole('PropertyManager', 'AccountAdmin')).toBe(false)
-    expect(hasRole('Staff', 'PropertyManager')).toBe(false)
-    expect(hasRole('Staff', 'AccountAdmin')).toBe(false)
+    expect(hasRole('Member', 'PropertyManager')).toBe(false)
+    expect(hasRole('Member', 'AccountAdmin')).toBe(false)
   })
 })
 

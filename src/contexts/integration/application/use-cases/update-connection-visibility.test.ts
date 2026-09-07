@@ -49,7 +49,7 @@ describe('updateConnectionVisibility', () => {
 
   it('rejects users without integration.manage permission', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(
       useCase({ connectionId: 'any-id', visibility: 'organization' }, ctx),

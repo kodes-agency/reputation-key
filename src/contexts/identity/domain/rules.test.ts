@@ -120,8 +120,8 @@ describe('canInviteWithRole', () => {
     expect(canInviteWithRole('AccountAdmin', 'AccountAdmin')._unsafeUnwrap()).toBe(true)
   })
 
-  it('prevents Staff-user invitations during beta', () => {
-    const result = canInviteWithRole('AccountAdmin', 'Staff')
+  it('prevents Member invitations during beta', () => {
+    const result = canInviteWithRole('AccountAdmin', 'Member')
     expect(result.isErr()).toBe(true)
     if (result.isErr()) expect(result.error.code).toBe('forbidden')
   })
@@ -142,10 +142,10 @@ describe('canInviteWithRole', () => {
     }
   })
 
-  it('prevents Staff from inviting anyone', () => {
-    expect(canInviteWithRole('Staff', 'Staff').isErr()).toBe(true)
-    expect(canInviteWithRole('Staff', 'PropertyManager').isErr()).toBe(true)
-    expect(canInviteWithRole('Staff', 'AccountAdmin').isErr()).toBe(true)
+  it('prevents Member from inviting anyone', () => {
+    expect(canInviteWithRole('Member', 'Member').isErr()).toBe(true)
+    expect(canInviteWithRole('Member', 'PropertyManager').isErr()).toBe(true)
+    expect(canInviteWithRole('Member', 'AccountAdmin').isErr()).toBe(true)
   })
 })
 
@@ -184,24 +184,26 @@ describe('normalizeSlug', () => {
 // ── canChangeRole ────────────────────────────────────────────────────
 
 describe('canChangeRole', () => {
-  it('allows AccountAdmin to change Staff to PropertyManager', () => {
+  it('allows AccountAdmin to change Member to PropertyManager', () => {
     expect(
-      canChangeRole('AccountAdmin', 'Staff', 'PropertyManager')._unsafeUnwrap(),
+      canChangeRole('AccountAdmin', 'Member', 'PropertyManager')._unsafeUnwrap(),
     ).toBe(true)
   })
 
-  it('allows AccountAdmin to change Staff to AccountAdmin', () => {
-    expect(canChangeRole('AccountAdmin', 'Staff', 'AccountAdmin')._unsafeUnwrap()).toBe(
+  it('allows AccountAdmin to change Member to AccountAdmin', () => {
+    expect(canChangeRole('AccountAdmin', 'Member', 'AccountAdmin')._unsafeUnwrap()).toBe(
       true,
     )
   })
 
-  it('allows PropertyManager to change Staff role', () => {
-    expect(canChangeRole('PropertyManager', 'Staff', 'Staff')._unsafeUnwrap()).toBe(true)
+  it('allows PropertyManager to change Member role', () => {
+    expect(canChangeRole('PropertyManager', 'Member', 'Member')._unsafeUnwrap()).toBe(
+      true,
+    )
   })
 
   it('prevents PropertyManager from changing PropertyManager role', () => {
-    const result = canChangeRole('PropertyManager', 'PropertyManager', 'Staff')
+    const result = canChangeRole('PropertyManager', 'PropertyManager', 'Member')
     expect(result.isErr()).toBe(true)
     if (result.isErr()) {
       expect(result.error.code).toBe('forbidden')
@@ -209,13 +211,13 @@ describe('canChangeRole', () => {
   })
 
   it('prevents PropertyManager from assigning AccountAdmin role', () => {
-    const result = canChangeRole('PropertyManager', 'Staff', 'AccountAdmin')
+    const result = canChangeRole('PropertyManager', 'Member', 'AccountAdmin')
     expect(result.isErr()).toBe(true)
   })
 
-  it('prevents Staff from changing any role', () => {
-    expect(canChangeRole('Staff', 'Staff', 'PropertyManager').isErr()).toBe(true)
-    expect(canChangeRole('Staff', 'PropertyManager', 'Staff').isErr()).toBe(true)
+  it('prevents Member from changing any role', () => {
+    expect(canChangeRole('Member', 'Member', 'PropertyManager').isErr()).toBe(true)
+    expect(canChangeRole('Member', 'PropertyManager', 'Member').isErr()).toBe(true)
   })
 
   it('prevents changing AccountAdmin role (even by AccountAdmin — equal role)', () => {

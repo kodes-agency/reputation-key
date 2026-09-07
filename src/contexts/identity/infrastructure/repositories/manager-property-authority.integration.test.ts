@@ -11,7 +11,7 @@ const db = getDb()
 const ORG = 'org-inbox-assignee-identity-authority'
 const OWNER = 'user-inbox-assignee-owner'
 const MANAGER = 'user-inbox-assignee-manager'
-const STAFF = 'user-inbox-assignee-staff'
+const MEMBER = 'user-inbox-assignee-member'
 const PROPERTY = '4b000000-0000-4000-8000-000000000001'
 const MUTATION_FIRST_SESSION = 'ibx-assignee-identity-mutation-first'
 
@@ -51,7 +51,7 @@ beforeAll(async () => {
     sql`DELETE FROM member WHERE "organizationId" = ${ORG}`,
     sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`,
     sql`DELETE FROM properties WHERE organization_id = ${ORG}`,
-    sql`DELETE FROM "user" WHERE id IN (${OWNER}, ${MANAGER}, ${STAFF})`,
+    sql`DELETE FROM "user" WHERE id IN (${OWNER}, ${MANAGER}, ${MEMBER})`,
     sql`DELETE FROM permission_version WHERE organization_id = ${ORG}`,
   ])
   await deleteTestOrganizations(db, [ORG])
@@ -65,7 +65,7 @@ beforeAll(async () => {
     VALUES
       (${OWNER}, 'Inbox Owner', 'inbox-assignee-owner@example.com', false),
       (${MANAGER}, 'Inbox Manager', 'inbox-assignee-manager@example.com', false),
-      (${STAFF}, 'Inbox Staff', 'inbox-assignee-staff@example.com', false)
+      (${MEMBER}, 'Inbox Member', 'inbox-assignee-member@example.com', false)
   `)
   await db.execute(sql`
     INSERT INTO properties (id, organization_id, name, slug, timezone)
@@ -76,7 +76,7 @@ beforeAll(async () => {
     VALUES
       ('member-inbox-assignee-owner', ${OWNER}, ${ORG}, 'owner', now()),
       ('member-inbox-assignee-manager', ${MANAGER}, ${ORG}, 'admin', now()),
-      ('member-inbox-assignee-staff', ${STAFF}, ${ORG}, 'member', now())
+      ('member-inbox-assignee-member', ${MEMBER}, ${ORG}, 'member', now())
   `)
 })
 
@@ -103,7 +103,7 @@ afterAll(async () => {
     sql`DELETE FROM member WHERE "organizationId" = ${ORG}`,
     sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`,
     sql`DELETE FROM properties WHERE organization_id = ${ORG}`,
-    sql`DELETE FROM "user" WHERE id IN (${OWNER}, ${MANAGER}, ${STAFF})`,
+    sql`DELETE FROM "user" WHERE id IN (${OWNER}, ${MANAGER}, ${MEMBER})`,
     sql`DELETE FROM permission_version WHERE organization_id = ${ORG}`,
   ])
   await deleteTestOrganizations(db, [ORG])
@@ -128,8 +128,8 @@ describe.sequential('current manager Property authority', () => {
     })
   })
 
-  it('denies a Staff member at the manager-role boundary', async () => {
-    await expect(decide(STAFF)).resolves.toEqual({
+  it('denies a Member at the manager-role boundary', async () => {
+    await expect(decide(MEMBER)).resolves.toEqual({
       allowed: false,
       reason: 'manager_role_denied',
     })

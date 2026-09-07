@@ -16,7 +16,7 @@ import { isInboxError } from '../../domain/errors'
 import type { InboxNote, InboxStatus, SourceType } from '../../domain/types'
 import type { InboxItem } from '../../domain/types'
 import type { InboxNoteRepository } from '../ports/inbox-note.repository'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
@@ -47,7 +47,7 @@ const ctxFor = (role: Role): AuthContext =>
 const ctxWith = (...permissions: Permission[]): AuthContext => ({
   organizationId: ORG_ID,
   userId: USER_ID,
-  role: 'Staff',
+  role: 'Member',
   effectivePermissions: new Set(permissions),
   scopeByPermission: new Map(
     permissions.map((permission) => [permission, 'organization' as const]),
@@ -87,7 +87,7 @@ const defaultStaffApi: StaffPublicApi = {
   getAssignedPortals: async () => [],
 }
 
-const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
+const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const noteRepo = createInMemoryNoteRepo()
   const events = createRecordedOutbox()
@@ -101,7 +101,7 @@ const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
     commandStore,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
-    staffPublicApi: staffApi,
+    staffPublicApi: peopleApi,
   }
   const execute = addInboxNote(deps)
   type CommandInput = Parameters<typeof execute>[0]
@@ -159,11 +159,11 @@ describe('addInboxNote', () => {
 
   it('denies access without inbox.write permission for inaccessible property', async () => {
     // Use a role not in the permission table to simulate lacking inbox.write
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem())
 
     await expect(
@@ -174,31 +174,31 @@ describe('addInboxNote', () => {
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
-  it('denies Staff note for inaccessible property (Staff is property-scoped)', async () => {
-    // Staff is scoped to assigned properties via staff_assignment
-    const staffApi: StaffPublicApi = {
+  it('denies Member note for an inaccessible Property', async () => {
+    // Member is scoped to assigned Properties by Identity's access-grant authority.
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem())
 
     await expect(
-      useCase({ inboxItemId: ITEM_ID, text: 'test note' }, ctxFor('Staff')),
+      useCase({ inboxItemId: ITEM_ID, text: 'test note' }, ctxFor('Member')),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
   })
 
   it('allows note when user has access to the property', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo, noteRepo } = setup(staffApi)
+    const { useCase, repo, noteRepo } = setup(peopleApi)
     repo.items.push(seedItem())
 
     const note = await useCase(
       { inboxItemId: ITEM_ID, text: 'test note' },
-      ctxFor('Staff'),
+      ctxFor('Member'),
     )
 
     expect(note.text).toBe('test note')
@@ -247,11 +247,11 @@ describe('addInboxNote', () => {
   })
 
   it('intersects feedback.handle property scope before adding a note', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       ...defaultStaffApi,
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
     }
-    const { useCase, repo, noteRepo } = setup(staffApi)
+    const { useCase, repo, noteRepo } = setup(peopleApi)
     repo.items.push(
       seedItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
     )

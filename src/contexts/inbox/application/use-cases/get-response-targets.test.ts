@@ -8,7 +8,7 @@ import {
 } from '#/shared/domain/ids'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { InboxItem } from '../../domain/types'
 import type { ResponseTargetStore } from '../ports/response-target.store'
 import type { ResponseTargetPolicyStore } from '../ports/response-target-policy.store'
@@ -95,7 +95,7 @@ const store = (): ResponseTargetStore => ({
   releaseDueReminders: vi.fn(async () => ({ released: 0 })),
 })
 
-const staffApi = (ids: readonly (typeof PROPERTY)[] | null): StaffPublicApi => ({
+const peopleApi = (ids: readonly (typeof PROPERTY)[] | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids,
   getAssignedPortals: async () => [],
 })
@@ -108,7 +108,7 @@ describe('Response Target manager reads', () => {
     const execute = getInboxResponseTarget({
       repo,
       targetStore,
-      staffPublicApi: staffApi([PROPERTY]),
+      staffPublicApi: peopleApi([PROPERTY]),
       clock: () => NOW,
     })
 
@@ -126,7 +126,7 @@ describe('Response Target manager reads', () => {
       getInboxResponseTarget({
         repo,
         targetStore,
-        staffPublicApi: staffApi([OTHER_PROPERTY] as never),
+        staffPublicApi: peopleApi([OTHER_PROPERTY] as never),
         clock: () => NOW,
       })({ inboxItemId: ITEM }, ctx),
     ).rejects.toMatchObject({ code: 'forbidden' })
@@ -137,7 +137,7 @@ describe('Response Target manager reads', () => {
     const targetStore = store()
     const execute = getPrivateFeedbackTargetAnalytics({
       targetStore,
-      staffPublicApi: staffApi([PROPERTY]),
+      staffPublicApi: peopleApi([PROPERTY]),
       clock: () => NOW,
     })
 
@@ -162,7 +162,7 @@ describe('Response Target manager reads', () => {
     })
     const execute = getGoogleReviewTargetAnalytics({
       targetStore,
-      staffPublicApi: staffApi([PROPERTY]),
+      staffPublicApi: peopleApi([PROPERTY]),
       clock: () => NOW,
     })
 

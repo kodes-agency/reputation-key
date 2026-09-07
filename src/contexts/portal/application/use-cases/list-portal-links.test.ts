@@ -11,7 +11,7 @@ import {
 } from '#/shared/domain/ids'
 import type { PortalLinkCategory, PortalLink } from '../../domain/types'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({

@@ -65,7 +65,6 @@ export type EntryPointOwner =
   | 'property'
   | 'reporting'
   | 'review'
-  | 'staff'
   | 'operations'
   | 'shared'
   | 'web'
@@ -431,7 +430,6 @@ const INBOX = 'src/contexts/inbox/server'
 const REPORTING = 'src/contexts/reporting/server'
 const NOTIFICATION = 'src/contexts/feed/server'
 const ACTIVITY = 'src/contexts/feed/server'
-const STAFF = 'src/contexts/staff/server'
 const PORTAL = 'src/contexts/portal/server'
 const GUEST = 'src/contexts/guest/server'
 const AUTH_FUNCTIONS = 'src/shared/auth/auth.functions.ts'
@@ -1362,7 +1360,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'dashboard.read',
       'dashboard.use',
       'property',
-      { notes: 'property-access check; reply fields zeroed for Staff' },
+      { notes: 'property-access check; reply fields zeroed for Member' },
     ),
     sf(
       'getPropertyOverviewFn',
@@ -1634,21 +1632,21 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   ...[
     sf(
       'createStaffParticipation',
-      `${STAFF}/staff-participations.ts`,
+      `${IDENTITY}/staff-participations.ts`,
       'staff.manage',
       'staff.use',
       'property',
     ),
     sf(
       'listStaffParticipations',
-      `${STAFF}/staff-participations.ts`,
+      `${IDENTITY}/staff-participations.ts`,
       'staff.read',
       'staff.use',
       'property',
     ),
     sf(
       'archiveStaffParticipation',
-      `${STAFF}/staff-participations.ts`,
+      `${IDENTITY}/staff-participations.ts`,
       'staff.manage',
       'staff.use',
       'property',
@@ -1656,7 +1654,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'updatePortalResponsibilities',
-      `${STAFF}/staff-participations.ts`,
+      `${IDENTITY}/staff-participations.ts`,
       'staff.manage',
       'staff.use',
       'property',

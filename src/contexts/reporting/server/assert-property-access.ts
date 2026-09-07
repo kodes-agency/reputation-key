@@ -6,18 +6,18 @@
 // accessible; assigned scope → staff_assignment properties.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { propertyId } from '#/shared/domain/ids'
 
 /** Throw the DashboardError-shaped forbidden when the caller may not read the property. */
 export async function assertDashboardPropertyAccessible(
-  staffPublicApi: StaffPublicApi,
+  peopleApi: StaffPublicApi,
   ctx: AuthContext,
   rawPropertyId: string,
 ): Promise<void> {
   const accessible = await isPropertyAccessibleForPermission(
-    (orgId, uId, orgWide) => staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+    (orgId, uId, orgWide) => peopleApi.getAccessiblePropertyIds(orgId, uId, orgWide),
     ctx,
     'dashboard.read',
     propertyId(rawPropertyId),

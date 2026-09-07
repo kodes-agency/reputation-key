@@ -29,7 +29,7 @@ import type { ResponseTargetPolicyStore } from '#/contexts/inbox/application/por
 import type { InboxHistoryRepository } from '#/contexts/inbox/application/ports/inbox-history.repository'
 import type { InboxActorDirectory } from '#/contexts/inbox/application/ports/inbox-actor-directory.port'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxItem, InboxNote } from '#/contexts/inbox/domain/types'
 

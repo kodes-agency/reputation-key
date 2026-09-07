@@ -12,7 +12,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { FeedbackHandlingStore } from '../ports/feedback-handling.store'
 
 const NOW = new Date('2026-08-27T12:00:00.000Z')
@@ -61,7 +61,7 @@ const ctx = createScopedAuthContext({
   ],
 })
 
-const staffApi = (propertyIds = [PROPERTY_ID]): StaffPublicApi => ({
+const peopleApi = (propertyIds = [PROPERTY_ID]): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => propertyIds,
   getAssignedPortals: async () => [],
 })
@@ -104,7 +104,7 @@ describe('markFeedbackHandled', () => {
     const execute = markFeedbackHandled({
       repo,
       store,
-      staffPublicApi: staffApi(),
+      staffPublicApi: peopleApi(),
       ...deterministicDependencies,
     })
 
@@ -137,7 +137,7 @@ describe('markFeedbackHandled', () => {
       markFeedbackHandled({
         repo: review.repo,
         store: review.store,
-        staffPublicApi: staffApi(),
+        staffPublicApi: peopleApi(),
         ...deterministicDependencies,
       })(
         {
@@ -153,7 +153,7 @@ describe('markFeedbackHandled', () => {
       markFeedbackHandled({
         repo: inaccessible.repo,
         store: inaccessible.store,
-        staffPublicApi: staffApi([]),
+        staffPublicApi: peopleApi([]),
         ...deterministicDependencies,
       })(
         {
@@ -182,7 +182,7 @@ describe('correctFeedbackHandlingOutcome', () => {
     const execute = correctFeedbackHandlingOutcome({
       repo,
       store,
-      staffPublicApi: staffApi(),
+      staffPublicApi: peopleApi(),
       ...deterministicDependencies,
     })
 

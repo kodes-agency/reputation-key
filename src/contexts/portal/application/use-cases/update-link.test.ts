@@ -10,7 +10,7 @@ import {
   buildTestPortalLink,
 } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { propertyId, type PropertyId, userId } from '#/shared/domain/ids'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
@@ -127,7 +127,7 @@ describe('updateLink', () => {
 
   it('rejects users who cannot update', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(useCase({ linkId: 'any', label: 'Test' }, ctx)).rejects.toSatisfy(
       (e: unknown) => isPortalError(e) && e.code === 'forbidden',

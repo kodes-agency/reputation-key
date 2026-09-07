@@ -10,7 +10,8 @@
 // makes the set independent of context build order, which matters because
 // Identity is constructed long before most of the contexts whose data it
 // exports. Threading contributors out of built contexts would have re-created
-// exactly the late-bound build-order cycle ARC-03-T9 removed.
+// exactly the late-bound build-order cycle ARC-03-T9 removed; no contributor is
+// routed through a foreign context build.
 //
 // Identity is absent here on purpose. It supplies its own reviewed contributor
 // inside its build, and rejects a supplied `identity` entry — one owner, one
@@ -30,7 +31,7 @@ import { createNotificationOrganizationExportContributor } from '#/contexts/feed
 import { createPortalOrganizationExportContributor } from '#/contexts/portal/infrastructure/adapters/portal-organization-export.adapter'
 import { createPropertyOrganizationExportContributor } from '#/contexts/property/infrastructure/adapters/property-organization-export.adapter'
 import { createReviewOrganizationExportContributor } from '#/contexts/review/infrastructure/adapters/review-organization-export.adapter'
-import { createStaffOrganizationExportContributor } from '#/contexts/staff/infrastructure/adapters/staff-organization-export.adapter'
+import { createStaffOrganizationExportContributor } from '#/contexts/identity/infrastructure/adapters/staff-organization-export.adapter'
 import type { OrganizationLifecycleContributor } from '#/contexts/identity/application/ports/organization-lifecycle-contributor.port'
 import { createActivityOrganizationLifecycleContributor } from '#/contexts/feed/infrastructure/adapters/activity-organization-lifecycle.adapter'
 import { createAiOrganizationLifecycleContributor } from '#/contexts/ai/infrastructure/adapters/ai-organization-lifecycle.adapter'
@@ -43,7 +44,7 @@ import { createNotificationOrganizationLifecycleContributor } from '#/contexts/f
 import { createPortalOrganizationLifecycleContributor } from '#/contexts/portal/infrastructure/adapters/portal-organization-lifecycle.adapter'
 import { createPropertyOrganizationLifecycleContributor } from '#/contexts/property/infrastructure/adapters/property-organization-lifecycle.adapter'
 import { createReviewOrganizationLifecycleContributor } from '#/contexts/review/infrastructure/adapters/review-organization-lifecycle.adapter'
-import { createStaffOrganizationLifecycleContributor } from '#/contexts/staff/infrastructure/adapters/staff-organization-lifecycle.adapter'
+import { createStaffOrganizationLifecycleContributor } from '#/contexts/identity/infrastructure/adapters/staff-organization-lifecycle.adapter'
 import type { Database } from '#/shared/db'
 
 /** Identity supplies its own; these are the thirteen it composes with. */

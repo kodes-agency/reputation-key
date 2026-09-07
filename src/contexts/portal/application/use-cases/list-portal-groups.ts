@@ -9,7 +9,7 @@ import { canForContext } from '#/shared/domain/permissions'
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import { portalError } from '../../domain/errors'
 import { propertyId } from '#/shared/domain/ids'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 export type ListPortalGroupsDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository

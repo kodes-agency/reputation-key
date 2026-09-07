@@ -41,7 +41,7 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 - Bare ratings (no feedback comment) do not create inbox items.
 - Status transitions must follow the valid graph (see ADR 0004).
 - Claiming or releasing one's own eligible item requires source handling access. Assigning, releasing, or replacing another assignee additionally requires `inbox.manage`.
-- An assignee must retain the same Identity-owned manager permissions and Property scope as an actor handling that source. A PropertyManager must also have one exact current Staff user link and active participation at the Property; an AccountAdmin intentionally does not require a Staff participant row.
+- An assignee must retain the same Identity-owned manager permissions and Property scope as an actor handling that source. A PropertyManager must also have one exact current user-to-Staff-Participant link and active participation at the Property; an AccountAdmin intentionally does not require a Staff Participant row.
 - Role downgrade, Property grant revocation, and Staff participation archive re-run an idempotent Inbox reconciliation. It proves each assigned Review/feedback permission inside the release transaction and durably clears only assignments that are now ineligible; a retained legacy non-UUID Property key is always releasable and is preserved verbatim in assignment history.
 - Every human command authorizes its complete unique `(principal, Property)` requirement set once inside the write transaction. Multi-item commands cannot lock the permission generation after one item and then acquire a later item's membership or grant row.
 - Human-authored status, assignment, escalation, resolution, and note commands compare-and-swap the client-observed item command revision. Adding a note advances the same item fence atomically with the note and its identifier-only fact.
@@ -270,13 +270,13 @@ empty CSV is never fabricated.
 
 ## Permissions
 
-| Permission        | AccountAdmin | PropertyManager | Staff |
-| ----------------- | ------------ | --------------- | ----- |
-| `inbox.read`      | ✓            | ✓               | ✓     |
-| `inbox.write`     | ✓            | ✓               | ✓     |
-| `inbox.manage`    | ✓            | ✓               | —     |
-| `feedback.read`   | ✓            | ✓               | —     |
-| `feedback.handle` | ✓            | ✓               | —     |
+| Permission        | AccountAdmin | PropertyManager | Member |
+| ----------------- | ------------ | --------------- | ------ |
+| `inbox.read`      | ✓            | ✓               | ✓      |
+| `inbox.write`     | ✓            | ✓               | ✓      |
+| `inbox.manage`    | ✓            | ✓               | —      |
+| `feedback.read`   | ✓            | ✓               | —      |
+| `feedback.handle` | ✓            | ✓               | —      |
 
 ## Lookup ports
 

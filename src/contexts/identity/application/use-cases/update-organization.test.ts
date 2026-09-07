@@ -48,11 +48,11 @@ describe('updateOrganization', () => {
     expect(updateCalls[0].name).toBe('PM Org Name')
   })
 
-  it('rejects Staff from updating organization → forbidden', async () => {
+  it('rejects Member from updating organization → forbidden', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
-    await expect(useCase({ name: 'Staff Org' }, ctx)).rejects.toSatisfy(
+    await expect(useCase({ name: 'Member Org' }, ctx)).rejects.toSatisfy(
       (e: unknown) => isIdentityError(e) && (e as { code: string }).code === 'forbidden',
     )
   })

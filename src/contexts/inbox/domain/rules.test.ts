@@ -109,8 +109,8 @@ describe('canAssign', () => {
     expect(canAssign('PropertyManager')).toBe(true)
   })
 
-  it('returns false for Staff', () => {
-    expect(canAssign('Staff')).toBe(false)
+  it('returns false for Member', () => {
+    expect(canAssign('Member')).toBe(false)
   })
 })
 
@@ -122,11 +122,11 @@ describe('validateAssignment', () => {
     expect(validateAssignment('PropertyManager').isOk()).toBe(true)
   })
 
-  it('returns err with assignment_not_allowed for Staff', () => {
-    const result = validateAssignment('Staff')
+  it('returns err with assignment_not_allowed for Member', () => {
+    const result = validateAssignment('Member')
     expect(result.isErr()).toBe(true)
     const error = result._unsafeUnwrapErr()
     expect(error.code).toBe('assignment_not_allowed')
-    expect(error.message).toContain('Staff')
+    expect(error.message).toContain('Member')
   })
 })

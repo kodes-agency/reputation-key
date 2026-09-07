@@ -4,22 +4,19 @@
 
 ## Bounded contexts
 
-| Context     | Description                                                          | Key Entities                                        | Layer                    |
-| ----------- | -------------------------------------------------------------------- | --------------------------------------------------- | ------------------------ |
-| Identity    | Users, organizations, members, invitations                           | User, Organization, Member, Invitation              | Thin (wraps better-auth) |
-| Property    | Properties (hotels/restaurants) + GBP location import                | Property                                            | Thick                    |
-| Portal      | Review gateway first; secondary link tree, groups, lifecycle         | Portal, Link, LinkCategory, PortalGroup             | Thick                    |
-| Guest       | Rating-first Guest Responses, feedback/contact, destination actions  | GuestResponse, Rating, Feedback                     | Thick                    |
-| Team        | Quarantined historical data and people migration reconciliation      | Team, TeamMembership                                | Quarantined              |
-| Staff       | Participants, Property participation, and Portal attribution         | StaffParticipation, PortalResponsibility            | Thick                    |
-| Integration | Organization Google authority, import/discovery, provider I/O        | GoogleConnection, GoogleImportSaga                  | Standard                 |
-| Review      | Stable Reviews, source observations/lifecycle, Reply workflow        | Review, ReviewSourceObservation, Reply              | Thick                    |
-| AI          | Property-scoped private-beta review analysis, reply drafting, trends | AiOperation, AiReviewAnalysis                       | Standard                 |
-| Inbox       | Stable Inbox Items and numbered Handling Cycles                      | InboxItem, HandlingCycle, InboxNote                 | Thick                    |
-| Reporting   | Governed metrics, monthly Goal Programs, and dashboard read models   | MetricReading, GoalProgram, GoalMonthlyResult       | Thick                    |
-| Feed        | Recent Activity, Operational Action History, and notifications       | RecentActivityEntry, OperationalActionHistoryRecord | Standard                 |
-
-**Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected.
+| Context     | Description                                                               | Key Entities                                           | Layer       |
+| ----------- | ------------------------------------------------------------------------- | ------------------------------------------------------ | ----------- |
+| Identity    | Users, organizations, access grants, and People participation/attribution | User, Member, StaffParticipation, PortalResponsibility | Thick       |
+| Property    | Properties (hotels/restaurants) + GBP location import                     | Property                                               | Thick       |
+| Portal      | Review gateway first; secondary link tree, groups, lifecycle              | Portal, Link, LinkCategory, PortalGroup                | Thick       |
+| Guest       | Rating-first Guest Responses, feedback/contact, destination actions       | GuestResponse, Rating, Feedback                        | Thick       |
+| Team        | Quarantined historical data and people migration reconciliation           | Team, TeamMembership                                   | Quarantined |
+| Integration | Organization Google authority, import/discovery, provider I/O             | GoogleConnection, GoogleImportSaga                     | Standard    |
+| Review      | Stable Reviews, source observations/lifecycle, Reply workflow             | Review, ReviewSourceObservation, Reply                 | Thick       |
+| AI          | Property-scoped private-beta review analysis, reply drafting, trends      | AiOperation, AiReviewAnalysis                          | Standard    |
+| Inbox       | Stable Inbox Items and numbered Handling Cycles                           | InboxItem, HandlingCycle, InboxNote                    | Thick       |
+| Reporting   | Governed metrics, monthly Goal Programs, and dashboard read models        | MetricReading, GoalProgram, GoalMonthlyResult          | Thick       |
+| Feed        | Recent Activity, Operational Action History, and notifications            | RecentActivityEntry, OperationalActionHistoryRecord    | Standard    |
 
 Contexts communicate via domain events. Cross-context type imports allowed for events only. For behavior, subscribe to events, define a port, or import from `application/public-api.ts`.
 
@@ -142,7 +139,7 @@ Contract for the composition root (`src/composition.ts`):
 - It must **not** import individual use cases, event handlers, or business rules — those are constructed inside the owning build module.
 - A build module may import its **own** context's infrastructure, but never a foreign context's — foreign pieces arrive as injected deps typed via the target's `application/public-api.ts` (or a narrow structural port owned by the consuming context).
 - Worker/job/consumer/schedule registration is owned by BQC-3 (`bootstrap.ts` + `worker/`); the composition root supplies the one runtime registry to context-owned registration contributions and never introduces another worker/job registry. Bootstrap invokes those named contributions instead of reaching through to context repositories.
-- Build **order is load-bearing** (TDZ): staff → identity → property → portal/guest → integration → review → inbox → reporting → feed. Team, Badge, and Leaderboard are not composed. Feed may retain narrowly scoped, neutral historical Badge notification compatibility without constructing Badge. Where a later context must be reachable from an earlier one, a late-binding closure that resolves at call time is the sanctioned escape hatch, not reordering.
+- Build **order is load-bearing** (TDZ): identity (People first) → property → portal/guest → integration → review → inbox → reporting → feed. Team, Badge, and Leaderboard are not composed. Feed may retain narrowly scoped, neutral historical Badge notification compatibility without constructing Badge. Where a later context must be reachable from an earlier one, a late-binding closure that resolves at call time is the sanctioned escape hatch, not reordering.
 
 ## Use case shape
 

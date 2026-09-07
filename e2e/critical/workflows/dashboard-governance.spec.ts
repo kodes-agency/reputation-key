@@ -1,14 +1,14 @@
-// BQC-6.5 item 9 — limited (staff) dashboard: governed property data only,
+// BQC-6.5 item 9 — limited (Member) dashboard: governed property data only,
 // no cross-property data, no raw-expired data, and reply-derived fields
 // redacted for roles lacking reply.manage (with an admin control).
 //
 // Verified at the governed read boundary — getDashboardDataFn IS the read the
-// dashboard UI consumes. Staff login is not a beta surface, so the staff-side
-// assertions target the access model directly (grant-filtered enumeration +
-// governed aggregates + role-based reply redaction), with an admin control for
+// dashboard UI consumes. Member login is not a beta surface, so the
+// Member-side assertions target the access model directly (grant-filtered
+// enumeration + governed aggregates + role-based reply redaction), with an admin control for
 // the redaction.
 //
-// Landscape: a dedicated property A (staff has an operator grant to it)
+// Landscape: a dedicated property A (Member has an operator grant to it)
 // carries a fresh 5★ review with a published reply + an expired 1★ review;
 // property B (no grant) carries a fresh 1★ review with distinctive content.
 
@@ -21,7 +21,7 @@ import {
   seedProperty,
   seedReview,
   seedPublishedReply,
-  seedStaffUserWithGrant,
+  seedMemberUserWithGrant,
   callServerFnGet,
   callServerFnGetExpectError,
 } from '../../helpers/fixtures'
@@ -36,7 +36,7 @@ type DashboardResult = Readonly<{
   recentReviews: ReadonlyArray<{ id: string; replyStatus: string }>
 }>
 
-test.describe('Critical workflow: dashboard governance (staff vs admin)', () => {
+test.describe('Critical workflow: dashboard governance (Member vs admin)', () => {
   test.beforeEach(async () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
@@ -82,39 +82,39 @@ test.describe('Critical workflow: dashboard governance (staff vs admin)', () => 
       propertyId: propertyBId,
       externalId: `${PREFIX}b-fresh-${e2eRunId}`,
       rating: 1,
-      text: 'Cross-property review on B — staff must never see this.',
+      text: 'Cross-property review on B — Member must never see this.',
       reviewerName: 'Cross Property B Reviewer',
     })
     return { propertyAId, freshAId, expiredAId, propertyBId }
   }
 
-  // SKIPPED: exercises Staff User login, which this beta deliberately does not
+  // SKIPPED: exercises Member login, which this beta deliberately does not
   // have. 52635b32 made only owner/admin tokens beta-interactive
-  // (isBetaInteractiveMemberRoleToken), so a Staff member cannot resolve tenant
+  // (isBetaInteractiveMemberRoleToken), so a Member cannot resolve tenant
   // context at all — the sign-in fails before any dashboard assertion runs.
-  // "Staff User login" is on the program's dark-capability list, so the fence is
+  // "Member login" is on the program's dark-capability list, so the fence is
   // the intended behaviour and this test is asserting a capability that is off.
-  // Re-enable with the capability, not before; the staff-scoping coverage it
-  // provides is real and should come back when Staff can log in.
-  test.skip('staff dashboard is governed, scoped, expiry-clean, and reply-redacted', async ({
+  // Re-enable with the capability, not before; the Member-scoping coverage it
+  // provides is real and should come back when Member can log in.
+  test.skip('Member dashboard is governed, scoped, expiry-clean, and reply-redacted', async ({
     page,
   }) => {
     const { propertyAId, expiredAId, propertyBId } = await seedLandscape()
-    const staff = await seedStaffUserWithGrant({
+    const member = await seedMemberUserWithGrant({
       organizationId: seed.organizationId,
       propertyId: propertyAId,
-      email: `${PREFIX}staff-${e2eRunId}@example.com`,
-      name: 'E2E Dashboard Staff',
+      email: `${PREFIX}member-${e2eRunId}@example.com`,
+      name: 'E2E Dashboard Member',
     })
-    // Staff session reaches the authenticated area cleanly. The governed-data
+    // The Member session reaches the authenticated area cleanly. The governed-data
     // assertions below run against the SAME server fn the dashboard UI is fed
-    // by — staff UI surfaces are manager-gated today (see spec header).
-    await signIn(page, staff.email, staff.password, undefined, '/settings/profile')
+    // by — Member UI surfaces are manager-gated today (see spec header).
+    await signIn(page, member.email, member.password, undefined, '/settings/profile')
     await expect(page.getByRole('heading', { name: /profile/i }).first()).toBeVisible({
       timeout: 15_000,
     })
 
-    // The grant-filtered enumeration contains no B — no staff surface can
+    // The grant-filtered enumeration contains no B — no Member surface can
     // ever render B's content.
     const listed = await callServerFnGet<{ properties: ReadonlyArray<{ id: string }> }>(
       page,
@@ -125,24 +125,27 @@ test.describe('Critical workflow: dashboard governance (staff vs admin)', () => 
     )
     expect(listed.properties.map((p) => p.id)).not.toContain(propertyBId)
 
-    // Staff → A's dashboard: governed aggregates. The expired 1★ is excluded
+    // Member → A's dashboard: governed aggregates. The expired 1★ is excluded
     // (avg 5 over 1 review, not 3 over 2).
-    const staffDashboard = await callServerFnGet<DashboardResult>(page, {
+    const memberDashboard = await callServerFnGet<DashboardResult>(page, {
       file: DASHBOARD_FILE,
       exportName: 'getDashboardDataFn',
       data: { propertyId: propertyAId, timeRange: 'all' },
     })
-    expect(staffDashboard.kpis.avgRating.value).toBe(5)
-    expect(staffDashboard.kpis.reviews.value).toBe(1)
-    expect(staffDashboard.recentReviews.map((r) => r.id)).not.toContain(expiredAId)
-    // Reply-derived fields are redacted for staff (no reply.manage): zeroed
+    expect(memberDashboard.kpis.avgRating.value).toBe(5)
+    expect(memberDashboard.kpis.reviews.value).toBe(1)
+    expect(memberDashboard.recentReviews.map((r) => r.id)).not.toContain(expiredAId)
+    // Reply-derived fields are redacted for Member (no reply.manage): zeroed
     // performance + hidden per-review state…
-    expect(staffDashboard.replyPerformance).toEqual({ replyRate: 0, avgReplyHours: null })
-    for (const review of staffDashboard.recentReviews) {
+    expect(memberDashboard.replyPerformance).toEqual({
+      replyRate: 0,
+      avgReplyHours: null,
+    })
+    for (const review of memberDashboard.recentReviews) {
       expect(review.replyStatus).toBe('none')
     }
 
-    // Staff → B's dashboard: denied (no grant).
+    // Member → B's dashboard: denied (no grant).
     const denial = await callServerFnGetExpectError(page, {
       file: DASHBOARD_FILE,
       exportName: 'getDashboardDataFn',
@@ -151,7 +154,7 @@ test.describe('Critical workflow: dashboard governance (staff vs admin)', () => 
     expect(denial.message ?? '').toMatch(/error|denied/i)
   })
 
-  test('admin control sees the reply data the staff surface redacts', async ({
+  test('admin control sees the reply data the Member surface redacts', async ({
     page,
   }) => {
     const { propertyAId, freshAId } = await seedLandscape()

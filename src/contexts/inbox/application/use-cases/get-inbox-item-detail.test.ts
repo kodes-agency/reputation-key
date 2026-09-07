@@ -20,7 +20,7 @@ import type { InboxRepository } from '../ports/inbox.repository'
 import type { AiReviewInsightsPort } from '../ports/ai-review-insights.port'
 import type { FeedbackHandlingStore } from '../ports/feedback-handling.store'
 import type { ResponseTargetStore } from '../ports/response-target.store'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
@@ -180,7 +180,7 @@ const ctxFor = (role: Role): AuthContext =>
 const ctxWith = (...permissions: Permission[]): AuthContext => ({
   organizationId: ORG_ID,
   userId: USER_ID,
-  role: 'Staff',
+  role: 'Member',
   effectivePermissions: new Set(permissions),
   scopeByPermission: new Map(
     permissions.map((permission) => [permission, 'organization' as const]),
@@ -330,9 +330,9 @@ describe('getInboxItemDetail', () => {
   })
 
   // ── Reply permission gate (#4) ─────────────────────────────────────
-  // reply.manage is a field-level scope: Staff (who have inbox.read but NOT
+  // reply.manage is a field-level scope: Member (who has inbox.read but NOT
   // reply.manage) must receive reply === null and the lookup must NOT be called
-  // — preventing reply data from leaking to Staff in the detail payload.
+  // — preventing reply data from leaking to Member in the detail payload.
 
   it('attaches the reply for a manager on a review item', async () => {
     const scopedApi = createScopedStaffApi([PROP_ID])
@@ -347,14 +347,14 @@ describe('getInboxItemDetail', () => {
     expect(replyCalls).toHaveLength(1)
   })
 
-  it('does NOT attach reply for Staff and never calls the lookup', async () => {
+  it('does NOT attach reply for Member and never calls the lookup', async () => {
     const scopedApi = createScopedStaffApi([PROP_ID])
     const reply = makeReply()
     const { repo, staffApi, replyLookup, replyCalls, setDetail } = setup(scopedApi, reply)
     setDetail(makeDetail(makeItem()))
 
     const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
-    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('Staff'))
+    const result = await useCase({ inboxItemId: ITEM_ID }, ctxFor('Member'))
 
     expect(result.reply).toBeNull()
     expect(replyCalls).toHaveLength(0)

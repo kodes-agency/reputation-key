@@ -14,7 +14,7 @@ import type { ReviewSourceLookupPort } from './application/ports/review-source-l
 import type { ReplyLookupPort } from './application/ports/reply-lookup.port'
 import type { AiReviewInsightsPort } from './application/ports/ai-review-insights.port'
 import type { PropertyLookupPort } from './application/ports/property-lookup.port'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxContextApi } from './build'
 import { createInboxItem as createInboxItemUseCase } from './application/use-cases/create-inbox-item'

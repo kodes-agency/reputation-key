@@ -75,7 +75,7 @@ export const betaFeedbackTriage = pgTable(
     ),
     check(
       'beta_feedback_triage_reporter_role_valid',
-      sql`${t.reporterRole} IN ('AccountAdmin', 'PropertyManager', 'Staff')`,
+      sql`${t.reporterRole} IN ('AccountAdmin', 'PropertyManager', 'Member')`,
     ),
     check(
       'beta_feedback_triage_delivery_valid',

@@ -22,7 +22,7 @@ describe('member Property authority', () => {
     expect(
       propertyAuthorityRequirement(
         {
-          role: 'Staff',
+          role: 'Member',
           effectivePermissions: new Set(['ai.manage']),
           scopeByPermission: new Map([['ai.manage', 'organization']]),
         },

@@ -7,7 +7,7 @@ import type {
   IdentityAccountAdminAuthorityPublicApi,
   IdentityManagerFactsPublicApi,
 } from '#/contexts/identity/application/public-api'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Clock } from '#/shared/domain/clock'
 import type { GuestSnippetReadPort } from './application/ports/guest-snippet-read.port'

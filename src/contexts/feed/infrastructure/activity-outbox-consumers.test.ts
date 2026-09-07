@@ -276,7 +276,7 @@ describe('Activity durable Recent Activity consumer', () => {
         organizationId: 'org-1',
         userId: 'manager-role-change',
         memberUserId: 'member-role-target',
-        previousRole: 'Staff',
+        previousRole: 'Member',
         newRole: 'PropertyManager',
       },
       propertyId: null,

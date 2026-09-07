@@ -63,11 +63,27 @@ describe('Identity public API', () => {
       'accountAdminAuthority',
       'managerFacts',
       'offboardingFacts',
+      'people',
       'requests',
     ])
     expect(Object.keys(api.managerFacts)).toEqual(['listActiveManagers'])
     expect(Object.keys(api.accountAdminAuthority)).toEqual(['isCurrentAccountAdmin'])
     expect(Object.keys(api.offboardingFacts)).toEqual(['listOutstanding'])
+    expect(Object.keys(api.people).sort()).toEqual([
+      'findActiveParticipation',
+      'findParticipationById',
+      'getAccessiblePropertyIds',
+      'getAssignedPortals',
+      'listActiveParticipations',
+      'management',
+      'resolvePrimaryStaffAttribution',
+    ])
+    expect(Object.keys(api.people.management).sort()).toEqual([
+      'archiveStaffParticipation',
+      'createStaffParticipation',
+      'listStaffParticipations',
+      'updatePortalResponsibilities',
+    ])
     expect(Object.keys(api.requests).sort()).toEqual(EXPECTED_REQUEST_KEYS)
     expect(Object.keys(api.requests.merchantAiAuthorization).sort()).toEqual([
       'change',
@@ -80,6 +96,8 @@ describe('Identity public API', () => {
     expect(Object.isFrozen(api.managerFacts)).toBe(true)
     expect(Object.isFrozen(api.accountAdminAuthority)).toBe(true)
     expect(Object.isFrozen(api.offboardingFacts)).toBe(true)
+    expect(Object.isFrozen(api.people)).toBe(true)
+    expect(Object.isFrozen(api.people.management)).toBe(true)
     expect(Object.isFrozen(api.requests)).toBe(true)
     expect(Object.isFrozen(api.requests.merchantAiAuthorization)).toBe(true)
   })

@@ -47,7 +47,7 @@ describe('resendInvitation', () => {
       {
         id: 'inv-1',
         email: 'invited@example.com',
-        role: 'Staff',
+        role: 'Member',
         rawRole: 'member',
         status: 'pending',
         expiresAt: new Date('2026-05-01T00:00:00Z'),
@@ -91,9 +91,9 @@ describe('resendInvitation', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejects Staff from resending invitations', async () => {
+  it('rejects Member from resending invitations', async () => {
     const { useCase } = setup()
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(useCase({ invitationId: 'inv-any' }, ctx)).rejects.toSatisfy(
       (e: unknown) => isIdentityError(e) && e.code === 'forbidden',

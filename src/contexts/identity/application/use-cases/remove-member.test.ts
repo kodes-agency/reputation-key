@@ -45,12 +45,12 @@ const setup = (seeded: ReadonlyArray<MemberRecord> = []) => {
   return { useCase, identity, outbox, commandStore }
 }
 
-const STAFF_MEMBER: MemberRecord = {
+const MEMBER_RECORD: MemberRecord = {
   id: 'member-1',
   userId: 'user-target',
   email: 'target@test.com',
   name: 'Target Member',
-  role: 'Staff',
+  role: 'Member',
   rawRole: 'member',
   image: null,
   createdAt: new Date('2026-01-01'),
@@ -69,7 +69,7 @@ const ADMIN_MEMBER: MemberRecord = {
 
 describe('removeMember', () => {
   it('allows AccountAdmin to remove a member', async () => {
-    const { useCase, outbox, commandStore } = setup([STAFF_MEMBER, ADMIN_MEMBER])
+    const { useCase, outbox, commandStore } = setup([MEMBER_RECORD, ADMIN_MEMBER])
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const result = await useCase({ memberId: 'member-1' }, ctx)
@@ -81,7 +81,7 @@ describe('removeMember', () => {
   })
 
   it('rejects PropertyManager from removing members', async () => {
-    const { useCase } = setup([STAFF_MEMBER, ADMIN_MEMBER])
+    const { useCase } = setup([MEMBER_RECORD, ADMIN_MEMBER])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(useCase({ memberId: 'member-1' }, ctx)).rejects.toSatisfy(
@@ -89,9 +89,9 @@ describe('removeMember', () => {
     )
   })
 
-  it('rejects Staff from removing members', async () => {
-    const { useCase } = setup([STAFF_MEMBER, ADMIN_MEMBER])
-    const ctx = buildTestAuthContext({ role: 'Staff' })
+  it('rejects Member from removing members', async () => {
+    const { useCase } = setup([MEMBER_RECORD, ADMIN_MEMBER])
+    const ctx = buildTestAuthContext({ role: 'Member' })
 
     await expect(useCase({ memberId: 'member-1' }, ctx)).rejects.toSatisfy(
       (e) => isIdentityError(e) && e.code === 'forbidden',
@@ -99,7 +99,7 @@ describe('removeMember', () => {
   })
 
   it('records the member.removed fact with correct data', async () => {
-    const { useCase, outbox } = setup([STAFF_MEMBER, ADMIN_MEMBER])
+    const { useCase, outbox } = setup([MEMBER_RECORD, ADMIN_MEMBER])
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase({ memberId: 'member-1' }, ctx)
@@ -117,7 +117,7 @@ describe('removeMember', () => {
     const identity = createInMemoryIdentityPort()
     const outbox = createRecordedOutbox()
     const commandStore = createSequentialIdentityCommandStore({ outbox })
-    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+    for (const member of [MEMBER_RECORD, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
     const prepareGoogleConnectorDeparture = vi.fn(async () => undefined)
@@ -131,25 +131,25 @@ describe('removeMember', () => {
     })
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await useCase({ memberId: STAFF_MEMBER.id }, ctx)
+    await useCase({ memberId: MEMBER_RECORD.id }, ctx)
 
     expect(prepareGoogleConnectorDeparture).toHaveBeenCalledWith(
       ctx.organizationId,
-      STAFF_MEMBER.userId,
+      MEMBER_RECORD.userId,
       'member_removed',
     )
     expect(cancelGoogleImportsForUser).toHaveBeenCalledWith(
       ctx.organizationId,
-      STAFF_MEMBER.userId,
+      MEMBER_RECORD.userId,
     )
-    expect(commandStore.memberById(STAFF_MEMBER.id)).toBeNull()
+    expect(commandStore.memberById(MEMBER_RECORD.id)).toBeNull()
   })
 
   it('releases the target member authorities before deleting membership', async () => {
     const identity = createInMemoryIdentityPort()
     const outbox = createRecordedOutbox()
     const commandStore = createSequentialIdentityCommandStore({ outbox })
-    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+    for (const member of [MEMBER_RECORD, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
     const releaseMemberAuthorities = vi.fn(async () => undefined)
@@ -161,14 +161,14 @@ describe('removeMember', () => {
     })
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await useCase({ memberId: STAFF_MEMBER.id }, ctx)
+    await useCase({ memberId: MEMBER_RECORD.id }, ctx)
 
     expect(releaseMemberAuthorities).toHaveBeenCalledWith(
       ctx.organizationId,
-      STAFF_MEMBER.userId,
+      MEMBER_RECORD.userId,
       ctx.userId,
     )
-    expect(commandStore.memberById(STAFF_MEMBER.id)).toBeNull()
+    expect(commandStore.memberById(MEMBER_RECORD.id)).toBeNull()
   })
 
   /**
@@ -180,7 +180,7 @@ describe('removeMember', () => {
     const identity = createInMemoryIdentityPort()
     const outbox = createRecordedOutbox()
     const commandStore = createSequentialIdentityCommandStore({ outbox })
-    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+    for (const member of [MEMBER_RECORD, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
     const order: string[] = []
@@ -206,7 +206,7 @@ describe('removeMember', () => {
     })
 
     await useCase(
-      { memberId: STAFF_MEMBER.id },
+      { memberId: MEMBER_RECORD.id },
       buildTestAuthContext({ role: 'AccountAdmin' }),
     )
 
@@ -222,7 +222,7 @@ describe('removeMember', () => {
     const identity = createInMemoryIdentityPort()
     const outbox = createRecordedOutbox()
     const commandStore = createSequentialIdentityCommandStore({ outbox })
-    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+    for (const member of [MEMBER_RECORD, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
     const useCase = removeMember({
@@ -235,11 +235,11 @@ describe('removeMember', () => {
     })
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await expect(useCase({ memberId: STAFF_MEMBER.id }, ctx)).rejects.toThrow(
+    await expect(useCase({ memberId: MEMBER_RECORD.id }, ctx)).rejects.toThrow(
       'import lifecycle unavailable',
     )
 
-    expect(commandStore.memberById(STAFF_MEMBER.id)).not.toBeNull()
+    expect(commandStore.memberById(MEMBER_RECORD.id)).not.toBeNull()
     expect(outbox.byTag('identity.member.removed')).toEqual([])
   })
 
@@ -247,7 +247,7 @@ describe('removeMember', () => {
     const identity = createInMemoryIdentityPort()
     const outbox = createRecordedOutbox()
     const commandStore = createSequentialIdentityCommandStore({ outbox })
-    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+    for (const member of [MEMBER_RECORD, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
     const cancelGoogleImportsForUser = vi.fn(async () => undefined)
@@ -262,12 +262,12 @@ describe('removeMember', () => {
     })
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    await expect(useCase({ memberId: STAFF_MEMBER.id }, ctx)).rejects.toThrow(
+    await expect(useCase({ memberId: MEMBER_RECORD.id }, ctx)).rejects.toThrow(
       'connector lifecycle unavailable',
     )
 
     expect(cancelGoogleImportsForUser).not.toHaveBeenCalled()
-    expect(commandStore.memberById(STAFF_MEMBER.id)).not.toBeNull()
+    expect(commandStore.memberById(MEMBER_RECORD.id)).not.toBeNull()
     expect(outbox.byTag('identity.member.removed')).toEqual([])
   })
 

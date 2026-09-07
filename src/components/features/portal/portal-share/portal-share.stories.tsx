@@ -144,7 +144,7 @@ export const MutationError: Story = {
 
 export const PermissionDenied: Story = {
   args: baseArgs,
-  decorators: [withRole('Staff')],
+  decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText(/view-only access/i)).toBeInTheDocument()

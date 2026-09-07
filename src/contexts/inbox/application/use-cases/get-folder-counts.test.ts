@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { getInboxFolderCounts } from './get-folder-counts'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import {
   organizationId,
   inboxItemId,
@@ -27,7 +27,7 @@ const ctxFor = (role: Role): AuthContext =>
 const ctxWith = (...permissions: Permission[]): AuthContext => ({
   organizationId: ORG_ID,
   userId: USER_ID,
-  role: 'Staff',
+  role: 'Member',
   effectivePermissions: new Set(permissions),
   scopeByPermission: new Map(
     permissions.map((permission) => [permission, 'organization' as const]),
@@ -76,9 +76,9 @@ const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAssignedPortals: async () => [],
 })
 
-const setup = (staffApi: StaffPublicApi = allAccessStaffApi) => {
+const setup = (peopleApi: StaffPublicApi = allAccessStaffApi) => {
   const repo = createInMemoryInboxRepo()
-  const useCase = getInboxFolderCounts({ repo, staffPublicApi: staffApi })
+  const useCase = getInboxFolderCounts({ repo, staffPublicApi: peopleApi })
   return { useCase, repo }
 }
 
@@ -147,14 +147,14 @@ describe('getInboxFolderCounts', () => {
     expect(counts.open).toBe(0)
   })
 
-  it('scopes Staff to assigned properties', async () => {
+  it('scopes Member to assigned properties', async () => {
     const { useCase, repo } = setup(createScopedStaffApi(['prop-1']))
     repo.items.push(makeItem({ id: 'ii-1', status: 'open' }))
     repo.items.push(
       makeItem({ id: 'ii-2', status: 'open', propertyId: propertyId('prop-2') }),
     )
 
-    const counts = await useCase({}, ctxFor('Staff'))
+    const counts = await useCase({}, ctxFor('Member'))
 
     expect(counts.open).toBe(1)
   })

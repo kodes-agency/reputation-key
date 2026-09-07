@@ -10,8 +10,8 @@ describe('closed-beta interactive roles', () => {
     expect(isBetaInteractiveRole(role)).toBe(true)
   })
 
-  it('keeps Staff as a non-interactive business role', () => {
-    expect(isBetaInteractiveRole('Staff')).toBe(false)
+  it('keeps Member as a non-interactive business role', () => {
+    expect(isBetaInteractiveRole('Member')).toBe(false)
   })
 
   it.each([

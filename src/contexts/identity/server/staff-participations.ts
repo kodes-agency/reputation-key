@@ -5,7 +5,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { isStaffError } from '../domain/errors'
+import { isStaffError } from '../domain/people-errors'
 import { staffErrorStatus } from './staff-shared'
 import {
   archiveStaffParticipationInputSchema,
@@ -34,7 +34,7 @@ export const createStaffParticipation = createServerFn({ method: 'POST' })
         })
         try {
           const participation =
-            await getContainer().staffPublicApi.management.createStaffParticipation(
+            await getContainer().identityPublicApi.people.management.createStaffParticipation(
               data,
               ctx,
             )
@@ -60,7 +60,7 @@ export const listStaffParticipations = createServerFn({ method: 'GET' })
           ...(data.propertyId ? { propertyId: data.propertyId } : {}),
         })
         try {
-          return await getContainer().staffPublicApi.management.listStaffParticipations(
+          return await getContainer().identityPublicApi.people.management.listStaffParticipations(
             data,
             ctx,
           )
@@ -82,7 +82,7 @@ export const archiveStaffParticipation = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'staff.manage' })
         try {
           const participation =
-            await getContainer().staffPublicApi.management.archiveStaffParticipation(
+            await getContainer().identityPublicApi.people.management.archiveStaffParticipation(
               data,
               ctx,
             )
@@ -105,7 +105,7 @@ export const updatePortalResponsibilities = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'staff.manage' })
         try {
           const result =
-            await getContainer().staffPublicApi.management.updatePortalResponsibilities(
+            await getContainer().identityPublicApi.people.management.updatePortalResponsibilities(
               data,
               ctx,
             )

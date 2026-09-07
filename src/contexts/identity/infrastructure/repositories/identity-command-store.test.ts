@@ -382,7 +382,7 @@ describe.sequential('identityCommandStore (integration)', () => {
     expect(facts.rows).toHaveLength(1)
   })
 
-  it('rejects and consumes no authority for a legacy Staff-user invitation', async () => {
+  it('rejects and consumes no authority for a legacy Member invitation', async () => {
     const store = createAtomicIdentityCommandStore(db)
     await pool.query(
       `INSERT INTO invitation (id, "organizationId", email, role, status, "expiresAt", "inviterId", "createdAt")
@@ -642,7 +642,7 @@ describe.sequential('identityCommandStore (integration)', () => {
       event: identityMemberRoleChanged({
         organizationId: ORG_ID,
         memberUserId: ACCEPTOR_ID,
-        previousRole: 'Staff',
+        previousRole: 'Member',
         newRole: 'PropertyManager',
         userId: INVITER_ID,
         occurredAt: NOW,

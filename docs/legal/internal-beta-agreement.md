@@ -40,7 +40,7 @@ release readiness, the core product includes:
 - Review and Inbox workflows, including assignment, escalation, manager notes,
   private-feedback handling, and response evidence;
 - Property and fleet dashboards;
-- Staff participation/attribution foundations without Staff User login;
+- Staff participation/attribution foundations without Member login;
 - in-app required and workflow notifications;
 - Recent Activity; and
 - internal operational metrics and analytics needed to operate those journeys.
@@ -76,7 +76,7 @@ The closed beta does not provide:
 - public registration or self-service creation of a second Organization;
 - ordinary self-service destructive Property erasure;
 - Team product behavior (Portal Groups are the accepted grouping model);
-- Staff User login;
+- Member login;
 - Guest media submission;
 - Portal image upload until its separate readiness package closes;
 - competitive Badge/Leaderboard behavior;

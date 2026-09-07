@@ -49,7 +49,7 @@ function ratingKpi(overrides: Partial<RatingKPIValue> = {}): RatingKPIValue {
   }
 }
 
-describe('Property and Staff KPI card', () => {
+describe('Property and Member KPI card', () => {
   it('renders an absent governed metric as Updating without inventing zero', () => {
     const markup = renderToStaticMarkup(
       createElement(KPICard, {

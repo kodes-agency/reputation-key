@@ -36,9 +36,9 @@ export function RoleSelect({ role, onRoleChange, isPending, memberName }: Props)
         <SelectGroup>
           <SelectItem value="AccountAdmin">Account Admin</SelectItem>
           <SelectItem value="PropertyManager">Property Manager</SelectItem>
-          {role === 'Staff' && (
-            <SelectItem value="Staff" disabled>
-              Staff user (inactive in beta)
+          {role === 'Member' && (
+            <SelectItem value="Member" disabled>
+              Member (inactive in beta)
             </SelectItem>
           )}
         </SelectGroup>

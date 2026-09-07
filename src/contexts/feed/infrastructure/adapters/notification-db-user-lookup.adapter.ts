@@ -1,7 +1,7 @@
 // Database adapter for the UserLookupPort
 // Queries Better Auth identity tables only. Scoped notification responsibility
 // is supplied through the Property/Portal public APIs, never inferred here
-// from access grants or Staff attribution.
+// from access grants or People attribution.
 import type { Database } from '#/shared/db'
 import { and, eq } from 'drizzle-orm'
 import { member, user } from '#/shared/db/schema/auth'
@@ -13,7 +13,7 @@ import type { NotificationActorRole } from '../../domain/notification-payload'
 const ACTOR_ROLE_BY_ROLE: Readonly<Record<Role, NotificationActorRole>> = {
   AccountAdmin: 'account_admin',
   PropertyManager: 'property_manager',
-  Staff: 'staff',
+  Member: 'staff',
 }
 
 export const createNotificationDbUserLookupAdapter = (db: Database) => {

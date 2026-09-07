@@ -225,8 +225,8 @@ describe('submit beta feedback server function', () => {
     expect(JSON.stringify(mocks.captureFeedback.mock.calls)).not.toContain('data:image')
   })
 
-  it('rejects Staff before consuming a feedback budget', async () => {
-    mocks.resolveTenantContext.mockResolvedValue({ ...actor, role: 'Staff' })
+  it('rejects Member before consuming a feedback budget', async () => {
+    mocks.resolveTenantContext.mockResolvedValue({ ...actor, role: 'Member' })
 
     await expect(
       withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
@@ -257,10 +257,10 @@ describe('submit beta feedback server function', () => {
     expect(mocks.captureFeedback).not.toHaveBeenCalled()
   })
 
-  it('uses current feedback permission rather than a stale Staff label', async () => {
+  it('uses current feedback permission rather than a stale Member role label', async () => {
     mocks.resolveTenantContext.mockResolvedValue({
       ...actor,
-      role: 'Staff',
+      role: 'Member',
       effectivePermissions: new Set(['feedback.respond']),
       scopeByPermission: new Map([['feedback.respond', 'assigned-properties']]),
     })

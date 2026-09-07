@@ -15,7 +15,13 @@ import type { Clock } from '#/shared/domain/clock'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { IdentityPort } from './application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { invitationId } from '#/shared/domain/ids'
+import {
+  invitationId,
+  portalId,
+  type OrganizationId,
+  type PropertyId,
+  type UserId,
+} from '#/shared/domain/ids'
 import { inviteMember } from './application/use-cases/invite-member'
 import { createCustomRole } from './application/use-cases/create-custom-role'
 import { updateCustomRole } from './application/use-cases/update-custom-role'
@@ -60,7 +66,10 @@ import {
   revokeAllPropertyAccessForUser,
   hasActiveGrant,
 } from './infrastructure/repositories/property-access-grant.repository'
-import { createPropertyGrantHolderLookup } from './infrastructure/adapters/grant-access-lookup.adapter'
+import {
+  createGrantAccessLookup,
+  createPropertyGrantHolderLookup,
+} from './infrastructure/adapters/grant-access-lookup.adapter'
 import { createPostgresPolicyAdminCommandStore } from './infrastructure/policy-admin-command-store'
 import { createOrganizationLifecycle } from './application/use-cases/organization-lifecycle'
 import {
@@ -106,16 +115,19 @@ import {
   type ManagerPropertyAuthorityRequirement,
   type MemberPropertyAuthorityDatabase,
 } from './infrastructure/repositories/member-property-authority'
-
-/** Callback invoked after an invitation is accepted.
- * The composition root provides the implementation that creates
- * staff assignments — identity does NOT import staff directly. */
-export type OnMemberJoined = (ctx: {
-  userId: string
-  organizationId: string
-  propertyIds: ReadonlyArray<string>
-  displayName?: string
-}) => Promise<void>
+import { trace } from '#/shared/observability/trace'
+import { createStaffParticipationRepository } from './infrastructure/repositories/staff-participation.repository'
+import {
+  archiveStaffParticipation,
+  createStaffParticipation,
+  listStaffParticipations,
+  updatePortalResponsibilities,
+} from './application/use-cases/staff-participations'
+import {
+  decideCurrentUserParticipationAuthority,
+  type CurrentUserParticipationAuthorityDatabase,
+} from './infrastructure/repositories/current-user-participation-authority'
+import { createPrimaryStaffAttributionResolver } from './infrastructure/primary-staff-attribution'
 
 /** Exactly the reactivation probes composition must supply, or none at all. */
 export type OrganizationReactivationProbeBindings = OrganizationReactivationReadinessDeps
@@ -469,7 +481,116 @@ function buildOrganizationLifecycleComposition(
   return { organizationLifecycle, runtime: organizationLifecycleRuntime }
 }
 
+function buildPeopleSurface(
+  deps: Pick<
+    IdentityContextDeps,
+    'db' | 'clock' | 'idGen' | 'reconcileResponsibleManagerEligibility'
+  >,
+) {
+  const accessiblePropertyLookup = createGrantAccessLookup(deps.db, deps.clock)
+  const participationRepo = createStaffParticipationRepository(deps.db)
+  const resolvePrimaryStaffAttribution = createPrimaryStaffAttributionResolver(deps.db)
+
+  const responsibilityLookup = {
+    listAssignedPortalIds: async (
+      organizationId: OrganizationId,
+      userId: UserId,
+      propertyId: PropertyId,
+    ) => {
+      const participation = await participationRepo.findActiveByUser(
+        organizationId,
+        propertyId,
+        userId,
+      )
+      if (!participation) return []
+      const responsibilities = await participationRepo.listActiveResponsibilities(
+        organizationId,
+        participation.id,
+      )
+      return responsibilities.map((responsibility) => portalId(responsibility.portalId))
+    },
+  } as const
+
+  const facts = Object.freeze({
+    getAccessiblePropertyIds: async (
+      organizationId: OrganizationId,
+      userId: UserId,
+      orgWide: boolean,
+    ) => {
+      if (orgWide) return null
+      return trace('identity.people.getAccessiblePropertyIds', () =>
+        accessiblePropertyLookup(organizationId, userId),
+      )
+    },
+    getAssignedPortals: (
+      input: Readonly<{ userId: UserId; propertyId: PropertyId }>,
+      ctx: AuthContext,
+    ) =>
+      responsibilityLookup.listAssignedPortalIds(
+        ctx.organizationId,
+        input.userId,
+        input.propertyId,
+      ),
+    resolvePrimaryStaffAttribution,
+    findParticipationById: (organizationId: OrganizationId, participationId: string) =>
+      participationRepo.findById(organizationId, participationId),
+    findActiveParticipation: (
+      organizationId: OrganizationId,
+      propertyId: PropertyId,
+      userId: UserId,
+    ) => participationRepo.findActiveByUser(organizationId, propertyId, userId),
+    listActiveParticipations: (organizationId: OrganizationId, propertyId: PropertyId) =>
+      participationRepo.list(organizationId, { propertyId, activeOnly: true }),
+  })
+
+  const management = Object.freeze({
+    createStaffParticipation: createStaffParticipation({
+      repo: participationRepo,
+      accessibleProperties: accessiblePropertyLookup,
+      clock: deps.clock,
+      idGen: deps.idGen,
+    }),
+    listStaffParticipations: listStaffParticipations({
+      repo: participationRepo,
+      accessibleProperties: accessiblePropertyLookup,
+      clock: deps.clock,
+      idGen: deps.idGen,
+    }),
+    archiveStaffParticipation: archiveStaffParticipation({
+      repo: participationRepo,
+      accessibleProperties: accessiblePropertyLookup,
+      clock: deps.clock,
+      idGen: deps.idGen,
+      reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
+    }),
+    updatePortalResponsibilities: updatePortalResponsibilities({
+      repo: participationRepo,
+      accessibleProperties: accessiblePropertyLookup,
+      clock: deps.clock,
+      idGen: deps.idGen,
+    }),
+  })
+
+  const decideUserParticipationAuthority = (
+    tx: CurrentUserParticipationAuthorityDatabase,
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      userId: string
+      at: Date
+    }>,
+  ) => decideCurrentUserParticipationAuthority(tx, input)
+
+  return {
+    publicApi: Object.freeze({ ...facts, management }),
+    decideUserParticipationAuthority,
+  } as const
+}
+
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
+  // The merged People surface remains first in the load-bearing construction
+  // order and shares Identity's grant authority.
+  const people = buildPeopleSurface(deps)
   const resolveOrganizationName = async (_ctx: AuthContext): Promise<string> =>
     (await deps.authSession.currentOrganizationName()) ?? 'Unknown Organization'
 
@@ -757,6 +878,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     managerFacts,
     accountAdminAuthority,
     offboardingFacts,
+    people: people.publicApi,
     requests: requestApi,
   })
 
@@ -791,6 +913,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       hasActivePropertyGrant,
       decideManagerPropertyAuthority,
       decideManagerPropertyAuthorities,
+      decideUserParticipationAuthority: people.decideUserParticipationAuthority,
       decidePublicationActorAuthority,
       // Property-scoped recipient resolution for other contexts (notification
       // fan-out). Identity owns the grant table, so the read lives here.

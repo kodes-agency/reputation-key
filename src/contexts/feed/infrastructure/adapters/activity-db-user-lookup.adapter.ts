@@ -15,7 +15,7 @@ import { activityError } from '../../domain/activity-errors'
 const FALLBACK_USER: UserInfo = Object.freeze({
   name: 'System',
   avatarUrl: null,
-  role: 'Staff' as Role,
+  role: 'Member' as Role,
   rawRole: 'member',
 })
 

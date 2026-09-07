@@ -16,7 +16,7 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
@@ -37,7 +37,7 @@ const ctxFor = (role: Role, orgId = ORG_ID): AuthContext =>
 const ctxWith = (...permissions: Permission[]): AuthContext => ({
   organizationId: ORG_ID,
   userId: USER_ID,
-  role: 'Staff',
+  role: 'Member',
   effectivePermissions: new Set(permissions),
   scopeByPermission: new Map(
     permissions.map((permission) => [permission, 'organization' as const]),
@@ -83,7 +83,7 @@ const defaultStaffApi: StaffPublicApi = {
   getAssignedPortals: async () => [],
 }
 
-const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
+const setup = (peopleApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const events = createRecordedOutbox()
   const commandStore = createSequentialInboxCommandStore({ repo, outbox: events })
@@ -131,7 +131,7 @@ const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
     commandStore,
     clock: () => FIXED_TIME,
     idGen: () => '6a000000-0000-4000-8000-000000000002',
-    staffPublicApi: staffApi,
+    staffPublicApi: peopleApi,
     reviewSourceLookup,
     responseTargetAuthority,
     logger: createMockLogger(),
@@ -380,11 +380,11 @@ describe('bulkUpdateInboxStatus', () => {
   })
 
   it('intersects each source handling scope across a mixed batch', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       ...defaultStaffApi,
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(
       seedItem('review-2', 'closed', 'prop-2', 'review'),
       seedItem('feedback-1', 'closed', 'prop-1', 'feedback'),
@@ -411,12 +411,12 @@ describe('bulkUpdateInboxStatus', () => {
     expectItemStatuses(repo, 'open', 'open', 'closed')
   })
 
-  it('denies access to all items when Staff has no property assignments', async () => {
-    const staffApi: StaffPublicApi = {
+  it('denies access to all items when Member has no Property access grants', async () => {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem('ii-1', 'closed', 'prop-1'))
     repo.items.push(seedItem('ii-2', 'closed', 'prop-2'))
 
@@ -425,7 +425,7 @@ describe('bulkUpdateInboxStatus', () => {
         items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
-      ctxFor('Staff'),
+      ctxFor('Member'),
     )
 
     expect(result.updated).toBe(0)
@@ -437,12 +437,12 @@ describe('bulkUpdateInboxStatus', () => {
     expect(repo.items[1].status).toBe('closed')
   })
 
-  it('filters out items from inaccessible properties for Staff', async () => {
-    const staffApi: StaffPublicApi = {
+  it('filters out items from inaccessible properties for Member', async () => {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem('ii-1', 'closed', 'prop-1'))
     repo.items.push(seedItem('ii-2', 'closed', 'prop-2'))
 
@@ -451,7 +451,7 @@ describe('bulkUpdateInboxStatus', () => {
         items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
-      ctxFor('Staff'),
+      ctxFor('Member'),
     )
 
     expect(result.updated).toBe(1)
@@ -459,11 +459,11 @@ describe('bulkUpdateInboxStatus', () => {
   })
 
   it('scopes PropertyManager to assigned properties (PM is NOT org-wide for inbox)', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem('ii-1', 'closed', 'prop-1'))
     repo.items.push(seedItem('ii-2', 'closed', 'prop-2'))
 
@@ -480,11 +480,11 @@ describe('bulkUpdateInboxStatus', () => {
   })
 
   it('skips all items for PropertyManager with no property assignments', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem('ii-1', 'closed', 'prop-1'))
 
     const result = await useCase(
@@ -500,13 +500,13 @@ describe('bulkUpdateInboxStatus', () => {
   })
 
   it('processes all items for AccountAdmin', async () => {
-    const staffApi: StaffPublicApi = {
+    const peopleApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => {
         throw new Error('Should not be called for AccountAdmin')
       },
       getAssignedPortals: async () => [],
     }
-    const { useCase, repo } = setup(staffApi)
+    const { useCase, repo } = setup(peopleApi)
     repo.items.push(seedItem('ii-1', 'closed', 'prop-1'))
     repo.items.push(seedItem('ii-2', 'closed', 'prop-2'))
 

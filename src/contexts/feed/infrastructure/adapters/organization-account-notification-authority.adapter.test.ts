@@ -28,7 +28,7 @@ describe('Organization account notification durable authority', () => {
         organizationId: ORG,
         userId: 'admin-actor',
         memberUserId: 'changed-user',
-        previousRole: 'Staff',
+        previousRole: 'Member',
         newRole: 'PropertyManager',
       },
       expected: 'changed-user',
@@ -72,7 +72,7 @@ describe('Organization account notification durable authority', () => {
         organizationId: ORG,
         userId: 'admin-actor',
         memberUserId: 'changed-user',
-        previousRole: 'Staff',
+        previousRole: 'Member',
         newRole: 'PropertyManager',
       },
     })

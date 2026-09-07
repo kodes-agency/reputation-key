@@ -5,7 +5,7 @@
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { inboxError } from '../../domain/errors'
 import { resolveVisiblePropertyIds } from '../visible-properties'
 import { resolveInboxSourceScopes } from '../inbox-access'

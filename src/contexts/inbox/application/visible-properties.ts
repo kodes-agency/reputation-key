@@ -11,7 +11,7 @@
 // at every call site, and repositories independently fail closed on [] so a
 // future caller cannot accidentally widen an empty scope.
 
-import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
@@ -27,7 +27,7 @@ export type VisibleProperties = 'all' | 'none' | ReadonlyArray<PropertyId>
  * fail-closed), or the assigned property id set.
  */
 export async function resolveVisiblePropertyIds(
-  staffPublicApi: StaffPublicApi,
+  peopleApi: StaffPublicApi,
   ctx: AuthContext,
   permission: Permission,
 ): Promise<VisibleProperties> {
@@ -36,7 +36,7 @@ export async function resolveVisiblePropertyIds(
   }
 
   const accessible = await getAccessiblePropertyIdsForPermission(
-    (orgId, uId, orgWide) => staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
+    (orgId, uId, orgWide) => peopleApi.getAccessiblePropertyIds(orgId, uId, orgWide),
     ctx,
     permission,
   )

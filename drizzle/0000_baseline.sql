@@ -713,7 +713,7 @@ CREATE TABLE "beta_feedback_triage" (
 	CONSTRAINT "beta_feedback_triage_feedback_type_valid" CHECK ("beta_feedback_triage"."feedback_type" IN ('bug', 'suggestion')),
 	CONSTRAINT "beta_feedback_triage_impact_valid" CHECK ("beta_feedback_triage"."impact_code" IN ('cannot_complete', 'workaround_available', 'small_issue', 'important', 'helpful', 'nice_to_have')),
 	CONSTRAINT "beta_feedback_triage_viewport_valid" CHECK ("beta_feedback_triage"."viewport" IN ('compact', 'regular', 'wide')),
-	CONSTRAINT "beta_feedback_triage_reporter_role_valid" CHECK ("beta_feedback_triage"."reporter_role" IN ('AccountAdmin', 'PropertyManager', 'Staff')),
+	CONSTRAINT "beta_feedback_triage_reporter_role_valid" CHECK ("beta_feedback_triage"."reporter_role" IN ('AccountAdmin', 'PropertyManager', 'Member')),
 	CONSTRAINT "beta_feedback_triage_delivery_valid" CHECK ("beta_feedback_triage"."delivery_state" IN ('prepared', 'delivered', 'failed')),
 	CONSTRAINT "beta_feedback_triage_delivery_shape" CHECK (("beta_feedback_triage"."delivery_state" = 'prepared' AND "beta_feedback_triage"."provider_reference" IS NULL AND "beta_feedback_triage"."delivery_failure_code" IS NULL)
         OR ("beta_feedback_triage"."delivery_state" = 'delivered' AND "beta_feedback_triage"."provider_reference" ~ '^[a-f0-9]{32,64}$' AND "beta_feedback_triage"."delivery_failure_code" IS NULL)

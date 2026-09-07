@@ -9,7 +9,7 @@ describe('Inbox assignment candidates', () => {
   it('never requests the member directory for a role without member.list', () => {
     expect(canListInboxAssignmentCandidates('AccountAdmin')).toBe(true)
     expect(canListInboxAssignmentCandidates('PropertyManager')).toBe(true)
-    expect(canListInboxAssignmentCandidates('Staff')).toBe(false)
+    expect(canListInboxAssignmentCandidates('Member')).toBe(false)
   })
 
   it('uses the canonical beta interactive-role guard and neutral name fallback', () => {
@@ -29,7 +29,7 @@ describe('Inbox assignment candidates', () => {
         },
         {
           userId: 'staff-1',
-          role: 'Staff',
+          role: 'Member',
           name: 'Staff Name',
           email: 'staff@example.com',
         },

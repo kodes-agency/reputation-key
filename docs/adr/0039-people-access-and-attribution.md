@@ -2,7 +2,8 @@
 
 **Status:** Accepted
 **Date:** 2026-07-15
-**Supersedes:** Staff assignment shape described in ADR 0006 (does not change the staff bounded context boundary)
+**Supersedes:** Staff assignment shape described in ADR 0006.
+**Amended:** 2026-09-07 — Staff participation and attribution moved under Identity People; the conceptual separation is unchanged.
 
 ## Context
 
@@ -17,12 +18,12 @@ The current `staff_assignments` table combines property access, team membership,
 
 `PropertyAccessGrant`, `StaffParticipation`, `TeamMembership`, and `PortalResponsibility` are **separate effective-dated concepts** with distinct owners:
 
-| Concept                | Owner                  | Meaning                                                                                |
-| ---------------------- | ---------------------- | -------------------------------------------------------------------------------------- |
-| `PropertyAccessGrant`  | Identity authorization | User may perform declared actions within a property scope.                             |
-| `StaffParticipation`   | Staff context          | User participates as staff at a property; holds profile/display and active lifecycle.  |
-| `TeamMembership`       | Team context           | Effective-dated relation between staff participation and team, `member` or `lead`.     |
-| `PortalResponsibility` | Staff context          | Effective-dated attribution of staff participation to a portal. Does not grant access. |
+| Concept                | Owner                  | Meaning                                                                                     |
+| ---------------------- | ---------------------- | ------------------------------------------------------------------------------------------- |
+| `PropertyAccessGrant`  | Identity authorization | User may perform declared actions within a property scope.                                  |
+| `StaffParticipation`   | Identity People        | A Staff Participant participates at a Property; holds profile/display and active lifecycle. |
+| `TeamMembership`       | Team history           | Effective-dated relation between Staff Participation and Team, `member` or `lead`.          |
+| `PortalResponsibility` | Identity People        | Effective-dated attribution of Staff Participation to a Portal. Does not grant access.      |
 
 ### Invariants
 
