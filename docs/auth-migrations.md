@@ -24,22 +24,15 @@ The pinned Better Auth schema API creates all eight auth tables on an empty
 database. This is exercised by CI and by `pnpm db:migrate-deploy`; no manual
 auth bootstrap belongs in the normal deployment path.
 
-Use one of these equivalent authorities:
+Use the production authority, `pnpm db:migrate-deploy`, to run the Better Auth
+runtime track, the three-entry Drizzle journal, and provider-subject
+initialization. For schema-only local or CI setup, run `pnpm auth:migrate`
+followed by `pnpm db:migrate`.
 
-- production/pre-deploy: `pnpm db:migrate-deploy` (Better Auth → staged
-  Drizzle journal → registered sidecars → provider-subject initialization);
-- explicit local/CI sequence: `pnpm auth:migrate` → `pnpm db:migrate` →
-  `pnpm db:google-property-binding-index` → the registered DAC SQL sidecar.
-
-`pnpm db:bootstrap-auth` is the one explicit exception: a compatibility-only
-empty-database fallback for constrained recovery environments that cannot
-execute the application runner. Its SQL must remain semantically identical to
-the pinned runtime. The `auth-bootstrap-compatibility.integration.test.ts`
-gate compares its columns, constraints, and indexes against runtime-created
-tables. The fallback must be followed by `pnpm auth:migrate` plus
-`pnpm check:schema-drift`. Never
-run it as a substitute for a missing incremental auth migration, and never use
-it to patch an existing auth table.
+The deploy runner invokes Better Auth's runtime track before the Drizzle
+constructs that reference auth-owned tables. `pnpm check:schema-drift` verifies
+the resulting auth tables against the query mirror, so no bootstrap SQL or
+compatibility test is needed.
 
 **Single source of truth for auth additionalFields:** `src/shared/auth/org-schema.ts` — imported by BOTH `src/shared/auth/auth.ts` (runtime) and `src/shared/auth/auth-cli.ts` (migration CLI). Edit it ONCE; both configs see the change. Never re-declare additionalFields inline in either file.
 
@@ -51,9 +44,8 @@ it to patch an existing auth table.
 
 ## Do NOT
 
-- Add or change `scripts/migrations/*.sql` for auth tables. The named recovery
-  bootstrap is frozen compatibility infrastructure, not a second migration
-  track.
+- Add hand-written SQL migrations for auth tables. The pinned Better Auth
+  schema API is their sole migration authority.
 - Re-declare `additionalFields` inline in `auth.ts` or `auth-cli.ts` — use `org-schema.ts`.
 - Hand-patch an auth column with raw SQL when the tooling "didn't add it."
 

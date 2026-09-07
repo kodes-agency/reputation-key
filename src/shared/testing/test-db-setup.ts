@@ -7,13 +7,10 @@
 // check alone would run every integration test against stale constructs and
 // seed rows; on a hash mismatch the scratch database is dropped and rebuilt.
 //
-// Apply sequence mirrors the ci.yml "Run migrations" trio (deploy order, see
+// Apply sequence mirrors the ci.yml "Run migrations" step (deploy order, see
 // src/shared/db/CONTEXT.md):
 //   1. pnpm auth:migrate  — Better Auth tables via the pinned runtime
-//   2. pnpm db:migrate    — compatibility preflight + Drizzle journal track
-//   3. Google Property binding concurrent-index sidecar
-//   4. registered SQL sidecar — scripts/migrations/2026-07-06-permission-version-triggers.sql
-// Both sidecars run outside the Drizzle migration transaction.
+//   2. pnpm db:migrate    — baseline, DB-only constructs, and seed
 //
 // Safety: the target passes validateTestDatabaseTarget (denylist + localhost
 // required unless ALLOW_REMOTE_TEST_DB=1) BEFORE any connection is opened —
@@ -31,11 +28,6 @@ import { DEFAULT_TEST_DATABASE_URL, testEnvironment } from './test-environment'
 
 const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
 const JOURNAL_URL = new URL('../../../drizzle/meta/_journal.json', import.meta.url)
-const SIDECAR_URL = new URL(
-  '../../../scripts/migrations/2026-07-06-permission-version-triggers.sql',
-  import.meta.url,
-)
-const SIDECAR_MARKER_FUNCTION = 'bump_permission_version'
 const TEST_DATABASE_PROVISIONING_LOCK_PREFIX = 'repkey-test-database-provisioning-v1'
 
 export type TestDbSetupResult = Readonly<{
@@ -54,7 +46,6 @@ type DbState = Readonly<{
   /** sha256 of each applied migration file, in journal order (drizzle's own hash). */
   journalHashes: readonly string[]
   hasAuthTables: boolean
-  hasSidecar: boolean
   hasGooglePropertyBindingIndex: boolean
 }>
 
@@ -83,11 +74,9 @@ async function withPool<T>(url: string, fn: (pool: Pool) => Promise<T>): Promise
 }
 
 /**
- * Serialize the entire auth -> Drizzle -> sidecar sequence on one PostgreSQL
- * session. The staged Drizzle runner intentionally commits between its enum
- * prerequisite and the remaining journal, so transaction locks cannot protect
- * this boundary. A session lock also covers the separately spawned Better Auth
- * schema runner and index sidecar.
+ * Serialize the complete auth -> Drizzle sequence. A session lock covers both
+ * separately spawned migration runners and keeps database rebuilds atomic from
+ * the perspective of concurrent integration processes.
  */
 export async function withTestDatabaseProvisioningLock<T>(
   client: Pick<PoolClient, 'query'>,
@@ -259,8 +248,7 @@ async function readState(url: string): Promise<DbState> {
           FROM pg_index i
           JOIN pg_class c ON c.oid = i.indexrelid
           WHERE c.relname = 'properties_org_gbp_location_id_unique')
-          AS has_google_property_binding_index,
-        (SELECT EXISTS (SELECT 1 FROM pg_proc WHERE proname = '${SIDECAR_MARKER_FUNCTION}')) AS has_sidecar
+          AS has_google_property_binding_index
     `)
     const journal = await pool
       .query<{ hash: string }>(
@@ -270,7 +258,6 @@ async function readState(url: string): Promise<DbState> {
     const row = state.rows[0] as {
       table_count: number
       has_auth: boolean
-      has_sidecar: boolean
       has_google_property_binding_index: boolean
     }
     return {
@@ -278,7 +265,6 @@ async function readState(url: string): Promise<DbState> {
       journalCount: journal.rows.length,
       journalHashes: journal.rows.map((r) => r.hash),
       hasAuthTables: row.has_auth,
-      hasSidecar: row.has_sidecar,
       hasGooglePropertyBindingIndex: row.has_google_property_binding_index,
     }
   })
@@ -307,7 +293,7 @@ function run(
   })
 }
 
-/** The ci.yml migration trio against the leased target (idempotent steps). */
+/** The CI migration sequence against the leased target (idempotent steps). */
 async function applyMigrations(url: string): Promise<void> {
   const env = {
     ...testEnvironment(), // hermetic floor (BETTER_AUTH_SECRET, ...)
@@ -320,12 +306,11 @@ async function applyMigrations(url: string): Promise<void> {
   } as NodeJS.ProcessEnv
   await run('pnpm', ['auth:migrate'], env)
   await run('pnpm', ['db:migrate'], env)
-  await withPool(url, (pool) => pool.query(readFileSync(SIDECAR_URL, 'utf8')))
 }
 
 /**
  * Create the scratch database if missing and bring it to the deploy migration
- * state. Fast-path: when the Drizzle journal is complete and the auth/sidecar
+ * state. Fast-path: when the Drizzle journal is complete and the auth/index
  * markers are present, nothing is applied.
  *
  * @param urlOverride - explicit target; defaults to TEST_DATABASE_URL, then
@@ -347,16 +332,8 @@ export async function ensureTestDatabase(
       before.journalHashes.length === expected.length &&
       before.journalHashes.every((hash, index) => hash === expected[index])
     const upToDate =
-      journalMatches &&
-      before.hasAuthTables &&
-      before.hasGooglePropertyBindingIndex &&
-      before.hasSidecar
+      journalMatches && before.hasAuthTables && before.hasGooglePropertyBindingIndex
     if (upToDate) {
-      // Registered sidecars are intentionally idempotent and may evolve without
-      // a new Drizzle journal entry. Production reapplies them on every deploy;
-      // do the same on the integration fast path so a marker function cannot
-      // make an older trigger definition look current.
-      await withPool(url, (pool) => pool.query(readFileSync(SIDECAR_URL, 'utf8')))
       return {
         databaseUrl: url,
         created,

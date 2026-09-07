@@ -3,8 +3,8 @@
 // fast-skips when the deploy migration state is already present. Refuses
 // non-localhost targets unless ALLOW_REMOTE_TEST_DB=1 (denylist still applies).
 //
-// Applies the deploy migration sequence from ci.yml: auth:migrate → db:migrate
-// → the registered sidecar SQL.
+// Applies the deploy migration sequence from ci.yml:
+// auth:migrate → db:migrate.
 //
 // Usage:
 //   pnpm tsx scripts/test-db-setup.ts

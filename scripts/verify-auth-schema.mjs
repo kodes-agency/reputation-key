@@ -68,9 +68,6 @@ if (failures.length > 0) {
   console.error(
     'The DAC triggers + app-owned role/invitation services depend on these exact column names.',
   )
-  console.error(
-    'Re-verify scripts/migrations/2026-07-06-permission-version-triggers.sql after fixing.',
-  )
   process.exit(1)
 }
 

@@ -94,9 +94,6 @@ export function createAuth() {
       //   3. Update login/register UX to show "check your email" state
       // Email verification follows the parsed environment policy. Production
       // defaults to enabled; explicitly disabling it is an operator decision.
-      // Before relying on the production default:
-      //   1. Run scripts/migrations/verify-existing-emails.sql
-      //   2. Confirm Resend domain verification is complete
       requireEmailVerification: env.EMAIL_VERIFICATION_REQUIRED,
       sendResetPassword: async ({ user, url }) => {
         await sendResetPasswordEmail(user.email, url)

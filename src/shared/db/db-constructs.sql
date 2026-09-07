@@ -3509,6 +3509,9 @@ AS $function$
 $function$
 ;
 --> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS organization_role_org_role_lower_unique
+  ON public."organizationRole" ("organizationId", lower("role"));
+--> statement-breakpoint
 CREATE TRIGGER ai_execution_control_heads_transition_guard BEFORE DELETE OR UPDATE ON public.ai_execution_control_heads FOR EACH ROW EXECUTE FUNCTION reject_ai_execution_control_head_mutation_v1();
 --> statement-breakpoint
 CREATE TRIGGER backup_erasure_ledger_truncate_guard BEFORE TRUNCATE ON public.backup_erasure_ledger FOR EACH STATEMENT EXECUTE FUNCTION reject_backup_erasure_ledger_mutation_v1();

@@ -12,14 +12,11 @@ Bounded contexts retain the business meaning and lifecycle of their records.
 1. **Drizzle journal** — `0000_baseline.sql` contains every application table,
    `0001_db_constructs.sql` copies `db-constructs.sql`, and `0002_db_seed.sql`
    copies `db-seed.sql`. `pnpm db:migrate` applies this generated three-entry
-   journal.
+   journal, including functions, triggers, and DDL on Better Auth tables.
 2. **Better Auth** — `pnpm auth:migrate` owns `user`, `session`, `account`,
    `verification`, `organization`, `member`, `invitation`, and
    `organizationRole`. `schema/auth.ts` is a read-only Drizzle query mirror.
-3. **Registered sidecar** — the permission-version trigger SQL owns constructs on
-   Better Auth tables, where the two migrators must not share DDL ownership. The
-   auth bootstrap script is recovery-only; other `scripts/migrations/` files are
-   historical one-offs, not deploy inputs.
+   This track runs first so the DB-only constructs can reference its tables.
 
 Schema, journal, barrel, auth-mirror, DB-only construct, and deploy-runner parity are enforced by `src/shared/db/migration-verification.test.ts`, `src/shared/db/schema/schema-migration-parity.test.ts`, `src/shared/db/schema/migratable.test.ts`, and `src/shared/db/deploy-migration-runtime.test.ts`.
 
@@ -43,7 +40,7 @@ becomes necessary, append a migration instead of re-baselining.
 
 ## Deploy and recovery
 
-Deploy order is `pnpm auth:migrate` → `pnpm db:migrate` → the registered sidecar.
+Deploy order is `pnpm auth:migrate` → `pnpm db:migrate`.
 The signed web image runs that sequence under a deployment advisory lock only
 after proving its exact cell/project/environment/service identity. Recovery is
 fix-forward-and-rerun—never hand-roll partial schema state.
@@ -64,7 +61,7 @@ baseline leaves those paths fail-closed.
 
 `schema/auth.ts` must match the tables produced by the pinned Better Auth migrator,
 including names, types, nullability, and defaults. Drizzle never migrates this
-mirror. Sidecar DDL on those tables remains separately registered and parity-tested.
+mirror. DB-only DDL on those tables lives in `db-constructs.sql` and is parity-tested.
 
 ## Boundaries
 

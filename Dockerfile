@@ -153,8 +153,6 @@ COPY package.runtime.json ./package.json
 # journal is ALSO read at runtime by the readiness/startup migration check
 # (src/shared/health/readiness.ts anchors it at cwd = /app here):
 COPY drizzle ./drizzle
-COPY scripts/migrations/2026-07-06-permission-version-triggers.sql \
-     scripts/migrations/2026-07-06-permission-version-triggers.sql
 USER node
 EXPOSE 3000
 # Container-level HEALTHCHECK stays on /api/health/live (continuous LIVENESS

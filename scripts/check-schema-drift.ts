@@ -8,8 +8,8 @@
 //   tsx scripts/check-schema-drift.ts [DATABASE_URL]
 //   pnpm check:schema-drift            (uses $DATABASE_URL)
 //
-// The target DB must be fully migrated (auth:migrate + db:migrate + the
-// registered sidecar) or every missing object reports as drift.
+// The target DB must be fully migrated (`auth:migrate` then `db:migrate`) or
+// every missing object reports as drift.
 
 import { Pool } from 'pg'
 import { collectSchemaDrift, formatDrifts } from '../src/shared/db/schema-drift'
