@@ -123,6 +123,11 @@ export async function runOperatorCommand(
 ): Promise<OperatorCommandResult> {
   const boot = await bootOperatorRuntime()
   try {
+    if (argv.includes('--help')) {
+      const writeHelp = io?.out ?? ((line: string) => console.log(line))
+      writeHelp(`usage: ${spec.usage}`)
+      return { exitCode: 0 }
+    }
     return await runCore(
       spec,
       (ctx, args, actionIO) => {

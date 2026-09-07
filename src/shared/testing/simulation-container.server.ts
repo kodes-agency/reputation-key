@@ -13,7 +13,9 @@
 // in-memory fakes in this directory) for a network-free simulation.
 
 import {
+  claimProcessContainer,
   createContainer,
+  releaseProcessContainer,
   type ProviderOverrides,
   type SimulationContainer,
 } from '#/composition'
@@ -82,96 +84,123 @@ export type SimulationHandle = Readonly<{
  *     declares) the ambient build threw, so EVERY event handler threw and the
  *     projections they own — Inbox items above all — were simply never made.
  *
- * A test process builds many simulation containers in sequence, so a previous
- * simulation-owned binding is released first. The release is conditional on
- * the bundle, so a competing worker/web/operator installation still fails
- * loudly at the bind below — which is the whole point of the guard.
+ * A test process may build simulations in sequence only after the prior
+ * container shuts down and releases both its policy binding and process claim.
+ * Conditional policy release still makes a competing worker/web/operator
+ * installation fail loudly at the bind below.
  */
 let simulationPolicies: ProcessPolicyBundle | undefined
 
 function bindSimulationProcessPolicies(policies: ProcessPolicyBundle): void {
   if (simulationPolicies) releaseProcessPolicies(simulationPolicies)
-  simulationPolicies = policies
   bindProcessPolicies(policies)
+  simulationPolicies = policies
 }
 
 export async function createSimulationContainer(
   options?: SimulationContainerOptions,
 ): Promise<SimulationHandle> {
-  let currentTime = options?.clock ? options.clock() : new Date()
-  const clock: Clock = () => currentTime
-  const env = options?.env ?? getEnv()
+  claimProcessContainer('simulation')
+  let boundSimulation: SimulationContainer | undefined
+  try {
+    let currentTime = options?.clock ? options.clock() : new Date()
+    const clock: Clock = () => currentTime
+    const env = options?.env ?? getEnv()
 
-  // 1. Create in-memory queue (registry connected after bootstrap)
-  const queue = createInMemoryQueue({ clock })
+    // 1. Create in-memory queue (registry connected after bootstrap)
+    const queue = createInMemoryQueue({ clock })
 
-  // 2. Build the container with deterministic backends
-  const container = createContainer({
-    clock,
-    db: options?.db,
-    redis: options?.redis,
-    identityPort: options?.identityPort,
-    email: options?.email,
-    providers: options?.providers,
-    env,
-    queue,
-    enableJobs: true,
-    exposeSimulationRuntime: true,
-  })
-  if (!container.simulationRuntime) {
-    throw new Error('Simulation mutation capabilities were not composed')
-  }
-  const simulationContainer = container as SimulationContainer
+    // 2. Build the container with deterministic backends
+    const rawContainer = createContainer({
+      clock,
+      db: options?.db,
+      redis: options?.redis,
+      identityPort: options?.identityPort,
+      email: options?.email,
+      providers: options?.providers,
+      env,
+      queue,
+      enableJobs: true,
+      exposeSimulationRuntime: true,
+    })
+    if (!rawContainer.simulationRuntime) {
+      throw new Error('Simulation mutation capabilities were not composed')
+    }
+    const simulationContainer: SimulationContainer = Object.freeze({
+      ...rawContainer,
+      simulationRuntime: rawContainer.simulationRuntime,
+      shutdown: Object.freeze({
+        ...rawContainer.shutdown,
+        run: async () => {
+          try {
+            await rawContainer.shutdown.run()
+          } finally {
+            releaseProcessPolicies(simulationContainer)
+            if (simulationPolicies === simulationContainer) simulationPolicies = undefined
+            releaseProcessContainer()
+          }
+        },
+      }),
+    })
 
-  // 3. Make THIS container the process policy answer, before bootstrap runs
-  //    anything gated and before the first event dispatch.
-  bindSimulationProcessPolicies(simulationContainer)
+    // 3. Make THIS container the process policy answer, before bootstrap runs
+    //    anything gated and before the first event dispatch.
+    bindSimulationProcessPolicies(simulationContainer)
+    boundSimulation = simulationContainer
 
-  // 4. Register all event handlers + job handlers
-  await bootstrap(simulationContainer, {
-    runtime: createBootstrapRuntimeConfig(env),
-    allowUnavailableGoogleImportV2Processor: true,
-  })
+    // 4. Register all event handlers + job handlers
+    await bootstrap(simulationContainer, {
+      runtime: createBootstrapRuntimeConfig(env),
+      allowUnavailableGoogleImportV2Processor: true,
+    })
 
-  // 5. Connect the queue to the registry so jobs process inline
-  queue.connectRegistry(simulationContainer.jobRegistry)
+    // 5. Connect the queue to the registry so jobs process inline
+    queue.connectRegistry(simulationContainer.jobRegistry)
 
-  // 6. Inline outbox delivery: the same consumer set the worker registers,
-  //    then the real relay claims/marks rows and its "queue" hands each
-  //    envelope straight to the real dispatcher.
-  const outboxRepo = simulationContainer.outboxRepo
-  if (!outboxRepo) throw new Error('Simulation container has no outbox repository')
-  simulationContainer.registerOutboxConsumers()
-  const dispatch = createDispatcherHandler(outboxRepo, {
-    consumers: simulationContainer.consumerRegistry,
-  })
-  let dispatched = 0
-  const inlineQueue = {
-    async add(name: string, data: unknown, opts: Readonly<{ jobId?: string }>) {
-      dispatched += 1
-      await dispatch({ id: opts.jobId, name, data, attemptsMade: 1 } as unknown as Job)
-      return { id: opts.jobId } as unknown as Job
-    },
-  } as unknown as Queue
-  const relay = createOutboxRelay(outboxRepo, inlineQueue, {
-    relayId: 'simulation',
-    batchSize: 200,
-  })
+    // 6. Inline outbox delivery: the same consumer set the worker registers,
+    //    then the real relay claims/marks rows and its "queue" hands each
+    //    envelope straight to the real dispatcher.
+    const outboxRepo = simulationContainer.outboxRepo
+    if (!outboxRepo) throw new Error('Simulation container has no outbox repository')
+    simulationContainer.registerOutboxConsumers()
+    const dispatch = createDispatcherHandler(outboxRepo, {
+      consumers: simulationContainer.consumerRegistry,
+    })
+    let dispatched = 0
+    const inlineQueue = {
+      async add(name: string, data: unknown, opts: Readonly<{ jobId?: string }>) {
+        dispatched += 1
+        await dispatch({ id: opts.jobId, name, data, attemptsMade: 1 } as unknown as Job)
+        return { id: opts.jobId } as unknown as Job
+      },
+    } as unknown as Queue
+    const relay = createOutboxRelay(outboxRepo, inlineQueue, {
+      relayId: 'simulation',
+      batchSize: 200,
+    })
 
-  return {
-    container: simulationContainer,
-    queue,
-    advanceClock(ms: number) {
-      currentTime = new Date(currentTime.getTime() + ms)
-    },
-    async drainOutbox() {
-      const before = dispatched
-      for (let polls = 0; polls < 100; polls++) {
-        const seen = dispatched
-        await relay.poll()
-        if (dispatched === seen) break
-      }
-      return dispatched - before
-    },
+    return {
+      container: simulationContainer,
+      queue,
+      advanceClock(ms: number) {
+        currentTime = new Date(currentTime.getTime() + ms)
+      },
+      async drainOutbox() {
+        const before = dispatched
+        for (let polls = 0; polls < 100; polls++) {
+          const seen = dispatched
+          await relay.poll()
+          if (dispatched === seen) break
+        }
+        return dispatched - before
+      },
+    }
+  } catch (error) {
+    if (boundSimulation) {
+      releaseProcessPolicies(boundSimulation)
+      if (simulationPolicies === boundSimulation) simulationPolicies = undefined
+    }
+    releaseProcessContainer()
+    throw error
   }
 }
