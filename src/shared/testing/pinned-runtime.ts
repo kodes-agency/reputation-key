@@ -17,8 +17,8 @@
 // ICU and Unicode are properties of the Node build, so pinning the version
 // pins all three; they are asserted explicitly because the fenced AI-language
 // suites and the generated review-language group tables are only valid on this
-// exact ICU (see scripts/check-test-quality.mjs `PINNED_RUNTIME`, which
-// src/shared/testing/pinned-runtime.test.ts holds to the same values).
+// exact ICU (scripts/check-test-quality.mjs `PINNED_RUNTIME` holds the same
+// values and fails the gate when they drift apart).
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'

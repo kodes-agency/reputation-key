@@ -12,7 +12,7 @@ ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 # to the Railway service. The IaC graph never rebuilds a working tree.
 #
 # Reproducibility:
-#   - base image pinned by digest (node:22-slim bookworm; bump deliberately)
+#   - base image pinned by digest (node:22.23.2-trixie-slim; bump deliberately)
 #   - pnpm pinned via package.json packageManager (corepack resolves it)
 #   - every install is `pnpm install --frozen-lockfile` (same lockfile CI tests)
 #
@@ -47,8 +47,8 @@ ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 # naturally well inside drainingSeconds (verified: ~1.3s after traffic).
 # ─────────────────────────────────────────────────────────────────────────────
 
-# node:22-slim (bookworm) — digest resolved 2026-07-31 (created 2026-07-29;
-# BQC-7.7: bumped from the 2026-07-14 build to clear base-image CVE findings).
+# node:22.23.2-trixie-slim (Debian 13) — digest resolved 2026-09-07. Debian 12
+# bookworm is EOL, which was the source of every `won't fix` row in the scan.
 #
 # A digest bump MUST keep the node/ICU/Unicode triple asserted below. Web and
 # worker run the AI review-language catalogue, which fails closed when the
@@ -58,7 +58,7 @@ ARG SOURCE_REVISION=${RAILWAY_GIT_COMMIT_SHA:-unknown}
 # (pnpm tsx scripts/generate-ai-review-language-regions.ts) and re-run the AI
 # language corpus in the same change. The image asserts the triple again in the
 # final runtime stage so build and serving environments cannot drift.
-FROM node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS base
+FROM node:22.23.2-trixie-slim@sha256:7b8a0c89c54499bee567618f96578e1a12a800f062fbdbfd1fb6a443fa6f6284 AS base
 # HUSKY=0: Husky's `prepare` must not try to install git hooks in the image.
 # COREPACK_HOME + the pinned `corepack install` below: identical to the other
 # Node-based Dockerfiles ON PURPOSE. Docker keys a layer on the instruction text, so
@@ -69,21 +69,15 @@ ENV PNPM_HOME=/pnpm \
     HUSKY=0
 RUN corepack enable
 # The one OS package this base ships with a KNOWN FIX, pinned to the exact
-# patched version.
-#
-# Every other finding in the scan is Medium/Negligible or marked `won't fix` by
-# Debian; `libpcre2-8-0` is the only High, and 10.42-1+deb12u1 fixes
-# CVE-2026-86145. The image is otherwise deliberately apt-free, so this is the
-# only `apt-get` in the tree and it is written to stay reproducible: the version
-# is exact, so the build FAILS if the archive stops carrying it rather than
-# silently drifting to whatever is newest. Every other stage derives `FROM base`,
-# so patching here covers all of them.
-#
-# This is a stopgap. The real problem is that Debian 12 bookworm is EOL, which is
-# why grype reports 683 packages from an unsupported distro and why `won't fix`
-# is the most common verdict in that scan. Moving off it is the actual fix.
+# patched version: OpenSSL 3.5.7-1~deb13u2 closes nine CVEs against the
+# 3.5.6 the image was published with (CVE-2026-63073 / CVE-2026-75803 are
+# Critical). Exact so the build FAILS if the archive stops carrying it
+# rather than silently drifting; every other stage derives `FROM base`, so
+# patching here covers all of them. Everything else the scan reports is
+# won't-fix on trixie and named in .grype.yaml.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpcre2-8-0=10.42-1+deb12u1 \
+    && apt-get install -y --no-install-recommends \
+        libssl3t64=3.5.7-1~deb13u2 openssl-provider-legacy=3.5.7-1~deb13u2 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
@@ -159,8 +153,8 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 # BQC-7.7: no runtime needs a setuid/setgid helper - the process is `node`
 # as a non-root user with no CAP_SYS_ADMIN. Dropping the bits removes the
 # local-escalation vector named by the util-linux mount-helper CVEs
-# (CVE-2026-76642 / -78408 / -78409 / -78410), which Debian bookworm does not
-# ship a fix for. The packages stay (dpkg needs them); only the bits go.
+# (CVE-2026-76642 / -78408 / -78409 / -78410). The packages stay (dpkg needs
+# them); only the bits go.
 RUN find / -xdev -perm /6000 -type f -exec chmod ug-s {} +
 # Nitro traces the application bundle; @sentry/node is deliberately external
 # so the Node --import preload and the Nitro hook share one SDK instance.
