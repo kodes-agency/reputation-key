@@ -24,20 +24,15 @@
 import {
   claimProcessContainer,
   createContainer,
-  createOperatorContainerGraph,
   releaseProcessContainer,
   type Container,
 } from '#/composition'
 import {
   projectContainer,
   type Deployable,
-  type OperatorContainer,
   type WebContainer,
   type WorkerContainer,
 } from './container-partition'
-import { createJobQueue } from '#/shared/jobs/queue'
-import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
-import { OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE } from './google-provider-authority'
 
 // The partition itself lives in `./container-partition` so callers that only
 // need the narrowed types do not gain the authority to build a container.
@@ -59,95 +54,23 @@ export {
 } from './container-partition'
 export { DUPLICATE_CONTAINER_ERROR } from '#/composition'
 
+type ApplicationDeployable = Exclude<Deployable, 'operator'>
+
 type ContainersByDeployable = Readonly<{
   web: WebContainer
   worker: WorkerContainer
-  operator: OperatorContainer
 }>
 
 export type DeployableContainerOptions = Parameters<typeof createContainer>[0]
 
-const OPERATOR_QUEUE_CONFIGURATION_ERROR =
-  '[COMPOSITION] operator container requires QUEUE_REDIS_URL'
-
-function operatorGraphOptions(
-  options: DeployableContainerOptions,
-): NonNullable<DeployableContainerOptions> {
-  const queue = options?.queue ?? createJobQueue('default')
-  const backgroundQueue = options?.backgroundQueue ?? createJobQueue('background')
-  const opsBackgroundQueue = options?.opsBackgroundQueue ?? backgroundQueue
-  const opsDomainEventsQueue =
-    options?.opsDomainEventsQueue ?? createJobQueue('domain-events')
-  const opsQuarantineQueue =
-    options?.opsQuarantineQueue ?? createJobQueue(QUARANTINE_QUEUE_NAME)
-  if (
-    !queue ||
-    !backgroundQueue ||
-    !opsBackgroundQueue ||
-    !opsDomainEventsQueue ||
-    !opsQuarantineQueue
-  ) {
-    throw new Error(OPERATOR_QUEUE_CONFIGURATION_ERROR)
-  }
-  return {
-    ...(options ?? {}),
-    enableJobs: false,
-    redis: undefined,
-    queue,
-    backgroundQueue,
-    opsBackgroundQueue,
-    opsDomainEventsQueue,
-    opsQuarantineQueue,
-  }
-}
-async function refuseOperatorGoogleProviderCall(): Promise<never> {
-  throw new Error(OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE)
-}
-
-/**
- * Provider-facing use cases intentionally flatten outages into best-effort
- * outcomes for long-lived application processes. The operator surface must not:
- * a provider-dependent command either runs through an enabled application path
- * or refuses before it can report a partial/local success as completion.
- */
-function withOperatorProviderRefusals(container: OperatorContainer): OperatorContainer {
-  return Object.freeze({
-    ...container,
-    integrationPublicApi: Object.freeze({
-      ...container.integrationPublicApi,
-      connections: Object.freeze({
-        ...container.integrationPublicApi.connections,
-        disconnect: refuseOperatorGoogleProviderCall,
-      }),
-    }),
-    integrationMaintenanceRuntime: Object.freeze({
-      ...container.integrationMaintenanceRuntime,
-      subscribeNotifications: Object.freeze({
-        ...container.integrationMaintenanceRuntime.subscribeNotifications,
-        apply: refuseOperatorGoogleProviderCall,
-      }),
-    }),
-    reviewMaintenanceRuntime: Object.freeze({
-      ...container.reviewMaintenanceRuntime,
-      publicationReconciliation: Object.freeze({
-        ...container.reviewMaintenanceRuntime.publicationReconciliation,
-        reconcile: refuseOperatorGoogleProviderCall,
-      }),
-    }),
-  })
-}
-
-function claimProcess<D extends Deployable>(
+function claimProcess<D extends ApplicationDeployable>(
   deployable: D,
   options: DeployableContainerOptions,
 ): ContainersByDeployable[D] {
   claimProcessContainer(deployable)
   let container: Container
   try {
-    container =
-      deployable === 'operator'
-        ? createOperatorContainerGraph(operatorGraphOptions(options))
-        : createContainer(options)
+    container = createContainer(options)
   } catch (error) {
     releaseProcessContainer()
     throw error
@@ -155,12 +78,8 @@ function claimProcess<D extends Deployable>(
   // The shutdown seam releases the process claim as well as the container's own
   // background work, so a supervised process that restarts cleanly can rebuild.
   const partition = projectContainer(container, deployable)
-  const deployableContainer =
-    deployable === 'operator'
-      ? withOperatorProviderRefusals(partition as OperatorContainer)
-      : partition
   const projected: Record<string, unknown> = {
-    ...deployableContainer,
+    ...partition,
     shutdown: Object.freeze({
       ...container.shutdown,
       run: async () => {
@@ -187,9 +106,3 @@ export function createWorkerContainer(
   return claimProcess('worker', { ...options, enableJobs: true })
 }
 
-/** Bounded reviewed repair process: maintenance, never registration. */
-export function createOperatorContainer(
-  options?: DeployableContainerOptions,
-): OperatorContainer {
-  return claimProcess('operator', options)
-}
