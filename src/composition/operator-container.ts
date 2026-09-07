@@ -12,7 +12,7 @@ import { OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE } from './google-provider-auth
 
 export type OperatorContainerOptions = Parameters<typeof createOperatorContainerGraph>[0]
 
-const OPERATOR_QUEUE_CONFIGURATION_ERROR =
+export const OPERATOR_QUEUE_CONFIGURATION_ERROR =
   '[COMPOSITION] operator container requires QUEUE_REDIS_URL'
 
 function operatorGraphOptions(
