@@ -312,10 +312,9 @@ export const createReviewRepository = (
             review."id"::text AS "reviewId",
             review."source_revision"::float8 AS "sourceRevision",
             review."analysis_sequence"::float8 AS "analysisSequence",
-            resolve_ai_property_local_date_v1(
+            ai_property_local_date_v1(
               source."reviewed_at",
-              ${input.timezone},
-              ${input.calendarProfileVersion}
+              ${input.timezone}
             )::text AS "localDate",
             NULLIF(btrim(source."text"), '') IS NOT NULL AS "hasText"
           FROM "reviews" AS review
@@ -331,10 +330,9 @@ export const createReviewRepository = (
             AND source."source_epoch" = ${input.sourceEpoch}
             AND source."source_revision" = review."source_revision"
             AND source."content_expires_at" > captured.now
-            AND resolve_ai_property_local_date_v1(
+            AND ai_property_local_date_v1(
               source."reviewed_at",
-              ${input.timezone},
-              ${input.calendarProfileVersion}
+              ${input.timezone}
             ) BETWEEN ${input.startLocalDate}::date AND ${input.endLocalDate}::date
           ORDER BY source."reviewed_at", review."id"
           LIMIT ${input.limit}

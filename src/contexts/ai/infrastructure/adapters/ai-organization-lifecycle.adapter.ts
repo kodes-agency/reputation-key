@@ -125,7 +125,7 @@ const prepareClosing = async (
   if ((await aiFootprint(tx, request.organizationId)) === 0) {
     // Affirmative absence: an Organization that never authorized AI still
     // answers. An omitted contributor would make a partial purge look complete.
-    return { outcome: 'no_data', evidenceRef: evidenceRef('closing', request, [0, 0]) }
+    return { outcome: 'no_data', evidenceRef: evidenceRef('closing', request, [0]) }
   }
 
   const enrollments = await tx.execute(sql`
@@ -139,47 +139,17 @@ const prepareClosing = async (
     RETURNING id
   `)
 
-  const backfills = await tx.execute(sql`
-    UPDATE ai_review_analysis_backfill_runs
-    SET state = 'superseded',
-        terminal_reason = ${CLOSING_TERMINAL_REASON},
-        terminal_at = GREATEST(${request.occurredAt}, created_at),
-        updated_at = GREATEST(${request.occurredAt}, created_at)
-    WHERE organization_id = ${request.organizationId}
-      AND state = 'running'
-    RETURNING id
-  `)
 
   return {
     outcome: 'complete',
-    evidenceRef: evidenceRef('closing', request, [
-      enrollments.rows.length,
-      backfills.rows.length,
-    ]),
+    evidenceRef: evidenceRef('closing', request, [enrollments.rows.length]),
   }
 }
 
 const READINESS_BLOCKER_FIELDS = Object.freeze([
-  // The gate every AI read and admission passes. While it says `enabled`, AI
-  // work can still be admitted for this Organization, so purging its
-  // derivatives would race live production of new ones.
   'enabled_authorizations',
-  // Closing should have superseded these; a survivor means closing did not
-  // converge and in-flight analysis work may still exist.
   'active_enrollments',
-  'running_backfills',
-  // A non-terminal operation is an inference that may still be executing at the
-  // provider.
   'in_flight_operations',
-  // An unreleased permit is an outstanding admission grant.
-  'unreleased_execution_permits',
-  // A retired generation whose derivative erasure has not completed. Purging
-  // around it would leave the erasure ledger claiming work that no longer has a
-  // target, destroying the evidence that erasure actually happened.
-  'pending_derivative_erasures',
-  // A canary head pins an operation and a permit with ON DELETE RESTRICT, so
-  // purge would fail mid-plan instead of converging.
-  'canary_bound_operations',
 ] as const)
 
 /**
@@ -199,29 +169,10 @@ const verifyPurgeReadiness = async (
         WHERE organization_id = ${request.organizationId}
           AND state IN ('awaiting_assisted_approval', 'queued', 'running'))
         AS active_enrollments,
-      (SELECT count(*)::int FROM ai_review_analysis_backfill_runs
-        WHERE organization_id = ${request.organizationId}
-          AND state = 'running') AS running_backfills,
       (SELECT count(*)::int FROM ai_operations
         WHERE organization_id = ${request.organizationId}
           AND state IN ('pending', 'executing', 'succeeded_pending_delivery'))
-        AS in_flight_operations,
-      (SELECT count(*)::int
-        FROM ai_execution_permits AS permit
-        INNER JOIN ai_operations AS operation ON operation.id = permit.operation_id
-        WHERE operation.organization_id = ${request.organizationId}
-          AND permit.state IN ('issued', 'consumed'))
-        AS unreleased_execution_permits,
-      (SELECT count(*)::int FROM ai_authorization_lifecycle_records
-        WHERE organization_id = ${request.organizationId}
-          AND erasure_status IN ('pending', 'in_progress', 'failed'))
-        AS pending_derivative_erasures,
-      (SELECT count(*)::int
-        FROM ai_canary_authorization_heads AS head
-        INNER JOIN ai_operations AS operation
-          ON operation.id = head.current_operation_id
-        WHERE operation.organization_id = ${request.organizationId})
-        AS canary_bound_operations
+        AS in_flight_operations
   `)
   const row = result.rows[0] as CountRow | undefined
 
@@ -240,42 +191,20 @@ const verifyPurgeReadiness = async (
  * Retained AI derivatives and the ledgers that could rebuild them, in
  * foreign-key-safe order (children before parents).
  *
- * The ordering is not cosmetic. `ai_property_aggregate_contributions`
- * references `ai_review_analyses`, `ai_review_analysis_outcomes` references
- * `ai_review_event_cursors`, and both `ai_review_analyses` and
- * `ai_property_trend_outcomes` reference `ai_operations` with ON DELETE
- * RESTRICT — so operations must go last among those, and readiness already
- * refuses when a canary head pins one.
- *
- * Erasure has to be UNRESURRECTABLE, which is why the cursors, heads,
- * enrolments and backfill memberships go too: leaving a cursor or an aggregate
- * head behind would let a later sweep rebuild the very derivative this phase
- * erased.
+ * The ordering is not cosmetic: derivative rows are deleted before the
+ * operation records they reference. Erasure also removes enrollment and
+ * aggregate heads so a later sweep cannot rebuild the derivative.
  */
 const PURGE_DELETE_TABLES = Object.freeze([
-  // Enrolment and backfill memberships and replays are immutable by trigger and
-  // may ONLY leave through their parent's ON DELETE CASCADE — the guard reads
-  // "immutable while the parent still exists". Deleting the child directly is
-  // refused, so the parents are named here and the children ride the cascade.
   'ai_review_analysis_enrollments',
-  'ai_review_analysis_backfill_runs',
   'ai_property_trend_outcomes',
   'ai_property_trend_schedules',
   'ai_property_aggregate_contributions',
   'ai_property_daily_aggregates',
   'ai_property_aggregate_heads',
-  'ai_review_analysis_outcomes',
   'ai_review_analyses',
-  'ai_review_event_cursors',
-  'ai_admission_cost_reservations',
-  'ai_admission_product_consumptions',
-  'ai_product_volume_consumptions',
-  'ai_property_quota_windows',
   'ai_organization_cost_windows',
-  // Deleting an operation cascades its attempts, permits, settlements and any
-  // remaining admission consumption rows.
   'ai_operations',
-  'ai_authorization_lifecycle_records',
   'ai_property_processing_profiles',
 ] as const)
 
@@ -307,14 +236,6 @@ const purge = async (
   // so a replay after a rolled-back attempt reports the same outcome.
   const footprint = await aiFootprint(tx, request.organizationId)
 
-  // The enrolment guards refuse every delete unless the caller declares itself
-  // the sanctioned lifecycle eraser. That declaration is the schema's own
-  // named seam (`repkey.ai_review_enrollment_eraser`), it is transaction-local
-  // (`set_config(..., true)`), and it exists precisely so an accidental
-  // `DELETE FROM ai_review_analysis_enrollments` cannot succeed.
-  await tx.execute(
-    sql`SELECT set_config('repkey.ai_review_enrollment_eraser', 'lifecycle-v1', true)`,
-  )
 
   let deleted = 0
   for (const table of PURGE_DELETE_TABLES) {

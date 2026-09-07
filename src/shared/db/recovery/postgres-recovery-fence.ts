@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { RecoveryFenceCounts } from '#/shared/db/schema/recovery.schema'
+import { reapStaleReservations } from '#/shared/ai-provider-control/ai-budget'
 import {
   validateRecoveryFenceInput,
   type RecoveryFenceInput,
@@ -100,14 +101,17 @@ export async function inspectRecoveryFence(
       (SELECT count(*)::int FROM gbp_import_request_items
         WHERE status IN ('pending', 'processing')
            OR outcome_code = 'temporarily_unavailable') AS "googleImportV2ItemsFenced",
-      (SELECT count(*)::int FROM ai_execution_permits
-        WHERE state = 'issued') AS "aiIssuedPermitsReleased",
-      (SELECT count(*)::int FROM ai_execution_permits
-        WHERE state = 'consumed') AS "aiConsumedPermitsMadeAmbiguous",
+      (SELECT count(*)::int FROM ai_operations
+        WHERE budget_settled_at IS NULL
+          AND reserved_micros > 0
+          AND state = 'pending') AS "aiIssuedPermitsReleased",
+      (SELECT count(*)::int FROM ai_operations
+        WHERE budget_settled_at IS NULL
+          AND reserved_micros > 0
+          AND state = 'executing') AS "aiConsumedPermitsMadeAmbiguous",
       (SELECT count(*)::int FROM ai_operations
         WHERE state IN ('pending', 'executing', 'succeeded_pending_delivery')) AS "aiOperationsFenced",
-      (SELECT count(*)::int FROM ai_review_analysis_backfill_runs
-        WHERE state = 'running') AS "aiBackfillRunsStalled"
+      0::int AS "aiBackfillRunsStalled"
   `)
   return countsFromRow(result.rows[0] as CountRow | undefined)
 }
@@ -185,14 +189,6 @@ export async function applyRecoveryFence(
       throw new Error('recovery run identity, generation, or source binding conflicts')
     }
 
-    const activeAiOperations = await tx.execute(sql`
-      SELECT count(*)::int AS count
-      FROM ai_operations
-      WHERE state IN ('pending', 'executing', 'succeeded_pending_delivery')
-    `)
-    const activeAiOperationCount = Number(
-      (activeAiOperations.rows[0] as { count?: number | string } | undefined)?.count ?? 0,
-    )
 
     const runId = input.runId
     if (existingRow) {
@@ -432,190 +428,23 @@ export async function applyRecoveryFence(
       RETURNING parent.id
     `)
 
-    // A consumed AI permit has an unknown provider outcome. Force its lease
-    // expired and use the admission plane's own authoritative reaper so cost,
-    // settlement, circuit, attempt, and operation state stay atomic.
-    await tx.execute(sql`DROP TABLE IF EXISTS pg_temp.recovery_issued_ai_permits`)
+    // A restore invalidates every in-flight AI operation. Age active
+    // reservations into the shared reaper, then cancel the operation rows.
     await tx.execute(sql`
-      UPDATE ai_execution_permits
-      SET concurrency_expires_at = clock_timestamp() - interval '1 second'
-      WHERE state = 'consumed'
+      UPDATE ai_operations
+      SET budget_reserved_at = clock_timestamp() - interval '16 minutes'
+      WHERE budget_settled_at IS NULL
+        AND reserved_micros > 0
+        AND state IN ('pending', 'executing', 'succeeded_pending_delivery')
     `)
-    let aiConsumed = 0
-    for (;;) {
-      const reaped = await tx.execute(
-        sql`SELECT reap_expired_ai_execution_permits_v1(1000)::int AS count`,
-      )
-      const count = Number(
-        (reaped.rows[0] as { count?: number | string } | undefined)?.count ?? 0,
-      )
-      aiConsumed += count
-      if (count < 1000) break
-    }
-
-    // Issued means the provider never received a grant. Release the reserved
-    // maximum cost and cancel the corresponding attempt/operation without
-    // manufacturing a provider settlement.
-    await tx.execute(sql`DROP TABLE IF EXISTS pg_temp.recovery_pending_ai_operations`)
-    await tx.execute(sql`
-      CREATE TEMP TABLE recovery_issued_ai_permits ON COMMIT DROP AS
-      SELECT permit.id, permit.operation_id
-      FROM ai_execution_permits permit
-      WHERE permit.state = 'issued'
-    `)
-    const inconsistentWindows = await tx.execute(sql`
-      WITH property_totals AS (
-        SELECT reservation.property_id, reservation.property_window_generation,
-               SUM(reservation.maximum_cost_micros)::bigint AS amount
-        FROM ai_admission_cost_reservations reservation
-        JOIN recovery_issued_ai_permits candidate ON candidate.id = reservation.permit_id
-        WHERE reservation.state = 'reserved' AND reservation.property_id IS NOT NULL
-        GROUP BY reservation.property_id, reservation.property_window_generation
-      ), organization_totals AS (
-        SELECT reservation.organization_id, reservation.organization_utc_date,
-               SUM(reservation.maximum_cost_micros)::bigint AS amount
-        FROM ai_admission_cost_reservations reservation
-        JOIN recovery_issued_ai_permits candidate ON candidate.id = reservation.permit_id
-        WHERE reservation.state = 'reserved' AND reservation.organization_id IS NOT NULL
-        GROUP BY reservation.organization_id, reservation.organization_utc_date
-      )
-      SELECT
-        (SELECT count(*)::int FROM property_totals total
-          LEFT JOIN ai_property_quota_windows quota_window
-            ON quota_window.property_id = total.property_id
-           AND quota_window.generation = total.property_window_generation
-          WHERE quota_window.property_id IS NULL OR quota_window.reserved_cost_micros < total.amount)
-        +
-        (SELECT count(*)::int FROM organization_totals total
-          LEFT JOIN ai_organization_cost_windows quota_window
-            ON quota_window.organization_id = total.organization_id
-           AND quota_window.utc_date = total.organization_utc_date
-          WHERE quota_window.organization_id IS NULL OR quota_window.reserved_cost_micros < total.amount)
-        AS count
-    `)
-    if (
-      Number(
-        (inconsistentWindows.rows[0] as { count?: number | string } | undefined)?.count ??
-          0,
-      ) > 0
-    ) {
-      throw new Error('AI reserved-cost windows are inconsistent; recovery refused')
-    }
-    await tx.execute(sql`
-      WITH totals AS (
-        SELECT reservation.property_id, reservation.property_window_generation,
-               SUM(reservation.maximum_cost_micros)::bigint AS amount
-        FROM ai_admission_cost_reservations reservation
-        JOIN recovery_issued_ai_permits candidate ON candidate.id = reservation.permit_id
-        WHERE reservation.state = 'reserved' AND reservation.property_id IS NOT NULL
-        GROUP BY reservation.property_id, reservation.property_window_generation
-      )
-      UPDATE ai_property_quota_windows quota_window
-      SET reserved_cost_micros = quota_window.reserved_cost_micros - totals.amount,
-          updated_at = clock_timestamp()
-      FROM totals
-      WHERE quota_window.property_id = totals.property_id
-        AND quota_window.generation = totals.property_window_generation
-    `)
-    await tx.execute(sql`
-      WITH totals AS (
-        SELECT reservation.organization_id, reservation.organization_utc_date,
-               SUM(reservation.maximum_cost_micros)::bigint AS amount
-        FROM ai_admission_cost_reservations reservation
-        JOIN recovery_issued_ai_permits candidate ON candidate.id = reservation.permit_id
-        WHERE reservation.state = 'reserved' AND reservation.organization_id IS NOT NULL
-        GROUP BY reservation.organization_id, reservation.organization_utc_date
-      )
-      UPDATE ai_organization_cost_windows quota_window
-      SET reserved_cost_micros = quota_window.reserved_cost_micros - totals.amount,
-          updated_at = clock_timestamp()
-      FROM totals
-      WHERE quota_window.organization_id = totals.organization_id
-        AND quota_window.utc_date = totals.organization_utc_date
-    `)
-    await tx.execute(sql`
-      UPDATE ai_admission_cost_reservations reservation
-      SET state = 'released', actual_cost_micros = 0, settled_at = clock_timestamp()
-      FROM recovery_issued_ai_permits candidate
-      WHERE reservation.permit_id = candidate.id AND reservation.state = 'reserved'
-    `)
-    await tx.execute(sql`
-      UPDATE ai_operation_attempts attempt
-      SET state = 'cancelled',
-          failure_code = 'restore_recovery_fence',
-          settled_at = clock_timestamp()
-      FROM recovery_issued_ai_permits candidate
-      WHERE attempt.operation_id = candidate.operation_id
-        AND attempt.state = 'executing'
-    `)
-    await tx.execute(sql`
-      UPDATE ai_operations operation
+    const aiReservationsReleased = await reapStaleReservations(tx)
+    const activeAiOperationsFenced = await tx.execute(sql`
+      UPDATE ai_operations
       SET state = 'cancelled',
           failure_code = 'restore_recovery_fence',
           next_attempt_at = NULL,
           updated_at = clock_timestamp()
-      FROM recovery_issued_ai_permits candidate
-      WHERE operation.id = candidate.operation_id
-        AND operation.state IN ('pending', 'executing', 'succeeded_pending_delivery')
-    `)
-    await tx.execute(sql`
-      UPDATE ai_canary_authorizations canary_authorization
-      SET state = 'released_no_dispatch', settled_at = clock_timestamp()
-      FROM recovery_issued_ai_permits candidate
-      JOIN ai_operations operation ON operation.id = candidate.operation_id
-      WHERE canary_authorization.id = operation.canary_authorization_id
-        AND canary_authorization.state IN ('issued', 'consumed')
-    `)
-    await tx.execute(sql`
-      UPDATE ai_canary_authorization_heads head
-      SET transition_generation = transition_generation + 1,
-          state = 'eligible',
-          current_authorization_id = NULL,
-          current_operation_id = NULL,
-          current_permit_id = NULL,
-          updated_at = clock_timestamp()
-      FROM recovery_issued_ai_permits candidate
-      WHERE head.current_permit_id = candidate.id
-    `)
-    const aiIssued = await tx.execute(sql`
-      UPDATE ai_execution_permits permit
-      SET state = 'released'
-      FROM recovery_issued_ai_permits candidate
-      WHERE permit.id = candidate.id AND permit.state = 'issued'
-      RETURNING permit.id
-    `)
-    await tx.execute(sql`
-      CREATE TEMP TABLE recovery_pending_ai_operations ON COMMIT DROP AS
-      SELECT id
-      FROM ai_operations
       WHERE state IN ('pending', 'executing', 'succeeded_pending_delivery')
-    `)
-    await tx.execute(sql`
-      UPDATE ai_operation_attempts attempt
-      SET state = 'cancelled',
-          failure_code = 'restore_recovery_fence',
-          settled_at = clock_timestamp()
-      FROM recovery_pending_ai_operations candidate
-      WHERE attempt.operation_id = candidate.id
-        AND attempt.state = 'executing'
-    `)
-    await tx.execute(sql`
-      UPDATE ai_operations operation
-      SET state = 'cancelled',
-          failure_code = 'restore_recovery_fence',
-          next_attempt_at = NULL,
-          updated_at = clock_timestamp()
-      FROM recovery_pending_ai_operations candidate
-      WHERE operation.id = candidate.id
-      RETURNING operation.id
-    `)
-    const aiBackfills = await tx.execute(sql`
-      UPDATE ai_review_analysis_backfill_runs
-      SET state = 'stalled',
-          terminal_reason = 'restore_recovery_fence',
-          terminal_at = clock_timestamp(),
-          updated_at = clock_timestamp()
-      WHERE state = 'running'
       RETURNING id
     `)
 
@@ -647,10 +476,10 @@ export async function applyRecoveryFence(
       googleRevokePermitsFenced: googleRevokes.rows.length,
       googleImportV2ParentsFenced: googleImportV2Parents.rows.length,
       googleImportV2ItemsFenced: googleImportV2Items.rows.length,
-      aiIssuedPermitsReleased: aiIssued.rows.length,
-      aiConsumedPermitsMadeAmbiguous: aiConsumed,
-      aiOperationsFenced: activeAiOperationCount,
-      aiBackfillRunsStalled: aiBackfills.rows.length,
+      aiIssuedPermitsReleased: aiReservationsReleased,
+      aiConsumedPermitsMadeAmbiguous: 0,
+      aiOperationsFenced: activeAiOperationsFenced.rows.length,
+      aiBackfillRunsStalled: 0,
     }
     const counts = existingRow
       ? addCounts(countsFromRow(existingRow.counts as unknown as CountRow), deltaCounts)

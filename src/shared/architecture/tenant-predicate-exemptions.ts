@@ -33,34 +33,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter.ts',
-    symbol: 'claimNext',
-    reason:
-      'The bounded authorization-erasure worker claims the next lifecycle obligation globally; tenant identifiers remain inside the claimed repository transaction.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter.ts',
-    symbol: 'failActiveGenerationConflict',
-    reason:
-      'The erasure lifecycle transition is a lease-owner and attempt-fenced CAS over a globally claimed obligation, with tenant identifiers intentionally retained inside the transaction.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter.ts',
-    symbol: 'readBacklog',
-    reason:
-      'The operations health probe intentionally returns only aggregate authorization-erasure lifecycle counts across all tenants.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
-    file: 'src/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter.ts',
-    symbol: 'recordClaimFailure',
-    reason:
-      'Failure recording is a lease-owner and attempt-fenced CAS over a globally claimed erasure obligation; tenant identifiers never leave the repository transaction.',
-    category: 'LEGITIMATE-GLOBAL',
-  },
-  {
     file: 'src/contexts/ai/infrastructure/adapters/ai-operation-store.adapter.ts',
     symbol: 'claim',
     reason:

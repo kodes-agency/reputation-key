@@ -38,11 +38,7 @@ const OWNED_TABLES = [
   'ai_property_trend_schedules',
   'ai_property_trend_outcomes',
   'ai_operations',
-  'ai_property_quota_windows',
-  'ai_admission_cost_reservations',
   'ai_review_analysis_enrollments',
-  'ai_review_analysis_backfill_runs',
-  'ai_authorization_lifecycle_records',
 ] as const
 
 /**
@@ -89,10 +85,8 @@ type Fixture = Readonly<{
   lineageId: string
   reviewId: string
   operationId: string
-  permitId: string
   scheduleId: string
   enrollmentId: string
-  backfillRunId: string
 }>
 
 const fixtures: Fixture[] = []
@@ -157,10 +151,8 @@ async function seedFixture(): Promise<Fixture> {
     lineageId: randomUUID(),
     reviewId: randomUUID(),
     operationId: randomUUID(),
-    permitId: randomUUID(),
     scheduleId: randomUUID(),
     enrollmentId: randomUUID(),
-    backfillRunId: randomUUID(),
   }
   fixtures.push(fixture)
 
@@ -278,8 +270,8 @@ async function seedFixture(): Promise<Fixture> {
        property_id, system_principal, review_id, origin_event_id, subject_hmac,
        subject_hmac_key_version, source_epoch, source_revision,
        reviewed_at_epoch_millis, analysis_sequence, authorization_lineage_id,
-       provider_deployment_profile_version, operation_profile_version,
-       capability_runtime_profile_version, global_control_id,
+       routing_policy_version, provider_deployment_profile_version,
+       operation_profile_version, capability_runtime_profile_version, global_control_id,
        global_control_generation, provider_control_id,
        provider_control_generation, capability_control_id,
        capability_control_generation, capability_fences, state,
@@ -287,7 +279,7 @@ async function seedFixture(): Promise<Fixture> {
      ) VALUES (
        $1, 'ai-lifecycle-test', $2, $3, $4, 20, 'analysis', 'review_analysis',
        $5, $6, 'review_event_consumer', $7, $8, $9, 'test-v1', 0, 1, $10, 1,
-       $11, 'private-beta-global-v1', 'review-analysis-v1',
+       $11, 1, 'private-beta-global-v1', 'review-analysis-v1',
        'review-analysis-runtime-v1', $12, $13, $14, $15, $16, $17,
        '{"capability":"review_analysis","reviewAnalysisEpoch":"1"}'::jsonb,
        'succeeded', 1, $18, $18, $19
@@ -384,60 +376,7 @@ async function seedFixture(): Promise<Fixture> {
       new Date(Date.now() + 86_400_000),
     ],
   )
-  // The permit binds to an exact operation ATTEMPT, so the attempt row has to
-  // exist before it.
-  await lease.pool.query(
-    `INSERT INTO ai_operation_attempts (
-       operation_id, attempt, state, started_at, settled_at, model_snapshot,
-       input_tokens, output_tokens
-     ) VALUES ($1, 1, 'completed', $2, $2, 'closure-model-snapshot', 10, 20)`,
-    [fixture.operationId, ANALYZED_AT],
-  )
-  await lease.pool.query(
-    `INSERT INTO ai_execution_permits (
-       id, operation_id, execution_attempt, global_control_id,
-       global_control_generation, provider_control_id,
-       provider_control_generation, admitted_at, expires_at, route, state
-     ) VALUES ($1, $2, 1, $3, $4, $5, $6, $7, $8, 'review-analysis', 'issued')`,
-    [
-      fixture.permitId,
-      fixture.operationId,
-      heads.global!.controlId,
-      heads.global!.generation,
-      heads['provider:private-beta-global-v1']!.controlId,
-      heads['provider:private-beta-global-v1']!.generation,
-      ANALYZED_AT,
-      new Date(ANALYZED_AT.getTime() + 60_000),
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO ai_property_quota_windows (
-       property_id, organization_id, generation, property_profile_version,
-       timezone, local_date, starts_at, ends_at, updated_at
-     ) VALUES ($1, $2, 1, 1, 'UTC', $3, $4, $5, $4)`,
-    [
-      fixture.propertyId,
-      fixture.organizationId,
-      LOCAL_DATE,
-      new Date(`${LOCAL_DATE}T00:00:00.000Z`),
-      new Date(`${LOCAL_DATE}T23:59:59.000Z`),
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO ai_admission_cost_reservations (
-       permit_id, organization_id, property_id, property_window_generation,
-       organization_utc_date, maximum_cost_micros, state, created_at
-     ) VALUES ($1, $2, $3, 1, $4, 1000, 'reserved', $5)`,
-    [
-      fixture.permitId,
-      fixture.organizationId,
-      fixture.propertyId,
-      LOCAL_DATE,
-      ANALYZED_AT,
-    ],
-  )
-
-  // The two work authorities closing must retire.
+  // The enrollment head is the work authority closing must retire.
   await lease.pool.query(
     `INSERT INTO ai_review_analysis_enrollments (
        id, organization_id, property_id, authorization_lineage_id,
@@ -454,21 +393,6 @@ async function seedFixture(): Promise<Fixture> {
       fixture.lineageId,
       randomUUID(),
       EMPTY_REVISION_SET_DIGEST,
-      ANALYZED_AT,
-    ],
-  )
-  await lease.pool.query(
-    `INSERT INTO ai_review_analysis_backfill_runs (
-       id, organization_id, property_id, source_epoch, review_analysis_epoch,
-       analysis_start_sequence, review_ids, requested_review_count, state,
-       reason_code, correlation_id, created_at, updated_at
-     ) VALUES ($1, $2, $3, 0, 1, 0, ARRAY[]::uuid[], 1, 'running',
-               'operator_backfill', $4, $5, $5)`,
-    [
-      fixture.backfillRunId,
-      fixture.organizationId,
-      fixture.propertyId,
-      randomUUID(),
       ANALYZED_AT,
     ],
   )
@@ -655,7 +579,7 @@ describe.sequential('AI Organization lifecycle contributor', () => {
     bareOrganizations.clear()
   })
 
-  it('retires every AI work authority at closing without deleting a row', async () => {
+  it('retires the AI enrollment authority at closing without deleting a row', async () => {
     const fixture = await seedFixture()
     const lineage = randomUUID()
     await advanceAuthorityTo(fixture.organizationId, lineage, 'closure_requested')
@@ -682,15 +606,7 @@ describe.sequential('AI Organization lifecycle contributor', () => {
       state: 'superseded',
       terminal_reason: 'organization_closing',
     })
-    const backfill = await lease.pool.query(
-      `SELECT state, terminal_reason FROM ai_review_analysis_backfill_runs
-       WHERE organization_id = $1`,
-      [fixture.organizationId],
-    )
-    expect(backfill.rows[0]).toEqual({
-      state: 'superseded',
-      terminal_reason: 'organization_closing',
-    })
+
 
     const receipt = await lease.pool.query(
       `SELECT context, phase, outcome, evidence_ref
@@ -768,8 +684,6 @@ describe.sequential('AI Organization lifecycle contributor', () => {
     expect((failure as AiPurgeReadinessBlockedError).blockers).toEqual([
       { code: 'enabled_authorizations', count: 1 },
       { code: 'active_enrollments', count: 1 },
-      { code: 'running_backfills', count: 1 },
-      { code: 'unreleased_execution_permits', count: 1 },
     ])
     // Read only: the full contents of every AI-owned table are unchanged.
     expect(await tableSnapshot(fixture.organizationId)).toEqual(before)
@@ -794,10 +708,6 @@ describe.sequential('AI Organization lifecycle contributor', () => {
       ),
     )
     await revokeMerchantAuthorization(fixture)
-    await lease.pool.query(
-      `UPDATE ai_execution_permits SET state = 'released' WHERE id = $1`,
-      [fixture.permitId],
-    )
     await advanceAuthorityTo(fixture.organizationId, lineage, 'closing')
     const before = await tableSnapshot(fixture.organizationId)
 

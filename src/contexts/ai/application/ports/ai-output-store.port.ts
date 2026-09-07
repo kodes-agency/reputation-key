@@ -2,7 +2,6 @@ import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/doma
 import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import type {
   AiOperationId,
-  AiReadDeliveryLease,
   ReviewAnalysisReadV1,
 } from '../../domain/types'
 
@@ -252,7 +251,7 @@ export type AiOutputStorePort = Readonly<{
       analysisProfileVersion: string
       nowEpochMillis: number
     }>,
-    deliver: (lease: AiReadDeliveryLease, result: ReviewAnalysisReadV1) => Promise<T>,
+    deliver: (result: ReviewAnalysisReadV1) => Promise<T>,
   ): Promise<T>
 
   readTrendReportForDelivery<T>(
@@ -267,6 +266,6 @@ export type AiOutputStorePort = Readonly<{
       reportProfileVersion: string
       nowEpochMillis: number
     }>,
-    deliver: (lease: AiReadDeliveryLease, result: AiTrendReportRead) => Promise<T>,
+    deliver: (result: AiTrendReportRead) => Promise<T>,
   ): Promise<T>
 }>

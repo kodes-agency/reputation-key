@@ -35,11 +35,7 @@ const request = {
 const READY = Object.freeze({
   enabled_authorizations: 0,
   active_enrollments: 0,
-  running_backfills: 0,
   in_flight_operations: 0,
-  unreleased_execution_permits: 0,
-  pending_derivative_erasures: 0,
-  canary_bound_operations: 0,
 })
 
 type ExecutedStatement = Readonly<{ text: string }>
@@ -110,7 +106,7 @@ describe('AI Organization lifecycle contributor', () => {
 
       expect(result).toEqual({
         outcome: 'no_data',
-        evidenceRef: `ai:closing:${LINEAGE}:r4:n0:n0`,
+        evidenceRef: `ai:closing:${LINEAGE}:r4:n0`,
       })
       expect(result.evidenceRef).toMatch(CONTENT_FREE_EVIDENCE_REF)
       expect(receipts).toHaveLength(1)
@@ -124,7 +120,6 @@ describe('AI Organization lifecycle contributor', () => {
         rowsFor: (text) => {
           if (text.includes('AS footprint')) return [{ footprint: 6 }]
           if (text.includes('ai_review_analysis_enrollments')) return [{ id: 'e1' }]
-          if (text.includes('ai_review_analysis_backfill_runs')) return [{ id: 'b1' }]
           return []
         },
       })
@@ -134,7 +129,7 @@ describe('AI Organization lifecycle contributor', () => {
 
       expect(result).toEqual({
         outcome: 'complete',
-        evidenceRef: `ai:closing:${LINEAGE}:r4:n1:n1`,
+        evidenceRef: `ai:closing:${LINEAGE}:r4:n1`,
       })
       const statements = executed.map((statement) => statement.text).join('\n')
       expect(statements).not.toMatch(/DELETE|DROP|TRUNCATE/u)
@@ -155,7 +150,7 @@ describe('AI Organization lifecycle contributor', () => {
         rowsFor: (text) =>
           text.includes('AS footprint')
             ? [{ footprint: 3 }]
-            : [{ ...READY, enabled_authorizations: 2, pending_derivative_erasures: 1 }],
+            : [{ ...READY, enabled_authorizations: 2 }],
       })
 
       const failure = await createAiOrganizationLifecycleContributor(db)
@@ -165,7 +160,6 @@ describe('AI Organization lifecycle contributor', () => {
       expect(failure).toBeInstanceOf(AiPurgeReadinessBlockedError)
       expect((failure as AiPurgeReadinessBlockedError).blockers).toEqual([
         { code: 'enabled_authorizations', count: 2 },
-        { code: 'pending_derivative_erasures', count: 1 },
       ])
       expect((failure as Error).message).not.toContain(ORGANIZATION_ID)
       expect(receipts).toEqual([])
@@ -215,8 +209,7 @@ describe('AI Organization lifecycle contributor', () => {
         'ai_review_analyses',
         'ai_property_daily_aggregates',
         'ai_property_trend_outcomes',
-        // Rebuild ledgers: leaving one behind would make erasure reversible.
-        'ai_review_event_cursors',
+        // Rebuild heads: leaving one behind would make erasure reversible.
         'ai_property_aggregate_heads',
         'ai_review_analysis_enrollments',
       ]) {

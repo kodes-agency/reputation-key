@@ -3,9 +3,6 @@ import { eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
-  aiOperationProfiles,
-  aiProviderDeploymentProfiles,
-  aiRoutingPolicies,
   merchantAiConsentEvidence,
   merchantAiEnablement,
   properties,
@@ -13,17 +10,10 @@ import {
 } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import {
-  AI_OPERATION_PROFILES,
-  AI_PROVIDER_DEPLOYMENT_PROFILE,
-  AI_ROUTING_POLICY,
-} from '#/shared/ai-operation-profiles'
-import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
 } from '#/shared/merchant-ai-notice-contract'
 import { createAiAuthorizationAdapter } from './ai-authorization.adapter'
-import { AI_RUNTIME_CAPABILITIES_V1_DIGEST } from '#/shared/ai-runtime-capability-contract'
-import { createAiRuntimeCatalogueAdapter } from './ai-runtime-catalogue.adapter'
 import { createAiPropertyCalendarAdapter } from './ai-property-calendar.adapter'
 import { createPropertyProcessingProfileAdapter } from './property-processing-profile.adapter'
 
@@ -35,8 +25,7 @@ const LINEAGE_ID = '73000000-0000-4000-8000-000000000002'
 describe('AI authorization and processing-profile adapters (real PostgreSQL)', () => {
   const db = getDb()
   const authorization = createAiAuthorizationAdapter(db)
-  const runtimeCatalogue = createAiRuntimeCatalogueAdapter(db)
-  const profiles = createPropertyProcessingProfileAdapter(db, runtimeCatalogue, () => NOW)
+  const profiles = createPropertyProcessingProfileAdapter(db, () => NOW)
   const calendar = createAiPropertyCalendarAdapter(db)
 
   const clear = async () => {
@@ -71,143 +60,6 @@ describe('AI authorization and processing-profile adapters (real PostgreSQL)', (
   })
 
   afterAll(clear)
-
-  it('persists the exact immutable AI profile catalogue', async () => {
-    const persisted = await db
-      .select({
-        profileVersion: aiOperationProfiles.profileVersion,
-        profileDigest: aiOperationProfiles.profileDigest,
-      })
-      .from(aiOperationProfiles)
-    expect(
-      [...persisted].sort((left, right) =>
-        left.profileVersion.localeCompare(right.profileVersion),
-      ),
-    ).toEqual(
-      [...AI_OPERATION_PROFILES]
-        .map(({ profileVersion, profileDigest }) => ({
-          profileVersion,
-          profileDigest,
-        }))
-        .sort((left, right) => left.profileVersion.localeCompare(right.profileVersion)),
-    )
-
-    const [provider] = await db
-      .select({
-        profileVersion: aiProviderDeploymentProfiles.profileVersion,
-        profileDigest: aiProviderDeploymentProfiles.profileDigest,
-        deploymentContract: aiProviderDeploymentProfiles.deploymentContract,
-      })
-      .from(aiProviderDeploymentProfiles)
-      .where(
-        eq(
-          aiProviderDeploymentProfiles.profileVersion,
-          AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
-        ),
-      )
-      .limit(1)
-    expect(provider).toEqual({
-      profileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
-      profileDigest: AI_PROVIDER_DEPLOYMENT_PROFILE.profileDigest,
-      deploymentContract: AI_PROVIDER_DEPLOYMENT_PROFILE.deploymentContract,
-    })
-
-    const [routing] = await db
-      .select({
-        version: aiRoutingPolicies.version,
-        policyDigest: aiRoutingPolicies.policyDigest,
-      })
-      .from(aiRoutingPolicies)
-      .where(eq(aiRoutingPolicies.version, AI_ROUTING_POLICY.version))
-      .limit(1)
-    expect(routing).toEqual({
-      version: AI_ROUTING_POLICY.version,
-      policyDigest: AI_ROUTING_POLICY.policyDigest,
-    })
-  })
-
-  it('resolves every runtime capability through the exact persisted catalogue', async () => {
-    await expect(runtimeCatalogue.assertComplete()).resolves.toBe(true)
-    for (const capability of [
-      'review_analysis',
-      'reply_drafting',
-      'property_trends',
-    ] as const) {
-      const resolved = await runtimeCatalogue.resolveCapability(capability)
-      expect(resolved).toMatchObject({
-        status: 'available',
-        catalogue: {
-          runtime: { capability },
-          operation: { capability },
-          providerDeploymentProfileVersion: 'private-beta-global-v1',
-          routingPolicyVersion: 1,
-        },
-      })
-      if (resolved.status !== 'available') {
-        throw new Error(`runtime catalogue did not resolve ${capability}`)
-      }
-      expect(resolved.catalogue.runtime.operationProfileVersion).toBe(
-        resolved.catalogue.operation.profileVersion,
-      )
-    }
-  })
-
-  it('requires the complete exact migration catalogue at the database readiness boundary', async () => {
-    const readReady = async (executor: Pick<typeof db, 'execute'>): Promise<boolean> => {
-      const result = await executor.execute(sql`
-        SELECT assert_ai_runtime_catalogue_ready_v1(
-          ${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion},
-          ${AI_PROVIDER_DEPLOYMENT_PROFILE.profileDigest},
-          ${AI_RUNTIME_CAPABILITIES_V1_DIGEST}
-        ) AS ready
-      `)
-      return (
-        (result as unknown as { rows: Array<{ ready: boolean }> }).rows[0]?.ready === true
-      )
-    }
-
-    await expect(readReady(db)).resolves.toBe(true)
-    await expect(
-      db.transaction(async (tx) => {
-        await tx.execute(sql`
-          ALTER TABLE "ai_provider_deployment_capabilities"
-          DISABLE TRIGGER "ai_provider_deployment_capabilities_immutable"
-        `)
-        await tx.execute(sql`
-          DELETE FROM "ai_provider_deployment_capabilities"
-          WHERE "capability" = 'property_trends'
-        `)
-        expect(await readReady(tx as Pick<typeof db, 'execute'>)).toBe(false)
-        throw new Error('rollback catalogue mutation probe')
-      }),
-    ).rejects.toThrow('rollback catalogue mutation probe')
-    await expect(readReady(db)).resolves.toBe(true)
-  })
-
-  it('rejects every direct immutable-catalogue mutation and remains ready', async () => {
-    await expect(
-      db.execute(sql`
-        UPDATE "ai_runtime_capability_profiles"
-        SET "gateway_path" = '/v1/tampered'
-        WHERE "runtime_profile_version" = 'review-analysis-runtime-v1'
-      `),
-    ).rejects.toMatchObject({
-      cause: expect.objectContaining({
-        message: expect.stringMatching(/immutable|catalogue/i),
-      }),
-    })
-    await expect(
-      db.execute(sql`
-        DELETE FROM "ai_operation_profiles"
-        WHERE "profile_version" = 'synthetic-canary-v1'
-      `),
-    ).rejects.toMatchObject({
-      cause: expect.objectContaining({
-        message: expect.stringMatching(/immutable|catalogue/i),
-      }),
-    })
-    await expect(runtimeCatalogue.assertComplete()).resolves.toBe(true)
-  })
 
   it('uses the immutable calendar function for property-local dates', async () => {
     await expect(calendar.assertComplete()).resolves.toBe(true)

@@ -145,8 +145,6 @@ export type SystemAction =
   | 'system:retention.sweep'
   | 'system:quarantine.ttl'
   | 'system:ai.execution_reap'
-  | 'system:ai.authorization_erasure'
-  | 'system:ai.review_analysis_backfill_advance'
   | 'system:ai.review_analysis_enrollment_sweep'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
@@ -2827,28 +2825,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
-    'ai-authorization-derivative-erasure',
-    'src/shared/jobs/ai-authorization-erasure.job.ts',
-    'system:ai.authorization_erasure',
-    'none',
-    'tenant_cross',
-    {
-      notes:
-        'Immediately eligible, PostgreSQL-leased exact retired-generation deletion for Review Analysis, Property aggregate, and Property Trend rows; eight persisted attempts, current-Identity safety fence, class-separated content-free evidence, no provider effect; remains active while AI is dark.',
-    },
-  ),
-  job(
-    'ai-review-analysis-backfill-advance',
-    'src/shared/jobs/ai-review-analysis-backfill-advance.job.ts',
-    'system:ai.review_analysis_backfill_advance',
-    'none',
-    'tenant_cross',
-    {
-      notes:
-        'Drives an open ops:ai-reanalyze run one review further: allocates and emits the next item only once its predecessor settled, terminal-settles an item whose redelivery has stopped, and closes a run whose epoch/watermark fence moved',
-    },
-  ),
-  job(
     'ai-review-analysis-enrollment-sweep',
     'src/shared/jobs/ai-review-analysis-enrollment-sweep.job.ts',
     'system:ai.review_analysis_enrollment_sweep',
@@ -3499,26 +3475,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   schedule(
-    'ai-authorization-derivative-erasure-recurring',
-    'system:ai.authorization_erasure',
-    'none',
-    'tenant_cross',
-    {
-      notes:
-        'every 5 min; deletion starts immediately after containment and the lifecycle deadline is an exact 24-hour maximum, not a wait-until time',
-    },
-  ),
-  schedule(
-    'ai-review-analysis-backfill-advance-recurring',
-    'system:ai.review_analysis_backfill_advance',
-    'none',
-    'tenant_cross',
-    {
-      notes:
-        'every 5 min; the normal hand-off is the outbox consumer, so this cadence only bounds how long a BROKEN backfill chain sits idle',
-    },
-  ),
-  schedule(
     'ai-review-analysis-enrollment-sweep-recurring',
     'system:ai.review_analysis_enrollment_sweep',
     'none',
@@ -4141,12 +4097,12 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
-    'scripts/ops/ai-canary-authorization.ts',
-    'scripts/ops/ai-canary-authorization.ts',
+    'scripts/ops/identity-invitation-fact-contract.ts',
+    'scripts/ops/identity-invitation-fact-contract.ts',
     'tenant_cross',
     {
       notes:
-        'ops:ai-canary — ticketed inspect/issue/revoke lifecycle for one release-bound synthetic canary authorization generation',
+        'ops:identity-invitation-facts — report-first rolling v1→v2 fact issuance, bounded PostgreSQL/live-queue/quarantine redaction, zero-copy verification, and pre-verification rollback; mutations require quiesced queues and typed confirmation',
     },
   ),
   ops(
@@ -4157,16 +4113,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       notes:
         'ops:ai-control — ticketed hierarchical global/provider/capability kill, drain, and canary-gated restore controls',
     },
-  ),
-  ops(
-    'scripts/ops/ai-reanalyze-reviews.ts',
-    'scripts/ops/ai-reanalyze-reviews.ts',
-    'property',
-    {
-      notes:
-        'ops:ai-reanalyze — ticketed, typed-confirmation replay of already-authorized reviews through review analysis; bumps review_analysis_epoch and repositions analysis_start_sequence to the current head, then emits ai.review_analysis.backfill_requested on freshly allocated contiguous sequences. Refuses unless the merchant is already enabled for review_analysis on the property current source epoch — it can never grant consent',
-    },
-    'ai.analyze',
   ),
   ops(
     'scripts/ops/ai-approve-enrollment.ts',

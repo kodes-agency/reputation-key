@@ -6,7 +6,6 @@ import type {
   OutboxRepository,
 } from '#/shared/outbox'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type {
   AnalyzeReviewEventInput,
   AnalyzeReviewEventResult,
@@ -65,16 +64,6 @@ export type RegisterAiConsumersInput = Readonly<{
   ) => Promise<AnalyzeReviewEventResult>
   receipts: OutboxRepository
   enqueuePropertyTrend: (scheduleId: string) => Promise<void>
-  /**
-   * Hand a backfill run its next review once this one has settled. A run may
-   * only ever have ONE item in flight — `storeAnalysis` refuses unless the
-   * allocation head still equals the sequence being stored — so the run cannot
-   * emit ahead of its own cursor and something has to drive it from here. The
-   * five-minute advance sweep is only the safety net for a lost hand-off.
-   */
-  advanceReviewAnalysisBackfill: (
-    input: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
-  ) => Promise<unknown>
   /**
    * Apply the Identity authorization trigger through the AI command store.
    * That store commits the enrollment intent (or exact obsolete/no-op
@@ -151,17 +140,6 @@ export async function handleAiReviewEvent(
     receiptStatus,
   )
 
-  // The receipt is written FIRST, so a failure below cannot re-run the analysis
-  // — this review is done either way. The advance is idempotent (it re-reads
-  // the run under the property lock and does nothing unless the in-flight item
-  // has settled), so letting it throw is right: the job fails, BullMQ retries,
-  // the receipt short-circuits the analysis, and only the hand-off is retried.
-  if (event.eventType === AI_REVIEW_ANALYSIS_BACKFILL_EVENT) {
-    await dependencies.advanceReviewAnalysisBackfill({
-      organizationId: organizationId(payload.organizationId),
-      propertyId: propertyId(payload.propertyId),
-    })
-  }
   return { status: receiptStatus }
 }
 

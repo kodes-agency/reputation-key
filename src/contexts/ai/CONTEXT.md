@@ -210,15 +210,10 @@ therefore absent from the archive immediately, not after the 24-hour physical
 erasure worker runs. `merchant_ai_enablement`, `ai_property_processing_profiles`
 and `reviews` are read as fences only; no column of theirs is exported.
 
-It deliberately withholds `ai_operations` and `ai_operation_attempts` (including
-the `operation_id` foreign key on the exported rows), execution permits,
-settlements, cost reservations, quota/rate/cost windows, provider deployment and
-routing profiles, circuit states, runtime capability profiles, governance
-policies, execution controls, canary authorizations, Review Analysis enrollment
-and backfill authorities, `ai_authorization_lifecycle_records`, aggregate
-contribution ledgers and cursors, session-ephemeral Reply Draft provider output,
-and all Google Review source content. Every exclusion is enumerated in the
-emitted `excludedRecordClasses`.
+It deliberately withholds operation and monthly budget records, execution
+controls, the enrollment authority, aggregate reconciliation ledgers,
+session-ephemeral Reply Draft provider output, and all Google Review source
+content. Every exclusion is enumerated in the emitted `excludedRecordClasses`.
 
 An Organization that never authorized AI — or whose authorization is disabled or
 revoked — contributes `no_data`, never an invented empty CSV.
@@ -233,25 +228,21 @@ it does not arm it: the coordinator that reaches `purge` is composed only under
 an explicitly reviewed composition.
 
 - **prepareClosing** stops AI work and deletes nothing. It supersedes every
-  non-terminal `ai_review_analysis_enrollments` row and every running
-  `ai_review_analysis_backfill_runs` row with `terminal_reason =
-'organization_closing'`. It deliberately does NOT retire
+  non-terminal `ai_review_analysis_enrollments` row with
+  `terminal_reason = 'organization_closing'`. It deliberately does NOT retire
   `merchant_ai_enablement`: `guard_merchant_ai_enablement_v1` admits that head
   row only inside `apply_merchant_ai_transition_v1`, an Identity-owned
   SECURITY DEFINER authority that requires a live member with AI authority over
   the Property. Identity's contributor owns that transition.
 - **verifyPurgeReadiness** is read-only and fails closed while the merchant
-  authorization is still `enabled`, an enrollment or backfill is still active,
-  an operation is still in flight, an execution permit is unreleased, a retired
-  generation's derivative erasure has not completed, or a canary head still
-  pins one of this Organization's operations.
+  authorization is still `enabled`, an enrollment is active, or an operation is
+  still in flight.
 - **purge** is irreversible, idempotent, and content-free. It deletes the
-  retained derivatives together with the cursors, aggregate heads, enrollments
-  and backfill runs a later sweep could rebuild them from, so an erased
-  derivative is not resurrectable. It declares itself through the schema's own
-  `repkey.ai_review_enrollment_eraser` seam, keeps the append-only
+  retained derivatives together with aggregate heads and enrollments a later
+  sweep could rebuild them from, so an erased
+  derivative is not resurrectable. It keeps the append-only
   `merchant_ai_consent_evidence`, and leaves `merchant_ai_enablement` to the
-  schema cascade Property's own purge triggers.
+  Property's schema cascade.
 
 An Organization that never authorized AI answers `no_data` — affirmative
 evidence, never an omitted contributor.

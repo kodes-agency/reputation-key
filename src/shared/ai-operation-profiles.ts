@@ -63,7 +63,7 @@ const syntheticCanarySchema = AI_ROUTE_OUTPUT_JSON_SCHEMAS['synthetic-canary']
 const PROPERTY_CALENDAR_ATTESTATION = Object.freeze({
   profileVersion: 'property-calendar-v1',
   epochMillisFunction: 'ai_epoch_millis_v1',
-  localCalendarFunction: 'resolve_ai_property_local_date_v1',
+  localCalendarFunction: 'ai_property_local_date_v1',
   localMidnightFunction: 'ai_property_local_midnight_v1',
   databaseImageDigest: '33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20',
   testedPostgresMajorVersions: Object.freeze([16]),

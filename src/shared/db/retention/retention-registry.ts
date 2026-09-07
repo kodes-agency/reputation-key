@@ -778,13 +778,13 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       horizon: { kind: 'counsel_undecided' },
       predicate: 'the owning authorization is withdrawn or the generation is retired',
       query:
-        'Erasure is driven by AccountAdmin-requested erasure and generation retirement within 24 hours, not by an age cutoff. generated_at/expires_at bound freshness reuse, not retention.',
+        'Erasure is driven by AccountAdmin-requested erasure and generation retirement, not by an age cutoff. generated_at/expires_at bound freshness reuse, not retention.',
       implementedBoundary:
-        'Live: exact retired-generation local derivative erasure with content-free evidence. There is no age-based purge and none is proposed.',
+        'Live: the durable merchant authorization-change consumer deletes retired generations in the same transaction that records its event-consumer receipt.',
     },
-    evidenceSubject: 'ai.authorization_erasure',
+    evidenceSubject: 'ai.enroll-review-analysis',
     restoreImplication:
-      'A restore can resurrect derivatives whose authorization was withdrawn. The erasure ledger must be replayed after restore before any AI output is readable again.',
+      'A restore replays merchant authorization-change outbox events before AI output is readable, reapplying exact-generation deletion.',
   }),
   rule({
     id: 'platform.uploads',

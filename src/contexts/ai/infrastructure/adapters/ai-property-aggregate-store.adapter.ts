@@ -6,11 +6,12 @@ import {
   aiPropertyDailyAggregates,
   aiPropertyProcessingProfiles,
   aiReviewAnalyses,
-  aiReviewAnalysisOutcomes,
-  aiReviewEventCursors,
   reviews,
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
+import { OPENAI_MODEL_SNAPSHOT } from '#/shared/ai-openai-request-contract'
+import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-property-calendar-profile'
 import type {
   AiPropertyAnalyzedReview,
   AiPropertyAggregateStorePort,
@@ -60,16 +61,6 @@ function safeSequence(value: unknown): number | null {
     : null
 }
 
-function parseAdvance(
-  row: Readonly<Record<string, unknown>> | undefined,
-): Readonly<{ aggregateRevision: number; appliedAt: Date }> | null {
-  if (!row) return null
-  const aggregateRevision = safeSequence(row.aggregate_revision)
-  const appliedAt = new Date(String(row.applied_at))
-  return aggregateRevision === null || !Number.isFinite(appliedAt.getTime())
-    ? null
-    : { aggregateRevision, appliedAt }
-}
 
 function counterColumn<T extends Readonly<Record<string, keyof DailyRow>>>(
   mapping: T,
@@ -86,13 +77,13 @@ const zeroDailyValues = (
     sourceEpoch: number
     reviewAnalysisEpoch: number
     propertyProfileVersion: number
-    calendarProfileVersion: string
     aggregateRevision: number
     terminalAnalysisSequence: number
     updatedAt: Date
   }>,
 ) => ({
   ...input,
+  calendarProfileVersion: AI_PROPERTY_CALENDAR_PROFILE_V1.profileVersion,
   reviewCount: 0,
   ratingSum: 0,
   positiveCount: 0,
@@ -243,55 +234,29 @@ export const createAiPropertyAggregateStoreAdapter = (
       return db.transaction(async (tx) => {
         await tx.execute(sql`
           SELECT pg_advisory_xact_lock(
-            hashtextextended(
-              ${input.organizationId} || ':' || ${input.propertyId}::text,
-              0
-            )
+            hashtextextended(${input.organizationId} || ':' || ${input.propertyId}::text, 0)
           )
         `)
-        const [cursor] = await tx
-          .select({
-            analysisStartSequence: aiReviewEventCursors.analysisStartSequence,
-            terminalAnalysisSequence: aiReviewEventCursors.terminalAnalysisSequence,
-            aggregateRevision: aiReviewEventCursors.aggregateRevision,
-          })
-          .from(aiReviewEventCursors)
-          .where(
-            and(
-              eq(aiReviewEventCursors.organizationId, input.organizationId),
-              eq(aiReviewEventCursors.propertyId, input.propertyId),
-              eq(aiReviewEventCursors.sourceEpoch, input.sourceEpoch),
-              eq(aiReviewEventCursors.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-            ),
-          )
-          .limit(1)
-          .for('update')
-        const [outcome] = await tx
+        const [replayed] = await tx
           .select()
-          .from(aiReviewAnalysisOutcomes)
+          .from(aiPropertyAggregateContributions)
           .where(
             and(
-              eq(aiReviewAnalysisOutcomes.organizationId, input.organizationId),
-              eq(aiReviewAnalysisOutcomes.propertyId, input.propertyId),
-              eq(aiReviewAnalysisOutcomes.sourceEpoch, input.sourceEpoch),
-              eq(aiReviewAnalysisOutcomes.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiReviewAnalysisOutcomes.analysisSequence, input.analysisSequence),
+              eq(aiPropertyAggregateContributions.organizationId, input.organizationId),
+              eq(aiPropertyAggregateContributions.propertyId, input.propertyId),
+              eq(aiPropertyAggregateContributions.reviewId, input.reviewId),
+              eq(aiPropertyAggregateContributions.sourceEpoch, input.sourceEpoch),
+              eq(aiPropertyAggregateContributions.sourceRevision, input.sourceRevision),
+              eq(aiPropertyAggregateContributions.analysisSequence, input.analysisSequence),
             ),
           )
           .limit(1)
-          .for('update')
-        if (
-          !cursor ||
-          !outcome ||
-          outcome.state !== 'ready' ||
-          input.analysisSequence > cursor.terminalAnalysisSequence
-        ) {
-          return { status: 'stale' }
+        if (replayed) {
+          return { status: 'replayed', aggregateRevision: replayed.appliedAggregateRevision }
         }
 
         const [analysis] = await tx
           .select({
-            operationId: aiReviewAnalyses.operationId,
             reviewAnalysisEpoch: aiReviewAnalyses.reviewAnalysisEpoch,
             propertyProfileVersion: aiReviewAnalyses.propertyProfileVersion,
             status: aiReviewAnalyses.status,
@@ -299,10 +264,8 @@ export const createAiPropertyAggregateStoreAdapter = (
             primaryCategory: aiReviewAnalyses.primaryCategory,
             attention: aiReviewAnalyses.attention,
             rating: sql<number>`${reviews.rating}`,
-            localDate: sql<string | null>`resolve_ai_property_local_date_v1(
-              ${reviews.reviewedAt},
-              ${aiPropertyProcessingProfiles.timezone},
-              ${input.calendarProfileVersion}
+            localDate: sql<string | null>`ai_property_local_date_v1(
+              ${reviews.reviewedAt}, ${aiPropertyProcessingProfiles.timezone}
             )::text`,
           })
           .from(aiReviewAnalyses)
@@ -323,16 +286,10 @@ export const createAiPropertyAggregateStoreAdapter = (
           .innerJoin(
             aiPropertyProcessingProfiles,
             and(
-              eq(
-                aiPropertyProcessingProfiles.organizationId,
-                aiReviewAnalyses.organizationId,
-              ),
+              eq(aiPropertyProcessingProfiles.organizationId, aiReviewAnalyses.organizationId),
               eq(aiPropertyProcessingProfiles.propertyId, aiReviewAnalyses.propertyId),
               eq(aiPropertyProcessingProfiles.sourceEpoch, input.sourceEpoch),
-              eq(
-                aiPropertyProcessingProfiles.profileVersion,
-                input.propertyProfileVersion,
-              ),
+              eq(aiPropertyProcessingProfiles.profileVersion, input.propertyProfileVersion),
               eq(aiPropertyProcessingProfiles.lifecycleState, 'active'),
             ),
           )
@@ -350,64 +307,26 @@ export const createAiPropertyAggregateStoreAdapter = (
           .for('share')
         if (
           !analysis ||
-          outcome.operationId !== analysis.operationId ||
           analysis.reviewAnalysisEpoch !== input.reviewAnalysisEpoch ||
           analysis.propertyProfileVersion !== input.propertyProfileVersion
         ) {
           return { status: 'stale' }
         }
         if (analysis.localDate === null) return { status: 'unavailable' }
-        const localDate = analysis.localDate
 
-        const [replayed] = await tx
-          .select()
-          .from(aiPropertyAggregateContributions)
-          .where(
-            and(
-              eq(aiPropertyAggregateContributions.organizationId, input.organizationId),
-              eq(aiPropertyAggregateContributions.propertyId, input.propertyId),
-              eq(aiPropertyAggregateContributions.reviewId, input.reviewId),
-              eq(aiPropertyAggregateContributions.sourceEpoch, input.sourceEpoch),
-              eq(aiPropertyAggregateContributions.sourceRevision, input.sourceRevision),
-              eq(
-                aiPropertyAggregateContributions.analysisSequence,
-                input.analysisSequence,
-              ),
-            ),
-          )
-          .limit(1)
-        if (outcome.appliedAggregateRevision !== null) {
-          if (
-            !replayed ||
-            replayed.appliedAggregateRevision !== outcome.appliedAggregateRevision ||
-            replayed.calendarProfileVersion !== input.calendarProfileVersion ||
-            replayed.localDate !== localDate ||
-            replayed.rating !== analysis.rating
-          ) {
-            throw new Error('Applied property aggregate outcome is inconsistent')
-          }
-          return {
-            status: 'replayed',
-            aggregateRevision: outcome.appliedAggregateRevision,
-          }
-        }
-        if (replayed) throw new Error('Unapplied property aggregate contribution exists')
-
-        if (cursor.aggregateRevision === 0) {
-          await tx
-            .insert(aiPropertyAggregateHeads)
-            .values({
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              sourceEpoch: input.sourceEpoch,
-              reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-              propertyProfileVersion: input.propertyProfileVersion,
-              aggregateRevision: 0,
-              terminalAnalysisSequence: cursor.analysisStartSequence,
-              updatedAt: outcome.updatedAt,
-            })
-            .onConflictDoNothing()
-        }
+        await tx
+          .insert(aiPropertyAggregateHeads)
+          .values({
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            sourceEpoch: input.sourceEpoch,
+            reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+            propertyProfileVersion: input.propertyProfileVersion,
+            aggregateRevision: 0,
+            terminalAnalysisSequence: input.analysisSequence - 1,
+            updatedAt: new Date(),
+          })
+          .onConflictDoNothing()
         const [head] = await tx
           .select()
           .from(aiPropertyAggregateHeads)
@@ -417,21 +336,12 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
               eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
               eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(
-                aiPropertyAggregateHeads.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
+              eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
             ),
           )
           .limit(1)
           .for('update')
-        if (
-          !head ||
-          head.aggregateRevision !== cursor.aggregateRevision ||
-          head.terminalAnalysisSequence > cursor.terminalAnalysisSequence
-        ) {
-          throw new Error('Property aggregate head is inconsistent')
-        }
+        if (!head) return { status: 'stale' }
         const expectedAnalysisSequence = head.terminalAnalysisSequence + 1
         if (input.analysisSequence > expectedAnalysisSequence) {
           return { status: 'gap', expectedAnalysisSequence }
@@ -447,37 +357,14 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateContributions.propertyId, input.propertyId),
               eq(aiPropertyAggregateContributions.reviewId, input.reviewId),
               eq(aiPropertyAggregateContributions.sourceEpoch, input.sourceEpoch),
-              eq(
-                aiPropertyAggregateContributions.reviewAnalysisEpoch,
-                input.reviewAnalysisEpoch,
-              ),
-              eq(
-                aiPropertyAggregateContributions.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
+              eq(aiPropertyAggregateContributions.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
+              eq(aiPropertyAggregateContributions.propertyProfileVersion, input.propertyProfileVersion),
             ),
           )
           .orderBy(desc(aiPropertyAggregateContributions.analysisSequence))
           .limit(1)
-
-        const advanceResult = await tx.execute(sql`
-          SELECT *
-          FROM advance_ai_aggregate_revision_v1(
-            ${input.organizationId},
-            ${input.propertyId}::uuid,
-            ${input.sourceEpoch},
-            ${input.reviewAnalysisEpoch},
-            ${input.analysisSequence},
-            ${head.aggregateRevision}
-          )
-        `)
-        const advance = parseAdvance(
-          advanceResult.rows[0] as Readonly<Record<string, unknown>> | undefined,
-        )
-        if (!advance || advance.aggregateRevision !== head.aggregateRevision + 1) {
-          throw new Error('Property aggregate revision advance failed')
-        }
-        const { aggregateRevision, appliedAt } = advance
+        const aggregateRevision = head.aggregateRevision + 1
+        const appliedAt = new Date()
         const [inserted] = await tx
           .insert(aiPropertyAggregateContributions)
           .values({
@@ -489,8 +376,8 @@ export const createAiPropertyAggregateStoreAdapter = (
             analysisSequence: input.analysisSequence,
             reviewAnalysisEpoch: input.reviewAnalysisEpoch,
             propertyProfileVersion: input.propertyProfileVersion,
-            calendarProfileVersion: input.calendarProfileVersion,
-            localDate,
+            calendarProfileVersion: AI_PROPERTY_CALENDAR_PROFILE_V1.profileVersion,
+            localDate: analysis.localDate,
             status: analysis.status,
             rating: analysis.rating,
             sentiment: analysis.sentiment,
@@ -500,30 +387,27 @@ export const createAiPropertyAggregateStoreAdapter = (
             appliedAt,
           })
           .onConflictDoNothing()
-          .returning({
-            analysisSequence: aiPropertyAggregateContributions.analysisSequence,
-          })
+          .returning({ analysisSequence: aiPropertyAggregateContributions.analysisSequence })
         if (!inserted) throw new Error('Property aggregate contribution conflict')
 
         const dates = Array.from(
           new Set([
             ...(previous?.status === 'ready' ? [previous.localDate] : []),
-            ...(analysis.status === 'ready' ? [localDate] : []),
+            ...(analysis.status === 'ready' ? [analysis.localDate] : []),
           ]),
         ).sort()
         if (dates.length > 0) {
           await tx
             .insert(aiPropertyDailyAggregates)
             .values(
-              dates.map((date) =>
+              dates.map((localDate) =>
                 zeroDailyValues({
                   organizationId: input.organizationId,
                   propertyId: input.propertyId,
-                  localDate: date,
+                  localDate,
                   sourceEpoch: input.sourceEpoch,
                   reviewAnalysisEpoch: input.reviewAnalysisEpoch,
                   propertyProfileVersion: input.propertyProfileVersion,
-                  calendarProfileVersion: input.calendarProfileVersion,
                   aggregateRevision: head.aggregateRevision,
                   terminalAnalysisSequence: head.terminalAnalysisSequence,
                   updatedAt: appliedAt,
@@ -539,31 +423,18 @@ export const createAiPropertyAggregateStoreAdapter = (
                 eq(aiPropertyDailyAggregates.organizationId, input.organizationId),
                 eq(aiPropertyDailyAggregates.propertyId, input.propertyId),
                 eq(aiPropertyDailyAggregates.sourceEpoch, input.sourceEpoch),
-                eq(
-                  aiPropertyDailyAggregates.reviewAnalysisEpoch,
-                  input.reviewAnalysisEpoch,
-                ),
-                eq(
-                  aiPropertyDailyAggregates.propertyProfileVersion,
-                  input.propertyProfileVersion,
-                ),
+                eq(aiPropertyDailyAggregates.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
+                eq(aiPropertyDailyAggregates.propertyProfileVersion, input.propertyProfileVersion),
                 inArray(aiPropertyDailyAggregates.localDate, dates),
               ),
             )
             .orderBy(aiPropertyDailyAggregates.localDate)
             .for('update')
-          if (rows.length !== dates.length) {
-            throw new Error('Property daily aggregate is missing')
-          }
+          if (rows.length !== dates.length) throw new Error('Property daily aggregate is missing')
           for (const row of rows) {
-            if (row.calendarProfileVersion !== input.calendarProfileVersion) {
-              throw new Error('Property calendar authority changed within a profile')
-            }
             let next = row
-            if (previous?.localDate === row.localDate) {
-              next = adjustDaily(next, previous, -1)
-            }
-            if (localDate === row.localDate) next = adjustDaily(next, analysis, 1)
+            if (previous?.localDate === row.localDate) next = adjustDaily(next, previous, -1)
+            if (analysis.localDate === row.localDate) next = adjustDaily(next, analysis, 1)
             if (next.reviewCount < 0 || next.ratingSum < 0) {
               throw new Error('Property daily aggregate would become negative')
             }
@@ -581,14 +452,8 @@ export const createAiPropertyAggregateStoreAdapter = (
                   eq(aiPropertyDailyAggregates.propertyId, input.propertyId),
                   eq(aiPropertyDailyAggregates.localDate, row.localDate),
                   eq(aiPropertyDailyAggregates.sourceEpoch, input.sourceEpoch),
-                  eq(
-                    aiPropertyDailyAggregates.reviewAnalysisEpoch,
-                    input.reviewAnalysisEpoch,
-                  ),
-                  eq(
-                    aiPropertyDailyAggregates.propertyProfileVersion,
-                    input.propertyProfileVersion,
-                  ),
+                  eq(aiPropertyDailyAggregates.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
+                  eq(aiPropertyDailyAggregates.propertyProfileVersion, input.propertyProfileVersion),
                 ),
               )
           }
@@ -607,10 +472,7 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
               eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
               eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(
-                aiPropertyAggregateHeads.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
+              eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
               eq(aiPropertyAggregateHeads.aggregateRevision, head.aggregateRevision),
             ),
           )
@@ -626,68 +488,22 @@ export const createAiPropertyAggregateStoreAdapter = (
       return db.transaction(async (tx) => {
         await tx.execute(sql`
           SELECT pg_advisory_xact_lock(
-            hashtextextended(
-              ${input.organizationId} || ':' || ${input.propertyId}::text,
-              0
-            )
+            hashtextextended(${input.organizationId} || ':' || ${input.propertyId}::text, 0)
           )
         `)
-        const [cursor] = await tx
-          .select({
-            analysisStartSequence: aiReviewEventCursors.analysisStartSequence,
-            terminalAnalysisSequence: aiReviewEventCursors.terminalAnalysisSequence,
-            aggregateRevision: aiReviewEventCursors.aggregateRevision,
+        await tx
+          .insert(aiPropertyAggregateHeads)
+          .values({
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            sourceEpoch: input.sourceEpoch,
+            reviewAnalysisEpoch: input.reviewAnalysisEpoch,
+            propertyProfileVersion: input.propertyProfileVersion,
+            aggregateRevision: 0,
+            terminalAnalysisSequence: input.analysisSequence - 1,
+            updatedAt: new Date(),
           })
-          .from(aiReviewEventCursors)
-          .where(
-            and(
-              eq(aiReviewEventCursors.organizationId, input.organizationId),
-              eq(aiReviewEventCursors.propertyId, input.propertyId),
-              eq(aiReviewEventCursors.sourceEpoch, input.sourceEpoch),
-              eq(aiReviewEventCursors.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-            ),
-          )
-          .limit(1)
-          .for('update')
-        const [outcome] = await tx
-          .select()
-          .from(aiReviewAnalysisOutcomes)
-          .where(
-            and(
-              eq(aiReviewAnalysisOutcomes.organizationId, input.organizationId),
-              eq(aiReviewAnalysisOutcomes.propertyId, input.propertyId),
-              eq(aiReviewAnalysisOutcomes.sourceEpoch, input.sourceEpoch),
-              eq(aiReviewAnalysisOutcomes.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(aiReviewAnalysisOutcomes.analysisSequence, input.analysisSequence),
-            ),
-          )
-          .limit(1)
-          .for('update')
-        if (
-          !cursor ||
-          !outcome ||
-          outcome.state !== 'terminal_no_result' ||
-          outcome.dispositionCode !== input.dispositionCode ||
-          input.analysisSequence > cursor.terminalAnalysisSequence
-        ) {
-          return { status: 'stale' }
-        }
-
-        if (cursor.aggregateRevision === 0) {
-          await tx
-            .insert(aiPropertyAggregateHeads)
-            .values({
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              sourceEpoch: input.sourceEpoch,
-              reviewAnalysisEpoch: input.reviewAnalysisEpoch,
-              propertyProfileVersion: input.propertyProfileVersion,
-              aggregateRevision: 0,
-              terminalAnalysisSequence: cursor.analysisStartSequence,
-              updatedAt: outcome.updatedAt,
-            })
-            .onConflictDoNothing()
-        }
+          .onConflictDoNothing()
         const [head] = await tx
           .select()
           .from(aiPropertyAggregateHeads)
@@ -697,62 +513,26 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
               eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
               eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(
-                aiPropertyAggregateHeads.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
+              eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
             ),
           )
           .limit(1)
           .for('update')
         if (!head) return { status: 'stale' }
-        if (outcome.appliedAggregateRevision !== null) {
-          if (
-            head.aggregateRevision < outcome.appliedAggregateRevision ||
-            head.terminalAnalysisSequence < input.analysisSequence
-          ) {
-            throw new Error('Applied property aggregate outcome is inconsistent')
-          }
-          return {
-            status: 'replayed',
-            aggregateRevision: outcome.appliedAggregateRevision,
-          }
-        }
-        if (
-          head.aggregateRevision !== cursor.aggregateRevision ||
-          head.terminalAnalysisSequence > cursor.terminalAnalysisSequence
-        ) {
-          throw new Error('Property aggregate head is inconsistent')
+        if (input.analysisSequence <= head.terminalAnalysisSequence) {
+          return { status: 'replayed', aggregateRevision: head.aggregateRevision }
         }
         const expectedAnalysisSequence = head.terminalAnalysisSequence + 1
         if (input.analysisSequence > expectedAnalysisSequence) {
           return { status: 'gap', expectedAnalysisSequence }
         }
-        if (input.analysisSequence < expectedAnalysisSequence) return { status: 'stale' }
-
-        const advanceResult = await tx.execute(sql`
-          SELECT *
-          FROM advance_ai_aggregate_revision_v1(
-            ${input.organizationId},
-            ${input.propertyId}::uuid,
-            ${input.sourceEpoch},
-            ${input.reviewAnalysisEpoch},
-            ${input.analysisSequence},
-            ${head.aggregateRevision}
-          )
-        `)
-        const advance = parseAdvance(
-          advanceResult.rows[0] as Readonly<Record<string, unknown>> | undefined,
-        )
-        if (!advance || advance.aggregateRevision !== head.aggregateRevision + 1) {
-          throw new Error('Property aggregate revision advance failed')
-        }
+        const aggregateRevision = head.aggregateRevision + 1
         const [updatedHead] = await tx
           .update(aiPropertyAggregateHeads)
           .set({
-            aggregateRevision: advance.aggregateRevision,
+            aggregateRevision,
             terminalAnalysisSequence: input.analysisSequence,
-            updatedAt: advance.appliedAt,
+            updatedAt: new Date(),
           })
           .where(
             and(
@@ -760,18 +540,15 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
               eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
               eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(
-                aiPropertyAggregateHeads.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
+              eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
               eq(aiPropertyAggregateHeads.aggregateRevision, head.aggregateRevision),
             ),
           )
           .returning({ aggregateRevision: aiPropertyAggregateHeads.aggregateRevision })
-        if (updatedHead?.aggregateRevision !== advance.aggregateRevision) {
+        if (updatedHead?.aggregateRevision !== aggregateRevision) {
           throw new Error('Property aggregate head update failed')
         }
-        return { status: 'applied', aggregateRevision: advance.aggregateRevision }
+        return { status: 'applied', aggregateRevision }
       })
     },
 
@@ -789,23 +566,6 @@ export const createAiPropertyAggregateStoreAdapter = (
           )
           .limit(1)
           .for('share')
-        const [cursor] = await tx
-          .select({
-            terminalAnalysisSequence: aiReviewEventCursors.terminalAnalysisSequence,
-            aggregateRevision: aiReviewEventCursors.aggregateRevision,
-            consumedSequence: aiReviewEventCursors.consumedSequence,
-          })
-          .from(aiReviewEventCursors)
-          .where(
-            and(
-              eq(aiReviewEventCursors.organizationId, input.organizationId),
-              eq(aiReviewEventCursors.propertyId, input.propertyId),
-              eq(aiReviewEventCursors.sourceEpoch, input.sourceEpoch),
-              eq(aiReviewEventCursors.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-            ),
-          )
-          .limit(1)
-          .for('share')
         const [head] = await tx
           .select()
           .from(aiPropertyAggregateHeads)
@@ -815,23 +575,12 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyAggregateHeads.propertyId, input.propertyId),
               eq(aiPropertyAggregateHeads.sourceEpoch, input.sourceEpoch),
               eq(aiPropertyAggregateHeads.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
-              eq(
-                aiPropertyAggregateHeads.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
+              eq(aiPropertyAggregateHeads.propertyProfileVersion, input.propertyProfileVersion),
             ),
           )
           .limit(1)
           .for('share')
-        if (
-          !reviewHead ||
-          !cursor ||
-          !head ||
-          reviewHead.headSequence !== cursor.consumedSequence ||
-          cursor.consumedSequence !== cursor.terminalAnalysisSequence ||
-          head.aggregateRevision !== cursor.aggregateRevision ||
-          head.terminalAnalysisSequence !== cursor.terminalAnalysisSequence
-        ) {
+        if (!reviewHead || !head || reviewHead.headSequence !== head.terminalAnalysisSequence) {
           return null
         }
         const days = await tx
@@ -842,14 +591,8 @@ export const createAiPropertyAggregateStoreAdapter = (
               eq(aiPropertyDailyAggregates.organizationId, input.organizationId),
               eq(aiPropertyDailyAggregates.propertyId, input.propertyId),
               eq(aiPropertyDailyAggregates.sourceEpoch, input.sourceEpoch),
-              eq(
-                aiPropertyDailyAggregates.reviewAnalysisEpoch,
-                input.reviewAnalysisEpoch,
-              ),
-              eq(
-                aiPropertyDailyAggregates.propertyProfileVersion,
-                input.propertyProfileVersion,
-              ),
+              eq(aiPropertyDailyAggregates.reviewAnalysisEpoch, input.reviewAnalysisEpoch),
+              eq(aiPropertyDailyAggregates.propertyProfileVersion, input.propertyProfileVersion),
               gte(aiPropertyDailyAggregates.localDate, input.startLocalDate),
               lte(aiPropertyDailyAggregates.localDate, input.endLocalDate),
             ),
@@ -868,46 +611,40 @@ export const createAiPropertyAggregateStoreAdapter = (
           modelSnapshot: string
         }>(sql`
           WITH latest AS (
-            SELECT DISTINCT ON (contribution."review_id")
-              contribution.*
-            FROM "ai_property_aggregate_contributions" AS contribution
-            WHERE contribution."organization_id" = ${input.organizationId}
-              AND contribution."property_id" = ${input.propertyId}::uuid
-              AND contribution."source_epoch" = ${input.sourceEpoch}
-              AND contribution."review_analysis_epoch" = ${input.reviewAnalysisEpoch}
-              AND contribution."property_profile_version" = ${input.propertyProfileVersion}
-            ORDER BY contribution."review_id", contribution."analysis_sequence" DESC
+            SELECT DISTINCT ON (contribution.review_id) contribution.*
+            FROM ai_property_aggregate_contributions AS contribution
+            WHERE contribution.organization_id = ${input.organizationId}
+              AND contribution.property_id = ${input.propertyId}::uuid
+              AND contribution.source_epoch = ${input.sourceEpoch}
+              AND contribution.review_analysis_epoch = ${input.reviewAnalysisEpoch}
+              AND contribution.property_profile_version = ${input.propertyProfileVersion}
+            ORDER BY contribution.review_id, contribution.analysis_sequence DESC
           )
           SELECT
-            latest."review_id"::text AS "reviewId",
-            latest."source_revision"::float8 AS "sourceRevision",
-            latest."analysis_sequence"::float8 AS "analysisSequence",
-            latest."local_date"::text AS "localDate",
-            latest."sentiment" AS "sentiment",
-            latest."primary_category" AS "primaryCategory",
-            latest."attention" AS "attention",
-            analysis."analysis_profile_version" AS "analysisProfileVersion",
-            operation."provider_deployment_profile_version" AS "providerDeploymentProfileVersion",
-            attempt."model_snapshot" AS "modelSnapshot"
+            latest.review_id::text AS "reviewId",
+            latest.source_revision::float8 AS "sourceRevision",
+            latest.analysis_sequence::float8 AS "analysisSequence",
+            latest.local_date::text AS "localDate",
+            latest.sentiment AS sentiment,
+            latest.primary_category AS "primaryCategory",
+            latest.attention AS attention,
+            ${'review-analysis-v1'}::text AS "analysisProfileVersion",
+            ${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}::text AS "providerDeploymentProfileVersion",
+            ${OPENAI_MODEL_SNAPSHOT}::text AS "modelSnapshot"
           FROM latest
-          INNER JOIN "ai_review_analyses" AS analysis
-            ON analysis."organization_id" = latest."organization_id"
-           AND analysis."property_id" = latest."property_id"
-           AND analysis."review_id" = latest."review_id"
-           AND analysis."source_epoch" = latest."source_epoch"
-           AND analysis."source_revision" = latest."source_revision"
-           AND analysis."analysis_sequence" = latest."analysis_sequence"
-          INNER JOIN "ai_operations" AS operation
-            ON operation."id" = analysis."operation_id"
-          INNER JOIN "ai_operation_attempts" AS attempt
-            ON attempt."operation_id" = operation."id"
-           AND attempt."attempt" = operation."execution_attempt"
-           AND attempt."state" = 'completed'
-          WHERE latest."status" = 'ready'
-            AND latest."local_date" BETWEEN ${input.startLocalDate}::date AND ${input.endLocalDate}::date
-            AND analysis."status" = 'ready'
-            AND attempt."model_snapshot" IS NOT NULL
-          ORDER BY latest."local_date", latest."review_id"
+          INNER JOIN ai_review_analyses AS analysis
+            ON analysis.organization_id = latest.organization_id
+           AND analysis.property_id = latest.property_id
+           AND analysis.review_id = latest.review_id
+           AND analysis.source_epoch = latest.source_epoch
+           AND analysis.source_revision = latest.source_revision
+           AND analysis.analysis_sequence = latest.analysis_sequence
+          INNER JOIN ai_operations AS operation ON operation.id = analysis.operation_id
+          WHERE latest.status = 'ready'
+            AND latest.local_date BETWEEN ${input.startLocalDate}::date AND ${input.endLocalDate}::date
+            AND analysis.status = 'ready'
+            AND operation.state IN ('succeeded_pending_delivery', 'succeeded')
+          ORDER BY latest.local_date, latest.review_id
         `)
         return {
           head: {

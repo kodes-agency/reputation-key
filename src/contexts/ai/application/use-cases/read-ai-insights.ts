@@ -42,7 +42,7 @@ export function createReadReviewAnalysis(dependencies: ReadAiInsightsDependencie
         analysisProfileVersion: 'review-analysis-v1',
         nowEpochMillis: dependencies.nowEpochMillis(),
       },
-      async (_lease, result) => result,
+      async (result) => result,
     )
   }
 }
@@ -67,7 +67,7 @@ export function createReadPropertyTrend(dependencies: ReadAiInsightsDependencies
         reportProfileVersion: 'property-trend-v1',
         nowEpochMillis: dependencies.nowEpochMillis(),
       },
-      async (_lease, result) => result,
+      async (result) => result,
     )
   }
 }

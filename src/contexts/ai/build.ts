@@ -11,7 +11,6 @@ import type { AiQuotaPort } from './application/ports/ai-quota.port'
 import type { AiSubjectHmacPort } from './application/ports/ai-subject-hmac.port'
 import type { PropertyReplyLanguagePort } from './application/ports/property-reply-language.port'
 import { createAnalyzeReviewEvent } from './application/use-cases/analyze-review-event'
-import { createAdvanceReviewAnalysisBackfill } from './application/use-cases/advance-review-analysis-backfill'
 import { createAdvanceReviewAnalysisEnrollments } from './application/use-cases/advance-review-analysis-enrollments'
 import { createApplyAiAuthorizationLifecycle } from './application/use-cases/apply-ai-authorization-lifecycle'
 import { createApproveReviewAnalysisEnrollment } from './application/use-cases/approve-review-analysis-enrollment'
@@ -33,14 +32,11 @@ import { createAiPropertyCalendarAdapter } from './infrastructure/adapters/ai-pr
 import { createAiPropertyAggregateStoreAdapter } from './infrastructure/adapters/ai-property-aggregate-store.adapter'
 import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai-property-trend-schedule-store.adapter'
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
-import { createAiRuntimeCatalogueAdapter } from './infrastructure/adapters/ai-runtime-catalogue.adapter'
 import { createPropertyProcessingProfileAdapter } from './infrastructure/adapters/property-processing-profile.adapter'
-import { createReviewAnalysisBackfillAdapter } from './infrastructure/adapters/ai-review-analysis-backfill.adapter'
 import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
 import { createRedisAiQuotaAdapter } from './infrastructure/adapters/ai-quota.adapter'
 import { createAiOrganizationExportContributor } from './infrastructure/adapters/ai-organization-export.adapter'
 import { createAiOrganizationLifecycleContributor } from './infrastructure/adapters/ai-organization-lifecycle.adapter'
-import { createAiDataLifecycle } from './infrastructure/ai-data-lifecycle'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import {
   registerAiConsumers,
@@ -102,9 +98,6 @@ export type AiContextBuildInput = Readonly<{
 export const buildAiContext = (input: AiContextBuildInput) => {
   const nowEpochMillis = input.nowEpochMillis
   const clock = () => new Date(nowEpochMillis())
-  const dataLifecycle = input.redis
-    ? createAiDataLifecycle(input.db, input.redis, input.idGen, clock)
-    : undefined
   const authorization = createAiAuthorizationAdapter(input.db)
   const control = createAiControlAdapter(input.db)
   const operations = createAiOperationStoreAdapter(input.db, input.idGen)
@@ -114,11 +107,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
   const calendar = createAiPropertyCalendarAdapter(input.db)
   const reviewEvents = createAiReviewEventStoreAdapter(input.db)
   const enrollments = createReviewAnalysisEnrollmentAdapter(input.db, input.idGen)
-  const processingProfiles = createPropertyProcessingProfileAdapter(
-    input.db,
-    createAiRuntimeCatalogueAdapter(input.db),
-    clock,
-  )
+  const processingProfiles = createPropertyProcessingProfileAdapter(input.db, clock)
   const inference = input.inference ?? unavailableInference
   const quota =
     input.quota ??
@@ -135,13 +124,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     reviewSources: input.reviewSources,
     processingProfiles,
     subjectHmac: input.subjectHmac ?? unavailableSubjectHmac,
-    nowEpochMillis,
-  })
-  const advanceReviewAnalysisBackfill = createAdvanceReviewAnalysisBackfill({
-    backfillStore: createReviewAnalysisBackfillAdapter(input.db, input.idGen),
-    reviewEvents,
-    aggregates,
-    processingProfiles,
     nowEpochMillis,
   })
   const advanceReviewAnalysisEnrollments = createAdvanceReviewAnalysisEnrollments({
@@ -198,7 +180,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     registerAiConsumers(consumerRegistry, {
       enqueuePropertyTrend: input.enqueuePropertyTrend,
       analyzeReviewEvent,
-      advanceReviewAnalysisBackfill: advanceReviewAnalysisBackfill.advanceProperty,
       applyAiAuthorizationLifecycle,
       receipts: input.outboxRepo,
     })
@@ -266,21 +247,18 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       registerOutboxConsumers,
       generatePropertyTrend,
       schedulePropertyTrends,
-      advanceReviewAnalysisBackfill,
       advanceReviewAnalysisEnrollments,
     }),
     internal: Object.freeze({
       repos: Object.freeze({}),
       useCases: Object.freeze({
         analyzeReviewEvent,
-        advanceReviewAnalysisBackfill,
-        advanceReviewAnalysisEnrollments,
+          advanceReviewAnalysisEnrollments,
         approveReviewAnalysisEnrollment,
         readReviewAnalysisEnrollmentReadiness,
         generatePropertyTrend,
         schedulePropertyTrends,
       }),
-      dataLifecycle,
     }),
   })
 }

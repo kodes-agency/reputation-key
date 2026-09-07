@@ -14,6 +14,7 @@ import {
   AI_TREND_RENDER_PROFILE_VERSION,
 } from '#/shared/ai-property-trend-contract'
 import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
+import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '#/shared/ai-property-calendar-profile'
 import type {
   AiPropertyTrendSchedule,
   AiPropertyTrendScheduleStorePort,
@@ -118,16 +119,15 @@ export const createAiPropertyTrendScheduleStore = (
           SELECT
             property."organization_id" AS "organizationId",
             property."id"::text AS "propertyId",
-            resolve_ai_property_local_date_v1(
+            ai_property_local_date_v1(
               ${now}::timestamptz,
-              profile."timezone",
-              'property-calendar-v1'
+              profile."timezone"
             )::text AS "dueLocalDate",
             auth."authorized_source_epoch" AS "sourceEpoch",
             auth."review_analysis_epoch" AS "reviewAnalysisEpoch",
             auth."property_trends_epoch" AS "propertyTrendsEpoch",
             profile."profile_version" AS "propertyProfileVersion",
-            cursor."terminal_analysis_sequence"::float8 AS "terminalAnalysisSequence",
+            aggregate."terminal_analysis_sequence"::float8 AS "terminalAnalysisSequence",
             aggregate."aggregate_revision"::float8 AS "aggregateRevision",
             profile."timezone" AS "timezone"
           FROM "properties" AS property
@@ -150,11 +150,6 @@ export const createAiPropertyTrendScheduleStore = (
             ON review_head."organization_id" = property."organization_id"
            AND review_head."property_id" = property."id"
            AND review_head."source_epoch" = auth."authorized_source_epoch"
-          INNER JOIN "ai_review_event_cursors" AS cursor
-            ON cursor."organization_id" = property."organization_id"
-           AND cursor."property_id" = property."id"
-           AND cursor."source_epoch" = auth."authorized_source_epoch"
-           AND cursor."review_analysis_epoch" = auth."review_analysis_epoch"
           INNER JOIN "ai_property_aggregate_heads" AS aggregate
             ON aggregate."organization_id" = property."organization_id"
            AND aggregate."property_id" = property."id"
@@ -168,8 +163,7 @@ export const createAiPropertyTrendScheduleStore = (
             AND auth."capability_runtime_profile_versions"->>'property_trends' = 'property-trends-runtime-v1'
             AND auth."authorized_source_epoch" = profile."source_epoch"
             AND profile."lifecycle_state" = 'active'
-            AND cursor."terminal_analysis_sequence" = review_head."head_sequence"
-            AND cursor."aggregate_revision" = aggregate."aggregate_revision"
+            AND aggregate."terminal_analysis_sequence" = review_head."head_sequence"
             AND (${head.cursorOrganizationId}::varchar IS NULL OR
               (property."organization_id", property."id") >
               (${head.cursorOrganizationId}::varchar, ${head.cursorPropertyId}::uuid))
@@ -179,22 +173,20 @@ export const createAiPropertyTrendScheduleStore = (
               FROM "ai_property_trend_schedules" AS existing
               WHERE existing."organization_id" = property."organization_id"
                 AND existing."property_id" = property."id"
-                AND existing."due_local_date" = resolve_ai_property_local_date_v1(
+                AND existing."due_local_date" = ai_property_local_date_v1(
                   ${now}::timestamptz,
-                  profile."timezone",
-                  'property-calendar-v1'
+                  profile."timezone"
                 )
                 AND existing."source_epoch" = auth."authorized_source_epoch"
                 AND existing."review_analysis_epoch" = auth."review_analysis_epoch"
                 AND existing."property_trends_epoch" = auth."property_trends_epoch"
                 AND existing."property_profile_version" = profile."profile_version"
-                AND existing."report_profile_version" = 'property-trend-v1'
                 AND existing."terminal_analysis_sequence" = aggregate."terminal_analysis_sequence"
                 AND existing."aggregate_revision" = aggregate."aggregate_revision"
             )
           ORDER BY property."organization_id", property."id"
           LIMIT ${BATCH_SIZE}
-          FOR SHARE OF property, auth, profile, enrollment, review_head, cursor, aggregate
+          FOR SHARE OF property, auth, profile, enrollment, review_head, aggregate
         `)
 
         let scheduledCount = 0
@@ -223,8 +215,8 @@ export const createAiPropertyTrendScheduleStore = (
               ),
               aggregateRevision: numberFromDatabase(candidate.aggregateRevision),
               timezone: candidate.timezone,
-              calendarProfileVersion: 'property-calendar-v1',
-              reportProfileVersion: 'property-trend-v1',
+              calendarProfileVersion: AI_PROPERTY_CALENDAR_PROFILE_V1.profileVersion,
+              reportProfileVersion: SCHEDULER_KEY,
               schedulerGeneration,
               scheduledAt: now,
             })
@@ -295,8 +287,8 @@ export const createAiPropertyTrendScheduleStore = (
           schedule."terminal_analysis_sequence"::float8 AS "terminalAnalysisSequence",
           schedule."aggregate_revision"::float8 AS "aggregateRevision",
           schedule."timezone" AS "timezone",
-          schedule."calendar_profile_version" AS "calendarProfileVersion",
-          schedule."report_profile_version" AS "reportProfileVersion",
+          'property-calendar-v1'::text AS "calendarProfileVersion",
+          'property-trend-v1'::text AS "reportProfileVersion",
           schedule."scheduler_generation"::float8 AS "schedulerGeneration",
           schedule."scheduled_at" AS "scheduledAt",
           outcome."disposition" AS "outcomeDisposition"
@@ -378,11 +370,6 @@ export const createAiPropertyTrendScheduleStore = (
             ON review_head."organization_id" = schedule."organization_id"
            AND review_head."property_id" = schedule."property_id"
            AND review_head."source_epoch" = schedule."source_epoch"
-          INNER JOIN "ai_review_event_cursors" AS cursor
-            ON cursor."organization_id" = schedule."organization_id"
-           AND cursor."property_id" = schedule."property_id"
-           AND cursor."source_epoch" = schedule."source_epoch"
-           AND cursor."review_analysis_epoch" = schedule."review_analysis_epoch"
           INNER JOIN "ai_property_aggregate_heads" AS aggregate
             ON aggregate."organization_id" = schedule."organization_id"
            AND aggregate."property_id" = schedule."property_id"
@@ -403,12 +390,9 @@ export const createAiPropertyTrendScheduleStore = (
             AND profile."profile_version" = schedule."property_profile_version"
             AND profile."timezone" = schedule."timezone"
             AND review_head."head_sequence" = schedule."terminal_analysis_sequence"
-            AND cursor."consumed_sequence" = schedule."terminal_analysis_sequence"
-            AND cursor."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
-            AND cursor."aggregate_revision" = schedule."aggregate_revision"
             AND aggregate."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
             AND aggregate."aggregate_revision" = schedule."aggregate_revision"
-          FOR SHARE OF property, auth, profile, enrollment, review_head, cursor, aggregate
+          FOR SHARE OF property, auth, profile, enrollment, review_head, aggregate
         `)
         const binding = current.rows[0]
         if (binding === undefined) return 'stale'
@@ -524,11 +508,6 @@ export const createAiPropertyTrendScheduleStore = (
             ON review_head."organization_id" = schedule."organization_id"
            AND review_head."property_id" = schedule."property_id"
            AND review_head."source_epoch" = schedule."source_epoch"
-          INNER JOIN "ai_review_event_cursors" AS cursor
-            ON cursor."organization_id" = schedule."organization_id"
-           AND cursor."property_id" = schedule."property_id"
-           AND cursor."source_epoch" = schedule."source_epoch"
-           AND cursor."review_analysis_epoch" = schedule."review_analysis_epoch"
           INNER JOIN "ai_property_aggregate_heads" AS aggregate
             ON aggregate."organization_id" = schedule."organization_id"
            AND aggregate."property_id" = schedule."property_id"
@@ -549,12 +528,9 @@ export const createAiPropertyTrendScheduleStore = (
             AND profile."profile_version" = schedule."property_profile_version"
             AND profile."timezone" = schedule."timezone"
             AND review_head."head_sequence" = schedule."terminal_analysis_sequence"
-            AND cursor."consumed_sequence" = schedule."terminal_analysis_sequence"
-            AND cursor."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
-            AND cursor."aggregate_revision" = schedule."aggregate_revision"
             AND aggregate."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
             AND aggregate."aggregate_revision" = schedule."aggregate_revision"
-          FOR SHARE OF property, auth, profile, enrollment, review_head, cursor, aggregate
+          FOR SHARE OF property, auth, profile, enrollment, review_head, aggregate
         `)
         const binding = current.rows[0]
         if (binding === undefined) return 'stale'

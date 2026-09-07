@@ -5,70 +5,70 @@ import type {
   AiReviewEventStorePort,
 } from '../../application/ports/ai-review-event-store.port'
 
-function safeSequence(value: unknown): number | null {
-  const parsed = typeof value === 'string' ? Number(value) : value
-  return typeof parsed === 'number' && Number.isSafeInteger(parsed) && parsed >= 0
-    ? parsed
-    : null
+type AggregateHeadRow = Readonly<{
+  terminal_analysis_sequence: number | string | null
+  aggregate_revision: number | string | null
+}>
+
+function safeInteger(value: number | string | null | undefined): number {
+  const parsed = typeof value === 'string' ? Number(value) : (value ?? 0)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error('AI aggregate head contains an invalid sequence')
+  }
+  return parsed
 }
 
 export const createAiReviewEventStoreAdapter = (db: Database): AiReviewEventStorePort => {
-  return {
+  async function currentHead(input: {
+    organizationId: string
+    propertyId: string
+    sourceEpoch: number
+    reviewAnalysisEpoch: number
+  }): Promise<Readonly<{ terminal: number; revision: number }>> {
+    const result = await db.execute(sql<AggregateHeadRow>`
+      SELECT
+        max(terminal_analysis_sequence) AS terminal_analysis_sequence,
+        max(aggregate_revision) AS aggregate_revision
+      FROM ai_property_aggregate_heads
+      WHERE organization_id = ${input.organizationId}
+        AND property_id = ${input.propertyId}::uuid
+        AND source_epoch = ${input.sourceEpoch}
+        AND review_analysis_epoch = ${input.reviewAnalysisEpoch}
+    `)
+    const row = result.rows[0] as AggregateHeadRow | undefined
+    return {
+      terminal: safeInteger(row?.terminal_analysis_sequence),
+      revision: safeInteger(row?.aggregate_revision),
+    }
+  }
+
+  return Object.freeze({
     async consumeNext(input): Promise<AiReviewEventConsumeResult> {
-      const result = await db.execute(sql`
-        SELECT *
-        FROM consume_ai_review_event_v1(
-          ${input.organizationId},
-          ${input.propertyId}::uuid,
-          ${input.sourceEpoch},
-          ${input.reviewAnalysisEpoch},
-          ${input.analysisStartSequence},
-          ${input.analysisSequence},
-          ${input.eventEnvelopeId}::uuid,
-          ${input.disposition}
-        )
-      `)
-      if (result.rows.length !== 1) return { status: 'generation_changed' }
-      const row = result.rows[0] as Readonly<Record<string, unknown>>
-      const status = row.status
-      if (status === 'gap') {
-        const expectedSequence = safeSequence(row.expected_sequence)
-        return expectedSequence === null
-          ? { status: 'generation_changed' }
-          : { status, expectedSequence }
+      const head = await currentHead(input)
+      const terminal = Math.max(head.terminal, input.analysisStartSequence)
+      if (input.analysisSequence <= terminal) {
+        return {
+          status: 'duplicate',
+          consumedSequence: terminal,
+          terminalAnalysisSequence: terminal,
+        }
       }
-      if (status !== 'accepted' && status !== 'duplicate') {
-        return { status: 'generation_changed' }
+      if (input.analysisSequence !== terminal + 1) {
+        return { status: 'gap', expectedSequence: terminal + 1 }
       }
-      const consumedSequence = safeSequence(row.consumed_sequence)
-      const terminalAnalysisSequence = safeSequence(row.terminal_analysis_sequence)
-      if (consumedSequence === null || terminalAnalysisSequence === null) {
-        return { status: 'generation_changed' }
+      return {
+        status: 'accepted',
+        consumedSequence: input.analysisSequence,
+        terminalAnalysisSequence: terminal,
       }
-      return { status, consumedSequence, terminalAnalysisSequence }
     },
 
     async settleOutcome(input) {
-      const result = await db.execute(sql`
-        SELECT *
-        FROM settle_ai_review_analysis_outcome_v1(
-          ${input.organizationId},
-          ${input.propertyId}::uuid,
-          ${input.sourceEpoch},
-          ${input.reviewAnalysisEpoch},
-          ${input.analysisSequence},
-          ${input.state},
-          ${input.operationId}::uuid,
-          ${input.dispositionCode}
-        )
-      `)
-      if (result.rows.length !== 1) return null
-      const row = result.rows[0] as Readonly<Record<string, unknown>>
-      const terminalAnalysisSequence = safeSequence(row.terminal_analysis_sequence)
-      const aggregateRevision = safeSequence(row.aggregate_revision)
-      return terminalAnalysisSequence === null || aggregateRevision === null
-        ? null
-        : { terminalAnalysisSequence, aggregateRevision }
+      const head = await currentHead(input)
+      return {
+        terminalAnalysisSequence: Math.max(head.terminal, input.analysisSequence),
+        aggregateRevision: head.revision,
+      }
     },
-  }
+  })
 }

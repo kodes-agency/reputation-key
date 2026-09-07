@@ -31,11 +31,9 @@
 // signing — survives this collapse untouched and is still the only path to the
 // provider.
 //
-// WHAT DOES NOT CHANGE. The admission decision is still a Postgres state
-// machine (`admit_ai_property_v1`), so at-most-once per grant still holds across
-// web and worker; it simply runs on this process's own pool instead of a second
-// connection as a second role. The settlement receipt is still signed and
-// verified — it stops being load-bearing once no reply crosses a wire, but
+// Admission now runs in process against live kill-switch and monthly budget rows.
+// At-most-once per grant still holds across web and worker through the operation
+// idempotency key. The settlement receipt remains signed and verified — it
 // removing it touches both service bodies and their orchestration tests, so it
 // is a separate step rather than a passenger on this one.
 

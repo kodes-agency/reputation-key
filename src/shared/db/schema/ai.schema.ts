@@ -16,346 +16,11 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
-import type { AnyPgColumn } from 'drizzle-orm/pg-core'
-import { OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1 } from '../../ai-openai-provider-profile'
-import { OPENAI_MODEL_SNAPSHOT } from '../../ai-openai-request-contract'
-import { AI_PROPERTY_CALENDAR_PROFILE_V1 } from '../../ai-property-calendar-profile'
 import { properties } from './property.schema'
 import { materialReviewRevisions, reviews } from './review.schema'
 import { merchantAiConsentEvidence } from './merchant-ai-authorization.schema'
 
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
-
-function stringifyPostgresJsonb(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map((entry) => stringifyPostgresJsonb(entry)).join(',')}]`
-  }
-  if (value !== null && typeof value === 'object') {
-    const entries = Object.entries(value as Readonly<Record<string, unknown>>).map(
-      ([key, entry]) => ({ key, entry, encodedKey: Buffer.from(key, 'utf8') }),
-    )
-    entries.sort(
-      (left, right) =>
-        left.encodedKey.length - right.encodedKey.length ||
-        Buffer.compare(left.encodedKey, right.encodedKey),
-    )
-    return `{${entries
-      .map(({ key, entry }) => `${JSON.stringify(key)}: ${stringifyPostgresJsonb(entry)}`)
-      .join(',')}}`
-  }
-  const encoded = JSON.stringify(value)
-  if (encoded === undefined) {
-    throw new TypeError('AI provider deployment contract must be JSON-serializable')
-  }
-  return encoded
-}
-
-const openAiDeploymentContractSql = sql.raw(
-  `'${stringifyPostgresJsonb(OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1).replaceAll("'", "''")}'::jsonb`,
-)
-
-const openAiModelSnapshotSql = sql.raw(`'${OPENAI_MODEL_SNAPSHOT.replaceAll("'", "''")}'`)
-
-export const aiGovernancePolicies = pgTable(
-  'ai_governance_policies',
-  {
-    version: varchar('version', { length: 100 }).primaryKey(),
-    region: varchar('region', { length: 20 }).notNull(),
-    manualPublicationRequired: boolean('manual_publication_required').notNull(),
-    policyDigest: varchar('policy_digest', { length: 64 }).notNull(),
-    canonicalPolicy: jsonb('canonical_policy')
-      .$type<Readonly<Record<string, unknown>>>()
-      .notNull(),
-    createdAt: timestamptz('created_at').notNull(),
-  },
-  (t) => [
-    check(
-      'ai_governance_policies_version_valid',
-      sql`${t.version} = 'ai-private-beta-policy-v1'`,
-    ),
-    check('ai_governance_policies_region_valid', sql`${t.region} = 'global'`),
-    check(
-      'ai_governance_policies_manual_valid',
-      sql`${t.manualPublicationRequired} = true`,
-    ),
-    check(
-      'ai_governance_policies_digest_valid',
-      sql`${t.policyDigest} ~ '^[0-9a-f]{64}$'`,
-    ),
-    check(
-      'ai_governance_policies_document_valid',
-      sql`jsonb_typeof(${t.canonicalPolicy}) = 'object'`,
-    ),
-  ],
-)
-
-export const aiProviderDeploymentProfiles = pgTable(
-  'ai_provider_deployment_profiles',
-  {
-    profileVersion: varchar('profile_version', { length: 100 }).primaryKey(),
-    region: varchar('region', { length: 20 }).notNull(),
-    provider: varchar('provider', { length: 40 }).notNull(),
-    modelSnapshot: varchar('model_snapshot', { length: 100 }).notNull(),
-    reasoningEffort: varchar('reasoning_effort', { length: 20 }).notNull(),
-    serviceTier: varchar('service_tier', { length: 20 }).notNull(),
-    store: boolean('store').notNull(),
-    responseApiVersion: varchar('response_api_version', { length: 40 }).notNull(),
-    deploymentContract: jsonb('deployment_contract')
-      .$type<Readonly<Record<string, unknown>>>()
-      .notNull(),
-    profileDigest: varchar('profile_digest', { length: 64 }).notNull(),
-    createdAt: timestamptz('created_at').notNull(),
-  },
-  (t) => [
-    check(
-      'ai_provider_profiles_version_valid',
-      sql`${t.profileVersion} = 'private-beta-global-v1'`,
-    ),
-    check('ai_provider_profiles_region_valid', sql`${t.region} = 'global'`),
-    check('ai_provider_profiles_provider_valid', sql`${t.provider} = 'openai'`),
-    // Derived, not pinned: the literal tracks `OPENAI_MODEL_SNAPSHOT`, the same
-    // constant the request shape is built from, so a model switch cannot leave the
-    // schema asserting a snapshot the code no longer sends.
-    check(
-      'ai_provider_profiles_model_valid',
-      sql`${t.modelSnapshot} = ${openAiModelSnapshotSql}`,
-    ),
-    // Deployment-level effort is delegated to `ai_operation_profiles.reasoning_effort`.
-    // Pinning 'xhigh' here would assert a configuration the TypeScript ladder can no
-    // longer produce, so the database would contradict the code.
-    check(
-      'ai_provider_profiles_reasoning_valid',
-      sql`${t.reasoningEffort} = 'route-profile-effort'`,
-    ),
-    check('ai_provider_profiles_tier_valid', sql`${t.serviceTier} = 'default'`),
-    check('ai_provider_profiles_store_false', sql`${t.store} = false`),
-    check(
-      'ai_provider_profiles_api_valid',
-      sql`${t.responseApiVersion} = 'responses-v1'`,
-    ),
-    check(
-      'ai_provider_profiles_contract_valid',
-      sql`jsonb_typeof(${t.deploymentContract}) = 'object'
-        AND ${t.deploymentContract} = ${openAiDeploymentContractSql}`,
-    ),
-    check(
-      'ai_provider_profiles_digest_valid',
-      sql`${t.profileDigest} ~ '^[0-9a-f]{64}$'`,
-    ),
-  ],
-)
-
-export const aiRoutingPolicies = pgTable(
-  'ai_routing_policies',
-  {
-    version: integer('version').primaryKey(),
-    region: varchar('region', { length: 20 }).notNull(),
-    providerDeploymentProfileVersion: varchar('provider_deployment_profile_version', {
-      length: 100,
-    })
-      .notNull()
-      .references(() => aiProviderDeploymentProfiles.profileVersion, {
-        onDelete: 'restrict',
-      }),
-    policyDigest: varchar('policy_digest', { length: 64 }).notNull(),
-    createdAt: timestamptz('created_at').notNull(),
-  },
-  (t) => [
-    check('ai_routing_policies_version_valid', sql`${t.version} = 1`),
-    check('ai_routing_policies_region_valid', sql`${t.region} = 'global'`),
-    check('ai_routing_policies_digest_valid', sql`${t.policyDigest} ~ '^[0-9a-f]{64}$'`),
-  ],
-)
-
-export const aiOperationProfiles = pgTable(
-  'ai_operation_profiles',
-  {
-    profileVersion: varchar('profile_version', { length: 100 }).primaryKey(),
-    command: varchar('command', { length: 32 }).notNull(),
-    capability: varchar('capability', { length: 40 }),
-    purpose: varchar('purpose', { length: 40 }).notNull(),
-    sourceRoute: varchar('source_route', { length: 80 }).notNull(),
-    gatewayPath: varchar('gateway_path', { length: 80 }).notNull(),
-    callerRole: varchar('caller_role', { length: 40 }).notNull(),
-    capabilityRuntimeProfileVersion: varchar('capability_runtime_profile_version', {
-      length: 100,
-    }),
-    providerDeploymentProfileVersion: varchar('provider_deployment_profile_version', {
-      length: 100,
-    })
-      .notNull()
-      .references(() => aiProviderDeploymentProfiles.profileVersion, {
-        onDelete: 'restrict',
-      }),
-    outputSchemaName: varchar('output_schema_name', { length: 100 }).notNull(),
-    outputSchemaDigest: varchar('output_schema_digest', { length: 64 }).notNull(),
-    promptDigest: varchar('prompt_digest', { length: 64 }).notNull(),
-    artifactAttestations: jsonb('artifact_attestations')
-      .$type<Readonly<Record<string, unknown>>>()
-      .notNull(),
-    artifactAttestationsDigest: varchar('artifact_attestations_digest', {
-      length: 64,
-    }).notNull(),
-    sdkRequestShapeDigest: varchar('sdk_request_shape_digest', { length: 64 }).notNull(),
-    staticTokenBearingBytes: integer('static_token_bearing_bytes').notNull(),
-    staticTokenBearingDigest: varchar('static_token_bearing_digest', {
-      length: 64,
-    }).notNull(),
-    sourceByteLimit: integer('source_byte_limit').notNull(),
-    providerPayloadByteLimit: integer('provider_payload_byte_limit').notNull(),
-    preparedRequestByteLimit: integer('prepared_request_byte_limit').notNull(),
-    responseByteLimit: integer('response_byte_limit').notNull(),
-    maxOutputTokens: integer('max_output_tokens').notNull(),
-    // Persisted, not implied: every other per-route request parameter is a column,
-    // and the gateway byte-compares this row against its compiled contract. Holding
-    // the effort only in code would leave `profile_digest` with a preimage that the
-    // database cannot reproduce, so the catalogue would stop being auditable from
-    // the database alone.
-    reasoningEffort: varchar('reasoning_effort', { length: 16 }).notNull(),
-    providerDeadlineMs: integer('provider_deadline_ms').notNull(),
-    requestDeadlineMs: integer('request_deadline_ms').notNull(),
-    executionLeaseMs: integer('execution_lease_ms').notNull(),
-    profileDigest: varchar('profile_digest', { length: 64 }).notNull(),
-    createdAt: timestamptz('created_at').notNull(),
-  },
-  (t) => [
-    check(
-      'ai_operation_profiles_branch_valid',
-      sql`(
-        (${t.command} = 'analysis' AND ${t.capability} = 'review_analysis' AND ${t.profileVersion} = 'review-analysis-v1' AND ${t.purpose} = 'ai.analyze' AND ${t.sourceRoute} = 'review-analysis' AND ${t.gatewayPath} = '/v1/review-analysis' AND ${t.callerRole} = 'worker' AND ${t.capabilityRuntimeProfileVersion} = 'review-analysis-runtime-v1')
-        OR (${t.command} = 'reply' AND ${t.capability} = 'reply_drafting' AND ${t.profileVersion} = 'reply-suggestion-v1' AND ${t.purpose} = 'ai.generate_reply' AND ${t.sourceRoute} = 'reply-suggestion' AND ${t.gatewayPath} = '/v1/reply-suggestion' AND ${t.callerRole} = 'web' AND ${t.capabilityRuntimeProfileVersion} = 'reply-drafting-runtime-v1')
-        OR (${t.command} = 'trend' AND ${t.capability} = 'property_trends' AND ${t.profileVersion} = 'property-trend-v1' AND ${t.purpose} = 'ai.detect_trends' AND ${t.sourceRoute} = 'property-trend' AND ${t.gatewayPath} = '/v1/property-trend' AND ${t.callerRole} = 'worker' AND ${t.capabilityRuntimeProfileVersion} = 'property-trends-runtime-v1')
-        OR (${t.command} = 'synthetic_canary' AND ${t.capability} IS NULL AND ${t.profileVersion} = 'synthetic-canary-v1' AND ${t.purpose} = 'ai.synthetic_canary' AND ${t.sourceRoute} = 'synthetic-canary' AND ${t.gatewayPath} = 'internal:synthetic-canary' AND ${t.callerRole} = 'release_canary' AND ${t.capabilityRuntimeProfileVersion} IS NULL)
-      )`,
-    ),
-    check(
-      'ai_operation_profiles_digests_valid',
-      sql`${t.outputSchemaDigest} ~ '^[0-9a-f]{64}$'
-        AND ${t.promptDigest} ~ '^[0-9a-f]{64}$'
-        AND ${t.artifactAttestationsDigest} ~ '^[0-9a-f]{64}$'
-        AND ${t.sdkRequestShapeDigest} ~ '^[0-9a-f]{64}$'
-        AND ${t.staticTokenBearingDigest} ~ '^[0-9a-f]{64}$'
-        AND ${t.profileDigest} ~ '^[0-9a-f]{64}$'`,
-    ),
-    check(
-      'ai_operation_profiles_limits_valid',
-      sql`${t.maxOutputTokens} BETWEEN 1 AND 8192
-        AND ${t.sourceByteLimit} BETWEEN 1 AND 65536
-        AND ${t.providerPayloadByteLimit} BETWEEN 1 AND 65536
-        AND ${t.preparedRequestByteLimit} BETWEEN 1 AND 131072
-        AND ${t.responseByteLimit} = 131072
-        AND ${t.staticTokenBearingBytes} BETWEEN 1 AND ${t.preparedRequestByteLimit}
-        AND ${t.providerDeadlineMs} IN (60000, 90000)
-        AND ${t.requestDeadlineMs} = ${t.providerDeadlineMs} + 10000
-        AND ${t.executionLeaseMs} BETWEEN ${t.requestDeadlineMs} AND 300000`,
-    ),
-    check(
-      // The provider rejects `minimal` for the pinned model snapshot, so it is
-      // absent here as well as in the TypeScript ladder: a value the wire refuses
-      // must not be storable. `xhigh` and `max` are excluded outright — measured
-      // against the live deployment they exhaust the output budget on reasoning and
-      // return an empty body on every non-trivial route.
-      'ai_operation_profiles_reasoning_effort_valid',
-      sql`${t.reasoningEffort} IN ('none', 'low', 'medium', 'high')`,
-    ),
-  ],
-)
-
-export const aiRuntimeCapabilityProfiles = pgTable(
-  'ai_runtime_capability_profiles',
-  {
-    runtimeProfileVersion: varchar('runtime_profile_version', {
-      length: 100,
-    }).primaryKey(),
-    capability: varchar('capability', { length: 40 }).notNull(),
-    purpose: varchar('purpose', { length: 40 }).notNull(),
-    sourceRoute: varchar('source_route', { length: 80 }).notNull(),
-    gatewayPath: varchar('gateway_path', { length: 80 }).notNull(),
-    gatewayProfileVersion: varchar('gateway_profile_version', { length: 100 }).notNull(),
-    caller: varchar('caller', { length: 20 }).notNull(),
-    operationProfileVersion: varchar('operation_profile_version', { length: 100 })
-      .notNull()
-      .references(() => aiOperationProfiles.profileVersion, { onDelete: 'restrict' }),
-    providerDeploymentProfileVersion: varchar('provider_deployment_profile_version', {
-      length: 100,
-    })
-      .notNull()
-      .references(() => aiProviderDeploymentProfiles.profileVersion, {
-        onDelete: 'restrict',
-      }),
-    noticeVersion: varchar('notice_version', { length: 100 }).notNull(),
-    noticeDigest: varchar('notice_digest', { length: 64 }).notNull(),
-    catalogueDigest: varchar('catalogue_digest', { length: 64 }).notNull(),
-    createdAt: timestamptz('created_at').notNull(),
-  },
-  (t) => [
-    uniqueIndex('ai_runtime_capability_profiles_complete_unique').on(
-      t.providerDeploymentProfileVersion,
-      t.capability,
-      t.runtimeProfileVersion,
-    ),
-    check(
-      'ai_runtime_capability_profiles_branch_valid',
-      sql`(
-        (${t.capability} = 'review_analysis' AND ${t.runtimeProfileVersion} = 'review-analysis-runtime-v1' AND ${t.purpose} = 'ai.analyze' AND ${t.sourceRoute} = 'review-analysis' AND ${t.gatewayPath} = '/v1/review-analysis' AND ${t.gatewayProfileVersion} = 'review-analysis-gateway-v1' AND ${t.caller} = 'worker' AND ${t.operationProfileVersion} = 'review-analysis-v1')
-        OR (${t.capability} = 'reply_drafting' AND ${t.runtimeProfileVersion} = 'reply-drafting-runtime-v1' AND ${t.purpose} = 'ai.generate_reply' AND ${t.sourceRoute} = 'reply-suggestion' AND ${t.gatewayPath} = '/v1/reply-suggestion' AND ${t.gatewayProfileVersion} = 'reply-suggestion-gateway-v1' AND ${t.caller} = 'web' AND ${t.operationProfileVersion} = 'reply-suggestion-v1')
-        OR (${t.capability} = 'property_trends' AND ${t.runtimeProfileVersion} = 'property-trends-runtime-v1' AND ${t.purpose} = 'ai.detect_trends' AND ${t.sourceRoute} = 'property-trend' AND ${t.gatewayPath} = '/v1/property-trend' AND ${t.gatewayProfileVersion} = 'property-trend-gateway-v1' AND ${t.caller} = 'worker' AND ${t.operationProfileVersion} = 'property-trend-v1')
-      )`,
-    ),
-    check(
-      'ai_runtime_capability_profiles_provider_valid',
-      sql`${t.providerDeploymentProfileVersion} = 'private-beta-global-v1'`,
-    ),
-    check(
-      'ai_runtime_capability_profiles_digests_valid',
-      sql`${t.noticeDigest} ~ '^[0-9a-f]{64}$' AND ${t.catalogueDigest} ~ '^[0-9a-f]{64}$'`,
-    ),
-  ],
-)
-
-export const aiProviderDeploymentCapabilities = pgTable(
-  'ai_provider_deployment_capabilities',
-  {
-    providerDeploymentProfileVersion: varchar('provider_deployment_profile_version', {
-      length: 100,
-    })
-      .notNull()
-      .references(() => aiProviderDeploymentProfiles.profileVersion, {
-        onDelete: 'restrict',
-      }),
-    capability: varchar('capability', { length: 40 }).notNull(),
-    runtimeProfileVersion: varchar('runtime_profile_version', { length: 100 }).notNull(),
-    catalogueDigest: varchar('catalogue_digest', { length: 64 }).notNull(),
-    createdAt: timestamptz('created_at').notNull(),
-  },
-  (t) => [
-    primaryKey({
-      columns: [t.providerDeploymentProfileVersion, t.capability],
-      name: 'ai_provider_deployment_capabilities_pk',
-    }),
-    foreignKey({
-      columns: [
-        t.providerDeploymentProfileVersion,
-        t.capability,
-        t.runtimeProfileVersion,
-      ],
-      foreignColumns: [
-        aiRuntimeCapabilityProfiles.providerDeploymentProfileVersion,
-        aiRuntimeCapabilityProfiles.capability,
-        aiRuntimeCapabilityProfiles.runtimeProfileVersion,
-      ],
-      name: 'ai_provider_deployment_capabilities_runtime_fk',
-    }).onDelete('restrict'),
-    check(
-      'ai_provider_deployment_capabilities_provider_valid',
-      sql`${t.providerDeploymentProfileVersion} = 'private-beta-global-v1'`,
-    ),
-    check(
-      'ai_provider_deployment_capabilities_digest_valid',
-      sql`${t.catalogueDigest} ~ '^[0-9a-f]{64}$'`,
-    ),
-  ],
-)
 
 export const aiPropertyProcessingProfiles = pgTable(
   'ai_property_processing_profiles',
@@ -365,16 +30,10 @@ export const aiPropertyProcessingProfiles = pgTable(
     countryCode: varchar('country_code', { length: 2 }).notNull(),
     timezone: varchar('timezone', { length: 64 }).notNull(),
     processingRegion: varchar('processing_region', { length: 20 }).notNull(),
-    routingPolicyVersion: integer('routing_policy_version')
-      .notNull()
-      .references(() => aiRoutingPolicies.version, { onDelete: 'restrict' }),
+    routingPolicyVersion: integer('routing_policy_version').notNull(),
     providerDeploymentProfileVersion: varchar('provider_deployment_profile_version', {
       length: 100,
-    })
-      .notNull()
-      .references(() => aiProviderDeploymentProfiles.profileVersion, {
-        onDelete: 'restrict',
-      }),
+    }).notNull(),
     sourceEpoch: integer('source_epoch').notNull(),
     profileVersion: integer('profile_version').notNull(),
     lifecycleState: varchar('lifecycle_state', { length: 20 }).notNull(),
@@ -401,176 +60,6 @@ export const aiPropertyProcessingProfiles = pgTable(
       sql`${t.lifecycleState} IN ('active', 'deleting')`,
     ),
     index('ai_property_profiles_org_idx').on(t.organizationId, t.updatedAt.desc()),
-  ],
-)
-
-export const aiReadBarrierHeads = pgTable(
-  'ai_read_barrier_heads',
-  {
-    scopeKind: varchar('scope_kind', { length: 20 }).notNull(),
-    scopeId: varchar('scope_id', { length: 255 }).notNull(),
-    domainVersion: varchar('domain_version', { length: 100 }).notNull(),
-    generation: integer('generation').notNull(),
-    state: varchar('state', { length: 20 }).notNull(),
-    createdAt: timestamptz('created_at').notNull(),
-    updatedAt: timestamptz('updated_at').notNull(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.scopeKind, t.scopeId], name: 'ai_read_barrier_heads_pk' }),
-    check(
-      'ai_read_barrier_heads_scope_valid',
-      sql`${t.scopeKind} IN ('organization', 'property', 'actor') AND length(${t.scopeId}) BETWEEN 1 AND 255`,
-    ),
-    check(
-      'ai_read_barrier_heads_domain_valid',
-      sql`${t.domainVersion} = 'ai-read-barrier-v1'`,
-    ),
-    check('ai_read_barrier_heads_generation_valid', sql`${t.generation} >= 1`),
-    check('ai_read_barrier_heads_state_valid', sql`${t.state} IN ('open', 'closing')`),
-    check('ai_read_barrier_heads_time_valid', sql`${t.updatedAt} >= ${t.createdAt}`),
-  ],
-)
-
-export const aiReviewEventCursors = pgTable(
-  'ai_review_event_cursors',
-  {
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    sourceEpoch: integer('source_epoch').notNull(),
-    reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
-    analysisStartSequence: bigint('analysis_start_sequence', {
-      mode: 'number',
-    }).notNull(),
-    consumedSequence: bigint('consumed_sequence', { mode: 'number' }).notNull(),
-    terminalAnalysisSequence: bigint('terminal_analysis_sequence', {
-      mode: 'number',
-    }).notNull(),
-    aggregateRevision: bigint('aggregate_revision', { mode: 'number' }).notNull(),
-    lastConsumedEventId: uuid('last_consumed_event_id'),
-    createdAt: timestamptz('created_at').notNull(),
-    updatedAt: timestamptz('updated_at').notNull(),
-  },
-  (t) => [
-    primaryKey({
-      columns: [t.organizationId, t.propertyId, t.sourceEpoch, t.reviewAnalysisEpoch],
-      name: 'ai_review_event_cursors_pk',
-    }),
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_review_event_cursors_tenant_fk',
-    }).onDelete('cascade'),
-    check(
-      'ai_review_event_cursors_sequences_valid',
-      sql`${t.sourceEpoch} >= 0 AND ${t.reviewAnalysisEpoch} >= 1
-        AND ${t.analysisStartSequence} BETWEEN 0 AND '9007199254740991'::bigint
-        AND ${t.consumedSequence} BETWEEN ${t.analysisStartSequence} AND '9007199254740991'::bigint
-        AND ${t.terminalAnalysisSequence} BETWEEN ${t.analysisStartSequence} AND ${t.consumedSequence}
-        AND ${t.aggregateRevision} BETWEEN 0 AND '9007199254740991'::bigint`,
-    ),
-    check('ai_review_event_cursors_time_valid', sql`${t.updatedAt} >= ${t.createdAt}`),
-    index('ai_review_event_cursors_property_idx').on(t.organizationId, t.propertyId),
-  ],
-)
-
-export const aiReviewAnalysisOutcomes = pgTable(
-  'ai_review_analysis_outcomes',
-  {
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    sourceEpoch: integer('source_epoch').notNull(),
-    reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
-    analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
-    eventEnvelopeId: uuid('event_envelope_id').notNull(),
-    operationId: uuid('operation_id').references(() => aiOperations.id, {
-      onDelete: 'cascade',
-    }),
-    state: varchar('state', { length: 30 }).notNull(),
-    dispositionCode: varchar('disposition_code', { length: 64 }),
-    appliedAggregateRevision: bigint('applied_aggregate_revision', {
-      mode: 'number',
-    }),
-    appliedAt: timestamptz('applied_at'),
-    createdAt: timestamptz('created_at').notNull(),
-    updatedAt: timestamptz('updated_at').notNull(),
-  },
-  (t) => [
-    primaryKey({
-      columns: [
-        t.organizationId,
-        t.propertyId,
-        t.sourceEpoch,
-        t.reviewAnalysisEpoch,
-        t.analysisSequence,
-      ],
-      name: 'ai_review_analysis_outcomes_pk',
-    }),
-    foreignKey({
-      columns: [t.organizationId, t.propertyId, t.sourceEpoch, t.reviewAnalysisEpoch],
-      foreignColumns: [
-        aiReviewEventCursors.organizationId,
-        aiReviewEventCursors.propertyId,
-        aiReviewEventCursors.sourceEpoch,
-        aiReviewEventCursors.reviewAnalysisEpoch,
-      ],
-      name: 'ai_review_analysis_outcomes_cursor_fk',
-    }).onDelete('cascade'),
-    check(
-      'ai_review_analysis_outcomes_sequence_valid',
-      sql`${t.analysisSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
-    ),
-    check(
-      'ai_review_analysis_outcomes_state_valid',
-      sql`(
-        (
-          ${t.state} = 'pending'
-          AND ${t.dispositionCode} IS NULL
-          AND ${t.appliedAggregateRevision} IS NULL
-          AND ${t.appliedAt} IS NULL
-        )
-        OR (
-          ${t.state} = 'ready'
-          AND ${t.operationId} IS NOT NULL
-          AND ${t.dispositionCode} IS NULL
-          AND (
-            (${t.appliedAggregateRevision} IS NULL AND ${t.appliedAt} IS NULL)
-            OR (
-              ${t.appliedAggregateRevision} BETWEEN 1 AND '9007199254740991'::bigint
-              AND ${t.appliedAt} IS NOT NULL
-            )
-          )
-        )
-        OR (
-          ${t.state} = 'terminal_no_result'
-          AND ${t.dispositionCode} IN (
-            'source_expired',
-            'provider_deleted',
-            'policy_disabled',
-            'language_not_supported'
-          )
-          AND (
-            (${t.appliedAggregateRevision} IS NULL AND ${t.appliedAt} IS NULL)
-            OR (
-              ${t.appliedAggregateRevision} BETWEEN 1 AND '9007199254740991'::bigint
-              AND ${t.appliedAt} IS NOT NULL
-            )
-          )
-        )
-      )`,
-    ),
-    check(
-      'ai_review_analysis_outcomes_time_valid',
-      sql`${t.updatedAt} >= ${t.createdAt}`,
-    ),
-    uniqueIndex('ai_review_analysis_outcomes_event_unique').on(t.eventEnvelopeId),
-    index('ai_review_analysis_outcomes_terminal_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.sourceEpoch,
-      t.reviewAnalysisEpoch,
-      t.analysisSequence,
-      t.state,
-    ),
   ],
 )
 
@@ -675,12 +164,12 @@ export const aiOperations = pgTable(
     idempotencyScope: varchar('idempotency_scope', { length: 255 }).notNull(),
     idempotencyKey: varchar('idempotency_key', { length: 128 }).notNull(),
     requestFingerprint: varchar('request_fingerprint', { length: 64 }).notNull(),
-    sourceDigest: varchar('source_digest', { length: 64 }),
-    sourceByteCount: integer('source_byte_count'),
+    sourceDigest: varchar('source_digest', { length: 64 }).notNull(),
+    sourceByteCount: integer('source_byte_count').notNull(),
     command: varchar('command', { length: 32 }).notNull(),
-    capability: varchar('capability', { length: 40 }),
-    organizationId: varchar('organization_id', { length: 255 }),
-    propertyId: uuid('property_id'),
+    capability: varchar('capability', { length: 40 }).notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
     actorUserId: varchar('actor_user_id', { length: 255 }),
     systemPrincipal: varchar('system_principal', { length: 64 }),
     reviewId: uuid('review_id'),
@@ -696,13 +185,6 @@ export const aiOperations = pgTable(
     dueLocalDate: date('due_local_date', { mode: 'string' }),
     terminalAnalysisSequence: bigint('terminal_analysis_sequence', { mode: 'number' }),
     aggregateRevision: bigint('aggregate_revision', { mode: 'number' }),
-    releaseSha: varchar('release_sha', { length: 40 }),
-    canaryAuthorizationId: uuid('canary_authorization_id').references(
-      (): AnyPgColumn => aiCanaryAuthorizations.id,
-      { onDelete: 'restrict' },
-    ),
-    canaryAuthorizationGeneration: integer('canary_authorization_generation'),
-    canaryProfileVersion: varchar('canary_profile_version', { length: 100 }),
     authorizationLineageId: uuid('authorization_lineage_id'),
     noticeVersion: varchar('notice_version', { length: 100 }),
     noticeDigest: varchar('notice_digest', { length: 64 }),
@@ -710,54 +192,47 @@ export const aiOperations = pgTable(
     concreteReplyLanguageTag: varchar('concrete_reply_language_tag', { length: 35 }),
     concreteReplyTemplateGroup: varchar('concrete_reply_template_group', { length: 64 }),
     languageCatalogueDigest: varchar('language_catalogue_digest', { length: 64 }),
-    replyLanguageVerifierDigest: varchar('reply_language_verifier_digest', {
-      length: 64,
-    }),
-    languageScriptConsistencyDigest: varchar('language_script_consistency_digest', {
-      length: 64,
-    }),
-    zhOrthographyVerifierDigest: varchar('zh_orthography_verifier_digest', {
-      length: 64,
-    }),
+    replyLanguageVerifierDigest: varchar('reply_language_verifier_digest', { length: 64 }),
+    languageScriptConsistencyDigest: varchar('language_script_consistency_digest', { length: 64 }),
+    zhOrthographyVerifierDigest: varchar('zh_orthography_verifier_digest', { length: 64 }),
     propertyProfileVersion: integer('property_profile_version'),
     replyBrandProfileVersion: integer('reply_brand_profile_version'),
-    replyBrandDisplayNameDigest: varchar('reply_brand_display_name_digest', {
-      length: 64,
-    }),
+    replyBrandDisplayNameDigest: varchar('reply_brand_display_name_digest', { length: 64 }),
     routingPolicyVersion: integer('routing_policy_version'),
-    sourcePolicyId: varchar('source_policy_id', { length: 150 }),
-    sourceCanonicalizerDigest: varchar('source_canonicalizer_digest', { length: 64 }),
-    redactionProfileVersion: varchar('redaction_profile_version', { length: 100 }),
-    outputLeakageProfileVersion: varchar('output_leakage_profile_version', {
-      length: 100,
-    }),
-    outputLeakageProfileDigest: varchar('output_leakage_profile_digest', { length: 64 }),
-    replyTemplateCatalogueVersion: varchar('reply_template_catalogue_version', {
-      length: 100,
-    }),
-    replyTemplateCatalogueDigest: varchar('reply_template_catalogue_digest', {
-      length: 64,
-    }),
     providerDeploymentProfileVersion: varchar('provider_deployment_profile_version', {
       length: 100,
-    })
-      .notNull()
-      .references(() => aiProviderDeploymentProfiles.profileVersion, {
-        onDelete: 'restrict',
-      }),
-    operationProfileVersion: varchar('operation_profile_version', { length: 100 })
-      .notNull()
-      .references(() => aiOperationProfiles.profileVersion, { onDelete: 'restrict' }),
+    }).notNull(),
+    operationProfileVersion: varchar('operation_profile_version', {
+      length: 100,
+    }).notNull(),
     capabilityRuntimeProfileVersion: varchar('capability_runtime_profile_version', {
       length: 100,
     }),
+    sourcePolicyId: varchar('source_policy_id', { length: 150 }),
+    sourceCanonicalizerDigest: varchar('source_canonicalizer_digest', { length: 64 }),
+    redactionProfileVersion: varchar('redaction_profile_version', { length: 100 }),
+    outputLeakageProfileVersion: varchar('output_leakage_profile_version', { length: 100 }),
+    outputLeakageProfileDigest: varchar('output_leakage_profile_digest', { length: 64 }),
+    replyTemplateCatalogueVersion: varchar('reply_template_catalogue_version', { length: 100 }),
+    replyTemplateCatalogueDigest: varchar('reply_template_catalogue_digest', { length: 64 }),
     globalControlId: uuid('global_control_id').notNull(),
     globalControlGeneration: integer('global_control_generation').notNull(),
     providerControlId: uuid('provider_control_id').notNull(),
     providerControlGeneration: integer('provider_control_generation').notNull(),
-    capabilityControlId: uuid('capability_control_id'),
-    capabilityControlGeneration: integer('capability_control_generation'),
-    capabilityFences: jsonb('capability_fences'),
+    capabilityControlId: uuid('capability_control_id').notNull(),
+    capabilityControlGeneration: integer('capability_control_generation').notNull(),
+    capabilityFences: jsonb('capability_fences').notNull(),
+    routeKey: varchar('route_key', { length: 64 }),
+    executionPermitId: uuid('execution_permit_id'),
+    admissionNonce: varchar('admission_nonce', { length: 64 }),
+    requestBindingKeyId: varchar('request_binding_key_id', { length: 64 }),
+    requestBindingHmac: varchar('request_binding_hmac', { length: 43 }),
+    grantKid: varchar('grant_kid', { length: 32 }),
+    costWindowId: uuid('cost_window_id'),
+    reservedMicros: bigint('reserved_micros', { mode: 'number' }).notNull().default(0),
+    actualMicros: bigint('actual_micros', { mode: 'number' }),
+    budgetReservedAt: timestamptz('budget_reserved_at'),
+    budgetSettledAt: timestamptz('budget_settled_at'),
     state: varchar('state', { length: 40 }).notNull(),
     executionAttempt: integer('execution_attempt').notNull(),
     nextAttemptAt: timestamptz('next_attempt_at'),
@@ -766,9 +241,7 @@ export const aiOperations = pgTable(
     updatedAt: timestamptz('updated_at').notNull(),
     expiresAt: timestamptz('expires_at').notNull(),
     deliveredAt: timestamptz('delivered_at'),
-    replyAdoptionDisposition: varchar('reply_adoption_disposition', {
-      length: 20,
-    })
+    replyAdoptionDisposition: varchar('reply_adoption_disposition', { length: 20 })
       .notNull()
       .default('none'),
     adoptedReplyRevision: bigint('adopted_reply_revision', { mode: 'number' }),
@@ -777,10 +250,10 @@ export const aiOperations = pgTable(
     }),
   },
   (t) => [
-    uniqueIndex('ai_operations_idempotency_unique').on(
-      t.idempotencyScope,
-      t.idempotencyKey,
-    ),
+    uniqueIndex('ai_operations_idempotency_unique').on(t.idempotencyScope, t.idempotencyKey),
+    uniqueIndex('ai_operations_execution_permit_unique')
+      .on(t.executionPermitId)
+      .where(sql`${t.executionPermitId} IS NOT NULL`),
     foreignKey({
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
@@ -810,35 +283,10 @@ export const aiOperations = pgTable(
       ],
       name: 'ai_operations_capability_control_fk',
     }).onDelete('restrict'),
-    check(
-      'ai_operations_fingerprint_valid',
-      sql`${t.requestFingerprint} ~ '^[0-9a-f]{64}$'`,
-    ),
-    check(
-      'ai_operations_reply_brand_binding_valid',
-      sql`(
-        (
-          ${t.command} = 'reply'
-          AND (
-            (${t.replyBrandProfileVersion} IS NULL
-              AND ${t.replyBrandDisplayNameDigest} IS NULL)
-            OR (${t.replyBrandProfileVersion} >= 1
-              AND ${t.replyBrandDisplayNameDigest} ~ '^[0-9a-f]{64}$')
-          )
-        )
-        OR (
-          ${t.command} <> 'reply'
-          AND ${t.replyBrandProfileVersion} IS NULL
-          AND ${t.replyBrandDisplayNameDigest} IS NULL
-        )
-      )`,
-    ),
+    check('ai_operations_fingerprint_valid', sql`${t.requestFingerprint} ~ '^[0-9a-f]{64}$'`),
     check(
       'ai_operations_source_provenance_valid',
-      sql`(
-        (${t.command} = 'synthetic_canary' AND ${t.sourceDigest} IS NULL AND ${t.sourceByteCount} IS NULL)
-        OR (${t.command} <> 'synthetic_canary' AND ${t.sourceDigest} ~ '^[0-9a-f]{64}$' AND ${t.sourceByteCount} BETWEEN 1 AND 131072)
-      )`,
+      sql`${t.sourceDigest} ~ '^[0-9a-f]{64}$' AND ${t.sourceByteCount} BETWEEN 1 AND 131072`,
     ),
     check(
       'ai_operations_state_valid',
@@ -847,6 +295,15 @@ export const aiOperations = pgTable(
     check(
       'ai_operations_attempt_valid',
       sql`${t.executionAttempt} >= 0 AND ${t.expiresAt} > ${t.createdAt} AND ${t.updatedAt} >= ${t.createdAt} AND (${t.nextAttemptAt} IS NULL OR ${t.nextAttemptAt} >= ${t.updatedAt})`,
+    ),
+    check(
+      'ai_operations_budget_valid',
+      sql`${t.reservedMicros} BETWEEN 0 AND '9007199254740991'::bigint
+        AND (${t.actualMicros} IS NULL OR ${t.actualMicros} BETWEEN 0 AND ${t.reservedMicros})
+        AND ((${t.costWindowId} IS NULL AND ${t.reservedMicros} = 0 AND ${t.budgetReservedAt} IS NULL)
+          OR (${t.costWindowId} IS NOT NULL AND ${t.reservedMicros} > 0 AND ${t.budgetReservedAt} IS NOT NULL))
+        AND ((${t.budgetSettledAt} IS NULL AND ${t.actualMicros} IS NULL)
+          OR (${t.budgetSettledAt} IS NOT NULL AND ${t.actualMicros} IS NOT NULL AND ${t.budgetSettledAt} >= ${t.budgetReservedAt}))`,
     ),
     check(
       'ai_operations_safe_integers',
@@ -862,624 +319,61 @@ export const aiOperations = pgTable(
     check(
       'ai_operations_branch_valid',
       sql`(
-        (${t.command} = 'analysis' AND ${t.capability} = 'review_analysis' AND ${t.organizationId} IS NOT NULL AND ${t.propertyId} IS NOT NULL AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'review_event_consumer' AND ${t.reviewId} IS NOT NULL AND ${t.originEventId} IS NOT NULL AND ${t.subjectHmac} ~ '^[0-9a-f]{64}$' AND ${t.subjectHmacKeyVersion} IS NOT NULL AND ${t.sourceEpoch} >= 0 AND ${t.sourceRevision} >= 1 AND ${t.analysisSequence} >= 1 AND ${t.operationProfileVersion} = 'review-analysis-v1' AND ${t.capabilityRuntimeProfileVersion} = 'review-analysis-runtime-v1')
-        OR (${t.command} = 'reply' AND ${t.capability} = 'reply_drafting' AND ${t.organizationId} IS NOT NULL AND ${t.propertyId} IS NOT NULL AND ${t.actorUserId} IS NOT NULL AND ${t.systemPrincipal} IS NULL AND ${t.reviewId} IS NOT NULL AND ${t.sourceEpoch} >= 0 AND ${t.sourceRevision} >= 1 AND ${t.tone} IN ('professional', 'friendly', 'casual') AND ${t.baseReplyStateRevision} >= 0 AND ${t.operationProfileVersion} = 'reply-suggestion-v1' AND ${t.capabilityRuntimeProfileVersion} = 'reply-drafting-runtime-v1')
-        OR (${t.command} = 'trend' AND ${t.capability} = 'property_trends' AND ${t.organizationId} IS NOT NULL AND ${t.propertyId} IS NOT NULL AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'property_trend_coordinator' AND ${t.sourceEpoch} >= 0 AND ${t.dueLocalDate} IS NOT NULL AND ${t.terminalAnalysisSequence} >= 0 AND ${t.aggregateRevision} >= 0 AND ${t.operationProfileVersion} = 'property-trend-v1' AND ${t.capabilityRuntimeProfileVersion} = 'property-trends-runtime-v1')
-        OR (${t.command} = 'synthetic_canary' AND ${t.capability} IS NULL AND ${t.organizationId} IS NULL AND ${t.propertyId} IS NULL AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'release_canary' AND ${t.releaseSha} ~ '^[0-9a-f]{40}$' AND ${t.canaryAuthorizationId} IS NOT NULL AND ${t.canaryAuthorizationGeneration} BETWEEN 1 AND 3 AND ${t.canaryProfileVersion} IS NOT NULL AND ${t.operationProfileVersion} = 'synthetic-canary-v1' AND ${t.capabilityRuntimeProfileVersion} IS NULL)
+        (${t.command} = 'analysis' AND ${t.capability} = 'review_analysis' AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'review_event_consumer' AND ${t.reviewId} IS NOT NULL AND ${t.originEventId} IS NOT NULL AND ${t.subjectHmac} ~ '^[0-9a-f]{64}$' AND ${t.subjectHmacKeyVersion} IS NOT NULL AND ${t.sourceEpoch} >= 0 AND ${t.sourceRevision} >= 1 AND ${t.analysisSequence} >= 1)
+        OR (${t.command} = 'reply' AND ${t.capability} = 'reply_drafting' AND ${t.actorUserId} IS NOT NULL AND ${t.systemPrincipal} IS NULL AND ${t.reviewId} IS NOT NULL AND ${t.sourceEpoch} >= 0 AND ${t.sourceRevision} >= 1 AND ${t.tone} IN ('professional', 'friendly', 'casual') AND ${t.baseReplyStateRevision} >= 0)
+        OR (${t.command} = 'trend' AND ${t.capability} = 'property_trends' AND ${t.actorUserId} IS NULL AND ${t.systemPrincipal} = 'property_trend_coordinator' AND ${t.sourceEpoch} >= 0 AND ${t.dueLocalDate} IS NOT NULL AND ${t.terminalAnalysisSequence} >= 0 AND ${t.aggregateRevision} >= 0)
       )`,
+    ),
+    check(
+      'ai_operations_reply_brand_binding_valid',
+      sql`((${t.command} = 'reply' AND ((${t.replyBrandProfileVersion} IS NULL AND ${t.replyBrandDisplayNameDigest} IS NULL) OR (${t.replyBrandProfileVersion} >= 1 AND ${t.replyBrandDisplayNameDigest} ~ '^[0-9a-f]{64}$')))
+        OR (${t.command} <> 'reply' AND ${t.replyBrandProfileVersion} IS NULL AND ${t.replyBrandDisplayNameDigest} IS NULL))`,
     ),
     check(
       'ai_operations_reply_adoption_valid',
-      sql`(
-        (
-          ${t.command} = 'reply'
-          AND ${t.replyAdoptionDisposition} IN ('none', 'adopted', 'invalidated')
-          AND (
-            (${t.replyAdoptionDisposition} = 'none'
-              AND ${t.adoptedReplyRevision} IS NULL
-              AND ${t.adoptedReviewReplyStateRevision} IS NULL)
-            OR (${t.replyAdoptionDisposition} = 'adopted'
-              AND ${t.adoptedReplyRevision} >= 1
-              AND ${t.adoptedReviewReplyStateRevision} >= 1)
-            OR (${t.replyAdoptionDisposition} = 'invalidated'
-              AND (
-                (${t.adoptedReplyRevision} IS NULL
-                  AND ${t.adoptedReviewReplyStateRevision} IS NULL)
-                OR (${t.adoptedReplyRevision} >= 1
-                  AND ${t.adoptedReviewReplyStateRevision} >= 1)
-              ))
-          )
-        )
-        OR (
-          ${t.command} <> 'reply'
-          AND ${t.replyAdoptionDisposition} = 'none'
-          AND ${t.adoptedReplyRevision} IS NULL
-          AND ${t.adoptedReviewReplyStateRevision} IS NULL
-        )
-      )`,
+      sql`((${t.command} = 'reply' AND ${t.replyAdoptionDisposition} IN ('none', 'adopted', 'invalidated')
+          AND ((${t.replyAdoptionDisposition} = 'none' AND ${t.adoptedReplyRevision} IS NULL AND ${t.adoptedReviewReplyStateRevision} IS NULL)
+            OR (${t.replyAdoptionDisposition} = 'adopted' AND ${t.adoptedReplyRevision} >= 1 AND ${t.adoptedReviewReplyStateRevision} >= 1)
+            OR (${t.replyAdoptionDisposition} = 'invalidated' AND ((${t.adoptedReplyRevision} IS NULL AND ${t.adoptedReviewReplyStateRevision} IS NULL) OR (${t.adoptedReplyRevision} >= 1 AND ${t.adoptedReviewReplyStateRevision} >= 1)))))
+        OR (${t.command} <> 'reply' AND ${t.replyAdoptionDisposition} = 'none' AND ${t.adoptedReplyRevision} IS NULL AND ${t.adoptedReviewReplyStateRevision} IS NULL))`,
     ),
     check(
       'ai_operations_control_fence_valid',
-      sql`${t.globalControlGeneration} >= 1
-        AND ${t.providerControlGeneration} >= 1
-        AND (
-          (
-            ${t.command} = 'synthetic_canary'
-            AND ${t.capabilityControlId} IS NULL
-            AND ${t.capabilityControlGeneration} IS NULL
-            AND jsonb_typeof(${t.capabilityFences}) = 'array'
-            AND jsonb_array_length(${t.capabilityFences}) = 3
-          )
-          OR (
-            ${t.command} <> 'synthetic_canary'
-            AND ${t.capabilityControlId} IS NOT NULL
-            AND ${t.capabilityControlGeneration} >= 1
-            AND jsonb_typeof(${t.capabilityFences}) = 'object'
-            AND (
-              (${t.command} = 'analysis' AND jsonb_array_length(jsonb_path_query_array(${t.capabilityFences}, '$.keyvalue()'::jsonpath)) = 2 AND ${t.capabilityFences}->>'capability' = 'review_analysis' AND (${t.capabilityFences}->>'reviewAnalysisEpoch') ~ '^[1-9][0-9]*$')
-              OR (${t.command} = 'reply' AND jsonb_array_length(jsonb_path_query_array(${t.capabilityFences}, '$.keyvalue()'::jsonpath)) = 3 AND ${t.capabilityFences}->>'capability' = 'reply_drafting' AND (${t.capabilityFences}->>'replyDraftingEpoch') ~ '^[1-9][0-9]*$' AND (${t.capabilityFences}->>'baseReplyStateRevision') ~ '^(0|[1-9][0-9]*)$')
-              OR (${t.command} = 'trend' AND jsonb_array_length(jsonb_path_query_array(${t.capabilityFences}, '$.keyvalue()'::jsonpath)) = 3 AND ${t.capabilityFences}->>'capability' = 'property_trends' AND (${t.capabilityFences}->>'reviewAnalysisEpoch') ~ '^[1-9][0-9]*$' AND (${t.capabilityFences}->>'propertyTrendsEpoch') ~ '^[1-9][0-9]*$')
-            )
-          )
-        )`,
+      sql`${t.globalControlGeneration} >= 1 AND ${t.providerControlGeneration} >= 1
+        AND ${t.capabilityControlGeneration} >= 1 AND jsonb_typeof(${t.capabilityFences}) = 'object'`,
     ),
     index('ai_operations_due_idx').on(t.state, t.nextAttemptAt),
-    index('ai_operations_property_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.createdAt.desc(),
-    ),
+    index('ai_operations_property_idx').on(t.organizationId, t.propertyId, t.createdAt.desc()),
     index('ai_operations_expiry_idx').on(t.expiresAt),
-  ],
-)
-
-export const aiOperationAttempts = pgTable(
-  'ai_operation_attempts',
-  {
-    operationId: uuid('operation_id')
-      .notNull()
-      .references(() => aiOperations.id, { onDelete: 'cascade' }),
-    attempt: integer('attempt').notNull(),
-    state: varchar('state', { length: 32 }).notNull(),
-    modelSnapshot: varchar('model_snapshot', { length: 100 }),
-    inputTokens: integer('input_tokens'),
-    outputTokens: integer('output_tokens'),
-    failureCode: varchar('failure_code', { length: 64 }),
-    startedAt: timestamptz('started_at').notNull(),
-    settledAt: timestamptz('settled_at'),
-  },
-  (t) => [
-    primaryKey({ columns: [t.operationId, t.attempt], name: 'ai_operation_attempts_pk' }),
-    check('ai_operation_attempts_number_valid', sql`${t.attempt} >= 1`),
-    check(
-      'ai_operation_attempts_state_valid',
-      sql`${t.state} IN ('executing', 'completed', 'failed', 'cancelled')`,
-    ),
-    check(
-      'ai_operation_attempts_terminal_valid',
-      sql`(
-        (${t.state} = 'executing' AND ${t.settledAt} IS NULL AND ${t.failureCode} IS NULL AND ${t.modelSnapshot} IS NULL AND ${t.inputTokens} IS NULL AND ${t.outputTokens} IS NULL)
-        OR (${t.state} = 'completed' AND ${t.settledAt} IS NOT NULL AND ${t.failureCode} IS NULL AND ${t.modelSnapshot} IS NOT NULL AND ${t.inputTokens} >= 0 AND ${t.outputTokens} >= 0)
-        OR (${t.state} IN ('failed', 'cancelled') AND ${t.settledAt} IS NOT NULL AND ${t.modelSnapshot} IS NULL AND ${t.inputTokens} IS NULL AND ${t.outputTokens} IS NULL)
-      ) AND (${t.settledAt} IS NULL OR ${t.settledAt} >= ${t.startedAt})`,
-    ),
-  ],
-)
-
-export const aiProductVolumeConsumptions = pgTable(
-  'ai_product_volume_consumptions',
-  {
-    operationId: uuid('operation_id')
-      .primaryKey()
-      .references(() => aiOperations.id, { onDelete: 'cascade' }),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    capability: varchar('capability', { length: 40 }).notNull(),
-    providerDeploymentProfileVersion: varchar('provider_deployment_profile_version', {
-      length: 100,
-    }).notNull(),
-    modelSnapshot: varchar('model_snapshot', { length: 100 }).notNull(),
-    inputTokens: integer('input_tokens').notNull(),
-    outputTokens: integer('output_tokens').notNull(),
-    totalTokens: integer('total_tokens').notNull(),
-    completedAt: timestamptz('completed_at').notNull(),
-  },
-  (t) => [
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_product_volume_consumptions_tenant_fk',
-    }).onDelete('cascade'),
-    check(
-      'ai_product_volume_consumptions_valid',
-      sql`${t.capability} IN ('review_analysis', 'reply_drafting', 'property_trends') AND ${t.inputTokens} >= 0 AND ${t.outputTokens} >= 0 AND ${t.totalTokens} = ${t.inputTokens} + ${t.outputTokens}`,
-    ),
-    index('ai_product_volume_consumptions_org_time_idx').on(
-      t.organizationId,
-      t.completedAt.desc(),
-    ),
-  ],
-)
-
-export const aiExecutionPermits = pgTable(
-  'ai_execution_permits',
-  {
-    id: uuid('id').primaryKey(),
-    operationId: uuid('operation_id')
-      .notNull()
-      .references(() => aiOperations.id, { onDelete: 'cascade' }),
-    executionAttempt: integer('execution_attempt').notNull(),
-    globalControlId: uuid('global_control_id').notNull(),
-    globalControlGeneration: integer('global_control_generation').notNull(),
-    providerControlId: uuid('provider_control_id').notNull(),
-    providerControlGeneration: integer('provider_control_generation').notNull(),
-    capabilityControlId: uuid('capability_control_id'),
-    capabilityControlGeneration: integer('capability_control_generation'),
-    route: varchar('route', { length: 40 }).notNull(),
-    requestBindingKeyId: varchar('request_binding_key_id', { length: 32 }),
-    requestBindingHmac: varchar('request_binding_hmac', { length: 43 }),
-    grantKid: varchar('grant_kid', { length: 32 }),
-    nonce: varchar('nonce', { length: 128 }),
-    state: varchar('state', { length: 20 }).notNull().default('issued'),
-    admittedAt: timestamptz('admitted_at').notNull(),
-    consumedAt: timestamptz('consumed_at'),
-    concurrencyExpiresAt: timestamptz('concurrency_expires_at'),
-    expiresAt: timestamptz('expires_at').notNull(),
-    maximumCostMicros: bigint('maximum_cost_micros', { mode: 'number' }),
-  },
-  (t) => [
-    uniqueIndex('ai_execution_permits_operation_attempt_unique').on(
-      t.operationId,
-      t.executionAttempt,
-    ),
-    foreignKey({
-      columns: [t.operationId, t.executionAttempt],
-      foreignColumns: [aiOperationAttempts.operationId, aiOperationAttempts.attempt],
-      name: 'ai_execution_permits_attempt_fk',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [t.globalControlId, t.globalControlGeneration],
-      foreignColumns: [
-        aiExecutionControlTransitions.controlId,
-        aiExecutionControlTransitions.generation,
-      ],
-      name: 'ai_execution_permits_global_control_fk',
-    }).onDelete('restrict'),
-    foreignKey({
-      columns: [t.providerControlId, t.providerControlGeneration],
-      foreignColumns: [
-        aiExecutionControlTransitions.controlId,
-        aiExecutionControlTransitions.generation,
-      ],
-      name: 'ai_execution_permits_provider_control_fk',
-    }).onDelete('restrict'),
-    foreignKey({
-      columns: [t.capabilityControlId, t.capabilityControlGeneration],
-      foreignColumns: [
-        aiExecutionControlTransitions.controlId,
-        aiExecutionControlTransitions.generation,
-      ],
-      name: 'ai_execution_permits_capability_control_fk',
-    }).onDelete('restrict'),
-    check(
-      'ai_execution_permits_valid',
-      sql`${t.executionAttempt} >= 1 AND ${t.globalControlGeneration} >= 1 AND ${t.providerControlGeneration} >= 1 AND COALESCE(${t.capabilityControlGeneration}, 1) >= 1 AND ${t.expiresAt} > ${t.admittedAt}`,
-    ),
-    check(
-      'ai_execution_permits_admission_valid',
-      sql`${t.route} IN ('review-analysis', 'reply-suggestion', 'property-trend', 'synthetic-canary')
-        AND ${t.state} IN ('issued', 'consumed', 'settled', 'released', 'ambiguous')
-        AND (
-          (${t.state} IN ('issued', 'released') AND ${t.requestBindingKeyId} IS NULL AND ${t.requestBindingHmac} IS NULL AND ${t.grantKid} IS NULL AND ${t.nonce} IS NULL AND ${t.consumedAt} IS NULL AND ${t.concurrencyExpiresAt} IS NULL AND ${t.maximumCostMicros} IS NULL)
-          OR (${t.state} IN ('consumed', 'settled', 'released', 'ambiguous') AND ${t.requestBindingKeyId} ~ '^[a-z][a-z0-9_-]{0,31}$' AND ${t.requestBindingHmac} ~ '^[A-Za-z0-9_-]{43}$' AND ${t.grantKid} ~ '^[a-z][a-z0-9_-]{0,31}$' AND length(${t.nonce}) BETWEEN 1 AND 128 AND ${t.consumedAt} IS NOT NULL AND ${t.concurrencyExpiresAt} IS NOT NULL AND ${t.maximumCostMicros} BETWEEN 0 AND '9007199254740991'::bigint)
-        )`,
-    ),
-    index('ai_execution_permits_expiry_idx').on(t.expiresAt),
-  ],
-)
-
-export const aiExecutionPermitSettlements = pgTable(
-  'ai_execution_permit_settlements',
-  {
-    permitId: uuid('permit_id')
-      .primaryKey()
-      .references(() => aiExecutionPermits.id, { onDelete: 'cascade' }),
-    terminalState: varchar('terminal_state', { length: 20 }).notNull(),
-    grantKid: varchar('grant_kid', { length: 32 }).notNull(),
-    requestBindingHmac: varchar('request_binding_hmac', { length: 43 }).notNull(),
-    nonce: varchar('nonce', { length: 128 }).notNull(),
-    disposition: varchar('disposition', { length: 40 }).notNull(),
-    reportedDisposition: varchar('reported_disposition', { length: 40 }).notNull(),
-    usageKnown: boolean('usage_known').notNull(),
-    providerRetryable: boolean('provider_retryable').notNull(),
-    inputTokens: integer('input_tokens').notNull(),
-    cachedInputTokens: integer('cached_input_tokens').notNull(),
-    outputTokens: integer('output_tokens').notNull(),
-    reasoningTokens: integer('reasoning_tokens').notNull(),
-    retryAfterSeconds: integer('retry_after_seconds'),
-    costMicros: bigint('cost_micros', { mode: 'number' }).notNull(),
-    settlementState: varchar('settlement_state', { length: 20 }).notNull(),
-    settledAt: timestamptz('settled_at').notNull(),
-  },
-  (t) => [
-    check(
-      'ai_execution_permit_settlements_state_valid',
-      sql`${t.terminalState} IN ('completed', 'failed', 'cancelled')
-        AND ${t.settlementState} IN ('settled', 'released', 'ambiguous')
-        AND ${t.disposition} IN ('success', 'no_dispatch', 'provider_refused', 'output_invalid', 'output_truncated', 'rate_limited', 'provider_unavailable', 'caller_aborted', 'deadline_exceeded', 'transport_ambiguous', 'source_stale', 'policy_denied')
-        AND ${t.reportedDisposition} IN ('success', 'no_dispatch', 'provider_refused', 'output_invalid', 'output_truncated', 'rate_limited', 'provider_unavailable', 'caller_aborted', 'deadline_exceeded', 'transport_ambiguous', 'source_stale', 'policy_denied')`,
-    ),
-    check(
-      'ai_execution_permit_settlements_usage_valid',
-      sql`${t.grantKid} ~ '^[a-z][a-z0-9_-]{0,31}$'
-        AND ${t.requestBindingHmac} ~ '^[A-Za-z0-9_-]{43}$'
-        AND length(${t.nonce}) BETWEEN 1 AND 128
-        AND ${t.inputTokens} >= 0 AND ${t.cachedInputTokens} BETWEEN 0 AND ${t.inputTokens}
-        AND ${t.outputTokens} >= 0 AND ${t.reasoningTokens} BETWEEN 0 AND ${t.outputTokens}
-        AND (${t.usageKnown} OR (${t.inputTokens} = 0 AND ${t.cachedInputTokens} = 0
-          AND ${t.outputTokens} = 0 AND ${t.reasoningTokens} = 0))
-        AND (${t.disposition} <> 'success' OR ${t.usageKnown})
-        AND (${t.disposition} <> 'no_dispatch' OR (NOT ${t.usageKnown}
-          AND ${t.costMicros} = 0 AND ${t.settlementState} = 'released'))
-        AND (${t.disposition} <> 'transport_ambiguous' OR (NOT ${t.usageKnown}
-          AND ${t.settlementState} = 'ambiguous'))
-        AND ${t.costMicros} BETWEEN 0 AND '9007199254740991'::bigint
-        AND (NOT ${t.providerRetryable}
-          OR ${t.reportedDisposition} IN ('rate_limited', 'provider_unavailable'))
-        AND (${t.reportedDisposition} <> 'rate_limited' OR ${t.providerRetryable})
-        AND (${t.retryAfterSeconds} IS NULL
-          OR (${t.providerRetryable} AND ${t.retryAfterSeconds} BETWEEN 1 AND 300))`,
-    ),
-  ],
-)
-
-export const aiAdmissionProductConsumptions = pgTable(
-  'ai_admission_product_consumptions',
-  {
-    operationId: uuid('operation_id')
-      .primaryKey()
-      .references(() => aiOperations.id, { onDelete: 'cascade' }),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    capability: varchar('capability', { length: 40 }).notNull(),
-    propertyWindowGeneration: integer('property_window_generation').notNull(),
-    accountedAt: timestamptz('accounted_at').notNull(),
-  },
-  (t) => [
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_admission_product_consumptions_tenant_fk',
-    }).onDelete('cascade'),
-    check(
-      'ai_admission_product_consumptions_valid',
-      sql`${t.capability} IN ('review_analysis', 'reply_drafting') AND ${t.propertyWindowGeneration} >= 1`,
-    ),
-    index('ai_admission_product_consumptions_reply_hour_idx').on(
-      t.propertyId,
-      t.capability,
-      t.accountedAt,
-    ),
-  ],
-)
-
-export const aiPropertyQuotaWindows = pgTable(
-  'ai_property_quota_windows',
-  {
-    propertyId: uuid('property_id').primaryKey(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    generation: integer('generation').notNull(),
-    propertyProfileVersion: integer('property_profile_version').notNull(),
-    timezone: varchar('timezone', { length: 64 }).notNull(),
-    localDate: date('local_date', { mode: 'string' }).notNull(),
-    startsAt: timestamptz('starts_at').notNull(),
-    endsAt: timestamptz('ends_at').notNull(),
-    transitionAnchor: timestamptz('transition_anchor'),
-    adoptionAt: timestamptz('adoption_at'),
-    pendingTimezone: varchar('pending_timezone', { length: 64 }),
-    pendingPropertyProfileVersion: integer('pending_property_profile_version'),
-    analysisCount: integer('analysis_count').notNull().default(0),
-    replyCount: integer('reply_count').notNull().default(0),
-    reservedCostMicros: bigint('reserved_cost_micros', { mode: 'number' })
-      .notNull()
-      .default(0),
-    settledCostMicros: bigint('settled_cost_micros', { mode: 'number' })
-      .notNull()
-      .default(0),
-    updatedAt: timestamptz('updated_at').notNull(),
-  },
-  (t) => [
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_property_quota_windows_tenant_fk',
-    }).onDelete('cascade'),
-    check(
-      'ai_property_quota_windows_valid',
-      sql`${t.generation} >= 1 AND ${t.propertyProfileVersion} >= 1
-        AND length(${t.timezone}) BETWEEN 1 AND 64
-        AND ${t.endsAt} > ${t.startsAt}
-        AND ${t.analysisCount} BETWEEN 0 AND 500
-        AND ${t.replyCount} BETWEEN 0 AND 100
-        AND ${t.reservedCostMicros} BETWEEN 0 AND '9007199254740991'::bigint
-        AND ${t.settledCostMicros} BETWEEN 0 AND '9007199254740991'::bigint
-        AND (
-          (${t.transitionAnchor} IS NULL AND ${t.adoptionAt} IS NULL
-            AND ${t.pendingTimezone} IS NULL
-            AND ${t.pendingPropertyProfileVersion} IS NULL)
-          OR (${t.transitionAnchor} IS NOT NULL AND ${t.adoptionAt} = ${t.endsAt}
-            AND ${t.adoptionAt} >= ${t.transitionAnchor} + interval '24 hours'
-            AND length(${t.pendingTimezone}) BETWEEN 1 AND 64
-            AND ${t.pendingPropertyProfileVersion} >= 1)
-        )`,
-    ),
+    index('ai_operations_stale_reservation_idx')
+      .on(t.budgetReservedAt)
+      .where(sql`${t.budgetSettledAt} IS NULL AND ${t.reservedMicros} > 0`),
   ],
 )
 
 export const aiOrganizationCostWindows = pgTable(
   'ai_organization_cost_windows',
   {
+    id: uuid('id').primaryKey().defaultRandom(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    utcDate: date('utc_date', { mode: 'string' }).notNull(),
-    reservedCostMicros: bigint('reserved_cost_micros', { mode: 'number' })
-      .notNull()
-      .default(0),
-    settledCostMicros: bigint('settled_cost_micros', { mode: 'number' })
-      .notNull()
-      .default(0),
-    updatedAt: timestamptz('updated_at').notNull(),
+    windowStart: timestamptz('window_start').notNull(),
+    reservedMicros: bigint('reserved_micros', { mode: 'number' }).notNull().default(0),
+    settledMicros: bigint('settled_micros', { mode: 'number' }).notNull().default(0),
+    capMicros: bigint('cap_micros', { mode: 'number' }).notNull().default(50_000_000),
+    updatedAt: timestamptz('updated_at').defaultNow().notNull(),
   },
   (t) => [
-    primaryKey({
-      columns: [t.organizationId, t.utcDate],
-      name: 'ai_organization_cost_windows_pk',
-    }),
+    uniqueIndex('ai_organization_cost_windows_month_unique').on(
+      t.organizationId,
+      t.windowStart,
+    ),
     check(
       'ai_organization_cost_windows_valid',
-      sql`${t.reservedCostMicros} BETWEEN 0 AND '9007199254740991'::bigint AND ${t.settledCostMicros} BETWEEN 0 AND '9007199254740991'::bigint`,
-    ),
-  ],
-)
-
-export const aiAdmissionCostReservations = pgTable(
-  'ai_admission_cost_reservations',
-  {
-    permitId: uuid('permit_id')
-      .primaryKey()
-      .references(() => aiExecutionPermits.id, { onDelete: 'cascade' }),
-    organizationId: varchar('organization_id', { length: 255 }),
-    propertyId: uuid('property_id'),
-    propertyWindowGeneration: integer('property_window_generation'),
-    organizationUtcDate: date('organization_utc_date', { mode: 'string' }),
-    releaseSha: varchar('release_sha', { length: 40 }),
-    maximumCostMicros: bigint('maximum_cost_micros', { mode: 'number' }).notNull(),
-    actualCostMicros: bigint('actual_cost_micros', { mode: 'number' }),
-    state: varchar('state', { length: 20 }).notNull(),
-    createdAt: timestamptz('created_at').notNull(),
-    settledAt: timestamptz('settled_at'),
-  },
-  (t) => [
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_admission_cost_reservations_tenant_fk',
-    }).onDelete('cascade'),
-    check(
-      'ai_admission_cost_reservations_branch_valid',
-      sql`(
-        (${t.organizationId} IS NOT NULL AND ${t.propertyId} IS NOT NULL AND ${t.propertyWindowGeneration} >= 1 AND ${t.organizationUtcDate} IS NOT NULL AND ${t.releaseSha} IS NULL)
-        OR (${t.organizationId} IS NULL AND ${t.propertyId} IS NULL AND ${t.propertyWindowGeneration} IS NULL AND ${t.organizationUtcDate} IS NULL AND ${t.releaseSha} ~ '^[0-9a-f]{40}$')
-      )`,
-    ),
-    check(
-      'ai_admission_cost_reservations_state_valid',
-      sql`${t.state} IN ('reserved', 'released', 'charged')
-        AND ${t.maximumCostMicros} BETWEEN 0 AND '9007199254740991'::bigint
-        AND (${t.actualCostMicros} IS NULL OR ${t.actualCostMicros} BETWEEN 0 AND ${t.maximumCostMicros})
-        AND ((${t.state} = 'reserved' AND ${t.actualCostMicros} IS NULL AND ${t.settledAt} IS NULL)
-          OR (${t.state} <> 'reserved' AND ${t.actualCostMicros} IS NOT NULL AND ${t.settledAt} IS NOT NULL))`,
-    ),
-    index('ai_admission_cost_reservations_release_idx').on(t.releaseSha, t.state),
-  ],
-)
-
-export const aiAdmissionRateWindows = pgTable(
-  'ai_admission_rate_windows',
-  {
-    scopeKey: varchar('scope_key', { length: 200 }).primaryKey(),
-    windowStartedAt: timestamptz('window_started_at').notNull(),
-    consumedCount: integer('consumed_count').notNull(),
-    updatedAt: timestamptz('updated_at').notNull(),
-  },
-  (t) => [
-    check(
-      'ai_admission_rate_windows_valid',
-      sql`length(${t.scopeKey}) BETWEEN 1 AND 200 AND ${t.consumedCount} >= 0`,
-    ),
-  ],
-)
-
-export const aiProviderCircuitStates = pgTable(
-  'ai_provider_circuit_states',
-  {
-    providerDeploymentProfileVersion: varchar('provider_deployment_profile_version', {
-      length: 100,
-    })
-      .primaryKey()
-      .references(() => aiProviderDeploymentProfiles.profileVersion, {
-        onDelete: 'restrict',
-      }),
-    state: varchar('state', { length: 20 }).notNull(),
-    consecutiveFailures: integer('consecutive_failures').notNull(),
-    openedUntil: timestamptz('opened_until'),
-    updatedAt: timestamptz('updated_at').notNull(),
-  },
-  (t) => [
-    check(
-      'ai_provider_circuit_states_valid',
-      sql`${t.state} IN ('closed', 'open', 'half_open')
-        AND ${t.consecutiveFailures} BETWEEN 0 AND 1000000
-        AND ((${t.state} = 'closed' AND ${t.openedUntil} IS NULL)
-          OR (${t.state} <> 'closed' AND ${t.openedUntil} IS NOT NULL))`,
-    ),
-  ],
-)
-
-export const aiCanaryAuthorizations = pgTable(
-  'ai_canary_authorizations',
-  {
-    id: uuid('id').primaryKey(),
-    releaseSha: varchar('release_sha', { length: 40 }).notNull(),
-    canaryProfileVersion: varchar('canary_profile_version', { length: 100 }).notNull(),
-    authorizationGeneration: integer('authorization_generation').notNull(),
-    predecessorAuthorizationId: uuid('predecessor_authorization_id').references(
-      (): AnyPgColumn => aiCanaryAuthorizations.id,
-      { onDelete: 'restrict' },
-    ),
-    nonce: varchar('nonce', { length: 64 }).notNull(),
-    operatorUserId: varchar('operator_user_id', { length: 255 }).notNull(),
-    state: varchar('state', { length: 30 }).notNull(),
-    issuedAt: timestamptz('issued_at').notNull(),
-    expiresAt: timestamptz('expires_at').notNull(),
-    settledAt: timestamptz('settled_at'),
-  },
-  (t) => [
-    uniqueIndex('ai_canary_authorizations_generation_unique').on(
-      t.releaseSha,
-      t.canaryProfileVersion,
-      t.authorizationGeneration,
-    ),
-    uniqueIndex('ai_canary_authorizations_active_unique')
-      .on(t.releaseSha, t.canaryProfileVersion)
-      .where(sql`${t.state} IN ('issued', 'consumed')`),
-    check(
-      'ai_canary_authorizations_release_valid',
-      sql`${t.releaseSha} ~ '^[0-9a-f]{40}$'`,
-    ),
-    check(
-      'ai_canary_authorizations_generation_valid',
-      sql`${t.authorizationGeneration} BETWEEN 1 AND 3 AND ((${t.authorizationGeneration} = 1 AND ${t.predecessorAuthorizationId} IS NULL) OR (${t.authorizationGeneration} > 1 AND ${t.predecessorAuthorizationId} IS NOT NULL))`,
-    ),
-    check('ai_canary_authorizations_nonce_valid', sql`${t.nonce} ~ '^[0-9a-f]{64}$'`),
-    check(
-      'ai_canary_authorizations_operator_valid',
-      sql`${t.operatorUserId} ~ '^[A-Za-z0-9][-A-Za-z0-9._@:/+]{0,254}$'`,
-    ),
-    check(
-      'ai_canary_authorizations_state_valid',
-      sql`${t.state} IN ('issued', 'consumed', 'revoked', 'expired', 'released_no_dispatch', 'passed', 'terminal_failed')`,
-    ),
-    check(
-      'ai_canary_authorizations_time_valid',
-      sql`${t.expiresAt} > ${t.issuedAt} AND ${t.expiresAt} <= ${t.issuedAt} + interval '5 minutes' AND ((${t.state} IN ('issued', 'consumed') AND ${t.settledAt} IS NULL) OR (${t.state} NOT IN ('issued', 'consumed') AND ${t.settledAt} IS NOT NULL AND ${t.settledAt} >= ${t.issuedAt}))`,
-    ),
-  ],
-)
-
-export const aiCanaryAuthorizationHeads = pgTable(
-  'ai_canary_authorization_heads',
-  {
-    releaseSha: varchar('release_sha', { length: 40 }).notNull(),
-    canaryProfileVersion: varchar('canary_profile_version', { length: 100 }).notNull(),
-    headId: uuid('head_id').notNull(),
-    transitionGeneration: integer('transition_generation').notNull(),
-    nextAuthorizationGeneration: integer('next_authorization_generation').notNull(),
-    currentAuthorizationId: uuid('current_authorization_id').references(
-      () => aiCanaryAuthorizations.id,
-      { onDelete: 'restrict' },
-    ),
-    currentOperationId: uuid('current_operation_id').references(() => aiOperations.id, {
-      onDelete: 'restrict',
-    }),
-    currentPermitId: uuid('current_permit_id').references(() => aiExecutionPermits.id, {
-      onDelete: 'restrict',
-    }),
-    state: varchar('state', { length: 30 }).notNull(),
-    updatedAt: timestamptz('updated_at').notNull(),
-  },
-  (t) => [
-    primaryKey({
-      columns: [t.releaseSha, t.canaryProfileVersion],
-      name: 'ai_canary_authorization_heads_pk',
-    }),
-    uniqueIndex('ai_canary_authorization_heads_id_unique').on(t.headId),
-    check(
-      'ai_canary_authorization_heads_generation_valid',
-      sql`${t.transitionGeneration} >= 1 AND ${t.nextAuthorizationGeneration} BETWEEN 1 AND 4`,
-    ),
-    check(
-      'ai_canary_authorization_heads_release_valid',
-      sql`${t.releaseSha} ~ '^[0-9a-f]{40}$'`,
-    ),
-    check(
-      'ai_canary_authorization_heads_state_valid',
-      sql`(
-        (${t.state} = 'eligible' AND ${t.currentAuthorizationId} IS NULL AND ${t.currentOperationId} IS NULL AND ${t.currentPermitId} IS NULL)
-        OR (${t.state} = 'issued' AND ${t.currentAuthorizationId} IS NOT NULL AND ${t.currentOperationId} IS NOT NULL AND ${t.currentPermitId} IS NOT NULL)
-        OR (${t.state} = 'in_flight' AND ${t.currentAuthorizationId} IS NOT NULL AND ${t.currentOperationId} IS NOT NULL AND ${t.currentPermitId} IS NOT NULL)
-        OR (${t.state} IN ('passed', 'terminal_failed') AND ${t.currentAuthorizationId} IS NOT NULL AND ${t.currentOperationId} IS NOT NULL)
-      )`,
-    ),
-  ],
-)
-
-export const aiPropertyCalendarAuthorities = pgTable(
-  'ai_property_calendar_authorities',
-  {
-    profileVersion: varchar('profile_version', { length: 100 }).primaryKey(),
-    epochMillisFunctionName: varchar('epoch_millis_function_name', {
-      length: 100,
-    }).notNull(),
-    epochMillisFunctionDigest: varchar('epoch_millis_function_digest', {
-      length: 64,
-    }).notNull(),
-    localDateFunctionName: varchar('local_date_function_name', { length: 100 }).notNull(),
-    localDateFunctionDigest: varchar('local_date_function_digest', {
-      length: 64,
-    }).notNull(),
-    localMidnightFunctionName: varchar('local_midnight_function_name', {
-      length: 100,
-    }).notNull(),
-    localMidnightFunctionDigest: varchar('local_midnight_function_digest', {
-      length: 64,
-    }).notNull(),
-    imageDigest: varchar('image_digest', { length: 64 }).notNull(),
-    vectorDigest: varchar('vector_digest', { length: 64 }).notNull(),
-    vectorCount: integer('vector_count').notNull(),
-    minimumYear: integer('minimum_year').notNull(),
-    maximumYear: integer('maximum_year').notNull(),
-    testedPostgresMajorVersions: integer('tested_postgres_major_versions')
-      .array()
-      .notNull(),
-    testVectors: jsonb('test_vectors')
-      .$type<
-        ReadonlyArray<
-          Readonly<{
-            reviewedAt: string
-            timezone: string
-            expectedLocalDate: string
-          }>
-        >
-      >()
-      .notNull(),
-    createdAt: timestamptz('created_at').notNull(),
-  },
-  (t) => [
-    check(
-      'ai_property_calendar_authorities_profile_valid',
-      sql`${t.profileVersion} = 'property-calendar-v1'`,
-    ),
-    check(
-      'ai_property_calendar_authorities_function_valid',
-      sql`${t.epochMillisFunctionName} = 'ai_epoch_millis_v1' AND ${t.localDateFunctionName} = 'ai_property_local_date_v1' AND ${t.localMidnightFunctionName} = 'ai_property_local_midnight_v1'`,
-    ),
-    check(
-      'ai_property_calendar_authorities_digests_valid',
-      sql`${t.epochMillisFunctionDigest} = ${sql.raw(`'${AI_PROPERTY_CALENDAR_PROFILE_V1.epochMillisFunctionDigest}'`)} AND ${t.localDateFunctionDigest} = ${sql.raw(`'${AI_PROPERTY_CALENDAR_PROFILE_V1.localDateFunctionDigest}'`)} AND ${t.localMidnightFunctionDigest} = ${sql.raw(`'${AI_PROPERTY_CALENDAR_PROFILE_V1.localMidnightFunctionDigest}'`)} AND ${t.imageDigest} = ${sql.raw(`'${AI_PROPERTY_CALENDAR_PROFILE_V1.databaseImageDigest}'`)} AND ${t.vectorDigest} = ${sql.raw(`'${AI_PROPERTY_CALENDAR_PROFILE_V1.vectorDigest}'`)}`,
-    ),
-    check(
-      'ai_property_calendar_authorities_range_valid',
-      sql`${t.vectorCount} = 10 AND ${t.minimumYear} = 1970 AND ${t.maximumYear} = 2100 AND ${t.testedPostgresMajorVersions} = ARRAY[16,17]::integer[] AND jsonb_typeof(${t.testVectors}) = 'array' AND jsonb_array_length(${t.testVectors}) = ${t.vectorCount}`,
+      sql`${t.reservedMicros} BETWEEN 0 AND ${t.capMicros}
+        AND ${t.settledMicros} BETWEEN 0 AND ${t.capMicros}
+        AND ${t.reservedMicros} + ${t.settledMicros} <= ${t.capMicros}
+        AND ${t.capMicros} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.windowStart} = date_trunc('month', ${t.windowStart})`,
     ),
   ],
 )
@@ -1499,9 +393,7 @@ export const aiReviewAnalyses = pgTable(
     authorizationLineageId: uuid('authorization_lineage_id').notNull(),
     reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
     propertyProfileVersion: integer('property_profile_version').notNull(),
-    analysisProfileVersion: varchar('analysis_profile_version', { length: 100 })
-      .notNull()
-      .references(() => aiOperationProfiles.profileVersion, { onDelete: 'restrict' }),
+    analysisProfileVersion: varchar('analysis_profile_version', { length: 100 }).notNull(),
     status: varchar('status', { length: 20 }).notNull(),
     unavailableReason: varchar('unavailable_reason', { length: 40 }),
     sentiment: varchar('sentiment', { length: 20 }),
@@ -1587,11 +479,9 @@ export const aiPropertyAggregateContributions = pgTable(
     analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
     reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
     propertyProfileVersion: integer('property_profile_version').notNull(),
-    calendarProfileVersion: varchar('calendar_profile_version', { length: 100 })
-      .notNull()
-      .references(() => aiPropertyCalendarAuthorities.profileVersion, {
-        onDelete: 'restrict',
-      }),
+    calendarProfileVersion: varchar('calendar_profile_version', {
+      length: 100,
+    }).notNull(),
     localDate: date('local_date', { mode: 'string' }).notNull(),
     status: varchar('status', { length: 20 }).notNull(),
     rating: integer('rating').notNull(),
@@ -1708,11 +598,9 @@ export const aiPropertyDailyAggregates = pgTable(
     sourceEpoch: integer('source_epoch').notNull(),
     reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
     propertyProfileVersion: integer('property_profile_version').notNull(),
-    calendarProfileVersion: varchar('calendar_profile_version', { length: 100 })
-      .notNull()
-      .references(() => aiPropertyCalendarAuthorities.profileVersion, {
-        onDelete: 'restrict',
-      }),
+    calendarProfileVersion: varchar('calendar_profile_version', {
+      length: 100,
+    }).notNull(),
     aggregateRevision: bigint('aggregate_revision', { mode: 'number' }).notNull(),
     terminalAnalysisSequence: bigint('terminal_analysis_sequence', {
       mode: 'number',
@@ -1817,14 +705,12 @@ export const aiPropertyTrendSchedules = pgTable(
     }).notNull(),
     aggregateRevision: bigint('aggregate_revision', { mode: 'number' }).notNull(),
     timezone: varchar('timezone', { length: 64 }).notNull(),
-    calendarProfileVersion: varchar('calendar_profile_version', { length: 100 })
-      .notNull()
-      .references(() => aiPropertyCalendarAuthorities.profileVersion, {
-        onDelete: 'restrict',
-      }),
-    reportProfileVersion: varchar('report_profile_version', { length: 100 })
-      .notNull()
-      .references(() => aiOperationProfiles.profileVersion, { onDelete: 'restrict' }),
+    calendarProfileVersion: varchar('calendar_profile_version', {
+      length: 100,
+    }).notNull(),
+    reportProfileVersion: varchar('report_profile_version', {
+      length: 100,
+    }).notNull(),
     schedulerGeneration: bigint('scheduler_generation', { mode: 'number' }).notNull(),
     scheduledAt: timestamptz('scheduled_at').notNull(),
   },
@@ -1838,7 +724,6 @@ export const aiPropertyTrendSchedules = pgTable(
       t.reviewAnalysisEpoch,
       t.propertyTrendsEpoch,
       t.propertyProfileVersion,
-      t.reportProfileVersion,
       t.terminalAnalysisSequence,
       t.aggregateRevision,
     ),
@@ -1966,408 +851,9 @@ export const aiPropertyTrendOutcomes = pgTable(
 )
 
 /**
- * One `ops:ai-reanalyze` run. The run exists because a backfill may only ever
- * have ONE review in flight: `storeAnalysis` requires
- * `review_ai_analysis_heads.head_sequence` to still equal the sequence being
- * stored, so allocating `H+1 … H+N` up front makes every sequence but the last
- * unstorable. The run head drives its immutable ordered membership one review
- * at a time instead of allocating an independent job fan-out, so the whole set
- * lands inside the ONE `review_analysis_epoch` it opened, which is what the
- * epoch-keyed aggregates and the epoch-pinned read path require.
+ * Enrollment head retained because the live sweep exposes first-enablement
+ * readiness. Snapshot membership and replay machinery live in process now.
  */
-export const aiReviewAnalysisBackfillRuns = pgTable(
-  'ai_review_analysis_backfill_runs',
-  {
-    id: uuid('id').primaryKey(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    sourceEpoch: integer('source_epoch').notNull(),
-    reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
-    analysisStartSequence: bigint('analysis_start_sequence', {
-      mode: 'number',
-    }).notNull(),
-    /**
-     * Expand-only compatibility storage for old workers during rolling deploy
-     * or rollback. New code dual-writes this copy but never reads it; canonical
-     * authority is relational and contraction requires independently proven
-     * old-binary retirement.
-     */
-    legacyReviewIdsCompatibility: uuid('review_ids').array().notNull(),
-    requestedReviewCount: integer('requested_review_count').notNull(),
-    emittedReviewCount: integer('emitted_review_count').default(0).notNull(),
-    /** Pinned reviews no longer eligible when their turn came; no sequence spent. */
-    skippedReviewCount: integer('skipped_review_count').default(0).notNull(),
-    /** Emitted items the sweep had to terminal-settle so the run could proceed. */
-    recoveredReviewCount: integer('recovered_review_count').default(0).notNull(),
-    currentAnalysisSequence: bigint('current_analysis_sequence', { mode: 'number' }),
-    currentReviewId: uuid('current_review_id'),
-    currentEmittedAt: timestamptz('current_emitted_at'),
-    state: varchar('state', { length: 16 }).notNull(),
-    terminalReason: varchar('terminal_reason', { length: 64 }),
-    terminalAt: timestamptz('terminal_at'),
-    reasonCode: varchar('reason_code', { length: 64 }).notNull(),
-    correlationId: uuid('correlation_id').notNull(),
-    createdAt: timestamptz('created_at').defaultNow().notNull(),
-    updatedAt: timestamptz('updated_at').defaultNow().notNull(),
-  },
-  (t) => [
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_review_analysis_backfill_runs_tenant_fk',
-    }).onDelete('cascade'),
-    check(
-      'ai_review_analysis_backfill_runs_state_valid',
-      sql`${t.state} IN ('running', 'completed', 'superseded', 'stalled')`,
-    ),
-    check(
-      'ai_review_analysis_backfill_runs_terminal_valid',
-      sql`(
-        (${t.state} = 'running' AND ${t.terminalAt} IS NULL AND ${t.terminalReason} IS NULL)
-        OR (${t.state} <> 'running' AND ${t.terminalAt} IS NOT NULL)
-      )`,
-    ),
-    check(
-      'ai_review_analysis_backfill_runs_cursor_valid',
-      sql`(
-        (${t.currentAnalysisSequence} IS NULL) = (${t.currentReviewId} IS NULL)
-        AND (${t.currentAnalysisSequence} IS NULL) = (${t.currentEmittedAt} IS NULL)
-      )`,
-    ),
-    check(
-      'ai_review_analysis_backfill_runs_counts_valid',
-      sql`${t.requestedReviewCount} BETWEEN 1 AND 2147483647
-        AND (cardinality(${t.legacyReviewIdsCompatibility}) = 0
-          OR cardinality(${t.legacyReviewIdsCompatibility}) = ${t.requestedReviewCount})
-        AND ${t.emittedReviewCount} >= 0
-        AND ${t.skippedReviewCount} >= 0
-        AND ${t.emittedReviewCount} + ${t.skippedReviewCount} <= ${t.requestedReviewCount}
-        AND ${t.recoveredReviewCount} BETWEEN 0 AND ${t.emittedReviewCount}`,
-    ),
-    check(
-      'ai_review_analysis_backfill_runs_sequences_safe',
-      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647
-        AND ${t.reviewAnalysisEpoch} BETWEEN 1 AND 2147483647
-        AND ${t.analysisStartSequence} BETWEEN 0 AND '9007199254740991'::bigint
-        AND (
-          ${t.currentAnalysisSequence} IS NULL
-          OR (
-            ${t.currentAnalysisSequence} >= ${t.analysisStartSequence} + 1
-            AND ${t.currentAnalysisSequence} <= '9007199254740991'::bigint
-          )
-        )`,
-    ),
-    uniqueIndex('ai_review_analysis_backfill_runs_one_active_idx')
-      .on(t.organizationId, t.propertyId)
-      .where(sql`${t.state} = 'running'`),
-    uniqueIndex('ai_review_analysis_backfill_runs_scope_idx').on(
-      t.id,
-      t.organizationId,
-      t.propertyId,
-    ),
-    index('ai_review_analysis_backfill_runs_running_idx')
-      .on(t.createdAt)
-      .where(sql`${t.state} = 'running'`),
-  ],
-)
-
-/**
- * Immutable, ordered authority for membership of one review-analysis backfill
- * run. Recovery reads one ordinal at a time; it never re-evaluates eligibility
- * to reconstruct the set and never loads a run-sized array into memory.
- *
- * `review_id` intentionally has no Review foreign key. A source row disappearing
- * after enrollment must leave the pinned identity intact so the run can record
- * a deterministic skip when that ordinal comes due.
- */
-export const aiReviewAnalysisBackfillRunMemberships = pgTable(
-  'ai_review_analysis_backfill_run_memberships',
-  {
-    runId: uuid('run_id').notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    /** Zero-based position in the deterministic `(reviewed_at, id)` ordering. */
-    ordinal: bigint('ordinal', { mode: 'number' }).notNull(),
-    reviewId: uuid('review_id').notNull(),
-    /**
-     * Exact Material Review Revision for first-enablement recovery. Null is
-     * expand compatibility for runs opened before 0137 and for legacy operator
-     * writers; first-enablement rows are forced non-null by a database guard.
-     */
-    sourceRevision: bigint('source_revision', { mode: 'number' }),
-    createdAt: timestamptz('created_at').defaultNow().notNull(),
-  },
-  (t) => [
-    primaryKey({
-      columns: [t.runId, t.ordinal],
-      name: 'ai_review_backfill_memberships_pk',
-    }),
-    foreignKey({
-      columns: [t.runId, t.organizationId, t.propertyId],
-      foreignColumns: [
-        aiReviewAnalysisBackfillRuns.id,
-        aiReviewAnalysisBackfillRuns.organizationId,
-        aiReviewAnalysisBackfillRuns.propertyId,
-      ],
-      name: 'ai_review_backfill_memberships_run_scope_fk',
-    }).onDelete('cascade'),
-    uniqueIndex('ai_review_backfill_memberships_review_idx').on(t.runId, t.reviewId),
-    check(
-      'ai_review_backfill_memberships_ordinal_safe',
-      sql`${t.ordinal} BETWEEN 0 AND '9007199254740991'::bigint`,
-    ),
-    check(
-      'ai_review_backfill_memberships_revision_safe',
-      sql`${t.sourceRevision} IS NULL OR ${t.sourceRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
-    ),
-    index('ai_review_backfill_memberships_scope_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.runId,
-      t.ordinal,
-    ),
-  ],
-)
-
-/**
- * Content-free AI lifecycle evidence for one exact Merchant AI authorization
- * generation. Current Identity state remains the synchronous serving fence;
- * this record classifies visible/retired local derivatives and gives every
- * retired generation an auditable physical-erasure deadline.
- */
-export const aiAuthorizationLifecycleRecords = pgTable(
-  'ai_authorization_lifecycle_records',
-  {
-    id: uuid('id').primaryKey(),
-    // Identifier-only provenance, deliberately not an FK: published outbox
-    // facts expire after 30 days while lifecycle/erasure evidence may outlive
-    // them. A restrictive FK would block the shared retention sweep.
-    eventEnvelopeId: uuid('event_envelope_id').notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    authorizationLineageId: uuid('authorization_lineage_id').notNull(),
-    authorizationStateVersion: integer('authorization_state_version').notNull(),
-    transitionKind: varchar('transition_kind', { length: 24 }).notNull(),
-    authorizationState: varchar('authorization_state', { length: 16 }).notNull(),
-    authorizedCapabilities: text('authorized_capabilities').array().notNull(),
-    sourceEpoch: integer('source_epoch').notNull(),
-    reviewAnalysisEpoch: integer('review_analysis_epoch').notNull(),
-    replyDraftingEpoch: integer('reply_drafting_epoch').notNull(),
-    propertyTrendsEpoch: integer('property_trends_epoch').notNull(),
-    analysisStartSequence: bigint('analysis_start_sequence', {
-      mode: 'number',
-    }).notNull(),
-    visibleDataClasses: text('visible_data_classes').array().notNull(),
-    retiredDataClasses: text('retired_data_classes').array().notNull(),
-    previousAuthorizationLineageId: uuid('previous_authorization_lineage_id'),
-    previousAuthorizationStateVersion: integer('previous_authorization_state_version'),
-    previousSourceEpoch: integer('previous_source_epoch'),
-    previousReviewAnalysisEpoch: integer('previous_review_analysis_epoch'),
-    previousReplyDraftingEpoch: integer('previous_reply_drafting_epoch'),
-    previousPropertyTrendsEpoch: integer('previous_property_trends_epoch'),
-    erasureStatus: varchar('erasure_status', { length: 16 }).notNull(),
-    erasureDeadline: timestamptz('erasure_deadline'),
-    erasureCompletedAt: timestamptz('erasure_completed_at'),
-    erasureFailureCode: varchar('erasure_failure_code', { length: 64 }),
-    erasureAttemptCount: integer('erasure_attempt_count').default(0).notNull(),
-    erasureNextAttemptAt: timestamptz('erasure_next_attempt_at'),
-    erasureClaimedAt: timestamptz('erasure_claimed_at'),
-    erasureLeaseOwner: uuid('erasure_lease_owner'),
-    erasureLeaseExpiresAt: timestamptz('erasure_lease_expires_at'),
-    erasureLastFailureAt: timestamptz('erasure_last_failure_at'),
-    erasedReviewAnalysisCount: bigint('erased_review_analysis_count', {
-      mode: 'number',
-    })
-      .default(0)
-      .notNull(),
-    erasedPropertyAggregateCount: bigint('erased_property_aggregate_count', {
-      mode: 'number',
-    })
-      .default(0)
-      .notNull(),
-    erasedPropertyTrendCount: bigint('erased_property_trend_count', {
-      mode: 'number',
-    })
-      .default(0)
-      .notNull(),
-    appliedAt: timestamptz('applied_at').notNull(),
-    updatedAt: timestamptz('updated_at').notNull(),
-  },
-  (t) => [
-    uniqueIndex('ai_authorization_lifecycle_event_unique').on(t.eventEnvelopeId),
-    uniqueIndex('ai_authorization_lifecycle_authorization_unique').on(
-      t.authorizationLineageId,
-      t.authorizationStateVersion,
-      t.organizationId,
-      t.propertyId,
-    ),
-    foreignKey({
-      columns: [t.organizationId, t.propertyId],
-      foreignColumns: [properties.organizationId, properties.id],
-      name: 'ai_authorization_lifecycle_tenant_fk',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [
-        t.authorizationLineageId,
-        t.authorizationStateVersion,
-        t.organizationId,
-        t.propertyId,
-      ],
-      foreignColumns: [
-        merchantAiConsentEvidence.authorizationLineageId,
-        merchantAiConsentEvidence.stateVersion,
-        merchantAiConsentEvidence.organizationId,
-        merchantAiConsentEvidence.propertyId,
-      ],
-      name: 'ai_authorization_lifecycle_evidence_fk',
-    }).onDelete('restrict'),
-    index('ai_authorization_lifecycle_property_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.appliedAt.desc(),
-    ),
-    index('ai_authorization_lifecycle_erasure_due_idx')
-      .on(t.erasureNextAttemptAt, t.erasureDeadline, t.id)
-      .where(sql`${t.erasureStatus} = 'pending'`),
-    index('ai_authorization_lifecycle_erasure_lease_idx')
-      .on(t.erasureLeaseExpiresAt, t.erasureDeadline, t.id)
-      .where(sql`${t.erasureStatus} = 'in_progress'`),
-    check(
-      'ai_authorization_lifecycle_transition_valid',
-      sql`${t.transitionKind} IN ('enable', 'change', 'revoke', 'restore_reset', 'analysis_backfill')`,
-    ),
-    check(
-      'ai_authorization_lifecycle_authorization_valid',
-      sql`(
-        (${t.authorizationState} = 'enabled' AND (
-          ${t.authorizedCapabilities} = ARRAY['review_analysis']::text[]
-          OR ${t.authorizedCapabilities} = ARRAY['reply_drafting']::text[]
-          OR ${t.authorizedCapabilities} = ARRAY['review_analysis', 'reply_drafting']::text[]
-          OR ${t.authorizedCapabilities} = ARRAY['review_analysis', 'property_trends']::text[]
-          OR ${t.authorizedCapabilities} = ARRAY['review_analysis', 'reply_drafting', 'property_trends']::text[]
-        ))
-        OR (${t.authorizationState} IN ('disabled', 'revoked') AND ${t.authorizedCapabilities} = ARRAY[]::text[])
-      )`,
-    ),
-    check(
-      'ai_authorization_lifecycle_fence_valid',
-      sql`${t.authorizationStateVersion} BETWEEN 1 AND 2147483647
-        AND ${t.sourceEpoch} BETWEEN 0 AND 2147483647
-        AND ${t.reviewAnalysisEpoch} BETWEEN 1 AND 2147483647
-        AND ${t.replyDraftingEpoch} BETWEEN 1 AND 2147483647
-        AND ${t.propertyTrendsEpoch} BETWEEN 1 AND 2147483647
-        AND ${t.analysisStartSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
-    ),
-    check(
-      'ai_authorization_lifecycle_visibility_valid',
-      sql`${t.visibleDataClasses} = CASE
-        WHEN ${t.authorizationState} <> 'enabled' THEN ARRAY[]::text[]
-        WHEN ${t.authorizedCapabilities} @> ARRAY['property_trends']::text[]
-          THEN ARRAY['review_analysis', 'property_aggregate', 'property_trend']::text[]
-        WHEN ${t.authorizedCapabilities} @> ARRAY['review_analysis']::text[]
-          THEN ARRAY['review_analysis', 'property_aggregate']::text[]
-        ELSE ARRAY[]::text[]
-      END`,
-    ),
-    check(
-      'ai_authorization_lifecycle_retired_classes_valid',
-      sql`${t.retiredDataClasses} = ARRAY[]::text[]
-        OR ${t.retiredDataClasses} = ARRAY['review_analysis', 'property_aggregate']::text[]
-        OR ${t.retiredDataClasses} = ARRAY['property_trend']::text[]
-        OR ${t.retiredDataClasses} = ARRAY['review_analysis', 'property_aggregate', 'property_trend']::text[]`,
-    ),
-    check(
-      'ai_authorization_lifecycle_previous_fence_valid',
-      sql`(
-        ${t.retiredDataClasses} = ARRAY[]::text[]
-        AND ${t.previousAuthorizationLineageId} IS NULL
-        AND ${t.previousAuthorizationStateVersion} IS NULL
-        AND ${t.previousSourceEpoch} IS NULL
-        AND ${t.previousReviewAnalysisEpoch} IS NULL
-        AND ${t.previousReplyDraftingEpoch} IS NULL
-        AND ${t.previousPropertyTrendsEpoch} IS NULL
-      ) OR (
-        cardinality(${t.retiredDataClasses}) > 0
-        AND ${t.previousAuthorizationLineageId} IS NOT NULL
-        AND ${t.previousAuthorizationStateVersion} >= 1
-        AND ${t.previousSourceEpoch} >= 0
-        AND ${t.previousReviewAnalysisEpoch} >= 1
-        AND ${t.previousReplyDraftingEpoch} >= 1
-        AND ${t.previousPropertyTrendsEpoch} >= 1
-      )`,
-    ),
-    check(
-      'ai_authorization_lifecycle_erasure_valid',
-      sql`(
-        (${t.erasureFailureCode} IS NULL) = (${t.erasureLastFailureAt} IS NULL)
-        AND ${t.erasureAttemptCount} BETWEEN 0 AND 8
-        AND ${t.erasedReviewAnalysisCount} BETWEEN 0 AND '9007199254740991'::bigint
-        AND ${t.erasedPropertyAggregateCount} BETWEEN 0 AND '9007199254740991'::bigint
-        AND ${t.erasedPropertyTrendCount} BETWEEN 0 AND '9007199254740991'::bigint
-        AND (
-        ${t.retiredDataClasses} = ARRAY[]::text[]
-        AND ${t.erasureStatus} = 'not_required'
-        AND ${t.erasureDeadline} IS NULL
-        AND ${t.erasureCompletedAt} IS NULL
-        AND ${t.erasureFailureCode} IS NULL
-        AND ${t.erasureAttemptCount} = 0
-        AND ${t.erasureNextAttemptAt} IS NULL
-        AND ${t.erasureClaimedAt} IS NULL
-        AND ${t.erasureLeaseOwner} IS NULL
-        AND ${t.erasureLeaseExpiresAt} IS NULL
-        AND ${t.erasedReviewAnalysisCount} = 0
-        AND ${t.erasedPropertyAggregateCount} = 0
-        AND ${t.erasedPropertyTrendCount} = 0
-      ) OR (
-        cardinality(${t.retiredDataClasses}) > 0
-        AND ${t.erasureDeadline} = ${t.appliedAt} + interval '24 hours'
-        AND (
-          (${t.erasureStatus} = 'pending'
-            AND ${t.erasureCompletedAt} IS NULL
-            AND ${t.erasureAttemptCount} BETWEEN 0 AND 7
-            AND ${t.erasureNextAttemptAt} IS NOT NULL
-            AND ${t.erasureNextAttemptAt} >= ${t.appliedAt}
-            AND ${t.erasureClaimedAt} IS NULL
-            AND ${t.erasureLeaseOwner} IS NULL
-            AND ${t.erasureLeaseExpiresAt} IS NULL
-            AND ${t.erasedReviewAnalysisCount} = 0
-            AND ${t.erasedPropertyAggregateCount} = 0
-            AND ${t.erasedPropertyTrendCount} = 0)
-          OR (${t.erasureStatus} = 'in_progress'
-            AND ${t.erasureCompletedAt} IS NULL
-            AND ${t.erasureAttemptCount} BETWEEN 1 AND 8
-            AND ${t.erasureNextAttemptAt} IS NULL
-            AND ${t.erasureClaimedAt} IS NOT NULL
-            AND ${t.erasureLeaseOwner} IS NOT NULL
-            AND ${t.erasureLeaseExpiresAt} > ${t.erasureClaimedAt}
-            AND ${t.erasedReviewAnalysisCount} = 0
-            AND ${t.erasedPropertyAggregateCount} = 0
-            AND ${t.erasedPropertyTrendCount} = 0)
-          OR (${t.erasureStatus} = 'completed'
-            AND ${t.erasureCompletedAt} >= ${t.appliedAt}
-            AND ${t.erasureAttemptCount} BETWEEN 1 AND 8
-            AND ${t.erasureNextAttemptAt} IS NULL
-            AND ${t.erasureClaimedAt} IS NULL
-            AND ${t.erasureLeaseOwner} IS NULL
-            AND ${t.erasureLeaseExpiresAt} IS NULL)
-          OR (${t.erasureStatus} = 'failed'
-            AND ${t.erasureCompletedAt} IS NULL
-            AND ${t.erasureFailureCode} ~ '^[a-z][a-z0-9_]{2,63}$'
-            AND ${t.erasureAttemptCount} BETWEEN 1 AND 8
-            AND ${t.erasureNextAttemptAt} IS NULL
-            AND ${t.erasureClaimedAt} IS NULL
-            AND ${t.erasureLeaseOwner} IS NULL
-            AND ${t.erasureLeaseExpiresAt} IS NULL
-            AND ${t.erasedReviewAnalysisCount} = 0
-            AND ${t.erasedPropertyAggregateCount} = 0
-            AND ${t.erasedPropertyTrendCount} = 0)
-        )
-      ))`,
-    ),
-    check('ai_authorization_lifecycle_time_valid', sql`${t.updatedAt} >= ${t.appliedAt}`),
-  ],
-)
-
 export const aiReviewAnalysisEnrollments = pgTable(
   'ai_review_analysis_enrollments',
   {
@@ -2441,11 +927,6 @@ export const aiReviewAnalysisEnrollments = pgTable(
         merchantAiConsentEvidence.propertyId,
       ],
       name: 'ai_review_analysis_enrollments_authorization_fk',
-    }).onDelete('restrict'),
-    foreignKey({
-      columns: [t.providerDeploymentProfileVersion],
-      foreignColumns: [aiProviderDeploymentProfiles.profileVersion],
-      name: 'ai_review_analysis_enrollments_provider_profile_fk',
     }).onDelete('restrict'),
     uniqueIndex('ai_review_analysis_enrollments_scope_unique').on(
       t.id,
@@ -2564,99 +1045,3 @@ export const aiReviewAnalysisEnrollments = pgTable(
   ],
 )
 
-/** Immutable exact Material Review Revision population captured at enablement. */
-export const aiReviewAnalysisEnrollmentMemberships = pgTable(
-  'ai_review_analysis_enrollment_memberships',
-  {
-    enrollmentId: uuid('enrollment_id').notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    ordinal: bigint('ordinal', { mode: 'number' }).notNull(),
-    reviewId: uuid('review_id').notNull(),
-    sourceEpoch: integer('source_epoch').notNull(),
-    sourceRevision: bigint('source_revision', { mode: 'number' }).notNull(),
-    analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
-    createdAt: timestamptz('created_at').defaultNow().notNull(),
-  },
-  (t) => [
-    primaryKey({
-      columns: [t.enrollmentId, t.ordinal],
-      name: 'ai_review_enrollment_memberships_pk',
-    }),
-    foreignKey({
-      columns: [t.enrollmentId, t.organizationId, t.propertyId],
-      foreignColumns: [
-        aiReviewAnalysisEnrollments.id,
-        aiReviewAnalysisEnrollments.organizationId,
-        aiReviewAnalysisEnrollments.propertyId,
-      ],
-      name: 'ai_review_enrollment_memberships_scope_fk',
-    }).onDelete('cascade'),
-    uniqueIndex('ai_review_enrollment_memberships_review_unique').on(
-      t.enrollmentId,
-      t.reviewId,
-    ),
-    check(
-      'ai_review_enrollment_memberships_fence_safe',
-      sql`${t.ordinal} BETWEEN 0 AND '9007199254740991'::bigint
-        AND ${t.sourceEpoch} BETWEEN 0 AND 2147483647
-        AND ${t.sourceRevision} BETWEEN 1 AND '9007199254740991'::bigint
-        AND ${t.analysisSequence} BETWEEN 1 AND '9007199254740991'::bigint`,
-    ),
-    index('ai_review_enrollment_memberships_scope_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.enrollmentId,
-      t.ordinal,
-    ),
-    index('ai_review_enrollment_memberships_review_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.reviewId,
-      t.sourceRevision,
-    ),
-  ],
-)
-
-/** Immutable link between one enrollment and its bounded replay generations. */
-export const aiReviewAnalysisEnrollmentReplays = pgTable(
-  'ai_review_analysis_enrollment_replays',
-  {
-    enrollmentId: uuid('enrollment_id').notNull(),
-    runId: uuid('run_id').notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    createdAt: timestamptz('created_at').defaultNow().notNull(),
-  },
-  (t) => [
-    primaryKey({
-      columns: [t.enrollmentId, t.runId],
-      name: 'ai_review_analysis_enrollment_replays_pk',
-    }),
-    foreignKey({
-      columns: [t.enrollmentId, t.organizationId, t.propertyId],
-      foreignColumns: [
-        aiReviewAnalysisEnrollments.id,
-        aiReviewAnalysisEnrollments.organizationId,
-        aiReviewAnalysisEnrollments.propertyId,
-      ],
-      name: 'ai_review_analysis_enrollment_replays_enrollment_fk',
-    }).onDelete('cascade'),
-    foreignKey({
-      columns: [t.runId, t.organizationId, t.propertyId],
-      foreignColumns: [
-        aiReviewAnalysisBackfillRuns.id,
-        aiReviewAnalysisBackfillRuns.organizationId,
-        aiReviewAnalysisBackfillRuns.propertyId,
-      ],
-      name: 'ai_review_analysis_enrollment_replays_run_fk',
-    }).onDelete('cascade'),
-    uniqueIndex('ai_review_analysis_enrollment_replays_run_unique').on(t.runId),
-    index('ai_review_analysis_enrollment_replays_scope_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.enrollmentId,
-      t.createdAt.desc(),
-    ),
-  ],
-)

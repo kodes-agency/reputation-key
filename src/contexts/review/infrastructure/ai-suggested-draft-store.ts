@@ -3,8 +3,6 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   aiPropertyProcessingProfiles,
-  aiExecutionPermits,
-  aiExecutionPermitSettlements,
   aiOperations,
   merchantAiEnablement,
   properties,
@@ -20,6 +18,7 @@ import type {
   AiSuggestedDraftStore,
 } from '../application/ports/ai-suggested-draft-store.port'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { replyFromRow } from './mappers/reply.mapper'
 
 const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
@@ -195,31 +194,7 @@ export const createAiSuggestedDraftStore = (
           .where(eq(aiOperations.id, provenance.operationId))
           .limit(1)
           .for('update')
-        const permit = operation
-          ? (
-              await tx
-                .select()
-                .from(aiExecutionPermits)
-                .where(
-                  and(
-                    eq(aiExecutionPermits.operationId, operation.id),
-                    eq(aiExecutionPermits.executionAttempt, operation.executionAttempt),
-                  ),
-                )
-                .limit(1)
-                .for('update')
-            )[0]
-          : undefined
-        const settlement = permit
-          ? (
-              await tx
-                .select()
-                .from(aiExecutionPermitSettlements)
-                .where(eq(aiExecutionPermitSettlements.permitId, permit.id))
-                .limit(1)
-                .for('share')
-            )[0]
-          : undefined
+
 
         if (
           !operation ||
@@ -233,10 +208,9 @@ export const createAiSuggestedDraftStore = (
           operation.sourceRevision !== provenance.sourceRevision ||
           operation.baseReplyStateRevision !== provenance.baseReplyStateRevision ||
           operation.propertyProfileVersion !== provenance.propertyProfileVersion ||
-          operation.providerDeploymentProfileVersion !==
-            provenance.providerDeploymentProfileVersion ||
-          operation.operationProfileVersion !== provenance.operationProfileVersion ||
-          operation.capabilityRuntimeProfileVersion !== REPLY_DRAFTING_RUNTIME_PROFILE ||
+          provenance.providerDeploymentProfileVersion !==
+            AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
+          provenance.operationProfileVersion !== 'reply-suggestion-v1' ||
           operation.outputLeakageProfileVersion !==
             provenance.outputLeakageProfileVersion ||
           operation.outputLeakageProfileDigest !==
@@ -264,17 +238,10 @@ export const createAiSuggestedDraftStore = (
           operation.deliveredAt === null ||
           operation.expiresAt <= databaseNow ||
           operation.executionAttempt < 1 ||
-          !permit ||
-          permit.route !== 'reply-suggestion' ||
-          permit.state !== 'settled' ||
-          permit.expiresAt <= databaseNow ||
-          !constantEqual(permit.requestBindingHmac, provenance.requestBindingHmac) ||
-          !settlement ||
-          settlement.terminalState !== 'completed' ||
-          settlement.disposition !== 'success' ||
-          settlement.reportedDisposition !== 'success' ||
-          settlement.settlementState !== 'settled' ||
-          !constantEqual(settlement.requestBindingHmac, provenance.requestBindingHmac)
+          operation.executionPermitId === null ||
+          operation.budgetSettledAt === null ||
+          operation.actualMicros === null ||
+          !constantEqual(operation.requestBindingHmac, provenance.requestBindingHmac)
         ) {
           return { status: 'rejected', reason: 'invalid' } as const
         }
@@ -322,8 +289,6 @@ export const createAiSuggestedDraftStore = (
           profile.lifecycleState !== 'active' ||
           profile.sourceEpoch !== provenance.sourceEpoch ||
           profile.profileVersion !== provenance.propertyProfileVersion ||
-          profile.providerDeploymentProfileVersion !==
-            provenance.providerDeploymentProfileVersion ||
           !authorization ||
           authorization.state !== 'enabled' ||
           authorization.authorizationLineageId !== operation.authorizationLineageId ||
@@ -334,7 +299,7 @@ export const createAiSuggestedDraftStore = (
           authorization.sourcePolicyId !== operation.sourcePolicyId ||
           authorization.redactionProfileFamily !== operation.redactionProfileVersion ||
           authorization.providerDeploymentProfileVersion !==
-            provenance.providerDeploymentProfileVersion ||
+            AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion ||
           !authorization.capabilities.includes('reply_drafting') ||
           authorization.capabilityRuntimeProfileVersions.reply_drafting !==
             REPLY_DRAFTING_RUNTIME_PROFILE ||
@@ -509,17 +474,102 @@ export const createAiSuggestedDraftStore = (
       })
     },
     async assertCurrentBinding(input) {
-      const result = await db.execute(
-        sql`SELECT assert_current_ai_draft_binding_v1(
-          ${input.organizationId},
-          ${input.replyId}
-        ) AS "status"`,
-      )
-      const status = result.rows[0]?.status
-      if (status === 'current' || status === 'not_ai' || status === 'stale') {
-        return status
-      }
-      throw new Error('AI reply binding assertion returned an invalid status')
+      return db.transaction(async (tx) => {
+        const [reply] = await tx
+          .select({
+            authorship: replies.authorship,
+            reviewId: replies.reviewId,
+            operationId: replies.originOperationId,
+          })
+          .from(replies)
+          .where(
+            and(
+              eq(replies.organizationId, input.organizationId),
+              eq(replies.id, input.replyId),
+            ),
+          )
+          .limit(1)
+          .for('update')
+        if (!reply || reply.authorship !== 'ai_assisted' || !reply.operationId) {
+          return 'not_ai'
+        }
+        const current = await tx.execute<{ current: boolean }>(sql`
+          SELECT EXISTS (
+            SELECT 1
+            FROM replies AS draft
+            INNER JOIN reviews AS review
+              ON review.id = draft.review_id
+             AND review.organization_id = draft.organization_id
+            INNER JOIN properties AS property
+              ON property.id = review.property_id
+             AND property.organization_id = draft.organization_id
+            INNER JOIN ai_property_processing_profiles AS profile
+              ON profile.property_id = property.id
+             AND profile.organization_id = property.organization_id
+            INNER JOIN merchant_ai_enablement AS merchant
+              ON merchant.property_id = property.id
+             AND merchant.organization_id = property.organization_id
+            INNER JOIN ai_operations AS operation
+              ON operation.id = draft.origin_operation_id
+            WHERE draft.id = ${input.replyId}::uuid
+              AND draft.organization_id = ${input.organizationId}
+              AND property.deleted_at IS NULL
+              AND property.lifecycle_state = 'active'
+              AND property.source_epoch = draft.origin_source_epoch
+              AND profile.lifecycle_state = 'active'
+              AND profile.source_epoch = draft.origin_source_epoch
+              AND profile.profile_version = draft.origin_property_profile_version
+              AND review.source_epoch = draft.origin_source_epoch
+              AND review.source_revision = draft.origin_source_revision
+              AND review.content_expires_at > transaction_timestamp()
+              AND draft.ai_draft_expires_at > transaction_timestamp()
+              AND merchant.state = 'enabled'
+              AND merchant.authorized_source_epoch = draft.origin_source_epoch
+              AND merchant.reply_drafting_epoch = draft.origin_reply_drafting_epoch
+              AND merchant.capabilities @> ARRAY['reply_drafting']::text[]
+              AND merchant.capability_runtime_profile_versions->>'reply_drafting'
+                = ${REPLY_DRAFTING_RUNTIME_PROFILE}
+              AND operation.command = 'reply'
+              AND operation.capability = 'reply_drafting'
+              AND operation.organization_id = draft.organization_id
+              AND operation.property_id = property.id
+              AND operation.review_id = review.id
+              AND operation.source_epoch = draft.origin_source_epoch
+              AND operation.source_revision = draft.origin_source_revision
+              AND operation.property_profile_version = draft.origin_property_profile_version
+              AND operation.state = 'succeeded'
+              AND operation.budget_settled_at IS NOT NULL
+              AND EXISTS (
+                SELECT 1
+                FROM ai_execution_control_heads AS control
+                WHERE control.scope_key = 'global'
+                  AND control.control_id = operation.global_control_id
+                  AND control.generation = operation.global_control_generation
+                  AND control.execution_state = 'enabled'
+                  AND control.admission_state = 'accepting'
+              )
+              AND EXISTS (
+                SELECT 1
+                FROM ai_execution_control_heads AS control
+                WHERE control.scope_key = 'provider:' || ${AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion}
+                  AND control.control_id = operation.provider_control_id
+                  AND control.generation = operation.provider_control_generation
+                  AND control.execution_state = 'enabled'
+                  AND control.admission_state = 'accepting'
+              )
+              AND EXISTS (
+                SELECT 1
+                FROM ai_execution_control_heads AS control
+                WHERE control.scope_key = 'capability:reply_drafting'
+                  AND control.control_id = operation.capability_control_id
+                  AND control.generation = operation.capability_control_generation
+                  AND control.execution_state = 'enabled'
+                  AND control.admission_state = 'accepting'
+              )
+          ) AS "current"
+        `)
+        return current.rows[0]?.current === true ? 'current' : 'stale'
+      })
     },
   }
 }

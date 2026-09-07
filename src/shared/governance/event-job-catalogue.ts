@@ -2550,40 +2550,6 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
   ),
   job(
-    'ai-authorization-derivative-erasure',
-    'src/shared/jobs/ai-authorization-erasure.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:ai.authorization_erasure',
-      schedule: 'every:300000',
-      registration: 'enabled',
-    },
-    {
-      retryAttempts: 8,
-      retryBackoff: 'exponential:30000',
-      timeoutMs: 300_000,
-      notes:
-        'Unconditional exact retired-generation local AI derivative erasure; PostgreSQL lease/current-Identity fence, persisted eight-attempt recovery, class-separated lifecycle counts + retention.failure signal; no provider effect.',
-    },
-  ),
-  job(
-    'ai-review-analysis-backfill-advance',
-    'src/shared/jobs/ai-review-analysis-backfill-advance.job.ts',
-    {
-      queue: 'background',
-      capability: 'none',
-      action: 'system:ai.review_analysis_backfill_advance',
-      schedule: 'every:300000',
-      registration: 'enabled',
-    },
-    {
-      timeoutMs: 300_000,
-      notes:
-        'Safety net for the one-review-at-a-time backfill chain: re-drives a run whose hand-off was lost, terminal-settles an item whose redelivery has stopped, and closes a run whose epoch/watermark fence moved. Registered unconditionally — a dark AI runtime is when a run is most likely to be left open with a moved watermark.',
-    },
-  ),
-  job(
     'ai-review-analysis-enrollment-sweep',
     'src/shared/jobs/ai-review-analysis-enrollment-sweep.job.ts',
     {

@@ -5,6 +5,7 @@ import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { propertyOperationReceipts } from '#/shared/db/schema/property-operation-receipt.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
+import { deleteAiDraftsForProperty } from '#/shared/ai-provider-control/ai-draft-purge'
 import {
   googleConnectionId,
   organizationId,
@@ -469,6 +470,10 @@ export const createPropertyGoogleBindingStore = (
               )
               .returning({ id: properties.id })
             if (!updated) deny('stale_binding')
+            await deleteAiDraftsForProperty(tx, {
+              organizationId: input.organizationId,
+              propertyId: input.propertyId,
+            })
             await tx.insert(propertyOperationReceipts).values({
               organizationId: input.organizationId,
               idempotencyKey: input.idempotencyKey,
@@ -569,6 +574,10 @@ export const createPropertyGoogleBindingStore = (
             )
             .returning()
           if (!updated) deny('stale_binding')
+          await deleteAiDraftsForProperty(tx, {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+          })
           event = propertyGoogleBindingChanged({
             organizationId: input.organizationId,
             propertyId: input.propertyId,
@@ -639,6 +648,10 @@ export const createPropertyGoogleBindingStore = (
             )
             .returning()
           if (!updated) deny('stale_binding')
+          await deleteAiDraftsForProperty(tx, {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+          })
           event = propertyGoogleBindingChanged({
             organizationId: input.organizationId,
             propertyId: input.propertyId,

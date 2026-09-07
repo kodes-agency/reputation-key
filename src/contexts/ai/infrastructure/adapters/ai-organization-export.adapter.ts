@@ -75,30 +75,10 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  *
  * Withheld, and why:
  *
- * - `ai_operations` and `ai_operation_attempts` are the per-inference execution
- *   records: request fingerprints, source digests, subject HMACs, provider
- *   deployment and control-generation fences. That is the prompt/inference plane
- *   bullet 7 excludes, so even the `operation_id` foreign key is dropped from
- *   the exported derivative rows rather than left as a pointer into it.
- * - `ai_execution_permits`, `ai_execution_permit_settlements`,
- *   `ai_admission_cost_reservations`, `ai_admission_product_consumptions`,
- *   `ai_product_volume_consumptions`, `ai_property_quota_windows`,
- *   `ai_organization_cost_windows` and `ai_admission_rate_windows` are the
- *   admission, quota and cost control plane.
- * - `ai_provider_deployment_profiles`, `ai_provider_deployment_capabilities`,
- *   `ai_provider_circuit_states`, `ai_routing_policies` and
- *   `ai_runtime_capability_profiles` are provider internals.
- * - `ai_governance_policies`, `ai_execution_control_heads`/`_transitions` and
- *   `ai_canary_authorizations` are operator governance controls.
- * - `ai_review_analysis_enrollments`/`_memberships`/`_replays` and
- *   `ai_review_analysis_backfill_runs`/`_memberships` are work-scheduling
+ * - `ai_operations`, monthly cost windows, and execution-control history are
+ *   content-free inference/control records, not merchant-facing derivatives.
+ * - The enrollment head and aggregate reconciliation ledgers are work
  *   authorities, not facts about the Organization.
- * - `ai_authorization_lifecycle_records` is content-free erasure evidence and
- *   its lease/attempt state; it is the fence, never the payload.
- * - `ai_property_aggregate_contributions`, `ai_property_aggregate_heads`,
- *   `ai_review_event_cursors`, `ai_read_barrier_heads` and
- *   `ai_property_trend_scheduler_heads` are reconciliation ledgers and cursors
- *   that only restate the derivatives already exported.
  * - Reply Draft provider output is session-ephemeral and never persisted here.
  *   Only an explicitly adopted draft exists, and it is Review-owned content that
  *   Review's own contributor exports as manager-authored.

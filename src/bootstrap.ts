@@ -49,24 +49,15 @@ import {
   JOB_NAME as AI_EXECUTION_REAPER_JOB_NAME,
 } from '#/shared/jobs/ai-operation-execution-reaper.job'
 import {
-  createAiReviewAnalysisBackfillAdvanceHandler,
-  JOB_NAME as AI_BACKFILL_ADVANCE_JOB_NAME,
-} from '#/shared/jobs/ai-review-analysis-backfill-advance.job'
+  AI_BUDGET_RESERVATION_REAPER_JOB_NAME,
+  createAiBudgetReservationReaperHandler,
+} from '#/shared/jobs/ai-budget-reservation-reaper.job'
 import {
   createAiReviewAnalysisEnrollmentSweepHandler,
   JOB_NAME as AI_ENROLLMENT_SWEEP_JOB_NAME,
 } from '#/shared/jobs/ai-review-analysis-enrollment-sweep.job'
-import {
-  createAiAuthorizationErasureHandler,
-  JOB_NAME as AI_AUTHORIZATION_ERASURE_JOB_NAME,
-} from '#/shared/jobs/ai-authorization-erasure.job'
 import { createAiOperationExecutionReaper } from '#/contexts/ai/application/ai-operation-execution-reaper'
 import { createAiOperationStoreAdapter } from '#/contexts/ai/infrastructure/adapters/ai-operation-store.adapter'
-import {
-  AI_AUTHORIZATION_ERASURE_DEFAULT_BATCH_SIZE,
-  createEraseAiAuthorizationDerivatives,
-} from '#/contexts/ai/application/use-cases/erase-ai-authorization-derivatives'
-import { createAiAuthorizationErasureAdapter } from '#/contexts/ai/infrastructure/adapters/ai-authorization-erasure.adapter'
 import type { Env } from '#/shared/config/env'
 import { writeWorkerHeartbeat } from '#/shared/health/worker-heartbeat'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
@@ -419,6 +410,15 @@ export async function bootstrap(
     'registered canonical Goal Program maintenance job handler',
   )
 
+  container.jobRegistry.register(
+    AI_BUDGET_RESERVATION_REAPER_JOB_NAME,
+    createAiBudgetReservationReaperHandler(container.db),
+  )
+  logger.info(
+    { job: AI_BUDGET_RESERVATION_REAPER_JOB_NAME },
+    'registered AI budget reservation reaper job handler',
+  )
+
   // ── Retention sweep (BQC-1.6: bounded, evidence-backed, daily) ──────
   const { createRetentionSweepHandler, JOB_NAME: RETENTION_SWEEP_JOB_NAME } =
     await import('#/shared/jobs/retention-sweep.job')
@@ -508,31 +508,6 @@ export async function bootstrap(
     'registered permit start-deadline sweep job handler',
   )
 
-  // ── AI authorization-derivative physical erasure ─────────────────
-  // Local Review Analysis, Property aggregate, and Property Trend
-  // generations are hidden synchronously at authorization change. This
-  // unconditional worker independently converges their physical deletion;
-  // switching AI execution off must never switch cleanup off with it.
-  const aiAuthorizationErasureStore = createAiAuthorizationErasureAdapter(container.db)
-  container.jobRegistry.register(
-    AI_AUTHORIZATION_ERASURE_JOB_NAME,
-    createAiAuthorizationErasureHandler({
-      db: container.db,
-      clock: container.clock,
-      batchSize: AI_AUTHORIZATION_ERASURE_DEFAULT_BATCH_SIZE,
-      erase: () =>
-        createEraseAiAuthorizationDerivatives({
-          store: aiAuthorizationErasureStore,
-          clock: container.clock,
-          leaseOwner: crypto.randomUUID(),
-          batchSize: AI_AUTHORIZATION_ERASURE_DEFAULT_BATCH_SIZE,
-        })(),
-    }),
-  )
-  logger.info(
-    { job: AI_AUTHORIZATION_ERASURE_JOB_NAME },
-    'registered AI authorization derivative erasure job handler',
-  )
 
   // ── AI operation abandoned-execution reaper ───────────────────────
   // `claimExecution` moves an operation to `executing` and only the request
@@ -557,24 +532,6 @@ export async function bootstrap(
     'registered AI operation abandoned-execution reaper job handler',
   )
 
-  // ── AI review-analysis backfill advance sweep ─────────────────────
-  // A backfill run may only ever have ONE review in flight, so each item is
-  // handed the next by the outbox consumer the moment it settles. This sweep
-  // covers the hand-off the consumer cannot: a worker that died between the
-  // settle and the hand-off, or a dispatch budget exhausted on one event.
-  // Registered unconditionally for the same reason as the reaper above — a run
-  // left open has already moved the property's analysis watermark, so the
-  // reviews it skipped are reachable through nothing else.
-  container.jobRegistry.register(
-    AI_BACKFILL_ADVANCE_JOB_NAME,
-    createAiReviewAnalysisBackfillAdvanceHandler({
-      sweep: container.aiWorkerRuntime.advanceReviewAnalysisBackfill.sweep,
-    }),
-  )
-  logger.info(
-    { job: AI_BACKFILL_ADVANCE_JOB_NAME },
-    'registered AI review-analysis backfill advance job handler',
-  )
 
   // ── AI first-enablement enrollment recovery ───────────────────────
   // Enrollment intent is durable, but capturing it does not activate provider
