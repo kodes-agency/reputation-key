@@ -35,6 +35,7 @@ import {
 } from '#/shared/merchant-ai-notice-contract'
 import { createPropertyProcessingProfileAdapter } from '#/contexts/ai/infrastructure/adapters/property-processing-profile.adapter'
 import { createReviewRepository } from './repositories/review.repository'
+import { createReplyRepository } from './repositories/reply.repository'
 import { createAiSuggestedDraftStore } from './ai-suggested-draft-store'
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
@@ -858,10 +859,51 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .where(eq(aiOperations.id, '74000000-0000-4000-8000-000000000008'))
         .limit(1),
     ).resolves.toEqual([{ disposition: 'adopted' }])
+
+    // The repository's guarded write runs the same binding check inside its
+    // own transaction: the adopted draft advances, an expired one is refused
+    // without a row change.
+    const replyRepository = createReplyRepository(db, () => new Date())
+    await expect(
+      replyRepository.conditionalUpdate(
+        accepted.reply.id,
+        ORGANIZATION_ID,
+        ['draft'],
+        { status: 'pending_approval', submittedAt: new Date() },
+        new Date(),
+      ),
+    ).resolves.toMatchObject({ id: accepted.reply.id, status: 'pending_approval' })
+    await db
+      .update(replies)
+      .set({ aiDraftExpiresAt: new Date(NOW.getTime() - 1) })
+      .where(eq(replies.id, accepted.reply.id))
+    await expect(
+      replyRepository.conditionalUpdate(
+        accepted.reply.id,
+        ORGANIZATION_ID,
+        ['pending_approval'],
+        { status: 'approved', approvedBy: ACTOR_USER_ID, approvedAt: new Date() },
+        new Date(),
+      ),
+    ).resolves.toBeNull()
+    await expect(
+      db
+        .select({ status: replies.status })
+        .from(replies)
+        .where(eq(replies.id, accepted.reply.id))
+        .limit(1),
+    ).resolves.toEqual([{ status: 'pending_approval' }])
     brandProfileCurrent = true
   })
 
   it('purges an AI draft on source change and advances human-draft heads only for material changes', async () => {
+    const [before] = await db
+      .select({ replyStateRevision: reviews.replyStateRevision })
+      .from(reviews)
+      .where(eq(reviews.id, REVIEW_ID))
+      .limit(1)
+    if (!before) throw new Error('review missing')
+    const base = before.replyStateRevision
     await db.transaction(async (tx) => {
       await tx
         .update(reviews)
@@ -878,7 +920,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .from(reviews)
         .where(eq(reviews.id, REVIEW_ID))
         .limit(1),
-    ).resolves.toEqual([{ replyStateRevision: 4 }])
+    ).resolves.toEqual([{ replyStateRevision: base + 1 }])
     await expect(
       db
         .select({
@@ -930,7 +972,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
         .innerJoin(reviews, eq(reviews.id, replies.reviewId))
         .where(eq(replies.id, created!.id))
         .limit(1),
-    ).resolves.toEqual([{ stateRevision: 1, replyStateRevision: 5 }])
+    ).resolves.toEqual([{ stateRevision: 1, replyStateRevision: base + 2 }])
 
     await db
       .update(replies)
@@ -951,7 +993,7 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
       {
         text: 'A revised manual draft',
         stateRevision: 2,
-        replyStateRevision: 6,
+        replyStateRevision: base + 3,
       },
     ])
   })
