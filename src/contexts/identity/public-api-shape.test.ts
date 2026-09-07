@@ -1,4 +1,5 @@
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, beforeEach } from 'vitest'
+import { clearTestContainerEnv } from '#/shared/testing/clear-container-env'
 import { createContainer, type Container } from '#/composition'
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
@@ -33,6 +34,8 @@ const EXPECTED_REQUEST_KEYS = [
   'updateMemberRole',
   'updateOrganization',
 ] as const
+
+beforeEach(clearTestContainerEnv)
 
 describe('Identity public API', () => {
   let container: Container

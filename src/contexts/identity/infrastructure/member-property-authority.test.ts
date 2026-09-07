@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   managerPropertyAuthorityRequirement,
   propertyAuthorityRequirement,
-} from './member-property-authority'
+} from './repositories/member-property-authority'
 
 describe('member Property authority', () => {
   it('denies a privileged raw label when current effective permissions deny it', () => {

@@ -8,7 +8,8 @@
 // registerCapabilityGatedJob, worker scheduling gates) are the allowed
 // exception; this scan covers job handler files only.
 
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, beforeEach } from 'vitest'
+import { clearTestContainerEnv } from '#/shared/testing/clear-container-env'
 import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { walk } from '#/shared/testing/source-tree'
@@ -26,6 +27,8 @@ import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 
 const ROOT = process.cwd()
+
+beforeEach(clearTestContainerEnv)
 
 describe('BQC-3.2 delayed policy delegation', () => {
   it('no *.job.ts handler file imports or calls the capability gate directly', () => {

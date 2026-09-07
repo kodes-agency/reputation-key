@@ -2,7 +2,8 @@
 // Finding 1.3 — registerInboxConsumers had zero callers.
 // Static-source checks only (no cross-zone imports into contexts/).
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { clearTestContainerEnv } from '#/shared/testing/clear-container-env'
 import { readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
@@ -53,6 +54,8 @@ function discoverRegistrations(): ReadonlyArray<DiscoveredRegistration> {
 const CATALOGUE_CONSUMER_MODULES: ReadonlySet<string> = new Set(
   ENTRY_POINT_CATALOGUE.filter((r) => r.kind === 'consumer').map((r) => r.name),
 )
+
+beforeEach(clearTestContainerEnv)
 
 describe('BQR-2.2: outbox consumer registration', () => {
   it('worker wires registerOutboxConsumers when outbox is available', () => {

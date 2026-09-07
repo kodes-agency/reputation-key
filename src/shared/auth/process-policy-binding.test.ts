@@ -7,6 +7,7 @@
 // policies the process answer.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { clearTestContainerEnv } from '#/shared/testing/clear-container-env'
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
 import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
@@ -108,6 +109,8 @@ function buildContainer() {
     email: async () => {},
   })
 }
+
+beforeEach(clearTestContainerEnv)
 
 describe('bindProcessPolicies (ARC-03-T8)', () => {
   beforeEach(() => {

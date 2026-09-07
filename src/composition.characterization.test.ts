@@ -11,7 +11,8 @@
 // shared/testing/simulation-container.server.ts (in-memory queue, fixed
 // clock, in-memory identity fake, captured email).
 
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
+import { clearTestContainerEnv } from '#/shared/testing/clear-container-env'
 import { createContainer, type Container } from '#/composition'
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
@@ -148,6 +149,8 @@ const EXPECTED_POLICY_ADMIN_OPS = [
   'grantPropertyAccessOp',
   'revokePropertyAccessOp',
 ]
+
+beforeEach(clearTestContainerEnv)
 
 describe('composition characterization (BQC-5.2 parity baseline)', () => {
   let container: Container
