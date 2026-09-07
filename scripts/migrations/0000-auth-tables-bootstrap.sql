@@ -149,4 +149,3 @@ CREATE INDEX IF NOT EXISTS "organizationRole_organizationId_idx" ON "organizatio
 CREATE INDEX IF NOT EXISTS "organizationRole_role_idx" ON "organizationRole" (role);
 CREATE INDEX IF NOT EXISTS "session_userId_idx" ON "session" ("userId");
 CREATE INDEX IF NOT EXISTS verification_identifier_idx ON "verification" (identifier);
-CREATE UNIQUE INDEX IF NOT EXISTS organization_slug_uidx ON "organization" (slug);

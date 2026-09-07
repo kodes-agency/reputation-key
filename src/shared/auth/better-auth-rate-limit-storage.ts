@@ -1,13 +1,11 @@
 import { createHmac } from 'node:crypto'
-import type { BetterAuthRateLimitStorage, RateLimit } from 'better-auth'
+import type { BetterAuthRateLimitStorage } from 'better-auth'
 import type { Redis } from 'ioredis'
 
 const DEFAULT_KEY_PREFIX = 'ratelimit:better-auth:v1'
-const DEFAULT_WINDOW_SECONDS = 10
 
 type StorageOptions = Readonly<{
   keyPrefix?: string
-  defaultWindowSeconds?: number
   keyHmacSecret: string
 }>
 
@@ -46,12 +44,6 @@ redis.call('PEXPIRE', KEYS[1], windowMs)
 return {1, windowMs}
 `
 
-const SET_SCRIPT = `
-redis.call('HSET', KEYS[1], 'count', ARGV[1], 'lastRequest', ARGV[2])
-redis.call('PEXPIRE', KEYS[1], ARGV[3])
-return 'OK'
-`
-
 function positiveInteger(value: number, name: string): number {
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new RangeError(`${name} must be a positive safe integer`)
@@ -69,28 +61,6 @@ function redisBucketKey(prefix: string, key: string, hmacSecret: string): string
   return `${prefix}:${digest}`
 }
 
-function parseSnapshot(
-  key: string,
-  countRaw: string | null,
-  lastRequestRaw: string | null,
-): RateLimit | null {
-  if (countRaw === null && lastRequestRaw === null) return null
-  const count = Number(countRaw)
-  const lastRequest = Number(lastRequestRaw)
-  if (
-    countRaw === null ||
-    lastRequestRaw === null ||
-    !Number.isSafeInteger(count) ||
-    count < 0 ||
-    !Number.isSafeInteger(lastRequest) ||
-    lastRequest < 0
-  ) {
-    // Corrupt limiter state must not silently become an allow decision.
-    throw new Error('[auth-rate-limit] Redis state is malformed')
-  }
-  return { key, count, lastRequest }
-}
-
 /**
  * Replica-safe Better Auth limiter storage backed only by the cache Redis.
  * This is deliberately not a Better Auth `secondaryStorage`: sessions and
@@ -101,33 +71,8 @@ export function createBetterAuthRateLimitStorage(
   options: StorageOptions,
 ): BetterAuthRateLimitStorage {
   const keyPrefix = options.keyPrefix ?? DEFAULT_KEY_PREFIX
-  const defaultWindowMs =
-    positiveInteger(
-      options.defaultWindowSeconds ?? DEFAULT_WINDOW_SECONDS,
-      'defaultWindowSeconds',
-    ) * 1000
 
   return {
-    async get(key) {
-      const [count, lastRequest] = await redis.hmget(
-        redisBucketKey(keyPrefix, key, options.keyHmacSecret),
-        'count',
-        'lastRequest',
-      )
-      return parseSnapshot(key, count, lastRequest)
-    },
-
-    async set(key, value) {
-      await redis.eval(
-        SET_SCRIPT,
-        1,
-        redisBucketKey(keyPrefix, key, options.keyHmacSecret),
-        value.count,
-        value.lastRequest,
-        defaultWindowMs,
-      )
-    },
-
     async consume(key, rule) {
       const windowMs = positiveInteger(rule.window, 'rate-limit window') * 1000
       const maximum = positiveInteger(rule.max, 'rate-limit maximum')

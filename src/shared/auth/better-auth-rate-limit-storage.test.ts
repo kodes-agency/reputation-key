@@ -80,48 +80,4 @@ describe('Better Auth Redis rate-limit storage', () => {
       failure,
     )
   })
-
-  it('reads and writes the compatibility snapshot without exposing the raw key', async () => {
-    const redis = redisDouble()
-    redis.hmget.mockResolvedValue(['2', '1787673600000'])
-    redis.eval.mockResolvedValue('OK')
-    const storage = createBetterAuthRateLimitStorage(redis as unknown as Redis, {
-      ...STORAGE_OPTIONS,
-      defaultWindowSeconds: 60,
-    })
-
-    await expect(storage.get('raw-client-and-path')).resolves.toEqual({
-      key: 'raw-client-and-path',
-      count: 2,
-      lastRequest: 1_787_673_600_000,
-    })
-    await storage.set('raw-client-and-path', {
-      key: 'raw-client-and-path',
-      count: 3,
-      lastRequest: 1_787_673_601_000,
-    })
-
-    const readKey = redis.hmget.mock.calls[0]?.[0]
-    const [, keyCount, writeKey, count, lastRequest, ttlMs] =
-      redis.eval.mock.calls[0] ?? []
-    expect(readKey).toBe(writeKey)
-    expect(writeKey).toMatch(/^ratelimit:better-auth:v1:[a-f0-9]{64}$/)
-    expect(writeKey).not.toContain('raw-client-and-path')
-    expect(keyCount).toBe(1)
-    expect(count).toBe(3)
-    expect(lastRequest).toBe(1_787_673_601_000)
-    expect(ttlMs).toBe(60_000)
-  })
-
-  it('returns no snapshot for a missing bucket and rejects corrupt state', async () => {
-    const redis = redisDouble()
-    const storage = createBetterAuthRateLimitStorage(
-      redis as unknown as Redis,
-      STORAGE_OPTIONS,
-    )
-    redis.hmget.mockResolvedValueOnce([null, null]).mockResolvedValueOnce(['x', '1'])
-
-    await expect(storage.get('missing')).resolves.toBeNull()
-    await expect(storage.get('corrupt')).rejects.toThrow(/malformed/)
-  })
 })
