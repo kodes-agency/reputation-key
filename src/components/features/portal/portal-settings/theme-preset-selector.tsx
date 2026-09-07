@@ -1,15 +1,4 @@
 import { useState } from 'react'
-import {
-  ColorPicker,
-  ColorPickerArea,
-  ColorPickerContent,
-  ColorPickerEyeDropper,
-  ColorPickerFormatSelect,
-  ColorPickerHueSlider,
-  ColorPickerInput,
-  ColorPickerSwatch,
-  ColorPickerTrigger,
-} from '#/components/ui/color-picker'
 import { Sun, Moon, Palette, Check } from 'lucide-react'
 import { cn } from '#/lib/utils'
 import type { PortalThemeDraft } from '../shared/types'
@@ -142,27 +131,16 @@ export function ThemePresetSelector({
       </div>
 
       {activePreset === 'custom' && (
-        <ColorPicker
+        <input
+          type="color"
+          aria-label="Primary color"
           value={theme.primaryColor}
-          onValueChange={(primaryColor) => onThemeChange({ ...theme, primaryColor })}
+          onChange={(e) =>
+            onThemeChange({ ...theme, primaryColor: e.target.value })
+          }
           disabled={disabled}
-        >
-          <div className="flex items-center gap-2">
-            <ColorPickerTrigger>
-              <ColorPickerSwatch />
-            </ColorPickerTrigger>
-            <ColorPickerInput withoutAlpha />
-          </div>
-          <ColorPickerContent>
-            <ColorPickerArea />
-            <ColorPickerHueSlider />
-            <div className="flex items-center gap-2">
-              <ColorPickerInput withoutAlpha />
-              <ColorPickerFormatSelect />
-              <ColorPickerEyeDropper />
-            </div>
-          </ColorPickerContent>
-        </ColorPicker>
+          className="h-9 w-16 rounded border"
+        />
       )}
     </div>
   )
