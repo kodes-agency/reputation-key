@@ -1,10 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { importFns } from './-import-fns'
-import {
-  GoogleImportManager,
-  googleImportStatusQuery,
-} from '#/components/features/integration/google-import-manager'
+import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
+import { googleImportStatusQuery } from '#/components/features/integration/google-import-manager/google-import-queries'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import { PageShell } from '#/components/layout/page-shell'
