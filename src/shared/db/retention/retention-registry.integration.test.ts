@@ -174,13 +174,10 @@ describe('retention registry report-only mode', () => {
       .map(({ ruleId }) => ruleId)
     expect(countable).toEqual([
       'google.import_discovery',
-      'google.import_discovery_invalidations',
+      'platform.idempotency_receipts',
       'review.sync_runs',
       'review.refresh_runs',
-      'integration.inbound_webhook_receipts',
       'guest.session_pseudonym',
-      'guest.destination_action_session_pseudonym',
-      'guest.qualified_scan_session_pseudonym',
       'guest.abuse_pseudonym',
       'guest.network_pseudonym',
       'guest.legacy_scan_events.abuse_pseudonym',

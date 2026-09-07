@@ -251,7 +251,7 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 **Trigger:** Notification backlog growing, messages in dead-letter queue.
 **Impact:** P1 — delayed review visibility.
-**Diagnostics:** Check queue depth via `HealthSnapshot.syncMetrics`. Check `inbound_webhook_receipts` for duplicate/missing messages.
+**Diagnostics:** Check queue depth via `HealthSnapshot.syncMetrics`. Check the `gbp_webhook` scope in `idempotency_receipts` for duplicate/missing messages.
 **Containment:** Increase worker concurrency temporarily. Pause non-urgent jobs to free capacity.
 **Recovery:** Process backlog. Redrive dead-lettered messages via `ops:quarantine redrive <id> --reason <text> --apply` (list first with `ops:quarantine list`). Reconcile any gaps via bounded reconciliation (`ops:refresh reviews`).
 **Verification:** Queue depth returns to normal. `review_sync_state.watermark_updated_at` advances.

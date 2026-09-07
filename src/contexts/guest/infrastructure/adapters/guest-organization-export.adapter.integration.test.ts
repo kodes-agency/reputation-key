@@ -28,10 +28,8 @@ const CHILD_TABLES = [
   'guest_response_private_feedback',
   'guest_response_experience_snapshots',
   'guest_response_integrity_decisions',
-  'guest_qualified_scan_receipts',
   'guest_qualified_scans',
   'guest_network_pressure_records',
-  'guest_destination_action_receipts',
   'guest_responses',
   'feedback',
   'ratings',
@@ -270,19 +268,26 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.liveTextResponseId, ...scope, fixture.sessionId],
   )
   await q(
-    `INSERT INTO guest_qualified_scan_receipts (
-       id, organization_id, property_id, portal_id, session_id, qualified_scan_id,
-       created_at, expires_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, now(), now() + interval '24 hours')`,
-    [randomUUID(), ...scope, fixture.sessionId, fixture.qualifiedScanId],
-  )
-  await q(
-    `INSERT INTO guest_destination_action_receipts (
-       id, organization_id, property_id, portal_id, session_id, destination_id,
-       destination_kind, expires_at, created_at
-     ) VALUES ($1, $2, $3, $4, $5, 'NEVER_EXPORT_DESTINATION', 'google_review',
-               now() + interval '1 day', now())`,
-    [randomUUID(), ...scope, fixture.destinationSessionId],
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES
+       ('guest_qualified_scan', $1, jsonb_build_object(
+         'organizationId', $3::text, 'propertyId', $4::text, 'portalId', $5::text,
+         'sessionId', $6::text, 'qualifiedScanId', $7::text
+       ), now()),
+       ('guest_destination_action', $2, jsonb_build_object(
+         'organizationId', $3::text, 'propertyId', $4::text, 'portalId', $5::text,
+         'sessionId', $8::text, 'destinationId', 'NEVER_EXPORT_DESTINATION'
+       ), now())`,
+    [
+      randomUUID(),
+      randomUUID(),
+      organizationId,
+      fixture.propertyId,
+      fixture.portalId,
+      fixture.sessionId,
+      fixture.qualifiedScanId,
+      fixture.destinationSessionId,
+    ],
   )
   await q(
     `INSERT INTO guest_network_pressure_records (
@@ -336,6 +341,12 @@ describe.sequential('Guest Organization Export contributor', () => {
 
   afterEach(async () => {
     for (const organizationId of organizations) {
+      await lease.pool.query(
+        `DELETE FROM idempotency_receipts
+         WHERE scope IN ('guest_qualified_scan', 'guest_destination_action')
+           AND payload->>'organizationId' = $1`,
+        [organizationId],
+      )
       for (const table of CHILD_TABLES) {
         // Table names come from the frozen constant above, never from input.
         await lease.pool.query(`DELETE FROM ${table} WHERE organization_id = $1`, [

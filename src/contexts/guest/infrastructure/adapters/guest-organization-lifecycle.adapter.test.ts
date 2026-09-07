@@ -248,8 +248,10 @@ describe('Guest Organization lifecycle contributor', () => {
     }
     // The anonymous lifetime aggregate the metrics depend on is Metric's row.
     expect(GUEST_PURGE_PLAN).not.toContain('portal_metric_lifetime_aggregates')
-    // The global 30-day retention cursor has no organization scope at all.
-    expect(GUEST_PURGE_PLAN).not.toContain('guest_contact_request_purge_checkpoints')
+    // The global retention cursor is stored under a shared, non-tenant scope.
+    expect(
+      GUEST_PURGE_PLAN.filter((table) => table === 'idempotency_receipts'),
+    ).toHaveLength(1)
     // Identities and other owners' rows stay with their owners.
     for (const foreign of ['user', 'member', 'portals', 'properties']) {
       expect(GUEST_PURGE_PLAN).not.toContain(foreign)

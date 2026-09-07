@@ -357,7 +357,7 @@ describe('Integration Organization lifecycle contributor', () => {
       const statements = executed.map((statement) => statement.text).join('\n')
       expect(statements).not.toMatch(/DROP |TRUNCATE/u)
       // Retained evidence is scrubbed in place rather than deleted.
-      expect(statements).toContain('UPDATE google_disconnect_revoke_attempts')
+      expect(statements).toContain('UPDATE idempotency_receipts')
     })
 
     it('answers no_data for an Organization Integration never held', async () => {

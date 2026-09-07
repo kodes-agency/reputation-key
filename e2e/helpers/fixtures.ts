@@ -1658,13 +1658,15 @@ export async function cleanupE2eData(input: {
   )
   await dbQuery('DELETE FROM invitation WHERE email LIKE $1', [like])
   await dbQuery(
-    `DELETE FROM property_operation_receipts
-     WHERE organization_id = $1 AND destination_property_id IN (
-       SELECT p.id
-       FROM properties p
-       LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
-       WHERE p.organization_id = $1
-         AND (p.slug LIKE $2 OR gc.google_subject LIKE $2))`,
+    `DELETE FROM idempotency_receipts
+     WHERE scope = 'property_operation'
+       AND payload->>'organizationId' = $1
+       AND payload->>'destinationPropertyId' IN (
+         SELECT p.id::text
+         FROM properties p
+         LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
+         WHERE p.organization_id = $1
+           AND (p.slug LIKE $2 OR gc.google_subject LIKE $2))`,
     [input.organizationId, like],
   )
   await dbQuery(

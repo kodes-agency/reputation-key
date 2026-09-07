@@ -214,22 +214,20 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
-    id: 'google.import_discovery_invalidations',
-    dataClass: 'google_source_content',
-    ownerContext: 'integration',
-    ownerRole: 'Integration context owner',
+    id: 'platform.idempotency_receipts',
+    dataClass: 'operational_action_history',
+    ownerContext: 'platform',
+    ownerRole: 'Platform data owner',
     sourceKind: 'table',
-    source: 'google_import_discovery_invalidations',
+    source: 'idempotency_receipts',
     eligibility: {
-      anchorColumn: 'expires_at',
-      horizon: { kind: 'row_deadline' },
+      anchorColumn: 'recorded_at',
+      horizon: { kind: 'days', days: 30 },
       predicate: null,
-      query:
-        'Delete google_import_discovery_invalidations after their stamped expires_at deadline.',
-      implementedBoundary:
-        'Live as the scheduled google_import_discovery_invalidations.expired subject.',
+      query: 'Delete idempotency receipts recorded more than 30 days ago.',
+      implementedBoundary: 'Live as the scheduled idempotency_receipts subject.',
     },
-    evidenceSubject: 'google_import_discovery_invalidations.expired',
+    evidenceSubject: 'idempotency_receipts',
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
@@ -267,24 +265,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
-    id: 'integration.inbound_webhook_receipts',
-    dataClass: 'operational_action_history',
-    ownerContext: 'integration',
-    ownerRole: 'Integration context owner',
-    sourceKind: 'table',
-    source: 'inbound_webhook_receipts',
-    eligibility: {
-      anchorColumn: 'received_at',
-      horizon: { kind: 'days', days: 30 },
-      predicate: null,
-      query:
-        'Delete inbound_webhook_receipts whose provider message was received more than 30 days ago.',
-      implementedBoundary: 'Live as the scheduled inbound_webhook_receipts subject.',
-    },
-    evidenceSubject: 'inbound_webhook_receipts',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-  }),
-  rule({
     id: 'guest.session_pseudonym',
     dataClass: 'guest_session_pseudonym',
     ownerContext: 'guest',
@@ -301,44 +281,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
         'Stricter than the §3.3.10 seven-day default: the binding expires 24 hours after submission, and the mirror session_id redactions run at 24 hours. Counsel approves the seven-day default; operators are held to the 24-hour boundary.',
     },
     evidenceSubject: 'guest_response_session_bindings.expired',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-  }),
-  rule({
-    id: 'guest.destination_action_session_pseudonym',
-    dataClass: 'guest_session_pseudonym',
-    ownerContext: 'guest',
-    ownerRole: 'Guest context owner',
-    sourceKind: 'table',
-    source: 'guest_destination_action_receipts',
-    eligibility: {
-      anchorColumn: 'expires_at',
-      horizon: { kind: 'row_deadline' },
-      predicate: null,
-      query:
-        'SELECT id FROM guest_destination_action_receipts WHERE expires_at < now(). The deadline is stamped when the first qualified destination action commits.',
-      implementedBoundary:
-        'Live: the scheduled subject guest_destination_action_receipts.expired deletes the signed-session dedupe receipt at its absolute deadline.',
-    },
-    evidenceSubject: 'guest_destination_action_receipts.expired',
-    restoreImplication: RESTORE_REPLAYS_DELETION,
-  }),
-  rule({
-    id: 'guest.qualified_scan_session_pseudonym',
-    dataClass: 'guest_session_pseudonym',
-    ownerContext: 'guest',
-    ownerRole: 'Guest context owner',
-    sourceKind: 'table',
-    source: 'guest_qualified_scan_receipts',
-    eligibility: {
-      anchorColumn: 'expires_at',
-      horizon: { kind: 'row_deadline' },
-      predicate: null,
-      query:
-        'SELECT id FROM guest_qualified_scan_receipts WHERE expires_at < now(). The database fixes the deadline at 24 hours after receipt creation.',
-      implementedBoundary:
-        'Live: the scheduled subject guest_qualified_scan_receipts.expired deletes the signed-session dedupe receipt at its absolute deadline.',
-    },
-    evidenceSubject: 'guest_qualified_scan_receipts.expired',
     restoreImplication: RESTORE_REPLAYS_DELETION,
   }),
   rule({
@@ -811,17 +753,17 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
     ownerContext: 'integration',
     ownerRole: 'Integration context owner',
     sourceKind: 'table',
-    source: 'google_oauth_exchange_attempts',
+    source: 'idempotency_receipts',
     eligibility: {
-      anchorColumn: 'response_expires_at',
+      anchorColumn: 'recorded_at',
       horizon: { kind: 'row_deadline' },
-      predicate: null,
+      predicate: "scope = 'google_oauth_exchange'",
       query:
-        'The application-encrypted provider response is one-use and erased on connection commit, deterministic rejection, ambiguous terminalization, or its database-recorded ten-minute expiry — whichever comes first. Only content-free outcome facts survive.',
+        'OAuth exchange receipt payloads erase the one-use encrypted provider response on commit, rejection, ambiguous terminalization, or the ten-minute application deadline.',
       implementedBoundary:
-        'Live and enforced by the owning connection saga, not by the retention sweep. Long-lived credentials themselves are never written to this table.',
+        'Live and enforced by the owning connection saga; the shared 30-day sweep removes the content-free receipt.',
     },
-    evidenceSubject: 'google_oauth_exchange_attempts.erased',
+    evidenceSubject: 'google_oauth_exchange.response_erased',
     restoreImplication:
       'A restore can reinstate credential material that was deliberately erased. Provider credentials must be treated as compromised after any restore and reauthorized, never reused.',
   }),

@@ -90,6 +90,28 @@ export const eventConsumerReceipts = pgTable(
     ),
   ],
 )
+// ── idempotency_receipts ───────────────────────────────────────────
+
+export const idempotencyReceipts = pgTable(
+  'idempotency_receipts',
+  {
+    scope: text('scope').notNull(),
+    key: text('key').notNull(),
+    payload: jsonb('payload')
+      .$type<Readonly<Record<string, unknown>>>()
+      .notNull()
+      .default({}),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.scope, table.key] }),
+    index('idempotency_receipts_recorded_at_idx').on(
+      table.recordedAt,
+      table.scope,
+      table.key,
+    ),
+  ],
+)
 
 // ── Row types ───────────────────────────────────────────────────────
 

@@ -317,7 +317,9 @@ beforeAll(async () => {
 beforeEach(async () => {
   await clearCredentialLifecycle()
   await pool.query(
-    'DELETE FROM google_disconnect_revoke_attempts WHERE organization_id = $1',
+    `DELETE FROM idempotency_receipts
+     WHERE scope = 'google_disconnect_revoke'
+       AND payload->>'organizationId' = $1`,
     [ORGANIZATION_ID],
   )
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [
@@ -356,7 +358,9 @@ beforeEach(async () => {
 afterAll(async () => {
   await clearCredentialLifecycle()
   await pool.query(
-    'DELETE FROM google_disconnect_revoke_attempts WHERE organization_id = $1',
+    `DELETE FROM idempotency_receipts
+     WHERE scope = 'google_disconnect_revoke'
+       AND payload->>'organizationId' = $1`,
     [ORGANIZATION_ID],
   )
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [
@@ -1318,12 +1322,14 @@ describe('Postgres Google admission permit authority', () => {
     const result = await pool.query(
       `SELECT connection.status, connection.credential_use_state,
               connection.google_subject, connection.encrypted_refresh_token,
-              attempt.state, attempt.credential_binding
+              receipt.payload->>'state' AS state,
+              receipt.payload->>'credentialBinding' AS credential_binding
          FROM google_connections AS connection
-         JOIN google_disconnect_revoke_attempts AS attempt
-           ON attempt.organization_id = connection.organization_id
-          AND attempt.connection_id = connection.id
-        WHERE attempt.id = $1`,
+         JOIN idempotency_receipts AS receipt
+           ON receipt.scope = 'google_disconnect_revoke'
+          AND receipt.payload->>'organizationId' = connection.organization_id
+          AND receipt.payload->>'connectionId' = connection.id::text
+        WHERE receipt.key = $1`,
       [DISCONNECT_ATTEMPT_ID],
     )
     expect(result.rows[0]).toEqual({

@@ -197,7 +197,8 @@ feedback was received — never as empty text.
 Not exported, and not queried: `guest_contact_requests` and its reveal audits
 (`portal.guest_contact` is safety-blocked, so exporting them would be an
 activation by the back door), `guest_response_session_bindings`,
-`guest_qualified_scan_receipts`, `guest_destination_action_receipts`,
+the `guest_qualified_scan` and `guest_destination_action` scopes in
+`idempotency_receipts`,
 `guest_network_pressure_records`, legacy `session_id`/`ip_hash` columns, and
 the rating/feedback source event ids. Each
 reason is recorded in the payload's `excludedRecordClasses`.
@@ -228,9 +229,9 @@ Deliberately retained:
 - `portal_metric_lifetime_aggregates` — the anonymous lifetime aggregate the
   metrics depend on. It is Metric's row and Metric's receipt; Guest never edits
   or deletes it, and the readiness gate above is what keeps it correct.
-- `guest_contact_request_purge_checkpoints` — a single global cursor for the
-  serialized 30-day retention authority. It has no `organization_id` and no
-  tenant content; deleting it would corrupt an unrelated running sweep.
+- the `guest_contact_purge` scope in `idempotency_receipts` — a single global
+  cursor for the serialized 30-day retention authority. It has no tenant
+  content; deleting it would corrupt an unrelated running sweep.
 - `user` rows and other owners' rows. A person who is a member of another
   Organization keeps their identity; Identity owns identities.
 

@@ -19,9 +19,7 @@ import type {
 import {
   guestContactRequestRevealAudits,
   guestContactRequests,
-  guestDestinationActionReceipts,
   guestNetworkPressureRecords,
-  guestQualifiedScanReceipts,
   guestQualifiedScans,
   guestResponseExperienceSnapshots,
   guestResponseIntegrityDecisions,
@@ -29,21 +27,25 @@ import {
   guestResponseSessionBindings,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 /** Property-scoped Guest tables, innermost dependency first. */
-const GUEST_PROPERTY_ERASE_PLAN = Object.freeze([
+const DIRECT_TABLE_NAMES = Object.freeze([
   'guest_contact_request_reveal_audits',
   'guest_contact_requests',
   'guest_response_private_feedback',
   'guest_response_session_bindings',
   'guest_response_experience_snapshots',
   'guest_response_integrity_decisions',
-  'guest_destination_action_receipts',
   'guest_responses',
-  'guest_qualified_scan_receipts',
   'guest_qualified_scans',
   'guest_network_pressure_records',
+] as const)
+
+const GUEST_PROPERTY_ERASE_PLAN = Object.freeze([
+  ...DIRECT_TABLE_NAMES,
+  'idempotency_receipts',
 ] as const)
 
 const TABLES = [
@@ -53,12 +55,13 @@ const TABLES = [
   guestResponseSessionBindings,
   guestResponseExperienceSnapshots,
   guestResponseIntegrityDecisions,
-  guestDestinationActionReceipts,
   guestResponses,
-  guestQualifiedScanReceipts,
   guestQualifiedScans,
   guestNetworkPressureRecords,
 ] as const
+function rowCount(row: unknown): number {
+  return row && typeof row === 'object' && 'rows' in row ? Number(row.rows) : 0
+}
 
 export const createGuestPropertyEraseContributor = (): PropertyEraseContributor => ({
   context: 'guest',
@@ -80,12 +83,25 @@ export const createGuestPropertyEraseContributor = (): PropertyEraseContributor 
         `)
         return {
           context: 'guest' as const,
-          table: GUEST_PROPERTY_ERASE_PLAN[index] as string,
-          rowCount: Number((result.rows[0] as { rows: number }).rows),
+          table: DIRECT_TABLE_NAMES[index] as string,
+          rowCount: rowCount(result.rows[0]),
         }
       }),
     )
-    return counts
+    const receiptCount = await tx.execute(sql`
+      SELECT COUNT(*)::int AS "rows" FROM ${idempotencyReceipts}
+      WHERE ${idempotencyReceipts.scope} IN ('guest_qualified_scan', 'guest_destination_action')
+        AND ${idempotencyReceipts.payload}->>'organizationId' = ${scope.organizationId}
+        AND ${idempotencyReceipts.payload}->>'propertyId' = ${scope.propertyId as string}
+    `)
+    return [
+      ...counts,
+      {
+        context: 'guest',
+        table: GUEST_PROPERTY_ERASE_PLAN[GUEST_PROPERTY_ERASE_PLAN.length - 1]!,
+        rowCount: rowCount(receiptCount.rows[0]),
+      },
+    ]
   },
 
   /** IRREVERSIBLE. Ordered so no statement depends on rows already removed. */
@@ -103,6 +119,16 @@ export const createGuestPropertyEraseContributor = (): PropertyEraseContributor 
         .returning({ organizationId: table.organizationId })
       erased += removed.length
     }
-    return erased
+    const receipts = await tx
+      .delete(idempotencyReceipts)
+      .where(
+        and(
+          sql`${idempotencyReceipts.scope} IN ('guest_qualified_scan', 'guest_destination_action')`,
+          sql`${idempotencyReceipts.payload}->>'organizationId' = ${scope.organizationId}`,
+          sql`${idempotencyReceipts.payload}->>'propertyId' = ${scope.propertyId as string}`,
+        ),
+      )
+      .returning({ key: idempotencyReceipts.key })
+    return erased + receipts.length
   },
 })

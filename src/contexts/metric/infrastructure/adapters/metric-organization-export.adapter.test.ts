@@ -22,7 +22,6 @@ type FixtureRows = Readonly<{
   portalLifetime?: readonly Row[]
   currentGoogleReputation?: readonly Row[]
   corrections?: readonly Row[]
-  watermarks?: readonly Row[]
 }>
 
 function queryText(query: SQL): string {
@@ -54,9 +53,6 @@ function fakeDatabase(rows: FixtureRows, snapshotAt: string = SNAPSHOT_AT): Data
       }
       if (text.includes('FROM metric_corrections AS correction')) {
         return { rows: rows.corrections ?? [] }
-      }
-      if (text.includes('FROM metric_source_watermarks')) {
-        return { rows: rows.watermarks ?? [] }
       }
       throw new Error(`unrouted metric export query: ${text}`)
     },
@@ -94,15 +90,6 @@ const READING_ROW: Row = {
   staff_attribution_effective_to: null,
 }
 
-const WATERMARK_ROW: Row = {
-  consumer_name: 'metric.guest-gateway',
-  source_name: 'guest.response.recorded',
-  property_id: '10000000-0000-4000-8000-000000000001',
-  definition_version_id: '11111111-1111-4111-8111-111111111302',
-  last_event_at: '2026-08-27T10:00:00.000000Z',
-  updated_at: '2026-08-27T10:00:02.000000Z',
-}
-
 function decode(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('utf8')
 }
@@ -110,7 +97,7 @@ function decode(bytes: Uint8Array): string {
 describe('Metric Organization Export contributor', () => {
   it('is a metric contributor whose entries all carry a permitted classification', async () => {
     const adapter = createMetricOrganizationExportAdapter(
-      fakeDatabase({ readings: [READING_ROW], watermarks: [WATERMARK_ROW] }),
+      fakeDatabase({ readings: [READING_ROW] }),
     )
     expect(adapter.context).toBe('metric')
 
@@ -139,7 +126,7 @@ describe('Metric Organization Export contributor', () => {
 
   it('emits only populated families, paired CSV and JSON, in ascending byte order', async () => {
     const adapter = createMetricOrganizationExportAdapter(
-      fakeDatabase({ readings: [READING_ROW], watermarks: [WATERMARK_ROW] }),
+      fakeDatabase({ readings: [READING_ROW] }),
     )
 
     const contribution = await adapter.contribute({
@@ -153,8 +140,6 @@ describe('Metric Organization Export contributor', () => {
     expect(contribution.entries.map(({ path }) => path)).toEqual([
       'metric/readings.csv',
       'metric/readings.json',
-      'metric/watermarks.csv',
-      'metric/watermarks.json',
     ])
     const paths = contribution.entries.map(({ path }) => path)
     const byUtf8 = [...paths].sort((left, right) =>
@@ -164,7 +149,7 @@ describe('Metric Organization Export contributor', () => {
   })
 
   it('produces byte-identical output for a repeated request at the same asOf', async () => {
-    const rows: FixtureRows = { readings: [READING_ROW], watermarks: [WATERMARK_ROW] }
+    const rows: FixtureRows = { readings: [READING_ROW] }
     const first = await createMetricOrganizationExportAdapter(
       fakeDatabase(rows, '2026-08-28T09:00:05.000Z'),
     ).contribute({ organizationId: 'org-metric-export', requestId: 'a', asOf: AS_OF })

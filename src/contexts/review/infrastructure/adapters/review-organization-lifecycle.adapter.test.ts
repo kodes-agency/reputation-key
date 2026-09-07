@@ -349,7 +349,7 @@ describe('Review Organization lifecycle contributor', () => {
       'google_reply_observations',
       'reply_publication_attempts',
       'review_provider_subjects',
-      'inbound_webhook_receipts',
+      'idempotency_receipts',
       'review_sync_state',
     ]) {
       expect(statements.some((text) => text.startsWith(`DELETE FROM ${removed} `))).toBe(

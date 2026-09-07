@@ -373,32 +373,6 @@ export const metricCorrections = pgTable(
   ],
 )
 
-export const metricSourceWatermarks = pgTable(
-  'metric_source_watermarks',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    consumerName: varchar('consumer_name', { length: 120 }).notNull(),
-    sourceName: varchar('source_name', { length: 120 }).notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').references(() => properties.id, {
-      onDelete: 'cascade',
-    }),
-    definitionVersionId: uuid('definition_version_id'),
-    lastSourceEventId: varchar('last_source_event_id', { length: 255 }).notNull(),
-    lastEventAt: timestamp('last_event_at', { withTimezone: true }).notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    uniqueIndex('metric_source_watermarks_scope_unique').on(
-      t.consumerName,
-      t.sourceName,
-      t.organizationId,
-      t.propertyId,
-      t.definitionVersionId,
-    ),
-  ],
-)
-
 /** One current, source-version-fenced Google reputation snapshot per Property.
  * This is a state projection of Review's verified provider fact, never a
  * bounded-period metric reading. */

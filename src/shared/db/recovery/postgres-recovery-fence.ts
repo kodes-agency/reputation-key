@@ -337,16 +337,19 @@ export async function applyRecoveryFence(
       WITH authority AS (
         SELECT item.organization_id, item.id,
                CASE
-                 WHEN receipt.tombstone OR receipt.outcome = 'property_deleted'
+                 WHEN (receipt.payload->>'tombstone')::boolean
+                   OR receipt.payload->>'outcome' = 'property_deleted'
                    THEN 'property_deleted'
-                 WHEN receipt.outcome IN ('imported', 'relinked') THEN receipt.outcome
+                 WHEN receipt.payload->>'outcome' IN ('imported', 'relinked')
+                   THEN receipt.payload->>'outcome'
                  ELSE 'authorization_changed'
                END AS outcome
         FROM gbp_import_request_items item
-        LEFT JOIN property_operation_receipts receipt
-          ON receipt.organization_id = item.organization_id
-         AND receipt.idempotency_key = item.id
-         AND receipt.expires_at > clock_timestamp()
+        LEFT JOIN idempotency_receipts receipt
+          ON receipt.scope = 'property_operation'
+         AND receipt.key = item.id::text
+         AND receipt.payload->>'organizationId' = item.organization_id
+         AND (receipt.payload->>'expiresAt')::timestamptz > clock_timestamp()
         WHERE item.status IN ('pending', 'processing')
            OR item.outcome_code = 'temporarily_unavailable'
       )

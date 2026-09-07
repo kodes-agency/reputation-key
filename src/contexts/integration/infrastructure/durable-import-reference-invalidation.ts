@@ -1,9 +1,7 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  googleImportDiscoveryInvalidations,
-  googleImportDiscoveryRecords,
-} from '#/shared/db/schema/google-import-discovery.schema'
+import { googleImportDiscoveryRecords } from '#/shared/db/schema/google-import-discovery.schema'
+import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import type { GoogleImportReferenceStore } from '../application/ports/google-import-reference-store.port'
 import {
   invalidationScopeFor,
@@ -91,19 +89,26 @@ export const createDurableImportReferenceInvalidation = (
         const fences = deps.keys.invalidationKeys(target)
         if (fences.length === 0) throw new Error('invalidation key unavailable')
         await tx
-          .insert(googleImportDiscoveryInvalidations)
+          .insert(idempotencyReceipts)
           .values(
             fences.map((fence) => ({
-              invalidationKey: fence.key,
-              keyVersion: fence.keyVersion,
-              scopeKind: fence.scopeKind,
-              invalidatedAt: now,
-              expiresAt,
+              scope: 'google_import_discovery',
+              key: fence.key,
+              payload: {
+                keyVersion: fence.keyVersion,
+                scopeKind: fence.scopeKind,
+                invalidatedAt: now.toISOString(),
+                expiresAt: expiresAt.toISOString(),
+              },
+              recordedAt: now,
             })),
           )
           .onConflictDoUpdate({
-            target: googleImportDiscoveryInvalidations.invalidationKey,
-            set: { invalidatedAt: now, expiresAt },
+            target: [idempotencyReceipts.scope, idempotencyReceipts.key],
+            set: {
+              payload: sql`excluded.payload`,
+              recordedAt: sql`excluded.recorded_at`,
+            },
           })
         await deleteScope(tx, input)
       })

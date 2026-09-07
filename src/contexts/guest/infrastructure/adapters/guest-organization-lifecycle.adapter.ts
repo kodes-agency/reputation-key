@@ -24,9 +24,7 @@ import {
   feedback,
   guestContactRequestRevealAudits,
   guestContactRequests,
-  guestDestinationActionReceipts,
   guestNetworkPressureRecords,
-  guestQualifiedScanReceipts,
   guestQualifiedScans,
   guestResponseExperienceSnapshots,
   guestResponseIntegrityDecisions,
@@ -36,7 +34,7 @@ import {
   ratings,
   scanEvents,
 } from '#/shared/db/schema/guest.schema'
-import { outboxEvents } from '#/shared/db/schema/outbox.schema'
+import { idempotencyReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 /**
@@ -56,10 +54,9 @@ const GUEST_OUTBOX_SOURCE_CONTEXT = 'guest'
  *   and Metric's receipt. Guest must never edit or delete it, and — see
  *   `verifyPurgeReadiness` — must not scrub the source facts until every
  *   correction has reached it, or the aggregate silently becomes wrong.
- * - `guest_contact_request_purge_checkpoints`: a single global cursor for the
- *   serialized 30-day retention authority. It has no `organization_id` and
- *   holds no tenant content; deleting it would corrupt an unrelated running
- *   sweep.
+ * - the `guest_contact_purge` idempotency receipt: a single global cursor for
+ *   the serialized 30-day retention authority. It has no tenant scope and
+ *   holds no tenant content; deleting it would corrupt an unrelated sweep.
  * - `portals`, `portal_publication_snapshots`, `properties`, Staff
  *   participants: other owners' rows that Guest only references.
  * - `user` rows: a person who submitted nothing here and may be a member of
@@ -77,9 +74,8 @@ export const GUEST_PURGE_PLAN = Object.freeze([
   'guest_response_session_bindings',
   'guest_response_experience_snapshots',
   'guest_response_integrity_decisions',
-  'guest_destination_action_receipts',
+  'idempotency_receipts',
   'guest_responses',
-  'guest_qualified_scan_receipts',
   'guest_qualified_scans',
   'guest_network_pressure_records',
   'feedback',
@@ -132,12 +128,9 @@ export const drizzleGuestLifecycleWorkbench: GuestLifecycleWorkbench = Object.fr
           WHERE ${guestQualifiedScans.organizationId} = ${organizationId}
         )
         + (
-          SELECT COUNT(*)::int FROM ${guestQualifiedScanReceipts}
-          WHERE ${guestQualifiedScanReceipts.organizationId} = ${organizationId}
-        )
-        + (
-          SELECT COUNT(*)::int FROM ${guestDestinationActionReceipts}
-          WHERE ${guestDestinationActionReceipts.organizationId} = ${organizationId}
+          SELECT COUNT(*)::int FROM ${idempotencyReceipts}
+          WHERE ${idempotencyReceipts.scope} IN ('guest_qualified_scan', 'guest_destination_action')
+            AND ${idempotencyReceipts.payload}->>'organizationId' = ${organizationId}
         )
         + (
           SELECT COUNT(*)::int FROM ${guestNetworkPressureRecords}
@@ -188,14 +181,16 @@ export const drizzleGuestLifecycleWorkbench: GuestLifecycleWorkbench = Object.fr
       .delete(guestResponseIntegrityDecisions)
       .where(eq(guestResponseIntegrityDecisions.organizationId, organizationId))
     await tx
-      .delete(guestDestinationActionReceipts)
-      .where(eq(guestDestinationActionReceipts.organizationId, organizationId))
+      .delete(idempotencyReceipts)
+      .where(
+        and(
+          sql`${idempotencyReceipts.scope} IN ('guest_qualified_scan', 'guest_destination_action')`,
+          sql`${idempotencyReceipts.payload}->>'organizationId' = ${organizationId}`,
+        ),
+      )
     await tx
       .delete(guestResponses)
       .where(eq(guestResponses.organizationId, organizationId))
-    await tx
-      .delete(guestQualifiedScanReceipts)
-      .where(eq(guestQualifiedScanReceipts.organizationId, organizationId))
     await tx
       .delete(guestQualifiedScans)
       .where(eq(guestQualifiedScans.organizationId, organizationId))

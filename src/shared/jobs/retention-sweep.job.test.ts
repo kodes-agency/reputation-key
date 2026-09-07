@@ -389,29 +389,14 @@ describe('retention rule registry (BQC-3.7)', () => {
     })
   })
 
-  it('deletes destination-action session receipts at their exact expiry', () => {
+  it('retains shared idempotency receipts for 30 days', () => {
     expect(
-      RETENTION_RULES.find(
-        (rule) => rule.subject === 'guest_destination_action_receipts.expired',
-      ),
+      RETENTION_RULES.find((rule) => rule.subject === 'idempotency_receipts'),
     ).toMatchObject({
-      table: 'guest_destination_action_receipts',
-      keyColumns: ['id'],
-      tsColumn: 'expires_at',
-      olderThanMs: 0,
-    })
-  })
-
-  it('deletes Qualified Scan session receipts at their exact expiry', () => {
-    expect(
-      RETENTION_RULES.find(
-        (rule) => rule.subject === 'guest_qualified_scan_receipts.expired',
-      ),
-    ).toMatchObject({
-      table: 'guest_qualified_scan_receipts',
-      keyColumns: ['id'],
-      tsColumn: 'expires_at',
-      olderThanMs: 0,
+      table: 'idempotency_receipts',
+      keyColumns: ['scope', 'key'],
+      tsColumn: 'recorded_at',
+      olderThanMs: 30 * 24 * 60 * 60 * 1000,
     })
   })
 
@@ -492,16 +477,6 @@ describe('retention rule registry (BQC-3.7)', () => {
     ).toMatchObject({
       table: 'google_import_discovery_records',
       keyColumns: ['reference_key'],
-      tsColumn: 'expires_at',
-      olderThanMs: 0,
-    })
-    expect(
-      RETENTION_RULES.find(
-        (rule) => rule.subject === 'google_import_discovery_invalidations.expired',
-      ),
-    ).toMatchObject({
-      table: 'google_import_discovery_invalidations',
-      keyColumns: ['invalidation_key'],
       tsColumn: 'expires_at',
       olderThanMs: 0,
     })

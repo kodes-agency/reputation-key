@@ -124,9 +124,6 @@ async function truncateAll(p: Pool) {
     'DELETE FROM portal_metric_lifetime_aggregates WHERE organization_id = $1',
     [ORG_ID],
   )
-  await p.query('DELETE FROM metric_source_watermarks WHERE organization_id = $1', [
-    ORG_ID,
-  ])
   await p.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG_ID])
   await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
 }
@@ -743,7 +740,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     ])
   })
 
-  it('settles metric.corrected in the same transaction as its watermark', async () => {
+  it('deduplicates metric.corrected with the shared consumer receipt', async () => {
     const eventId = '4f000000-0000-4000-8000-000000000061'
     const missingEventId = '4f000000-0000-4000-8000-000000000062'
     const definitionVersionId = '11111111-1111-4111-8111-111111111303'
@@ -807,22 +804,13 @@ describe.sequential('metricCommandStore (integration)', () => {
            SELECT count(*)::int FROM event_consumer_receipts
            WHERE event_id = $2::uuid
              AND consumer_name = 'metric.correction-reconciliation'
-         ) AS missing_receipt_count,
-         (
-           SELECT last_source_event_id FROM metric_source_watermarks
-           WHERE consumer_name = 'metric.correction-reconciliation'
-             AND source_name = 'portal.workflow'
-             AND organization_id = $3
-             AND property_id = $4
-             AND definition_version_id = $5::uuid
-         ) AS watermark_source_event_id`,
-      [eventId, missingEventId, ORG_ID, PROP_ID, definitionVersionId],
+         ) AS missing_receipt_count`,
+      [eventId, missingEventId],
     )
     expect(outcomes.rows).toEqual([
       {
         receipt_status: 'applied',
         missing_receipt_count: 0,
-        watermark_source_event_id: payload.sourceEventId,
       },
     ])
   })

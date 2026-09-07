@@ -31,18 +31,22 @@ describe('PostgreSQL GBP review push receipt store', () => {
   beforeAll(async () => {
     registerAllEventSchemas()
     lease = await acquireTestLease(getEnv().DATABASE_URL)
-    await lease.pool.query('DELETE FROM inbound_webhook_receipts WHERE topic = $1', [
-      TOPIC,
-    ])
+    await lease.pool.query(
+      `DELETE FROM idempotency_receipts WHERE scope = 'gbp_webhook'
+         AND payload->>'topic' = $1`,
+      [TOPIC],
+    )
     await lease.pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [
       ORGANIZATION_ID,
     ])
   })
 
   afterAll(async () => {
-    await lease?.pool.query('DELETE FROM inbound_webhook_receipts WHERE topic = $1', [
-      TOPIC,
-    ])
+    await lease?.pool.query(
+      `DELETE FROM idempotency_receipts WHERE scope = 'gbp_webhook'
+         AND payload->>'topic' = $1`,
+      [TOPIC],
+    )
     await lease?.pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [
       ORGANIZATION_ID,
     ])
@@ -69,7 +73,11 @@ describe('PostgreSQL GBP review push receipt store', () => {
     })
 
     const receipt = await lease.pool.query<{ count: string }>(
-      'SELECT count(*)::text AS count FROM inbound_webhook_receipts WHERE provider = $1 AND topic = $2 AND message_id = $3',
+      `SELECT count(*)::text AS count FROM idempotency_receipts
+       WHERE scope = 'gbp_webhook'
+         AND payload->>'provider' = $1
+         AND payload->>'topic' = $2
+         AND payload->>'messageId' = $3`,
       ['google', TOPIC, input.messageId],
     )
     const outbox = await lease.pool.query<{ count: string }>(
@@ -101,7 +109,11 @@ describe('PostgreSQL GBP review push receipt store', () => {
     ).rejects.toThrow('failed schema allowlist')
 
     const receipt = await lease.pool.query<{ count: string }>(
-      'SELECT count(*)::text AS count FROM inbound_webhook_receipts WHERE provider = $1 AND topic = $2 AND message_id = $3',
+      `SELECT count(*)::text AS count FROM idempotency_receipts
+       WHERE scope = 'gbp_webhook'
+         AND payload->>'provider' = $1
+         AND payload->>'topic' = $2
+         AND payload->>'messageId' = $3`,
       ['google', TOPIC, 'message-invalid-event'],
     )
     expect(receipt.rows[0]?.count).toBe('0')

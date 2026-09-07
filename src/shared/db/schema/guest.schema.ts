@@ -152,54 +152,6 @@ export const guestQualifiedScans = pgTable(
   ],
 )
 
-/** Short-lived session pseudonym used only for rolling 24-hour dedupe. */
-export const guestQualifiedScanReceipts = pgTable(
-  'guest_qualified_scan_receipts',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    portalId: uuid('portal_id').notNull(),
-    sessionId: uuid('session_id').notNull(),
-    qualifiedScanId: uuid('qualified_scan_id').notNull(),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
-  },
-  (t) => [
-    uniqueIndex('guest_qualified_scan_receipts_anchor_key').on(
-      t.organizationId,
-      t.portalId,
-      t.sessionId,
-    ),
-    index('guest_qualified_scan_receipts_lookup_idx').on(
-      t.organizationId,
-      t.portalId,
-      t.sessionId,
-      t.expiresAt,
-    ),
-    index('guest_qualified_scan_receipts_expiry_idx').on(t.expiresAt),
-    foreignKey({
-      name: 'guest_qualified_scan_receipts_qualified_scan_scope_fk',
-      columns: [t.organizationId, t.propertyId, t.portalId, t.qualifiedScanId],
-      foreignColumns: [
-        guestQualifiedScans.organizationId,
-        guestQualifiedScans.propertyId,
-        guestQualifiedScans.portalId,
-        guestQualifiedScans.id,
-      ],
-    }).onDelete('cascade'),
-    foreignKey({
-      name: 'guest_qualified_scan_receipts_portal_fk',
-      columns: [t.organizationId, t.propertyId, t.portalId],
-      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
-    }).onDelete('restrict'),
-    check(
-      'guest_qualified_scan_receipts_window_valid',
-      sql`${t.expiresAt} = ${t.createdAt} + interval '24 hours'`,
-    ),
-  ],
-)
-
 /**
  * Canonical short-lived network-pressure authority for public Guest actions.
  * The keyed digest is scoped at derivation time to one
@@ -685,49 +637,6 @@ export const guestResponsePrivateFeedback = pgTable(
 )
 
 /**
- * Short-lived correctness receipt for qualified destination actions. The
- * content-free outbox fact is retained independently; this session pseudonym
- * exists only for the signed-session dedupe window.
- */
-export const guestDestinationActionReceipts = pgTable(
-  'guest_destination_action_receipts',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
-    portalId: uuid('portal_id').notNull(),
-    sessionId: uuid('session_id').notNull(),
-    destinationId: varchar('destination_id', { length: 255 }).notNull(),
-    destinationKind: varchar('destination_kind', { length: 24 }).notNull(),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-    createdAt: createdAtColumn(),
-  },
-  (t) => [
-    uniqueIndex('guest_destination_action_receipts_dedupe').on(
-      t.organizationId,
-      t.portalId,
-      t.sessionId,
-      t.destinationKind,
-      t.destinationId,
-    ),
-    index('guest_destination_action_receipts_expiry_idx').on(t.expiresAt),
-    foreignKey({
-      name: 'guest_destination_action_receipts_portal_fk',
-      columns: [t.organizationId, t.propertyId, t.portalId],
-      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
-    }).onDelete('restrict'),
-    check(
-      'guest_destination_action_receipts_kind_valid',
-      sql`${t.destinationKind} IN ('google_review', 'secondary_link')`,
-    ),
-    check(
-      'guest_destination_action_receipts_live_window',
-      sql`${t.expiresAt} > ${t.createdAt}`,
-    ),
-  ],
-)
-
-/**
  * A guest's request for a manager follow-up. Contact material is deliberately
  * outside the rating/feedback aggregate and is unreadable without an audited
  * reveal. Terminal states keep only a content-free lifecycle tombstone.
@@ -909,29 +818,5 @@ export const guestContactRequestRevealAudits = pgTable(
       'guest_contact_reveal_audits_authority_valid',
       sql`${t.authorityBasis} IN ('account_admin', 'portal_creator', 'responsible_manager')`,
     ),
-  ],
-)
-
-/** Restart-safe global checkpoint for the serialized 30-day purge authority. */
-export const guestContactRequestPurgeCheckpoints = pgTable(
-  'guest_contact_request_purge_checkpoints',
-  {
-    authority: varchar('authority', { length: 64 }).primaryKey(),
-    cursorExpiresAt: timestamp('cursor_expires_at', { withTimezone: true }),
-    cursorId: uuid('cursor_id'),
-    completedThrough: timestamp('completed_through', { withTimezone: true }),
-    processedCount: integer('processed_count').notNull().default(0),
-    updatedAt: updatedAtColumn(),
-  },
-  (t) => [
-    check(
-      'guest_contact_purge_checkpoint_authority_valid',
-      sql`${t.authority} = 'guest-contact-30d-v1'`,
-    ),
-    check(
-      'guest_contact_purge_checkpoint_cursor_pair',
-      sql`(${t.cursorExpiresAt} IS NULL) = (${t.cursorId} IS NULL)`,
-    ),
-    check('guest_contact_purge_checkpoint_count_valid', sql`${t.processedCount} >= 0`),
   ],
 )

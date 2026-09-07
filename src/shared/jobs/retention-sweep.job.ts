@@ -76,24 +76,6 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMs: 0,
   },
   {
-    // The content-free destination fact survives, but the signed-session
-    // pseudonym used to enforce first-action semantics does not.
-    subject: 'guest_destination_action_receipts.expired',
-    table: 'guest_destination_action_receipts',
-    keyColumns: ['id'],
-    tsColumn: 'expires_at',
-    olderThanMs: 0,
-  },
-  {
-    // The identifier-only Qualified Scan survives independently of the
-    // signed-session pseudonym used to enforce the rolling 24-hour window.
-    subject: 'guest_qualified_scan_receipts.expired',
-    table: 'guest_qualified_scan_receipts',
-    keyColumns: ['id'],
-    tsColumn: 'expires_at',
-    olderThanMs: 0,
-  },
-  {
     // One content-free, Portal-scoped authority replaces per-fact network
     // hashes. Its database check fixes every row to exactly seven days.
     subject: 'guest_network_pressure_records.expired',
@@ -157,23 +139,16 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMs: 30 * DAY_MS,
   },
   {
-    subject: 'inbound_webhook_receipts',
-    table: 'inbound_webhook_receipts',
-    keyColumns: ['provider', 'topic', 'message_id'],
-    tsColumn: 'received_at',
+    subject: 'idempotency_receipts',
+    table: 'idempotency_receipts',
+    keyColumns: ['scope', 'key'],
+    tsColumn: 'recorded_at',
     olderThanMs: 30 * DAY_MS,
   },
   {
     subject: 'google_import_discovery_records.expired',
     table: 'google_import_discovery_records',
     keyColumns: ['reference_key'],
-    tsColumn: 'expires_at',
-    olderThanMs: 0,
-  },
-  {
-    subject: 'google_import_discovery_invalidations.expired',
-    table: 'google_import_discovery_invalidations',
-    keyColumns: ['invalidation_key'],
     tsColumn: 'expires_at',
     olderThanMs: 0,
   },

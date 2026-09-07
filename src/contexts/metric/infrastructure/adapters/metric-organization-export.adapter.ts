@@ -166,15 +166,6 @@ const CORRECTION_COLUMNS = [
   'recorded_at',
 ] as const
 
-const WATERMARK_COLUMNS = [
-  'consumer_name',
-  'source_name',
-  'property_id',
-  'definition_version_id',
-  'last_event_at',
-  'updated_at',
-] as const
-
 function normalizeScalar(value: unknown, field: string): ExportScalar {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') {
     return value
@@ -453,22 +444,6 @@ async function readFamilies(
             ORDER BY correction.reading_id, correction.recorded_at, correction.id`,
       )
 
-      // Freshness only. `last_source_event_id` is the consumer's internal
-      // resume key and never leaves the control plane.
-      const watermarks = await readRows(
-        snapshot,
-        sql`SELECT
-              consumer_name,
-              source_name,
-              property_id,
-              definition_version_id,
-              to_char(last_event_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS last_event_at,
-              to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
-            FROM metric_source_watermarks
-            WHERE organization_id = ${organizationId}
-            ORDER BY consumer_name, source_name, property_id, definition_version_id`,
-      )
-
       // Declared in ascending path order so the emitted entries already agree
       // with the archive's UTF-8 byte ordering.
       return [
@@ -515,16 +490,6 @@ async function readFamilies(
             },
           ],
         },
-        {
-          name: 'watermarks',
-          collections: [
-            {
-              recordType: 'metric_source_watermark',
-              columns: WATERMARK_COLUMNS,
-              records: projectRows(watermarks, WATERMARK_COLUMNS),
-            },
-          ],
-        },
       ]
     },
     { isolationLevel: 'repeatable read', accessMode: 'read only' },
@@ -537,8 +502,7 @@ async function readFamilies(
  * Exports the governed read-only contract: metric results whose definition
  * version permits the `export` consumer, the anonymous Portal-lifetime
  * aggregate, the derived current-on-Google reputation projection, the
- * correction history that makes a corrected result auditable, and the source
- * freshness watermarks behind "Data through…".
+ * correction history that makes a corrected result auditable.
  */
 export const createMetricOrganizationExportAdapter = (
   db: Database,

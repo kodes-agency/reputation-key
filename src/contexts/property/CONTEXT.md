@@ -129,7 +129,8 @@ classification `tenant_visible`, deterministic for a fixed
 `property_responsible_managers`. An Organization with no Property rows answers
 `no_data`.
 
-Not exported: `property_operation_receipts` (content-free control plane), the Google
+Not exported: the `property_operation` scope in `idempotency_receipts`
+(content-free control plane), the Google
 account/location/review-destination identifiers (provider-controlled
 identifiers — only the content-free binding and destination _state_ ships),
 and Property policy/capability/access-grant rows, which Identity already
@@ -149,7 +150,7 @@ request-facing surface is what keeps that phase unreachable by default.
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `prepareClosing`       | Moves every `active` Property to `suspended` with `lifecycle_reason = organization_closure:<closureLineageId>`. `isPropertyActive` is the request-time gate for provider work and for the public Portal gateway, so this stops new work everywhere at once. Nothing is deleted. |
 | `verifyPurgeReadiness` | Read-only. Fails closed while any Property is still `active` or `disconnecting` — both admit provider work that would outlive the irreversible boundary.                                                                                                                        |
-| `purge`                | Idempotent row deletes over `PROPERTY_PURGE_PLAN`: `property_operation_receipts`, `property_responsible_managers`, `properties`.                                                                                                                                                |
+| `purge`                | Idempotent row deletes over `PROPERTY_PURGE_PLAN`: the `property_operation` scope in `idempotency_receipts`, `property_responsible_managers`, `properties`.                                                                                                                     |
 
 Closing **retains authorized history**: the Google binding, review destination,
 profile confirmation, responsible-manager intervals and operation receipts are

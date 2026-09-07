@@ -185,8 +185,9 @@ async function clean(): Promise<void> {
         [org],
       )
       await pool.query(
-        `DELETE FROM inbound_webhook_receipts WHERE resolved_property_id IN
-           (SELECT id::text FROM properties WHERE organization_id = $1)`,
+        `DELETE FROM idempotency_receipts WHERE scope = 'gbp_webhook'
+           AND payload->>'resolvedPropertyId' IN
+             (SELECT id::text FROM properties WHERE organization_id = $1)`,
         [org],
       )
       await pool.query('DELETE FROM properties WHERE organization_id = $1', [org])
@@ -448,10 +449,15 @@ async function seedReviewWork(): Promise<void> {
     )
   }
   await pool.query(
-    `INSERT INTO inbound_webhook_receipts (
-       provider, topic, message_id, received_at, resolved_property_id, outcome
-     ) VALUES ('google', 'reviews', $1, $2, $3, 'accepted')`,
-    [PROVIDER_MESSAGE_ID, AT, PROPERTY_ID],
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('gbp_webhook', $1, jsonb_build_object(
+       'provider', 'google',
+       'topic', 'reviews',
+       'messageId', $1::text,
+       'resolvedPropertyId', $2::text,
+       'outcome', 'accepted'
+     ), $3)`,
+    [PROVIDER_MESSAGE_ID, PROPERTY_ID, AT],
   )
 }
 
@@ -721,7 +727,8 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
          + (SELECT count(*) FROM material_review_revisions
              WHERE organization_id = $5 AND normalized_text = $1)
          + (SELECT count(*) FROM replies WHERE organization_id = $5 AND text = $3)
-         + (SELECT count(*) FROM inbound_webhook_receipts WHERE message_id = $4)
+         + (SELECT count(*) FROM idempotency_receipts
+            WHERE scope = 'gbp_webhook' AND payload->>'messageId' = $4)
        )::text AS total`,
       [GUEST_TEXT, GUEST_NAME, REPLY_TEXT, PROVIDER_MESSAGE_ID, ORG_ID],
     )

@@ -130,15 +130,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'activity.schema.ts',
-    exportNames: ['recentActivityVocabularyReconciliations'],
-    owner: 'activity',
-    disposition: 'recoverable_archive',
-    authority: 'ACT-01',
-    exitCriteria:
-      'Content-minimal apply receipts with no payload or row identifiers are retained through retry/recovery and the compatibility reconciliation audit window; contraction requires scoped export/restore, retention, and erasure proof.',
-  }),
-  ...rows({
-    schemaFile: 'activity.schema.ts',
     exportNames: ['operationalActionHistoryHeads', 'operationalActionHistoryLegalHolds'],
     owner: 'activity',
     disposition: 'active_authority',
@@ -257,41 +248,11 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'SAFE-04/GGL-01',
   }),
   ...rows({
-    schemaFile: 'google-content-control.schema.ts',
-    exportNames: ['googleOauthExchangeAttempts'],
-    owner: 'integration',
-    disposition: 'erasable_source_content',
-    authority: 'SAFE-04',
-    exitCriteria:
-      'The application-encrypted provider response is one-use and is erased atomically on connection commit, deterministic rejection, ambiguous terminalization, or no later than its database-recorded ten-minute expiry. Only content-free recovery outcome facts may remain after that boundary.',
-  }),
-  ...rows({
-    schemaFile: 'google-content-control.schema.ts',
-    exportNames: ['googleDisconnectRevokeAttempts'],
-    owner: 'integration',
-    disposition: 'recoverable_archive',
-    authority: 'SAFE-04',
-    exitCriteria:
-      'The credential binding becomes unusable at the database-recorded 60-second deadline and is erased before provider dispatch or by the next enabled five-minute recovery sweep. Retain only the content-free permit and outcome fact through disconnect recovery, audit, export, and restore evidence; contract after no retry or investigation path depends on it.',
-  }),
-  ...rows({
     schemaFile: 'google-import-v2.schema.ts',
-    exportNames: [
-      'gbpImportItemRetryReceipts',
-      'gbpImportRequestItems',
-      'gbpImportRequests',
-      'gbpImportSagas',
-    ],
+    exportNames: ['gbpImportRequestItems', 'gbpImportRequests', 'gbpImportSagas'],
     owner: 'integration',
     disposition: 'active_authority',
     authority: 'GGL-01',
-  }),
-  ...rows({
-    schemaFile: 'google-import-discovery.schema.ts',
-    exportNames: ['googleImportDiscoveryInvalidations'],
-    owner: 'integration',
-    disposition: 'active_authority',
-    authority: 'GGL-01/SAFE-04',
   }),
   ...rows({
     schemaFile: 'google-import-discovery.schema.ts',
@@ -313,10 +274,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'guest.schema.ts',
     exportNames: [
-      'guestContactRequestPurgeCheckpoints',
-      'guestDestinationActionReceipts',
       'guestNetworkPressureRecords',
-      'guestQualifiedScanReceipts',
       'guestQualifiedScans',
       'guestResponseExperienceSnapshots',
       'guestResponseIntegrityDecisions',
@@ -393,7 +351,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exportNames: [
       'metricCorrections',
       'metricReadings',
-      'metricSourceWatermarks',
       'metricCurrentGoogleReputationSnapshots',
       'portalMetricLifetimeAggregates',
     ],
@@ -464,7 +421,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'outbox.schema.ts',
-    exportNames: ['eventConsumerReceipts', 'outboxEvents'],
+    exportNames: ['eventConsumerReceipts', 'idempotencyReceipts', 'outboxEvents'],
     owner: 'platform',
     disposition: 'active_authority',
     authority: 'ARC-01',
@@ -554,13 +511,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: ERASE_WITH_OWNER,
   }),
   ...rows({
-    schemaFile: 'property-operation-receipt.schema.ts',
-    exportNames: ['propertyOperationReceipts'],
-    owner: 'property',
-    disposition: 'active_authority',
-    authority: 'PPL-01/POR-01',
-  }),
-  ...rows({
     schemaFile: 'property.schema.ts',
     exportNames: ['properties', 'propertyResponsibleManagers'],
     owner: 'property',
@@ -578,7 +528,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'review-sync.schema.ts',
     exportNames: [
-      'inboundWebhookReceipts',
       'retentionRuns',
       'reviewRefreshRuns',
       'reviewSyncRuns',

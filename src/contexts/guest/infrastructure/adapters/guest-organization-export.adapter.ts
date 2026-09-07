@@ -73,11 +73,7 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
     reasonCode: 'security_session_material',
   },
   {
-    recordClass: 'guest_qualified_scan_receipts',
-    reasonCode: 'security_session_material',
-  },
-  {
-    recordClass: 'guest_destination_action_receipts',
+    recordClass: 'guest_idempotency_receipts',
     reasonCode: 'security_session_material',
   },
   { recordClass: 'guest_network_pressure_records', reasonCode: 'abuse_control_internal' },

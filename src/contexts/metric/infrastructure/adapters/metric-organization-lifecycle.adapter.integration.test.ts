@@ -153,20 +153,6 @@ async function seedTenantRows(prefix: string): Promise<Fixture> {
   )
 
   await lease.pool.query(
-    `INSERT INTO metric_source_watermarks (
-       id, consumer_name, source_name, organization_id, property_id,
-       definition_version_id, last_source_event_id, last_event_at, updated_at
-     ) VALUES (gen_random_uuid(), 'metric.test', 'portal.workflow', $1, $2::uuid,
-               $3, $4, $5, $5)`,
-    [
-      organizationId,
-      fixture.propertyId,
-      RATING_COUNT_GOAL_VERSION,
-      `watermark-${randomUUID()}`,
-      REQUESTED_AT,
-    ],
-  )
-  await lease.pool.query(
     `INSERT INTO metric_current_google_reputation_snapshots (
        property_id, organization_id, source_epoch, source_run_id, source_event_id,
        review_count, average_rating, evaluated_at, updated_at

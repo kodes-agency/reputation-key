@@ -42,7 +42,6 @@ const CONTEXT = 'metric' as const
 export const METRIC_PURGE_TABLES = Object.freeze([
   'metric_corrections',
   'metric_readings',
-  'metric_source_watermarks',
   'metric_current_google_reputation_snapshots',
   'portal_metric_lifetime_aggregates',
 ] as const)
@@ -79,10 +78,6 @@ async function countTenantRows(tx: Tx, organization: string): Promise<number> {
         FROM metric_corrections AS correction
         JOIN metric_readings AS reading ON reading.id = correction.reading_id
         WHERE reading.organization_id = ${organization}
-      )
-      + (
-        SELECT count(*) FROM metric_source_watermarks
-        WHERE organization_id = ${organization}
       )
       + (
         SELECT count(*) FROM metric_current_google_reputation_snapshots
@@ -251,9 +246,6 @@ const purge = async (
   await purgeCorrections(tx, organization)
   await tx.execute(
     sql`DELETE FROM metric_readings WHERE organization_id = ${organization}`,
-  )
-  await tx.execute(
-    sql`DELETE FROM metric_source_watermarks WHERE organization_id = ${organization}`,
   )
   await tx.execute(sql`
     DELETE FROM metric_current_google_reputation_snapshots

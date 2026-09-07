@@ -145,7 +145,8 @@ source-context facts and projects rebuildable Recent Activity rows.
   LIF-01 bullet 6 asks for Recent Activity and bullet 7 restricts Operational
   Action History, so the export respects the separation this context already
   makes. `operational_action_history_records`/`_heads`/`_legal_holds`,
-  `recent_activity_replay_facts`, `recent_activity_vocabulary_reconciliations`,
+  `recent_activity_replay_facts`, the `activity_vocabulary_reconciliation`
+  scope in `idempotency_receipts`,
   `audit_logs`, and the projected `event_id` correlation key are excluded and
   named in the export's `excludedRecordClasses`.
   `recent_activity_actor_label_redactions` is read only as a fence — an entry

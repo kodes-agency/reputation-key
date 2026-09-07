@@ -3115,8 +3115,9 @@ DECLARE
 BEGIN
   IF p_route_key <> 'oauth.revoke' OR NOT EXISTS (
     SELECT 1
-    FROM public.google_disconnect_revoke_attempts AS attempt
-    WHERE attempt.cleanup_work_permit_id = p_permit_id
+    FROM public.idempotency_receipts AS attempt
+    WHERE attempt.scope = 'google_disconnect_revoke'
+      AND attempt.payload->>'cleanupWorkPermitId' = p_permit_id::text
   ) THEN
     RETURN QUERY
     SELECT delegated.outcome
@@ -3145,38 +3146,41 @@ BEGIN
           AND permit.route_key = 'oauth.revoke'
           AND EXISTS (
             SELECT 1
-            FROM public.google_disconnect_revoke_attempts AS attempt
+            FROM public.idempotency_receipts AS attempt
             INNER JOIN public.google_connections AS connection
-              ON connection.organization_id = attempt.organization_id
-             AND connection.id = attempt.connection_id
+              ON connection.organization_id = attempt.payload->>'organizationId'
+             AND connection.id::text = attempt.payload->>'connectionId'
             -- WP2.2: approval ceremony removed; see start_…_v1. Everything
             -- below is the disconnect-revoke state machine, which is exactly
             -- what this branch exists to prove.
-            WHERE attempt.cleanup_work_permit_id = permit.id
-              AND attempt.organization_id = permit.organization_id
-              AND attempt.connection_id = permit.connection_id
-              AND attempt.initiator_user_id = permit.initiator_user_id
-              AND attempt.state = 'dispatching'
-              AND attempt.cleanup_deadline_at > v_now
-              AND attempt.dispatching_at IS NOT NULL
-              AND attempt.terminal_at IS NULL
-              AND attempt.credential_binding IS NULL
-              AND permit.admitted_at <= attempt.dispatching_at
+            WHERE attempt.scope = 'google_disconnect_revoke'
+              AND attempt.payload->>'cleanupWorkPermitId' = permit.id::text
+              AND attempt.payload->>'organizationId' = permit.organization_id
+              AND attempt.payload->>'connectionId' = permit.connection_id::text
+              AND attempt.payload->>'initiatorUserId' = permit.initiator_user_id
+              AND attempt.payload->>'state' = 'dispatching'
+              AND (attempt.payload->>'cleanupDeadlineAt')::timestamptz > v_now
+              AND attempt.payload->>'dispatchingAt' IS NOT NULL
+              AND attempt.payload->>'terminalAt' IS NULL
+              AND attempt.payload->>'credentialBinding' IS NULL
+              AND permit.admitted_at <=
+                (attempt.payload->>'dispatchingAt')::timestamptz
               AND connection.status = 'disconnecting'
               AND connection.credential_use_state = 'cleanup_only'
               AND connection.cleanup_material_deadline_at =
-                attempt.cleanup_deadline_at
+                (attempt.payload->>'cleanupDeadlineAt')::timestamptz
               AND connection.lifecycle_version =
-                attempt.expected_lifecycle_version + 1
-              AND connection.access_version = attempt.expected_access_version
+                (attempt.payload->>'expectedLifecycleVersion')::bigint + 1
+              AND connection.access_version =
+                (attempt.payload->>'expectedAccessVersion')::bigint
               AND connection.credential_generation =
-                attempt.expected_credential_generation
+                (attempt.payload->>'expectedCredentialGeneration')::bigint
               AND permit.authorization_vector->>'connectionLifecycleVersion' =
-                attempt.expected_lifecycle_version::text
+                attempt.payload->>'expectedLifecycleVersion'
               AND permit.authorization_vector->>'connectionAccessVersion' =
-                attempt.expected_access_version::text
+                attempt.payload->>'expectedAccessVersion'
               AND permit.authorization_vector->>'credentialGeneration' =
-                attempt.expected_credential_generation::text
+                attempt.payload->>'expectedCredentialGeneration'
           ) THEN 'started'
         ELSE 'changed'
       END AS admission_outcome

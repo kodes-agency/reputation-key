@@ -54,10 +54,18 @@ type Fixture = Readonly<{
 async function counts(organizationId: string): Promise<Record<string, number>> {
   const entries = await Promise.all(
     OBSERVED_TABLES.map(async (table) => {
-      const result = await lease.pool.query(
-        `SELECT COUNT(*)::int AS count FROM ${table} WHERE organization_id = $1`,
-        [organizationId],
-      )
+      const result =
+        table === 'idempotency_receipts'
+          ? await lease.pool.query(
+              `SELECT COUNT(*)::int AS count FROM idempotency_receipts
+               WHERE scope IN ('guest_qualified_scan', 'guest_destination_action')
+                 AND payload->>'organizationId' = $1`,
+              [organizationId],
+            )
+          : await lease.pool.query(
+              `SELECT COUNT(*)::int AS count FROM ${table} WHERE organization_id = $1`,
+              [organizationId],
+            )
       return [table, Number(result.rows[0]?.count ?? 0)] as const
     }),
   )
@@ -208,11 +216,11 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.responseId, ...scope, fixture.sessionId],
   )
   await q(
-    `INSERT INTO guest_destination_action_receipts (
-       id, organization_id, property_id, portal_id, session_id, destination_id,
-       destination_kind, expires_at, created_at
-     ) VALUES ($1, $2, $3, $4, $5, 'google-review', 'google_review',
-               now() + interval '1 day', now())`,
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('guest_destination_action', $1, jsonb_build_object(
+       'organizationId', $2::text, 'propertyId', $3::text, 'portalId', $4::text,
+       'sessionId', $5::text, 'destinationId', 'google-review'
+     ), now())`,
     [randomUUID(), ...scope, randomUUID()],
   )
   await q(
@@ -236,10 +244,11 @@ async function seedFixture(): Promise<Fixture> {
     [qualifiedScanId, ...scope, artifactId, scanEventId],
   )
   await q(
-    `INSERT INTO guest_qualified_scan_receipts (
-       id, organization_id, property_id, portal_id, session_id, qualified_scan_id,
-       created_at, expires_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, now(), now() + interval '24 hours')`,
+    `INSERT INTO idempotency_receipts (scope, key, payload, recorded_at)
+     VALUES ('guest_qualified_scan', $1, jsonb_build_object(
+       'organizationId', $2::text, 'propertyId', $3::text, 'portalId', $4::text,
+       'sessionId', $5::text, 'qualifiedScanId', $6::text
+     ), now())`,
     [randomUUID(), ...scope, fixture.sessionId, qualifiedScanId],
   )
   await q(
@@ -412,9 +421,7 @@ const CLEANUP_ORDER = [
   'guest_response_session_bindings',
   'guest_response_experience_snapshots',
   'guest_response_integrity_decisions',
-  'guest_destination_action_receipts',
   'guest_responses',
-  'guest_qualified_scan_receipts',
   'guest_qualified_scans',
   'guest_network_pressure_records',
   'feedback',
@@ -463,6 +470,12 @@ describe.sequential('Guest Organization lifecycle contributor', () => {
 
   afterEach(async () => {
     const ids = [...organizations]
+    await lease.pool.query(
+      `DELETE FROM idempotency_receipts
+       WHERE scope IN ('guest_qualified_scan', 'guest_destination_action')
+         AND payload->>'organizationId' = ANY($1::text[])`,
+      [ids],
+    )
     for (const table of CLEANUP_ORDER) {
       await lease.pool.query(
         `DELETE FROM ${table} WHERE organization_id = ANY($1::text[])`,
@@ -626,7 +639,8 @@ describe.sequential('Guest Organization lifecycle contributor', () => {
 
     // The global 30-day retention cursor has no tenant scope and is untouched.
     const checkpoints = await lease.pool.query(
-      `SELECT COUNT(*)::int AS count FROM guest_contact_request_purge_checkpoints`,
+      `SELECT COUNT(*)::int AS count FROM idempotency_receipts
+       WHERE scope = 'guest_contact_purge'`,
     )
     expect(Number(checkpoints.rows[0]?.count)).toBeGreaterThanOrEqual(0)
 

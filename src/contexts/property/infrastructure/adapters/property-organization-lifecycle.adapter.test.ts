@@ -248,7 +248,7 @@ describe('Property Organization lifecycle contributor', () => {
 
   it('names a bounded purge plan that drops nothing and stays inside Property', () => {
     expect([...PROPERTY_PURGE_PLAN]).toEqual([
-      'property_operation_receipts',
+      'idempotency_receipts',
       'property_responsible_managers',
       'properties',
     ])

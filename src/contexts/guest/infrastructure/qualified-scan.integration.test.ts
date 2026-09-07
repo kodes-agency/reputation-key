@@ -27,8 +27,6 @@ import { createAtomicMetricCommandStore } from '#/contexts/metric/infrastructure
 import { createMetricRegistryRepository } from '#/contexts/metric/infrastructure/repositories/metric-registry.repository'
 import { createMetricRepository } from '#/contexts/metric/infrastructure/repositories/metric.repository'
 import { metricReadingId } from '#/shared/domain/ids'
-import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
-import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const ORG = organizationId('org-qualified-scan-integration')
@@ -53,7 +51,6 @@ const { getPool } = setupIntegrationDb({
   orgA: ORG,
   orgB: OTHER_ORG,
   tables: [
-    'guest_qualified_scan_receipts',
     'guest_qualified_scans',
     'portal_publication_activations',
     'portal_publication_snapshots',
@@ -147,6 +144,11 @@ async function seedPublishedArtifact(): Promise<void> {
 }
 
 async function cleanMetricState(): Promise<void> {
+  await getPool().query(
+    `DELETE FROM idempotency_receipts
+     WHERE scope = 'guest_qualified_scan' AND payload->>'organizationId' = $1`,
+    [ORG],
+  )
   await getPool().query(
     `DELETE FROM event_consumer_receipts
      WHERE event_id IN (
@@ -300,15 +302,6 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       store.commitQualifiedScan(afterWindow.scan, SESSION, afterWindow.fact),
     ).resolves.toBe('applied')
 
-    const retentionRule = RETENTION_RULES.find(
-      (candidate) => candidate.subject === 'guest_qualified_scan_receipts.expired',
-    )!
-    await expect(
-      executeRetentionRule(getDb(), retentionRule, {
-        cutoff: new Date(afterWindow.scan.occurredAt.getTime() + 24 * 60 * 60 * 1000 + 1),
-        batchSize: 10,
-      }),
-    ).resolves.toMatchObject({ rowsDeleted: 1 })
     expect(
       await getPool().query(
         `SELECT count(*)::int AS count

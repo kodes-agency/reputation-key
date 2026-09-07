@@ -38,16 +38,12 @@ const PROJECTION_TABLES = [
 ] as const
 
 /**
- * Independently retained evidence, deliberately NOT purged with the tenant.
- * `operational_action_history_*` is program bullet 5 evidence with append-only
- * database guards; `recent_activity_vocabulary_reconciliations` is the
- * content-minimal operator authorization receipt for a historical rewrite.
+ * Independently retained evidence enforced by append-only database guards.
  */
 const RETAINED_TABLES = [
   'operational_action_history_heads',
   'operational_action_history_legal_holds',
   'operational_action_history_records',
-  'recent_activity_vocabulary_reconciliations',
 ] as const
 
 const HISTORY_GUARD_TRIGGERS = [
@@ -205,15 +201,6 @@ async function seedFixture(
       REQUESTED_AT,
     ],
   )
-  await lease.pool.query(
-    `INSERT INTO recent_activity_vocabulary_reconciliations (
-       operation_id, organization_id, source_action, source_resource_type,
-       target_action, target_resource_type, target_fingerprint_sha256, target_count,
-       updated_count, authorized_by, authorization_evidence_ref, applied_at
-     ) VALUES ($1, $2, 'invited', 'member', 'member_invited', 'member', $3, 1, 1,
-               'operator:seed', 'ticket:seed-1', $4)`,
-    [randomUUID(), fixture.organizationId, 'b'.repeat(64), REQUESTED_AT],
-  )
 
   if (options.legalHold) {
     await lease.pool.query(
@@ -362,10 +349,7 @@ describe.sequential('Activity Organization lifecycle contributor', () => {
 
   afterEach(async () => {
     const ids = [...organizations]
-    for (const table of [
-      ...PROJECTION_TABLES,
-      'recent_activity_vocabulary_reconciliations',
-    ]) {
+    for (const table of PROJECTION_TABLES) {
       await lease.pool.query(
         `DELETE FROM ${table} WHERE organization_id = ANY($1::text[])`,
         [ids],
