@@ -8,6 +8,8 @@ x-app-environment: &app-environment
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   REDIS_URL: redis://redis:6379
   RESEND_BASE_URL: http://mail-stub:4101
+  # ADR 0050: the local-sandbox provider profile is TLS-only; scripts/e2e/gen-certs.sh issues the CA per `up`.
+  NODE_EXTRA_CA_CERTS: /run/repkey/ca.crt
 x-app-dependencies: &app-dependencies
   postgres: { condition: service_healthy }
   redis: { condition: service_healthy }
@@ -24,6 +26,7 @@ x-app: &app
       args: { SOURCE_REVISION: '${SOURCE_REVISION}' },
     }
   env_file: [e2e/stack.env]
+  volumes: [./e2e/.certs:/run/repkey:ro]
   depends_on: *app-dependencies
 x-stub: &stub
   <<: *runtime
@@ -56,11 +59,12 @@ services:
     networks: [app]
   provider-sandbox:
     <<: *stub
-    environment: { BQC_STUB_KIND: gbp, PORT: "4100", BQC_STUB_HOST: 0.0.0.0 }
+    environment: { BQC_STUB_KIND: gbp, PORT: "4100", BQC_STUB_HOST: 0.0.0.0, BQC_STUB_TLS_CERT_PATH: /run/repkey/provider-sandbox.crt, BQC_STUB_TLS_KEY_PATH: /run/repkey/provider-sandbox.key, NODE_EXTRA_CA_CERTS: /run/repkey/ca.crt }
     ports: [127.0.0.1:4100:4100]
+    volumes: [./e2e/.certs:/run/repkey:ro]
     healthcheck:
       <<: *health
-      test: [CMD, node, -e, "fetch('http://127.0.0.1:4100/__control/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: [CMD, node, -e, "fetch('https://127.0.0.1:4100/__control/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
   ai-provider-stub:
     <<: *stub
     environment: { BQC_STUB_KIND: ai, PORT: "4102", BQC_STUB_HOST: 0.0.0.0 }
@@ -120,7 +124,7 @@ services:
     build: { context: ., dockerfile: Dockerfile.perf-runner, args: { SOURCE_REVISION: "${SOURCE_REVISION}" } }
     command: [sleep, infinity]
     environment: { <<: *app-environment, BETTER_AUTH_URL: http://127.0.0.1:3000, E2E_BASE_URL: http://web:3000, PERF_ARTIFACT_DIR: /artifacts/perf }
-    volumes: [./test-results/local-stack:/artifacts]
+    volumes: [./test-results/local-stack:/artifacts, ./e2e/.certs:/run/repkey:ro]
     depends_on: { web: { condition: service_healthy }, worker: { condition: service_started } }
 networks: { app: {} }
 volumes: { postgres-data: {}, redis-data: {}, object-store-data: {} }

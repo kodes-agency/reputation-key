@@ -75,7 +75,10 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 
 The local E2E stack runs the containerised production build with `NODE_ENV=test`
 and one Redis. Compose, host migration/seed commands, and Playwright share the
-committed `e2e/stack.env`.
+committed `e2e/stack.env`. `e2e:stack:up` first issues a run-scoped local CA
+with `openssl` into the ignored `e2e/.certs/` because the Google provider
+sandbox is TLS-only (ADR 0050); containers and Playwright trust it through
+`NODE_EXTRA_CA_CERTS`.
 
 ```bash
 pnpm e2e:stack:up

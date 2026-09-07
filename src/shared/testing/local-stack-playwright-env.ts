@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
 
 const REQUIRED_STACK_ENV_KEYS = [
   'POSTGRES_USER',
@@ -46,7 +47,10 @@ export function localStackPlaywrightEnv(path: string): Record<string, string> {
     E2E_EXTERNAL_STACK: '1',
     E2E_BASE_URL: 'http://127.0.0.1:3000',
     E2E_LOCKED_BASE_URL: 'http://127.0.0.1:3001',
-    GBP_STUB_BASE_URL: 'http://127.0.0.1:4100',
+    // The sandbox is TLS-only (ADR 0050); scripts/e2e/gen-certs.sh writes the
+    // CA next to the env file and every Playwright worker trusts it at start.
+    GBP_STUB_BASE_URL: 'https://127.0.0.1:4100',
+    NODE_EXTRA_CA_CERTS: resolve(dirname(path), '.certs/ca.crt'),
     MAIL_STUB_BASE_URL: 'http://127.0.0.1:4101',
     OPS_METRICS_TOKEN: stack.OPS_METRICS_TOKEN!,
     E2E_TEST_EMAIL: stack.E2E_TEST_EMAIL!,

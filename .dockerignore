@@ -11,6 +11,7 @@ test-results
 playwright-report
 docs
 e2e
+e2e/.certs
 review
 .storybook
 .tanstack

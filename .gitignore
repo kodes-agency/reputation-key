@@ -76,3 +76,6 @@ e2e/.seed-state.json
 
 # Operator-held approval role keystore and generated approval bundles
 .secrets/
+
+# Run-scoped local CA for the provider sandbox (written by scripts/e2e/gen-certs.sh)
+e2e/.certs/
