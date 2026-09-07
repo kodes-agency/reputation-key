@@ -10,7 +10,7 @@ data-fate classification is Integration-owned `bounded_contraction` under
 The three compatibility mirrors in the same schema file — `gbp_cache`,
 `gbp_import_jobs` and `gbp_import_legacy_history` — are **not** part of this
 inventory. They are `compatibility_read`, reviewed separately, and reported by
-`pnpm ops:report-compatibility-read-surfaces`. Folding them in here would imply
+`pnpm ops report-compatibility-read-surfaces`. Folding them in here would imply
 the import-control contraction decision already covers them.
 
 ## Read-only inventory
@@ -20,7 +20,7 @@ provide the versioned inventory contract. Run the governed operator command with
 an explicit observation time and retain its canonical JSON output:
 
 ```sh
-pnpm ops:report-legacy-import-control \
+pnpm ops report-legacy-import-control \
   --operator <approved-operator-id> \
   --as-of 2026-08-28T00:00:00.000Z
 ```

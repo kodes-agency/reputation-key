@@ -27,14 +27,14 @@ import { getRequestContext } from '#/shared/observability/request-context'
 const READ_SPEC: OperatorCommandSpec = {
   name: 'ops:inspect',
   scope: 'property',
-  usage: 'pnpm ops:inspect ... --operator <id>',
+  usage: 'pnpm ops inspect ... --operator <id>',
 }
 
 const MUTATION_SPEC: OperatorCommandSpec = {
   name: 'ops:quarantine',
   scope: 'global',
   mutation: true,
-  usage: 'pnpm ops:quarantine ... --operator <id> [--reason <text> --apply]',
+  usage: 'pnpm ops quarantine ... --operator <id> [--reason <text> --apply]',
 }
 
 function memoryIO(): OperatorIO & { outLines: string[]; errLines: string[] } {

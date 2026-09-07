@@ -26,8 +26,8 @@
 // run repeated is a no-change re-assertion.
 //
 // Usage:
-//   pnpm ops:gbp-subscribe --operator <id> --org <id>                      — dry-run report
-//   pnpm ops:gbp-subscribe --operator <id> --org <id> --reason <text> --apply
+//   pnpm ops gbp-subscribe --operator <id> --org <id>                      — dry-run report
+//   pnpm ops gbp-subscribe --operator <id> --org <id> --reason <text> --apply
 //
 // Requires DATABASE_URL + QUEUE_REDIS_URL (composition wires the job queue)
 // and the Google provider env — subscribing decrypts/refreshes the connection's

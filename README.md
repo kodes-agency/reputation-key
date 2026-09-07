@@ -64,7 +64,7 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 | `pnpm build`        | Build the web, worker, and migration bundles                      |
 | `pnpm start`        | Run built web server                                              |
 | `pnpm start:worker` | Run built worker                                                  |
-| `pnpm test`         | Run unit tests                                                    |
+| `pnpm test:unit`    | Run unit tests                                                    |
 | `pnpm test:e2e`     | Run Playwright E2E tests                                          |
 | `pnpm typecheck`    | TypeScript check (src/services/e2e + the release scripts project) |
 | `pnpm lint`         | ESLint + filename/component-boundary checks                       |

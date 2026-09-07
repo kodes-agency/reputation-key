@@ -9,7 +9,7 @@ import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:ai-control'
 const USAGE =
-  'pnpm ops:ai-control <inspect|kill|drain|restore> <global|provider|capability> [scope-value] [provider-profile-for-capability] [candidate-release-for-capability-restore] --operator <id> [--reason <text> --ticket <ref> --apply --yes ops:ai-control]'
+  'pnpm ops ai-control <inspect|kill|drain|restore> <global|provider|capability> [scope-value] [provider-profile-for-capability] [candidate-release-for-capability-restore] --operator <id> [--reason <text> --ticket <ref> --apply --yes ops:ai-control]'
 const PROFILE = /^[a-z0-9][a-z0-9._-]{0,99}$/
 const RELEASE_SHA = /^[0-9a-f]{40}$/
 const CAPABILITIES = [

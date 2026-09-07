@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// BQC-6.9 — test-quality gate. Wired into `pnpm lint` (CI check job runs it
-// via the Lint step) and runnable directly as `pnpm check:test-quality`.
+// BQC-6.9 — test-quality gate. Wired into `pnpm lint:ci` (CI check job runs it
+// via the Lint step) and runnable directly as `node scripts/check-test-quality.mjs`.
 //
 // ── SCOPE (widened 2026-08-21 — three holes that let this gate be evaded) ──
 //

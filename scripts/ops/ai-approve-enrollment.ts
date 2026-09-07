@@ -12,7 +12,7 @@ import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:ai-approve-enrollment'
 const USAGE =
-  'pnpm ops:ai-approve-enrollment --operator <id> --org <id> --property <uuid> [--reason <text> --ticket <ref> --apply --yes ops:ai-approve-enrollment]'
+  'pnpm ops ai-approve-enrollment --operator <id> --org <id> --property <uuid> [--reason <text> --ticket <ref> --apply --yes ops:ai-approve-enrollment]'
 
 const approvalEvidenceDigest = (
   input: Readonly<{

@@ -113,7 +113,7 @@ describe('OBS-01 beta support operations authority', () => {
     const runbook = readFileSync('docs/operations/runbooks.md', 'utf8')
     expect(runbook).toContain('checking the consent box does not capture anything')
     expect(runbook).toContain('local UUID receipt')
-    expect(runbook).toContain('pnpm ops:triage-beta-feedback')
+    expect(runbook).toContain('pnpm ops triage-beta-feedback')
     expect(runbook).toMatch(/next business day is an\s+expectation, not a guarantee/u)
     expect(runbook).toContain('ordinary screenshot or Replay payload')
     expect(runbook).toContain('external evidence required')

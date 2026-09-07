@@ -9,8 +9,8 @@
 // requires the typed confirmation --yes ops:disconnect-connection.
 //
 // Usage:
-//   pnpm ops:disconnect-connection <connectionId> --operator <id> --org <id>             — dry-run report
-//   pnpm ops:disconnect-connection <connectionId> --operator <id> --org <id> \
+//   pnpm ops disconnect-connection <connectionId> --operator <id> --org <id>             — dry-run report
+//   pnpm ops disconnect-connection <connectionId> --operator <id> --org <id> \
 //     --reason <text> --apply --yes ops:disconnect-connection
 //
 // Requires DATABASE_URL (+ provider env for the revoke call). The use case
@@ -26,7 +26,7 @@ import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
-  'pnpm ops:disconnect-connection <connectionId> --operator <id> --org <id> [--reason <text> --apply --yes ops:disconnect-connection]'
+  'pnpm ops disconnect-connection <connectionId> --operator <id> --org <id> [--reason <text> --apply --yes ops:disconnect-connection]'
 
 function usage(): never {
   console.error(`Usage: ${USAGE}`)

@@ -31,7 +31,7 @@ import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:report-capability-refusal'
 const USAGE =
-  'pnpm ops:report-capability-refusal --operator <id> [--capability <id>] [--org <id>] [--property <id>] [--json]'
+  'pnpm ops report-capability-refusal --operator <id> [--capability <id>] [--org <id>] [--property <id>] [--json]'
 const HELP = [
   'Explain the first authority refusing one capability or the complete capability catalogue.',
   'This command is read-only; it never calls the mutating Postgres start authority.',

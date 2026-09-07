@@ -9,8 +9,8 @@
 // has no destructive apply authority until the reviewed REV-01 cutover.
 //
 // Usage:
-//   pnpm ops:purge <target> --operator <id>            — dry-run report
-//   pnpm ops:purge <target> --operator <id> --reason <text> --apply --yes ops:purge
+//   pnpm ops purge <target> --operator <id>            — dry-run report
+//   pnpm ops purge <target> --operator <id> --reason <text> --apply --yes ops:purge
 //
 // Targets (background queue, bounded internally by the sweeps themselves):
 //   reviews         — checkpointed lifecycle eligibility report (no mutation)
@@ -56,7 +56,7 @@ const TARGETS = {
 
 type Target = keyof typeof TARGETS
 
-const USAGE = `pnpm ops:purge <${Object.keys(TARGETS).join('|')}> --operator <id> [--reason <text> --apply --yes ops:purge]`
+const USAGE = `pnpm ops purge <${Object.keys(TARGETS).join('|')}> --operator <id> [--reason <text> --apply --yes ops:purge]`
 
 function usage(): never {
   console.error(`Usage: ${USAGE}`)

@@ -9,7 +9,7 @@
 #
 # What it does NOT do: set the app's environment variables (they live in
 # Railway, and the values are printed at the end for you to paste), and
-# subscribe the tenants (that is `pnpm ops:gbp-subscribe`, which needs the
+# subscribe the tenants (that is `pnpm ops gbp-subscribe`, which needs the
 # app's database). See docs/operations/google-pubsub-setup.md.
 #
 # Usage:
@@ -160,8 +160,8 @@ Set these on BOTH the web and worker services:
 
 Then subscribe each tenant (org-scoped, dry-run first):
 
-  pnpm ops:gbp-subscribe --operator <user-id> --org <org-id>
-  pnpm ops:gbp-subscribe --operator <user-id> --org <org-id> --reason "enable GBP push" --apply
+  pnpm ops gbp-subscribe --operator <user-id> --org <org-id>
+  pnpm ops gbp-subscribe --operator <user-id> --org <org-id> --reason "enable GBP push" --apply
 
 Verify: GET /api/health/metrics → sync.gbp_push_enabled == 1, then post a
 review on a connected property and watch for a sync job with initiator

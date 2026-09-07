@@ -28,9 +28,9 @@
 // nothing will ever start them.
 //
 // Usage:
-//   pnpm ops:permit-start-deadline-fence --operator <id>
+//   pnpm ops permit-start-deadline-fence --operator <id>
 //     — dry-run: reports the candidate count only
-//   pnpm ops:permit-start-deadline-fence --operator <id> --reason <text> \
+//   pnpm ops permit-start-deadline-fence --operator <id> --reason <text> \
 //     --apply --yes ops:permit-start-deadline-fence
 //
 // Optional: --batch-size <n> (1..1000, default 200) bounds one run. A run that

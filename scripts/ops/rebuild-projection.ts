@@ -3,9 +3,9 @@
 // clamps: batchSize ≤ 1000).
 //
 // Usage:
-//   pnpm ops:rebuild-projection --operator <id> --org <id> [--property <id>]
+//   pnpm ops rebuild-projection --operator <id> --org <id> [--property <id>]
 //     — dry-run report (counts only)
-//   pnpm ops:rebuild-projection --operator <id> --org <id> [--property <id>] \
+//   pnpm ops rebuild-projection --operator <id> --org <id> [--property <id>] \
 //     --reason <text> --apply [--batch-size <n>]
 //
 // Requires DATABASE_URL. The use case is idempotent (repairs converge); the
@@ -15,7 +15,7 @@ import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
-  'pnpm ops:rebuild-projection --operator <id> --org <id> [--property <id>] [--batch-size <n>] [--reason <text> --apply]'
+  'pnpm ops rebuild-projection --operator <id> --org <id> [--property <id>] [--batch-size <n>] [--reason <text> --apply]'
 
 async function main(): Promise<void> {
   const result = await runOperatorCommand(

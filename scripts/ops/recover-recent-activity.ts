@@ -1,10 +1,10 @@
 // Audited, bounded Recent Activity readiness and recovery command.
 //
 // Report only:
-//   pnpm ops:recover-recent-activity --operator <id> <observed-at>
+//   pnpm ops recover-recent-activity --operator <id> <observed-at>
 //
 // Recover one bounded page (repeat with the emitted cursor until complete):
-//   pnpm ops:recover-recent-activity --operator <id> --batch-size 100
+//   pnpm ops recover-recent-activity --operator <id> --batch-size 100
 //     --apply --reason <text> <observed-at> [<after-occurred-at> <after-replay-key>]
 
 import { parseRecentActivityRecoveryInvocation } from '../../src/contexts/feed/application/recent-activity-recovery-invocation'
@@ -15,7 +15,7 @@ import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:recover-recent-activity'
 const USAGE =
-  'pnpm ops:recover-recent-activity --operator <id> [--batch-size <1..100>] [--apply --reason <text>] <observed-at> [<after-occurred-at> <after-replay-key>]'
+  'pnpm ops recover-recent-activity --operator <id> [--batch-size <1..100>] [--apply --reason <text>] <observed-at> [<after-occurred-at> <after-replay-key>]'
 
 async function main(): Promise<void> {
   const result = await runOperatorCommand(

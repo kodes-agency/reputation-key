@@ -4,11 +4,11 @@
 // shared/jobs/failure-quarantine.ts).
 //
 // Usage:
-//   pnpm ops:quarantine list --operator <id>                       — report quarantined jobs
-//   pnpm ops:quarantine redrive <quarantineJobId> --operator <id>  — show what would be redriven
-//   pnpm ops:quarantine redrive <quarantineJobId> --operator <id> --reason <text> --apply
-//   pnpm ops:quarantine discard <quarantineJobId> --operator <id>  — show what would be discarded
-//   pnpm ops:quarantine discard <quarantineJobId> --operator <id> --reason <text> --apply
+//   pnpm ops quarantine list --operator <id>                       — report quarantined jobs
+//   pnpm ops quarantine redrive <quarantineJobId> --operator <id>  — show what would be redriven
+//   pnpm ops quarantine redrive <quarantineJobId> --operator <id> --reason <text> --apply
+//   pnpm ops quarantine discard <quarantineJobId> --operator <id>  — show what would be discarded
+//   pnpm ops quarantine discard <quarantineJobId> --operator <id> --reason <text> --apply
 //
 // Redrive moves the job back to its ORIGINAL queue with a fresh attempt
 // budget (catalogue policy) and redriveMetadata in the payload — the BQC-3
@@ -27,7 +27,7 @@ import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
-  'pnpm ops:quarantine <list|redrive <quarantineJobId>|discard <quarantineJobId>> --operator <id> [--reason <text> --apply]'
+  'pnpm ops quarantine <list|redrive <quarantineJobId>|discard <quarantineJobId>> --operator <id> [--reason <text> --apply]'
 
 function usage(): never {
   console.error(`Usage: ${USAGE}`)

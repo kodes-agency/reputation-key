@@ -12,13 +12,13 @@
 // member should keep working, re-invite them — that has its own audit trail.
 //
 // Report the whole candidate set:
-//   pnpm ops:repair-partial-offboarding --operator <id>
+//   pnpm ops repair-partial-offboarding --operator <id>
 //
 // Report one user:
-//   pnpm ops:repair-partial-offboarding <organization-id> <user-id> --operator <id>
+//   pnpm ops repair-partial-offboarding <organization-id> <user-id> --operator <id>
 //
 // Converge one reviewed user:
-//   pnpm ops:repair-partial-offboarding <organization-id> <user-id> \
+//   pnpm ops repair-partial-offboarding <organization-id> <user-id> \
 //     --operator <id> --ticket <ref> --reason <text> \
 //     --apply --yes ops:repair-partial-offboarding
 

@@ -182,9 +182,9 @@ All three new commands are read-only, have no apply flag and no write path, and
 emit counts, severities and a state fingerprint only.
 
 ```bash
-pnpm ops:report-legacy-custom-roles         --operator <id> --as-of <ISO-8601>
-pnpm ops:report-legacy-multi-org            --operator <id> --as-of <ISO-8601>
-pnpm ops:report-legacy-guest-compatibility  --operator <id> --as-of <ISO-8601>
+pnpm ops report-legacy-custom-roles         --operator <id> --as-of <ISO-8601>
+pnpm ops report-legacy-multi-org            --operator <id> --as-of <ISO-8601>
+pnpm ops report-legacy-guest-compatibility  --operator <id> --as-of <ISO-8601>
 ```
 
 The fingerprint covers observed state — subject, version and every finding

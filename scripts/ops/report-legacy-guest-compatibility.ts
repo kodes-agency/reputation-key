@@ -21,7 +21,7 @@
 // mirrors are gated on.
 //
 // Usage:
-//   pnpm ops:report-legacy-guest-compatibility --operator <id> --as-of <ISO-8601>
+//   pnpm ops report-legacy-guest-compatibility --operator <id> --as-of <ISO-8601>
 
 import { getDb } from '../../src/shared/db'
 import { canonicalReconciliationReport } from '../../src/shared/db/retention/reconciliation-report'

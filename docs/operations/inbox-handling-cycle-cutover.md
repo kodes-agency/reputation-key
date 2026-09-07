@@ -36,7 +36,7 @@ finding in the report never relaxes one of them.
 ## Run
 
 ```sh
-pnpm ops:report-inbox-handling-cutover \
+pnpm ops report-inbox-handling-cutover \
   --operator <registered-operator> \
   --org <organization-id> \
   --observed-at <ISO-8601>

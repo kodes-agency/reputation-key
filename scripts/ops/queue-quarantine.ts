@@ -1,9 +1,9 @@
 // Operator CLI: quarantine a queue without deleting jobs (BQC-0.4; harness BQC-7.5).
 // Usage:
-//   pnpm ops:queue status <queue> --operator <id>
-//   pnpm ops:queue pause <queue> --operator <id> --reason <text>           — dry-run report
-//   pnpm ops:queue pause <queue> --operator <id> --reason <text> --apply   — stop processing, preserve all jobs
-//   pnpm ops:queue resume <queue> --operator <id> --reason <text> --apply  — restore processing
+//   pnpm ops queue status <queue> --operator <id>
+//   pnpm ops queue pause <queue> --operator <id> --reason <text>           — dry-run report
+//   pnpm ops queue pause <queue> --operator <id> --reason <text> --apply   — stop processing, preserve all jobs
+//   pnpm ops queue resume <queue> --operator <id> --reason <text> --apply  — restore processing
 // Queues: default, background, domain-events. Requires QUEUE_REDIS_URL + DATABASE_URL.
 // Every invocation is policy-evaluated + audited (allow rows carry the
 // reason; reads audit as 'read'). pause/resume are report-first since
@@ -20,7 +20,7 @@ import {
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'
 
-const USAGE = `pnpm ops:queue <status|pause|resume> <${QUARANTINE_QUEUE_NAMES.join('|')}> --operator <id> [--reason <text> --apply]`
+const USAGE = `pnpm ops queue <status|pause|resume> <${QUARANTINE_QUEUE_NAMES.join('|')}> --operator <id> [--reason <text> --apply]`
 
 function usage(): never {
   console.error(`Usage: ${USAGE}`)

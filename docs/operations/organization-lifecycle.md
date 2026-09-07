@@ -44,7 +44,7 @@ Production-shaped but deliberately quarantined:
   hourly schedules, but all three job families are `quarantined`, so worker
   reconciliation removes those schedules while retaining no-mutation safety
   handlers for stale queued work; and
-- `pnpm ops:report-organization-lifecycle --operator <id> --org <id>` reports
+- `pnpm ops report-organization-lifecycle --operator <id> --org <id>` reports
   exact content-free authority and composition readiness. It has no apply mode.
 
 Not activated or complete:
@@ -366,13 +366,13 @@ left, and a membership row that should not exist.
 
 ```sh
 # Report the whole candidate set (always report-only)
-pnpm ops:repair-partial-offboarding --operator <id>
+pnpm ops repair-partial-offboarding --operator <id>
 
 # Report one user
-pnpm ops:repair-partial-offboarding <organization-id> <user-id> --operator <id>
+pnpm ops repair-partial-offboarding <organization-id> <user-id> --operator <id>
 
 # Converge one reviewed user
-pnpm ops:repair-partial-offboarding <organization-id> <user-id> \
+pnpm ops repair-partial-offboarding <organization-id> <user-id> \
   --operator <id> --ticket <ref> --reason <text> \
   --apply --yes ops:repair-partial-offboarding
 ```
@@ -410,7 +410,7 @@ the fence that silenced everything else.
 Preferred content-free operator report:
 
 ```sh
-pnpm ops:report-organization-lifecycle \
+pnpm ops report-organization-lifecycle \
   --operator <registered-operator> \
   --org <organization-id>
 ```

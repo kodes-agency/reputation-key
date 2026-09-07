@@ -41,7 +41,7 @@ most 100 scanned rows, and permit only the forward
    every effect capability denied.
 2. Set the restore target variables, but leave all three
    `REVIEW_LIFECYCLE_RECOVERY_APPROVAL_*` variables unset.
-3. Run `pnpm ops:restore-verify --operator <id>`. The dry run drains both the
+3. Run `pnpm ops restore-verify --operator <id>`. The dry run drains both the
    full Review report and shadow views at one frozen instant. It prints:
    - the canonical aggregate report and its SHA-256;
    - the canonical approval request and its SHA-256; and
@@ -106,7 +106,7 @@ Configure these three values together, only for the isolated verifier process:
 Run the typed destructive command from the same isolated target:
 
 ```text
-pnpm ops:restore-verify --operator <id> --reason <change-ref> --apply --yes ops:restore-verify
+pnpm ops restore-verify --operator <id> --reason <change-ref> --apply --yes ops:restore-verify
 ```
 
 Before its first mutation, the executor checks canonical encoding, bundle and

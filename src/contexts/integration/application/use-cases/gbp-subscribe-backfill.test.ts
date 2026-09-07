@@ -180,7 +180,7 @@ describe('ops:gbp-subscribe through the operator harness', () => {
     name: 'ops:gbp-subscribe',
     scope: 'org',
     mutation: true,
-    usage: 'pnpm ops:gbp-subscribe --operator <id> --org <id>',
+    usage: 'pnpm ops gbp-subscribe --operator <id> --org <id>',
   } as const
   const runtime = {
     decide: async () => ({

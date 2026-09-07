@@ -22,7 +22,7 @@ pinned in code and asserted by test.
 ## Read-only inventory
 
 ```sh
-pnpm ops:report-compatibility-read-surfaces \
+pnpm ops report-compatibility-read-surfaces \
   --operator <approved-operator-id> \
   --as-of 2026-08-28T00:00:00.000Z
 ```

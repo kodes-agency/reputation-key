@@ -8,7 +8,7 @@ approval.
 ## Run
 
 ```sh
-pnpm ops:report-guest-response-readiness \
+pnpm ops report-guest-response-readiness \
   --operator <registered-operator> \
   --observed-at <ISO-8601> \
   [--org <organization-id> ...]

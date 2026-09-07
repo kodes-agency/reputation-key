@@ -13,7 +13,7 @@
 // is no apply mode.
 //
 // Usage:
-//   pnpm ops:report-compatibility-read-surfaces --operator <id> --as-of <ISO-8601>
+//   pnpm ops report-compatibility-read-surfaces --operator <id> --as-of <ISO-8601>
 
 import { getDb } from '../../src/shared/db'
 import { canonicalCompatibilityReadInventoryReport } from '../../src/contexts/guest/application/compatibility-read-inventory'
@@ -22,7 +22,7 @@ import { runOperatorCommand } from './operator-command'
 
 const COMMAND_NAME = 'ops:report-compatibility-read-surfaces'
 const USAGE =
-  'pnpm ops:report-compatibility-read-surfaces --operator <id> --as-of <ISO-8601>'
+  'pnpm ops report-compatibility-read-surfaces --operator <id> --as-of <ISO-8601>'
 
 function flagValue(args: readonly string[], name: string): string | undefined {
   const inline = args.find((arg) => arg.startsWith(`${name}=`))

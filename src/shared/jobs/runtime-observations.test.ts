@@ -61,7 +61,7 @@ function contract(
     lastSuccessObjectiveMs: 600_000,
     maximumQueueAgeMs: 300_000,
     repairCommand:
-      'pnpm ops:quarantine redrive <quarantineJobId> --operator <registered-operator> --reason <incident-reason> --apply',
+      'pnpm ops quarantine redrive <quarantineJobId> --operator <registered-operator> --reason <incident-reason> --apply',
     runbook: 'docs/operations/runbooks.md',
     ...overrides,
   }
@@ -274,7 +274,7 @@ describe('durable job runtime observations', () => {
     expect(poisonReport.rows[0]).toMatchObject({
       ready: false,
       reasons: ['repair_required', 'dead_letter_present'],
-      repairCommand: expect.stringContaining('ops:quarantine redrive'),
+      repairCommand: expect.stringContaining('pnpm ops quarantine redrive'),
     })
 
     await store.recordSucceeded({

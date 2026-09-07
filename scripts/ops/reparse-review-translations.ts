@@ -35,8 +35,8 @@
 // position are untouched.
 //
 // Usage:
-//   pnpm ops:reparse-review-translations report [--property <id>]
-//   pnpm ops:reparse-review-translations repair [--property <id>] [--apply]
+//   pnpm ops reparse-review-translations report [--property <id>]
+//   pnpm ops reparse-review-translations repair [--property <id>] [--apply]
 //
 // `repair` is DRY-RUN by default: without --apply it prints the same report and
 // writes nothing. Idempotent — repaired rows no longer carry the envelope, so a
@@ -51,7 +51,7 @@ import type { StarRating } from '../../src/contexts/review/domain/types'
 
 const COMMAND_NAME = 'ops:reparse-review-translations'
 const USAGE =
-  'pnpm ops:reparse-review-translations <report|repair> [--property <id>] [--apply]'
+  'pnpm ops reparse-review-translations <report|repair> [--property <id>] [--apply]'
 
 type WrappedRow = Readonly<{
   id: string
