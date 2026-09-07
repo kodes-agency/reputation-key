@@ -21,7 +21,7 @@ import {
   bindProcessPolicies,
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
-import { initCapabilityPolicyStore } from '../policy-store-init'
+import { buildCapabilityPolicyHandle } from '../policy-store-init'
 
 const db = getDb()
 const ORG = 'org-delayed-gate'
@@ -44,7 +44,7 @@ beforeAll(async () => {
   // ARC-03-T8: the handle no longer installs itself — the dispatch gate reads
   // the process-bound delayed policy, so bind explicitly.
   bindProcessPolicies(
-    initCapabilityPolicyStore({
+    buildCapabilityPolicyHandle({
       db,
       env: POLICY_ENV,
       clock: () => new Date(),
@@ -85,7 +85,7 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     // Restore the process-bound static policy for later tests.
     releaseProcessPolicies()
     bindProcessPolicies(
-      initCapabilityPolicyStore({
+      buildCapabilityPolicyHandle({
         db,
         env: POLICY_ENV,
         clock: () => new Date(),

@@ -33,7 +33,7 @@ import {
   bindProcessPolicies,
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
-import { initCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
+import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
 import {
   createRedriveJob,
   listQuarantinedJobs,
@@ -108,7 +108,7 @@ beforeAll(async () => {
   resetCapabilityPolicyStore()
   resetExecutionPolicy()
   resetDelayedExecutionPolicy()
-  const handle = initCapabilityPolicyStore({
+  const handle = buildCapabilityPolicyHandle({
     db,
     env: { NODE_ENV: 'test', OPS_OPERATOR_IDENTITIES: OPERATOR },
     clock: () => new Date(),

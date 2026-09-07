@@ -99,10 +99,17 @@ const LOCAL_STACK_EXECUTION_IDENTITY = {
 export function localStackEnvironment(mode: LocalStackMode): Readonly<{
   E2E_WEB_CAPABILITY_OVERRIDE: string
   E2E_WEB_EXECUTION_IDENTITY: string
+  /**
+   * Organizations allowlisted for the non-core capabilities. Capability policy
+   * is env-backed (WP3.3-C), and the seeded organization's id is only known
+   * once the seed has run, so the stack fills this in between `seed` and
+   * `web`/`worker` boot.
+   */
+  E2E_BETA_ALLOWLIST_ORGS: string
 }> {
   return {
-    // All modes resolve product capabilities through persisted tenant policy.
     E2E_WEB_CAPABILITY_OVERRIDE: '',
     E2E_WEB_EXECUTION_IDENTITY: LOCAL_STACK_EXECUTION_IDENTITY[mode],
+    E2E_BETA_ALLOWLIST_ORGS: '',
   }
 }

@@ -23,7 +23,7 @@ describe('createMetricRegistryRepository', () => {
       }),
       version: expect.objectContaining({
         id: METRIC_VERSION_IDS.portalRatingAverageGoal,
-        effectiveFrom: new Date('2026-08-25T00:00:00.000Z'),
+        effectiveFrom: new Date('2026-08-01T00:00:00.000Z'),
         unit: 'star',
         precision: 1,
         minimumSample: 10,

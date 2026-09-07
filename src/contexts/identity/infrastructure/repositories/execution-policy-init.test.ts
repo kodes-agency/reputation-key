@@ -1,6 +1,6 @@
 // BQC-2.4 — ExecutionPolicy composition wiring proof (real PostgreSQL).
 //
-// initCapabilityPolicyStore builds both policies with process-static capability
+// buildCapabilityPolicyHandle builds both policies with process-static capability
 // configuration and the identity-owned live grant and consent dependencies.
 // Proves the production seam: org-wide allows, assigned scope without a grant
 // denies, and a committed grant allows.
@@ -19,7 +19,7 @@ import {
   bindProcessPolicies,
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
-import { initCapabilityPolicyStore } from '../policy-store-init'
+import { buildCapabilityPolicyHandle } from '../policy-store-init'
 import { grantPropertyAccess } from './property-access-grant.repository'
 import { organizationId, userId, propertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -70,7 +70,7 @@ beforeAll(async () => {
   // installation is the explicit bind, which is what production entry points
   // now do too.
   bindProcessPolicies(
-    initCapabilityPolicyStore({
+    buildCapabilityPolicyHandle({
       db,
       env: {} as CapabilityPolicyEnv,
       clock: () => new Date(),

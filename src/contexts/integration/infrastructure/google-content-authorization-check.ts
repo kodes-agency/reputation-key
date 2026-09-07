@@ -101,7 +101,7 @@ const REPLY_PUBLICATION_OPERATIONS: Readonly<Record<string, true>> = {
  * control authorize this scope. Property ownership remains a request-time
  * database fact; no persisted capability snapshot participates.
  */
-export async function policyAuthorizes(
+async function policyAuthorizes(
   tx: Database,
   capability: GoogleContentCapability,
   organizationId: string,

@@ -41,7 +41,7 @@ import {
   bindProcessPolicies,
   releaseProcessPolicies,
 } from '#/shared/auth/process-policy-binding'
-import { initCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
+import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import {
   runOperatorCommand,
@@ -207,7 +207,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     resetCapabilityPolicyStore()
     resetExecutionPolicy()
     resetDelayedExecutionPolicy()
-    const handle = initCapabilityPolicyStore({
+    const handle = buildCapabilityPolicyHandle({
       db,
       env: { NODE_ENV: 'test', OPS_OPERATOR_IDENTITIES: OPERATOR },
       clock: () => new Date(),

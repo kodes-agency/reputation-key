@@ -54,7 +54,7 @@ vi.mock('#/shared/auth/beta-capabilities', async (importOriginal) => {
 import { getExecutionPolicy } from '#/shared/auth/execution-policy'
 import { getDelayedExecutionPolicy } from '#/shared/auth/system-execution-policy'
 import { checkGlobalCapability } from '#/shared/auth/beta-capabilities'
-import { initCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
+import { buildCapabilityPolicyHandle } from '#/contexts/identity/infrastructure/policy-store-init'
 import { createContainer } from '#/composition'
 import {
   bindProcessPolicies,
@@ -198,7 +198,7 @@ describe('building a container installs nothing (ARC-03-T8)', () => {
   })
 })
 
-describe('initCapabilityPolicyStore returns instead of installing', () => {
+describe('buildCapabilityPolicyHandle returns instead of installing', () => {
   beforeEach(() => {
     releaseProcessPolicies()
     initExecutionPolicySpy.mockClear()
@@ -211,7 +211,7 @@ describe('initCapabilityPolicyStore returns instead of installing', () => {
   })
 
   it('hands back the trio plus the refresh contract and installs none of it', () => {
-    const handle = initCapabilityPolicyStore({
+    const handle = buildCapabilityPolicyHandle({
       db: dbStub,
       env: {},
       clock,

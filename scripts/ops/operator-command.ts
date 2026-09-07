@@ -20,7 +20,7 @@ import { getDb } from '../../src/shared/db'
 import { closePool } from '../../src/shared/db/pool'
 import { getEnv } from '../../src/shared/config/env'
 import { getLogger } from '../../src/shared/observability/logger'
-import { initCapabilityPolicyStore } from '../../src/contexts/identity/infrastructure/policy-store-init'
+import { buildCapabilityPolicyHandle } from '../../src/contexts/identity/infrastructure/policy-store-init'
 import { createOperatorContainer } from '../../src/composition/deployables'
 import { closeJobQueueConnections } from '../../src/shared/jobs/queue'
 import { OPERATOR_GOOGLE_PROVIDER_REFUSAL_MESSAGE } from '../../src/composition/google-provider-authority'
@@ -69,7 +69,7 @@ async function bootOperatorRuntime(): Promise<OperatorBoot> {
   const db = getDb()
   const env = getEnv()
   const logger = getLogger(process.stderr)
-  const handle = initCapabilityPolicyStore({
+  const handle = buildCapabilityPolicyHandle({
     db,
     env,
     clock: () => new Date(),

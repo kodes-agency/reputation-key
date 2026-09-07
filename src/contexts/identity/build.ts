@@ -36,7 +36,7 @@ import { updateOrganization } from './application/use-cases/update-organization'
 import type { AuthSessionPort } from './application/ports/auth-session.port'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { createInvitedRegistrationStore } from './infrastructure/invited-registration-store'
-import { initCapabilityPolicyStore } from './infrastructure/policy-store-init'
+import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
 import { createPolicyAdminOps } from './application/use-cases/policy-admin'
 import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
 import { createCapabilityRefusalExplainer } from '#/shared/governance/capability-refusal'
@@ -354,7 +354,7 @@ function deriveLifecycleCompositionReadiness(deps: IdentityContextDeps) {
 function buildOrganizationLifecycleComposition(
   deps: IdentityContextDeps,
   bindings: Readonly<{
-    policyStore: ReturnType<typeof initCapabilityPolicyStore>
+    policyStore: ReturnType<typeof buildCapabilityPolicyHandle>
     managerMembershipRepo: ReturnType<typeof createManagerMembershipRepository>
   }>,
 ) {
@@ -512,7 +512,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
 
   // Capability fate and environment controls are process-static. Tenant
   // grants, consent, and the execution kill switch retain their live reads.
-  const policyStore = initCapabilityPolicyStore({
+  const policyStore = buildCapabilityPolicyHandle({
     db: deps.db,
     env: deps.policy.env,
     clock: deps.clock,

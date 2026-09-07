@@ -54,6 +54,7 @@ function recordSettlement(
  */
 export const recoverInvitedRegistrations =
   (deps: RecoverInvitedRegistrationsDeps) =>
+  // fallow-ignore-next-line complexity
   async (): Promise<RecoverInvitedRegistrationsResult> => {
     const claimNow = deps.clock()
     const claimed = await deps.registrationStore.claimDue({

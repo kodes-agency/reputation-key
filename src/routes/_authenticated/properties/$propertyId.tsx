@@ -34,10 +34,27 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   loader: async ({ context, params: { propertyId } }) => {
     // Property detail is cached via Query (propertyQuery); Staff participation
     // is fetched by the People child route via useSuspenseQuery.
-    await context.queryClient.ensureQueryData(propertyQuery(propertyId))
+    try {
+      await context.queryClient.ensureQueryData(propertyQuery(propertyId))
+    } catch (error) {
+      // A property outside the caller's organization answers 404 from the
+      // server fn; that is this route's not-found, never a rendered error.
+      // `ServerFunctionError` does not survive seroval, so narrow on `.status`.
+      if (isNotFoundStatus(error)) throw notFound()
+      throw error
+    }
   },
   component: PropertyLayout,
 })
+
+function isNotFoundStatus(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    (error as { status: unknown }).status === 404
+  )
+}
 
 function PropertyLayout() {
   // propertyId available via Route.useParams() if needed

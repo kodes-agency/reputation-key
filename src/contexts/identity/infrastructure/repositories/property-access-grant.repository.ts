@@ -172,19 +172,3 @@ export async function hasActiveGrant(
   `)
   return rows.rows.length > 0
 }
-
-/** All active grants in an org — the policy-admin surface read (BQC-2.7). */
-export async function listActiveGrantsForOrg(
-  db: Database,
-  organizationId: string,
-  at: Date,
-): Promise<ReadonlyArray<PropertyAccessGrantRecord>> {
-  const rows = await db.execute(sql`
-    SELECT * FROM property_access_grant
-    WHERE organization_id = ${organizationId}
-      AND revoked_at IS NULL
-      AND (expires_at IS NULL OR expires_at > ${at})
-    ORDER BY property_id, user_id
-  `)
-  return rows.rows.map((r) => mapGrant(r as Record<string, unknown>))
-}

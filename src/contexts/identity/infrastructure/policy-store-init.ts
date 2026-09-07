@@ -33,7 +33,7 @@ const MERCHANT_AI_PURPOSES: Readonly<Record<string, true>> = Object.freeze({
 })
 
 /** Stable revision of the TypeScript capability configuration. */
-export const STATIC_CAPABILITY_POLICY_VERSION = 1
+const STATIC_CAPABILITY_POLICY_VERSION = 1
 
 export type PolicyStoreHandle = Readonly<{
   /**
@@ -58,7 +58,7 @@ export type PolicyStoreLogger = Readonly<{
   warn(fields: Readonly<Record<string, unknown>>, message: string): void
 }>
 
-export function initCapabilityPolicyStore(deps: {
+export function buildCapabilityPolicyHandle(deps: {
   db: Database
   env: CapabilityPolicyEnv
   clock: () => Date

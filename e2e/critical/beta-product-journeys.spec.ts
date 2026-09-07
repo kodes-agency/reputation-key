@@ -28,10 +28,6 @@ import {
   REFUSAL_COPY,
   type CapabilityRefusalCategory,
 } from '../../src/shared/auth/capability-refusal-category'
-import {
-  METRIC_VERSION_IDS,
-  findMetricVersionById,
-} from '../../src/contexts/metric/application/public-api'
 
 const seed = requireE2eSeedState()
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
@@ -352,16 +348,22 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByRole('heading', { name: guestTitle })).toBeVisible()
   })
 
-  test('P2 and cross-tenant P3 deny promoted routes and public tokens', async ({
+  test('cross-tenant P3 denies promoted routes; unpublished public tokens stay dark', async ({
     page,
   }) => {
     const log = attachRequestLog(page)
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
 
+    // Capability policy is organization-wide (WP3.3-C): P2 is an ordinary
+    // property of the allowlisted org, so its promoted route serves.
     await page.goto(`/properties/${seed.p2PropertyId}/portals`)
-    await expectControlledUnavailable(page, 'Portals', 'needs_admin_enablement')
+    await expect(page).not.toHaveURL(/\/unavailable/)
+    await expect(page.getByRole('heading', { name: /portals/i }).first()).toBeVisible()
+    // Cross-tenant P3 is invisible to org A: tenant isolation answers with the
+    // not-found surface, never with a capability hint or P3 content.
     await page.goto(`/properties/${seed.p3PropertyId}/portals`)
-    await expectControlledUnavailable(page, 'Portals', 'needs_admin_enablement')
+    await expect(page.getByText(/doesn't exist|not found/i).first()).toBeVisible()
+    await expect(page.getByText('E2E Guest Portal P3')).toHaveCount(0)
     await page.goto(`/p/${seed.p2PortalToken}`)
     await expectPublicUnavailable(page)
     await expect(page.getByText('E2E Guest Portal P2')).toHaveCount(0)
@@ -433,10 +435,13 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByText('E2E Guest Portal P1')).toHaveCount(0)
     await expect(page.getByText('E2E Guest Portal P2')).toHaveCount(0)
 
+    // The tenant boundary is P3 (locked Org B). P2 is an ordinary property of
+    // this organization since capability policy became organization-wide
+    // (WP3.3-C), so its portal reads and mutations are legitimately in scope.
     const portalDenial = await callServerFnGetExpectError(page, {
       file: 'src/contexts/portal/server/portals.ts',
       exportName: 'getPortal',
-      data: { portalId: seed.p2PortalId },
+      data: { portalId: seed.p3PortalId },
     })
     expect(portalDenial.message ?? portalDenial.code ?? '').toMatch(
       /error|denied|forbidden|not found/i,
@@ -445,15 +450,15 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       file: 'src/contexts/portal/server/portals.ts',
       exportName: 'updatePortal',
       data: {
-        portalId: seed.p2PortalId,
-        description: 'This cross-property mutation must remain inert.',
+        portalId: seed.p3PortalId,
+        description: 'This cross-tenant mutation must remain inert.',
       },
     })
     expect(portalMutationDenial.message ?? portalMutationDenial.code ?? '').toMatch(
       /error|denied|forbidden|not found/i,
     )
 
-    for (const propertyId of [seed.p2PropertyId, seed.p3PropertyId]) {
+    for (const propertyId of [seed.p3PropertyId]) {
       const emailPreferenceDenial = await callServerFnExpectError(page, {
         file: 'src/contexts/notification/server/notifications.ts',
         exportName: 'updateNotificationPreferenceFn',
@@ -476,7 +481,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     log.assertNoExternalHosts([BASE_HOST])
   })
 
-  test('qualified guest scans project into an evaluated governed P1 goal while P2 direct navigation is denied', async ({
+  test('qualified guest scans project into an evaluated governed P1 goal that P2 and P3 never see', async ({
     page,
     context,
   }) => {
@@ -581,9 +586,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
      * job must still derive both from the real guest facts and their metric
      * projections.
      */
-    const governedMetric = findMetricVersionById(METRIC_VERSION_IDS.qualifiedScanGoal)
-    expect(governedMetric).toBeTruthy()
-    if (!governedMetric) throw new Error('Qualified scan metric version is missing')
 
     const [period] = await dbQuery<{
       period_start: Date
@@ -592,17 +594,19 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       property_local_date: string
     }>(
       `SELECT
-         $3::timestamptz AS period_start,
-         (date_trunc(
-           'month',
-           $3::timestamptz AT TIME ZONE timezone
-         ) + interval '1 month') AT TIME ZONE timezone AS period_end,
-         $3::timestamptz + interval '12 hours' AS occurred_at,
-         to_char($3::timestamptz AT TIME ZONE timezone, 'YYYY-MM-DD')
-           AS property_local_date
+         ((date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month')
+           AT TIME ZONE timezone) AS period_start,
+         (date_trunc('month', now() AT TIME ZONE timezone)
+           AT TIME ZONE timezone) AS period_end,
+         ((date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month'
+           + interval '12 hours') AT TIME ZONE timezone) AS occurred_at,
+         to_char(
+           date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month',
+           'YYYY-MM-DD'
+         ) AS property_local_date
        FROM properties
        WHERE organization_id = $1 AND id = $2::uuid`,
-      [seed.organizationId, seed.p1PropertyId, governedMetric.version.effectiveFrom],
+      [seed.organizationId, seed.p1PropertyId],
     )
     expect(period).toBeTruthy()
     if (!period) throw new Error('The seeded Property has no timezone')
@@ -812,10 +816,15 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.reload()
     await expect(resultRow).toHaveCount(1)
 
+    // P2 is an ordinary property of the allowlisted org (WP3.3-C): its goals
+    // surface serves and carries none of P1's program. Cross-tenant P3 answers
+    // not-found without leaking the program.
     await page.goto(`/properties/${seed.p2PropertyId}/goals`)
-    await expectControlledUnavailable(page, 'Goals', 'needs_admin_enablement')
+    await expect(page).not.toHaveURL(/\/unavailable/)
+    await expect(page.getByText(activeGoalName)).toHaveCount(0)
     await page.goto(`/properties/${seed.p3PropertyId}/goals/${governedGoalDefinitionId}`)
-    await expectControlledUnavailable(page, 'Goals', 'needs_admin_enablement')
+    await expect(page.getByText(/doesn't exist|not found/i).first()).toBeVisible()
+    await expect(page.getByText(activeGoalName)).toHaveCount(0)
   })
 
   test('manager creates, revises, pauses, resumes, and cancels a governed P1 group Goal', async ({
@@ -892,19 +901,20 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       ]),
     )
 
-    // P2 has the capability switched off, so the same command is refused there.
+    // P3 belongs to locked Org B, so the same command is refused across the
+    // tenant boundary (P2 is in-org since capability policy is organization-wide).
     const denied = await callServerFnExpectError(page, {
       file: 'src/contexts/goal/server/goal-programs.ts',
       exportName: 'createGoalProgram',
       data: {
-        propertyId: seed.p2PropertyId,
+        propertyId: seed.p3PropertyId,
         name: `Denied ${goalName}`,
         metric: 'qualified_scans',
         targetValue: 1,
-        subjects: [{ kind: 'property', propertyId: seed.p2PropertyId }],
+        subjects: [{ kind: 'property', propertyId: seed.p3PropertyId }],
       },
     })
-    expect(denied.message ?? denied.code ?? '').toMatch(/error|denied|forbidden/i)
+    expect(denied.message ?? denied.code ?? '').toMatch(/error|denied|forbidden|not.?found/i)
 
     // A target the metric's own rule refuses: counts must be positive integers.
     const invalidTarget = await callServerFnExpectError(page, {
