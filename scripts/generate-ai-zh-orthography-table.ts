@@ -18,19 +18,19 @@ const MANIFEST_OUTPUT = resolve(
 const PACKAGE_ROOT = resolve(ROOT, 'node_modules/opencc-js')
 const WRAPPER_PATH = 'src/shared/ai-zh-orthography-verifier.ts'
 const VECTORS_PATH = 'src/shared/ai-zh-orthography-verifier-v1.vectors.json'
-const PACKAGE_VERSION = '1.4.1'
+const PACKAGE_VERSION = '1.4.2'
 const PACKAGE_INTEGRITY =
-  'sha512-2lPLcrg7cnh1ATSduOxhnk/jq6KlR6w+5Ihl4wF7Z5e5Rva4vxTyugV5rZ7EiUCOZl+EDOLetIix+BhgYDCC+A=='
+  'sha512-EdcspgdROiCCZDM+jZR6Pa670xW+EW2QhctPBQ8gRjg6lrx4IHEl+2s+kt5izk/TkxVRgdWuFgaGkaEdIUfdaw=='
 const UNICODE_VERSION = '17.0'
 const ICU_VERSION = '78.2'
 const MEMBERS = Object.freeze([
   [
     'dist/esm/cn2t.js',
-    'bd8511eaf9fb88fb47b0ff52965d352658c2c389af2ac09912d0d6eb5acaf3ad',
+    'f11354bf1dc5fdc4a53a5cfbf8808fe832bc27640a69d96fb60e547090010214',
   ],
   [
     'dist/esm/t2cn.js',
-    '69fa82bbe93d05746ba5ab96e9c85864ca4f91c984d198abf85a098b43451a86',
+    'b78e83f940e73a022d8d996333e924edf07aa5b6133b8cddd46fbbff1ac339b6',
   ],
 ] as const)
 
