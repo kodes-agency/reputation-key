@@ -44,7 +44,6 @@ export const QUEUE_NAMES = [
 /** Queue-depth row states (readAllQueueDepths). */
 const QUEUE_DEPTH_STATES = ['waiting', 'active', 'delayed', 'failed', 'paused'] as const
 
-
 /** Reply publication_state — the DB CHECK constraint set (review.schema). */
 export const PUBLICATION_STATES = [
   'requested',
@@ -732,7 +731,6 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     emitted: true,
     description: 'Age of the oldest ambiguous row past reconcile_due_at.',
   }),
-
 
   // ── cache.* — tenant-resolution cache ──
   def({

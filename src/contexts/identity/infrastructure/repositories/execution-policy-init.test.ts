@@ -123,6 +123,5 @@ describe('ExecutionPolicy composition wiring (BQC-2.4)', () => {
         propertyId: propertyId(PROP),
       }),
     ).resolves.toBeUndefined()
-
   })
 })

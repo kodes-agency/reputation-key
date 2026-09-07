@@ -71,7 +71,6 @@ export const createProperty =
       }),
     })
 
-
     // 6. Return
     return property
   }

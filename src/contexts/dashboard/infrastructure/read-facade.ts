@@ -20,18 +20,7 @@
 //   second read model beside the authoritative query path (BQC-5.5
 //   remove-decision: shared/cache/dashboard-cache.ts deleted unwired).
 
-import {
-  and,
-  count,
-  eq,
-  gte,
-  gt,
-  inArray,
-  isNotNull,
-  lt,
-  or,
-  sql,
-} from 'drizzle-orm'
+import { and, count, eq, gte, gt, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -269,8 +258,7 @@ export async function readMetricAggregates(
     const state =
       evidenceCount === 0
         ? 'updating'
-        : governedEvidenceCount === evidenceCount &&
-            sampleCount >= version.minimumSample
+        : governedEvidenceCount === evidenceCount && sampleCount >= version.minimumSample
           ? 'available'
           : 'unavailable'
     return {

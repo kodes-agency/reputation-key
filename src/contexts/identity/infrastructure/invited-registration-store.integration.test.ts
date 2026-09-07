@@ -112,12 +112,16 @@ async function cleanFixtures(): Promise<void> {
   await lease.pool.query(
     `DELETE FROM verification WHERE identifier LIKE '${PREFIX}%' OR identifier LIKE 'invited-registration:${PREFIX}%'`,
   )
-  await lease.pool.query(`DELETE FROM outbox_events WHERE organization_id LIKE '${PREFIX}%'`)
+  await lease.pool.query(
+    `DELETE FROM outbox_events WHERE organization_id LIKE '${PREFIX}%'`,
+  )
   await lease.pool.query(
     `DELETE FROM member
       WHERE "organizationId" LIKE '${PREFIX}%' OR "userId" LIKE '${PREFIX}%'`,
   )
-  await lease.pool.query(`DELETE FROM invitation WHERE "organizationId" LIKE '${PREFIX}%'`)
+  await lease.pool.query(
+    `DELETE FROM invitation WHERE "organizationId" LIKE '${PREFIX}%'`,
+  )
   const organizations = await lease.pool.query<{ id: string }>(
     `SELECT id FROM organization WHERE id LIKE '${PREFIX}%'`,
   )
@@ -205,22 +209,23 @@ describe.sequential('invited registration store (integration)', () => {
     })
     if (recovery.kind !== 'ready_to_accept') throw new Error('expected recovery')
 
-    const accepted = await createAtomicIdentityCommandStore(db, randomUUID).acceptInvitation(
-      {
-        invitationId: fixture.invitationId,
-        acceptorEmail: recovery.acceptorEmail,
-        acceptorUserId: userId(fixture.authIds.userId),
-        now: NOW,
-        buildEvent: (currentInvitation) =>
-          identityInvitationAccepted({
-            organizationId: currentInvitation.organizationId,
-            userId: userId(fixture.authIds.userId),
-            invitationId: fixture.invitationId,
-            propertyIds: currentInvitation.propertyIds,
-            occurredAt: NOW,
-          }),
-      },
-    )
+    const accepted = await createAtomicIdentityCommandStore(
+      db,
+      randomUUID,
+    ).acceptInvitation({
+      invitationId: fixture.invitationId,
+      acceptorEmail: recovery.acceptorEmail,
+      acceptorUserId: userId(fixture.authIds.userId),
+      now: NOW,
+      buildEvent: (currentInvitation) =>
+        identityInvitationAccepted({
+          organizationId: currentInvitation.organizationId,
+          userId: userId(fixture.authIds.userId),
+          invitationId: fixture.invitationId,
+          propertyIds: currentInvitation.propertyIds,
+          occurredAt: NOW,
+        }),
+    })
     expect(accepted.propertyIds).toEqual(['property-1'])
 
     await expect(

@@ -308,7 +308,6 @@ function buildContainer(
   // Property lifecycle; Integration still uses it for governed disconnect.
   const sourceContentPurge = createSourceContentPurge({ db, clock })
 
-
   const property = buildPropertyContext({
     db,
     repo: createPropertyRepository(db),

@@ -139,5 +139,4 @@ describe('createProperty', () => {
         isPropertyError(e) && (e as { code: string }).code === 'invalid_name',
     )
   })
-
 })

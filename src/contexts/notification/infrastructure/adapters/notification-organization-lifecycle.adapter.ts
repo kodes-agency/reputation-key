@@ -396,7 +396,6 @@ const purge = async (
     .where(eq(notificationUserSettings.organizationId, organization))
     .returning({ id: notificationUserSettings.id })
 
-
   return notificationPurgeOutcome({
     notifications: notificationRows.length,
     emails: emails.length,

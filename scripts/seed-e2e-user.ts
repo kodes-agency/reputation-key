@@ -273,7 +273,6 @@ async function ensureMembership(input: {
     .onConflictDoUpdate({ target: member.id, set: { role: input.role } })
 }
 
-
 async function ensureProperty(
   organizationId: string,
   fixture: PropertyFixture,
@@ -816,7 +815,6 @@ async function grantAccess(
     })
   }
 }
-
 
 async function ensurePortalFixtures(
   organizationId: string,

@@ -1128,9 +1128,9 @@ describe.sequential('atomic Guest response submission', () => {
       occurredAt: deletedAt,
     })
 
-    await expect(
-      store.commitWithdrawn(staleWithdrawal, [staleRetraction]),
-    ).resolves.toBe('conflict')
+    await expect(store.commitWithdrawn(staleWithdrawal, [staleRetraction])).resolves.toBe(
+      'conflict',
+    )
     const rows = await db.execute(sql`
       SELECT status, rating, correction_count, rating_source_event_id
       FROM guest_responses WHERE id = ${RESPONSE}

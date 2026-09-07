@@ -173,7 +173,6 @@ async function seedFixture(): Promise<Fixture> {
     ],
   )
 
-
   return fixture
 }
 

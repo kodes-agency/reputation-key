@@ -475,7 +475,6 @@ describe('guest response lifecycle', () => {
     ).rejects.toMatchObject({ code: 'response_not_found' })
   })
 
-
   it('treats legacy manager delete as moderation and preserves the numeric rating', async () => {
     const { lifecycle, repo, outbox } = harness()
     await lifecycle.submit(scope, '00000000-0000-4000-8000-000000000003', {
@@ -556,7 +555,6 @@ describe('guest response lifecycle', () => {
       occurredAt: new Date('2026-08-09T12:20:00.000Z'),
     })
   })
-
 })
 
 // The submit path is the only producer of the guest rating/feedback facts the

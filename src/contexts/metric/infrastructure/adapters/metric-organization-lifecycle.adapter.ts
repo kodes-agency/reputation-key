@@ -47,7 +47,6 @@ export const METRIC_PURGE_TABLES = Object.freeze([
   'portal_metric_lifetime_aggregates',
 ] as const)
 
-
 /** A correction chain is short; the guard turns a cycle into a loud failure. */
 const MAX_CORRECTION_CHAIN_PASSES = 64
 

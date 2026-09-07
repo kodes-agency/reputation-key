@@ -61,7 +61,6 @@ describe('buildOrganizationUpdatePatch', () => {
     expect(patch.contactEmail).toBe('contact@test.com')
   })
 
-
   it('omits contact when it was never provided', () => {
     const patch = buildOrganizationUpdatePatch({ name: 'Org' })
 

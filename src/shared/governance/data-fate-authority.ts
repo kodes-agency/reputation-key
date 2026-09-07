@@ -76,7 +76,6 @@ const CONTRACT_AFTER_EXPORT =
 const ERASE_WITH_OWNER =
   'The owning lifecycle command must hide, erase, or expire the content with content-free completion evidence and restore-boundary verification.'
 
-
 const RETAINED_HISTORY =
   'Retain as immutable history while its owning aggregate is active or archived; include it in scoped export, restore, retention, and erasure evidence.'
 

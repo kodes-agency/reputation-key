@@ -23,7 +23,6 @@ import type { GuestResponseRepository } from '../../application/ports/guest-resp
 import { guestResponseFromRow } from '../mappers/guest-response.mapper'
 import type { Clock } from '#/shared/domain/clock'
 
-
 export const createGuestResponseRepository = (
   db: Database,
   clock: Clock,
@@ -330,6 +329,5 @@ export const createGuestResponseRepository = (
         .returning({ id: guestResponses.id })
       return updated.length > 0
     },
-
   }
 }

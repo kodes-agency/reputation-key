@@ -221,7 +221,6 @@ export function guestResponseLifecycle(
     return response ? toView(response, now) : null
   }
 
-
   // The aggregate submission derives rating and feedback facts from the
   // aggregate's resolved consent flags, never from raw input. submitResponse()
   // normalizes those flags, and a row may legitimately retain a rating the
@@ -652,6 +651,5 @@ export function guestResponseLifecycle(
       }
       return toView(moderated, deps.clock())
     },
-
   } as const
 }

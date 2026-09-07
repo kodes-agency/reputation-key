@@ -25,11 +25,9 @@ let dynamicAuthorizationFixture:
     }>
   | undefined
 
-
 const GOOGLE_POLICY_ENV = {
   NODE_ENV: 'test',
-  BETA_E2E_GLOBAL_CAPABILITIES:
-    'property.import_gbp_v2,property.read_gbp_performance',
+  BETA_E2E_GLOBAL_CAPABILITIES: 'property.import_gbp_v2,property.read_gbp_performance',
 } as const
 
 beforeEach(async () => {

@@ -278,7 +278,6 @@ describe('terminal-failure publication barrier', () => {
     expect(quarantine.jobs.size).toBe(0)
   })
 
-
   it('does not stage BullMQ non-failure control-flow errors', async () => {
     const quarantine = fakeQueue()
     const finalAttempt = fakeJob({ attemptsMade: 2, opts: { attempts: 3 } })
@@ -367,7 +366,6 @@ describe('createRedriveJob (BQC-3.6)', () => {
     expect(target.add).not.toHaveBeenCalled()
     expect(quarantine.jobs.size).toBe(1)
   })
-
 
   it('reports not-found for an unknown quarantine job id', async () => {
     const quarantine = fakeQueue()

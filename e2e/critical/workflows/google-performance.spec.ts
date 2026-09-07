@@ -300,6 +300,5 @@ test.describe('Critical workflow: live Google Performance', () => {
       retryable: false,
       retryAfterSeconds: null,
     })
-
   })
 })

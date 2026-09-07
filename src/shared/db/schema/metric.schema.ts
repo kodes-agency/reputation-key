@@ -373,7 +373,6 @@ export const metricCorrections = pgTable(
   ],
 )
 
-
 export const metricSourceWatermarks = pgTable(
   'metric_source_watermarks',
   {

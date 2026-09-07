@@ -507,7 +507,6 @@ describe('retention rule registry (BQC-3.7)', () => {
     })
   })
 
-
   it('retains open digest batches and purges only terminal evidence after 90 days', () => {
     expect(
       RETENTION_RULES.find((rule) => rule.subject === 'notification_digest_batches'),

@@ -355,7 +355,6 @@ describe('buildIntegrationContext mandatory policy refresh', () => {
     return { discovery: discovery!, decide }
   }
 
-
   it('reaches the execution policy after observing the static policy', async () => {
     const { discovery, decide } = discoveryWithRefresh(async () => {})
 

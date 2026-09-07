@@ -326,7 +326,6 @@ describe('createAtomicIdentityCommandStore', () => {
         expect(outboxRows).toHaveLength(0)
       }
     })
-
   })
 
   describe('acceptInvitation', () => {
@@ -434,7 +433,6 @@ describe('createAtomicIdentityCommandStore', () => {
       expect(outboxRows).toEqual([])
       expect(order).toEqual(['tx.start', 'tx.read', 'tx.lock', 'tx.read', 'tx.rollback'])
     })
-
 
     it('rejects an expired invitation — no fact', async () => {
       const order: string[] = []

@@ -128,7 +128,6 @@ function assertProviderIdentifiersAbsent(value: unknown): void {
   expect(serialized).not.toContain('loc-b')
 }
 
-
 test.describe('Critical workflow: Google import + initial sync', () => {
   test.beforeEach(async () => {
     // Stale provider syncs from an earlier spec retry against a stub scope that
@@ -136,7 +135,6 @@ test.describe('Critical workflow: Google import + initial sync', () => {
     await drainFixtureQueue()
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
-
 
   test('pages discovery, imports create + relink, replays exactly, and syncs reviews', async ({
     page,

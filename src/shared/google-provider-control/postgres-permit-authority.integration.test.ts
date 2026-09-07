@@ -538,7 +538,6 @@ describe('Postgres Google admission permit authority', () => {
     }
   })
 
-
   it('fences a human permit when the permission generation advances', async () => {
     const adapter = authority()
     const snapshot = await adapter.load(PERMIT_ID)

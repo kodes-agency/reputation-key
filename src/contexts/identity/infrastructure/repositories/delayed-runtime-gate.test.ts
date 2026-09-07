@@ -35,7 +35,6 @@ const EMAIL_DATA = {
 }
 
 beforeAll(async () => {
-
   await deleteTestOrganizations(db, [ORG])
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Delayed Gate Org', ${ORG}, now())`,
@@ -62,9 +61,7 @@ afterAll(async () => {
   await deleteTestOrganizations(db, [ORG])
 })
 
-
 describe('delayed runtime gate (BQC-3.2, real PG)', () => {
-
   it('(b) unavailable policy: strong-read failure maps to deny_retry', async () => {
     initDelayedExecutionPolicy(
       createDelayedExecutionPolicy({

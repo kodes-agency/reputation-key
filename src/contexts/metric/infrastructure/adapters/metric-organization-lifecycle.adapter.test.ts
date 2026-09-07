@@ -136,7 +136,6 @@ describe('metric organization lifecycle phases', () => {
     expect([...targets].sort()).toEqual([...METRIC_PURGE_TABLES].sort())
   })
 
-
   it('purge drains the correction supersession chain tip-first, then stops', async () => {
     const { tx, statements } = createFakeTx(12, 3)
     await METRIC_ORGANIZATION_LIFECYCLE_PHASES.purge(tx, REQUEST)

@@ -248,7 +248,6 @@ describe('audit-evidence retention rules (BQC-7.8, integration)', () => {
 
   const logsRule = RETENTION_RULES.find((r) => r.subject === 'audit_logs')!
 
-
   async function seedAuditLog(createdAt: Date): Promise<void> {
     await db.execute(sql`
       INSERT INTO audit_logs (id, organization_id, user_id, action, resource_type, created_at, updated_at)
@@ -272,7 +271,6 @@ describe('audit-evidence retention rules (BQC-7.8, integration)', () => {
   afterAll(async () => {
     await db.execute(sql`DELETE FROM audit_logs WHERE organization_id = ${MARKER}`)
   })
-
 
   it('audit_logs: deletes rows past the 365d horizon, keeps recent', async () => {
     await seedAuditLog(new Date(NOW - 400 * DAY))

@@ -218,12 +218,9 @@ async function readRows(
   const result = await snapshot.execute(query)
   return result.rows as Record<string, unknown>[]
 }
-function enrichReadingCatalogue(
-  row: Record<string, unknown>,
-): Record<string, unknown> {
+function enrichReadingCatalogue(row: Record<string, unknown>): Record<string, unknown> {
   const versionId = row.definition_version_id
-  const metric =
-    typeof versionId === 'string' ? findMetricVersionById(versionId) : null
+  const metric = typeof versionId === 'string' ? findMetricVersionById(versionId) : null
   if (!metric || !metric.version.permittedConsumers.includes('export')) {
     throw new Error('Metric export reading has an unavailable catalogue version')
   }

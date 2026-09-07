@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
-import {
-  createGoogleContentAuthorizationCheck,
-} from './google-content-authorization-check'
+import { createGoogleContentAuthorizationCheck } from './google-content-authorization-check'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
@@ -47,7 +45,6 @@ beforeEach(() => {
 })
 
 afterEach(() => resetCapabilityPolicyStore())
-
 
 describe('Google OAuth content authorization', () => {
   it('authorizes a connectionless first exchange on this deployment', async () => {
@@ -109,4 +106,3 @@ describe('Google OAuth content authorization', () => {
     })
   })
 })
-

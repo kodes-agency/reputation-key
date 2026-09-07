@@ -66,5 +66,4 @@ describe('Goal governance tenant constraints', () => {
       foreign: ['organization_id', 'property_id', 'id'],
     })
   })
-
 })

@@ -85,5 +85,3 @@ export const policyConsent = pgTable(
       .where(sql`${t.state} = 'granted'`),
   ],
 )
-
-

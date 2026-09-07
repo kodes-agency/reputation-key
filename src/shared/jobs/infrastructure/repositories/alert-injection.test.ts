@@ -227,7 +227,6 @@ describe('BQC-7.4 alert injection — real reads', () => {
     expect(warn.mock.calls.filter((c) => String(c[1]).match(/alert-aux/))).toEqual([])
   })
 
-
   it('(d) a real content-free feedback receipt dispatches beta-feedback.triage-backlog', async () => {
     const { handler, fetchFn, warn } = realEvaluationHarness()
 

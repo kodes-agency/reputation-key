@@ -98,7 +98,6 @@ describe('buildConsumerEvent', () => {
     expect(envelope.commandId).toBe('evt-uuid-001')
     expect(envelope.causationId).toBe('evt-uuid-001')
   })
-
 })
 
 describe('parseConsumerEvent', () => {

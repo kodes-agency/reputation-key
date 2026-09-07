@@ -367,7 +367,6 @@ describe('ExecutionPolicy decision matrix (BQC-2.4)', () => {
     expect(decision.allowed).toBe(false)
     expect(decision.reason).toBe('principal_org_mismatch')
   })
-
 })
 
 describe('operator principal (BQC-7.5)', () => {
@@ -476,7 +475,6 @@ describe('operator principal (BQC-7.5)', () => {
     expect(deny.allowed).toBe(false)
     expect(deny.reason).toBe('consent_required')
   })
-
 
   it('parseOperatorIdentities parses the comma-separated allowlist', () => {
     expect(

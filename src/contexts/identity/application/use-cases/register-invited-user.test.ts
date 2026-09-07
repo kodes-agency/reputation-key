@@ -116,9 +116,7 @@ describe('registerInvitedUser', () => {
       }),
     ])
     expect(fixture.outbox.byTag('identity.invitation.accepted')).toHaveLength(1)
-    expect(fixture.complete).toHaveBeenCalledWith(
-      '10000000-0000-4000-8000-000000000001',
-    )
+    expect(fixture.complete).toHaveBeenCalledWith('10000000-0000-4000-8000-000000000001')
     expect(fixture.runOnAccepted).toHaveBeenCalledWith({
       userId: 'user-preallocated-manager',
       organizationId: 'org-manager',

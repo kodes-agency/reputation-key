@@ -45,7 +45,6 @@ async function readRetentionFailedSubjects(db: Database): Promise<readonly strin
     .map((row) => String((row as { subject?: string }).subject))
 }
 
-
 async function readBetaFeedbackTriage(
   db: Database,
 ): Promise<AlertAuxReads['betaFeedbackTriage']> {

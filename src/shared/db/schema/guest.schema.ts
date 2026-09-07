@@ -727,7 +727,6 @@ export const guestDestinationActionReceipts = pgTable(
   ],
 )
 
-
 /**
  * A guest's request for a manager follow-up. Contact material is deliberately
  * outside the rating/feedback aggregate and is unreadable without an audited

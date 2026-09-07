@@ -47,7 +47,6 @@ import {
 /** Hard per-probe budget. A probe slower than this reports false. */
 export const READINESS_PROBE_BUDGET_MS = 2000
 
-
 /** On-disk migration journal entry count (drizzle/meta/_journal.json). */
 function journalEntryCount(
   journalPath = join(process.cwd(), 'drizzle', 'meta', '_journal.json'),

@@ -144,7 +144,6 @@ describe('partial offboarding lookup — observe', () => {
     ).resolves.toMatchObject({ activeGrantCount: 0, offboardedGrantCount: 0 })
   })
 
-
   /**
    * The report is handed to an operator, so it must stay identifiers and
    * counts. A column the driver adds to the result set must not ride along.

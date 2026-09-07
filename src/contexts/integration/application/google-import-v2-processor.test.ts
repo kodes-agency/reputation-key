@@ -735,7 +735,6 @@ describe('GoogleImportV2Processor', () => {
     expect(harness.completeClaim).not.toHaveBeenCalled()
   })
 
-
   // GBP push activation: the imported/relinked receipt branch is the moment the
   // property is live, so it is where we ask Google to START publishing. Without
   // this call nothing ever invoked `subscribe` and push was dark by

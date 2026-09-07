@@ -178,7 +178,6 @@ export type PublicDecisionRequest = Readonly<{
   correlationId?: string
 }>
 
-
 export type ExecutionPolicyDeps = Readonly<{
   /** Identity-owned grant lookup (BQC-2.3). Throws → policy_unavailable. */
   listAccessiblePropertyIds: (
@@ -205,7 +204,6 @@ export type ExecutionPolicyDeps = Readonly<{
 export type ExecutionPolicy = Readonly<{
   decide(request: DecisionRequest): Promise<ExecutionDecision>
 }>
-
 
 function finish(
   request: DecisionRequest,
@@ -238,9 +236,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
   ) {
     if (!capability) return null
     const capDecision = checkBetaCapability(ctx, capability, request.propertyId)
-    return capDecision.allowed
-      ? null
-      : finish(request, false, capDecision.reason)
+    return capDecision.allowed ? null : finish(request, false, capDecision.reason)
   }
 
   function permissionDecision(request: DecisionRequest, ctx: AuthContext) {
@@ -257,8 +253,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     // missing grant data is deny, never organization-wide allow.
     if (!request.propertyId || !isPermissionAction(request.action)) return null
     const scope = scopeForPermission(ctx, request.action)
-    if (scope === 'none')
-      return finish(request, false, 'scope_denied')
+    if (scope === 'none') return finish(request, false, 'scope_denied')
     if (scope !== 'assigned-properties') return null
 
     let ids: ReadonlyArray<string>
@@ -294,9 +289,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
             at: request.now,
           })
         : false
-    return consented
-      ? null
-      : finish(request, false, 'consent_required')
+    return consented ? null : finish(request, false, 'consent_required')
   }
 
   async function decideUser(
@@ -340,9 +333,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     if (!capability) return null
     if (!request.organizationId) {
       const globalDecision = checkGlobalCapability(capability)
-      return globalDecision.allowed
-        ? null
-        : finish(request, false, globalDecision.reason)
+      return globalDecision.allowed ? null : finish(request, false, globalDecision.reason)
     }
     // Synthetic permissionless admin context: the capability/suspension
     // machinery needs an org carrier — operators hold no role or grants, so
@@ -353,9 +344,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
       role: 'AccountAdmin',
     }
     const capDecision = checkBetaCapability(operatorCtx, capability, request.propertyId)
-    return capDecision.allowed
-      ? null
-      : finish(request, false, capDecision.reason)
+    return capDecision.allowed ? null : finish(request, false, capDecision.reason)
   }
 
   async function operatorConsentDecision(
@@ -377,9 +366,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
             at: request.now,
           })
         : false
-    return consented
-      ? null
-      : finish(request, false, 'consent_required')
+    return consented ? null : finish(request, false, 'consent_required')
   }
 
   async function decideOperator(
@@ -395,10 +382,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     const deny =
       operatorCapabilityDecision(request, operatorId) ??
       (await operatorConsentDecision(request))
-    return (
-      deny ??
-      finish(request, true, 'allowed')
-    )
+    return deny ?? finish(request, true, 'allowed')
   }
 
   async function decidePublic(request: DecisionRequest): Promise<ExecutionDecision> {

@@ -73,7 +73,6 @@ function memoryIO(): OperatorIO & { outLines: string[]; errLines: string[] } {
   }
 }
 
-
 async function obliterateQuietly(queue: Queue | undefined): Promise<void> {
   if (!queue) return
   try {
@@ -103,7 +102,6 @@ async function seedQuarantined(originalJobId: string): Promise<string> {
   }
   return outcome.quarantineJobId
 }
-
 
 beforeAll(async () => {
   // The production operator boot: static policy store plus both policies.

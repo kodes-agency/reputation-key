@@ -58,5 +58,4 @@ describe('guest tenant/property database invariants', () => {
         error.cause.message.includes('guest_responses_portal_property_tenant_fk'),
     )
   })
-
 })

@@ -112,7 +112,11 @@ describe('PropertyAccessGrant administration', () => {
         at: NOW,
       }),
     ).resolves.toBe(false)
-    expect(reconcileResponsibleManagerEligibility).toHaveBeenCalledWith(ORG, MEMBER, ADMIN)
+    expect(reconcileResponsibleManagerEligibility).toHaveBeenCalledWith(
+      ORG,
+      MEMBER,
+      ADMIN,
+    )
   })
 
   it('rejects access for a user outside the organization', async () => {

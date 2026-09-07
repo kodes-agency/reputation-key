@@ -16,10 +16,7 @@ const PROPERTY = '60000000-0000-4000-8000-000000000001'
 /** The two live authority tables the adapter must cover. */
 const ERASED_TABLES = ['property_access_grants', 'property_access_grant'] as const
 
-const EXCLUDED_TABLES = [
-  'backup_erasure_ledger',
-  'privacy_requests',
-] as const
+const EXCLUDED_TABLES = ['backup_erasure_ledger', 'privacy_requests'] as const
 
 type Rendered = Readonly<{ sql: string; params: readonly unknown[] }>
 

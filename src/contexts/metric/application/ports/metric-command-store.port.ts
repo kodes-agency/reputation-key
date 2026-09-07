@@ -37,7 +37,6 @@ export type RecordMetricsCommand = Readonly<{
   sourceReceipt?: MetricSourceReceipt
 }>
 
-
 export type RetractMetricCommand = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId

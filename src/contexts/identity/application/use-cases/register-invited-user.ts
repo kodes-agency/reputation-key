@@ -264,10 +264,7 @@ export const registerInvitedUser =
       throw identityError('registration_failed', 'Invitation registration failed')
     }
 
-    await completeRegistrationVerification(
-      deps,
-      activeRegistration.verificationId,
-    )
+    await completeRegistrationVerification(deps, activeRegistration.verificationId)
     await runPostAcceptHook(deps, {
       userId: createdUserId,
       organizationId: accepted.organizationId as string,

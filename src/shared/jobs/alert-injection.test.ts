@@ -637,7 +637,6 @@ describe('threshold boundaries', () => {
     expect(at('queue.quarantine-growth').evaluate!(snapshot, healthyAux())).toBeNull()
   })
 
-
   it('reply.ambiguous-aging needs an aged ambiguous row (count alone does not fire)', () => {
     const snapshot = healthySnapshot()
     snapshot.replyPublication = {

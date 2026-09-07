@@ -171,5 +171,4 @@ describe('PropertyAccessGrant persistence (BQC-2.2)', () => {
       }),
     ).resolves.toBe(false)
   })
-
 })

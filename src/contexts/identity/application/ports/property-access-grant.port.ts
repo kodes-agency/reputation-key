@@ -18,7 +18,6 @@ export type PropertyAccessGrantRecord = Readonly<{
   revokeReason: string | null
 }>
 
-
 /**
  * Mirror of the PolicyDecisionExplanation in shared/auth/policy-diagnostic
  * (same shape, separate home: shared/auth types are unreachable from

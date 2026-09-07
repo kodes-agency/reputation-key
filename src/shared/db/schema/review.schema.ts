@@ -534,7 +534,6 @@ export const reviewSourceObservations = pgTable(
   ],
 )
 
-
 export const reviewAiAnalysisHeads = pgTable(
   'review_ai_analysis_heads',
   {

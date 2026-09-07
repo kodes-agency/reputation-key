@@ -69,7 +69,6 @@ export type RecordMetricDeps = Readonly<{
 
 export type RecordMetric = (input: RecordMetricInput) => Promise<ReadingResult>
 
-
 /**
  * Admission checks that reject a reading outright. Returns the rejection
  * reason, or null when the reading may proceed to value-shape checks.

@@ -3820,7 +3820,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       'ops:purge — content-free static retention-rule report by default; retention apply is destructive and typed-confirmed; Review apply reaches the SAFE-03 no-mutation quarantine handler until REV-01 (BQC-7.5/GST-01)',
   }),
   ops(
-
     'scripts/ops/reparse-review-translations.ts',
     'scripts/ops/reparse-review-translations.ts',
     'property',

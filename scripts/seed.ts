@@ -60,7 +60,6 @@ async function resolveOrgId(container: Container): Promise<string> {
   }
 }
 
-
 function defaultScenario(orgId: string): ScenarioSpec {
   return {
     organizationId: orgId,
@@ -160,7 +159,6 @@ async function main(): Promise<void> {
     await createSimulationContainer()
   const orgId = await resolveOrgId(container)
 
-
   console.log(`Seeding scenario for org: ${orgId}`)
   const spec = defaultScenario(orgId)
 
@@ -206,7 +204,6 @@ async function main(): Promise<void> {
   await drainOutbox()
   assertBuiltCounts('Org 2', spec2, result2)
   console.log(`\n✓ Multi-tenant: org 2 created (${result2.reviewsCreated} reviews)`)
-
 
   if (!runInv) {
     process.exit(0)

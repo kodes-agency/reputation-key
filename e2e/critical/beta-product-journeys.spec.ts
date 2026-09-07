@@ -414,7 +414,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     )
   })
 
-
   test('cross-property Portal and email resources fail closed', async ({ page }) => {
     const log = attachRequestLog(page)
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
@@ -603,11 +602,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
            AS property_local_date
        FROM properties
        WHERE organization_id = $1 AND id = $2::uuid`,
-      [
-        seed.organizationId,
-        seed.p1PropertyId,
-        governedMetric.version.effectiveFrom,
-      ],
+      [seed.organizationId, seed.p1PropertyId, governedMetric.version.effectiveFrom],
     )
     expect(period).toBeTruthy()
     if (!period) throw new Error('The seeded Property has no timezone')

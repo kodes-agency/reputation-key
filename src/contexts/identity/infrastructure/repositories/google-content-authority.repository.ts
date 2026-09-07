@@ -14,7 +14,6 @@ import type {
 } from '#/shared/auth/google-content-authority'
 import type { AuthorizationExecutionPermit } from '#/shared/auth/authorization-execution-permit'
 
-
 /** Revision of the static TypeScript capability policy used in permit vectors. */
 const POLICY_VERSION = 1
 const authorizationVectorSchema = z.record(

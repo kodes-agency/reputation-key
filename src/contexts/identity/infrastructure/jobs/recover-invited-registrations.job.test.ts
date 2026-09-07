@@ -78,6 +78,8 @@ describe('recover invited registrations job', () => {
       createRecoverInvitedRegistrationsHandler({ recover, logger: mockLogger })(
         {} as never,
       ),
-    ).rejects.toThrow('Invited registration recovery left 1 verification record unresolved')
+    ).rejects.toThrow(
+      'Invited registration recovery left 1 verification record unresolved',
+    )
   })
 })

@@ -234,7 +234,6 @@ async function tableCounts(
   return counts
 }
 
-
 async function receipts(organizationId: string) {
   const result = await lease.pool.query(
     `SELECT phase, outcome, evidence_ref

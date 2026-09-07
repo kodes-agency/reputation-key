@@ -169,7 +169,6 @@ export const SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS = 2 * 24 * 60 * 60
  *  the 30-min reconcile sweep should have picked it up. */
 export const REPLY_AMBIGUOUS_ALERT_MS = 15 * 60 * 1000
 
-
 /**
  * A delivered native-feedback report unresolved for three days is an
  * operational backlog. The support target remains a next-business-day
@@ -233,7 +232,6 @@ function registered(
 ): AlertDefinition {
   return { ...def, owner: OWNER, implemented: false, evaluate: null }
 }
-
 
 // ── Definitions ────────────────────────────────────────────────────
 
@@ -703,7 +701,6 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
       }
     },
   }),
-
 
   // ── DB/Redis capacity/connection exhaustion ──
   // Sustained waiting = requests queue behind a saturated pool — the

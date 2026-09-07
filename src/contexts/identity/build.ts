@@ -579,11 +579,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   )
   const policyAdmin = Object.freeze({
     ...createPolicyAdminOps({
-
       explainPolicyDecision: (input) => policyDiagnostic(input),
       commandStore: policyAdminCommandStore,
       reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
-
     }),
     explainCapabilityRefusal,
   })
