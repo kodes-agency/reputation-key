@@ -30,6 +30,7 @@ import {
 } from '#/shared/jobs/worker'
 
 import { assertConfiguredJobRedisRuntime } from '#/shared/jobs/redis-runtime'
+import { createJobRedisConnection } from '#/shared/jobs/queue'
 import {
   assertProductionRedisTopology,
   getJobRedisUrl,
@@ -42,8 +43,8 @@ import {
   createOperationalSchedulerPlan,
 } from '#/shared/jobs/operational-catalogue'
 import {
+  createJobRuntimeObservationStore,
   createJobRuntimeReportReader,
-  createQueueJobRuntimeObservationStore,
 } from '#/shared/jobs/runtime-observations'
 import { drainWorkerResources, namedCloseable } from './drain'
 import {
@@ -174,9 +175,11 @@ async function main() {
   // It is written to and never processed; jobs whose attempt budget is spent
   // land here with a content-safe envelope.
   const { quarantineQueue, domainEventsQueue } = container.jobDispatchWorkerRuntime
-  const runtimeObservationQueue = container.backgroundQueue ?? container.jobQueue
-  const runtimeObservationStore = runtimeObservationQueue
-    ? createQueueJobRuntimeObservationStore({ queue: runtimeObservationQueue })
+  // Observations live on the JOB Redis beside the queues they describe;
+  // BullMQ 6 exposes no queue client, so this is a dedicated connection.
+  const runtimeObservationRedis = createJobRedisConnection()
+  const runtimeObservationStore = runtimeObservationRedis
+    ? createJobRuntimeObservationStore({ redis: runtimeObservationRedis })
     : null
 
   // ── Default queue — user-facing jobs (import, review sync, reply publish, etc.)

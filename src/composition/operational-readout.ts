@@ -15,7 +15,11 @@ import type { Clock } from '#/shared/domain/clock'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Database } from '#/shared/db'
 import type { Env } from '#/shared/config/env'
-import { createJobQueue, createWorkerBarrierQueue } from '#/shared/jobs/queue'
+import {
+  createJobQueue,
+  createJobRedisConnection,
+  createWorkerBarrierQueue,
+} from '#/shared/jobs/queue'
 import { QUARANTINE_QUEUE_NAME } from '#/shared/jobs/failure-quarantine'
 import {
   createOperationsSnapshot,
@@ -23,9 +27,8 @@ import {
 } from '#/shared/health/operations-snapshot'
 import { JOB_OPERATIONAL_CONTRACTS } from '#/shared/jobs/operational-catalogue'
 import {
+  createJobRuntimeObservationStore,
   createJobRuntimeReportReader,
-  createQueueJobRuntimeObservationStore,
-  type JobRuntimeQueueRedisSource,
 } from '#/shared/jobs/runtime-observations'
 import { CAPABILITY_POLICY_VERSION } from '#/shared/auth/beta-capabilities'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
@@ -93,20 +96,19 @@ function openOperationsQueues(input: OperationalReadoutInput) {
 type OperationsQueues = ReturnType<typeof openOperationsQueues>
 
 /**
- * The per-job runtime report, or null when no queue exposes a Redis client to
- * read observations from. A report is never synthesized from an absent store.
+ * The per-job runtime report, or null when there is no job Redis to read
+ * observations from. A report is never synthesized from an absent store.
  */
 function buildJobRuntimeReport(
   input: OperationalReadoutInput,
   opsQueues: OperationsQueues,
 ) {
-  const runtimeObservationQueue = opsQueues.background ?? input.infra.jobQueue
-  if (!runtimeObservationQueue || !('client' in runtimeObservationQueue)) return null
+  if (!input.redis) return null
+  const runtimeObservationRedis = createJobRedisConnection()
+  if (!runtimeObservationRedis) return null
   return createJobRuntimeReportReader({
     contracts: JOB_OPERATIONAL_CONTRACTS,
-    store: createQueueJobRuntimeObservationStore({
-      queue: runtimeObservationQueue as JobRuntimeQueueRedisSource,
-    }),
+    store: createJobRuntimeObservationStore({ redis: runtimeObservationRedis }),
     queues: {
       default: input.infra.jobQueue ?? null,
       background: opsQueues.background ?? null,

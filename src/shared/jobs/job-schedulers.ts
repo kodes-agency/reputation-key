@@ -1,6 +1,6 @@
 // BullMQ Job Scheduler reconciliation. This is the only production seam for
 // recurring registration: stable scheduler IDs make cadence changes an update,
-// and boot-time reconciliation removes legacy repeat keys and capability-dark
+// and boot-time reconciliation removes off-key schedulers and capability-dark
 // schedules before any enabled scheduler is upserted.
 
 import type { JobsOptions, Queue, RepeatOptions } from 'bullmq'

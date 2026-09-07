@@ -24,14 +24,13 @@ describe.sequential('job scheduler reconciliation (real Redis)', () => {
     await connection.quit()
   })
 
-  it('cuts legacy repeat keys over without duplicating cadence or unrelated work', async () => {
-    await queue.add(
-      'health-check',
-      {},
-      {
-        repeat: { every: 300_000 },
-        jobId: 'health-check-recurring',
-      },
+  it('replaces off-key managed schedulers without duplicating cadence or unrelated work', async () => {
+    // A managed family installed under a key that is not its stable ID (an
+    // older release's naming) must be replaced, not duplicated.
+    await queue.upsertJobScheduler(
+      'health-check-old-key',
+      { every: 300_000 },
+      { name: 'health-check' },
     )
     await queue.upsertJobScheduler(
       'digest-recurring',
@@ -44,10 +43,10 @@ describe.sequential('job scheduler reconciliation (real Redis)', () => {
       { name: 'operator-maintenance' },
     )
 
-    const legacy = (await queue.getJobSchedulers()).find(
+    const offKey = (await queue.getJobSchedulers()).find(
       (scheduler) => scheduler.name === 'health-check',
     )
-    expect(legacy?.key).not.toBe('health-check-recurring')
+    expect(offKey?.key).toBe('health-check-old-key')
 
     await reconcileJobSchedulers({
       queue,
