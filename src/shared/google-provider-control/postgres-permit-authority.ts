@@ -14,7 +14,6 @@ import type {
 
 const SHA256 = /^[a-f0-9]{64}$/
 const SAFE_REVISION = /^[A-Za-z0-9._:@/-]{1,255}$/
-const RELEASE_SHA = /^[a-f0-9]{40}$/
 
 type PermitRow = Readonly<{
   id: string
@@ -135,10 +134,9 @@ export function createPostgresGoogleAdmissionPermitAuthority(
   deps: Readonly<{
     pool: Pool
     gatewayIdentity: string
-    releaseSha: string
   }>,
 ): PostgresGoogleAdmissionPermitAuthority {
-  if (!SAFE_REVISION.test(deps.gatewayIdentity) || !RELEASE_SHA.test(deps.releaseSha)) {
+  if (!SAFE_REVISION.test(deps.gatewayIdentity)) {
     throw new Error('Google admission authority configuration is invalid')
   }
   return Object.freeze({
@@ -153,7 +151,7 @@ export function createPostgresGoogleAdmissionPermitAuthority(
     start: async (permit) => {
       const result = await deps.pool.query<{ outcome: string }>(
         `SELECT outcome FROM start_google_execution_permit_v3(
-          $1::uuid, $2::text, $3::text, $4::text, $5::jsonb, $6::text
+          $1::uuid, $2::text, $3::text, $4::text, $5::jsonb
         )`,
         [
           permit.permitId,
@@ -167,7 +165,6 @@ export function createPostgresGoogleAdmissionPermitAuthority(
             requestBodySha256: permit.expectedAdmission.requestBodySha256,
             requestBodyBytes: permit.expectedAdmission.requestBodyBytes,
           }),
-          deps.releaseSha,
         ],
       )
       const outcome = result.rows[0]?.outcome
@@ -258,7 +255,7 @@ export function createPostgresGoogleAdmissionPermitAuthority(
             WHERE other_procedure.pronamespace = 'public'::regnamespace
               AND other_procedure.oid NOT IN (
                 'public.load_google_execution_permit_v1(uuid)'::regprocedure,
-                'public.start_google_execution_permit_v3(uuid,text,text,text,jsonb,text)'::regprocedure,
+                'public.start_google_execution_permit_v3(uuid,text,text,text,jsonb)'::regprocedure,
                 'public.fail_google_execution_permit_v1(uuid,text,text,text,text)'::regprocedure,
                 'public.complete_google_execution_permit_v1(uuid,text,text,integer)'::regprocedure
               )
@@ -271,7 +268,7 @@ export function createPostgresGoogleAdmissionPermitAuthority(
         FROM pg_proc AS procedure
         WHERE procedure.oid IN (
           'public.load_google_execution_permit_v1(uuid)'::regprocedure,
-          'public.start_google_execution_permit_v3(uuid,text,text,text,jsonb,text)'::regprocedure,
+          'public.start_google_execution_permit_v3(uuid,text,text,text,jsonb)'::regprocedure,
           'public.fail_google_execution_permit_v1(uuid,text,text,text,text)'::regprocedure,
           'public.complete_google_execution_permit_v1(uuid,text,text,integer)'::regprocedure
           )
