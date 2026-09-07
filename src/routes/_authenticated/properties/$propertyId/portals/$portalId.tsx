@@ -3,11 +3,11 @@ import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
+import { PortalDetailPage } from '#/components/features/portal/portal-detail/portal-detail-page'
 import {
   PORTAL_DETAIL_TABS,
-  PortalDetailPage,
   type PortalDetailTab,
-} from '#/components/features/portal'
+} from '#/components/features/portal/portal-detail/portal-detail-rules'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { ErrorState, LoadingState } from '#/components/layout/page-states'
