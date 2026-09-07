@@ -92,7 +92,7 @@ services:
     <<: *app
     command: [node, --import, ./dist-worker/worker-observability-preload.js, dist-worker/index.js]
     environment: { <<: *app-environment, BETTER_AUTH_URL: http://127.0.0.1:3000, REVIEW_PROVIDER_SUBJECT_HMAC_KEYS: "${WORKER_REVIEW_PROVIDER_SUBJECT_HMAC_KEYS}", AI_SUBJECT_HMAC_KEYS: "${WORKER_AI_SUBJECT_HMAC_KEYS}" }
-    healthcheck: { <<: *health, test: [CMD, node, -e, "try{process.kill(1,0);process.exit(0)}catch{process.exit(1)}"] }
+    # No HTTP surface: readiness is the "BullMQ worker started" log line that scripts/e2e/wait-worker.sh waits for.
   object-store:
     profiles: [media]
     image: minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
@@ -118,6 +118,6 @@ services:
     command: [sleep, infinity]
     environment: { <<: *app-environment, BETTER_AUTH_URL: http://127.0.0.1:3000, E2E_BASE_URL: http://web:3000, PERF_ARTIFACT_DIR: /artifacts/perf }
     volumes: [./test-results/local-stack:/artifacts]
-    depends_on: { web: { condition: service_healthy }, worker: { condition: service_healthy } }
+    depends_on: { web: { condition: service_healthy }, worker: { condition: service_started } }
 networks: { app: {} }
 volumes: { postgres-data: {}, redis-data: {}, object-store-data: {} }

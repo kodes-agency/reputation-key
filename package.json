@@ -29,7 +29,7 @@
     "test:watch": "vitest --project=unit",
     "test:e2e": "playwright test",
     "test:e2e:compatibility": "playwright test --project=compat-firefox --project=compat-webkit --project=compat-mobile-android --project=compat-mobile-ios",
-    "e2e:stack:up": "set -a && . ./e2e/stack.env && set +a && docker compose -f compose.local.yml --env-file e2e/stack.env up -d --wait && REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS=\"$MIGRATOR_REVIEW_PROVIDER_SUBJECT_HMAC_KEYS\" DEPLOY_MIGRATE=1 pnpm db:migrate-deploy && LOCAL_TOOL_EXECUTION_IDENTITY=\"$HOST_LOCAL_TOOL_EXECUTION_IDENTITY\" pnpm seed:e2e-user && scripts/e2e/wait-worker.sh",
+    "e2e:stack:up": "set -a && . ./e2e/stack.env && set +a && docker compose -f compose.local.yml --env-file e2e/stack.env up -d --wait postgres redis provider-sandbox ai-provider-stub mail-stub && REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS=\"$MIGRATOR_REVIEW_PROVIDER_SUBJECT_HMAC_KEYS\" DEPLOY_MIGRATE=1 pnpm db:migrate-deploy && LOCAL_TOOL_EXECUTION_IDENTITY=\"$HOST_LOCAL_TOOL_EXECUTION_IDENTITY\" pnpm seed:e2e-user && docker compose -f compose.local.yml --env-file e2e/stack.env up -d --wait web web-locked worker && scripts/e2e/wait-worker.sh",
     "e2e:stack:logs": "mkdir -p test-results/local-stack && docker compose -f compose.local.yml --env-file e2e/stack.env logs --no-color --timestamps > test-results/local-stack/compose.log",
     "e2e:stack:down": "docker compose -f compose.local.yml --env-file e2e/stack.env down -v --remove-orphans",
     "seed:e2e-user": "tsx scripts/seed-e2e-user.ts",
