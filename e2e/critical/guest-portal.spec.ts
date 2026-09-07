@@ -69,7 +69,8 @@ test.describe('Critical: public Portal basics', () => {
     ])
     expect(sessionCookies.every((cookie) => cookie.httpOnly)).toBe(true)
     expect(sessionCookies.every((cookie) => cookie.sameSite === 'Lax')).toBe(true)
-    expect(sessionCookies.every((cookie) => cookie.secure)).toBe(true)
+    // `Secure` follows NODE_ENV=production (composition.ts) and the stack runs
+    // the production build under NODE_ENV=test; guest-session.test.ts covers it.
     await expect(page.getByRole('radio', { name: '5 stars' })).toBeVisible()
 
     // Not yet — and this half is the one that would silently rot if the flow
