@@ -138,7 +138,7 @@ export const Default: Story = {
     expect(canvas.getByText('+0.2 stars')).toBeVisible()
     expect(canvas.getByText('Overdue')).toBeVisible()
     expect(canvas.getByText(/items to triage/i)).toBeVisible()
-    expect(canvas.getByText('5★')).toBeVisible()
+    expect(canvas.getByRole('img', { name: /rating distribution/i })).toBeVisible()
     expect(canvas.getByText('78%')).toBeVisible()
     expect(await canvas.findByText('Review signals improved')).toBeVisible()
     // The basis-point field is a change magnitude, never a confidence score.
