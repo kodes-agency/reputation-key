@@ -27,7 +27,7 @@
 //     ports are walked past and the ACTUAL ports recorded in the state file.
 //   - Every effect is injected (spawn/http/pids/fs/db/sleep/clock) so the
 //     orchestration contract is unit-tested hermetically; the live boot is
-//     the integration smoke (reported in docs/performance/scale-harness.md).
+//     the integration smoke (reported in docs/archive/2026-09-lean/performance/scale-harness.md).
 
 import { createHash } from 'node:crypto'
 import { validateTestDatabaseTarget } from './test-environment-lease'

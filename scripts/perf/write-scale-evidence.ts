@@ -17,8 +17,8 @@
 //
 // Defaults (local-draft pack):
 //   --results           docs/release-evidence/beta/<release-id>/raw
-//   --dataset-manifest  docs/release-evidence/beta/<release-id>/scale-dataset.json
-//   --out               docs/release-evidence/beta/<release-id>/scale-and-recovery.md
+//   --dataset-manifest  <release-evidence-dir>/scale-dataset.json
+//   --out               <release-evidence-dir>/scale-and-recovery.md
 //   --release-sha       RELEASE_SHA > RAILWAY_GIT_COMMIT_SHA > `git rev-parse HEAD`
 //   --owner             $USER
 

@@ -58,7 +58,7 @@ if (violations.length > 0) {
   console.error('❌ Component files must use kebab-case naming:')
   violations.forEach((f) => console.error(`  ${f}`))
   console.error(`\nTotal: ${violations.length} files need renaming.`)
-  console.error('See docs/conventions.md "Component Organization" for details.')
+  console.error('See docs/standards.md "Naming" for details.')
   process.exit(1)
 }
 

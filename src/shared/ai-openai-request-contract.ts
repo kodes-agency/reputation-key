@@ -5,7 +5,7 @@ import { assertClosedJsonAndFreeze } from './closed-json-contract'
 
 // `gpt-5.6-luna` has no dated snapshot: the provider publishes only this floating
 // alias (`gpt-5.6-luna-2026-06-23`, `-medium` and `-mini` all 404). Accepted
-// deliberately — see docs/operations/model-switch-5-6-luna-2026-08-19.md. The
+// deliberately — see docs/archive/2026-09-lean/operations/model-switch-5-6-luna-2026-08-19.md. The
 // consequence is that provider-side behaviour can change without any digest in this
 // repo moving, so the release canary is the only detector.
 export const OPENAI_MODEL_SNAPSHOT = 'gpt-5.6-luna' as const

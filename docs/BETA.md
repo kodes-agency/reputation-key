@@ -112,3 +112,4 @@ External obligations (§2) → this page → ADRs → `docs/standards.md` → co
 ## 10. Change log
 
 - 2026-09: replaces the 42-package program as authority.
+- **2026-08-11:** Initial legal registry created from the final EU beta legal copy pack and the consent/privacy engineering specification.

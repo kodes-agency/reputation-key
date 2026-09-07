@@ -14,7 +14,6 @@ timed restore before customer data; BQC-8/REG-04 performs that external proof
 against the RPO/RTO targets.
 
 Related: [runbooks.md](runbooks.md) §7/§8,
-[bqr6-recovery-rehearsal.md](bqr6-recovery-rehearsal.md) (procedure + targets),
 [ADR 0038](../adr/0038-beta-service-objectives-and-recovery.md) (RPO ≤ 15 min,
 RTO ≤ 4 h), and [`docs/BETA.md`](../BETA.md) §1 (the current single-deployment
 posture).
@@ -238,8 +237,8 @@ Review/Reply/Inbox identity. All Review-content purge adapters use the same
 bounded, checkpointed Review authority. SAFE-03 still keeps recurring execution
 quarantined: normal production composition has no apply authorizer, and the job
 accepts only report/shadow mode until the backfill/shadow-parity audit,
-restore/erasure proof, and checkpointed cutover in
-`review-source-content-cutover.md` are sealed.
+restore/erasure proof, and an independently approved checkpointed cutover are
+sealed.
 
 | Subject                                   | Table / store                                                                                | TTL / trigger                                                                                                                                                                       | Mechanism                                                                                                                                                                                  |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

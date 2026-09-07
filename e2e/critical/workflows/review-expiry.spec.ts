@@ -144,8 +144,8 @@ test.describe('Critical workflow: review expiry + purge', () => {
     // NOT asserted, and deliberately so: source-content erasure
     // (source_content_state, text IS NULL, source_content_erased_at) and the
     // review.expired inbox close. Those depend on the destructive lifecycle
-    // that REV-01 leaves unarmed by owner decision -- see
-    // docs/operations/review-source-content-cutover.md. Relaxing them into
+    // that REV-01 leaves unarmed by owner decision -- see the active retention
+    // posture in docs/operations/backup-and-lifecycle.md. Relaxing them into
     // passing assertions would claim an erasure the product does not perform.
   })
 })

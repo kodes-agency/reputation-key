@@ -6,7 +6,7 @@
 // migration setup against the configured default development database. Better
 // Auth reported no change and Drizzle then halted on an already-existing
 // column, leaving that database with a migration ledger that no commit
-// describes (see docs/operations/development-database-drift-diagnosis-2026-08-28.md).
+// describes (see docs/archive/2026-09-lean/operations/development-database-drift-diagnosis-2026-08-28.md).
 // The existing lease guard did not catch it: the target was localhost and its
 // name matched no production-like denylist pattern. Invocation discipline is
 // not a control; this is.
