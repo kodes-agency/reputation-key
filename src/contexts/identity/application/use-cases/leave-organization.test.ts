@@ -241,7 +241,7 @@ describe('leaveOrganization', () => {
    * Session revocation, binding release and grant revocation are committed by
    * the atomic command store, not by this use case, so the contract asserted
    * here is that the leave reaches that ONE transaction with the correct
-   * member and fact. `identity-command-store.test.ts` pins the four state
+   * member and fact. `repositories/identity-command-store.test.ts` (real Postgres) pins the four state
    * writes inside it.
    */
   it('delegates the offboarding writes to the single atomic transaction', async () => {
