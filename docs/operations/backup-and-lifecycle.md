@@ -190,28 +190,21 @@ orthogonal: the SLA asks operators to drain; the TTL is the last-resort bound.
 
 ## 3. Object lifecycle (S3-compatible storage)
 
-Portal image uploads are governed by `portal.upload`, which the executable
-capability-fate authority currently classifies as **temporarily unavailable**.
-Organization or Property policy cannot activate it until the named SAFE-01
-readiness record is complete and the product fate is deliberately changed. The
-S3-compatible adapter also remains a no-op while its access, bucket, region,
-and endpoint variables are incomplete.
+Identity avatar and organization-logo uploads use the shared arbitrary-key
+storage stack through `container.assetStorage`. Portal has no image-upload
+request, issuance, processing, or cleanup path; `portal.upload` remains
+safety-blocked. The S3-compatible adapter also remains a no-op while its access,
+bucket, region, and endpoint variables are incomplete.
 
 The target Railway topology binds those variables to one private, cell-local
 `object-store` bucket; the variable names retain their `AWS_S3_*` compatibility
-prefix and do not identify the live storage provider. The hourly,
-capability-independent `portal-upload-source-cleanup` job expires at most 100
-issuances per run, removes only server-derived private source keys, removes
-non-published derivative keys for rejected/expired/superseded issuances, and
-records separate durable completion timestamps. Deletes are idempotent and a
-failed row is retried without losing already recorded progress. Finalized
-public variants are never selected as orphans.
+prefix and do not identify the live storage provider.
 
-Bucket lifecycle remains external platform configuration. Before activation,
-record the exact live provider/cell, provider lifecycle rules, deletion and
-restore behavior, and an end-to-end drill proving the scheduled cleanup against
-the real object store. Repository cleanup authority is not proof that the live
-provider accepted or retained each delete.
+Bucket lifecycle remains external platform configuration. Before changing the
+live storage surface, record the exact provider/cell, provider lifecycle rules,
+deletion and restore behavior, and an end-to-end drill against the real object
+store. Repository storage authority is not proof that the live provider
+accepted or retained each operation.
 
 ## 4. Log / trace retention
 

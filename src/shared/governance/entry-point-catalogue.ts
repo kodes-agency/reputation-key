@@ -121,8 +121,6 @@ export type SystemAction =
   | 'system:ui.render'
   // delayed/system execution
   | 'system:health.check'
-  | 'system:image.process'
-  | 'system:image.cleanup'
   | 'system:portal.health_reconcile'
   | 'system:portal.destination_revalidate'
   | 'system:property.import'
@@ -2605,30 +2603,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'Redis heartbeat stamp for /api/health/metrics' },
   ),
   job(
-    'process-image',
-    'src/contexts/portal/infrastructure/jobs/process-image.job.ts',
-    'system:image.process',
-    'portal.upload',
-    'property',
-    {
-      externalEffect: true,
-      notes:
-        'issuance-only private read + derived writes (sharp re-encode); stale-fenced; registration-gated; no-op when dark',
-    },
-  ),
-  job(
-    'portal-upload-source-cleanup',
-    'src/contexts/portal/infrastructure/jobs/cleanup-upload-sources.job.ts',
-    'system:image.cleanup',
-    'none',
-    'tenant_cross',
-    {
-      externalEffect: true,
-      notes:
-        'bounded oldest-first cleanup of issuance-derived private source objects; DeleteObject is idempotent and a durable source-deleted marker makes crash replay convergent; stays active while portal.upload is dark',
-    },
-  ),
-  job(
     'import-gbp-property-item-v2',
     'src/contexts/integration/infrastructure/jobs/import-gbp-property-item-v2.job.ts',
     'system:property.import_v2',
@@ -2964,19 +2938,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   consumer(
-    'portal.outbox-consumers',
-    'src/contexts/portal/infrastructure/outbox-consumers.ts',
-    'system:image.process',
-    'portal.upload',
-    'property',
-    ['portal.hero_image.processing_requested'],
-    {
-      externalEffect: true,
-      notes:
-        'durable ETag-bound image processing; stale issuance is obsolete and retries converge on issuance state',
-    },
-  ),
-  consumer(
     'portal.health-outbox-consumers',
     'src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts',
     'system:portal.health_reconcile',
@@ -3271,7 +3232,6 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.archived',
       'portal.approved_destination.updated',
       'portal.health.changed',
-      'portal.hero_image.published',
       'portal.publication.published',
       'portal.publication.rolled_back',
       'portal.restored',
@@ -3377,16 +3337,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'portal.write',
     'tenant_cross',
     { notes: 'every 15 min; oldest validation timestamp first, bounded at 100' },
-  ),
-  schedule(
-    'portal-upload-source-cleanup-recurring',
-    'system:image.cleanup',
-    'none',
-    'tenant_cross',
-    {
-      notes:
-        'hourly bounded private-source cleanup; intentionally active when portal.upload is disabled',
-    },
   ),
   schedule('health-check-recurring', 'system:health.check', 'none', 'none', {
     notes: 'every 5 min',

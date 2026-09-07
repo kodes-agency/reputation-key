@@ -19,7 +19,6 @@ const DIGEST = 'a'.repeat(64)
 const CHILD_TABLES = [
   'portal_access_artifacts',
   'portal_tokens',
-  'portal_upload_issuances',
   'portal_pending_content_changes',
   'portal_publication_activations',
   'portal_publication_snapshots',
@@ -49,10 +48,8 @@ type Fixture = Readonly<{
   activationId: string
   artifactId: string
   tokenId: string
-  uploadIssuanceId: string
   tokenIdentifier: string
   tokenHash: string
-  uploadObjectKey: string
   userId: string
 }>
 
@@ -70,7 +67,6 @@ async function seedOrganization(): Promise<string> {
 async function seedFixture(): Promise<Fixture> {
   const organizationId = await seedOrganization()
   const tokenId = randomUUID()
-  const uploadIssuanceId = randomUUID()
   const fixture: Fixture = {
     organizationId,
     propertyId: randomUUID(),
@@ -83,10 +79,8 @@ async function seedFixture(): Promise<Fixture> {
     activationId: randomUUID(),
     artifactId: randomUUID(),
     tokenId,
-    uploadIssuanceId,
     tokenIdentifier: randomUUID().replaceAll('-', '').slice(0, 24),
     tokenHash: 'f'.repeat(64),
-    uploadObjectKey: `private/portal-uploads/${uploadIssuanceId}/source.jpg`,
     userId: `portal-export-user-${randomUUID()}`,
   }
   const q = (text: string, values: readonly unknown[]) =>
@@ -257,21 +251,6 @@ async function seedFixture(): Promise<Fixture> {
       fixture.tokenId,
     ],
   )
-  await q(
-    `INSERT INTO portal_upload_issuances (
-       id, organization_id, property_id, portal_id, object_key, content_type,
-       declared_size_bytes, max_size_bytes, state, issued_at, expires_at,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, $5, 'image/jpeg', 1024, 10485760, 'issued',
-               now(), now() + interval '1 hour', now(), now())`,
-    [
-      fixture.uploadIssuanceId,
-      organizationId,
-      fixture.propertyId,
-      fixture.portalId,
-      fixture.uploadObjectKey,
-    ],
-  )
   return fixture
 }
 
@@ -298,7 +277,7 @@ describe.sequential('Portal Organization Export contributor', () => {
     organizations.clear()
   })
 
-  it('exports every tenant-visible Portal collection without tokens or upload issuances', async () => {
+  it('exports every tenant-visible Portal collection without tokens', async () => {
     const fixture = await seedFixture()
     const asOf = new Date(Date.now() - 1000)
     const contributor = createPortalOrganizationExportContributor(db)
@@ -378,8 +357,6 @@ describe.sequential('Portal Organization Export contributor', () => {
     expect(archiveText).not.toContain(fixture.tokenHash)
     expect(archiveText).not.toContain(fixture.tokenIdentifier)
     expect(archiveText).not.toContain(fixture.tokenId)
-    expect(archiveText).not.toContain(fixture.uploadIssuanceId)
-    expect(archiveText).not.toContain(fixture.uploadObjectKey)
 
     const bundle = await buildOrganizationExportBundle({
       organizationId: fixture.organizationId,
@@ -407,8 +384,6 @@ describe.sequential('Portal Organization Export contributor', () => {
     expect(new Set(contextEntries.map(({ classification }) => classification))).toEqual(
       new Set(['tenant_visible']),
     )
-    // Portal upload stays dark: no entry path may exist for an issuance.
-    expect(bundle.entries.some(({ path }) => /upload|issuance/u.test(path))).toBe(false)
   })
 
   it('answers no_data for an Organization that owns no Portal row', async () => {

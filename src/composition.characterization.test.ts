@@ -21,7 +21,7 @@ import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createInMemoryGbpApiPort } from '#/shared/testing/in-memory-gbp-api-port'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { PortalStoragePort } from '#/contexts/portal/application/ports/storage.port'
+import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 
 const FIXED_DATE = new Date('2026-01-15T12:00:00.000Z')
 
@@ -341,7 +341,7 @@ describe('provider DI slots (BQC-6.1)', () => {
   function buildWithProviders(providers: {
     googleOAuth?: ReturnType<typeof createInMemoryGoogleOAuthPort>
     gbpApi?: ReturnType<typeof createInMemoryGbpApiPort>
-    storage?: PortalStoragePort
+    storage?: StoragePort
   }): Container {
     const clock: Clock = () => FIXED_DATE
     // createContainer registers all event schemas at construction; the
@@ -363,23 +363,7 @@ describe('provider DI slots (BQC-6.1)', () => {
     })
   }
 
-  const fakeStorage: PortalStoragePort = {
-    createIssuedPortalUpload: async () => ({
-      uploadUrl: 'memory://upload',
-      requiredHeaders: { 'If-None-Match': '*' },
-    }),
-    confirmIssuedPortalUpload: async (issuance) => ({
-      contentType: issuance.contentType,
-      sizeBytes: issuance.declaredSizeBytes,
-      sourceETag: '"d41d8cd98f00b204e9800998ecf8427e"',
-    }),
-    readIssuedPortalUpload: async () => Buffer.alloc(0),
-    writePortalUploadDerivative: async (issuance, derivative) => {
-      const objectKey = `public/portal-heroes/${issuance.id}/${derivative}.webp`
-      return { objectKey, publicUrl: `memory://${objectKey}` }
-    },
-    deleteIssuedPortalUpload: async () => {},
-    deletePortalUploadDerivative: async () => {},
+  const fakeStorage: StoragePort = {
     createPresignedUploadUrl: async (key) => ({ uploadUrl: 'memory://upload', key }),
     confirmUpload: async (key) => `memory://${key}`,
     deleteObject: async () => {},

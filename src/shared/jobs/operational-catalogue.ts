@@ -36,6 +36,7 @@ export const RETIRED_SCHEDULER_JOB_NAMES = Object.freeze([
   // firing into a worker with no handler.
   'ai-authorization-derivative-erasure',
   'ai-review-analysis-backfill-advance',
+  'portal-upload-source-cleanup',
 ] as const)
 
 /**

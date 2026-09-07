@@ -31,7 +31,7 @@ import { createPortalApprovedDestinationRepository } from './infrastructure/repo
 import { createPortalExperienceRepository } from './infrastructure/repositories/portal-experience.repository'
 import { createPortalHealthRepository } from './infrastructure/repositories/portal-health.repository'
 import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-reply-brand-profile-authority'
-import type { PortalStoragePort } from './application/ports/storage.port'
+import type { StoragePort } from './application/ports/storage.port'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
 import { createPortalOrganizationExportContributor } from './infrastructure/adapters/portal-organization-export.adapter'
 import { createPortalOrganizationLifecycleContributor } from './infrastructure/adapters/portal-organization-lifecycle.adapter'
@@ -74,7 +74,6 @@ import {
 import { getPortalContactRequestManagerAuthorityFacts } from './application/use-cases/portal-contact-request-authority'
 import { createPortalWorkflowFactStore } from './infrastructure/portal-workflow-fact-store'
 import { createAtomicPortalCommandStore } from './infrastructure/portal-command-store'
-import { createPortalUploadIssuanceStore } from './infrastructure/portal-upload-issuance-store'
 import { decidePublicExecution } from '#/shared/auth/execution-policy'
 import {
   portalGroupId,
@@ -85,8 +84,6 @@ import {
   type PropertyId,
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { createProcessIssuedPortalImage } from './infrastructure/jobs/process-image.job'
-import { registerPortalConsumers } from './infrastructure/outbox-consumers'
 import { registerPortalHealthConsumers } from './infrastructure/portal-health-outbox-consumers'
 import { createPortalHealthReconciliationStore } from './infrastructure/portal-health-reconciliation-store'
 import { createPortalDestinationNetworkValidator } from './infrastructure/adapters/portal-destination-network-validator.adapter'
@@ -129,7 +126,7 @@ type PortalContextDeps = Readonly<{
   }>
   /** BQC-6.1: optional storage adapter override (simulations/tests inject an
    * in-memory storage; absent = the S3 adapter built from storageConfig). */
-  storage?: PortalStoragePort
+  storage?: StoragePort
 }>
 
 type ResolvePublishedAccessArtifactRequest = Omit<
@@ -149,7 +146,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
   const listCurrentPortalIds = createCurrentPortalIdReader(deps.db)
   const portalCommandStore = createAtomicPortalCommandStore(deps.db)
-  const portalUploadStore = createPortalUploadIssuanceStore(deps.db)
   const portalLinkRepo = createPortalLinkRepository(deps.db, deps.clock)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const portalAccessArtifactRepo = createPortalAccessArtifactRepository(
@@ -190,12 +186,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalIdGen = () => portalId(deps.idGen())
   const portalGroupIdGen = () => portalGroupId(deps.idGen())
   const linkIdGen = () => deps.idGen()
-  const processIssuedPortalImage = createProcessIssuedPortalImage({
-    storage,
-    uploadStore: portalUploadStore,
-    clock: deps.clock,
-    logger: deps.logger,
-  })
   const useCases = {
     revalidatePortalApprovedDestinations: revalidatePortalApprovedDestinations({
       destinationRepo: portalApprovedDestinationRepo,
@@ -596,13 +586,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   }
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
-    if (!deps.outboxRepo) {
-      throw new Error('Portal upload outbox repository is unavailable')
-    }
-    registerPortalConsumers(consumerRegistry, {
-      processIssuedPortalImage,
-      receipts: deps.outboxRepo,
-    })
     registerPortalHealthConsumers(consumerRegistry, portalHealthReconciliationStore)
   }
 
@@ -621,14 +604,9 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     /** ARC-03-T11: the named member-authority capability. Replaces the root's
      * Portal responsible-manager repository reach-through. */
     responsibility: createPortalResponsibilityRuntime(portalResponsibleManagerRepo),
-    /** ARC-03-T11: Portal-owned issued-object capability. `storage` is the
-     * shared asset port (Identity profile assets, Portal media); `uploadStore`
-     * is the issuance ledger the derivative worker settles against. Replaces
-     * the root's Portal upload-store and storage reach-throughs. */
-    uploads: Object.freeze({
-      storage,
-      uploadStore: portalUploadStore,
-    }),
+    /** ARC-03-T11: Portal-owned storage capability shared with live Identity
+     * profile assets. The adapter remains private to composition. */
+    uploads: Object.freeze({ storage }),
     /** LIF-01: the Portal-owned Organization Export contributor. It stays out
      * of `publicApi` on purpose — Portal is a dark context, and an export
      * slice is lifecycle composition input, not a product capability any

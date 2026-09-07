@@ -234,36 +234,6 @@ export type PortalApprovedDestinationUpdated = Readonly<{
   correlationId: string | null
 }>
 
-/**
- * Durable, content-free hand-off from upload finalization to image processing.
- * `sourceETag` is an object-version fence, not guest content; the consumer
- * binds it to S3 `If-Match` before decoding any bytes.
- */
-export type PortalHeroImageProcessingRequested = Readonly<{
-  _tag: 'portal.hero_image.processing_requested'
-  eventId: string
-  uploadId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceETag: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-/** Durable completion fact; deliberately excludes the published URL. */
-export type PortalHeroImagePublished = Readonly<{
-  _tag: 'portal.hero_image.published'
-  eventId: string
-  uploadId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
 export type PortalTokenIssued = Readonly<{
   _tag: 'portal.token.issued'
   eventId: string
@@ -559,8 +529,6 @@ export type PortalEvent =
   | PortalLocalizedOverrideUpdated
   | PortalLocaleSetUpdated
   | PortalApprovedDestinationUpdated
-  | PortalHeroImageProcessingRequested
-  | PortalHeroImagePublished
   | PortalTokenIssued
   | PortalTokenRotated
   | PortalTokenRevoked
@@ -876,36 +844,6 @@ export const portalApprovedDestinationUpdated = (
   assertPortalLifecycleFact(args)
   return {
     _tag: 'portal.approved_destination.updated',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalHeroImagePublished = (
-  args: PortalEventArgs<PortalHeroImagePublished>,
-): PortalHeroImagePublished => {
-  assertPortalLifecycleFact(args)
-  assert(args.uploadId.trim().length > 0, 'uploadId must be non-empty')
-  return {
-    _tag: 'portal.hero_image.published',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalHeroImageProcessingRequested = (
-  args: PortalEventArgs<PortalHeroImageProcessingRequested>,
-): PortalHeroImageProcessingRequested => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(args.uploadId.trim().length > 0, 'uploadId must be non-empty')
-  assert(
-    /^[A-Za-z0-9"'-]{1,200}$/.test(args.sourceETag),
-    'sourceETag must be a safe non-empty object version fence',
-  )
-  return {
-    _tag: 'portal.hero_image.processing_requested',
     eventId: newEventId(),
     ...args,
     correlationId: args.correlationId ?? null,

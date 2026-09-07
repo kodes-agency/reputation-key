@@ -462,7 +462,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'portalLinks',
       'portalResponsibleManagers',
       'portalTokens',
-      'portalUploadIssuances',
       'portals',
     ],
     owner: 'portal',

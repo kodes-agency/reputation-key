@@ -5,7 +5,6 @@ import {
   portalGroupCreated,
   portalGroupDeleted,
   portalGroupUpdated,
-  portalHeroImagePublished,
   portalHealthChanged,
   portalPropertyBrandProfileUpdated,
   portalPropertyBrandContentUpdated,
@@ -251,7 +250,7 @@ describe('portal events', () => {
     })
   })
 
-  it('emits identifier-only mutation and completion facts at the committed revision', () => {
+  it('emits identifier-only mutation facts at the committed revision', () => {
     const revision = '2026-06-01T12:01:00.000Z'
     const base = {
       portalId: PORTAL_ID,
@@ -275,10 +274,6 @@ describe('portal events', () => {
         categoryId: CATEGORY_ID,
       }),
       portalResponsibleManagersUpdated({ ...base, assignmentCount: 2 }),
-      portalHeroImagePublished({
-        ...base,
-        uploadId: 'upload-1',
-      }),
     ]).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ sourceAggregateVersion: revision, occurredAt: NOW }),

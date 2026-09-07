@@ -19,8 +19,8 @@ assignment, and governed access artifacts.
 - `PortalRepository` is a read-only production port. Authoritative mutations are available only through Portal command stores; direct PostgreSQL seeding/mutation lives under explicit test scaffolding and is guarded from production wiring by an architecture test.
 - Lifecycle export and purge contributors stay outside `publicApi`; irreversible
   phases are composed only through the reviewed Identity lifecycle coordinator.
-- Not exported, and not queried: `portal_tokens` (address-token hash and encrypted raw token), `portal_upload_issuances` and their object keys (`portal.upload` is safety-blocked, so Portal upload stays dark), and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret.
-- Not touched by any phase: `portal_upload_issuances` beyond the purge plan (`portal.upload` is safety-blocked, so there is no live effect to cancel and a lifecycle write there would reach into a dark capability), `portal_metric_lifetime_aggregates` (Metric's anonymous aggregate), `properties`, and the Staff-owned people rows. Each is another owner's receipt.
+- Not exported, and not queried: `portal_tokens` (address-token hash and encrypted raw token) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret.
+- Not touched by any phase: `portal_metric_lifetime_aggregates` (Metric's anonymous aggregate), `properties`, and the Staff-owned people rows. Each is another owner's receipt.
 
 ## Model
 
@@ -35,7 +35,8 @@ The eligible creator is the initial Portal Responsible Manager. Multiple eligibl
 managers may be assigned; losing the last sets `responsibilityNeededSince`, and
 nobody is auto-promoted.
 
-The beta has no upload UI, issuance/finalization server function, or application use case, and `portal.upload` is safety-blocked. Its store, worker, and storage code remain only as deferred infrastructure cleanup and are unreachable from product requests.
+The beta has no Portal image-upload UI, server function, application use case,
+issuance model, or image job. `portal.upload` remains safety-blocked.
 
 ## Runtime
 
@@ -44,7 +45,10 @@ public token resolution returns only the current open, digest-verified snapshot.
 Portal, Group, content, responsibility, and token commands use Portal-owned stores
 that commit state, revisions, receipts, and identifier-only outbox facts together.
 
-The image jobs and their issuance/storage dependencies remain registered only because removing them is deployment-shaped infrastructure work. No UI, server function, or application use case can create an issuance or emit a processing request. Consequently `process-image` has no producer, while the scheduled cleanup job has no candidate rows in the disposable beta environment; neither can perform a hero-image effect.
+The dormant issued-image implementation has been removed. The nullable
+`portals.hero_image_url` column and read path remain so published historical
+rows still render, while the shared arbitrary-key storage stack remains live
+for Identity avatar and organization-logo uploads through `container.assetStorage`.
 
 ## Invariants
 
@@ -60,7 +64,7 @@ The image jobs and their issuance/storage dependencies remain registered only be
    token. Token issue, rotation, and revocation share the Portal revision fence.
 9. The raw address is request-local and never enters state, facts, logs, or Metric.
 10. Portal lifecycle facts never copy Portal name, slug, description, theme, responsible-manager assignments, destination, or link content.
-11. No request surface can create an issuance or emit `portal.hero_image.processing_requested`, so this path is unreachable in the disposable beta environment.
+11. Portal requests never issue image uploads or write `portals.hero_image_url`; a published Portal with a null value remains valid.
 12. The POR-01 report never copies names, localized content, raw URLs, token material, themes, or print-batch values and never infers creator, ownership, translation, brand, or destination provenance. Reported ambiguous Portal rows remain Disabled or Archived; raw secondary links are treated as quarantined and excluded from publication until a separately reviewed command resolves them.
 13. Closing is a **stop, not a delete**, and it is reversible: the immutable publication snapshot survives and `portals.publication_state` keeps the tenant's own published/draft intent, so explicit reactivation re-points a new activation at the same snapshot rather than guessing what each Portal used to be. Ordinary closure cancellation does not itself reactivate Portals — see `docs/operations/organization-lifecycle.md`.
 14. `portal_group_members` is purged as a **row delete only**. It is a physical-drop-blocked compatibility mirror: the rows are tenant content and must go, the table must not. No phase issues a DROP or TRUNCATE.

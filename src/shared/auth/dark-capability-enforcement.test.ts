@@ -104,7 +104,7 @@ describe('BQR-0: Dark job / schedule containment', () => {
     expect(workerSrc).toContain('schedulerPlan.desired')
   })
 
-  it('operational authority omits retired Recognition work and retains active gates', () => {
+  it('operational authority omits retired work and retains active gates', () => {
     expect(
       JOB_OPERATIONAL_CONTRACTS.find((row) => row.jobName === 'leaderboard.reconcile'),
     ).toBeUndefined()
@@ -116,18 +116,12 @@ describe('BQR-0: Dark job / schedule containment', () => {
         (row) => row.jobName === 'portal-approved-destination-revalidation',
       ),
     ).toMatchObject({ capability: 'portal.write', posture: 'active' })
-    expect(
-      JOB_OPERATIONAL_CONTRACTS.find(
-        (row) => row.jobName === 'portal-upload-source-cleanup',
-      ),
-    ).toMatchObject({ capability: 'none', posture: 'active' })
     const desired = createOperationalSchedulerPlan().desired.map(
       (schedule) => schedule.jobName,
     )
     expect(desired).not.toContain('leaderboard.reconcile')
     expect(desired).toContain('digest-notification')
     expect(desired).toContain('portal-approved-destination-revalidation')
-    expect(desired).toContain('portal-upload-source-cleanup')
   })
 
   it('bootstrap routes controlled jobs through a registration gate', () => {
@@ -144,11 +138,7 @@ describe('BQR-0: Dark job / schedule containment', () => {
     }
     expect(bootstrapSrc).not.toContain("'leaderboard.reconcile'")
     gated('PORTAL_DESTINATION_REVALIDATION_JOB', 'portal.write')
-    gated('PROCESS_IMAGE_JOB_NAME', 'portal.upload')
     gated('URGENT_EMAIL_JOB_NAME', 'notification.send_email')
     gated('DIGEST_JOB_NAME', 'notification.send_email')
-    expect(bootstrapSrc).toContain(
-      'container.jobRegistry.register(\n    PORTAL_UPLOAD_SOURCE_CLEANUP_JOB',
-    )
   })
 })

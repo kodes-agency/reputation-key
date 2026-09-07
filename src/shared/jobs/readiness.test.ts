@@ -81,23 +81,6 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     ).toThrow(/health-chek/)
   })
 
-  it('throws when a blocked or dark family retains an executable handler', () => {
-    const logger = fakeLogger()
-    const registry = fullyRegisteredRegistry()
-    const blocked = JOB_FAMILY_ROWS.find(
-      (row) =>
-        row.registration === 'blocked_capability' || row.registration === 'denied_dark',
-    )
-    if (!blocked) throw new Error('test precondition: a blocked row exists')
-    registry.register(blocked.jobName, async () => {})
-
-    expect(() =>
-      assertJobReadiness(registry, logger, {
-        listConsumers: allCatalogueDurableConsumers,
-      }),
-    ).toThrow(new RegExp(blocked.jobName))
-  })
-
   it('contains exactly the governed dark and quarantined job registrations', () => {
     expect(
       JOB_FAMILY_ROWS.filter((row) => row.registration !== 'enabled').map((row) => ({
@@ -106,11 +89,6 @@ describe('assertJobReadiness (BQC-3.6)', () => {
         registration: row.registration,
       })),
     ).toEqual([
-      {
-        jobName: 'process-image',
-        capability: 'portal.upload',
-        registration: 'blocked_capability',
-      },
       {
         jobName: 'expire-review-provider-source',
         capability: 'none',

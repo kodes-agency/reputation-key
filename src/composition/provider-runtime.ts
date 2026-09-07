@@ -12,7 +12,7 @@ import type { GoogleReviewCursorStore } from '#/contexts/integration/infrastruct
 import type { PerformanceContentAuthorizer } from '#/contexts/integration/application/google-performance-authorizer'
 import type { GoogleReviewSyncContentAuthorizer } from '#/contexts/integration/application/google-review-sync-authorizer'
 import type { GoogleReplyPublicationContentAuthorizer } from '#/contexts/integration/application/google-reply-publication-authorizer'
-import type { PortalStoragePort } from '#/contexts/portal/application/ports/storage.port'
+import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ProviderAuthorizationLeaseService } from '#/shared/provider-ephemeral/authorization-lease'
 import type { AiInferencePort } from '#/contexts/ai/application/ports/ai-inference.port'
@@ -48,7 +48,7 @@ export type ProviderOverrides = Readonly<{
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
   aiInference?: AiInferencePort
   aiSubjectHmac?: AiSubjectHmacPort
-  storage?: PortalStoragePort
+  storage?: StoragePort
 }>
 
 /**
