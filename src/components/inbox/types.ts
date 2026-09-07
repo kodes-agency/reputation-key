@@ -25,7 +25,7 @@ import type {
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
-import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
+import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 
 export type InboxServerFns = Readonly<{

@@ -3,7 +3,7 @@ import { expect, within } from 'storybook/test'
 import type {
   GoalResultsMatrix as GoalResultsMatrixModel,
   GoalResultsMatrixRow,
-} from '#/contexts/goal/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 import { GoalResultsMatrix } from './goal-results-matrix'
 
 const START = new Date('2026-07-01T04:00:00.000Z')

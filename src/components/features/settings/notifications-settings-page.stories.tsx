@@ -3,7 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type {
   NotificationPreference,
   NotificationUserSettings,
-} from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/application/public-api'
 import type { Action } from '#/components/hooks/use-action'
 import { NotificationsSettingsPage } from './notifications-settings-page'
 

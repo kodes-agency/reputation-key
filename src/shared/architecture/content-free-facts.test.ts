@@ -8,8 +8,8 @@
 // below with its justification; any NEW free-text-ish field fails the suite.
 //
 // Deliberately simple heuristic, documented so it stays reviewable:
-//   1. Parse each context's domain/events.ts for `export type X = Readonly<{…}>`
-//      blocks (event payloads are flat — no nested object fields exist).
+//   1. Parse each context's `domain/events.ts` and `domain/*-events.ts` files
+//      for `export type X = Readonly<{…}>` blocks (payloads are flat).
 //   2. Ignore envelope fields: _tag, eventId, occurredAt, correlationId.
 //   3. A field is "free-text-ish" when its name matches FREE_TEXTISH below.
 //      Ids, enums, numbers, booleans, and dates never match and pass
@@ -71,9 +71,14 @@ function collectPayloadFields(filePath: string): Set<string> {
 function collectAllEventFields(): Set<string> {
   const all = new Set<string>()
   for (const context of readdirSync('src/contexts')) {
-    const eventsFile = join('src/contexts', context, 'domain/events.ts')
-    if (!existsSync(eventsFile)) continue
-    for (const field of collectPayloadFields(eventsFile)) all.add(field)
+    const domainDirectory = join('src/contexts', context, 'domain')
+    if (!existsSync(domainDirectory)) continue
+    const eventFiles = readdirSync(domainDirectory, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && /^(?:events|.+-events)\.ts$/u.test(entry.name))
+      .map((entry) => join(domainDirectory, entry.name))
+    for (const eventFile of eventFiles) {
+      for (const field of collectPayloadFields(eventFile)) all.add(field)
+    }
   }
   return all
 }

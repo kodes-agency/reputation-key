@@ -11,7 +11,7 @@ import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { Action } from '#/components/hooks/use-action'
 import type { InboxDetailState } from './use-inbox-detail'
 import type { addInboxNoteFn, getInboxItemDetailFn } from '#/contexts/inbox/server/inbox'
-import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
+import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 
 // Mirrors the server fns' { data } payloads (same as the detail-content

@@ -183,9 +183,9 @@ export default tseslint.config(
           type: 'server',
           pattern: 'src/contexts/*/server/**',
         },
-        // BQC-5.1: the activity context keeps root-level ports/ and queries/
-        // dirs — they ARE application concerns; classifying them enforces the
-        // rules. BQC-5.2 owns the physical layout alignment.
+        // BQC-5.1: the feed context keeps root-level ports/ and queries/ dirs —
+        // they ARE application concerns; classifying them enforces the rules.
+        // BQC-5.2 owns the physical layout alignment.
         {
           type: 'application',
           pattern: 'src/contexts/*/ports/**',
@@ -1515,8 +1515,8 @@ export default tseslint.config(
   },
 
   // BQC-5.1: the events master union (shared/events) may import ONLY each
-  // context's domain/events module — CONTEXT.md: "Cross-context type imports
-  // allowed for events only." Every other domain path is rejected.
+  // context's domain event modules — CONTEXT.md: "Cross-context type imports
+  // are allowed for events only." Every other domain path is rejected.
   {
     files: ['src/shared/events/**/*.{ts,tsx}'],
     rules: {
@@ -1529,9 +1529,11 @@ export default tseslint.config(
                 '**/contexts/*/domain/**',
                 '!**/contexts/*/domain/events',
                 '!**/contexts/*/domain/events.ts',
+                '!**/contexts/*/domain/*-events',
+                '!**/contexts/*/domain/*-events.ts',
               ],
               message:
-                'shared/events may only import context domain/events modules (the master union). Other domain imports belong in the context itself.',
+                'shared/events may only import context domain event modules (the master union). Other domain imports belong in the context itself.',
             },
           ],
         },
@@ -1658,14 +1660,9 @@ export default tseslint.config(
       'src/components/ui/**',
       'src/components/features/identity/member-directory/invite-member-form.tsx',
       'src/components/features/identity/member-directory/member-table.tsx',
-      'src/components/features/organization/organization-settings-form.tsx',
-      'src/components/features/portal/portal-form/edit-portal-form.tsx',
       'src/components/features/portal/link-tree/link-tree.tsx',
       'src/components/features/portal/link-tree/sortable-category.tsx',
-      'src/components/features/staff/assign-staff-form.tsx',
-      'src/components/features/team/team-members/team-member-list.tsx',
       'src/components/layout/manager-sidebar.tsx',
-      'src/components/layout/staff-sidebar.tsx',
       // Story files are fixtures (many variants), not components — not subject to the monolith limit.
       'src/**/*.stories.tsx',
       'src/**/*.stories.ts',

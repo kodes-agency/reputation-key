@@ -7,7 +7,7 @@ import {
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
+import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import {
   actionIcon,
   actionLabel,

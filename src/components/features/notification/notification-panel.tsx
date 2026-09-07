@@ -15,7 +15,7 @@ import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-
 import { groupByReadState, type NotificationFilter } from './notification-filters'
 import { NotificationPopoverContent } from './notification-popover-content'
 import type { NotificationServerFns, NotificationRowActions } from './types'
-import type { Notification } from '#/contexts/notification/application/public-api'
+import type { Notification } from '#/contexts/feed/application/public-api'
 
 const PAGE_SIZE = 20
 

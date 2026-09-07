@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import type { SetupChecklistAction } from '#/contexts/dashboard/application/public-api'
+import type { SetupChecklistAction } from '#/contexts/reporting/application/public-api'
 import { Button } from '#/components/ui/button'
 
 export function SetupChecklistActionLink({

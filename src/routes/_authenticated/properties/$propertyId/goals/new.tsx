@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { createGoalProgram } from '#/contexts/goal/server/goal-programs'
+import { createGoalProgram } from '#/contexts/reporting/server/goal-programs'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -25,7 +25,7 @@ import {
 import {
   createGoalProgramFormSchema,
   type CreateGoalProgramFormInput,
-} from '#/contexts/goal/application/dto/goal-program.dto'
+} from '#/contexts/reporting/application/dto/goal-program.dto'
 
 const subjectsQuery = (propertyId: string) =>
   queryOptions({

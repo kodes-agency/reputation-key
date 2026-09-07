@@ -1,6 +1,6 @@
 import { AlertTriangle, Clock, Inbox, Target, TrendingDown } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
-import type { AttentionSignals } from '#/contexts/dashboard/application/public-api'
+import type { AttentionSignals } from '#/contexts/reporting/application/public-api'
 
 type Signal = Readonly<{
   key: string

@@ -1,10 +1,10 @@
 // Shared testing utility — in-memory dashboard repository for unit tests
-import type { DashboardRepository } from '#/contexts/dashboard/application/ports/dashboard.repository'
+import type { DashboardRepository } from '#/contexts/reporting/application/ports/dashboard.repository'
 import type {
   KPIs,
   EngagementFunnel,
   MetricKPIValue,
-} from '#/contexts/dashboard/domain/types'
+} from '#/contexts/reporting/domain/dashboard-types'
 import { reviewId } from '#/shared/domain/ids'
 
 export function createInMemoryDashboardRepository(): DashboardRepository & {

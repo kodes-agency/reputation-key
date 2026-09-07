@@ -55,18 +55,15 @@ export type ResourceScope =
 export type BetaPosture = 'core' | 'non_core' | 'blocked'
 
 export type EntryPointOwner =
-  | 'activity'
   | 'ai'
-  | 'dashboard'
-  | 'goal'
+  | 'feed'
   | 'guest'
   | 'identity'
   | 'inbox'
   | 'integration'
-  | 'metric'
-  | 'notification'
   | 'portal'
   | 'property'
+  | 'reporting'
   | 'review'
   | 'staff'
   | 'operations'
@@ -431,10 +428,9 @@ const PROPERTY = 'src/contexts/property/server'
 const INTEGRATION = 'src/contexts/integration/server'
 const REVIEW = 'src/contexts/review/server'
 const INBOX = 'src/contexts/inbox/server'
-const DASHBOARD = 'src/contexts/dashboard/server'
-const NOTIFICATION = 'src/contexts/notification/server'
-const ACTIVITY = 'src/contexts/activity/server'
-const GOAL = 'src/contexts/goal/server'
+const REPORTING = 'src/contexts/reporting/server'
+const NOTIFICATION = 'src/contexts/feed/server'
+const ACTIVITY = 'src/contexts/feed/server'
 const STAFF = 'src/contexts/staff/server'
 const PORTAL = 'src/contexts/portal/server'
 const GUEST = 'src/contexts/guest/server'
@@ -1362,7 +1358,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   ...[
     sf(
       'getDashboardDataFn',
-      `${DASHBOARD}/dashboard.ts`,
+      `${REPORTING}/dashboard.ts`,
       'dashboard.read',
       'dashboard.use',
       'property',
@@ -1370,7 +1366,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'getPropertyOverviewFn',
-      `${DASHBOARD}/dashboard.ts`,
+      `${REPORTING}/dashboard.ts`,
       'dashboard.read',
       'dashboard.use',
       'property',
@@ -1381,7 +1377,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'getFleetOverviewFn',
-      `${DASHBOARD}/fleet-overview.ts`,
+      `${REPORTING}/fleet-overview.ts`,
       'dashboard.read',
       'dashboard.use',
       'organization',
@@ -1392,7 +1388,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'getSetupChecklistFn',
-      `${DASHBOARD}/setup-checklist.ts`,
+      `${REPORTING}/setup-checklist.ts`,
       'dashboard.read',
       'dashboard.use',
       'organization',
@@ -1404,7 +1400,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'getPortalAnalyticsFn',
-      `${DASHBOARD}/portal-analytics.ts`,
+      `${REPORTING}/portal-analytics.ts`,
       'dashboard.read',
       'dashboard.use',
       'property',
@@ -1563,7 +1559,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   ...[
     sf(
       'createGoalProgram',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.create',
       'goal.use',
       'property',
@@ -1575,7 +1571,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'reviseGoalProgram',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.update',
       'goal.use',
       'property',
@@ -1587,7 +1583,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'changeGoalProgramAssignments',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.update',
       'goal.use',
       'property',
@@ -1599,7 +1595,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'changeGoalProgramStatus',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.update',
       'goal.use',
       'property',
@@ -1612,7 +1608,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'getGoalProgram',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.read',
       'goal.use',
       'property',
@@ -1623,7 +1619,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf(
       'listGoalPrograms',
-      `${GOAL}/goal-programs.ts`,
+      `${REPORTING}/goal-programs.ts`,
       'goal.read',
       'goal.use',
       'property',
@@ -2693,7 +2689,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'reconcile-missing-notifications',
-    'src/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job.ts',
+    'src/contexts/feed/infrastructure/jobs/reconcile-missing-notifications.job.ts',
     'system:notification.reconcile',
     'none',
     'tenant_cross',
@@ -2782,7 +2778,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'goal-program.maintain',
-    'src/contexts/goal/infrastructure/jobs/goal-program-maintenance.job.ts',
+    'src/contexts/reporting/infrastructure/jobs/goal-program-maintenance.job.ts',
     'system:goal.maintain',
     'goal.use',
     'tenant_cross',
@@ -2905,7 +2901,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'project-recent-activity',
-    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
+    'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
     'system:activity.record',
     'none',
     'organization',
@@ -2913,7 +2909,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'insert-activity-log',
-    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
+    'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
     'system:activity.record',
     'none',
     'organization',
@@ -2924,7 +2920,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'insert-notification',
-    'src/contexts/notification/infrastructure/jobs/insert-notification.job.ts',
+    'src/contexts/feed/infrastructure/jobs/insert-notification.job.ts',
     'system:notification.insert',
     'none',
     'property',
@@ -2932,7 +2928,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'urgent-email',
-    'src/contexts/notification/infrastructure/jobs/urgent-email.job.ts',
+    'src/contexts/feed/infrastructure/jobs/urgent-email.job.ts',
     'system:notification.email_urgent',
     'notification.send_email',
     'property',
@@ -2944,7 +2940,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   job(
     'digest-notification',
-    'src/contexts/notification/infrastructure/jobs/digest-notification.job.ts',
+    'src/contexts/feed/infrastructure/jobs/digest-notification.job.ts',
     'system:notification.email_digest',
     'notification.send_email',
     'tenant_cross',
@@ -3034,7 +3030,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.outbox-consumers',
-    'src/contexts/notification/infrastructure/outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/notification-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3046,7 +3042,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.identity-account-outbox-consumers',
-    'src/contexts/notification/infrastructure/identity-account-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3063,7 +3059,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.workflow-outbox-consumers',
-    'src/contexts/notification/infrastructure/workflow-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/workflow-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3084,7 +3080,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.bulk-assignment-outbox-consumers',
-    'src/contexts/notification/infrastructure/bulk-assignment-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/bulk-assignment-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3096,7 +3092,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.escalation-resolution-outbox-consumers',
-    'src/contexts/notification/infrastructure/escalation-resolution-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/escalation-resolution-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3108,7 +3104,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.handling-cycle-outbox-consumers',
-    'src/contexts/notification/infrastructure/handling-cycle-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/handling-cycle-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3120,7 +3116,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.response-target-outbox-consumers',
-    'src/contexts/notification/infrastructure/response-target-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/response-target-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3132,7 +3128,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.goal-outbox-consumers',
-    'src/contexts/notification/infrastructure/goal-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/goal-outbox-consumers.ts',
     'system:notification.insert_goal',
     'goal.use',
     'property',
@@ -3144,7 +3140,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.on-google-reauthorization-required',
-    'src/contexts/notification/infrastructure/integration-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/integration-outbox-consumers.ts',
     'system:notification.insert',
     'none',
     'organization',
@@ -3156,7 +3152,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.portal-outbox-consumers',
-    'src/contexts/notification/infrastructure/portal-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/portal-outbox-consumers.ts',
     'system:notification.insert_portal',
     'portal.write',
     'property',
@@ -3168,7 +3164,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.portal-health-outbox-consumers',
-    'src/contexts/notification/infrastructure/portal-health-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/portal-health-outbox-consumers.ts',
     'system:notification.insert_portal',
     'portal.write',
     'property',
@@ -3180,7 +3176,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'notification.property-outbox-consumers',
-    'src/contexts/notification/infrastructure/property-outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/property-outbox-consumers.ts',
     'system:notification.insert_property_responsibility',
     'property.create',
     'property',
@@ -3248,7 +3244,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'activity.outbox-consumers',
-    'src/contexts/activity/infrastructure/outbox-consumers.ts',
+    'src/contexts/feed/infrastructure/activity-outbox-consumers.ts',
     'system:activity.record',
     'none',
     'organization',
@@ -3300,7 +3296,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'goal.metric-correction-reconciliation',
-    'src/contexts/goal/infrastructure/metric-correction-outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/metric-correction-outbox-consumers.ts',
     'system:goal.maintain',
     'goal.use',
     'property',
@@ -3312,7 +3308,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'metric.portal-workflow',
-    'src/contexts/metric/infrastructure/outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/outbox-consumers.ts',
     'system:metric.record_portal_workflow',
     'portal.write',
     'organization',
@@ -3325,7 +3321,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'metric.public-reputation',
-    'src/contexts/metric/infrastructure/public-reputation-outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/public-reputation-outbox-consumers.ts',
     'system:metric.record_public_reputation',
     'none',
     'organization',
@@ -3337,7 +3333,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'metric.current-google-reputation',
-    'src/contexts/metric/infrastructure/current-google-reputation-outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/current-google-reputation-outbox-consumers.ts',
     'system:metric.record_public_reputation',
     'none',
     'organization',
@@ -3349,7 +3345,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'metric.guest-analytics',
-    'src/contexts/metric/infrastructure/guest-outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/guest-outbox-consumers.ts',
     'system:metric.record_guest_analytics',
     'portal.read',
     'organization',
@@ -3367,7 +3363,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   consumer(
     'metric.correction-reconciliation',
-    'src/contexts/metric/infrastructure/correction-outbox-consumers.ts',
+    'src/contexts/reporting/infrastructure/correction-outbox-consumers.ts',
     'system:metric.record',
     'none',
     'organization',

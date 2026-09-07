@@ -14,8 +14,8 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { notificationKeys } from '#/shared/queries/query-keys'
-import type { Notification } from '#/contexts/notification/application/public-api'
-import type { NotificationListFilter } from '#/contexts/notification/application/public-api'
+import type { Notification } from '#/contexts/feed/application/public-api'
+import type { NotificationListFilter } from '#/contexts/feed/application/public-api'
 import { patchNotificationFeedCache } from './notification-feed-cache'
 import type { NotificationServerFns } from './types'
 

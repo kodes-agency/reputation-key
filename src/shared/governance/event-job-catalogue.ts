@@ -274,13 +274,14 @@ function job(
 
 // ── Consumer modules ────────────────────────────────────────────────
 
-const ACTIVITY_OUTBOX = 'src/contexts/activity/infrastructure/outbox-consumers.ts'
-const METRIC_OUTBOX = 'src/contexts/metric/infrastructure/outbox-consumers.ts'
-const METRIC_GUEST_OUTBOX = 'src/contexts/metric/infrastructure/guest-outbox-consumers.ts'
+const ACTIVITY_OUTBOX = 'src/contexts/feed/infrastructure/activity-outbox-consumers.ts'
+const METRIC_OUTBOX = 'src/contexts/reporting/infrastructure/outbox-consumers.ts'
+const METRIC_GUEST_OUTBOX =
+  'src/contexts/reporting/infrastructure/guest-outbox-consumers.ts'
 const METRIC_CORRECTION_OUTBOX =
-  'src/contexts/metric/infrastructure/correction-outbox-consumers.ts'
+  'src/contexts/reporting/infrastructure/correction-outbox-consumers.ts'
 const GOAL_METRIC_CORRECTION_OUTBOX =
-  'src/contexts/goal/infrastructure/metric-correction-outbox-consumers.ts'
+  'src/contexts/reporting/infrastructure/metric-correction-outbox-consumers.ts'
 const REVIEW_OUTBOX = 'src/contexts/review/infrastructure/outbox-consumers.ts'
 const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
 const INBOX_GUEST_FEEDBACK_OUTBOX =
@@ -292,33 +293,34 @@ const INTEGRATION_IMPORT_OUTBOX =
   'src/contexts/integration/infrastructure/outbox-consumers.ts'
 const INTEGRATION_GBP_PUSH_OUTBOX =
   'src/contexts/integration/infrastructure/google-review-push-outbox-consumers.ts'
-const NOTIFICATION_OUTBOX = 'src/contexts/notification/infrastructure/outbox-consumers.ts'
+const NOTIFICATION_OUTBOX =
+  'src/contexts/feed/infrastructure/notification-outbox-consumers.ts'
 const NOTIFICATION_WORKFLOW_OUTBOX =
-  'src/contexts/notification/infrastructure/workflow-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/workflow-outbox-consumers.ts'
 const NOTIFICATION_PORTAL_OUTBOX =
-  'src/contexts/notification/infrastructure/portal-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/portal-outbox-consumers.ts'
 const NOTIFICATION_PORTAL_HEALTH_OUTBOX =
-  'src/contexts/notification/infrastructure/portal-health-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/portal-health-outbox-consumers.ts'
 const NOTIFICATION_PROPERTY_OUTBOX =
-  'src/contexts/notification/infrastructure/property-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/property-outbox-consumers.ts'
 const NOTIFICATION_INTEGRATION_OUTBOX =
-  'src/contexts/notification/infrastructure/integration-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/integration-outbox-consumers.ts'
 const NOTIFICATION_BULK_ASSIGNMENT_OUTBOX =
-  'src/contexts/notification/infrastructure/bulk-assignment-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/bulk-assignment-outbox-consumers.ts'
 const NOTIFICATION_ESCALATION_RESOLUTION_OUTBOX =
-  'src/contexts/notification/infrastructure/escalation-resolution-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/escalation-resolution-outbox-consumers.ts'
 const NOTIFICATION_HANDLING_CYCLE_OUTBOX =
-  'src/contexts/notification/infrastructure/handling-cycle-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/handling-cycle-outbox-consumers.ts'
 const NOTIFICATION_RESPONSE_TARGET_OUTBOX =
-  'src/contexts/notification/infrastructure/response-target-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/response-target-outbox-consumers.ts'
 const NOTIFICATION_GOAL_OUTBOX =
-  'src/contexts/notification/infrastructure/goal-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/goal-outbox-consumers.ts'
 const NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX =
-  'src/contexts/notification/infrastructure/identity-account-outbox-consumers.ts'
+  'src/contexts/feed/infrastructure/identity-account-outbox-consumers.ts'
 const METRIC_PUBLIC_REPUTATION_OUTBOX =
-  'src/contexts/metric/infrastructure/public-reputation-outbox-consumers.ts'
+  'src/contexts/reporting/infrastructure/public-reputation-outbox-consumers.ts'
 const METRIC_CURRENT_GOOGLE_REPUTATION_OUTBOX =
-  'src/contexts/metric/infrastructure/current-google-reputation-outbox-consumers.ts'
+  'src/contexts/reporting/infrastructure/current-google-reputation-outbox-consumers.ts'
 
 // ── Event families ──────────────────────────────────────────────────
 
@@ -332,8 +334,8 @@ const PORTAL_HEALTH_OUTBOX =
   'src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts'
 const GUEST_EVENTS = 'src/contexts/guest/domain/events.ts'
 const INTEGRATION_EVENTS = 'src/contexts/integration/domain/events.ts'
-const METRIC_EVENTS = 'src/contexts/metric/domain/events.ts'
-const GOAL_EVENTS = 'src/contexts/goal/domain/events.ts'
+const METRIC_EVENTS = 'src/contexts/reporting/domain/metric-events.ts'
+const GOAL_EVENTS = 'src/contexts/reporting/domain/goal-events.ts'
 const AI_EVENTS = 'src/contexts/ai/domain/events.ts'
 
 const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
@@ -420,7 +422,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'enabled',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'content-minimal total/average fact emitted only when Review atomically completes a double-scan-verified provider snapshot; Metric owns the distinct Current on Google projection and fences source epoch, evaluated time, and run id without writing bounded metric readings',
     },
@@ -1476,7 +1478,7 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'enabled',
     },
     {
-      projectionOwner: 'notification',
+      projectionOwner: 'feed',
       notes:
         'identifier-only status/reason pair transition committed atomically with the effective-dated Portal Health interval and projected into Recent Activity',
     },
@@ -1772,7 +1774,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier-only v1 schema; session-deduplicated scan row and fact commit atomically through GuestObservationStore; durable metric consumer is recovery authority',
     },
@@ -1790,7 +1792,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier-only Access Artifact provenance with event-time Portal Group attribution; durable Metric consumer is replay authority',
     },
@@ -1808,7 +1810,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier-only append-only correction targeting the original Qualified Scan source fact',
     },
@@ -1826,7 +1828,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier/numeric-only v1 schema; canonical Guest response and fact commit atomically through GuestResponseCommandStore; durable metric consumer is recovery authority',
     },
@@ -1844,7 +1846,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier-only retraction committed atomically with correction/withdrawal; Metric appends correction facts and never converts retraction to zero',
     },
@@ -1904,7 +1906,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'denied_dark',
     },
     {
-      projectionOwner: 'metric',
+      projectionOwner: 'reporting',
       notes:
         'identifier-only v1 schema with Google-versus-secondary destination kind; legacy missing kinds decode as secondary; the outbox row is canonical and commits before best-effort bus acceleration',
     },
@@ -1971,7 +1973,7 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'enabled',
     },
     {
-      projectionOwner: 'notification',
+      projectionOwner: 'feed',
       notes:
         'identifier-only connector-departure recovery fact; durable Notification fan-out resolves current AccountAdmins and uses deterministic per-recipient delivery identities',
     },
@@ -2059,7 +2061,7 @@ const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
     'metric.recorded',
     METRIC_EVENTS,
     {
-      stateOwner: 'metric',
+      stateOwner: 'reporting',
       capability: 'metric.internal',
       action: 'system:metric.record',
       schemaRegistered: true,
@@ -2076,7 +2078,7 @@ const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
     'metric.corrected',
     METRIC_EVENTS,
     {
-      stateOwner: 'metric',
+      stateOwner: 'reporting',
       capability: 'metric.internal',
       action: 'system:metric.record',
       schemaRegistered: true,
@@ -2099,7 +2101,7 @@ const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     'goal.monthly_result.closed',
     GOAL_EVENTS,
     {
-      stateOwner: 'goal',
+      stateOwner: 'reporting',
       capability: 'goal.use',
       action: 'system:goal.maintain',
       schemaRegistered: true,
@@ -2119,7 +2121,7 @@ const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     'goal.monthly_result.reconciled',
     GOAL_EVENTS,
     {
-      stateOwner: 'goal',
+      stateOwner: 'reporting',
       capability: 'goal.use',
       action: 'system:goal.maintain',
       schemaRegistered: true,
@@ -2130,14 +2132,14 @@ const GOAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       notes:
         'canonical identifier-only reconciliation fact is durable evidence and feeds content-free Recent Activity; it intentionally does not trigger a user notification',
-      projectionOwner: 'activity',
+      projectionOwner: 'feed',
     },
   ),
   ev(
     'goal.monthly_result.revised',
     GOAL_EVENTS,
     {
-      stateOwner: 'goal',
+      stateOwner: 'reporting',
       capability: 'goal.use',
       action: 'system:goal.maintain',
       schemaRegistered: true,
@@ -2301,7 +2303,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   ),
   job(
     'project-recent-activity',
-    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
+    'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
     {
       queue: 'default',
       capability: 'none',
@@ -2313,7 +2315,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   ),
   job(
     'insert-activity-log',
-    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
+    'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
     {
       queue: 'default',
       capability: 'none',
@@ -2328,7 +2330,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   ),
   job(
     'insert-notification',
-    'src/contexts/notification/infrastructure/jobs/insert-notification.job.ts',
+    'src/contexts/feed/infrastructure/jobs/insert-notification.job.ts',
     {
       queue: 'default',
       capability: 'none',
@@ -2340,7 +2342,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   ),
   job(
     'urgent-email',
-    'src/contexts/notification/infrastructure/jobs/urgent-email.job.ts',
+    'src/contexts/feed/infrastructure/jobs/urgent-email.job.ts',
     {
       queue: 'default',
       capability: 'notification.send_email',
@@ -2422,7 +2424,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   ),
   job(
     'reconcile-missing-notifications',
-    'src/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job.ts',
+    'src/contexts/feed/infrastructure/jobs/reconcile-missing-notifications.job.ts',
     {
       queue: 'background',
       capability: 'none',
@@ -2503,7 +2505,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   ),
   job(
     'goal-program.maintain',
-    'src/contexts/goal/infrastructure/jobs/goal-program-maintenance.job.ts',
+    'src/contexts/reporting/infrastructure/jobs/goal-program-maintenance.job.ts',
     {
       queue: 'background',
       capability: 'goal.use',
@@ -2681,7 +2683,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
   ),
   job(
     'digest-notification',
-    'src/contexts/notification/infrastructure/jobs/digest-notification.job.ts',
+    'src/contexts/feed/infrastructure/jobs/digest-notification.job.ts',
     {
       queue: 'background',
       capability: 'notification.send_email',

@@ -62,12 +62,10 @@ describe('Contact Request beta containment', () => {
 
   it('keeps contact fields out of facts, notifications, analytics, inbox, AI, and search-owned code', () => {
     const consumers = [
-      'src/contexts/activity',
+      'src/contexts/feed',
       'src/contexts/ai',
-      'src/contexts/dashboard',
       'src/contexts/inbox',
-      'src/contexts/metric',
-      'src/contexts/notification',
+      'src/contexts/reporting',
       'src/contexts/review',
       'src/shared/email',
       'src/shared/events',

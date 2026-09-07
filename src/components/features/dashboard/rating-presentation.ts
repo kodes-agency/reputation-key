@@ -1,4 +1,4 @@
-import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 
 export type RatingPresentationInput = Readonly<{
   value: number | null

@@ -18,7 +18,7 @@ never issued; numbers are not reused.
 | [0004](0004-inbox-bounded-context.md)                                     | Inbox bounded context                  | Partially superseded by 0055                                        |
 | [0005](0005-gbp-review-api-fix.md)                                        | GBP Review API path/error model        | Historical implementation decision                                  |
 | [0006](0006-staff-bounded-context.md)                                     | Staff bounded context                  | Partially superseded by 0052                                        |
-| [0007](0007-dashboard-read-only-aggregation.md)                           | Read-only Dashboard aggregation        | Active, subject to governed metrics                                 |
+| [0007](0007-dashboard-read-only-aggregation.md)                           | Read-only Dashboard aggregation        | Partially superseded by WP3.4; read-only behavior retained          |
 | [0008](0008-cross-context-boundaries.md)                                  | Cross-context data access              | Active                                                              |
 | [0009](0009-permission-model.md)                                          | Permission model                       | Partially superseded by 0033 and 0052                               |
 | [0010](0010-activity-bullmq-delivery.md)                                  | Activity BullMQ delivery               | Active only with durable-fact ownership in 0030/0056                |

@@ -579,25 +579,25 @@ function buildContainer(
     }),
   )
 
-  // ARC-03-T10: the downstream leaf contexts — read models, projections and
-  // notifications — composed as one named group.
-  const { metricApi, goal, goalCorrectionPolicy, dashboard, activity, notification } =
-    buildReadAndNotifyContexts({
-      db,
-      clock,
-      idGen: randomUUID,
-      logger,
-      outboxRepo,
-      jobQueue: infra.jobQueue,
-      staff,
-      property,
-      portal,
-      guest,
-      review,
-      identity,
-      inbox,
-      reviewServingStats: review.lookups.servingStats,
-    })
+  // ARC-03-T10: downstream Reporting and Feed are composed as one named
+  // group after their upstream dependencies.
+  const { reporting, goalCorrectionPolicy, feed } = buildReadAndNotifyContexts({
+    db,
+    clock,
+    idGen: randomUUID,
+    logger,
+    outboxRepo,
+    jobQueue: infra.jobQueue,
+    staff,
+    property,
+    portal,
+    guest,
+    review,
+    identity,
+    inbox,
+    reviewServingStats: review.lookups.servingStats,
+  })
+  const { activity, notification } = feed
 
   // ARC-03-T10/T15: the process's operational readout and release seam.
   const { opsQueues, jobDispatchWorkerRuntime, operationsSnapshot, containerShutdown } =
@@ -717,16 +717,15 @@ function buildContainer(
     /** Bounded, operator-only Inbox projection repair authority. */
     inboxMaintenanceRuntime: inbox.maintenance,
     inboxRuntime: inbox.runtime,
-    metricPublicApi: metricApi.publicApi,
-    metricMaintenanceRuntime: metricApi.maintenance,
-    dashboardPublicApi: dashboard.publicApi,
-    goalPublicApi: goal.publicApi,
-    goalWorkerRuntime: goal.worker,
-    activityPublicApi: activity.publicApi,
+    metricPublicApi: reporting.publicApi,
+    metricMaintenanceRuntime: reporting.maintenance,
+    dashboardPublicApi: reporting.publicApi,
+    goalPublicApi: reporting.publicApi,
+    goalWorkerRuntime: reporting.worker,
+    feedPublicApi: feed.publicApi,
     activityWorkerRuntime: Object.freeze({
       projectRecentActivity: activity.worker.projectRecentActivity,
     }),
-    notificationPublicApi: notification.publicApi,
     identityPort,
     // Request-scoped Identity handlers consume only their parsed, semantic
     // key material. They never re-read process configuration after boot.
@@ -779,8 +778,7 @@ function buildContainer(
       portal.worker.registerOutboxConsumers(consumerRegistry)
       property.worker.registerOutboxConsumers(consumerRegistry)
       inbox.worker.registerOutboxConsumers(consumerRegistry)
-      metricApi.worker.registerOutboxConsumers(consumerRegistry)
-      goal.worker.registerOutboxConsumers(consumerRegistry, goalCorrectionPolicy)
+      reporting.worker.registerOutboxConsumers(consumerRegistry, goalCorrectionPolicy)
       ai.worker.registerOutboxConsumers(consumerRegistry)
       activity.worker.registerOutboxConsumers(consumerRegistry)
       notification.worker.registerOutboxConsumers(consumerRegistry)

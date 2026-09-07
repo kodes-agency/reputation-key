@@ -1,11 +1,11 @@
 import { ArrowDownRight, ArrowUpRight, Minus, Star } from 'lucide-react'
-import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import {
   ratingPresentation,
   type RatingPresentationInput,
 } from '#/components/features/dashboard/rating-presentation'
 import { metricEvidenceLine } from '#/components/features/dashboard/metric-availability-presentation'
-import type { PortalMetricEvidence } from '#/contexts/dashboard/application/public-api'
+import type { PortalMetricEvidence } from '#/contexts/reporting/application/public-api'
 
 export function PortalRatingCard({
   rating,

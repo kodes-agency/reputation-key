@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound, redirect } from '@tanstack/react-route
 import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
+import { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import {
   PORTAL_DETAIL_TABS,
   PortalDetailPage,

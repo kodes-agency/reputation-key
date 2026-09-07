@@ -5,7 +5,7 @@ import type {
   MetricAvailabilityState,
   MetricKPIValue,
   RatingKPIValue,
-} from '#/contexts/dashboard/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 import { KPICard, RatingKPICard } from './property-dashboard-helpers'
 
 const Icon = () => createElement('svg', { 'aria-hidden': true })

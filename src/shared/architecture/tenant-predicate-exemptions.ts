@@ -19,14 +19,14 @@ export type TenantPredicateExemption = Readonly<{
 
 export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = [
   {
-    file: 'src/contexts/activity/infrastructure/activity-recovery-store.ts',
+    file: 'src/contexts/feed/infrastructure/activity-recovery-store.ts',
     symbol: 'listMissing',
     reason:
       'The bounded replay-recovery scan intentionally inventories projection gaps across tenants and returns the replay authority with its tenant identity.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/activity/infrastructure/activity-recovery-store.ts',
+    file: 'src/contexts/feed/infrastructure/activity-recovery-store.ts',
     symbol: 'readGap',
     reason:
       'The recovery health snapshot intentionally aggregates replay-authority gaps across tenants without mutating any tenant-owned row.',
@@ -47,14 +47,14 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/goal/infrastructure/repositories/goal-program.repository.ts',
+    file: 'src/contexts/reporting/infrastructure/repositories/goal-program.repository.ts',
     symbol: 'hydrateBundles',
     reason:
       'The hydration query receives a finite set of already-authorized or globally scheduled program rows and loads children only through their globally unique parent IDs.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/goal/infrastructure/repositories/goal-program.repository.ts',
+    file: 'src/contexts/reporting/infrastructure/repositories/goal-program.repository.ts',
     symbol: 'listDueResults',
     reason:
       'The bounded goal-maintenance scheduler intentionally enumerates due result records across all tenants before tenant-preserving maintenance work.',
@@ -173,21 +173,21 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/notification/infrastructure/repositories/notification-gap.repository.ts',
+    file: 'src/contexts/feed/infrastructure/repositories/notification-gap.repository.ts',
     symbol: 'countItemsMissingNotifications',
     reason:
       'The bounded health gauge intentionally counts notification gaps across all tenants and returns no tenant-owned content or identifiers.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/notification/infrastructure/repositories/notification-gap.repository.ts',
+    file: 'src/contexts/feed/infrastructure/repositories/notification-gap.repository.ts',
     symbol: 'findItemsMissingNotifications',
     reason:
       'The bounded notification-repair scan searches all tenant inbox projections and returns each row with its tenant identifiers for scoped repair.',
     category: 'LEGITIMATE-GLOBAL',
   },
   {
-    file: 'src/contexts/notification/infrastructure/repositories/one-click-unsubscribe.repository.ts',
+    file: 'src/contexts/feed/infrastructure/repositories/one-click-unsubscribe.repository.ts',
     symbol: 'targetScopes',
     reason:
       'A signed one-click unsubscribe token identifies the queue target before tenant scope is known, and this lookup derives every affected tenant scope.',

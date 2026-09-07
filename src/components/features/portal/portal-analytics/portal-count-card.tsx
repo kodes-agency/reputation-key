@@ -4,7 +4,7 @@ import {
   TrendIndicator,
 } from '#/components/features/property/property-dashboard-helpers'
 import { metricEvidenceLine } from '#/components/features/dashboard/metric-availability-presentation'
-import type { PortalMetricEvidence } from '#/contexts/dashboard/application/public-api'
+import type { PortalMetricEvidence } from '#/contexts/reporting/application/public-api'
 
 export function PortalCountCard({
   label,

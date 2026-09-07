@@ -7,8 +7,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import { PropertyDashboard } from './property-dashboard'
-import { TIME_RANGE_OPTIONS } from '#/contexts/dashboard/application/dto/dashboard.dto'
-import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+import { TIME_RANGE_OPTIONS } from '#/contexts/reporting/application/dto/dashboard.dto'
+import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import type {
   getPropertyGooglePerformance,
   renewPropertyGooglePerformanceLease,

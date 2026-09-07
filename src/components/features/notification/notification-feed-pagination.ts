@@ -3,7 +3,7 @@ import type {
   NotificationFeedHead,
   Notification,
   NotificationPage,
-} from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/application/public-api'
 
 export const NOTIFICATION_POLL_INTERVAL = 30_000
 

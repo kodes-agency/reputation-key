@@ -1,10 +1,10 @@
 // LIF-01-T19 contract test — the Property Erase contributor registry.
 //
-// PROPERTY_ERASE_CONTEXTS is the closed set the erase path answers for: the
-// preview the AccountAdmin confirms is assembled per context, and receipts are
-// keyed by context so an interrupted purge can resume. A bounded context that
-// is missing from this list is a context nobody waits on, which is exactly the
-// "partial erasure looks complete" failure the port header names.
+// PROPERTY_ERASE_CONTEXTS is the closed set of stable data-owner slots the
+// erase path answers for: the preview the AccountAdmin confirms is assembled
+// per slot, and receipts are keyed by that slot so an interrupted purge can
+// resume. A bounded context missing all of its slots is one nobody waits on,
+// which is exactly the "partial erasure looks complete" failure the port names.
 
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -22,26 +22,44 @@ const boundedContextDirectories = (): readonly string[] =>
     .map((entry) => entry.name)
     .sort()
 
+/**
+ * Context merges do not rewrite durable receipt keys or collapse independently
+ * reviewed purge plans. Map a merged boundary to the stable data-owner slots it
+ * now contains; an unmerged context keeps its directory name as its sole slot.
+ */
+const MERGED_CONTEXT_ERASE_OWNERS: Readonly<Record<string, readonly string[]>> = {
+  feed: ['activity', 'notification'],
+  reporting: ['dashboard', 'goal', 'metric'],
+}
+
+const eraseOwnersForDirectory = (directory: string): readonly string[] =>
+  MERGED_CONTEXT_ERASE_OWNERS[directory] ?? [directory]
+
+const boundedContextEraseOwners = (): readonly string[] =>
+  [
+    ...new Set(
+      boundedContextDirectories().flatMap((directory) =>
+        eraseOwnersForDirectory(directory),
+      ),
+    ),
+  ].sort()
+
 describe('PROPERTY_ERASE_CONTEXTS', () => {
-  it('registers every bounded context', () => {
-    const absent = boundedContextDirectories().filter(
-      (directory) => !registered.includes(directory),
+  it('registers every bounded context data-owner slot', () => {
+    const absent = boundedContextDirectories().filter((directory) =>
+      eraseOwnersForDirectory(directory).some((owner) => !registered.includes(owner)),
     )
 
     // An empty set is what makes a NEWLY ADDED context fail here rather than
-    // silently sit out an erase. `identity` used to be the one exception, and
-    // it was a defect, not a decision: `data-fate-authority.ts` names Identity
-    // the owner of seven Property-scoped tables, so the omission asserted
-    // something false. Its contributor is
-    // identity-property-erase.adapter.ts. Do not re-add an exception here to
-    // make a missing contributor pass — write the contributor.
+    // silently sit out an erase. Do not add an empty mapping to make a missing
+    // contributor pass: every boundary must retain at least one reviewed slot.
     expect(absent).toEqual([])
   })
 
-  it('does not register a context that has no bounded-context directory', () => {
-    const directories = boundedContextDirectories()
+  it('does not register a data-owner slot without a bounded-context owner', () => {
+    const boundedOwners = boundedContextEraseOwners()
 
-    expect(registered.filter((context) => !directories.includes(context))).toEqual([])
+    expect(registered.filter((context) => !boundedOwners.includes(context))).toEqual([])
   })
 
   it('names only contexts the Organization lifecycle also enumerates', () => {
@@ -50,7 +68,7 @@ describe('PROPERTY_ERASE_CONTEXTS', () => {
     expect(registered.filter((context) => !canonical.includes(context))).toEqual([])
   })
 
-  it('is distinct and canonically ordered', () => {
+  it('keeps lifecycle receipt keys distinct and canonically ordered', () => {
     // The preview digest sorts `context:table:rowCount` lines and receipts are
     // keyed on (authority, context, phase); a duplicate would double-count a
     // context in the total the AccountAdmin agrees to destroy.

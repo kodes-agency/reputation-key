@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
-import type { SetupChecklist } from '#/contexts/dashboard/application/public-api'
+import type { SetupChecklist } from '#/contexts/reporting/application/public-api'
 import { propertyId } from '#/shared/domain/ids'
 import { SetupChecklistPanel } from './setup-checklist'
 

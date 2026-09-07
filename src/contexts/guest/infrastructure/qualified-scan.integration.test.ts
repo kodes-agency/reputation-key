@@ -16,17 +16,17 @@ import { guestQualifiedScanRecorded, guestQualifiedScanRetracted } from '../doma
 import { createPortalGroupRepository } from '#/contexts/portal/infrastructure/repositories/portal-group.repository'
 import { createPortalAccessArtifactRepository } from '#/contexts/portal/infrastructure/repositories/portal-access-artifact.repository'
 import { createAtomicGuestObservationStore } from './guest-observation-store'
-import { recordMetrics } from '#/contexts/metric/application/use-cases/record-metric'
-import { retractMetrics } from '#/contexts/metric/application/use-cases/retract-metric'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/domain/metric-registry'
 import {
-  onQualifiedScanRecordedDurably,
-  onQualifiedScanRetractedDurably,
-} from '#/contexts/metric/infrastructure/record-portal-metric'
-import { createAtomicMetricCommandStore } from '#/contexts/metric/infrastructure/metric-command-store'
-import { createMetricRegistryRepository } from '#/contexts/metric/infrastructure/repositories/metric-registry.repository'
-import { createMetricRepository } from '#/contexts/metric/infrastructure/repositories/metric.repository'
-import { metricReadingId } from '#/shared/domain/ids'
+  buildReportingContext,
+  type ReportingContextBuildInput,
+} from '#/contexts/reporting/build'
+import { METRIC_VERSION_IDS } from '#/contexts/reporting/application/public-api'
+import {
+  createConsumerRegistry,
+  type ConsumerEvent,
+  type ConsumerHandler,
+  type ConsumerRegistry,
+} from '#/shared/outbox'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const ORG = organizationId('org-qualified-scan-integration')
@@ -63,6 +63,39 @@ const { getPool } = setupIntegrationDb({
     'properties',
   ],
 })
+
+function buildReportingFixture() {
+  const input: ReportingContextBuildInput = {
+    db: getDb(),
+    clock: () => EVENT_TIME,
+    idGen: randomUUID,
+    logger: createMockLogger(),
+    portalGroupApi: {} as ReportingContextBuildInput['portalGroupApi'],
+    portalApi: {} as ReportingContextBuildInput['portalApi'],
+    reviewRatingLookup: {} as ReportingContextBuildInput['reviewRatingLookup'],
+    propertyApi: {} as ReportingContextBuildInput['propertyApi'],
+    staffPublicApi: {} as ReportingContextBuildInput['staffPublicApi'],
+    reviewServingStats: {} as ReportingContextBuildInput['reviewServingStats'],
+    inboxTargets: {} as ReportingContextBuildInput['inboxTargets'],
+    guestResponseIntegrity: {} as ReportingContextBuildInput['guestResponseIntegrity'],
+  }
+  const context = buildReportingContext(input)
+  const registry = createConsumerRegistry()
+  context.worker.registerOutboxConsumers(registry, {
+    authorize: async () => undefined,
+  })
+  return { context, registry }
+}
+
+function metricConsumer(registry: ConsumerRegistry, eventType: string): ConsumerHandler {
+  const registration = registry
+    .listFor(eventType)
+    .find(({ consumerName }) => consumerName === 'metric.guest-analytics')
+  if (!registration) {
+    throw new Error(`Reporting consumer is not registered for ${eventType}`)
+  }
+  return registration.handler
+}
 
 async function seedPublishedArtifact(): Promise<void> {
   const pool = getPool()
@@ -344,18 +377,7 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
   })
 
   it('projects one replay-safe Metric contribution and removes it by correction', async () => {
-    const commandStore = createAtomicMetricCommandStore(getDb(), randomUUID)
-    const readingIds = [
-      metricReadingId('73000000-0000-4000-8000-000000000021'),
-      metricReadingId('73000000-0000-4000-8000-000000000022'),
-    ]
-    const recordBatch = recordMetrics({
-      commandStore,
-      registry: createMetricRegistryRepository(),
-      idGen: () => readingIds.shift()!,
-      clock: () => EVENT_TIME,
-      resolvePropertyLocalDate: async () => '2026-08-27',
-    })
+    const { context, registry } = buildReportingFixture()
     const fact = guestQualifiedScanRecorded({
       qualifiedScanId: qualifiedScanId('73000000-0000-4000-8000-000000000023'),
       organizationId: ORG,
@@ -365,6 +387,16 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       accessArtifactId: ARTIFACT,
       occurredAt: EVENT_TIME,
     })
+    const recordedPayload = {
+      organizationId: fact.organizationId,
+      propertyId: fact.propertyId,
+      portalId: fact.portalId,
+      qualifiedScanId: fact.qualifiedScanId,
+      portalGroupId: fact.portalGroupId,
+      accessArtifactId: fact.accessArtifactId,
+      staffAttribution: fact.staffAttribution,
+      occurredAt: fact.occurredAt.toISOString(),
+    }
     await getPool().query(
       `INSERT INTO outbox_events (
          id, event_type, event_version, payload, organization_id, property_id,
@@ -373,49 +405,45 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       [
         fact.eventId,
         fact._tag,
-        JSON.stringify({
-          organizationId: fact.organizationId,
-          propertyId: fact.propertyId,
-          portalId: fact.portalId,
-          qualifiedScanId: fact.qualifiedScanId,
-          portalGroupId: fact.portalGroupId,
-          accessArtifactId: fact.accessArtifactId,
-          staffAttribution: fact.staffAttribution,
-          occurredAt: fact.occurredAt.toISOString(),
-        }),
+        JSON.stringify(recordedPayload),
         ORG,
         PROPERTY,
         fact.qualifiedScanId,
       ],
     )
+    const recordedEnvelope = {
+      eventId: fact.eventId,
+      eventType: fact._tag,
+      eventVersion: 1,
+      payload: recordedPayload,
+      organizationId: fact.organizationId,
+      propertyId: fact.propertyId,
+      sourceContext: 'guest',
+      sourceAggregateId: fact.qualifiedScanId,
+      occurredAt: fact.occurredAt.toISOString(),
+    } satisfies ConsumerEvent
+    const recordedHandler = metricConsumer(registry, fact._tag)
 
-    const recordedHandler = onQualifiedScanRecordedDurably({
-      recordMetrics: recordBatch,
-      findGroupForPortal: async () => {
-        throw new Error('replay must not re-resolve Portal Group membership')
-      },
-      logger: createMockLogger(),
-    })
+    await recordedHandler(recordedEnvelope)
+    await recordedHandler(recordedEnvelope)
 
-    await recordedHandler(fact)
-    await recordedHandler(fact)
-
-    const metrics = createMetricRepository(getDb(), () => EVENT_TIME)
     const aggregateQuery = {
       organizationId: ORG,
       propertyId: PROPERTY,
-      definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
-      expectedMetricKey: 'portal.qualified_scan' as const,
-      allowedSourcePolicies: ['first_party_guest_gateway_metric' as const],
-      subject: { kind: 'portal' as const, portalId: PORTAL },
+      portalId: PORTAL,
+      groupId: null,
+      metricKey: 'portal.qualified_scan' as const,
+      consumer: 'goal' as const,
       periodStart: new Date('2026-08-01T00:00:00.000Z'),
       periodEnd: new Date('2026-09-01T00:00:00.000Z'),
     }
-    await expect(metrics.queryGoalAggregate(aggregateQuery)).resolves.toMatchObject({
-      sum: 1,
-      sampleCount: 1,
-      readingCount: 1,
-    })
+    await expect(context.publicApi.queryAggregate(aggregateQuery)).resolves.toMatchObject(
+      {
+        sum: 1,
+        count: 1,
+        sampleCount: 1,
+      },
+    )
 
     const correction = guestQualifiedScanRetracted({
       qualifiedScanId: fact.qualifiedScanId,
@@ -427,6 +455,17 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       supersedesSourceEventId: fact.eventId,
       occurredAt: new Date('2026-08-27T12:00:00.000Z'),
     })
+    const retractedPayload = {
+      organizationId: correction.organizationId,
+      propertyId: correction.propertyId,
+      portalId: correction.portalId,
+      qualifiedScanId: correction.qualifiedScanId,
+      portalGroupId: correction.portalGroupId,
+      accessArtifactId: correction.accessArtifactId,
+      supersedesSourceEventId: correction.supersedesSourceEventId,
+      staffAttribution: correction.staffAttribution,
+      occurredAt: correction.occurredAt.toISOString(),
+    }
     await getPool().query(
       `INSERT INTO outbox_events (
          id, event_type, event_version, payload, organization_id, property_id,
@@ -435,33 +474,35 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
       [
         correction.eventId,
         correction._tag,
-        JSON.stringify({
-          organizationId: correction.organizationId,
-          propertyId: correction.propertyId,
-          portalId: correction.portalId,
-          qualifiedScanId: correction.qualifiedScanId,
-          portalGroupId: correction.portalGroupId,
-          accessArtifactId: correction.accessArtifactId,
-          supersedesSourceEventId: correction.supersedesSourceEventId,
-          staffAttribution: correction.staffAttribution,
-          occurredAt: correction.occurredAt.toISOString(),
-        }),
+        JSON.stringify(retractedPayload),
         ORG,
         PROPERTY,
         correction.qualifiedScanId,
       ],
     )
-    const retractedHandler = onQualifiedScanRetractedDurably({
-      retractMetrics: retractMetrics(commandStore),
-    })
-    await retractedHandler(correction)
-    await retractedHandler(correction)
+    const retractedEnvelope = {
+      eventId: correction.eventId,
+      eventType: correction._tag,
+      eventVersion: 1,
+      payload: retractedPayload,
+      organizationId: correction.organizationId,
+      propertyId: correction.propertyId,
+      sourceContext: 'guest',
+      sourceAggregateId: correction.qualifiedScanId,
+      occurredAt: correction.occurredAt.toISOString(),
+    } satisfies ConsumerEvent
+    const retractedHandler = metricConsumer(registry, correction._tag)
 
-    await expect(metrics.queryGoalAggregate(aggregateQuery)).resolves.toMatchObject({
-      sum: 0,
-      sampleCount: 0,
-      readingCount: 0,
-    })
+    await retractedHandler(retractedEnvelope)
+    await retractedHandler(retractedEnvelope)
+
+    await expect(context.publicApi.queryAggregate(aggregateQuery)).resolves.toMatchObject(
+      {
+        sum: 0,
+        count: 0,
+        sampleCount: 0,
+      },
+    )
     expect(
       await getPool().query(
         `SELECT count(*)::int AS count

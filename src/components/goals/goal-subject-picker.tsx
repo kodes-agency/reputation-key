@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Checkbox } from '#/components/ui/checkbox'
-import type { GoalSubject } from '#/contexts/goal/application/public-api'
+import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 
 export type GoalSubjectKey =
   `property:${string}` | `portal_group:${string}` | `portal:${string}`

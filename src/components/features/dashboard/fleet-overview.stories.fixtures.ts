@@ -1,7 +1,7 @@
 import type {
   FleetEntry,
   FleetOverviewData,
-} from '#/contexts/dashboard/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 
 // Story-only seed data; the `.stories.` segment keeps it out of production
 // source inventories and bundles.

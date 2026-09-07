@@ -273,16 +273,13 @@ describe('ARC-03-T7: container-scoped consumer registry', () => {
     )
   })
 
-  it('checks the Notification trigger matrix against the injected registry', () => {
-    const notificationBuild = readFileSync(
-      resolve('src/contexts/notification/build.ts'),
-      'utf8',
-    )
+  it("checks Feed's notification trigger matrix against the injected registry", () => {
+    const feedBuild = readFileSync(resolve('src/contexts/feed/build.ts'), 'utf8')
 
-    expect(notificationBuild).toContain(
+    expect(feedBuild).toContain(
       'assertBetaNotificationTriggerMatrix(consumerRegistry.list())',
     )
-    expect(notificationBuild).not.toContain('listRegisteredConsumers')
+    expect(feedBuild).not.toContain('listRegisteredConsumers')
   })
 
   it('gates worker readiness on the container registry rather than a global default', () => {

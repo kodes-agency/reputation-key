@@ -6,7 +6,7 @@ import { cn } from '#/lib/utils'
 import {
   TIME_RANGE_OPTIONS,
   type TimeRangePreset,
-} from '#/contexts/dashboard/application/dto/dashboard.dto'
+} from '#/contexts/reporting/application/dto/dashboard.dto'
 
 export function TimeRangePicker({
   timeRange,

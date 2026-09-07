@@ -38,7 +38,7 @@ import {
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
-import { getActivityTimelineFn } from '#/contexts/activity/server/activity'
+import { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { InboxServerFns } from '#/components/inbox/types'
 import { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 

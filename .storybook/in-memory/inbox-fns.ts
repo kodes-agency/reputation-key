@@ -46,7 +46,7 @@ import type {
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
-import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
+import type { getActivityTimelineFn } from '#/contexts/feed/server/activity'
 import type { InboxServerFns } from '#/components/inbox/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 

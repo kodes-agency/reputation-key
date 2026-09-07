@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { changeGoalProgramAssignments } from '#/contexts/goal/server/goal-programs'
+import type { changeGoalProgramAssignments } from '#/contexts/reporting/server/goal-programs'
 import { GoalProgramAssignmentsDialog } from './goal-program-assignments-dialog'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000001'

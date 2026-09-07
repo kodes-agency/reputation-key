@@ -17,7 +17,7 @@ import type {
   PortalThemeDraft,
   UpdatePortalVariables,
 } from '../shared/types'
-import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
+import type { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import type {
   PortalPublicationHistory,
   PortalTokenStatus,

@@ -7,10 +7,10 @@ import {
   changeGoalProgramStatus,
   getGoalProgram,
   reviseGoalProgram,
-} from '#/contexts/goal/server/goal-programs'
+} from '#/contexts/reporting/server/goal-programs'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
-import type { GoalSubject } from '#/contexts/goal/application/public-api'
+import type { GoalSubject } from '#/contexts/reporting/application/public-api'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'

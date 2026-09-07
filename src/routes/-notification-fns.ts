@@ -23,7 +23,7 @@ import {
   dismissAllNotificationsFn,
   muteNotificationCategoryFn,
   getNotificationUserSettingsFn,
-} from '#/contexts/notification/server/notifications'
+} from '#/contexts/feed/server/notifications'
 import type { NotificationServerFns } from '#/components/features/notification/types'
 
 export const notificationFns: NotificationServerFns = {

@@ -3,7 +3,7 @@ import type {
   DashboardData,
   MetricKPIValue,
   RatingKPIValue,
-} from '#/contexts/dashboard/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 import { reviewId } from '#/shared/domain/ids'
 
 // Seed data for property-dashboard.stories.tsx — extracted for line-count compliance.

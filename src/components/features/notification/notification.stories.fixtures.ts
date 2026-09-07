@@ -18,9 +18,9 @@ import {
   type NotificationResourceType,
   type NotificationStatus,
   type NotificationType,
-} from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/application/public-api'
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
-import type { NotificationUserSettings } from '#/contexts/notification/application/public-api'
+import type { NotificationUserSettings } from '#/contexts/feed/application/public-api'
 import type { NotificationServerFns } from './types'
 
 export type NotificationFixtureOverrides = Readonly<{

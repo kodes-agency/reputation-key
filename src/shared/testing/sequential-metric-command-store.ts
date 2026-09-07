@@ -1,12 +1,12 @@
 import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
-import type { MetricReading } from '#/contexts/metric/domain/metric-reading'
+import type { MetricReading } from '#/contexts/reporting/domain/metric-reading'
 import type {
   MetricCommandStore,
   MetricSourceReceipt,
   RecordMetricCommand,
   RecordMetricsCommand,
   RetractMetricCommand,
-} from '#/contexts/metric/application/ports/metric-command-store.port'
+} from '#/contexts/reporting/application/ports/metric-command-store.port'
 
 export function createSequentialMetricCommandStore(deps: {
   insertReading: (reading: MetricReading) => Promise<MetricReading>

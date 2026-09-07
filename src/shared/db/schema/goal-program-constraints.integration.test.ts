@@ -5,7 +5,7 @@ import { acquireTestLease, type TestLease } from '#/shared/testing/test-environm
 import {
   METRIC_DEFINITION_IDS,
   METRIC_VERSION_IDS,
-} from '#/contexts/metric/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 
 type ProgramFixture = Readonly<{
   organizationId: string

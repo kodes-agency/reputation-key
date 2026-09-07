@@ -17,19 +17,16 @@ export type DataFateDisposition =
   | 'bounded_contraction'
 
 export type DataFateOwner =
-  | 'activity'
   | 'ai'
-  | 'dashboard'
-  | 'goal'
+  | 'feed'
   | 'guest'
   | 'identity'
   | 'inbox'
   | 'integration'
-  | 'metric'
-  | 'notification'
   | 'platform'
   | 'portal'
   | 'property'
+  | 'reporting'
   | 'review'
   | 'staff'
 
@@ -91,7 +88,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'activity.schema.ts',
     exportNames: ['recentActivityEntries'],
-    owner: 'activity',
+    owner: 'feed',
     disposition: 'recoverable_archive',
     authority: 'ACT-01',
     exitCriteria: RETAINED_HISTORY,
@@ -124,21 +121,21 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'activity.schema.ts',
     exportNames: ['recentActivityActorLabelRedactions', 'recentActivityReplayFacts'],
-    owner: 'activity',
+    owner: 'feed',
     disposition: 'active_authority',
     authority: 'ACT-01/ARC-01',
   }),
   ...rows({
     schemaFile: 'activity.schema.ts',
     exportNames: ['operationalActionHistoryHeads', 'operationalActionHistoryLegalHolds'],
-    owner: 'activity',
+    owner: 'feed',
     disposition: 'active_authority',
     authority: 'ACT-01/ADR-0056',
   }),
   ...rows({
     schemaFile: 'activity.schema.ts',
     exportNames: ['operationalActionHistoryRecords'],
-    owner: 'activity',
+    owner: 'feed',
     disposition: 'recoverable_archive',
     authority: 'ACT-01/ADR-0056',
     exitCriteria:
@@ -177,7 +174,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'audit.ts',
     exportNames: ['auditLogs'],
-    owner: 'activity',
+    owner: 'feed',
     disposition: 'recoverable_archive',
     authority: 'ACT-01',
     exitCriteria: RETAINED_HISTORY,
@@ -208,21 +205,21 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'dashboard.schema.ts',
     exportNames: ['setupChecklistMilestones'],
-    owner: 'dashboard',
+    owner: 'reporting',
     disposition: 'active_authority',
     authority: 'EXP-01',
   }),
   ...rows({
     schemaFile: 'goal.schema.ts',
     exportNames: ['goalMonthlyResults', 'goalPrograms', 'goalSubjectAssignments'],
-    owner: 'goal',
+    owner: 'reporting',
     disposition: 'active_authority',
     authority: 'GOA-01',
   }),
   ...rows({
     schemaFile: 'goal.schema.ts',
     exportNames: ['goalProgramVersions', 'goalResultRevisions'],
-    owner: 'goal',
+    owner: 'reporting',
     disposition: 'recoverable_archive',
     authority: 'GOA-01',
     exitCriteria: RETAINED_HISTORY,
@@ -354,7 +351,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'metricCurrentGoogleReputationSnapshots',
       'portalMetricLifetimeAggregates',
     ],
-    owner: 'metric',
+    owner: 'reporting',
     disposition: 'active_authority',
     authority: 'MET-01',
   }),
@@ -368,7 +365,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'notificationUserSettings',
       'notifications',
     ],
-    owner: 'notification',
+    owner: 'feed',
     disposition: 'active_authority',
     authority: 'NTF-01',
   }),

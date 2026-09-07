@@ -11,7 +11,7 @@ import {
   GOVERNING_NOTIFICATION_CATEGORIES,
   type Notification,
   type NotificationListFilter,
-} from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/application/public-api'
 import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
 
 /**

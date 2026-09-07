@@ -6,12 +6,12 @@
 
 import { getDb } from '../../src/shared/db'
 import { organizationId } from '../../src/shared/domain/ids'
-import { parseRecentActivityVocabularyInvocation } from '../../src/contexts/activity/application/recent-activity-vocabulary-invocation'
+import { parseRecentActivityVocabularyInvocation } from '../../src/contexts/feed/application/recent-activity-vocabulary-invocation'
 import {
   applyRecentActivityVocabularyReconciliation,
   reportRecentActivityVocabulary,
-} from '../../src/contexts/activity/application/use-cases/reconcile-recent-activity-vocabulary'
-import { createRecentActivityVocabularyReconciliationStore } from '../../src/contexts/activity/infrastructure/recent-activity-vocabulary-reconciliation.store'
+} from '../../src/contexts/feed/application/use-cases/reconcile-recent-activity-vocabulary'
+import { createRecentActivityVocabularyReconciliationStore } from '../../src/contexts/feed/infrastructure/recent-activity-vocabulary-reconciliation.store'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND = 'ops:reconcile-recent-activity-vocabulary'

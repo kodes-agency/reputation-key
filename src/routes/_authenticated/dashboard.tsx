@@ -10,13 +10,13 @@ import {
   useSuspenseQuery,
 } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { getFleetOverviewFn } from '#/contexts/dashboard/server/fleet-overview'
-import { getSetupChecklistFn } from '#/contexts/dashboard/server/setup-checklist'
-import type { SetupChecklist } from '#/contexts/dashboard/application/public-api'
+import { getFleetOverviewFn } from '#/contexts/reporting/server/fleet-overview'
+import { getSetupChecklistFn } from '#/contexts/reporting/server/setup-checklist'
+import type { SetupChecklist } from '#/contexts/reporting/application/public-api'
 import {
   timeRangePreset,
   type TimeRangePreset,
-} from '#/contexts/dashboard/application/dto/dashboard.dto'
+} from '#/contexts/reporting/application/dto/dashboard.dto'
 import { can } from '#/shared/domain/permissions'
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/routes/-queries/route-queries'

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createOneClickUnsubscribeToken } from '#/contexts/notification/application/one-click-unsubscribe-token'
-import { createOneClickUnsubscribePostHandler } from '#/contexts/notification/server/one-click-unsubscribe'
+import { createOneClickUnsubscribeToken } from '#/contexts/feed/application/one-click-unsubscribe-token'
+import { createOneClickUnsubscribePostHandler } from '#/contexts/feed/server/one-click-unsubscribe'
 
 const KEYS = `v1:${'11'.repeat(32)}`
 const TARGET = {

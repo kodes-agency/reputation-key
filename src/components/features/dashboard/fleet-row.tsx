@@ -10,7 +10,7 @@ import {
 import type {
   FleetEntry,
   FleetMetricEvidence,
-} from '#/contexts/dashboard/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 import { FleetAttentionBreakdown } from './fleet-attention-breakdown'
 import { AvailabilityLine } from './availability-line'
 

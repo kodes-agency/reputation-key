@@ -12,8 +12,8 @@ import type {
   dismissAllNotificationsFn,
   muteNotificationCategoryFn,
   getNotificationUserSettingsFn,
-} from '#/contexts/notification/server/notifications'
-import type { Notification } from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/server/notifications'
+import type { Notification } from '#/contexts/feed/application/public-api'
 
 export type NotificationServerFns = Readonly<{
   /** Atomic feed-head authority used by the bell and full feed. */

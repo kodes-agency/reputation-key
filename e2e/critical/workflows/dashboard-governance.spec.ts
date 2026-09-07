@@ -28,7 +28,7 @@ import {
 
 const PREFIX = 'e2e-gov-'
 const seed = requireE2eSeedState()
-const DASHBOARD_FILE = 'src/contexts/dashboard/server/dashboard.ts'
+const DASHBOARD_FILE = 'src/contexts/reporting/server/dashboard.ts'
 
 type DashboardResult = Readonly<{
   kpis: { avgRating: { value: number }; reviews: { value: number } }

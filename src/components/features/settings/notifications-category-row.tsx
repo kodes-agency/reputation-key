@@ -16,7 +16,7 @@ import {
   type ConfigurableNotificationCategory,
   type NotificationCadence,
   type NotificationPreference,
-} from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/application/public-api'
 import { QuietHoursEditor } from './quiet-hours-editor'
 import type { NotificationPreferencePatch } from './notifications-settings-view'
 

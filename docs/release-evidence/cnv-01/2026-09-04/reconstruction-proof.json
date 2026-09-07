@@ -4,7 +4,7 @@
   "environment": "google-closed-beta",
   "gateStep": 4,
   "claim": "The governed source tables reproduce every retained rollup row exactly.",
-  "method": "The deleted incremental writer (src/contexts/metric/infrastructure/incremental-rollup.ts, recovered from 4085491e^) defines each aggregate. Its unbounded form was executed against the live source tables and compared to the stored rollup rows key-for-key and value-for-value.",
+  "method": "The deleted Metric incremental writer (incremental-rollup.ts, recovered from 4085491e^) defines each aggregate. Its unbounded form was executed against the live source tables and compared to the stored rollup rows key-for-key and value-for-value.",
   "sources": {
     "rollup_daily_metrics": "metric_readings",
     "rollup_weekly_metrics": "metric_readings",

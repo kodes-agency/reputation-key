@@ -108,7 +108,7 @@ test.describe('Critical workflow: review expiry + purge', () => {
       kpis: { avgRating: { value: number }; reviews: { value: number } }
       recentReviews: ReadonlyArray<{ id: string }>
     }>(page, {
-      file: 'src/contexts/dashboard/server/dashboard.ts',
+      file: 'src/contexts/reporting/server/dashboard.ts',
       exportName: 'getDashboardDataFn',
       data: { propertyId, timeRange: 'all' },
     })

@@ -7,7 +7,7 @@ import {
   type NotificationChannel,
   type NotificationPreference,
   type NotificationUserSettings,
-} from '#/contexts/notification/application/public-api'
+} from '#/contexts/feed/application/public-api'
 import {
   NotificationsSettingsView,
   type NotificationPreferencePatch,

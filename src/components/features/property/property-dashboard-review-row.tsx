@@ -1,5 +1,5 @@
 import { Stars, ReplyStatusBadge } from './property-dashboard-helpers'
-import type { RecentReview } from '#/contexts/dashboard/application/public-api'
+import type { RecentReview } from '#/contexts/reporting/application/public-api'
 
 const dashboardDateFormatter = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',

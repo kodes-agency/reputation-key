@@ -15,8 +15,8 @@
 //   3. Each provider adapter factory has exactly ONE construction site.
 //   4. The global observability surface (health routes + health-metrics +
 //      queue-depth + worker-heartbeat) never touches content columns.
-//   5. The activity context never reads content-bearing event fields
-//      (recent_activity_entries stays identifier/subject refs — ADR 0045).
+//   5. The feed context never reads content-bearing event fields (recent
+//      activity and notification facts stay identifier/subject refs).
 //
 // Runtime halves of these proofs live in:
 //   - src/composition.test.ts (providerConfigFor fails closed)
@@ -244,13 +244,13 @@ describe('BQC-4.3: the global observability surface never touches content column
   })
 })
 
-describe('BQC-4.3: the activity context never reads content-bearing event fields', () => {
-  it('no activity source file accesses review/reply/note content fields', () => {
-    const activitySource = walkSource(join(SRC, 'contexts', 'activity'))
-    expect(activitySource.length).toBeGreaterThan(0)
+describe('BQC-4.3: the feed context never reads content-bearing event fields', () => {
+  it('no feed source file accesses review/reply/note content fields', () => {
+    const feedSource = walkSource(join(SRC, 'contexts', 'feed'))
+    expect(feedSource.length).toBeGreaterThan(0)
     const CONTENT_FIELD_ACCESS =
       /\bevent\.(text|reviewText|replyText|comment|noteText|reviewerName|reviewerProfilePhotoUrl|snippet|feedback)\b/
-    const offenders = activitySource
+    const offenders = feedSource
       .filter((f) => CONTENT_FIELD_ACCESS.test(readFileSync(f, 'utf-8')))
       .map(rel)
     expect(offenders).toEqual([])

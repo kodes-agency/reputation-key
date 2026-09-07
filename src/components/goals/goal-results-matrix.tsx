@@ -2,7 +2,7 @@ import type {
   GoalResultsMatrix as GoalResultsMatrixModel,
   GoalResultsMatrixEvidence,
   GoalResultsMatrixRow,
-} from '#/contexts/goal/application/public-api'
+} from '#/contexts/reporting/application/public-api'
 import { Badge } from '#/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import {

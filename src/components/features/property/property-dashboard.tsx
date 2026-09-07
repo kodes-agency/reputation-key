@@ -4,8 +4,8 @@ import { Button } from '#/components/ui/button'
 import type {
   AttentionSignals,
   DashboardData,
-} from '#/contexts/dashboard/application/public-api'
-import type { TimeRangePreset } from '#/contexts/dashboard/application/dto/dashboard.dto'
+} from '#/contexts/reporting/application/public-api'
+import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import type { PropertyPerformancePreset } from '#/shared/google-performance-report-contract'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'

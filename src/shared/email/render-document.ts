@@ -3,7 +3,7 @@
 // `@react-email/render`'s own `render()` is ASYNC in v2 (it drives
 // `renderToReadableStream` and awaits `stream.allReady`, and optionally
 // prettier). The ratified renderer contract in
-// `src/contexts/notification/infrastructure/email/render.ts` is synchronous,
+// `src/contexts/feed/infrastructure/email/render.ts` is synchronous,
 // and the job callers treat rendering as a pure formatting step, not I/O.
 //
 // `renderToStaticMarkup` is the sync path to the same markup: our email trees
