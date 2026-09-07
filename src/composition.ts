@@ -7,8 +7,7 @@
 // guarded by its option and absent from every application container. The root
 // imports no individual use case, event handler or business rule; job/consumer
 // registration stays owned by BQC-3 (bootstrap.ts + worker/). Cohesive
-// sub-graphs live in src/composition/, and the per-deployable projections that
-// bound what each process may hold live in its deployables module.
+// sub-graphs live in src/composition/.
 //
 // Per architecture: "No DI framework, no auto-wiring, no decorators.
 // Dependencies are passed as function arguments. The wiring is in composition.ts, visible."
@@ -82,7 +81,6 @@ import {
   createDeferredMemberAuthorityLifecycle,
   createMemberAuthorityLifecycle,
 } from './composition/member-authority-lifecycle'
-import { projectContainer, type WebContainer } from './composition/container-partition'
 
 export {
   applyProviderEndpointOverrides,
@@ -818,19 +816,19 @@ export function releaseProcessContainer(): void {
 // BQC-7.1: the production build bundles this module twice, so the singleton
 // and process claim both use `Symbol.for` to stay visible across the copies.
 const CONTAINER_KEY = Symbol.for('repkey.composition.container')
-type ContainerStore = { [CONTAINER_KEY]?: WebContainer }
+type ContainerStore = { [CONTAINER_KEY]?: Container }
 
 function containerStore(): ContainerStore {
   return globalThis as ContainerStore
 }
 
-/** The singleton, projected to the web deployable and claiming the process. */
-export function getContainer(): WebContainer {
+/** The web singleton, claiming the process before it builds the container. */
+export function getContainer(): Container {
   const store = containerStore()
   if (store[CONTAINER_KEY]) return store[CONTAINER_KEY]
   claimProcessContainer('web')
   try {
-    return (store[CONTAINER_KEY] = projectContainer(createContainer(), 'web'))
+    return (store[CONTAINER_KEY] = createContainer())
   } catch (error) {
     releaseProcessContainer()
     throw error

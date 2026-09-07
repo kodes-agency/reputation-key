@@ -21,10 +21,7 @@
     "scripts/seed-demo-reviews.ts",
     "scripts/test-db-setup.ts",
     "vite.config.ts",
-    "drizzle.config.ts",
-    "src/shared/testing/process-fixtures/web-process.fixture.ts",
-    "src/shared/testing/process-fixtures/worker-process.fixture.ts",
-    "src/shared/testing/process-fixtures/simulation-process.fixture.ts"
+    "drizzle.config.ts"
   ],
   "ignorePatterns": [
     "src/routeTree.gen.ts",

@@ -5,7 +5,7 @@
 // Per architecture: "Keeping registration separate from construction
 // makes both easier to understand."
 
-import type { WorkerContainer } from './composition/container-partition'
+import type { Container } from './composition'
 import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.job'
 import { isDbHealthy } from '#/shared/health/db-probe'
 import { areRedisDependenciesHealthy } from '#/shared/health/redis-dependencies'
@@ -117,7 +117,7 @@ type CapabilityGatedJobRegistrar = (
 ) => void
 
 export async function bootstrap(
-  container: WorkerContainer,
+  container: Container,
   options: Readonly<{
     runtime: BootstrapRuntimeConfig
     allowUnavailableGoogleImportV2Processor?: boolean
@@ -551,7 +551,7 @@ export async function bootstrap(
  * family — nothing in the rest of the worker's registration reads them.
  */
 async function registerNotificationJobs(
-  container: WorkerContainer,
+  container: Container,
   runtime: BootstrapRuntimeConfig,
   registerCapabilityGatedJob: CapabilityGatedJobRegistrar,
 ): Promise<void> {

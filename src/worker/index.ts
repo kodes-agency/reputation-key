@@ -20,7 +20,7 @@ import {
   isRestoreIsolated,
   RESTORE_ISOLATED_LOG_LINE,
 } from '#/shared/config/restore-mode'
-import { createWorkerContainer } from '#/composition/deployables'
+import { claimProcessContainer, createContainer } from '#/composition'
 import { bindProcessPolicies } from '#/shared/auth/process-policy-binding'
 import { bootstrap, createBootstrapRuntimeConfig } from '#/bootstrap'
 import {
@@ -110,11 +110,11 @@ async function main() {
     )
   }
 
-  // ARC-03-T15: the worker builds the WORKER deployable's container — the one
-  // complete Application Container this process may hold. A second build fails
-  // by name instead of quietly producing a second policy trio, a second
-  // consumer registry and a second set of queue connections.
-  const container = createWorkerContainer()
+  // ARC-03-T15: the worker claims the one complete Application Container this
+  // process may hold. A second entry-point build fails by name instead of
+  // quietly producing another policy trio, registry, and queue set.
+  claimProcessContainer('worker')
+  const container = createContainer({ enableJobs: true })
 
   // ARC-03-T8: the worker's ONE explicit policy installation. Building the
   // container no longer installs the ExecutionPolicy / DelayedExecutionPolicy
