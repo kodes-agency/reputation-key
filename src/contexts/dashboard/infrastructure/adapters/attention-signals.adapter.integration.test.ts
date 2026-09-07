@@ -6,6 +6,10 @@ import type { Database } from '#/shared/db'
 import * as schema from '#/shared/db/schema'
 import { getEnv } from '#/shared/config/env'
 import { organizationId, propertyId } from '#/shared/domain/ids'
+import {
+  METRIC_DEFINITION_IDS,
+  METRIC_VERSION_IDS,
+} from '#/contexts/metric/application/public-api'
 import { createAttentionSignalsAdapter } from './attention-signals.adapter'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
@@ -122,12 +126,17 @@ beforeAll(async () => {
         metric_definition_id, metric_definition_version_id, metric_key,
         metric_minimum_sample, target_value, property_timezone, effective_from,
         change_reason, created_by, created_at)
-     SELECT $1, $2, $3, $4, 1, definition_id, id, 'qualified_scans',
+     VALUES ($1, $2, $3, $4, 1, $5, $6, 'qualified_scans',
        0, 100, 'UTC', '2026-08-01T00:00:00Z', 'created', 'manager-1',
-       '2026-08-01T00:00:00Z'
-     FROM metric_definition_versions
-     WHERE id = '11111111-1111-4111-8111-111111111301'`,
-    [GOAL_PROGRAM_VERSION, GOAL_PROGRAM, ORGANIZATION, PROPERTY],
+       '2026-08-01T00:00:00Z')`,
+    [
+      GOAL_PROGRAM_VERSION,
+      GOAL_PROGRAM,
+      ORGANIZATION,
+      PROPERTY,
+      METRIC_DEFINITION_IDS.qualifiedScan,
+      METRIC_VERSION_IDS.qualifiedScanGoal,
+    ],
   )
   await pool.query(
     `INSERT INTO goal_subject_assignments

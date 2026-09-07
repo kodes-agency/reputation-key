@@ -28,6 +28,10 @@ import {
   REFUSAL_COPY,
   type CapabilityRefusalCategory,
 } from '../../src/shared/auth/capability-refusal-category'
+import {
+  METRIC_VERSION_IDS,
+  findMetricVersionById,
+} from '../../src/contexts/metric/application/public-api'
 
 const seed = requireE2eSeedState()
 const BASE_ORIGIN = process.env.E2E_BASE_URL ?? 'http://localhost:3000'
@@ -631,13 +635,18 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     expect(projectedScans).toHaveLength(qualifiedScanCount)
 
     /*
-     * Goal Programs only evaluate complete property-local months. A browser
-     * test cannot wait until October, so place these newly produced facts in
-     * the previous complete month and give the real create command a matching
-     * temporal version/result head. No metric value or result is seeded: the
-     * queued production maintenance job must still derive both from the real
-     * guest facts and their metric projections.
+     * Goal Programs only evaluate completed catalogue intervals. A browser test
+     * cannot wait for a newly created program, so place these newly produced
+     * facts in the first completed interval governed by the frozen metric
+     * version and give the real create command a matching temporal result head.
+     * No metric value or result is seeded: the queued production maintenance
+     * job must still derive both from the real guest facts and their metric
+     * projections.
      */
+    const governedMetric = findMetricVersionById(METRIC_VERSION_IDS.qualifiedScanGoal)
+    expect(governedMetric).toBeTruthy()
+    if (!governedMetric) throw new Error('Qualified scan metric version is missing')
+
     const [period] = await dbQuery<{
       period_start: Date
       period_end: Date
@@ -645,19 +654,21 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       property_local_date: string
     }>(
       `SELECT
-         ((date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month')
-           AT TIME ZONE timezone) AS period_start,
-         (date_trunc('month', now() AT TIME ZONE timezone)
-           AT TIME ZONE timezone) AS period_end,
-         ((date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month'
-           + interval '12 hours') AT TIME ZONE timezone) AS occurred_at,
-         to_char(
-           date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month',
-           'YYYY-MM-DD'
-         ) AS property_local_date
+         $3::timestamptz AS period_start,
+         (date_trunc(
+           'month',
+           $3::timestamptz AT TIME ZONE timezone
+         ) + interval '1 month') AT TIME ZONE timezone AS period_end,
+         $3::timestamptz + interval '12 hours' AS occurred_at,
+         to_char($3::timestamptz AT TIME ZONE timezone, 'YYYY-MM-DD')
+           AS property_local_date
        FROM properties
        WHERE organization_id = $1 AND id = $2::uuid`,
-      [seed.organizationId, seed.p1PropertyId],
+      [
+        seed.organizationId,
+        seed.p1PropertyId,
+        governedMetric.version.effectiveFrom,
+      ],
     )
     expect(period).toBeTruthy()
     if (!period) throw new Error('The seeded Property has no timezone')
@@ -801,86 +812,56 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     )
     expect(temporalized).toEqual([{ id: created.program.id }])
 
-    const metricVersionId = '11111111-1111-4111-8111-111111111301'
-    const [metricVersion] = await dbQuery<{ effective_from: Date }>(
-      `SELECT effective_from
-       FROM metric_definition_versions
-       WHERE id = $1::uuid`,
-      [metricVersionId],
-    )
-    expect(metricVersion).toBeTruthy()
-    if (!metricVersion) throw new Error('Qualified scan metric version is missing')
-
-    let evaluated: {
-      evaluation_state: string
-      value: string | null
-      sample_count: number
-    }
-    await dbQuery(
-      `UPDATE metric_definition_versions
-       SET effective_from = $2::timestamptz
-       WHERE id = $1::uuid`,
-      [metricVersionId, period.period_start],
-    )
-    try {
-      await enqueueGoalProgramMaintenance({
-        organizationId: seed.organizationId,
-        propertyId: seed.p1PropertyId,
-      })
-      evaluated = await waitFor(
-        async () => {
-          const [result] = await dbQuery<{
-            evaluation_state: string
-            value: string | null
-            sample_count: number
-          }>(
-            `SELECT evaluation_state, value::text, sample_count
+    await enqueueGoalProgramMaintenance({
+      organizationId: seed.organizationId,
+      propertyId: seed.p1PropertyId,
+    })
+    const evaluated = await waitFor(
+      async () => {
+        const [result] = await dbQuery<{
+          evaluation_state: string
+          value: string | null
+          sample_count: number
+        }>(
+          `SELECT evaluation_state, value::text, sample_count
+           FROM goal_monthly_results
+           WHERE organization_id = $1 AND property_id = $2::uuid
+             AND program_id = $3::uuid
+             AND period_start = $4::timestamptz
+             AND period_end = $5::timestamptz`,
+          [
+            seed.organizationId,
+            seed.p1PropertyId,
+            created.program.id,
+            period.period_start,
+            period.period_end,
+          ],
+        )
+        return result?.evaluation_state === 'eligible' &&
+          Number(result.value) === qualifiedScanCount &&
+          result.sample_count === qualifiedScanCount
+          ? result
+          : null
+      },
+      {
+        description: 'goal maintenance evaluates the projected qualified scans',
+        diagnose: async () => ({
+          results: await dbQuery(
+            `SELECT status, evaluation_state, value, sample_count, reason
              FROM goal_monthly_results
-             WHERE organization_id = $1 AND property_id = $2::uuid
-               AND program_id = $3::uuid
-               AND period_start = $4::timestamptz
-               AND period_end = $5::timestamptz`,
-            [
-              seed.organizationId,
-              seed.p1PropertyId,
-              created.program.id,
-              period.period_start,
-              period.period_end,
-            ],
-          )
-          return result?.evaluation_state === 'eligible' &&
-            Number(result.value) === qualifiedScanCount &&
-            result.sample_count === qualifiedScanCount
-            ? result
-            : null
-        },
-        {
-          description: 'goal maintenance evaluates the projected qualified scans',
-          diagnose: async () => ({
-            results: await dbQuery(
-              `SELECT status, evaluation_state, value, sample_count, reason
-               FROM goal_monthly_results
-               WHERE program_id = $1::uuid`,
-              [created.program.id],
-            ),
-            backgroundJobs: await dbQuery(
-              `SELECT event_type, published_at
-               FROM outbox_events
-               WHERE source_aggregate_id = $1
-               ORDER BY created_at, id`,
-              [created.program.id],
-            ),
-          }),
-        },
-      )
-    } finally {
-      await dbQuery(
-        `UPDATE metric_definition_versions
-         SET effective_from = $2::timestamptz
-         WHERE id = $1::uuid`,
-        [metricVersionId, metricVersion.effective_from],
-      )
-    }
+             WHERE program_id = $1::uuid`,
+            [created.program.id],
+          ),
+          backgroundJobs: await dbQuery(
+            `SELECT event_type, published_at
+             FROM outbox_events
+             WHERE source_aggregate_id = $1
+             ORDER BY created_at, id`,
+            [created.program.id],
+          ),
+        }),
+      },
+    )
     expect(Number(evaluated.value)).toBe(qualifiedScanCount)
     expect(evaluated.sample_count).toBe(qualifiedScanCount)
 

@@ -7,7 +7,6 @@
 
 import type { MetricReading, ReadingResult } from '../../domain/metric-reading'
 import type { MetricRecorded } from '../../domain/events'
-import type { SourcePolicyClass } from '../../domain/metric-registry'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 import type { PortalLifetimeFact } from '../../domain/portal-lifetime-aggregate'
@@ -38,16 +37,6 @@ export type RecordMetricsCommand = Readonly<{
   sourceReceipt?: MetricSourceReceipt
 }>
 
-export type QuarantineMetricCommand = Readonly<{
-  sourceEventId: string
-  organizationId: string
-  propertyId: string
-  definitionVersionId: string | null
-  sourcePolicy: SourcePolicyClass
-  reason: string
-  payloadHash: string
-  eventAt: Date
-}>
 
 export type RetractMetricCommand = Readonly<{
   organizationId: OrganizationId
@@ -77,5 +66,4 @@ export type MetricCommandStore = Readonly<{
     sourceReceipt?: MetricSourceReceipt,
   ): Promise<readonly RetractMetricResult[]>
   retractMetric(command: RetractMetricCommand): Promise<RetractMetricResult>
-  quarantine(command: QuarantineMetricCommand): Promise<void>
 }>

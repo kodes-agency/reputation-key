@@ -135,7 +135,7 @@ async function recordPortalMetrics<E extends PortalMetricEvent>(
   if (
     results.some(
       (result) =>
-        result.status === 'quarantined' &&
+        result.status === 'rejected' &&
         result.reason === 'superseded_reading_not_found',
     )
   ) {

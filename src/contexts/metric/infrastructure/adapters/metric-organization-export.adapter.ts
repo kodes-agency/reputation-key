@@ -8,6 +8,11 @@ import type {
   OrganizationExportContributor,
   OrganizationExportEntry,
 } from '#/contexts/identity/application/ports/organization-export-contributor.port'
+import {
+  METRIC_DEFINITIONS,
+  findMetricVersionById,
+  type GovernedMetricVersion,
+} from '../../domain/metric-registry'
 
 type ExportScalar = string | number | boolean | null
 type ExportRecord = Readonly<Record<string, ExportScalar>>
@@ -46,10 +51,6 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
     reasonCode: 'platform_governance_catalogue_not_tenant_data',
   },
   {
-    recordClass: 'metric_quarantine',
-    reasonCode: 'integrity_and_abuse_review_internal',
-  },
-  {
     recordClass: 'readings_of_non_export_permitted_definition_versions',
     reasonCode: 'metric_definition_version_consumer_not_permitted',
   },
@@ -60,15 +61,24 @@ const EXCLUDED_RECORD_CLASSES = Object.freeze([
 ])
 
 /**
- * The governed export gate. A reading leaves Metric only when its own
- * definition version names `export` in `permitted_consumers`, so widening the
- * archive requires a reviewed registry change rather than an adapter edit.
- * This is also what keeps the Public Reputation family (`property.review`,
- * `google_property_derivative`) out of `metric/readings.*`: LIF-01 bullet 7
- * excludes Google-controlled review material, and the tenant-meaningful part
- * of it is exported separately as the RepKey-derived reputation projection.
+ * The governed export gate. A reading leaves Metric only when its code-reviewed
+ * definition version names `export` in `permittedConsumers`, so widening the
+ * archive requires a catalogue change rather than an adapter edit.
  */
-const EXPORT_PERMITTED_CONSUMER = sql`'["export"]'::jsonb`
+const exportMetrics: GovernedMetricVersion[] = []
+for (const entry of METRIC_DEFINITIONS) {
+  for (const version of entry.versions) {
+    if (version.permittedConsumers.includes('export')) {
+      exportMetrics.push(Object.freeze({ definition: entry.definition, version }))
+    }
+  }
+}
+if (exportMetrics.length === 0) throw new Error('Metric export catalogue is empty')
+const EXPORT_METRICS = Object.freeze(exportMetrics)
+const EXPORT_VERSION_IDS_SQL = sql.join(
+  EXPORT_METRICS.map(({ version }) => sql`${version.id}::uuid`),
+  sql`, `,
+)
 
 const READING_COLUMNS = [
   'id',
@@ -208,6 +218,22 @@ async function readRows(
   const result = await snapshot.execute(query)
   return result.rows as Record<string, unknown>[]
 }
+function enrichReadingCatalogue(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  const versionId = row.definition_version_id
+  const metric =
+    typeof versionId === 'string' ? findMetricVersionById(versionId) : null
+  if (!metric || !metric.version.permittedConsumers.includes('export')) {
+    throw new Error('Metric export reading has an unavailable catalogue version')
+  }
+  return {
+    ...row,
+    definition_version: metric.version.version,
+    unit: metric.version.unit,
+    value_precision: metric.version.precision,
+  }
+}
 
 function csvField(value: ExportScalar | undefined): string {
   if (value === null || value === undefined) return ''
@@ -301,7 +327,7 @@ async function readFamilies(
 
       // `source_event_id` is deliberately absent: it is the ingestion
       // correlation key of the producing outbox event, not a tenant fact.
-      const readings = await readRows(
+      const readingRows = await readRows(
         snapshot,
         sql`SELECT
               reading.id,
@@ -310,9 +336,6 @@ async function readFamilies(
               reading.group_id,
               reading.metric_key,
               reading.definition_version_id,
-              version.version AS definition_version,
-              version.unit,
-              version.precision AS value_precision,
               reading.source_policy,
               reading.exact_value AS recorded_exact_value,
               CASE
@@ -338,8 +361,6 @@ async function readFamilies(
               to_char(reading.staff_attribution_effective_from AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS staff_attribution_effective_from,
               to_char(reading.staff_attribution_effective_to AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS staff_attribution_effective_to
             FROM metric_readings AS reading
-            INNER JOIN metric_definition_versions AS version
-              ON version.id = reading.definition_version_id
             LEFT JOIN LATERAL (
               SELECT head.id, head.kind, head.replacement_value, head.exact_delta
               FROM metric_corrections AS head
@@ -352,9 +373,10 @@ async function readFamilies(
               LIMIT 1
             ) AS tip ON true
             WHERE reading.organization_id = ${organizationId}
-              AND version.permitted_consumers @> ${EXPORT_PERMITTED_CONSUMER}
+              AND reading.definition_version_id IN (${EXPORT_VERSION_IDS_SQL})
             ORDER BY reading.metric_key, reading.event_at, reading.id`,
       )
+      const readings = readingRows.map(enrichReadingCatalogue)
 
       const portalLifetime = await readRows(
         snapshot,
@@ -429,10 +451,8 @@ async function readFamilies(
               to_char(correction.recorded_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS recorded_at
             FROM metric_corrections AS correction
             INNER JOIN metric_readings AS reading ON reading.id = correction.reading_id
-            INNER JOIN metric_definition_versions AS version
-              ON version.id = reading.definition_version_id
             WHERE reading.organization_id = ${organizationId}
-              AND version.permitted_consumers @> ${EXPORT_PERMITTED_CONSUMER}
+              AND reading.definition_version_id IN (${EXPORT_VERSION_IDS_SQL})
             ORDER BY correction.reading_id, correction.recorded_at, correction.id`,
       )
 
@@ -522,9 +542,6 @@ async function readFamilies(
  * aggregate, the derived current-on-Google reputation projection, the
  * correction history that makes a corrected result auditable, and the source
  * freshness watermarks behind "Data through…".
- *
- * It does not touch the maintenance surface (quarantine and repair), which is
- * internal integrity state rather than part of the governed export contract.
  */
 export const createMetricOrganizationExportAdapter = (
   db: Database,

@@ -5,7 +5,7 @@
 //   and a definition_version_id for provenance.
 // - Corrections are append-only; they never overwrite the original fact.
 // - The registry fails closed: an unknown source/version produces no
-//   reading. Invalid events are quarantined.
+//   reading. Invalid events are rejected explicitly.
 import type { AttributionQuality } from './attribution-quality'
 import type { SourcePolicyClass } from './metric-registry'
 import type {
@@ -63,8 +63,7 @@ export interface MetricCorrection {
 export type ReadingResult =
   | { status: 'recorded'; reading: MetricReading }
   | { status: 'duplicate'; existingReadingId: string }
-  | { status: 'quarantined'; reason: string; sourceEventId: string }
-  | { status: 'rejected'; reason: string }
+  | { status: 'rejected'; reason: string; sourceEventId: string }
   | {
       status: 'insufficient_data'
       definitionVersionId: string

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import type {
   MetricReadingId,
   OrganizationId,
@@ -70,34 +69,12 @@ export type RecordMetricDeps = Readonly<{
 
 export type RecordMetric = (input: RecordMetricInput) => Promise<ReadingResult>
 
-const payloadHash = (input: RecordMetricInput): string =>
-  createHash('sha256')
-    .update(
-      JSON.stringify({
-        definitionVersionId: input.definitionVersionId,
-        sourceEventId: input.sourceEventId,
-        supersedesSourceEventId: input.supersedesSourceEventId ?? null,
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        portalId: input.portalId,
-        portalGroupId: input.portalGroupId,
-        scope: input.scope,
-        value: input.value,
-        numerator: input.numerator ?? null,
-        denominator: input.denominator ?? null,
-        sampleCount: input.sampleCount,
-        occurredAt: input.occurredAt.toISOString(),
-        staffAttribution: input.staffAttribution ?? null,
-        destinationKind: input.destinationKind ?? null,
-      }),
-    )
-    .digest('hex')
 
 /**
- * Admission checks that reject a reading outright. Returns the quarantine
+ * Admission checks that reject a reading outright. Returns the rejection
  * reason, or null when the reading may proceed to value-shape checks.
  */
-function quarantineReasonFor(
+function rejectionReasonFor(
   input: RecordMetricInput,
   governed: GovernedMetricVersion,
 ): string | null {
@@ -151,38 +128,26 @@ export async function buildRecordMetricEntry(
 ): Promise<BuiltMetricEntry> {
   const governed = await deps.registry.findVersionById(input.definitionVersionId)
 
-  const quarantine = async (reason: string): Promise<BuiltMetricEntry> => {
-    await deps.commandStore.quarantine({
-      sourceEventId: input.sourceEventId,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      definitionVersionId: governed?.version.id ?? null,
-      sourcePolicy: input.sourcePolicy,
+  const reject = (reason: string): BuiltMetricEntry => ({
+    kind: 'result',
+    result: {
+      status: 'rejected',
       reason,
-      payloadHash: payloadHash(input),
-      eventAt: input.occurredAt,
-    })
-    return {
-      kind: 'result',
-      result: {
-        status: 'quarantined',
-        reason,
-        sourceEventId: input.sourceEventId,
-      },
-    }
-  }
+      sourceEventId: input.sourceEventId,
+    },
+  })
 
-  if (!governed) return quarantine('unknown_definition_version')
+  if (!governed) return reject('unknown_definition_version')
 
   const { definition, version } = governed
-  const admissionReason = quarantineReasonFor(input, governed)
-  if (admissionReason !== null) return quarantine(admissionReason)
+  const admissionReason = rejectionReasonFor(input, governed)
+  if (admissionReason !== null) return reject(admissionReason)
 
   const numerator = input.numerator ?? null
   const denominator = input.denominator ?? null
   if (definition.valueKind === 'ratio' && input.sampleCount < version.minimumSample) {
     if (version.insufficientDataBehavior === 'quarantine') {
-      return quarantine('insufficient_data')
+      return reject('insufficient_data')
     }
     return {
       kind: 'result',
@@ -199,7 +164,7 @@ export async function buildRecordMetricEntry(
     definition.valueKind === 'ratio' &&
     (numerator === null || denominator === null || denominator <= 0)
   ) {
-    return quarantine('invalid_ratio')
+    return reject('invalid_ratio')
   }
 
   const reading = createReading({
@@ -236,7 +201,7 @@ export async function buildRecordMetricEntry(
     destinationKind: input.destinationKind ?? null,
   })
   if (portalLifetimeFact && reading.portalId === null) {
-    return quarantine('invalid_portal_lifetime_scope')
+    return reject('invalid_portal_lifetime_scope')
   }
 
   return {

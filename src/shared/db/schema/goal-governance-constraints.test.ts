@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { getTableConfig } from 'drizzle-orm/pg-core'
 import {
   goalMonthlyResults,
-  goalProgramVersions,
   goalResultRevisions,
   goalSubjectAssignments,
 } from './goal.schema'
@@ -68,12 +67,4 @@ describe('Goal governance tenant constraints', () => {
     })
   })
 
-  it('pins Goal Program versions to one immutable governed metric version', () => {
-    expect(
-      foreignKeyColumns(goalProgramVersions, 'goal_program_versions_metric_version_fk'),
-    ).toEqual({
-      local: ['metric_definition_id', 'metric_definition_version_id'],
-      foreign: ['definition_id', 'id'],
-    })
-  })
 })

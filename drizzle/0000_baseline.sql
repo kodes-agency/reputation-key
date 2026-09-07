@@ -3436,67 +3436,6 @@ CREATE TABLE "metric_current_google_reputation_snapshots" (
           AND "metric_current_google_reputation_snapshots"."average_rating" BETWEEN 0 AND 5))
 );
 --> statement-breakpoint
-CREATE TABLE "metric_definition_versions" (
-	"id" uuid PRIMARY KEY NOT NULL,
-	"definition_id" uuid NOT NULL,
-	"version" integer NOT NULL,
-	"effective_from" timestamp with time zone NOT NULL,
-	"effective_to" timestamp with time zone,
-	"numerator_description" text NOT NULL,
-	"denominator_description" text,
-	"unit" varchar(50) NOT NULL,
-	"precision" integer DEFAULT 0 NOT NULL,
-	"aggregation_rule" text NOT NULL,
-	"late_arrival_rule" text NOT NULL,
-	"allowed_scopes" jsonb NOT NULL,
-	"attribution_rule" text NOT NULL,
-	"minimum_sample" integer DEFAULT 1 NOT NULL,
-	"insufficient_data_behavior" varchar(20) DEFAULT 'unavailable' NOT NULL,
-	"source_policy_allowlist" jsonb NOT NULL,
-	"permitted_consumers" jsonb NOT NULL,
-	"employment_decision_eligible" boolean DEFAULT false NOT NULL,
-	"correction_behavior" varchar(30) DEFAULT 'append_delta' NOT NULL,
-	"fairness_review_status" varchar(30) DEFAULT 'not_required' NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "metric_definition_versions_sample_check" CHECK ("metric_definition_versions"."minimum_sample" >= 0),
-	CONSTRAINT "metric_definition_versions_precision_check" CHECK ("metric_definition_versions"."precision" >= 0),
-	CONSTRAINT "metric_definition_versions_insufficient_check" CHECK ("metric_definition_versions"."insufficient_data_behavior" IN ('unavailable', 'quarantine')),
-	CONSTRAINT "metric_definition_versions_employment_check" CHECK ("metric_definition_versions"."employment_decision_eligible" = false)
-);
---> statement-breakpoint
-CREATE TABLE "metric_definitions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"metric_key" varchar(100) NOT NULL,
-	"display_name" varchar(200) NOT NULL,
-	"entity_level" varchar(20) NOT NULL,
-	"value_type" varchar(20) NOT NULL,
-	"description" text,
-	"value_kind" varchar(20) DEFAULT 'counter' NOT NULL,
-	"worker_data_flag" boolean DEFAULT false NOT NULL,
-	"privacy_class" varchar(50) DEFAULT 'operational' NOT NULL,
-	"retention_class" varchar(50) DEFAULT 'standard' NOT NULL,
-	"lifecycle_status" varchar(20) DEFAULT 'draft' NOT NULL,
-	"approval_owner" varchar(255) DEFAULT 'migration-pending' NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "metric_definitions_value_kind_check" CHECK ("metric_definitions"."value_kind" IN ('counter', 'duration', 'level', 'ratio', 'average')),
-	CONSTRAINT "metric_definitions_lifecycle_check" CHECK ("metric_definitions"."lifecycle_status" IN ('draft', 'approved', 'retired'))
-);
---> statement-breakpoint
-CREATE TABLE "metric_quarantine" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"source_event_id" varchar(255) NOT NULL,
-	"organization_id" varchar(255),
-	"property_id" uuid,
-	"definition_version_id" uuid,
-	"source_policy" varchar(80),
-	"reason" varchar(80) NOT NULL,
-	"payload_hash" varchar(64) NOT NULL,
-	"event_at" timestamp with time zone,
-	"quarantined_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"resolved_at" timestamp with time zone,
-	"resolution" text
-);
---> statement-breakpoint
 CREATE TABLE "metric_readings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" varchar(255) NOT NULL,
@@ -5633,10 +5572,6 @@ CREATE INDEX "metric_corrections_reading_idx" ON "metric_corrections" USING btre
 --> statement-breakpoint
 CREATE INDEX "metric_current_google_reputation_scope_idx" ON "metric_current_google_reputation_snapshots" USING btree ("organization_id","property_id");
 --> statement-breakpoint
-CREATE INDEX "metric_definition_versions_effective_idx" ON "metric_definition_versions" USING btree ("definition_id","effective_from");
---> statement-breakpoint
-CREATE INDEX "metric_quarantine_scope_idx" ON "metric_quarantine" USING btree ("organization_id","property_id");
---> statement-breakpoint
 CREATE INDEX "metric_readings_org_idx" ON "metric_readings" USING btree ("organization_id");
 --> statement-breakpoint
 CREATE INDEX "metric_readings_org_key_recorded_idx" ON "metric_readings" USING btree ("organization_id","metric_key","recorded_at");
@@ -5962,14 +5897,6 @@ CREATE UNIQUE INDEX "metric_corrections_root_unique" ON "metric_corrections" USI
 CREATE UNIQUE INDEX "metric_current_google_reputation_source_run_unique" ON "metric_current_google_reputation_snapshots" USING btree ("source_run_id");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "metric_current_google_reputation_source_event_unique" ON "metric_current_google_reputation_snapshots" USING btree ("source_event_id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "metric_definition_versions_number_unique" ON "metric_definition_versions" USING btree ("definition_id","version");
---> statement-breakpoint
-CREATE UNIQUE INDEX "metric_definition_versions_definition_id_id_key" ON "metric_definition_versions" USING btree ("definition_id","id");
---> statement-breakpoint
-CREATE UNIQUE INDEX "metric_definitions_key_unique" ON "metric_definitions" USING btree ("metric_key");
---> statement-breakpoint
-CREATE UNIQUE INDEX "metric_quarantine_source_reason_unique" ON "metric_quarantine" USING btree ("source_event_id","reason");
 --> statement-breakpoint
 CREATE UNIQUE INDEX "metric_readings_version_source_unique" ON "metric_readings" USING btree ("definition_version_id","source_event_id") WHERE "metric_readings"."definition_version_id" IS NOT NULL AND "metric_readings"."source_event_id" IS NOT NULL;
 --> statement-breakpoint
@@ -6297,8 +6224,6 @@ ALTER TABLE "goal_monthly_results" ADD CONSTRAINT "goal_monthly_results_assignme
 --> statement-breakpoint
 ALTER TABLE "goal_program_versions" ADD CONSTRAINT "goal_program_versions_program_fk" FOREIGN KEY ("organization_id","property_id","program_id") REFERENCES "public"."goal_programs"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "goal_program_versions" ADD CONSTRAINT "goal_program_versions_metric_version_fk" FOREIGN KEY ("metric_definition_id","metric_definition_version_id") REFERENCES "public"."metric_definition_versions"("definition_id","id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "goal_programs" ADD CONSTRAINT "goal_programs_property_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "goal_result_revisions" ADD CONSTRAINT "goal_result_revisions_supersedes_revision_id_goal_result_revisions_id_fk" FOREIGN KEY ("supersedes_revision_id") REFERENCES "public"."goal_result_revisions"("id") ON DELETE restrict ON UPDATE no action;
@@ -6447,19 +6372,11 @@ ALTER TABLE "metric_corrections" ADD CONSTRAINT "metric_corrections_supersedes_c
 --> statement-breakpoint
 ALTER TABLE "metric_current_google_reputation_snapshots" ADD CONSTRAINT "metric_current_google_reputation_property_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "metric_definition_versions" ADD CONSTRAINT "metric_definition_versions_definition_id_metric_definitions_id_fk" FOREIGN KEY ("definition_id") REFERENCES "public"."metric_definitions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "metric_quarantine" ADD CONSTRAINT "metric_quarantine_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE set null ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "metric_quarantine" ADD CONSTRAINT "metric_quarantine_definition_version_id_metric_definition_versions_id_fk" FOREIGN KEY ("definition_version_id") REFERENCES "public"."metric_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
---> statement-breakpoint
 ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_portal_id_portals_id_fk" FOREIGN KEY ("portal_id") REFERENCES "public"."portals"("id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_group_id_portal_groups_id_fk" FOREIGN KEY ("group_id") REFERENCES "public"."portal_groups"("id") ON DELETE set null ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_definition_version_id_metric_definition_versions_id_fk" FOREIGN KEY ("definition_version_id") REFERENCES "public"."metric_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_property_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
@@ -6468,8 +6385,6 @@ ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_staff_participant_
 ALTER TABLE "metric_readings" ADD CONSTRAINT "metric_readings_staff_responsibility_scope_fk" FOREIGN KEY ("organization_id","property_id","portal_id","attribution_responsibility_id","attributed_staff_participation_id") REFERENCES "public"."portal_responsibilities"("organization_id","property_id","portal_id","id","staff_participation_id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "metric_source_watermarks" ADD CONSTRAINT "metric_source_watermarks_property_id_properties_id_fk" FOREIGN KEY ("property_id") REFERENCES "public"."properties"("id") ON DELETE cascade ON UPDATE no action;
---> statement-breakpoint
-ALTER TABLE "metric_source_watermarks" ADD CONSTRAINT "metric_source_watermarks_definition_version_id_metric_definition_versions_id_fk" FOREIGN KEY ("definition_version_id") REFERENCES "public"."metric_definition_versions"("id") ON DELETE restrict ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "portal_metric_lifetime_aggregates" ADD CONSTRAINT "portal_metric_lifetime_portal_fk" FOREIGN KEY ("organization_id","property_id","portal_id") REFERENCES "public"."portals"("organization_id","property_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint

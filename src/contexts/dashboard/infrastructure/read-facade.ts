@@ -20,19 +20,31 @@
 //   second read model beside the authoritative query path (BQC-5.5
 //   remove-decision: shared/cache/dashboard-cache.ts deleted unwired).
 
-import { and, eq, gte, gt, lt, inArray, isNotNull, sql, count } from 'drizzle-orm'
+import {
+  and,
+  count,
+  eq,
+  gte,
+  gt,
+  inArray,
+  isNotNull,
+  lt,
+  or,
+  sql,
+} from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   metricCorrections,
-  metricDefinitions,
-  metricDefinitionVersions,
   metricReadings,
   inboxItems,
   reviews,
 } from '#/shared/db/schema'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
+import {
+  METRIC_VERSION_IDS,
+  findMetricVersionById,
+} from '#/contexts/metric/application/public-api'
 
 /** Hard statement-level budget for one direct dashboard read. */
 export const DASHBOARD_READ_BUDGET_MS = 5000
@@ -139,12 +151,20 @@ export type MetricAggregateRow = Readonly<{
   minimumSample: number
 }>
 
-const DASHBOARD_PORTAL_ANALYTICS_VERSION_IDS = [
-  METRIC_VERSION_IDS.portalScanAnalytics,
-  METRIC_VERSION_IDS.portalRatingAnalytics,
-  METRIC_VERSION_IDS.portalFeedbackAnalytics,
-  METRIC_VERSION_IDS.portalDestinationClickAnalytics,
-] as const
+const DASHBOARD_PORTAL_ANALYTICS = Object.freeze(
+  [
+    METRIC_VERSION_IDS.portalScanAnalytics,
+    METRIC_VERSION_IDS.portalRatingAnalytics,
+    METRIC_VERSION_IDS.portalFeedbackAnalytics,
+    METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+  ].map((versionId) => {
+    const metric = findMetricVersionById(versionId)
+    if (!metric || !metric.version.permittedConsumers.includes('portal_analytics')) {
+      throw new Error(`Dashboard metric catalogue entry is unavailable: ${versionId}`)
+    }
+    return metric
+  }),
+)
 
 /**
  * THE aggregate skeleton over metric_readings: summed + counted values
@@ -183,19 +203,22 @@ export async function readMetricAggregates(
       WHEN ${correctionTips.kind} = 'retract' THEN 0
       ELSE ${metricReadings.sampleCount}
     END`
-    const governedSource = sql<boolean>`(
-      ${metricReadings.exactValue} IS NOT NULL
-      AND ${metricReadings.metricKey} = ${metricDefinitions.metricKey}
-      AND ${metricReadings.dataQuality} = 'exact'
-      AND ${metricReadings.attributionQuality} <> 'unresolved'
-      AND EXISTS (
-        SELECT 1
-        FROM jsonb_array_elements_text(
-          ${metricDefinitionVersions.sourcePolicyAllowlist}
-        ) AS allowed_policy(value)
-        WHERE allowed_policy.value = ${metricReadings.sourcePolicy}
-      )
-    )`
+    const cataloguePolicy = or(
+      ...DASHBOARD_PORTAL_ANALYTICS.map(({ definition, version }) =>
+        and(
+          eq(metricReadings.definitionVersionId, version.id),
+          eq(metricReadings.metricKey, definition.key),
+          inArray(metricReadings.sourcePolicy, [...version.sourcePolicyAllowlist]),
+        ),
+      ),
+    )
+    if (!cataloguePolicy) throw new Error('Dashboard metric catalogue is empty')
+    const governedSource = and(
+      isNotNull(metricReadings.exactValue),
+      eq(metricReadings.dataQuality, 'exact'),
+      sql`${metricReadings.attributionQuality} <> 'unresolved'`,
+      cataloguePolicy,
+    )
     const governedEffectiveValue = sql<number>`CASE
       WHEN ${governedSource} THEN ${effectiveValue}
       ELSE NULL
@@ -207,63 +230,57 @@ export async function readMetricAggregates(
 
     return tx
       .select({
-        definitionVersionId: metricDefinitionVersions.id,
-        metricKey: metricDefinitions.metricKey,
+        definitionVersionId: metricReadings.definitionVersionId,
         total: sql<number>`COALESCE(SUM(${governedEffectiveValue}), 0)`,
         count: count(governedEffectiveValue),
         sampleCount: sql<number>`COALESCE(SUM(${governedSampleCount}), 0)`,
-        minimumSample: metricDefinitionVersions.minimumSample,
         evidenceCount: count(metricReadings.id),
         governedEvidenceCount: sql<number>`COUNT(${metricReadings.id}) FILTER (
           WHERE ${governedSource}
         )`,
       })
-      .from(metricDefinitionVersions)
-      .innerJoin(
-        metricDefinitions,
-        eq(metricDefinitions.id, metricDefinitionVersions.definitionId),
-      )
-      .leftJoin(
-        metricReadings,
-        and(eq(metricReadings.definitionVersionId, metricDefinitionVersions.id), scope),
-      )
+      .from(metricReadings)
       .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
       .where(
         and(
-          inArray(metricDefinitionVersions.id, [
-            ...DASHBOARD_PORTAL_ANALYTICS_VERSION_IDS,
-          ]),
-          sql`${metricDefinitionVersions.permittedConsumers} @> '["portal_analytics"]'::jsonb`,
+          scope,
+          inArray(
+            metricReadings.definitionVersionId,
+            DASHBOARD_PORTAL_ANALYTICS.map(({ version }) => version.id),
+          ),
         ),
       )
-      .groupBy(
-        metricDefinitionVersions.id,
-        metricDefinitions.metricKey,
-        metricDefinitionVersions.minimumSample,
-      )
+      .groupBy(metricReadings.definitionVersionId)
   })
-  return rows.map((r) => {
-    if (r.definitionVersionId === null) {
-      throw new Error('Dashboard metric projection returned an unversioned reading')
-    }
-    const sampleCount = Number(r.sampleCount ?? 0)
-    const minimumSample = Number(r.minimumSample ?? 1)
-    const evidenceCount = Number(r.evidenceCount ?? 0)
-    const governedEvidenceCount = Number(r.governedEvidenceCount ?? 0)
+  const rowsByVersion = new Map(
+    rows.map((row) => {
+      if (row.definitionVersionId === null) {
+        throw new Error('Dashboard metric projection returned an unversioned reading')
+      }
+      return [row.definitionVersionId, row] as const
+    }),
+  )
+
+  return DASHBOARD_PORTAL_ANALYTICS.map(({ definition, version }) => {
+    const row = rowsByVersion.get(version.id)
+    const sampleCount = Number(row?.sampleCount ?? 0)
+    const evidenceCount = Number(row?.evidenceCount ?? 0)
+    const governedEvidenceCount = Number(row?.governedEvidenceCount ?? 0)
     const state =
       evidenceCount === 0
         ? 'updating'
-        : governedEvidenceCount === evidenceCount && sampleCount >= minimumSample
+        : governedEvidenceCount === evidenceCount &&
+            sampleCount >= version.minimumSample
           ? 'available'
           : 'unavailable'
     return {
-      definitionVersionId: r.definitionVersionId,
-      metricKey: r.metricKey,
-      total: Number(r.total ?? 0),
-      count: Number(r.count ?? 0),
+      definitionVersionId: version.id,
+      metricKey: definition.key,
+      total: Number(row?.total ?? 0),
+      count: Number(row?.count ?? 0),
       state,
       sampleCount,
-      minimumSample,
+      minimumSample: version.minimumSample,
     }
   })
 }

@@ -73,9 +73,6 @@ const READING_ROW: Row = {
   group_id: null,
   metric_key: 'portal.rating_count',
   definition_version_id: '11111111-1111-4111-8111-111111111302',
-  definition_version: 1,
-  unit: 'rating',
-  value_precision: 0,
   source_policy: 'first_party_guest_gateway_metric',
   recorded_exact_value: '1.0000000000',
   effective_exact_value: '4.0000000000',
@@ -219,14 +216,6 @@ describe('Metric Organization Export contributor', () => {
     ) as Record<string, unknown>
     expect(json.version).toBe('metric-organization-export/v1')
     expect(json.requestedAsOf).toBe(AS_OF.toISOString())
-    expect(json.excludedRecordClasses).toEqual(
-      expect.arrayContaining([
-        {
-          recordClass: 'metric_quarantine',
-          reasonCode: 'integrity_and_abuse_review_internal',
-        },
-      ]),
-    )
   })
 
   it('answers no_data affirmatively rather than inventing an empty CSV', async () => {
@@ -257,11 +246,11 @@ describe('Metric Organization Export contributor', () => {
   })
 
   it('refuses a row that lost a declared column instead of shipping a silent gap', async () => {
-    const withoutUnit = Object.fromEntries(
-      Object.entries(READING_ROW).filter(([column]) => column !== 'unit'),
+    const withoutSourcePolicy = Object.fromEntries(
+      Object.entries(READING_ROW).filter(([column]) => column !== 'source_policy'),
     )
     const adapter = createMetricOrganizationExportAdapter(
-      fakeDatabase({ readings: [withoutUnit] }),
+      fakeDatabase({ readings: [withoutSourcePolicy] }),
     )
 
     await expect(
@@ -270,6 +259,6 @@ describe('Metric Organization Export contributor', () => {
         requestId: 'a',
         asOf: AS_OF,
       }),
-    ).rejects.toThrow(/Metric export column is missing: unit/)
+    ).rejects.toThrow(/Metric export column is missing: source_policy/)
   })
 })

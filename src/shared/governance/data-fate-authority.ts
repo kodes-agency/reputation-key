@@ -435,8 +435,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     schemaFile: 'metric.schema.ts',
     exportNames: [
       'metricCorrections',
-      'metricDefinitionVersions',
-      'metricDefinitions',
       'metricReadings',
       'metricSourceWatermarks',
       'metricCurrentGoogleReputationSnapshots',
@@ -445,14 +443,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'metric',
     disposition: 'active_authority',
     authority: 'MET-01',
-  }),
-  ...rows({
-    schemaFile: 'metric.schema.ts',
-    exportNames: ['metricQuarantine'],
-    owner: 'metric',
-    disposition: 'quarantined_reconciliation_input',
-    authority: 'MET-01',
-    exitCriteria: RECONCILE_QUARANTINE,
   }),
   ...rows({
     schemaFile: 'notification.schema.ts',

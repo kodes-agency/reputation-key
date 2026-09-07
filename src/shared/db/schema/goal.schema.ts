@@ -21,7 +21,6 @@ import { createdAtColumn, updatedAtColumn } from '../columns'
 import { properties } from './property.schema'
 import { portals } from './portal.schema'
 import { portalGroups } from './portal.schema'
-import { metricDefinitionVersions } from './metric.schema'
 
 // Canonical beta Goal Program storage. All Goal behavior is persisted in this
 // family; the pre-beta and intermediate governed Goal families were removed.
@@ -112,14 +111,6 @@ export const goalProgramVersions = pgTable(
         goalPrograms.organizationId,
         goalPrograms.propertyId,
         goalPrograms.id,
-      ],
-    }).onDelete('restrict'),
-    foreignKey({
-      name: 'goal_program_versions_metric_version_fk',
-      columns: [t.metricDefinitionId, t.metricDefinitionVersionId],
-      foreignColumns: [
-        metricDefinitionVersions.definitionId,
-        metricDefinitionVersions.id,
       ],
     }).onDelete('restrict'),
     check('goal_program_versions_version_check', sql`${t.version} >= 1`),

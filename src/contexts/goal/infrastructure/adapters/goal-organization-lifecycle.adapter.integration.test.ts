@@ -15,13 +15,16 @@ import type { Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import {
+  METRIC_DEFINITION_IDS,
+  METRIC_VERSION_IDS,
+} from '#/contexts/metric/application/public-api'
+import {
   createGoalOrganizationLifecycleAdapter,
   GOAL_PURGE_TABLES,
 } from './goal-organization-lifecycle.adapter'
 
-// Immutable registry id seeded by migration 0018; `goal_program_versions`
-// pins `portal_rating_count` to exactly this governed version.
-const RATING_COUNT_GOAL_VERSION = '11111111-1111-4111-8111-111111111302'
+const RATING_COUNT_DEFINITION = METRIC_DEFINITION_IDS.portalRatingCount
+const RATING_COUNT_GOAL_VERSION = METRIC_VERSION_IDS.portalRatingCountGoal
 
 /** The append-only guards the fixtures have to step around, exactly as purge does. */
 const APPEND_ONLY_GUARDS = [
@@ -97,14 +100,14 @@ async function seedTenantRows(
        (id, program_id, organization_id, property_id, version, metric_definition_id,
         metric_definition_version_id, metric_key, metric_minimum_sample, target_value,
         property_timezone, effective_from, change_reason, created_by, created_at)
-     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, 1,
-             (SELECT definition_id FROM metric_definition_versions WHERE id = $5::uuid),
-             $5::uuid, 'portal_rating_count', 0, 10, 'UTC', $6, 'fixture', 'user:test', $6)`,
+     VALUES ($1::uuid, $2::uuid, $3, $4::uuid, 1, $5::uuid,
+             $6::uuid, 'portal_rating_count', 0, 10, 'UTC', $7, 'fixture', 'user:test', $7)`,
     [
       programVersionId,
       fixture.programId,
       organizationId,
       fixture.propertyId,
+      RATING_COUNT_DEFINITION,
       RATING_COUNT_GOAL_VERSION,
       VERSION_FROM,
     ],

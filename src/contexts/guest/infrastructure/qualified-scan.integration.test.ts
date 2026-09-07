@@ -161,7 +161,6 @@ async function cleanMetricState(): Promise<void> {
      )`,
     [ORG],
   )
-  await getPool().query(`DELETE FROM metric_quarantine WHERE organization_id = $1`, [ORG])
   await getPool().query(`DELETE FROM metric_readings WHERE organization_id = $1`, [ORG])
 }
 
@@ -359,7 +358,7 @@ describe.sequential('Access Artifact backed Qualified Scan (integration)', () =>
     ]
     const recordBatch = recordMetrics({
       commandStore,
-      registry: createMetricRegistryRepository(getDb()),
+      registry: createMetricRegistryRepository(),
       idGen: () => readingIds.shift()!,
       clock: () => EVENT_TIME,
       resolvePropertyLocalDate: async () => '2026-08-27',

@@ -826,26 +826,6 @@ export const RETENTION_REGISTRY: ReadonlyArray<RetentionRegistryRule> = Object.f
       'Object storage and PostgreSQL restore independently. An object restored without its row is invisible to every deletion path, so the orphan inventory must be re-run after any restore.',
   }),
   rule({
-    id: 'platform.quarantine',
-    dataClass: 'quarantine',
-    ownerContext: 'metric',
-    ownerRole: 'Metric context owner with Platform operations',
-    sourceKind: 'table',
-    source: 'metric_quarantine',
-    eligibility: {
-      anchorColumn: 'quarantined_at',
-      horizon: { kind: 'counsel_undecided' },
-      predicate: 'resolved_at IS NOT NULL',
-      query:
-        'Quarantine rows are reconciliation input. Eligibility is a reviewed terminal disposition (resolved_at IS NOT NULL), never age alone; an age cutoff would discard unreconciled evidence a metric correction still depends on.',
-      implementedBoundary:
-        'No age-based purge runs against metric_quarantine. The separate quarantine.ttl subject bounds the job-queue quarantine, which holds no tenant content.',
-    },
-    evidenceSubject: 'metric_quarantine.resolved',
-    restoreImplication:
-      'Restoring quarantine rows after reconciliation replays already-resolved conflicts. Reconcile against the current canonical set rather than re-applying past dispositions.',
-  }),
-  rule({
     id: 'integration.provider_tokens',
     dataClass: 'provider_tokens',
     ownerContext: 'integration',

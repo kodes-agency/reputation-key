@@ -300,7 +300,7 @@ describe.sequential('metricCommandStore (integration)', () => {
     const outcomes: ReadingResult[] = []
     const project = recordMetrics({
       commandStore: createAtomicMetricCommandStore(db, randomUUID),
-      registry: createMetricRegistryRepository(db),
+      registry: createMetricRegistryRepository(),
       clock: () => QUALIFIED_AT,
       idGen: () => metricReadingId(randomUUID()),
       resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
@@ -664,7 +664,7 @@ describe.sequential('metricCommandStore (integration)', () => {
 
     const record = recordMetric({
       commandStore: createAtomicMetricCommandStore(db, randomUUID),
-      registry: createMetricRegistryRepository(db),
+      registry: createMetricRegistryRepository(),
       clock: () => QUALIFIED_AT,
       idGen: () => metricReadingId(randomUUID()),
       resolvePropertyLocalDate: createPropertyLocalDateResolver(db),

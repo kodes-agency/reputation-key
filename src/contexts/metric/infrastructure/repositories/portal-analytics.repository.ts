@@ -7,12 +7,20 @@
 // bounded on that business timestamp.
 
 import type { Database } from '#/shared/db'
+import { metricCorrections, metricReadings } from '#/shared/db/schema'
 import {
-  metricCorrections,
-  metricDefinitionVersions,
-  metricReadings,
-} from '#/shared/db/schema'
-import { and, avg, count, eq, gte, inArray, isNotNull, lt, sql } from 'drizzle-orm'
+  and,
+  avg,
+  count,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import type {
   PortalAnalyticsRepository,
@@ -23,7 +31,11 @@ import type {
   PortalRatingTrendPoint,
 } from '../../application/ports/portal-analytics.repository'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
-import { METRIC_VERSION_IDS } from '../../domain/metric-registry'
+import {
+  METRIC_VERSION_IDS,
+  findMetricVersionById,
+  type GovernedMetricVersion,
+} from '../../domain/metric-registry'
 
 const METRIC_PORTAL_READ_BUDGET_MS = 5_000
 
@@ -55,13 +67,53 @@ async function withStatementTimeout<T>(
   })
 }
 
-const PORTAL_RATING_KEY = 'portal.rating'
-const PORTAL_ANALYTICS_VERSION_IDS = [
-  METRIC_VERSION_IDS.portalScanAnalytics,
-  METRIC_VERSION_IDS.portalRatingAnalytics,
+type PortalMetricPolicy = Readonly<{
+  metric: GovernedMetricVersion
+  sourcePolicies: SQL
+}>
+
+function portalMetricPolicy(versionId: string): PortalMetricPolicy {
+  const metric = findMetricVersionById(versionId)
+  if (!metric || !metric.version.permittedConsumers.includes('portal_analytics')) {
+    throw new Error(`Portal metric catalogue entry is unavailable: ${versionId}`)
+  }
+  return Object.freeze({
+    metric,
+    sourcePolicies: sql.join(
+      metric.version.sourcePolicyAllowlist.map((policy) => sql`${policy}`),
+      sql`, `,
+    ),
+  })
+}
+
+const PORTAL_SCAN_POLICY = portalMetricPolicy(METRIC_VERSION_IDS.portalScanAnalytics)
+const PORTAL_RATING_POLICY = portalMetricPolicy(METRIC_VERSION_IDS.portalRatingAnalytics)
+const PORTAL_FEEDBACK_POLICY = portalMetricPolicy(
   METRIC_VERSION_IDS.portalFeedbackAnalytics,
+)
+const PORTAL_DESTINATION_CLICK_POLICY = portalMetricPolicy(
   METRIC_VERSION_IDS.portalDestinationClickAnalytics,
-] as const
+)
+const PORTAL_ANALYTICS_POLICIES = Object.freeze([
+  PORTAL_SCAN_POLICY,
+  PORTAL_RATING_POLICY,
+  PORTAL_FEEDBACK_POLICY,
+  PORTAL_DESTINATION_CLICK_POLICY,
+])
+const PORTAL_ANALYTICS_VERSION_IDS = Object.freeze(
+  PORTAL_ANALYTICS_POLICIES.map(({ metric }) => metric.version.id),
+)
+const PORTAL_ANALYTICS_POLICY = or(
+  ...PORTAL_ANALYTICS_POLICIES.map(({ metric }) =>
+    and(
+      eq(metricReadings.definitionVersionId, metric.version.id),
+      eq(metricReadings.metricKey, metric.definition.key),
+      inArray(metricReadings.sourcePolicy, [...metric.version.sourcePolicyAllowlist]),
+    ),
+  ),
+)
+if (!PORTAL_ANALYTICS_POLICY) throw new Error('Portal metric catalogue is empty')
+const PORTAL_RATING_KEY = PORTAL_RATING_POLICY.metric.definition.key
 
 type EvidenceRow = Readonly<{
   family: unknown
@@ -69,7 +121,6 @@ type EvidenceRow = Readonly<{
   source_count: unknown
   applied_count: unknown
   obsolete_present: unknown
-  quarantine_present: unknown
   projection_missing: unknown
   invalid_reading_count: unknown
   latest_activity: unknown
@@ -90,7 +141,6 @@ function unavailableEvidenceReason(
   row: EvidenceRow,
   invalidReadingCount: number,
 ): string | null {
-  if (row.quarantine_present === true) return 'source_fact_quarantined'
   if (invalidReadingCount > 0) return 'invalid_governed_reading'
   if (row.obsolete_present === true) return 'source_fact_obsolete'
   if (row.projection_missing === true) return 'projection_missing'
@@ -165,21 +215,14 @@ function effectiveValue(correctionTips: CorrectionTips) {
   END`
 }
 
-function governedPortalWhere(scope: ReturnType<typeof metricPortalWhere>) {
+function governedPortalWhere(scope: SQL | undefined) {
   return and(
     scope,
     inArray(metricReadings.definitionVersionId, PORTAL_ANALYTICS_VERSION_IDS),
     isNotNull(metricReadings.exactValue),
     eq(metricReadings.dataQuality, 'exact'),
     sql`${metricReadings.attributionQuality} <> 'unresolved'`,
-    sql`${metricDefinitionVersions.permittedConsumers} @> '["portal_analytics"]'::jsonb`,
-    sql`EXISTS (
-      SELECT 1
-      FROM jsonb_array_elements_text(
-        ${metricDefinitionVersions.sourcePolicyAllowlist}
-      ) AS allowed_policy(value)
-      WHERE allowed_policy.value = ${metricReadings.sourcePolicy}
-    )`,
+    PORTAL_ANALYTICS_POLICY,
   )
 }
 
@@ -208,10 +251,6 @@ export const createPortalAnalyticsRepository = (
             count: count(value),
           })
           .from(metricReadings)
-          .innerJoin(
-            metricDefinitionVersions,
-            eq(metricDefinitionVersions.id, metricReadings.definitionVersionId),
-          )
           .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
           .where(
             and(
@@ -248,10 +287,6 @@ export const createPortalAnalyticsRepository = (
             count: count(),
           })
           .from(metricReadings)
-          .innerJoin(
-            metricDefinitionVersions,
-            eq(metricDefinitionVersions.id, metricReadings.definitionVersionId),
-          )
           .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
           .where(
             and(
@@ -303,10 +338,6 @@ export const createPortalAnalyticsRepository = (
             avgRating: sql<number>`ROUND(${avg(value)}::NUMERIC, 1)`,
           })
           .from(metricReadings)
-          .innerJoin(
-            metricDefinitionVersions,
-            eq(metricDefinitionVersions.id, metricReadings.definitionVersionId),
-          )
           .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
           .where(
             and(
@@ -349,28 +380,33 @@ export const createPortalAnalyticsRepository = (
       const result = await withStatementTimeout(db, (tx) =>
         tx.execute(sql`
           WITH families (
-            family, definition_version_id, metric_key, event_types
+            family, definition_version_id, metric_key, source_policies, event_types
           ) AS (
             VALUES
               (
-                'scans', ${METRIC_VERSION_IDS.portalScanAnalytics}::uuid,
-                'portal.scan', ARRAY['guest.scan.recorded']::text[]
+                'scans', ${PORTAL_SCAN_POLICY.metric.version.id}::uuid,
+                ${PORTAL_SCAN_POLICY.metric.definition.key},
+                ARRAY[${PORTAL_SCAN_POLICY.sourcePolicies}]::text[],
+                ARRAY['guest.scan.recorded']::text[]
               ),
               (
-                'privateRatings', ${METRIC_VERSION_IDS.portalRatingAnalytics}::uuid,
-                'portal.rating', ARRAY[
-                  'guest.rating.submitted', 'guest.rating.retracted'
-                ]::text[]
+                'privateRatings', ${PORTAL_RATING_POLICY.metric.version.id}::uuid,
+                ${PORTAL_RATING_POLICY.metric.definition.key},
+                ARRAY[${PORTAL_RATING_POLICY.sourcePolicies}]::text[],
+                ARRAY['guest.rating.submitted', 'guest.rating.retracted']::text[]
               ),
               (
-                'privateFeedback', ${METRIC_VERSION_IDS.portalFeedbackAnalytics}::uuid,
-                'portal.feedback', ARRAY[
-                  'guest.feedback.submitted', 'guest.feedback.retracted'
-                ]::text[]
+                'privateFeedback', ${PORTAL_FEEDBACK_POLICY.metric.version.id}::uuid,
+                ${PORTAL_FEEDBACK_POLICY.metric.definition.key},
+                ARRAY[${PORTAL_FEEDBACK_POLICY.sourcePolicies}]::text[],
+                ARRAY['guest.feedback.submitted', 'guest.feedback.retracted']::text[]
               ),
               (
-                'reviewLinkClicks', ${METRIC_VERSION_IDS.portalDestinationClickAnalytics}::uuid,
-                'portal.review_link_click', ARRAY['guest.review_link.clicked']::text[]
+                'reviewLinkClicks',
+                ${PORTAL_DESTINATION_CLICK_POLICY.metric.version.id}::uuid,
+                ${PORTAL_DESTINATION_CLICK_POLICY.metric.definition.key},
+                ARRAY[${PORTAL_DESTINATION_CLICK_POLICY.sourcePolicies}]::text[],
+                ARRAY['guest.review_link.clicked']::text[]
               )
           ), source_status AS (
             SELECT
@@ -380,7 +416,6 @@ export const createPortalAnalyticsRepository = (
                 WHERE receipt.status IN ('applied', 'duplicate')
               ) AS applied_count,
               bool_or(coalesce(receipt.status = 'obsolete', false)) AS obsolete_present,
-              bool_or(quarantine.id IS NOT NULL) AS quarantine_present,
               bool_or(
                 coalesce(receipt.status IN ('applied', 'duplicate'), false)
                 AND CASE
@@ -445,10 +480,6 @@ export const createPortalAnalyticsRepository = (
             LEFT JOIN event_consumer_receipts AS receipt
               ON receipt.event_id = source.id
              AND receipt.consumer_name = 'metric.guest-analytics'
-            LEFT JOIN metric_quarantine AS quarantine
-              ON quarantine.source_event_id = source.id::text
-             AND quarantine.definition_version_id = families.definition_version_id
-             AND quarantine.resolved_at IS NULL
             GROUP BY families.family
           ), reading_status AS (
             SELECT
@@ -460,19 +491,7 @@ export const createPortalAnalyticsRepository = (
                   AND reading.exact_value IS NOT NULL
                   AND reading.data_quality = 'exact'
                   AND reading.attribution_quality <> 'unresolved'
-                  AND EXISTS (
-                    SELECT 1
-                    FROM metric_definition_versions AS version
-                    WHERE version.id = reading.definition_version_id
-                      AND version.permitted_consumers @> '["portal_analytics"]'::jsonb
-                      AND EXISTS (
-                        SELECT 1
-                        FROM jsonb_array_elements_text(
-                          version.source_policy_allowlist
-                        ) AS allowed_policy(value)
-                        WHERE allowed_policy.value = reading.source_policy
-                      )
-                  )
+                  AND reading.source_policy = ANY(families.source_policies)
                   AND (
                     families.family <> 'privateRatings'
                     OR (
@@ -501,7 +520,6 @@ export const createPortalAnalyticsRepository = (
             source_status.source_count,
             source_status.applied_count,
             source_status.obsolete_present,
-            source_status.quarantine_present,
             source_status.projection_missing,
             reading_status.invalid_reading_count,
             source_status.latest_activity,

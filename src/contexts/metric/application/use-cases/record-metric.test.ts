@@ -6,7 +6,6 @@ import {
 } from './record-metric'
 import type { MetricReading } from '../../domain/metric-reading'
 import type { GovernedMetricVersion } from '../../domain/metric-registry'
-import type { QuarantineMetricCommand } from '../ports/metric-command-store.port'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createSequentialMetricCommandStore } from '#/shared/testing/sequential-metric-command-store'
 import {
@@ -74,16 +73,12 @@ const input = (overrides: Partial<RecordMetricInput> = {}): RecordMetricInput =>
 
 const createDeps = (version: GovernedMetricVersion | null = governed) => {
   const readings: MetricReading[] = []
-  const quarantined: QuarantineMetricCommand[] = []
   const outbox = createRecordedOutbox()
   const deps: RecordMetricDeps = {
     commandStore: createSequentialMetricCommandStore({
       insertReading: async (reading) => {
         readings.push(reading)
         return reading
-      },
-      quarantine: async (command) => {
-        quarantined.push(command)
       },
       outbox,
     }),
@@ -92,7 +87,7 @@ const createDeps = (version: GovernedMetricVersion | null = governed) => {
     idGen: () => metricReadingId('d4000000-0000-4000-8000-000000000071'),
     resolvePropertyLocalDate: async () => '2026-08-08',
   }
-  return { deps, readings, quarantined, outbox }
+  return { deps, readings, outbox }
 }
 
 describe('recordMetric', () => {
@@ -169,20 +164,15 @@ describe('recordMetric', () => {
     })
   })
 
-  it('quarantines an unknown immutable version without recording a fact', async () => {
+  it('rejects an unknown immutable version without recording a fact', async () => {
     const fakes = createDeps(null)
     const result = await recordMetric(fakes.deps)(input())
 
     expect(result).toEqual({
-      status: 'quarantined',
+      status: 'rejected',
       reason: 'unknown_definition_version',
       sourceEventId: 'event-1',
     })
-    expect(fakes.quarantined[0]).toMatchObject({
-      definitionVersionId: null,
-      reason: 'unknown_definition_version',
-    })
-    expect(fakes.quarantined[0]?.payloadHash).toMatch(/^[a-f0-9]{64}$/)
     expect(fakes.readings).toEqual([])
     expect(fakes.outbox.facts).toEqual([])
   })
@@ -191,11 +181,11 @@ describe('recordMetric', () => {
     ['source_policy_not_allowed', { sourcePolicy: 'google_property_derivative' }],
     ['scope_not_allowed', { scope: 'portal' }],
     ['unresolved_attribution', { attributionQuality: 'unresolved' }],
-  ] as const)('quarantines %s readings', async (reason, overrides) => {
+  ] as const)('rejects %s readings', async (reason, overrides) => {
     const fakes = createDeps()
     const result = await recordMetric(fakes.deps)(input(overrides))
 
-    expect(result).toMatchObject({ status: 'quarantined', reason })
+    expect(result).toMatchObject({ status: 'rejected', reason })
     expect(fakes.readings).toEqual([])
   })
 
@@ -230,6 +220,5 @@ describe('recordMetric', () => {
       actualSample: 2,
     })
     expect(fakes.readings).toEqual([])
-    expect(fakes.quarantined).toEqual([])
   })
 })

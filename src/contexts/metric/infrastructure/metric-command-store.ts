@@ -1,11 +1,6 @@
-import { createHash } from 'node:crypto'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  metricCorrections,
-  metricQuarantine,
-  metricReadings,
-} from '#/shared/db/schema/metric.schema'
+import { metricCorrections, metricReadings } from '#/shared/db/schema/metric.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -15,7 +10,6 @@ import { metricCorrected, type MetricCorrected } from '../domain/events'
 import type {
   MetricCommandStore,
   MetricSourceReceipt,
-  QuarantineMetricCommand,
   RecordMetricCommand,
   RecordMetricEntry,
   RecordMetricsCommand,
@@ -107,7 +101,7 @@ function priorPortalLifetimeRetraction(
 }
 
 type SupersededReadingResolution =
-  | Readonly<{ kind: 'quarantined' }>
+  | Readonly<{ kind: 'rejected' }>
   | Readonly<{
       kind: 'resolved'
       correctedReadingId: string
@@ -116,7 +110,7 @@ type SupersededReadingResolution =
 
 /**
  * Locate the reading a correction supersedes. A missing source reading is
- * quarantined rather than silently replaced.
+ * rejected rather than silently replaced.
  */
 async function resolveSupersededReading(
   tx: MetricTx,
@@ -163,33 +157,7 @@ async function resolveSupersededReading(
     ? priorPortalLifetimeRetraction(priorRow)
     : null
 
-  if (!correctedReadingId) {
-    const payloadHash = createHash('sha256')
-      .update(
-        JSON.stringify({
-          definitionVersionId: command.reading.definitionVersionId,
-          sourceEventId: command.reading.sourceEventId,
-          supersedesSourceEventId,
-          organizationId: command.reading.organizationId,
-          propertyId: command.reading.propertyId,
-        }),
-      )
-      .digest('hex')
-    await tx
-      .insert(metricQuarantine)
-      .values({
-        sourceEventId: command.reading.sourceEventId,
-        organizationId: unbrand(command.reading.organizationId),
-        propertyId: unbrand(command.reading.propertyId),
-        definitionVersionId: command.reading.definitionVersionId,
-        sourcePolicy: command.reading.sourcePolicy,
-        reason: 'superseded_reading_not_found',
-        payloadHash,
-        eventAt: command.reading.occurredAt,
-      })
-      .onConflictDoNothing()
-    return { kind: 'quarantined' }
-  }
+  if (!correctedReadingId) return { kind: 'rejected' }
 
   if (
     !primaryStaffAttributionEquals(
@@ -414,9 +382,9 @@ async function recordMetricEntry(
   const superseded = command.supersedesSourceEventId
     ? await resolveSupersededReading(tx, command, command.supersedesSourceEventId)
     : null
-  if (superseded?.kind === 'quarantined') {
+  if (superseded?.kind === 'rejected') {
     return {
-      status: 'quarantined',
+      status: 'rejected',
       reason: 'superseded_reading_not_found',
       sourceEventId: command.reading.sourceEventId,
     }
@@ -701,7 +669,7 @@ export const createAtomicMetricCommandStore = (
             continue
           }
           const result = await recordMetricEntry(tx, reading, idGen)
-          if (command.sourceReceipt && result.status === 'quarantined') {
+          if (command.sourceReceipt && result.status === 'rejected') {
             throw new Error('Metric reading is not available for replacement')
           }
           results.push(result)
@@ -783,21 +751,5 @@ export const createAtomicMetricCommandStore = (
       if (!result) throw new Error('Metric retraction produced no result')
       return result
     },
-    quarantine: async (command: QuarantineMetricCommand): Promise<void> =>
-      trace('metric.commandStore.quarantine', async () => {
-        await db
-          .insert(metricQuarantine)
-          .values({
-            sourceEventId: command.sourceEventId,
-            organizationId: command.organizationId,
-            propertyId: command.propertyId,
-            definitionVersionId: command.definitionVersionId,
-            sourcePolicy: command.sourcePolicy,
-            reason: command.reason,
-            payloadHash: command.payloadHash,
-            eventAt: command.eventAt,
-          })
-          .onConflictDoNothing()
-      }),
   }
 }

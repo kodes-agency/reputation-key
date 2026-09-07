@@ -29,16 +29,23 @@ import {
 import { properties } from '#/shared/db/schema/property.schema'
 import { portals } from '#/shared/db/schema/portal.schema'
 import { scanEvents, ratings, feedback } from '#/shared/db/schema/guest.schema'
-import {
-  metricDefinitionVersions,
-  metricReadings,
-} from '#/shared/db/schema/metric.schema'
+import { metricReadings } from '#/shared/db/schema/metric.schema'
 import { user, member, organization } from '#/shared/db/schema/auth'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import type { DomainEvent } from '#/shared/events/events'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
+import { METRIC_DEFINITIONS } from '#/contexts/metric/application/public-api'
 
 const MS_PER_DAY = 86_400_000
+const METRIC_EFFECTIVE_FLOOR_AT = METRIC_DEFINITIONS.reduce(
+  (latest, entry) =>
+    entry.versions.reduce(
+      (definitionLatest, version) =>
+        Math.max(definitionLatest, version.effectiveFrom.getTime()),
+      latest,
+    ),
+  0,
+)
 
 export type ScenarioReviewSpec = Readonly<{
   rating: 1 | 2 | 3 | 4 | 5
@@ -314,13 +321,9 @@ async function createGuestData(
   guestSpec: ScenarioGuestSpec,
 ): Promise<{ interactions: number; events: number }> {
   const overDays = guestSpec.overDays ?? 30
-  // Metric definitions are effective from a seeded date; a reading before it
-  // is quarantined (definition_version_not_effective), so the backdating floor
-  // is the newest effective_from rather than an arbitrary day count.
-  const versions = await ctx.db
-    .select({ effectiveFrom: metricDefinitionVersions.effectiveFrom })
-    .from(metricDefinitionVersions)
-  const floorAt = Math.max(0, ...versions.map((v) => v.effectiveFrom.getTime()))
+  // Readings pre-dating their code-reviewed version are rejected, so
+  // backdating starts no earlier than the newest catalogue effective date.
+  const floorAt = METRIC_EFFECTIVE_FLOOR_AT
   const common = {
     organizationId: unbrand(ctx.orgId),
     portalId: unbrand(pId),

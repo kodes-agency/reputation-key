@@ -173,18 +173,6 @@ async function seedFixture(): Promise<Fixture> {
     ],
   )
 
-  // Maintenance state the archive must never reach.
-  await lease.pool.query(
-    `INSERT INTO metric_quarantine (
-       source_event_id, organization_id, property_id, reason, payload_hash
-     ) VALUES ($1, $2, $3, 'never_export_quarantine_marker', $4)`,
-    [
-      `${fixture.sourceEventMarker}-quarantine`,
-      organizationId,
-      fixture.propertyId,
-      'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-    ],
-  )
 
   return fixture
 }
@@ -218,7 +206,6 @@ describe.sequential('Metric Organization Export contributor', () => {
     )
     for (const table of [
       'metric_readings',
-      'metric_quarantine',
       'metric_source_watermarks',
       'portal_metric_lifetime_aggregates',
       'metric_current_google_reputation_snapshots',

@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
-import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
+import {
+  METRIC_DEFINITION_IDS,
+  METRIC_VERSION_IDS,
+} from '#/contexts/metric/application/public-api'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import type {
   GoalMonthlyResult,
@@ -22,12 +25,7 @@ describe.sequential('Goal Program repository (integration)', () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL)
     organizationId = `goal-program-repo-${randomUUID()}`
     propertyId = randomUUID()
-    const metric = await lease.pool.query<{ definition_id: string }>(
-      `SELECT definition_id FROM metric_definition_versions WHERE id = $1`,
-      [METRIC_VERSION_IDS.portalRatingCountGoal],
-    )
-    metricDefinitionId = metric.rows[0]?.definition_id ?? ''
-    if (!metricDefinitionId) throw new Error('seeded Goal metric version is missing')
+    metricDefinitionId = METRIC_DEFINITION_IDS.portalRatingCount
     await lease.pool.query(
       `INSERT INTO properties
          (id, organization_id, name, slug, timezone)

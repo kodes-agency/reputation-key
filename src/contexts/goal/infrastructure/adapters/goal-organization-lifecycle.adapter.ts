@@ -230,9 +230,9 @@ async function purgeResultRevisionChain(tx: Tx, organization: string): Promise<v
  * GOAL_PURGE_TABLES, which is the FK topology: every table is removed before
  * the one it references.
  *
- * `metric_definition_versions`, `properties`, `portals` and `portal_groups`
- * belong to other contexts. This phase releases Goal's references; those
- * contexts remain responsible for their own rows.
+ * Metric's code-reviewed catalogue, `properties`, `portals` and
+ * `portal_groups` belong to other contexts. This phase releases Goal's
+ * references; those contexts remain responsible for their own rows.
  */
 const purge = async (
   tx: Tx,

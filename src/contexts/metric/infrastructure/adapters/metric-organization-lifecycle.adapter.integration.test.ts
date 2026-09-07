@@ -4,8 +4,7 @@
 // an operator relies on: Closing deletes nothing, readiness mutates nothing
 // and really does fail closed on LIF-01 bullet 11's ordering, and purge
 // removes this tenant's rows — including the tenant-identified anonymous
-// lifetime aggregate — while leaving the shared platform catalogue and every
-// other tenant byte-identical.
+// lifetime aggregate — while leaving every other tenant byte-identical.
 
 import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
@@ -154,20 +153,6 @@ async function seedTenantRows(prefix: string): Promise<Fixture> {
   )
 
   await lease.pool.query(
-    `INSERT INTO metric_quarantine (
-       id, source_event_id, organization_id, property_id, definition_version_id,
-       reason, payload_hash, event_at, quarantined_at
-     ) VALUES (gen_random_uuid(), $1, $2, $3::uuid, $4, 'unknown_source',
-               repeat('a', 64), $5, $5)`,
-    [
-      `quarantine-${randomUUID()}`,
-      organizationId,
-      fixture.propertyId,
-      RATING_COUNT_GOAL_VERSION,
-      REQUESTED_AT,
-    ],
-  )
-  await lease.pool.query(
     `INSERT INTO metric_source_watermarks (
        id, consumer_name, source_name, organization_id, property_id,
        definition_version_id, last_source_event_id, last_event_at, updated_at
@@ -232,7 +217,7 @@ async function advance(
   )
 }
 
-/** Exact per-table counts for the reviewed plan plus the retained catalogue. */
+/** Exact per-table counts for the reviewed tenant purge plan. */
 async function tableCounts(
   organizationId: string,
 ): Promise<Readonly<Record<string, number>>> {
@@ -249,14 +234,6 @@ async function tableCounts(
   return counts
 }
 
-async function catalogueCounts(): Promise<Readonly<Record<string, number>>> {
-  const counts: Record<string, number> = {}
-  for (const table of ['metric_definitions', 'metric_definition_versions']) {
-    const result = await lease.pool.query(`SELECT count(*)::int AS count FROM ${table}`)
-    counts[table] = (result.rows[0] as { count: number }).count
-  }
-  return counts
-}
 
 async function receipts(organizationId: string) {
   const result = await lease.pool.query(
@@ -417,7 +394,7 @@ describe.sequential('metric Organization lifecycle contributor', () => {
     expect(await tableCounts(fixture.organizationId)).toEqual(before)
   })
 
-  it('purge removes this tenant only, is idempotent, and keeps the platform catalogue', async () => {
+  it('purge removes this tenant only and is idempotent', async () => {
     const fixture = await seedTenantRows('metric-lifecycle-org')
     const bystander = await seedTenantRows('metric-lifecycle-bystander')
     await requestClosure(fixture)
@@ -425,7 +402,6 @@ describe.sequential('metric Organization lifecycle contributor', () => {
     await advance(fixture.organizationId, 'purge_pending', 'recovery_window_elapsed')
     await advance(fixture.organizationId, 'purging', 'irreversible_purge_authorized')
     const bystanderBefore = await tableCounts(bystander.organizationId)
-    const catalogueBefore = await catalogueCounts()
 
     const contributor = createMetricOrganizationLifecycleAdapter(db)
     const first = await contributor.purge(contribution(fixture, 4))
@@ -438,9 +414,8 @@ describe.sequential('metric Organization lifecycle contributor', () => {
     for (const table of METRIC_PURGE_TABLES) {
       expect({ table, count: after[table] }).toEqual({ table, count: 0 })
     }
-    // No tenant-cross deletion, and the shared catalogue is untouched.
+    // No tenant-cross deletion.
     expect(await tableCounts(bystander.organizationId)).toEqual(bystanderBefore)
-    expect(await catalogueCounts()).toEqual(catalogueBefore)
 
     const persisted = await receipts(fixture.organizationId)
     expect(persisted).toHaveLength(1)

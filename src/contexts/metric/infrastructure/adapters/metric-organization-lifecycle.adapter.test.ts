@@ -3,8 +3,8 @@
 // The shared store already proves authority binding and receipt replay, so
 // this file proves only what Metric itself decides: that Closing never
 // mutates, that readiness never mutates, that purge deletes exactly the
-// reviewed tenant-scoped tables and never the platform catalogue, and that
-// every receipt is content-free and deterministic.
+// reviewed tenant-scoped tables, and that every receipt is content-free and
+// deterministic.
 
 import { describe, expect, it } from 'vitest'
 import { validateContentFreeEvidenceRef } from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
@@ -12,7 +12,6 @@ import type { Tx } from '#/shared/outbox/commit'
 import {
   METRIC_ORGANIZATION_LIFECYCLE_PHASES,
   METRIC_PURGE_TABLES,
-  METRIC_RETAINED_TABLES,
 } from './metric-organization-lifecycle.adapter'
 
 const ORGANIZATION_ID = 'org-metric-lifecycle-1'
@@ -137,19 +136,6 @@ describe('metric organization lifecycle phases', () => {
     expect([...targets].sort()).toEqual([...METRIC_PURGE_TABLES].sort())
   })
 
-  it('purge never touches the shared platform catalogue and never drops a table', async () => {
-    const { tx, statements } = createFakeTx(12)
-    await METRIC_ORGANIZATION_LIFECYCLE_PHASES.purge(tx, REQUEST)
-
-    for (const retained of METRIC_RETAINED_TABLES) {
-      for (const statement of writes(statements)) {
-        expect(statement.text).not.toContain(retained)
-      }
-    }
-    expect(
-      statements.some((statement) => /\bDROP\b|\bTRUNCATE\b/i.test(statement.text)),
-    ).toBe(false)
-  })
 
   it('purge drains the correction supersession chain tip-first, then stops', async () => {
     const { tx, statements } = createFakeTx(12, 3)
