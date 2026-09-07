@@ -101,7 +101,7 @@ Rules, enforced by the gates themselves:
    (dates are set ≤ ~3 months out), and the full exception set is re-audited
    during BQC-8 release-candidate promotion.
 
-### Current exceptions (2026-09-04)
+### Current exceptions (2026-09-07)
 
 - Dependency audit: **none** (empty file). Prod tree: 0 high/critical
   (1 moderate + 2 low, esbuild dev-server issues via `better-auth →
@@ -115,20 +115,15 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   source-map uploader), and `@img/sharp-libvips-*` (LGPL-3.0-or-later,
   dev-only sharp binaries). Each carries owner/reason/expiry in
   `security/license-policy.json`.
-- Grype: 24 wont-fix/not-fixed Debian CVE entries + 2 Go-stdlib package
-  entries in `.grype.yaml` (each with owner/reason/expiry). The fixable
-  classes were fixed instead of excepted: base image bumped to the newest
-  node:22-slim build (2026-07-29) and the npm CLI stripped from every runtime
-  that does not execute package management (cleared all 6 npm-bundled findings incl. Critical `tar`
-  GHSA-23hp-3jrh-7fpw — 57 → 51 high/critical per image).
-  The 2026-09-04 vulnerability DB (v6.1.9) added five HIGH base-image
-  findings — four util-linux mount-helper escalations and one system-zlib
-  `gz_vacate()` overflow — with no patched bookworm package and identical
-  versions in the newest node:22-slim build. Their reachable surface was
-  removed rather than excepted: every production runtime stage now drops all
-  setuid/setgid bits, and the runtime `node` is built `shared_zlib: false`
-  and links no libz. The five CVE ids carry owner/reason/expiry
-  (expiresAt 2026-12-04).
+- Grype: **none** (`.grype.yaml` is an empty `ignore:` list). Every earlier
+  entry was a Debian 12 bookworm package Debian had marked wont-fix; the base
+  moved to `node:22.23.2-trixie-slim` (Debian 13) on 2026-09-07 and they fell
+  away with the distro. The fixable classes had already been fixed instead of
+  excepted: the npm CLI is stripped from every runtime that does not execute
+  package management, every production runtime stage drops all setuid/setgid
+  bits, and the runtime `node` is built `shared_zlib: false` and links no
+  libz. A new entry needs the finding named (package, CVE, grype's identity
+  line) plus owner/reason/expiry.
 
 ## Per-gate notes
 
@@ -146,7 +141,7 @@ Convention since BQC-7.1, now **enforced** by `check:action-pins`: every
 `uses:` is `owner/repo@<40-hex-SHA> # vX.Y.Z`; every workflow `image:`
 (service containers: postgres, redis) is digest-pinned with a tag comment;
 the gitleaks invocation pins `zricethezav/gitleaks:vX@sha256:…`. The Docker
-base images (`node:22-slim@sha256:…`) are digest-pinned in the Dockerfiles.
+base images (`node:22.23.2-trixie-slim@sha256:…`) are digest-pinned in the Dockerfiles.
 `uses:` under a step's `with:` (e.g. the locally-built `repkey-web:ci` handed
 to the SBOM/scan actions) is not a registry reference and is out of scope —
 the actions consuming them are themselves SHA-pinned.

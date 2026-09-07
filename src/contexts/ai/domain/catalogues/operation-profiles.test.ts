@@ -77,7 +77,7 @@ describe('PR5 immutable AI execution catalogues', () => {
         endpoint: 'https://api.openai.com/v1/responses',
         runtime: {
           nodeImage:
-            'node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5',
+            'node:22.23.2-trixie-slim@sha256:7b8a0c89c54499bee567618f96578e1a12a800f062fbdbfd1fb6a443fa6f6284',
           nodeVersion: '22.23.2',
           icuVersion: '78.2',
           unicodeVersion: '17.0',
