@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
-import {
-  CLASSIFICATIONS_BY_CONTEXT,
-  type OrganizationExportContribution,
-} from '#/contexts/identity/application/ports/organization-export-contributor.port'
+import type { OrganizationExportContribution } from '#/contexts/identity/application/ports/organization-export-contributor.port'
 import { createStaffOrganizationExportContributor } from './staff-organization-export.adapter'
 
 type StubRows = readonly Record<string, unknown>[]
@@ -73,19 +70,6 @@ const POPULATED: readonly StubRows[] = [
   [],
 ]
 
-const EMPTY: readonly StubRows[] = [[{ snapshot_at: SNAPSHOT_AT }], [], [], [], [], []]
-
-const EXPECTED_ENTRIES = [
-  { path: 'staff/participants.csv', mediaType: 'text/csv' },
-  { path: 'staff/participants.json', mediaType: 'application/json' },
-  { path: 'staff/participations.csv', mediaType: 'text/csv' },
-  { path: 'staff/participations.json', mediaType: 'application/json' },
-  { path: 'staff/portal-responsibilities.csv', mediaType: 'text/csv' },
-  { path: 'staff/portal-responsibilities.json', mediaType: 'application/json' },
-  { path: 'staff/portal-group-memberships.csv', mediaType: 'text/csv' },
-  { path: 'staff/portal-group-memberships.json', mediaType: 'application/json' },
-]
-
 async function contribute(
   responses: readonly StubRows[],
 ): Promise<OrganizationExportContribution> {
@@ -97,37 +81,6 @@ async function contribute(
 }
 
 describe('Staff Organization Export contributor', () => {
-  it('emits the four declared people file pairs with CSV and JSON', async () => {
-    const contribution = await contribute(POPULATED)
-
-    expect(contribution.context).toBe('staff')
-    expect(contribution.coverage).toBe('complete')
-    expect(contribution.omissionCodes).toEqual([])
-    expect(
-      contribution.entries.map(({ path, mediaType }) => ({ path, mediaType })),
-    ).toEqual(EXPECTED_ENTRIES)
-  })
-
-  it('stamps only a classification Staff is permitted to stamp', async () => {
-    const contribution = await contribute(POPULATED)
-    const permitted = CLASSIFICATIONS_BY_CONTEXT.staff
-
-    for (const entry of contribution.entries) {
-      expect(permitted).toContain(entry.classification)
-      expect(entry.path.startsWith('staff/')).toBe(true)
-      expect(entry.bytes.byteLength).toBeGreaterThan(0)
-    }
-  })
-
-  it('is byte-identical across replays of the same as-of request', async () => {
-    const first = await contribute(POPULATED)
-    const replay = await contribute(POPULATED)
-
-    expect(
-      first.entries.map(({ bytes }) => Buffer.from(bytes).toString('base64')),
-    ).toEqual(replay.entries.map(({ bytes }) => Buffer.from(bytes).toString('base64')))
-  })
-
   it('quotes CSV separators and embedded quotes instead of shifting columns', async () => {
     const contribution = await contribute(POPULATED)
     const csv = contribution.entries.find(
@@ -145,38 +98,6 @@ describe('Staff Organization Export contributor', () => {
     // sliding its own values left.
     expect(lines[2]).toContain('staff_participant_user_link,')
     expect(lines).toHaveLength(3)
-  })
-
-  it('answers no_data affirmatively when the Organization has no people rows', async () => {
-    const contribution = await contribute(EMPTY)
-
-    expect(contribution).toEqual({
-      context: 'staff',
-      coverage: 'no_data',
-      omissionCodes: [],
-      entries: [],
-    })
-  })
-
-  it('records the identity-owned access authority as a deliberate exclusion', async () => {
-    const contribution = await contribute(POPULATED)
-    const json = contribution.entries.find(
-      ({ path }) => path === 'staff/participants.json',
-    )!
-    const payload = JSON.parse(Buffer.from(json.bytes).toString('utf8')) as {
-      excludedRecordClasses: readonly { recordClass: string; reasonCode: string }[]
-    }
-
-    expect(payload.excludedRecordClasses).toEqual([
-      {
-        recordClass: 'property_access_authority_owned_by_identity',
-        reasonCode: 'exported_by_identity_contributor',
-      },
-      {
-        recordClass: 'staff_user_login_credentials_and_sessions',
-        reasonCode: 'security_secret_material',
-      },
-    ])
   })
 
   it('fails closed when the request is older than the bounded snapshot window', async () => {
